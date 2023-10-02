@@ -533,16 +533,4 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
 
         assertThrows(RuntimeException.class, translogTransferManager::readMetadata);
     }
-
-    public void testMetadataNoConflict() throws InterruptedException {
-        TranslogTransferMetadata tm = new TranslogTransferMetadata(1, 1, 1, 2, "node-1");
-        String mdFilename = tm.getFileName();
-        Thread.sleep(1);
-        TranslogTransferMetadata tm2 = new TranslogTransferMetadata(1, 1, 1, 2, "node-1");
-        String mdFilename2 = tm2.getFileName();
-        List<BlobMetadata> bmList = new LinkedList<>();
-        bmList.add(new PlainBlobMetadata(mdFilename, 1));
-        bmList.add(new PlainBlobMetadata(mdFilename2, 1));
-        TranslogTransferManager.verifyNoMultipleWriters(bmList);
-    }
 }

@@ -342,8 +342,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     private final List<ReferenceManager.RefreshListener> internalRefreshListener = new ArrayList<>();
 
-    private final String nodeId;
-
     public IndexShard(
         final ShardRouting shardRouting,
         final IndexSettings indexSettings,
@@ -466,7 +464,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             ? false
             : mapperService.documentMapper().mappers().containsTimeStampField();
         this.remoteStoreStatsTrackerFactory = remoteStoreStatsTrackerFactory;
-        this.nodeId = nodeId;
     }
 
     public ThreadPool getThreadPool() {
@@ -561,7 +558,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     public String getNodeId() {
-        return nodeId;
+        return translogConfig.getNodeId();
     }
 
     @Override

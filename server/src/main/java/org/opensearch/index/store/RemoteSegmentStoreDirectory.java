@@ -45,7 +45,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -193,7 +192,7 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
             METADATA_FILES_TO_FETCH
         );
 
-        verifyNoMultipleWriters(metadataFiles);
+        RemoteStoreUtils.verifyNoMultipleWriters(metadataFiles, MetadataFilenameUtils::getNodeIdByPrimaryTermAndGen);
 
         if (metadataFiles.isEmpty() == false) {
             String latestMetadataFile = metadataFiles.get(0);
@@ -211,21 +210,6 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
             byte[] metadataBytes = inputStream.readAllBytes();
             return metadataStreamWrapper.readStream(new ByteArrayIndexInput(metadataFilename, metadataBytes));
         }
-    }
-
-    // Visible for testing
-    public static void verifyNoMultipleWriters(List<String> mdFiles) {
-        Map<String, List<String>> nodesByPrimaryTermAndGen = new HashMap<>();
-        mdFiles.forEach(mdFile -> {
-            Tuple<String, String> nodeIdByPrimaryTermAndGen = MetadataFilenameUtils.getNodeIdByPrimaryTermAndGen(mdFile);
-            if (nodeIdByPrimaryTermAndGen != null) {
-                nodesByPrimaryTermAndGen.computeIfAbsent(nodeIdByPrimaryTermAndGen.v1(), k -> new ArrayList<>());
-                nodesByPrimaryTermAndGen.get(nodeIdByPrimaryTermAndGen.v1()).add(nodeIdByPrimaryTermAndGen.v2());
-                if (nodesByPrimaryTermAndGen.get(nodeIdByPrimaryTermAndGen.v1()).size() > 1) {
-                    throw new IllegalStateException("Multiple metadata files having same primary term and generations detected");
-                }
-            }
-        });
     }
 
     /**
@@ -326,7 +310,7 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
         }
 
         // Visible for testing
-        static String getMetadataFilename(
+        public static String getMetadataFilename(
             long primaryTerm,
             long generation,
             long translogGeneration,
@@ -637,6 +621,7 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
      * @param storeDirectory instance of local directory to temporarily create metadata file before upload
      * @param translogGeneration translog generation
      * @param replicationCheckpoint ReplicationCheckpoint of primary shard
+     * @param nodeId node id
      * @throws IOException in case of I/O error while uploading the metadata file
      */
     public void uploadMetadata(
@@ -782,7 +767,6 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
             MetadataFilenameUtils.METADATA_PREFIX,
             Integer.MAX_VALUE
         );
-        verifyNoMultipleWriters(sortedMetadataFileList);
         if (sortedMetadataFileList.size() <= lastNMetadataFilesToKeep) {
             logger.debug(
                 "Number of commits in remote segment store={}, lastNMetadataFilesToKeep={}",

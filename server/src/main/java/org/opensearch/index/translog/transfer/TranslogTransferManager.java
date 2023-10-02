@@ -17,7 +17,6 @@ import org.opensearch.common.SetOnce;
 import org.opensearch.common.blobstore.BlobMetadata;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.blobstore.stream.write.WritePriority;
-import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.io.VersionedCodecStreamWrapper;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.logging.Loggers;
@@ -25,6 +24,7 @@ import org.opensearch.common.lucene.store.ByteArrayIndexInput;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.index.remote.RemoteStoreUtils;
 import org.opensearch.index.remote.RemoteTranslogTransferTracker;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.index.translog.transfer.listener.TranslogTransferListener;
@@ -271,22 +271,6 @@ public class TranslogTransferManager {
         fileTransferTracker.add(fileName, true);
     }
 
-    static public void verifyNoMultipleWriters(List<BlobMetadata> mdFiles) {
-        mdFiles.forEach(blobMetadata -> {
-            Map<String, List<String>> nodesByPrimaryTermAndGen = new HashMap<>();
-            Tuple<String, String> nodeIdByPrimaryTermAndGen = TranslogTransferMetadata.getNodeIdByPrimaryTermAndGen(
-                blobMetadata.toString()
-            );
-            if (nodeIdByPrimaryTermAndGen != null) {
-                nodesByPrimaryTermAndGen.computeIfAbsent(nodeIdByPrimaryTermAndGen.v1(), k -> new ArrayList<>());
-                nodesByPrimaryTermAndGen.get(nodeIdByPrimaryTermAndGen.v1()).add(nodeIdByPrimaryTermAndGen.v2());
-                if (nodesByPrimaryTermAndGen.get(nodeIdByPrimaryTermAndGen.v1()).size() > 1) {
-                    throw new IllegalStateException("Multiple metadata files having same primary term and generations detected");
-                }
-            }
-        });
-    }
-
     public TranslogTransferMetadata readMetadata() throws IOException {
         SetOnce<TranslogTransferMetadata> metadataSetOnce = new SetOnce<>();
         SetOnce<IOException> exceptionSetOnce = new SetOnce<>();
@@ -294,7 +278,10 @@ public class TranslogTransferManager {
         LatchedActionListener<List<BlobMetadata>> latchedActionListener = new LatchedActionListener<>(
             ActionListener.wrap(blobMetadataList -> {
                 if (blobMetadataList.isEmpty()) return;
-                verifyNoMultipleWriters(blobMetadataList);
+                RemoteStoreUtils.verifyNoMultipleWriters(
+                    blobMetadataList.stream().map(BlobMetadata::name).collect(Collectors.toList()),
+                    TranslogTransferMetadata::getNodeIdByPrimaryTermAndGen
+                );
                 String filename = blobMetadataList.get(0).name();
                 boolean downloadStatus = false;
                 long downloadStartTime = System.nanoTime(), bytesToRead = 0;

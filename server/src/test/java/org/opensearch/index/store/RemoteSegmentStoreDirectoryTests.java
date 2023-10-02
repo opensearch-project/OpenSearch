@@ -22,6 +22,9 @@ import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.OutputStreamIndexOutput;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.util.Version;
+import org.junit.After;
+import org.junit.Before;
+import org.mockito.Mockito;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.blobstore.AsyncMultiStreamBlobContainer;
@@ -43,8 +46,6 @@ import org.opensearch.index.store.remote.metadata.RemoteSegmentMetadata;
 import org.opensearch.index.store.remote.metadata.RemoteSegmentMetadataHandler;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.threadpool.ThreadPool;
-import org.junit.After;
-import org.junit.Before;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -60,11 +61,6 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 
-import org.mockito.Mockito;
-
-import static org.opensearch.index.store.RemoteSegmentStoreDirectory.METADATA_FILES_TO_FETCH;
-import static org.opensearch.test.RemoteStoreTestUtils.createMetadataFileBytes;
-import static org.opensearch.test.RemoteStoreTestUtils.getDummyMetadata;
 import static org.hamcrest.CoreMatchers.is;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.contains;
@@ -78,6 +74,9 @@ import static org.mockito.Mockito.startsWith;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.opensearch.index.store.RemoteSegmentStoreDirectory.METADATA_FILES_TO_FETCH;
+import static org.opensearch.test.RemoteStoreTestUtils.createMetadataFileBytes;
+import static org.opensearch.test.RemoteStoreTestUtils.getDummyMetadata;
 
 public class RemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
     private static final Logger logger = LogManager.getLogger(RemoteSegmentStoreDirectoryTests.class);
@@ -231,6 +230,13 @@ public class RemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
             .getSegmentsUploadedToRemoteStore();
 
         assertEquals(Set.of(), actualCache.keySet());
+    }
+
+    public void testInitMultipleMetadataFile() throws IOException {
+        when(remoteMetadataDirectory.listFilesByPrefixInLexicographicOrder(RemoteSegmentStoreDirectory.MetadataFilenameUtils.METADATA_PREFIX, METADATA_FILES_TO_FETCH)).thenReturn(
+            List.of(metadataFilename, metadataFilenameDup)
+        );
+        assertThrows(IllegalStateException.class, () -> remoteSegmentStoreDirectory.init());
     }
 
     private Map<String, Map<String, String>> populateMetadata() throws IOException {
@@ -1139,20 +1145,6 @@ public class RemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
           After taking appropriate action, fix this test by setting the correct version here
          */
         assertEquals(RemoteSegmentMetadata.CURRENT_VERSION, 1);
-    }
-
-    public void testVerifyMultipleWriters() {
-        List<String> mdFiles = new ArrayList<>();
-        mdFiles.add(metadataFilename);
-        mdFiles.add(metadataFilename2);
-        RemoteSegmentStoreDirectory.verifyNoMultipleWriters(mdFiles);
-
-        mdFiles.add(metadataFilenameDup);
-        assertThrows(IllegalStateException.class, () -> RemoteSegmentStoreDirectory.verifyNoMultipleWriters(mdFiles));
-    }
-
-    public void testVerifyOld() {
-
     }
 
     private void indexDocs(int startDocId, int numberOfDocs) throws IOException {
