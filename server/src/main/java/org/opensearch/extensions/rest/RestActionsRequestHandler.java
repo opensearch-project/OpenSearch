@@ -58,6 +58,9 @@ public class RestActionsRequestHandler {
         DynamicActionRegistry dynamicActionRegistry
     ) throws Exception {
         DiscoveryExtensionNode discoveryExtensionNode = extensionIdMap.get(restActionsRequest.getUniqueId());
+        if (discoveryExtensionNode == null) {
+            throw new IllegalStateException("Missing extension node for " + restActionsRequest.getUniqueId());
+        }
         RestHandler handler = new RestSendToExtensionAction(
             restActionsRequest,
             discoveryExtensionNode,
