@@ -50,7 +50,7 @@ import org.opensearch.telemetry.tracing.Span;
 import org.opensearch.telemetry.tracing.SpanBuilder;
 import org.opensearch.telemetry.tracing.SpanScope;
 import org.opensearch.telemetry.tracing.Tracer;
-import org.opensearch.telemetry.tracing.channels.TraceableTcpChannel;
+import org.opensearch.telemetry.tracing.channels.TraceableTransportChannel;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.io.EOFException;
@@ -193,7 +193,6 @@ public class InboundHandler {
         final long requestId = header.getRequestId();
         final Version version = header.getVersion();
         Span span = tracer.startSpan(SpanBuilder.from(action, channel));
-        channel = TraceableTcpChannel.create(channel, span, tracer);
         try (SpanScope spanScope = tracer.withSpanInScope(span)) {
             if (header.isHandshake()) {
                 messageListener.onRequestReceived(requestId, action);
@@ -212,11 +211,12 @@ public class InboundHandler {
                     header.isHandshake(),
                     message.takeBreakerReleaseControl()
                 );
+                TransportChannel traceableTransportChannel = TraceableTransportChannel.create(transportChannel, span, tracer, channel);
                 try {
-                    handshaker.handleHandshake(transportChannel, requestId, stream);
+                    handshaker.handleHandshake(traceableTransportChannel, requestId, stream);
                 } catch (Exception e) {
                     if (Version.CURRENT.isCompatible(header.getVersion())) {
-                        sendErrorResponse(action, transportChannel, e);
+                        sendErrorResponse(action, traceableTransportChannel, e);
                     } else {
                         logger.warn(
                             new ParameterizedMessage(
@@ -241,10 +241,11 @@ public class InboundHandler {
                     header.isHandshake(),
                     message.takeBreakerReleaseControl()
                 );
+                TransportChannel traceableTransportChannel = TraceableTransportChannel.create(transportChannel, span, tracer, channel);
                 try {
                     messageListener.onRequestReceived(requestId, action);
                     if (message.isShortCircuit()) {
-                        sendErrorResponse(action, transportChannel, message.getException());
+                        sendErrorResponse(action, traceableTransportChannel, message.getException());
                     } else {
                         final StreamInput stream = namedWriteableStream(message.openOrGetStreamInput());
                         assertRemoteVersion(stream, header.getVersion());
@@ -258,16 +259,16 @@ public class InboundHandler {
                         final String executor = reg.getExecutor();
                         if (ThreadPool.Names.SAME.equals(executor)) {
                             try {
-                                reg.processMessageReceived(request, transportChannel);
+                                reg.processMessageReceived(request, traceableTransportChannel);
                             } catch (Exception e) {
-                                sendErrorResponse(reg.getAction(), transportChannel, e);
+                                sendErrorResponse(reg.getAction(), traceableTransportChannel, e);
                             }
                         } else {
-                            threadPool.executor(executor).execute(new RequestHandler<>(reg, request, transportChannel));
+                            threadPool.executor(executor).execute(new RequestHandler<>(reg, request, traceableTransportChannel));
                         }
                     }
                 } catch (Exception e) {
-                    sendErrorResponse(action, transportChannel, e);
+                    sendErrorResponse(action, traceableTransportChannel, e);
                 }
             }
         }
