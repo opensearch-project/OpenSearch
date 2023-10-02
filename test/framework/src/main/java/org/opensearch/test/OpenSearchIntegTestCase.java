@@ -135,9 +135,9 @@ import org.opensearch.env.TestEnvironment;
 import org.opensearch.http.HttpInfo;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexSettings;
-import org.opensearch.index.MergePolicyConfig;
 import org.opensearch.index.MergeSchedulerConfig;
 import org.opensearch.index.MockEngineFactoryPlugin;
+import org.opensearch.index.TieredMergePolicyProvider;
 import org.opensearch.index.codec.CodecService;
 import org.opensearch.index.engine.Segment;
 import org.opensearch.index.mapper.CompletionFieldMapper;
@@ -508,7 +508,7 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
     private static Settings.Builder setRandomIndexMergeSettings(Random random, Settings.Builder builder) {
         if (random.nextBoolean()) {
             builder.put(
-                MergePolicyConfig.INDEX_COMPOUND_FORMAT_SETTING.getKey(),
+                TieredMergePolicyProvider.INDEX_COMPOUND_FORMAT_SETTING.getKey(),
                 (random.nextBoolean() ? random.nextDouble() : random.nextBoolean()).toString()
             );
         }
