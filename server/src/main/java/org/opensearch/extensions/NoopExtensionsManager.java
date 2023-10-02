@@ -45,7 +45,6 @@ public class NoopExtensionsManager extends ExtensionsManager {
         NodeClient client,
         IdentityService identityService
     ) {
-        this.setIdentityService(new IdentityService(Settings.EMPTY, List.of()));
         // no-op
     }
 
