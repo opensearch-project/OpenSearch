@@ -8,11 +8,15 @@
 
 package org.opensearch.telemetry.metrics;
 
+import org.opensearch.common.annotation.ExperimentalApi;
+
 import java.io.Closeable;
 
 /**
  * MetricsRegistry helps in creating the metric instruments.
+ * @opensearch.experimental
  */
+@ExperimentalApi
 public interface MetricsRegistry extends Closeable {
 
     /**

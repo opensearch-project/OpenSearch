@@ -8,6 +8,8 @@
 
 package org.opensearch.telemetry;
 
+import org.opensearch.telemetry.metrics.tags.Tags;
+
 import java.util.Locale;
 
 import io.opentelemetry.api.common.Attributes;
@@ -48,5 +50,18 @@ public final class OTelAttributesConverter {
         } else {
             throw new IllegalArgumentException(String.format(Locale.ROOT, "Span attribute value %s type not supported", value));
         }
+    }
+
+    /**
+     * Attribute converter.
+     * @param tags attributes
+     * @return otel attributes.
+     */
+    public static Attributes convert(Tags tags) {
+        AttributesBuilder attributesBuilder = Attributes.builder();
+        if (tags != null) {
+            tags.getTagsMap().forEach((x, y) -> addSpanAttribute(x, y, attributesBuilder));
+        }
+        return attributesBuilder.build();
     }
 }

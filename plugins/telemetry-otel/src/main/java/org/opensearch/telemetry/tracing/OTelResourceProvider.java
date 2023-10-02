@@ -10,6 +10,7 @@ package org.opensearch.telemetry.tracing;
 
 import org.opensearch.common.settings.Settings;
 import org.opensearch.telemetry.TelemetrySettings;
+import org.opensearch.telemetry.metrics.exporter.OTelMetricsExporterFactory;
 import org.opensearch.telemetry.tracing.exporter.OTelSpanExporterFactory;
 import org.opensearch.telemetry.tracing.sampler.ProbabilisticSampler;
 import org.opensearch.telemetry.tracing.sampler.RequestSampler;
@@ -22,10 +23,8 @@ import io.opentelemetry.api.OpenTelemetry;
 import io.opentelemetry.api.common.Attributes;
 import io.opentelemetry.api.trace.propagation.W3CTraceContextPropagator;
 import io.opentelemetry.context.propagation.ContextPropagators;
-import io.opentelemetry.exporter.logging.LoggingMetricExporter;
 import io.opentelemetry.sdk.OpenTelemetrySdk;
 import io.opentelemetry.sdk.metrics.SdkMeterProvider;
-import io.opentelemetry.sdk.metrics.data.AggregationTemporality;
 import io.opentelemetry.sdk.metrics.export.PeriodicMetricReader;
 import io.opentelemetry.sdk.resources.Resource;
 import io.opentelemetry.sdk.trace.SdkTracerProvider;
@@ -34,7 +33,6 @@ import io.opentelemetry.sdk.trace.export.SpanExporter;
 import io.opentelemetry.sdk.trace.samplers.Sampler;
 import io.opentelemetry.semconv.resource.attributes.ResourceAttributes;
 
-import static org.opensearch.telemetry.OTelTelemetrySettings.METRICS_PUBLISH_INTERVAL_SETTING;
 import static org.opensearch.telemetry.OTelTelemetrySettings.TRACER_EXPORTER_BATCH_SIZE_SETTING;
 import static org.opensearch.telemetry.OTelTelemetrySettings.TRACER_EXPORTER_DELAY_SETTING;
 import static org.opensearch.telemetry.OTelTelemetrySettings.TRACER_EXPORTER_MAX_QUEUE_SIZE_SETTING;
@@ -85,8 +83,8 @@ public final class OTelResourceProvider {
         return SdkMeterProvider.builder()
             .setResource(resource)
             .registerMetricReader(
-                PeriodicMetricReader.builder(LoggingMetricExporter.create(AggregationTemporality.DELTA))
-                    .setInterval(METRICS_PUBLISH_INTERVAL_SETTING.get(settings).getSeconds(), TimeUnit.SECONDS)
+                PeriodicMetricReader.builder(OTelMetricsExporterFactory.create(settings))
+                    .setInterval(TelemetrySettings.METRICS_PUBLISH_INTERVAL_SETTING.get(settings).getSeconds(), TimeUnit.SECONDS)
                     .build()
             )
             .build();

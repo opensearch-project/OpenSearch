@@ -15,6 +15,7 @@ import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.telemetry.TelemetrySettings;
 import org.opensearch.telemetry.metrics.Counter;
 import org.opensearch.telemetry.metrics.WrappedCounter;
+import org.opensearch.telemetry.metrics.tags.Tags;
 import org.opensearch.telemetry.tracing.attributes.Attributes;
 import org.opensearch.test.OpenSearchTestCase;
 
@@ -37,9 +38,9 @@ public class WrappedCounterTests extends OpenSearchTestCase {
         wrappedCounter.add(1.0);
         verify(mockCounter, never()).add(1.0);
 
-        Attributes attributes = Attributes.create().addAttribute("test", "test");
-        wrappedCounter.add(1.0, attributes);
-        verify(mockCounter, never()).add(1.0, attributes);
+        Tags tags = Tags.create().addTag("test", "test");
+        wrappedCounter.add(1.0, tags);
+        verify(mockCounter, never()).add(1.0, tags);
 
     }
 
@@ -52,9 +53,9 @@ public class WrappedCounterTests extends OpenSearchTestCase {
         wrappedCounter.add(1.0);
         verify(mockCounter).add(1.0);
 
-        Attributes attributes = Attributes.create().addAttribute("test", "test");
-        wrappedCounter.add(1.0, attributes);
-        verify(mockCounter).add(1.0, attributes);
+        Tags tags = Tags.create().addTag("test", "test");
+        wrappedCounter.add(1.0, tags);
+        verify(mockCounter).add(1.0, tags);
     }
 
     private Set<Setting<?>> getClusterSettings() {

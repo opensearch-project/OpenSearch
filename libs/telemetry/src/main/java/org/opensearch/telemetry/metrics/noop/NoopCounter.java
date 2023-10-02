@@ -9,7 +9,7 @@
 package org.opensearch.telemetry.metrics.noop;
 
 import org.opensearch.telemetry.metrics.Counter;
-import org.opensearch.telemetry.tracing.attributes.Attributes;
+import org.opensearch.telemetry.metrics.tags.Tags;
 
 /**
  * No-op {@link Counter}
@@ -29,7 +29,7 @@ public class NoopCounter implements Counter {
     }
 
     @Override
-    public void add(double value, Attributes attributes) {
+    public void add(double value, Tags tags) {
 
     }
 }

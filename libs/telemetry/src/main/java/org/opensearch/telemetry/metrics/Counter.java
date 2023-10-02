@@ -8,7 +8,7 @@
 
 package org.opensearch.telemetry.metrics;
 
-import org.opensearch.telemetry.tracing.attributes.Attributes;
+import org.opensearch.telemetry.metrics.tags.Tags;
 
 /**
  * Counter adds the value to the existing metric.
@@ -23,9 +23,10 @@ public interface Counter {
 
     /**
      * add value along with the attributes.
+     *
      * @param value value to be added.
-     * @param attributes attributes/dimensions of the metric.
+     * @param tags  attributes/dimensions of the metric.
      */
-    void add(double value, Attributes attributes);
+    void add(double value, Tags tags);
 
 }

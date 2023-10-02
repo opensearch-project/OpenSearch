@@ -9,7 +9,7 @@
 package org.opensearch.telemetry.metrics;
 
 import org.opensearch.telemetry.OTelAttributesConverter;
-import org.opensearch.telemetry.tracing.attributes.Attributes;
+import org.opensearch.telemetry.metrics.tags.Tags;
 
 import io.opentelemetry.api.metrics.DoubleCounter;
 
@@ -34,7 +34,7 @@ public class OTelCounter implements Counter {
     }
 
     @Override
-    public void add(double value, Attributes attributes) {
-        otelDoubleCounter.add(value, OTelAttributesConverter.convert(attributes));
+    public void add(double value, Tags tags) {
+        otelDoubleCounter.add(value, OTelAttributesConverter.convert(tags));
     }
 }

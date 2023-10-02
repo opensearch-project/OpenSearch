@@ -8,13 +8,12 @@
 
 package org.opensearch.telemetry.metrics;
 
-import java.io.Closeable;
 import java.io.IOException;
 
 /**
  * Default implementation for {@link MetricsRegistry}
  */
-public class DefaultMetricsRegistry implements MetricsRegistry {
+class DefaultMetricsRegistry implements MetricsRegistry {
     private final MetricsTelemetry metricsTelemetry;
 
     /**
@@ -37,6 +36,6 @@ public class DefaultMetricsRegistry implements MetricsRegistry {
 
     @Override
     public void close() throws IOException {
-        ((Closeable) metricsTelemetry).close();
+        metricsTelemetry.close();
     }
 }

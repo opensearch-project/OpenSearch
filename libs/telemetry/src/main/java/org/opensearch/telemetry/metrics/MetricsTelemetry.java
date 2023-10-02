@@ -18,23 +18,4 @@ import java.io.Closeable;
  * @opensearch.experimental
  */
 @ExperimentalApi
-public interface MetricsTelemetry extends Closeable {
-
-    /**
-     * Creates the counter.
-     * @param name name of the counter.
-     * @param description any description about the metric.
-     * @param unit unit of the metric.
-     * @return counter
-     */
-    Counter createCounter(String name, String description, String unit);
-
-    /**
-     * Creates the upDown counter.
-     * @param name name of the upDown counter.
-     * @param description any description about the metric.
-     * @param unit unit of the metric.
-     * @return upDownCounter.
-     */
-    Counter createUpDownCounter(String name, String description, String unit);
-}
+public interface MetricsTelemetry extends MetricsRegistry, Closeable {}

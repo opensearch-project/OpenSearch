@@ -10,7 +10,7 @@ package org.opensearch.telemetry.metrics;
 
 import org.opensearch.common.annotation.InternalApi;
 import org.opensearch.telemetry.TelemetrySettings;
-import org.opensearch.telemetry.tracing.attributes.Attributes;
+import org.opensearch.telemetry.metrics.tags.Tags;
 
 /**
  * Wrapper implementation of {@link Counter}. This delegates call to right {@link Counter} based on the settings
@@ -39,9 +39,9 @@ public class WrappedCounter implements Counter {
     }
 
     @Override
-    public void add(double value, Attributes attributes) {
+    public void add(double value, Tags tags) {
         if (isMetricsEnabled()) {
-            delegate.add(value, attributes);
+            delegate.add(value, tags);
         }
     }
 
