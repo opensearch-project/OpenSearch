@@ -32,14 +32,6 @@
 
 package org.opensearch.plugins;
 
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.NoSuchFileException;
-import java.nio.file.Path;
-import java.util.Arrays;
-import java.util.Map;
-import java.util.stream.Collectors;
-
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
@@ -51,6 +43,14 @@ import org.opensearch.env.Environment;
 import org.opensearch.env.TestEnvironment;
 import org.opensearch.test.OpenSearchTestCase;
 import org.junit.Before;
+
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.NoSuchFileException;
+import java.nio.file.Path;
+import java.util.Arrays;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 @LuceneTestCase.SuppressFileSystems("*")
 public class ListPluginsCommandTests extends OpenSearchTestCase {

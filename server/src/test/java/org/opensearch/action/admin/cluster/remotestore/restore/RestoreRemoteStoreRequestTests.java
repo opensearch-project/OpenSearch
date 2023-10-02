@@ -8,21 +8,21 @@
 
 package org.opensearch.action.admin.cluster.remotestore.restore;
 
+import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
+import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.test.AbstractWireSerializingTestCase;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.ArrayList;
-import java.util.Map;
 import java.util.Collections;
+import java.util.List;
+import java.util.Map;
 
 public class RestoreRemoteStoreRequestTests extends AbstractWireSerializingTestCase<RestoreRemoteStoreRequest> {
     private RestoreRemoteStoreRequest randomState(RestoreRemoteStoreRequest instance) {

@@ -33,8 +33,8 @@
 package org.opensearch.core.xcontent;
 
 import org.opensearch.core.common.ParsingException;
-import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.Strings;
+import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.xcontent.XContentParser.Token;
 
 import java.io.IOException;

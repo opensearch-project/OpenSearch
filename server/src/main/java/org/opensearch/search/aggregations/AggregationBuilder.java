@@ -31,9 +31,9 @@
 
 package org.opensearch.search.aggregations;
 
+import org.opensearch.core.ParseField;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.NamedWriteable;
-import org.opensearch.core.ParseField;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentParser;

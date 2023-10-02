@@ -34,8 +34,8 @@ package org.opensearch.client.indices;
 
 import org.opensearch.action.admin.indices.analyze.AnalyzeAction;
 import org.opensearch.client.AbstractResponseTestCase;
-import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.test.RandomObjects;
 
 import java.io.IOException;

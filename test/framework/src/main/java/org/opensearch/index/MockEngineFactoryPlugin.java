@@ -31,8 +31,8 @@
 
 package org.opensearch.index;
 
-import org.apache.lucene.tests.index.AssertingDirectoryReader;
 import org.apache.lucene.index.FilterDirectoryReader;
+import org.apache.lucene.tests.index.AssertingDirectoryReader;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.index.engine.EngineFactory;
 import org.opensearch.plugins.EnginePlugin;

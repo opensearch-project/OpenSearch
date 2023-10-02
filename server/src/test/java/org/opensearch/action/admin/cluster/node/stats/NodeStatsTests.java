@@ -32,18 +32,27 @@
 
 package org.opensearch.action.admin.cluster.node.stats;
 
+import org.opensearch.action.admin.indices.stats.CommonStats;
+import org.opensearch.action.admin.indices.stats.CommonStatsFlags;
+import org.opensearch.action.search.SearchRequestStats;
+import org.opensearch.cluster.coordination.PendingClusterStateStats;
+import org.opensearch.cluster.coordination.PublishClusterStateStats;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.routing.WeightedRoutingStats;
 import org.opensearch.cluster.service.ClusterManagerThrottlingStats;
 import org.opensearch.common.io.stream.BytesStreamOutput;
-import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.common.metrics.OperationStats;
-import org.opensearch.discovery.DiscoveryStats;
-import org.opensearch.cluster.coordination.PendingClusterStateStats;
-import org.opensearch.cluster.coordination.PublishClusterStateStats;
-import org.opensearch.http.HttpStats;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.indices.breaker.AllCircuitBreakerStats;
 import org.opensearch.core.indices.breaker.CircuitBreakerStats;
+import org.opensearch.discovery.DiscoveryStats;
+import org.opensearch.http.HttpStats;
+import org.opensearch.index.ReplicationStats;
+import org.opensearch.index.remote.RemoteSegmentStats;
+import org.opensearch.index.remote.RemoteTranslogTransferTracker;
+import org.opensearch.index.translog.RemoteTranslogStats;
+import org.opensearch.indices.NodeIndicesStats;
 import org.opensearch.ingest.IngestStats;
 import org.opensearch.monitor.fs.FsInfo;
 import org.opensearch.monitor.jvm.JvmStats;
@@ -76,7 +85,7 @@ import static org.hamcrest.collection.IsCollectionWithSize.hasSize;
 
 public class NodeStatsTests extends OpenSearchTestCase {
     public void testSerialization() throws IOException {
-        NodeStats nodeStats = createNodeStats();
+        NodeStats nodeStats = createNodeStats(true);
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             nodeStats.writeTo(out);
             try (StreamInput in = out.bytes().streamInput()) {
@@ -436,11 +445,50 @@ public class NodeStatsTests extends OpenSearchTestCase {
                     assertEquals(weightedRoutingStats.getFailOpenCount(), deserializedWeightedRoutingStats.getFailOpenCount());
 
                 }
+
+                NodeIndicesStats nodeIndicesStats = nodeStats.getIndices();
+                NodeIndicesStats deserializedNodeIndicesStats = deserializedNodeStats.getIndices();
+                if (nodeIndicesStats == null) {
+                    assertNull(deserializedNodeIndicesStats);
+                } else {
+                    RemoteSegmentStats remoteSegmentStats = nodeIndicesStats.getSegments().getRemoteSegmentStats();
+                    RemoteSegmentStats deserializedRemoteSegmentStats = deserializedNodeIndicesStats.getSegments().getRemoteSegmentStats();
+                    assertEquals(remoteSegmentStats.getDownloadBytesStarted(), deserializedRemoteSegmentStats.getDownloadBytesStarted());
+                    assertEquals(
+                        remoteSegmentStats.getDownloadBytesSucceeded(),
+                        deserializedRemoteSegmentStats.getDownloadBytesSucceeded()
+                    );
+                    assertEquals(remoteSegmentStats.getDownloadBytesFailed(), deserializedRemoteSegmentStats.getDownloadBytesFailed());
+                    assertEquals(remoteSegmentStats.getUploadBytesStarted(), deserializedRemoteSegmentStats.getUploadBytesStarted());
+                    assertEquals(remoteSegmentStats.getUploadBytesSucceeded(), deserializedRemoteSegmentStats.getUploadBytesSucceeded());
+                    assertEquals(remoteSegmentStats.getUploadBytesFailed(), deserializedRemoteSegmentStats.getUploadBytesFailed());
+                    assertEquals(remoteSegmentStats.getMaxRefreshTimeLag(), deserializedRemoteSegmentStats.getMaxRefreshTimeLag());
+                    assertEquals(remoteSegmentStats.getMaxRefreshBytesLag(), deserializedRemoteSegmentStats.getMaxRefreshBytesLag());
+                    assertEquals(remoteSegmentStats.getTotalRefreshBytesLag(), deserializedRemoteSegmentStats.getTotalRefreshBytesLag());
+                    assertEquals(remoteSegmentStats.getTotalUploadTime(), deserializedRemoteSegmentStats.getTotalUploadTime());
+                    assertEquals(remoteSegmentStats.getTotalDownloadTime(), deserializedRemoteSegmentStats.getTotalDownloadTime());
+
+                    RemoteTranslogStats remoteTranslogStats = nodeIndicesStats.getTranslog().getRemoteTranslogStats();
+                    RemoteTranslogStats deserializedRemoteTranslogStats = deserializedNodeIndicesStats.getTranslog()
+                        .getRemoteTranslogStats();
+                    assertEquals(remoteTranslogStats, deserializedRemoteTranslogStats);
+
+                    ReplicationStats replicationStats = nodeIndicesStats.getSegments().getReplicationStats();
+
+                    ReplicationStats deserializedReplicationStats = deserializedNodeIndicesStats.getSegments().getReplicationStats();
+                    assertEquals(replicationStats.getMaxBytesBehind(), deserializedReplicationStats.getMaxBytesBehind());
+                    assertEquals(replicationStats.getTotalBytesBehind(), deserializedReplicationStats.getTotalBytesBehind());
+                    assertEquals(replicationStats.getMaxReplicationLag(), deserializedReplicationStats.getMaxReplicationLag());
+                }
             }
         }
     }
 
     public static NodeStats createNodeStats() {
+        return createNodeStats(false);
+    }
+
+    public static NodeStats createNodeStats(boolean remoteStoreStats) {
         DiscoveryNode node = new DiscoveryNode(
             "test_node",
             buildNewFakeTransportAddress(),
@@ -555,7 +603,8 @@ public class NodeStatsTests extends OpenSearchTestCase {
                         randomIntBetween(1, 1000),
                         randomNonNegativeLong(),
                         randomIntBetween(1, 1000),
-                        randomIntBetween(1, 1000)
+                        randomIntBetween(1, 1000),
+                        randomIntBetween(-1, 10)
                     )
                 );
             }
@@ -718,11 +767,14 @@ public class NodeStatsTests extends OpenSearchTestCase {
         weightedRoutingStats = WeightedRoutingStats.getInstance();
         weightedRoutingStats.updateFailOpenCount();
 
-        // TODO NodeIndicesStats are not tested here, way too complicated to create, also they need to be migrated to Writeable yet
+        NodeIndicesStats indicesStats = getNodeIndicesStats(remoteStoreStats);
+
+        // TODO: Only remote_store based aspects of NodeIndicesStats are being tested here.
+        // It is possible to test other metrics in NodeIndicesStats as well since it extends Writeable now
         return new NodeStats(
             node,
             randomNonNegativeLong(),
-            null,
+            indicesStats,
             osStats,
             processStats,
             jvmStats,
@@ -744,6 +796,54 @@ public class NodeStatsTests extends OpenSearchTestCase {
             null,
             null,
             null
+        );
+    }
+
+    private static NodeIndicesStats getNodeIndicesStats(boolean remoteStoreStats) {
+        NodeIndicesStats indicesStats = null;
+        if (remoteStoreStats) {
+            indicesStats = new NodeIndicesStats(new CommonStats(CommonStatsFlags.ALL), new HashMap<>(), new SearchRequestStats());
+            RemoteSegmentStats remoteSegmentStats = indicesStats.getSegments().getRemoteSegmentStats();
+            remoteSegmentStats.addUploadBytesStarted(10L);
+            remoteSegmentStats.addUploadBytesSucceeded(10L);
+            remoteSegmentStats.addUploadBytesFailed(1L);
+            remoteSegmentStats.addDownloadBytesStarted(10L);
+            remoteSegmentStats.addDownloadBytesSucceeded(10L);
+            remoteSegmentStats.addDownloadBytesFailed(1L);
+            remoteSegmentStats.addTotalRefreshBytesLag(5L);
+            remoteSegmentStats.addMaxRefreshBytesLag(2L);
+            remoteSegmentStats.setMaxRefreshTimeLag(2L);
+            remoteSegmentStats.addTotalUploadTime(20L);
+            remoteSegmentStats.addTotalDownloadTime(20L);
+
+            RemoteTranslogStats remoteTranslogStats = indicesStats.getTranslog().getRemoteTranslogStats();
+            RemoteTranslogStats otherRemoteTranslogStats = new RemoteTranslogStats(getRandomRemoteTranslogTransferTrackerStats());
+            remoteTranslogStats.add(otherRemoteTranslogStats);
+        }
+        return indicesStats;
+    }
+
+    private static RemoteTranslogTransferTracker.Stats getRandomRemoteTranslogTransferTrackerStats() {
+        return new RemoteTranslogTransferTracker.Stats(
+            new ShardId("test-idx", "test-idx", randomIntBetween(1, 10)),
+            0L,
+            randomLongBetween(100, 500),
+            randomLongBetween(50, 100),
+            randomLongBetween(100, 200),
+            randomLongBetween(10000, 50000),
+            randomLongBetween(5000, 10000),
+            randomLongBetween(10000, 20000),
+            0L,
+            0D,
+            0D,
+            0D,
+            0L,
+            0L,
+            0L,
+            0L,
+            0D,
+            0D,
+            0D
         );
     }
 

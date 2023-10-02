@@ -31,14 +31,14 @@
 
 package org.opensearch.grok;
 
-import org.joni.Matcher;
-
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
 import java.util.function.LongSupplier;
+
+import org.joni.Matcher;
 
 /**
  * Protects against long running operations that happen between the register and unregister invocations.

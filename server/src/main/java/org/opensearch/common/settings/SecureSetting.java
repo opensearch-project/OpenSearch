@@ -32,17 +32,16 @@
 
 package org.opensearch.common.settings;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.opensearch.common.Booleans;
 import org.opensearch.common.util.ArrayUtils;
+import org.opensearch.core.common.settings.SecureString;
 
 import java.io.InputStream;
 import java.security.GeneralSecurityException;
 import java.util.EnumSet;
 import java.util.Set;
-
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.opensearch.core.common.settings.SecureString;
 
 /**
  * A secure setting.

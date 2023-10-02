@@ -169,12 +169,25 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         clusterSettings.addSettingsUpdateConsumer(THRESHOLD_SETTING, this::setThreshold);
     }
 
+    /**
+     * Changes in deprecated setting SHARD_MOVE_PRIMARY_FIRST_SETTING affect value of its replacement setting SHARD_MOVEMENT_STRATEGY_SETTING.
+     */
     private void setMovePrimaryFirst(boolean movePrimaryFirst) {
         this.movePrimaryFirst = movePrimaryFirst;
+        setShardMovementStrategy(this.shardMovementStrategy);
     }
 
+    /**
+     * Sets the correct Shard movement strategy to use.
+     * If users are still using deprecated setting `move_primary_first`, we want behavior to remain unchanged.
+     * In the event of changing ShardMovementStrategy setting from default setting NO_PREFERENCE to either PRIMARY_FIRST or REPLICA_FIRST, we want that
+     * to have priority over values set in move_primary_first setting.
+     */
     private void setShardMovementStrategy(ShardMovementStrategy shardMovementStrategy) {
         this.shardMovementStrategy = shardMovementStrategy;
+        if (shardMovementStrategy == ShardMovementStrategy.NO_PREFERENCE && this.movePrimaryFirst) {
+            this.shardMovementStrategy = ShardMovementStrategy.PRIMARY_FIRST;
+        }
     }
 
     private void setWeightFunction(float indexBalance, float shardBalanceFactor) {
@@ -205,7 +218,6 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         final ShardsBalancer localShardsBalancer = new LocalShardsBalancer(
             logger,
             allocation,
-            movePrimaryFirst,
             shardMovementStrategy,
             weightFunction,
             threshold,
@@ -227,7 +239,6 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         ShardsBalancer localShardsBalancer = new LocalShardsBalancer(
             logger,
             allocation,
-            movePrimaryFirst,
             shardMovementStrategy,
             weightFunction,
             threshold,
@@ -479,13 +490,12 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         public Balancer(
             Logger logger,
             RoutingAllocation allocation,
-            boolean movePrimaryFirst,
             ShardMovementStrategy shardMovementStrategy,
             BalancedShardsAllocator.WeightFunction weight,
             float threshold,
             boolean preferPrimaryBalance
         ) {
-            super(logger, allocation, movePrimaryFirst, shardMovementStrategy, weight, threshold, preferPrimaryBalance);
+            super(logger, allocation, shardMovementStrategy, weight, threshold, preferPrimaryBalance);
         }
     }
 

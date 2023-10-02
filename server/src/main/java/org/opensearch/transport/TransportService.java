@@ -37,35 +37,40 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.OpenSearchServerException;
 import org.opensearch.Version;
-import org.opensearch.core.action.ActionListener;
 import org.opensearch.action.ActionListenerResponseHandler;
 import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.Nullable;
-import org.opensearch.common.lifecycle.AbstractLifecycleComponent;
-import org.opensearch.core.common.io.stream.StreamInput;
-import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.common.io.stream.Streamables;
-import org.opensearch.core.common.io.stream.Writeable;
+import org.opensearch.common.lease.Releasable;
+import org.opensearch.common.lifecycle.AbstractLifecycleComponent;
 import org.opensearch.common.logging.Loggers;
 import org.opensearch.common.regex.Regex;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.core.common.transport.BoundTransportAddress;
-import org.opensearch.core.common.transport.TransportAddress;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.common.util.io.IOUtils;
-import org.opensearch.common.lease.Releasable;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.Strings;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.common.io.stream.Writeable;
+import org.opensearch.core.common.transport.BoundTransportAddress;
+import org.opensearch.core.common.transport.TransportAddress;
 import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
+import org.opensearch.core.service.ReportingService;
 import org.opensearch.core.transport.TransportResponse;
 import org.opensearch.node.NodeClosedException;
-import org.opensearch.core.service.ReportingService;
 import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskManager;
+import org.opensearch.telemetry.tracing.Span;
+import org.opensearch.telemetry.tracing.SpanBuilder;
+import org.opensearch.telemetry.tracing.SpanScope;
+import org.opensearch.telemetry.tracing.Tracer;
+import org.opensearch.telemetry.tracing.handler.TraceableTransportResponseHandler;
 import org.opensearch.threadpool.Scheduler;
 import org.opensearch.threadpool.ThreadPool;
 
@@ -132,11 +137,11 @@ public class TransportService extends AbstractLifecycleComponent
     // tracer log
 
     private final Logger tracerLog;
-
     volatile String[] tracerLogInclude;
     volatile String[] tracerLogExclude;
 
     private final RemoteClusterService remoteClusterService;
+    private final Tracer tracer;
 
     /** if set will call requests sent to this id to shortcut and executed locally */
     volatile DiscoveryNode localNode = null;
@@ -190,7 +195,8 @@ public class TransportService extends AbstractLifecycleComponent
         TransportInterceptor transportInterceptor,
         Function<BoundTransportAddress, DiscoveryNode> localNodeFactory,
         @Nullable ClusterSettings clusterSettings,
-        Set<String> taskHeaders
+        Set<String> taskHeaders,
+        Tracer tracer
     ) {
         this(
             settings,
@@ -200,7 +206,8 @@ public class TransportService extends AbstractLifecycleComponent
             localNodeFactory,
             clusterSettings,
             taskHeaders,
-            new ClusterConnectionManager(settings, transport)
+            new ClusterConnectionManager(settings, transport),
+            tracer
         );
     }
 
@@ -212,7 +219,8 @@ public class TransportService extends AbstractLifecycleComponent
         Function<BoundTransportAddress, DiscoveryNode> localNodeFactory,
         @Nullable ClusterSettings clusterSettings,
         Set<String> taskHeaders,
-        ConnectionManager connectionManager
+        ConnectionManager connectionManager,
+        Tracer tracer
     ) {
         this.transport = transport;
         transport.setSlowLogThreshold(TransportSettings.SLOW_OPERATION_THRESHOLD_SETTING.get(settings));
@@ -227,6 +235,7 @@ public class TransportService extends AbstractLifecycleComponent
         this.interceptor = transportInterceptor;
         this.asyncSender = interceptor.interceptSender(this::sendRequestInternal);
         this.remoteClusterClient = DiscoveryNode.isRemoteClusterClient(settings);
+        this.tracer = tracer;
         remoteClusterService = new RemoteClusterService(settings, this);
         responseHandlers = transport.getResponseHandlers();
         if (clusterSettings != null) {
@@ -328,6 +337,7 @@ public class TransportService extends AbstractLifecycleComponent
                 getExecutorService().execute(new AbstractRunnable() {
                     @Override
                     public void onRejection(Exception e) {
+                        holderToNotify.handler().handleRejection(e);
                         // if we get rejected during node shutdown we don't wanna bubble it up
                         logger.debug(
                             () -> new ParameterizedMessage(
@@ -340,6 +350,7 @@ public class TransportService extends AbstractLifecycleComponent
 
                     @Override
                     public void onFailure(Exception e) {
+                        holderToNotify.handler().handleRejection(e);
                         logger.warn(
                             () -> new ParameterizedMessage(
                                 "failed to notify response handler on exception, action: {}",
@@ -856,53 +867,60 @@ public class TransportService extends AbstractLifecycleComponent
         final TransportRequestOptions options,
         final TransportResponseHandler<T> handler
     ) {
-        try {
-            logger.debug("Action: " + action);
-            final TransportResponseHandler<T> delegate;
-            if (request.getParentTask().isSet()) {
-                // TODO: capture the connection instead so that we can cancel child tasks on the remote connections.
-                final Releasable unregisterChildNode = taskManager.registerChildNode(request.getParentTask().getId(), connection.getNode());
-                delegate = new TransportResponseHandler<T>() {
-                    @Override
-                    public void handleResponse(T response) {
-                        unregisterChildNode.close();
-                        handler.handleResponse(response);
-                    }
+        final Span span = tracer.startSpan(SpanBuilder.from(action, connection));
+        try (SpanScope spanScope = tracer.withSpanInScope(span)) {
+            TransportResponseHandler<T> traceableTransportResponseHandler = TraceableTransportResponseHandler.create(handler, span, tracer);
+            try {
+                logger.debug("Action: " + action);
+                final TransportResponseHandler<T> delegate;
+                if (request.getParentTask().isSet()) {
+                    // TODO: capture the connection instead so that we can cancel child tasks on the remote connections.
+                    final Releasable unregisterChildNode = taskManager.registerChildNode(
+                        request.getParentTask().getId(),
+                        connection.getNode()
+                    );
+                    delegate = new TransportResponseHandler<T>() {
+                        @Override
+                        public void handleResponse(T response) {
+                            unregisterChildNode.close();
+                            traceableTransportResponseHandler.handleResponse(response);
+                        }
 
-                    @Override
-                    public void handleException(TransportException exp) {
-                        unregisterChildNode.close();
-                        handler.handleException(exp);
-                    }
+                        @Override
+                        public void handleException(TransportException exp) {
+                            unregisterChildNode.close();
+                            traceableTransportResponseHandler.handleException(exp);
+                        }
 
-                    @Override
-                    public String executor() {
-                        return handler.executor();
-                    }
+                        @Override
+                        public String executor() {
+                            return traceableTransportResponseHandler.executor();
+                        }
 
-                    @Override
-                    public T read(StreamInput in) throws IOException {
-                        return handler.read(in);
-                    }
+                        @Override
+                        public T read(StreamInput in) throws IOException {
+                            return traceableTransportResponseHandler.read(in);
+                        }
 
-                    @Override
-                    public String toString() {
-                        return getClass().getName() + "/[" + action + "]:" + handler.toString();
-                    }
-                };
-            } else {
-                delegate = handler;
+                        @Override
+                        public String toString() {
+                            return getClass().getName() + "/[" + action + "]:" + handler.toString();
+                        }
+                    };
+                } else {
+                    delegate = traceableTransportResponseHandler;
+                }
+                asyncSender.sendRequest(connection, action, request, options, delegate);
+            } catch (final Exception ex) {
+                // the caller might not handle this so we invoke the handler
+                final TransportException te;
+                if (ex instanceof TransportException) {
+                    te = (TransportException) ex;
+                } else {
+                    te = new TransportException("failure to send", ex);
+                }
+                traceableTransportResponseHandler.handleException(te);
             }
-            asyncSender.sendRequest(connection, action, request, options, delegate);
-        } catch (final Exception ex) {
-            // the caller might not handle this so we invoke the handler
-            final TransportException te;
-            if (ex instanceof TransportException) {
-                te = (TransportException) ex;
-            } else {
-                te = new TransportException("failure to send", ex);
-            }
-            handler.handleException(te);
         }
     }
 
@@ -1012,6 +1030,7 @@ public class TransportService extends AbstractLifecycleComponent
                 threadPool.executor(executor).execute(new AbstractRunnable() {
                     @Override
                     public void onRejection(Exception e) {
+                        contextToNotify.handler().handleRejection(e);
                         // if we get rejected during node shutdown we don't wanna bubble it up
                         logger.debug(
                             () -> new ParameterizedMessage(
@@ -1024,6 +1043,7 @@ public class TransportService extends AbstractLifecycleComponent
 
                     @Override
                     public void onFailure(Exception e) {
+                        contextToNotify.handler().handleRejection(e);
                         logger.warn(
                             () -> new ParameterizedMessage(
                                 "failed to notify response handler on exception, action: {}",

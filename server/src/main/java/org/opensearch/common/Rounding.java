@@ -37,11 +37,12 @@ import org.apache.lucene.util.ArrayUtil;
 import org.opensearch.OpenSearchException;
 import org.opensearch.common.LocalTimeOffset.Gap;
 import org.opensearch.common.LocalTimeOffset.Overlap;
+import org.opensearch.common.annotation.InternalApi;
+import org.opensearch.common.time.DateUtils;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
-import org.opensearch.common.time.DateUtils;
-import org.opensearch.common.unit.TimeValue;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -413,6 +414,21 @@ public abstract class Rounding implements Writeable {
 
     private abstract class PreparedRounding implements Prepared {
         /**
+         * The maximum limit up to which array-based prepared rounding is used.
+         * 128 is a power of two that isn't huge. We might be able to do
+         * better if the limit was based on the actual type of prepared
+         * rounding but this'll do for now.
+         */
+        private static final int DEFAULT_ARRAY_ROUNDING_MAX_THRESHOLD = 128;
+
+        /**
+         * The maximum limit up to which linear search is used, otherwise binary search is used.
+         * This is because linear search is much faster on small arrays.
+         * Benchmark results: <a href="https://github.com/opensearch-project/OpenSearch/pull/9727">PR #9727</a>
+         */
+        private static final int LINEAR_SEARCH_ARRAY_ROUNDING_MAX_THRESHOLD = 64;
+
+        /**
          * Attempt to build a {@link Prepared} implementation that relies on pre-calcuated
          * "round down" points. If there would be more than {@code max} points then return
          * the original implementation, otherwise return the new, faster implementation.
@@ -435,7 +451,9 @@ public abstract class Rounding implements Writeable {
                 values = ArrayUtil.grow(values, i + 1);
                 values[i++] = rounded;
             }
-            return new ArrayRounding(values, i, this);
+            return i <= LINEAR_SEARCH_ARRAY_ROUNDING_MAX_THRESHOLD
+                ? new BidirectionalLinearSearchArrayRounding(values, i, this)
+                : new BinarySearchArrayRounding(values, i, this);
         }
     }
 
@@ -521,12 +539,11 @@ public abstract class Rounding implements Writeable {
 
         @Override
         public Prepared prepare(long minUtcMillis, long maxUtcMillis) {
-            /*
-             * 128 is a power of two that isn't huge. We might be able to do
-             * better if the limit was based on the actual type of prepared
-             * rounding but this'll do for now.
-             */
-            return prepareOffsetOrJavaTimeRounding(minUtcMillis, maxUtcMillis).maybeUseArray(minUtcMillis, maxUtcMillis, 128);
+            return prepareOffsetOrJavaTimeRounding(minUtcMillis, maxUtcMillis).maybeUseArray(
+                minUtcMillis,
+                maxUtcMillis,
+                PreparedRounding.DEFAULT_ARRAY_ROUNDING_MAX_THRESHOLD
+            );
         }
 
         private TimeUnitPreparedRounding prepareOffsetOrJavaTimeRounding(long minUtcMillis, long maxUtcMillis) {
@@ -1330,14 +1347,19 @@ public abstract class Rounding implements Writeable {
     /**
      * Implementation of {@link Prepared} using pre-calculated "round down" points.
      *
+     * <p>
+     * It uses binary search to find the greatest round-down point less than or equal to the given timestamp.
+     *
      * @opensearch.internal
      */
-    private static class ArrayRounding implements Prepared {
+    @InternalApi
+    static class BinarySearchArrayRounding implements Prepared {
         private final long[] values;
         private final int max;
         private final Prepared delegate;
 
-        private ArrayRounding(long[] values, int max, Prepared delegate) {
+        BinarySearchArrayRounding(long[] values, int max, Prepared delegate) {
+            assert max > 0 : "at least one round-down point must be present";
             this.values = values;
             this.max = max;
             this.delegate = delegate;
@@ -1353,6 +1375,66 @@ public abstract class Rounding implements Writeable {
                 idx = -2 - idx;
             }
             return values[idx];
+        }
+
+        @Override
+        public long nextRoundingValue(long utcMillis) {
+            return delegate.nextRoundingValue(utcMillis);
+        }
+
+        @Override
+        public double roundingSize(long utcMillis, DateTimeUnit timeUnit) {
+            return delegate.roundingSize(utcMillis, timeUnit);
+        }
+    }
+
+    /**
+     * Implementation of {@link Prepared} using pre-calculated "round down" points.
+     *
+     * <p>
+     * It uses linear search to find the greatest round-down point less than or equal to the given timestamp.
+     * For small inputs (&le; 64 elements), this can be much faster than binary search as it avoids the penalty of
+     * branch mispredictions and pipeline stalls, and accesses memory sequentially.
+     *
+     * <p>
+     * It uses "meet in the middle" linear search to avoid the worst case scenario when the desired element is present
+     * at either side of the array. This is helpful for time-series data where velocity increases over time, so more
+     * documents are likely to find a greater timestamp which is likely to be present on the right end of the array.
+     *
+     * @opensearch.internal
+     */
+    @InternalApi
+    static class BidirectionalLinearSearchArrayRounding implements Prepared {
+        private final long[] ascending;
+        private final long[] descending;
+        private final Prepared delegate;
+
+        BidirectionalLinearSearchArrayRounding(long[] values, int max, Prepared delegate) {
+            assert max > 0 : "at least one round-down point must be present";
+            this.delegate = delegate;
+            int len = (max + 1) >>> 1; // rounded-up to handle odd number of values
+            ascending = new long[len];
+            descending = new long[len];
+
+            for (int i = 0; i < len; i++) {
+                ascending[i] = values[i];
+                descending[i] = values[max - i - 1];
+            }
+        }
+
+        @Override
+        public long round(long utcMillis) {
+            int i = 0;
+            for (; i < ascending.length; i++) {
+                if (descending[i] <= utcMillis) {
+                    return descending[i];
+                }
+                if (ascending[i] > utcMillis) {
+                    assert i > 0 : "utcMillis must be after " + ascending[0];
+                    return ascending[i - 1];
+                }
+            }
+            return ascending[i - 1];
         }
 
         @Override

@@ -31,9 +31,9 @@
 
 package org.opensearch.action.admin.indices;
 
+import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.tests.analysis.MockTokenFilter;
 import org.apache.lucene.tests.analysis.MockTokenizer;
-import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.opensearch.Version;
@@ -59,8 +59,8 @@ import org.opensearch.indices.analysis.AnalysisModule;
 import org.opensearch.indices.analysis.AnalysisModule.AnalysisProvider;
 import org.opensearch.indices.analysis.AnalysisModuleTests.AppendCharFilter;
 import org.opensearch.plugins.AnalysisPlugin;
-import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.IndexSettingsModule;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.io.Reader;

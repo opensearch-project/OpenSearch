@@ -12,7 +12,6 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.OutputStreamIndexOutput;
-import org.opensearch.core.action.ActionListener;
 import org.opensearch.action.LatchedActionListener;
 import org.opensearch.common.SetOnce;
 import org.opensearch.common.blobstore.BlobMetadata;
@@ -22,8 +21,10 @@ import org.opensearch.common.io.VersionedCodecStreamWrapper;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.logging.Loggers;
 import org.opensearch.common.lucene.store.ByteArrayIndexInput;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.index.remote.RemoteTranslogTransferTracker;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.index.translog.transfer.listener.TranslogTransferListener;
 import org.opensearch.threadpool.ThreadPool;
@@ -59,6 +60,7 @@ public class TranslogTransferManager {
     private final BlobPath remoteMetadataTransferPath;
     private final BlobPath remoteBaseTransferPath;
     private final FileTransferTracker fileTransferTracker;
+    private final RemoteTranslogTransferTracker remoteTranslogTransferTracker;
 
     private static final long TRANSFER_TIMEOUT_IN_MILLIS = 30000;
 
@@ -76,7 +78,8 @@ public class TranslogTransferManager {
         ShardId shardId,
         TransferService transferService,
         BlobPath remoteBaseTransferPath,
-        FileTransferTracker fileTransferTracker
+        FileTransferTracker fileTransferTracker,
+        RemoteTranslogTransferTracker remoteTranslogTransferTracker
     ) {
         this.shardId = shardId;
         this.transferService = transferService;
@@ -85,6 +88,11 @@ public class TranslogTransferManager {
         this.remoteMetadataTransferPath = remoteBaseTransferPath.add(METADATA_DIR);
         this.fileTransferTracker = fileTransferTracker;
         this.logger = Loggers.getLogger(getClass(), shardId);
+        this.remoteTranslogTransferTracker = remoteTranslogTransferTracker;
+    }
+
+    public RemoteTranslogTransferTracker getRemoteTranslogTransferTracker() {
+        return remoteTranslogTransferTracker;
     }
 
     public ShardId getShardId() {
@@ -95,14 +103,22 @@ public class TranslogTransferManager {
         throws IOException {
         List<Exception> exceptionList = new ArrayList<>(transferSnapshot.getTranslogTransferMetadata().getCount());
         Set<TransferFileSnapshot> toUpload = new HashSet<>(transferSnapshot.getTranslogTransferMetadata().getCount());
+        long metadataBytesToUpload;
+        long metadataUploadStartTime;
+        long uploadStartTime;
+        long prevUploadBytesSucceeded = remoteTranslogTransferTracker.getUploadBytesSucceeded();
+        long prevUploadTimeInMillis = remoteTranslogTransferTracker.getTotalUploadTimeInMillis();
+
         try {
             toUpload.addAll(fileTransferTracker.exclusionFilter(transferSnapshot.getTranslogFileSnapshots()));
             toUpload.addAll(fileTransferTracker.exclusionFilter((transferSnapshot.getCheckpointFileSnapshots())));
             if (toUpload.isEmpty()) {
                 logger.trace("Nothing to upload for transfer");
-                translogTransferListener.onUploadComplete(transferSnapshot);
                 return true;
             }
+
+            fileTransferTracker.recordBytesForFiles(toUpload);
+            captureStatsBeforeUpload();
             final CountDownLatch latch = new CountDownLatch(toUpload.size());
             LatchedActionListener<TransferFileSnapshot> latchedActionListener = new LatchedActionListener<>(
                 ActionListener.wrap(fileTransferTracker::onSuccess, ex -> {
@@ -115,7 +131,8 @@ public class TranslogTransferManager {
                         ex
                     );
                     FileTransferException e = (FileTransferException) ex;
-                    fileTransferTracker.onFailure(e.getFileSnapshot(), ex);
+                    TransferFileSnapshot file = e.getFileSnapshot();
+                    fileTransferTracker.onFailure(file, ex);
                     exceptionList.add(ex);
                 }),
                 latch
@@ -128,6 +145,10 @@ public class TranslogTransferManager {
                 )
             );
 
+            uploadStartTime = System.nanoTime();
+            // TODO: Ideally each file's upload start time should be when it is actually picked for upload
+            // https://github.com/opensearch-project/OpenSearch/issues/9729
+            fileTransferTracker.recordFileTransferStartTime(uploadStartTime);
             transferService.uploadBlobs(toUpload, blobPathMap, latchedActionListener, WritePriority.HIGH);
 
             try {
@@ -142,7 +163,22 @@ public class TranslogTransferManager {
                 throw ex;
             }
             if (exceptionList.isEmpty()) {
-                transferService.uploadBlob(prepareMetadata(transferSnapshot), remoteMetadataTransferPath, WritePriority.HIGH);
+                TransferFileSnapshot tlogMetadata = prepareMetadata(transferSnapshot);
+                metadataBytesToUpload = tlogMetadata.getContentLength();
+                remoteTranslogTransferTracker.addUploadBytesStarted(metadataBytesToUpload);
+                metadataUploadStartTime = System.nanoTime();
+                try {
+                    transferService.uploadBlob(tlogMetadata, remoteMetadataTransferPath, WritePriority.HIGH);
+                } catch (Exception exception) {
+                    remoteTranslogTransferTracker.addUploadTimeInMillis((System.nanoTime() - metadataUploadStartTime) / 1_000_000L);
+                    remoteTranslogTransferTracker.addUploadBytesFailed(metadataBytesToUpload);
+                    // outer catch handles capturing stats on upload failure
+                    throw exception;
+                }
+
+                remoteTranslogTransferTracker.addUploadTimeInMillis((System.nanoTime() - metadataUploadStartTime) / 1_000_000L);
+                remoteTranslogTransferTracker.addUploadBytesSucceeded(metadataBytesToUpload);
+                captureStatsOnUploadSuccess(prevUploadBytesSucceeded, prevUploadTimeInMillis);
                 translogTransferListener.onUploadComplete(transferSnapshot);
                 return true;
             } else {
@@ -152,13 +188,46 @@ public class TranslogTransferManager {
             }
         } catch (Exception ex) {
             logger.error(() -> new ParameterizedMessage("Transfer failed for snapshot {}", transferSnapshot), ex);
+            captureStatsOnUploadFailure();
             translogTransferListener.onUploadFailed(transferSnapshot, ex);
             return false;
         }
     }
 
+    /**
+     * Adds relevant stats to the tracker when an upload is started
+     */
+    private void captureStatsBeforeUpload() {
+        remoteTranslogTransferTracker.incrementTotalUploadsStarted();
+        // TODO: Ideally each file's byte uploads started should be when it is actually picked for upload
+        // https://github.com/opensearch-project/OpenSearch/issues/9729
+        remoteTranslogTransferTracker.addUploadBytesStarted(fileTransferTracker.getTotalBytesToUpload());
+    }
+
+    /**
+     * Adds relevant stats to the tracker when an upload is successfully completed
+     */
+    private void captureStatsOnUploadSuccess(long prevUploadBytesSucceeded, long prevUploadTimeInMillis) {
+        remoteTranslogTransferTracker.setLastSuccessfulUploadTimestamp(System.currentTimeMillis());
+        remoteTranslogTransferTracker.incrementTotalUploadsSucceeded();
+        long totalUploadedBytes = remoteTranslogTransferTracker.getUploadBytesSucceeded() - prevUploadBytesSucceeded;
+        remoteTranslogTransferTracker.updateUploadBytesMovingAverage(totalUploadedBytes);
+        long uploadDurationInMillis = remoteTranslogTransferTracker.getTotalUploadTimeInMillis() - prevUploadTimeInMillis;
+        remoteTranslogTransferTracker.updateUploadTimeMovingAverage(uploadDurationInMillis);
+        if (uploadDurationInMillis > 0) {
+            remoteTranslogTransferTracker.updateUploadBytesPerSecMovingAverage((totalUploadedBytes * 1_000L) / uploadDurationInMillis);
+        }
+    }
+
+    /**
+     * Adds relevant stats to the tracker when an upload has failed
+     */
+    private void captureStatsOnUploadFailure() {
+        remoteTranslogTransferTracker.incrementTotalUploadsFailed();
+    }
+
     public boolean downloadTranslog(String primaryTerm, String generation, Path location) throws IOException {
-        logger.info(
+        logger.trace(
             "Downloading translog files with: Primary Term = {}, Generation = {}, Location = {}",
             primaryTerm,
             generation,
@@ -180,9 +249,21 @@ public class TranslogTransferManager {
         if (Files.exists(filePath)) {
             Files.delete(filePath);
         }
+
+        boolean downloadStatus = false;
+        long bytesToRead = 0, downloadStartTime = System.nanoTime();
         try (InputStream inputStream = transferService.downloadBlob(remoteDataTransferPath.add(primaryTerm), fileName)) {
+            // Capture number of bytes for stats before reading
+            bytesToRead = inputStream.available();
             Files.copy(inputStream, filePath);
+            downloadStatus = true;
+        } finally {
+            remoteTranslogTransferTracker.addDownloadTimeInMillis((System.nanoTime() - downloadStartTime) / 1_000_000L);
+            if (downloadStatus) {
+                remoteTranslogTransferTracker.addDownloadBytesSucceeded(bytesToRead);
+            }
         }
+
         // Mark in FileTransferTracker so that the same files are not uploaded at the time of translog sync
         fileTransferTracker.add(fileName, true);
     }
@@ -195,12 +276,23 @@ public class TranslogTransferManager {
             ActionListener.wrap(blobMetadataList -> {
                 if (blobMetadataList.isEmpty()) return;
                 String filename = blobMetadataList.get(0).name();
+                boolean downloadStatus = false;
+                long downloadStartTime = System.nanoTime(), bytesToRead = 0;
                 try (InputStream inputStream = transferService.downloadBlob(remoteMetadataTransferPath, filename)) {
+                    // Capture number of bytes for stats before reading
+                    bytesToRead = inputStream.available();
                     IndexInput indexInput = new ByteArrayIndexInput("metadata file", inputStream.readAllBytes());
                     metadataSetOnce.set(metadataStreamWrapper.readStream(indexInput));
+                    downloadStatus = true;
                 } catch (IOException e) {
                     logger.error(() -> new ParameterizedMessage("Exception while reading metadata file: {}", filename), e);
                     exceptionSetOnce.set(e);
+                } finally {
+                    remoteTranslogTransferTracker.addDownloadTimeInMillis((System.nanoTime() - downloadStartTime) / 1_000_000L);
+                    logger.debug("translogMetadataDownloadStatus={}", downloadStatus);
+                    if (downloadStatus) {
+                        remoteTranslogTransferTracker.addDownloadBytesSucceeded(bytesToRead);
+                    }
                 }
             }, e -> {
                 logger.error(() -> new ParameterizedMessage("Exception while listing metadata files"), e);

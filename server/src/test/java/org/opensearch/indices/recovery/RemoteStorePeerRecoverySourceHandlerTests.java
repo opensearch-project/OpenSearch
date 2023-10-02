@@ -8,10 +8,8 @@
 
 package org.opensearch.indices.recovery;
 
-import org.junit.Before;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.NRTReplicationEngineFactory;
 import org.opensearch.index.mapper.MapperService;
@@ -30,14 +28,6 @@ public class RemoteStorePeerRecoverySourceHandlerTests extends OpenSearchIndexLe
         .put(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY, "translog-repo")
         .put(IndexSettings.INDEX_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING.getKey(), "100ms")
         .build();
-
-    @Before
-    public void setup() {
-        // Todo: Remove feature flag once remote store integration with segrep goes GA
-        FeatureFlags.initializeFeatureFlags(
-            Settings.builder().put(FeatureFlags.SEGMENT_REPLICATION_EXPERIMENTAL_SETTING.getKey(), "true").build()
-        );
-    }
 
     public void testReplicaShardRecoveryUptoLastFlushedCommit() throws Exception {
         final Path remoteDir = createTempDir();

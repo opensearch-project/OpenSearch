@@ -32,8 +32,8 @@
 
 package org.opensearch.cluster.metadata;
 
-import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.CollectionUtil;
 import org.opensearch.action.AliasesRequest;
 import org.opensearch.cluster.ClusterState;
@@ -49,24 +49,25 @@ import org.opensearch.cluster.coordination.CoordinationMetadata;
 import org.opensearch.cluster.decommission.DecommissionAttributeMetadata;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.UUIDs;
-import org.opensearch.core.common.io.stream.StreamInput;
-import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.common.regex.Regex;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.core.common.Strings;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.index.Index;
+import org.opensearch.core.rest.RestStatus;
 import org.opensearch.core.xcontent.NamedObjectNotFoundException;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.gateway.MetadataStateFormat;
-import org.opensearch.core.index.Index;
 import org.opensearch.index.IndexNotFoundException;
+import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.plugins.MapperPlugin;
-import org.opensearch.core.rest.RestStatus;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -106,6 +107,22 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
     public static final String ALL = "_all";
     public static final String UNKNOWN_CLUSTER_UUID = Strings.UNKNOWN_UUID_VALUE;
     public static final Pattern NUMBER_PATTERN = Pattern.compile("[0-9]+$");
+
+    /**
+     * Utility to identify whether input index uses SEGMENT replication strategy in established cluster state metadata.
+     * Note: Method intended for use by other plugins as well.
+     *
+     * @param indexName Index name
+     * @return true if index uses SEGMENT replication, false otherwise
+     */
+    public boolean isSegmentReplicationEnabled(String indexName) {
+        return Optional.ofNullable(index(indexName))
+            .map(
+                indexMetadata -> ReplicationType.parseString(indexMetadata.getSettings().get(IndexMetadata.SETTING_REPLICATION_TYPE))
+                    .equals(ReplicationType.SEGMENT)
+            )
+            .orElse(false);
+    }
 
     /**
      * Context of the XContent.

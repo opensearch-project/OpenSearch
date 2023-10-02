@@ -8,18 +8,17 @@
 
 package org.opensearch.remotestore;
 
-import org.hamcrest.Matcher;
-import org.hamcrest.Matchers;
-import org.junit.After;
-import org.junit.Before;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.indices.recovery.IndexRecoveryIT;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.test.OpenSearchIntegTestCase;
+import org.hamcrest.Matcher;
+import org.hamcrest.Matchers;
+import org.junit.After;
+import org.junit.Before;
 
 import java.nio.file.Path;
 
@@ -31,31 +30,19 @@ public class RemoteIndexRecoveryIT extends IndexRecoveryIT {
 
     protected static final String REPOSITORY_NAME = "test-remote-store-repo";
 
-    protected Path absolutePath;
+    protected Path repositoryPath;
+
+    @Before
+    public void setup() {
+        repositoryPath = randomRepoPath().toAbsolutePath();
+    }
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        return Settings.builder().put(super.nodeSettings(nodeOrdinal)).put(remoteStoreClusterSettings(REPOSITORY_NAME)).build();
-    }
-
-    @Override
-    protected Settings featureFlagSettings() {
         return Settings.builder()
-            .put(super.featureFlagSettings())
-            .put(FeatureFlags.REMOTE_STORE, "true")
-            .put(FeatureFlags.SEGMENT_REPLICATION_EXPERIMENTAL, "true")
+            .put(super.nodeSettings(nodeOrdinal))
+            .put(remoteStoreClusterSettings(REPOSITORY_NAME, repositoryPath))
             .build();
-    }
-
-    @Before
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
-        internalCluster().startClusterManagerOnlyNode();
-        absolutePath = randomRepoPath().toAbsolutePath();
-        assertAcked(
-            clusterAdmin().preparePutRepository(REPOSITORY_NAME).setType("fs").setSettings(Settings.builder().put("location", absolutePath))
-        );
     }
 
     @Override
@@ -171,4 +158,10 @@ public class RemoteIndexRecoveryIT extends IndexRecoveryIT {
     public void testReplicaRecovery() {
 
     }
+
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/9580")
+    public void testRerouteRecovery() {
+
+    }
+
 }

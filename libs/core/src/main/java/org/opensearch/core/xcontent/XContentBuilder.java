@@ -32,6 +32,7 @@
 
 package org.opensearch.core.xcontent;
 
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.bytes.BytesReference;
 
 import java.io.ByteArrayOutputStream;
@@ -61,6 +62,7 @@ import java.util.function.Function;
 /**
  * A utility to build XContent (ie json).
  */
+@PublicApi(since = "1.0.0")
 public final class XContentBuilder implements Closeable, Flushable {
 
     /**

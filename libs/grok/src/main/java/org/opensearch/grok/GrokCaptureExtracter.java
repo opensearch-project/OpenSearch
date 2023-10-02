@@ -32,12 +32,12 @@
 
 package org.opensearch.grok;
 
-import org.joni.Region;
-
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+
+import org.joni.Region;
 
 import static java.util.Collections.emptyMap;
 

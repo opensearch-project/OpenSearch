@@ -23,19 +23,15 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
-import static org.mockito.Mockito.mock;
-
 public class RemoteSegmentTransferTrackerTests extends OpenSearchTestCase {
-
-    private RemoteRefreshSegmentPressureSettings pressureSettings;
-
+    private RemoteStoreStatsTrackerFactory remoteStoreStatsTrackerFactory;
     private ClusterService clusterService;
 
     private ThreadPool threadPool;
 
     private ShardId shardId;
 
-    private RemoteSegmentTransferTracker pressureTracker;
+    private RemoteSegmentTransferTracker transferTracker;
 
     private DirectoryFileTransferTracker directoryFileTransferTracker;
 
@@ -48,11 +44,7 @@ public class RemoteSegmentTransferTrackerTests extends OpenSearchTestCase {
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
             threadPool
         );
-        pressureSettings = new RemoteRefreshSegmentPressureSettings(
-            clusterService,
-            Settings.EMPTY,
-            mock(RemoteRefreshSegmentPressureService.class)
-        );
+        remoteStoreStatsTrackerFactory = new RemoteStoreStatsTrackerFactory(clusterService, Settings.EMPTY);
         shardId = new ShardId("index", "uuid", 0);
         directoryFileTransferTracker = new DirectoryFileTransferTracker();
     }
@@ -64,510 +56,484 @@ public class RemoteSegmentTransferTrackerTests extends OpenSearchTestCase {
     }
 
     public void testGetShardId() {
-        pressureTracker = new RemoteSegmentTransferTracker(
+        transferTracker = new RemoteSegmentTransferTracker(
             shardId,
             directoryFileTransferTracker,
-            pressureSettings.getUploadBytesMovingAverageWindowSize(),
-            pressureSettings.getUploadBytesPerSecMovingAverageWindowSize(),
-            pressureSettings.getUploadTimeMovingAverageWindowSize()
+            remoteStoreStatsTrackerFactory.getMovingAverageWindowSize()
         );
-        assertEquals(shardId, pressureTracker.getShardId());
+        assertEquals(shardId, transferTracker.getShardId());
     }
 
     public void testUpdateLocalRefreshSeqNo() {
-        pressureTracker = new RemoteSegmentTransferTracker(
+        transferTracker = new RemoteSegmentTransferTracker(
             shardId,
             directoryFileTransferTracker,
-            pressureSettings.getUploadBytesMovingAverageWindowSize(),
-            pressureSettings.getUploadBytesPerSecMovingAverageWindowSize(),
-            pressureSettings.getUploadTimeMovingAverageWindowSize()
+            remoteStoreStatsTrackerFactory.getMovingAverageWindowSize()
         );
         long refreshSeqNo = 2;
-        pressureTracker.updateLocalRefreshSeqNo(refreshSeqNo);
-        assertEquals(refreshSeqNo, pressureTracker.getLocalRefreshSeqNo());
+        transferTracker.updateLocalRefreshSeqNo(refreshSeqNo);
+        assertEquals(refreshSeqNo, transferTracker.getLocalRefreshSeqNo());
     }
 
     public void testUpdateRemoteRefreshSeqNo() {
-        pressureTracker = new RemoteSegmentTransferTracker(
+        transferTracker = new RemoteSegmentTransferTracker(
             shardId,
             directoryFileTransferTracker,
-            pressureSettings.getUploadBytesMovingAverageWindowSize(),
-            pressureSettings.getUploadBytesPerSecMovingAverageWindowSize(),
-            pressureSettings.getUploadTimeMovingAverageWindowSize()
+            remoteStoreStatsTrackerFactory.getMovingAverageWindowSize()
         );
         long refreshSeqNo = 4;
-        pressureTracker.updateRemoteRefreshSeqNo(refreshSeqNo);
-        assertEquals(refreshSeqNo, pressureTracker.getRemoteRefreshSeqNo());
+        transferTracker.updateRemoteRefreshSeqNo(refreshSeqNo);
+        assertEquals(refreshSeqNo, transferTracker.getRemoteRefreshSeqNo());
     }
 
     public void testUpdateLocalRefreshTimeMs() {
-        pressureTracker = new RemoteSegmentTransferTracker(
+        transferTracker = new RemoteSegmentTransferTracker(
             shardId,
             directoryFileTransferTracker,
-            pressureSettings.getUploadBytesMovingAverageWindowSize(),
-            pressureSettings.getUploadBytesPerSecMovingAverageWindowSize(),
-            pressureSettings.getUploadTimeMovingAverageWindowSize()
+            remoteStoreStatsTrackerFactory.getMovingAverageWindowSize()
         );
         long refreshTimeMs = System.nanoTime() / 1_000_000L + randomIntBetween(10, 100);
-        pressureTracker.updateLocalRefreshTimeMs(refreshTimeMs);
-        assertEquals(refreshTimeMs, pressureTracker.getLocalRefreshTimeMs());
+        transferTracker.updateLocalRefreshTimeMs(refreshTimeMs);
+        assertEquals(refreshTimeMs, transferTracker.getLocalRefreshTimeMs());
     }
 
     public void testUpdateRemoteRefreshTimeMs() {
-        pressureTracker = new RemoteSegmentTransferTracker(
+        transferTracker = new RemoteSegmentTransferTracker(
             shardId,
             directoryFileTransferTracker,
-            pressureSettings.getUploadBytesMovingAverageWindowSize(),
-            pressureSettings.getUploadBytesPerSecMovingAverageWindowSize(),
-            pressureSettings.getUploadTimeMovingAverageWindowSize()
+            remoteStoreStatsTrackerFactory.getMovingAverageWindowSize()
         );
         long refreshTimeMs = System.nanoTime() / 1_000_000 + randomIntBetween(10, 100);
-        pressureTracker.updateRemoteRefreshTimeMs(refreshTimeMs);
-        assertEquals(refreshTimeMs, pressureTracker.getRemoteRefreshTimeMs());
+        transferTracker.updateRemoteRefreshTimeMs(refreshTimeMs);
+        assertEquals(refreshTimeMs, transferTracker.getRemoteRefreshTimeMs());
     }
 
     public void testLastDownloadTimestampMs() {
-        pressureTracker = new RemoteSegmentTransferTracker(
+        transferTracker = new RemoteSegmentTransferTracker(
             shardId,
             directoryFileTransferTracker,
-            pressureSettings.getUploadBytesMovingAverageWindowSize(),
-            pressureSettings.getUploadBytesPerSecMovingAverageWindowSize(),
-            pressureSettings.getUploadTimeMovingAverageWindowSize()
+            remoteStoreStatsTrackerFactory.getMovingAverageWindowSize()
         );
         long currentTimeInMs = System.currentTimeMillis();
-        pressureTracker.getDirectoryFileTransferTracker().updateLastTransferTimestampMs(currentTimeInMs);
-        assertEquals(currentTimeInMs, pressureTracker.getDirectoryFileTransferTracker().getLastTransferTimestampMs());
+        transferTracker.getDirectoryFileTransferTracker().updateLastTransferTimestampMs(currentTimeInMs);
+        assertEquals(currentTimeInMs, transferTracker.getDirectoryFileTransferTracker().getLastTransferTimestampMs());
     }
 
     public void testComputeSeqNoLagOnUpdate() {
-        pressureTracker = new RemoteSegmentTransferTracker(
+        transferTracker = new RemoteSegmentTransferTracker(
             shardId,
             directoryFileTransferTracker,
-            pressureSettings.getUploadBytesMovingAverageWindowSize(),
-            pressureSettings.getUploadBytesPerSecMovingAverageWindowSize(),
-            pressureSettings.getUploadTimeMovingAverageWindowSize()
+            remoteStoreStatsTrackerFactory.getMovingAverageWindowSize()
         );
         int localRefreshSeqNo = randomIntBetween(50, 100);
         int remoteRefreshSeqNo = randomIntBetween(20, 50);
-        pressureTracker.updateLocalRefreshSeqNo(localRefreshSeqNo);
-        assertEquals(localRefreshSeqNo, pressureTracker.getRefreshSeqNoLag());
-        pressureTracker.updateRemoteRefreshSeqNo(remoteRefreshSeqNo);
-        assertEquals(localRefreshSeqNo - remoteRefreshSeqNo, pressureTracker.getRefreshSeqNoLag());
+        transferTracker.updateLocalRefreshSeqNo(localRefreshSeqNo);
+        assertEquals(localRefreshSeqNo, transferTracker.getRefreshSeqNoLag());
+        transferTracker.updateRemoteRefreshSeqNo(remoteRefreshSeqNo);
+        assertEquals(localRefreshSeqNo - remoteRefreshSeqNo, transferTracker.getRefreshSeqNoLag());
     }
 
     public void testComputeTimeLagOnUpdate() {
-        pressureTracker = new RemoteSegmentTransferTracker(
+        transferTracker = new RemoteSegmentTransferTracker(
             shardId,
             directoryFileTransferTracker,
-            pressureSettings.getUploadBytesMovingAverageWindowSize(),
-            pressureSettings.getUploadBytesPerSecMovingAverageWindowSize(),
-            pressureSettings.getUploadTimeMovingAverageWindowSize()
+            remoteStoreStatsTrackerFactory.getMovingAverageWindowSize()
         );
-        long currentLocalRefreshTimeMs = pressureTracker.getLocalRefreshTimeMs();
+        long currentLocalRefreshTimeMs = transferTracker.getLocalRefreshTimeMs();
         long currentTimeMs = System.nanoTime() / 1_000_000L;
         long localRefreshTimeMs = currentTimeMs + randomIntBetween(100, 500);
         long remoteRefreshTimeMs = currentTimeMs + randomIntBetween(50, 99);
-        pressureTracker.updateLocalRefreshTimeMs(localRefreshTimeMs);
-        assertEquals(localRefreshTimeMs - currentLocalRefreshTimeMs, pressureTracker.getTimeMsLag());
-        pressureTracker.updateRemoteRefreshTimeMs(remoteRefreshTimeMs);
-        assertEquals(localRefreshTimeMs - remoteRefreshTimeMs, pressureTracker.getTimeMsLag());
+        transferTracker.updateLocalRefreshTimeMs(localRefreshTimeMs);
+        assertEquals(localRefreshTimeMs - currentLocalRefreshTimeMs, transferTracker.getTimeMsLag());
+        transferTracker.updateRemoteRefreshTimeMs(remoteRefreshTimeMs);
+        assertEquals(localRefreshTimeMs - remoteRefreshTimeMs, transferTracker.getTimeMsLag());
     }
 
     public void testAddUploadBytesStarted() {
-        pressureTracker = new RemoteSegmentTransferTracker(
+        transferTracker = new RemoteSegmentTransferTracker(
             shardId,
             directoryFileTransferTracker,
-            pressureSettings.getUploadBytesMovingAverageWindowSize(),
-            pressureSettings.getUploadBytesPerSecMovingAverageWindowSize(),
-            pressureSettings.getUploadTimeMovingAverageWindowSize()
+            remoteStoreStatsTrackerFactory.getMovingAverageWindowSize()
         );
         long bytesToAdd = randomLongBetween(1000, 1000000);
-        pressureTracker.addUploadBytesStarted(bytesToAdd);
-        assertEquals(bytesToAdd, pressureTracker.getUploadBytesStarted());
+        transferTracker.addUploadBytesStarted(bytesToAdd);
+        assertEquals(bytesToAdd, transferTracker.getUploadBytesStarted());
         long moreBytesToAdd = randomLongBetween(1000, 10000);
-        pressureTracker.addUploadBytesStarted(moreBytesToAdd);
-        assertEquals(bytesToAdd + moreBytesToAdd, pressureTracker.getUploadBytesStarted());
+        transferTracker.addUploadBytesStarted(moreBytesToAdd);
+        assertEquals(bytesToAdd + moreBytesToAdd, transferTracker.getUploadBytesStarted());
     }
 
     public void testAddUploadBytesFailed() {
-        pressureTracker = new RemoteSegmentTransferTracker(
+        transferTracker = new RemoteSegmentTransferTracker(
             shardId,
             directoryFileTransferTracker,
-            pressureSettings.getUploadBytesMovingAverageWindowSize(),
-            pressureSettings.getUploadBytesPerSecMovingAverageWindowSize(),
-            pressureSettings.getUploadTimeMovingAverageWindowSize()
+            remoteStoreStatsTrackerFactory.getMovingAverageWindowSize()
         );
         long bytesToAdd = randomLongBetween(1000, 1000000);
-        pressureTracker.addUploadBytesFailed(bytesToAdd);
-        assertEquals(bytesToAdd, pressureTracker.getUploadBytesFailed());
         long moreBytesToAdd = randomLongBetween(1000, 10000);
-        pressureTracker.addUploadBytesFailed(moreBytesToAdd);
-        assertEquals(bytesToAdd + moreBytesToAdd, pressureTracker.getUploadBytesFailed());
+        transferTracker.addUploadBytesStarted(bytesToAdd + moreBytesToAdd);
+        transferTracker.addUploadBytesFailed(bytesToAdd);
+        assertEquals(bytesToAdd, transferTracker.getUploadBytesFailed());
+        transferTracker.addUploadBytesFailed(moreBytesToAdd);
+        assertEquals(bytesToAdd + moreBytesToAdd, transferTracker.getUploadBytesFailed());
     }
 
     public void testAddUploadBytesSucceeded() {
-        pressureTracker = new RemoteSegmentTransferTracker(
+        transferTracker = new RemoteSegmentTransferTracker(
             shardId,
             directoryFileTransferTracker,
-            pressureSettings.getUploadBytesMovingAverageWindowSize(),
-            pressureSettings.getUploadBytesPerSecMovingAverageWindowSize(),
-            pressureSettings.getUploadTimeMovingAverageWindowSize()
+            remoteStoreStatsTrackerFactory.getMovingAverageWindowSize()
         );
         long bytesToAdd = randomLongBetween(1000, 1000000);
-        pressureTracker.addUploadBytesSucceeded(bytesToAdd);
-        assertEquals(bytesToAdd, pressureTracker.getUploadBytesSucceeded());
         long moreBytesToAdd = randomLongBetween(1000, 10000);
-        pressureTracker.addUploadBytesSucceeded(moreBytesToAdd);
-        assertEquals(bytesToAdd + moreBytesToAdd, pressureTracker.getUploadBytesSucceeded());
+        transferTracker.addUploadBytesStarted(bytesToAdd + moreBytesToAdd);
+        transferTracker.addUploadBytesSucceeded(bytesToAdd);
+        assertEquals(bytesToAdd, transferTracker.getUploadBytesSucceeded());
+        transferTracker.addUploadBytesSucceeded(moreBytesToAdd);
+        assertEquals(bytesToAdd + moreBytesToAdd, transferTracker.getUploadBytesSucceeded());
     }
 
     public void testAddDownloadBytesStarted() {
-        pressureTracker = new RemoteSegmentTransferTracker(
+        transferTracker = new RemoteSegmentTransferTracker(
             shardId,
             directoryFileTransferTracker,
-            pressureSettings.getUploadBytesMovingAverageWindowSize(),
-            pressureSettings.getUploadBytesPerSecMovingAverageWindowSize(),
-            pressureSettings.getUploadTimeMovingAverageWindowSize()
+            remoteStoreStatsTrackerFactory.getMovingAverageWindowSize()
         );
         long bytesToAdd = randomLongBetween(1000, 1000000);
-        pressureTracker.getDirectoryFileTransferTracker().addTransferredBytesStarted(bytesToAdd);
-        assertEquals(bytesToAdd, pressureTracker.getDirectoryFileTransferTracker().getTransferredBytesStarted());
+        transferTracker.getDirectoryFileTransferTracker().addTransferredBytesStarted(bytesToAdd);
+        assertEquals(bytesToAdd, transferTracker.getDirectoryFileTransferTracker().getTransferredBytesStarted());
         long moreBytesToAdd = randomLongBetween(1000, 10000);
-        pressureTracker.getDirectoryFileTransferTracker().addTransferredBytesStarted(moreBytesToAdd);
-        assertEquals(bytesToAdd + moreBytesToAdd, pressureTracker.getDirectoryFileTransferTracker().getTransferredBytesStarted());
+        transferTracker.getDirectoryFileTransferTracker().addTransferredBytesStarted(moreBytesToAdd);
+        assertEquals(bytesToAdd + moreBytesToAdd, transferTracker.getDirectoryFileTransferTracker().getTransferredBytesStarted());
     }
 
     public void testAddDownloadBytesFailed() {
-        pressureTracker = new RemoteSegmentTransferTracker(
+        transferTracker = new RemoteSegmentTransferTracker(
             shardId,
             directoryFileTransferTracker,
-            pressureSettings.getUploadBytesMovingAverageWindowSize(),
-            pressureSettings.getUploadBytesPerSecMovingAverageWindowSize(),
-            pressureSettings.getUploadTimeMovingAverageWindowSize()
+            remoteStoreStatsTrackerFactory.getMovingAverageWindowSize()
         );
         long bytesToAdd = randomLongBetween(1000, 1000000);
-        pressureTracker.getDirectoryFileTransferTracker().addTransferredBytesFailed(bytesToAdd);
-        assertEquals(bytesToAdd, pressureTracker.getDirectoryFileTransferTracker().getTransferredBytesFailed());
+        transferTracker.getDirectoryFileTransferTracker().addTransferredBytesFailed(bytesToAdd, System.currentTimeMillis());
+        assertEquals(bytesToAdd, transferTracker.getDirectoryFileTransferTracker().getTransferredBytesFailed());
         long moreBytesToAdd = randomLongBetween(1000, 10000);
-        pressureTracker.getDirectoryFileTransferTracker().addTransferredBytesFailed(moreBytesToAdd);
-        assertEquals(bytesToAdd + moreBytesToAdd, pressureTracker.getDirectoryFileTransferTracker().getTransferredBytesFailed());
+        transferTracker.getDirectoryFileTransferTracker().addTransferredBytesFailed(moreBytesToAdd, System.currentTimeMillis());
+        assertEquals(bytesToAdd + moreBytesToAdd, transferTracker.getDirectoryFileTransferTracker().getTransferredBytesFailed());
     }
 
     public void testAddDownloadBytesSucceeded() {
-        pressureTracker = new RemoteSegmentTransferTracker(
+        transferTracker = new RemoteSegmentTransferTracker(
             shardId,
             directoryFileTransferTracker,
-            pressureSettings.getUploadBytesMovingAverageWindowSize(),
-            pressureSettings.getUploadBytesPerSecMovingAverageWindowSize(),
-            pressureSettings.getUploadTimeMovingAverageWindowSize()
+            remoteStoreStatsTrackerFactory.getMovingAverageWindowSize()
         );
         long bytesToAdd = randomLongBetween(1000, 1000000);
-        pressureTracker.getDirectoryFileTransferTracker().addTransferredBytesSucceeded(bytesToAdd, System.currentTimeMillis());
-        assertEquals(bytesToAdd, pressureTracker.getDirectoryFileTransferTracker().getTransferredBytesSucceeded());
+        transferTracker.getDirectoryFileTransferTracker().addTransferredBytesSucceeded(bytesToAdd, System.currentTimeMillis());
+        assertEquals(bytesToAdd, transferTracker.getDirectoryFileTransferTracker().getTransferredBytesSucceeded());
         long moreBytesToAdd = randomLongBetween(1000, 10000);
-        pressureTracker.getDirectoryFileTransferTracker().addTransferredBytesSucceeded(moreBytesToAdd, System.currentTimeMillis());
-        assertEquals(bytesToAdd + moreBytesToAdd, pressureTracker.getDirectoryFileTransferTracker().getTransferredBytesSucceeded());
+        transferTracker.getDirectoryFileTransferTracker().addTransferredBytesSucceeded(moreBytesToAdd, System.currentTimeMillis());
+        assertEquals(bytesToAdd + moreBytesToAdd, transferTracker.getDirectoryFileTransferTracker().getTransferredBytesSucceeded());
     }
 
     public void testGetInflightUploadBytes() {
-        pressureTracker = new RemoteSegmentTransferTracker(
+        transferTracker = new RemoteSegmentTransferTracker(
             shardId,
             directoryFileTransferTracker,
-            pressureSettings.getUploadBytesMovingAverageWindowSize(),
-            pressureSettings.getUploadBytesPerSecMovingAverageWindowSize(),
-            pressureSettings.getUploadTimeMovingAverageWindowSize()
+            remoteStoreStatsTrackerFactory.getMovingAverageWindowSize()
         );
         long bytesStarted = randomLongBetween(10000, 100000);
         long bytesSucceeded = randomLongBetween(1000, 10000);
         long bytesFailed = randomLongBetween(100, 1000);
-        pressureTracker.addUploadBytesStarted(bytesStarted);
-        pressureTracker.addUploadBytesSucceeded(bytesSucceeded);
-        pressureTracker.addUploadBytesFailed(bytesFailed);
-        assertEquals(bytesStarted - bytesSucceeded - bytesFailed, pressureTracker.getInflightUploadBytes());
+        transferTracker.addUploadBytesStarted(bytesStarted);
+        transferTracker.addUploadBytesSucceeded(bytesSucceeded);
+        transferTracker.addUploadBytesFailed(bytesFailed);
+        assertEquals(bytesStarted - bytesSucceeded - bytesFailed, transferTracker.getInflightUploadBytes());
     }
 
     public void testIncrementTotalUploadsStarted() {
-        pressureTracker = new RemoteSegmentTransferTracker(
+        transferTracker = new RemoteSegmentTransferTracker(
             shardId,
             directoryFileTransferTracker,
-            pressureSettings.getUploadBytesMovingAverageWindowSize(),
-            pressureSettings.getUploadBytesPerSecMovingAverageWindowSize(),
-            pressureSettings.getUploadTimeMovingAverageWindowSize()
+            remoteStoreStatsTrackerFactory.getMovingAverageWindowSize()
         );
-        pressureTracker.incrementTotalUploadsStarted();
-        assertEquals(1, pressureTracker.getTotalUploadsStarted());
-        pressureTracker.incrementTotalUploadsStarted();
-        assertEquals(2, pressureTracker.getTotalUploadsStarted());
+        transferTracker.incrementTotalUploadsStarted();
+        assertEquals(1, transferTracker.getTotalUploadsStarted());
+        transferTracker.incrementTotalUploadsStarted();
+        assertEquals(2, transferTracker.getTotalUploadsStarted());
     }
 
     public void testIncrementTotalUploadsFailed() {
-        pressureTracker = new RemoteSegmentTransferTracker(
+        transferTracker = new RemoteSegmentTransferTracker(
             shardId,
             directoryFileTransferTracker,
-            pressureSettings.getUploadBytesMovingAverageWindowSize(),
-            pressureSettings.getUploadBytesPerSecMovingAverageWindowSize(),
-            pressureSettings.getUploadTimeMovingAverageWindowSize()
+            remoteStoreStatsTrackerFactory.getMovingAverageWindowSize()
         );
-        pressureTracker.incrementTotalUploadsFailed();
-        assertEquals(1, pressureTracker.getTotalUploadsFailed());
-        pressureTracker.incrementTotalUploadsFailed();
-        assertEquals(2, pressureTracker.getTotalUploadsFailed());
+        transferTracker.incrementTotalUploadsStarted();
+        transferTracker.incrementTotalUploadsStarted();
+        transferTracker.incrementTotalUploadsFailed();
+        assertEquals(1, transferTracker.getTotalUploadsFailed());
+        transferTracker.incrementTotalUploadsFailed();
+        assertEquals(2, transferTracker.getTotalUploadsFailed());
     }
 
     public void testIncrementTotalUploadSucceeded() {
-        pressureTracker = new RemoteSegmentTransferTracker(
+        transferTracker = new RemoteSegmentTransferTracker(
             shardId,
             directoryFileTransferTracker,
-            pressureSettings.getUploadBytesMovingAverageWindowSize(),
-            pressureSettings.getUploadBytesPerSecMovingAverageWindowSize(),
-            pressureSettings.getUploadTimeMovingAverageWindowSize()
+            remoteStoreStatsTrackerFactory.getMovingAverageWindowSize()
         );
-        pressureTracker.incrementTotalUploadsSucceeded();
-        assertEquals(1, pressureTracker.getTotalUploadsSucceeded());
-        pressureTracker.incrementTotalUploadsSucceeded();
-        assertEquals(2, pressureTracker.getTotalUploadsSucceeded());
+        transferTracker.incrementTotalUploadsStarted();
+        transferTracker.incrementTotalUploadsStarted();
+        transferTracker.incrementTotalUploadsSucceeded();
+        assertEquals(1, transferTracker.getTotalUploadsSucceeded());
+        transferTracker.incrementTotalUploadsSucceeded();
+        assertEquals(2, transferTracker.getTotalUploadsSucceeded());
     }
 
     public void testGetInflightUploads() {
-        pressureTracker = new RemoteSegmentTransferTracker(
+        transferTracker = new RemoteSegmentTransferTracker(
             shardId,
             directoryFileTransferTracker,
-            pressureSettings.getUploadBytesMovingAverageWindowSize(),
-            pressureSettings.getUploadBytesPerSecMovingAverageWindowSize(),
-            pressureSettings.getUploadTimeMovingAverageWindowSize()
+            remoteStoreStatsTrackerFactory.getMovingAverageWindowSize()
         );
-        pressureTracker.incrementTotalUploadsStarted();
-        assertEquals(1, pressureTracker.getInflightUploads());
-        pressureTracker.incrementTotalUploadsStarted();
-        assertEquals(2, pressureTracker.getInflightUploads());
-        pressureTracker.incrementTotalUploadsSucceeded();
-        assertEquals(1, pressureTracker.getInflightUploads());
-        pressureTracker.incrementTotalUploadsFailed();
-        assertEquals(0, pressureTracker.getInflightUploads());
+        transferTracker.incrementTotalUploadsStarted();
+        assertEquals(1, transferTracker.getInflightUploads());
+        transferTracker.incrementTotalUploadsStarted();
+        assertEquals(2, transferTracker.getInflightUploads());
+        transferTracker.incrementTotalUploadsSucceeded();
+        assertEquals(1, transferTracker.getInflightUploads());
+        transferTracker.incrementTotalUploadsFailed();
+        assertEquals(0, transferTracker.getInflightUploads());
     }
 
     public void testIncrementRejectionCount() {
-        pressureTracker = new RemoteSegmentTransferTracker(
+        transferTracker = new RemoteSegmentTransferTracker(
             shardId,
             directoryFileTransferTracker,
-            pressureSettings.getUploadBytesMovingAverageWindowSize(),
-            pressureSettings.getUploadBytesPerSecMovingAverageWindowSize(),
-            pressureSettings.getUploadTimeMovingAverageWindowSize()
+            remoteStoreStatsTrackerFactory.getMovingAverageWindowSize()
         );
-        pressureTracker.incrementRejectionCount();
-        assertEquals(1, pressureTracker.getRejectionCount());
-        pressureTracker.incrementRejectionCount();
-        assertEquals(2, pressureTracker.getRejectionCount());
+        transferTracker.incrementRejectionCount();
+        assertEquals(1, transferTracker.getRejectionCount());
+        transferTracker.incrementRejectionCount();
+        assertEquals(2, transferTracker.getRejectionCount());
     }
 
     public void testGetConsecutiveFailureCount() {
-        pressureTracker = new RemoteSegmentTransferTracker(
+        transferTracker = new RemoteSegmentTransferTracker(
             shardId,
             directoryFileTransferTracker,
-            pressureSettings.getUploadBytesMovingAverageWindowSize(),
-            pressureSettings.getUploadBytesPerSecMovingAverageWindowSize(),
-            pressureSettings.getUploadTimeMovingAverageWindowSize()
+            remoteStoreStatsTrackerFactory.getMovingAverageWindowSize()
         );
-        pressureTracker.incrementTotalUploadsFailed();
-        assertEquals(1, pressureTracker.getConsecutiveFailureCount());
-        pressureTracker.incrementTotalUploadsFailed();
-        assertEquals(2, pressureTracker.getConsecutiveFailureCount());
-        pressureTracker.incrementTotalUploadsSucceeded();
-        assertEquals(0, pressureTracker.getConsecutiveFailureCount());
+        transferTracker.incrementTotalUploadsStarted();
+        transferTracker.incrementTotalUploadsStarted();
+        transferTracker.incrementTotalUploadsStarted();
+        transferTracker.incrementTotalUploadsFailed();
+        assertEquals(1, transferTracker.getConsecutiveFailureCount());
+        transferTracker.incrementTotalUploadsFailed();
+        assertEquals(2, transferTracker.getConsecutiveFailureCount());
+        transferTracker.incrementTotalUploadsSucceeded();
+        assertEquals(0, transferTracker.getConsecutiveFailureCount());
     }
 
     public void testComputeBytesLag() {
-        pressureTracker = new RemoteSegmentTransferTracker(
+        transferTracker = new RemoteSegmentTransferTracker(
             shardId,
             directoryFileTransferTracker,
-            pressureSettings.getUploadBytesMovingAverageWindowSize(),
-            pressureSettings.getUploadBytesPerSecMovingAverageWindowSize(),
-            pressureSettings.getUploadTimeMovingAverageWindowSize()
+            remoteStoreStatsTrackerFactory.getMovingAverageWindowSize()
         );
 
         // Create local file size map
         Map<String, Long> fileSizeMap = new HashMap<>();
         fileSizeMap.put("a", 100L);
         fileSizeMap.put("b", 105L);
-        pressureTracker.updateLatestLocalFileNameLengthMap(fileSizeMap.keySet(), fileSizeMap::get);
-        assertEquals(205L, pressureTracker.getBytesLag());
+        transferTracker.updateLatestLocalFileNameLengthMap(fileSizeMap.keySet(), fileSizeMap::get);
+        assertEquals(205L, transferTracker.getBytesLag());
 
-        pressureTracker.addToLatestUploadedFiles("a");
-        assertEquals(105L, pressureTracker.getBytesLag());
+        transferTracker.addToLatestUploadedFiles("a");
+        assertEquals(105L, transferTracker.getBytesLag());
 
         fileSizeMap.put("c", 115L);
-        pressureTracker.updateLatestLocalFileNameLengthMap(fileSizeMap.keySet(), fileSizeMap::get);
-        assertEquals(220L, pressureTracker.getBytesLag());
+        transferTracker.updateLatestLocalFileNameLengthMap(fileSizeMap.keySet(), fileSizeMap::get);
+        assertEquals(220L, transferTracker.getBytesLag());
 
-        pressureTracker.addToLatestUploadedFiles("b");
-        assertEquals(115L, pressureTracker.getBytesLag());
+        transferTracker.addToLatestUploadedFiles("b");
+        assertEquals(115L, transferTracker.getBytesLag());
 
-        pressureTracker.addToLatestUploadedFiles("c");
-        assertEquals(0L, pressureTracker.getBytesLag());
+        transferTracker.addToLatestUploadedFiles("c");
+        assertEquals(0L, transferTracker.getBytesLag());
     }
 
-    public void testIsUploadBytesAverageReady() {
-        pressureTracker = new RemoteSegmentTransferTracker(
-            shardId,
-            directoryFileTransferTracker,
-            pressureSettings.getUploadBytesMovingAverageWindowSize(),
-            pressureSettings.getUploadBytesPerSecMovingAverageWindowSize(),
-            pressureSettings.getUploadTimeMovingAverageWindowSize()
-        );
-        assertFalse(pressureTracker.isUploadBytesAverageReady());
+    public void testisUploadBytesMovingAverageReady() {
+        int movingAverageWindowSize = remoteStoreStatsTrackerFactory.getMovingAverageWindowSize();
+        transferTracker = new RemoteSegmentTransferTracker(shardId, directoryFileTransferTracker, movingAverageWindowSize);
+        assertFalse(transferTracker.isUploadBytesMovingAverageReady());
 
         long sum = 0;
-        for (int i = 1; i < 20; i++) {
-            pressureTracker.addUploadBytes(i);
+        for (int i = 1; i < movingAverageWindowSize; i++) {
+            transferTracker.updateUploadBytesMovingAverage(i);
             sum += i;
-            assertFalse(pressureTracker.isUploadBytesAverageReady());
-            assertEquals((double) sum / i, pressureTracker.getUploadBytesAverage(), 0.0d);
+            assertFalse(transferTracker.isUploadBytesMovingAverageReady());
+            assertEquals((double) sum / i, transferTracker.getUploadBytesMovingAverage(), 0.0d);
         }
 
-        pressureTracker.addUploadBytes(20);
-        sum += 20;
-        assertTrue(pressureTracker.isUploadBytesAverageReady());
-        assertEquals((double) sum / 20, pressureTracker.getUploadBytesAverage(), 0.0d);
+        transferTracker.updateUploadBytesMovingAverage(movingAverageWindowSize);
+        sum += movingAverageWindowSize;
+        assertTrue(transferTracker.isUploadBytesMovingAverageReady());
+        assertEquals((double) sum / movingAverageWindowSize, transferTracker.getUploadBytesMovingAverage(), 0.0d);
 
-        pressureTracker.addUploadBytes(100);
+        transferTracker.updateUploadBytesMovingAverage(100);
         sum = sum + 100 - 1;
-        assertEquals((double) sum / 20, pressureTracker.getUploadBytesAverage(), 0.0d);
+        assertEquals((double) sum / movingAverageWindowSize, transferTracker.getUploadBytesMovingAverage(), 0.0d);
     }
 
     public void testIsUploadBytesPerSecAverageReady() {
-        pressureTracker = new RemoteSegmentTransferTracker(
-            shardId,
-            directoryFileTransferTracker,
-            pressureSettings.getUploadBytesMovingAverageWindowSize(),
-            pressureSettings.getUploadBytesPerSecMovingAverageWindowSize(),
-            pressureSettings.getUploadTimeMovingAverageWindowSize()
-        );
-        assertFalse(pressureTracker.isUploadBytesPerSecAverageReady());
+        int movingAverageWindowSize = remoteStoreStatsTrackerFactory.getMovingAverageWindowSize();
+        transferTracker = new RemoteSegmentTransferTracker(shardId, directoryFileTransferTracker, movingAverageWindowSize);
+        assertFalse(transferTracker.isUploadBytesPerSecMovingAverageReady());
 
         long sum = 0;
-        for (int i = 1; i < 20; i++) {
-            pressureTracker.addUploadBytesPerSec(i);
+        for (int i = 1; i < movingAverageWindowSize; i++) {
+            transferTracker.updateUploadBytesPerSecMovingAverage(i);
             sum += i;
-            assertFalse(pressureTracker.isUploadBytesPerSecAverageReady());
-            assertEquals((double) sum / i, pressureTracker.getUploadBytesPerSecAverage(), 0.0d);
+            assertFalse(transferTracker.isUploadBytesPerSecMovingAverageReady());
+            assertEquals((double) sum / i, transferTracker.getUploadBytesPerSecMovingAverage(), 0.0d);
         }
 
-        pressureTracker.addUploadBytesPerSec(20);
-        sum += 20;
-        assertTrue(pressureTracker.isUploadBytesPerSecAverageReady());
-        assertEquals((double) sum / 20, pressureTracker.getUploadBytesPerSecAverage(), 0.0d);
+        transferTracker.updateUploadBytesPerSecMovingAverage(movingAverageWindowSize);
+        sum += movingAverageWindowSize;
+        assertTrue(transferTracker.isUploadBytesPerSecMovingAverageReady());
+        assertEquals((double) sum / movingAverageWindowSize, transferTracker.getUploadBytesPerSecMovingAverage(), 0.0d);
 
-        pressureTracker.addUploadBytesPerSec(100);
+        transferTracker.updateUploadBytesPerSecMovingAverage(100);
         sum = sum + 100 - 1;
-        assertEquals((double) sum / 20, pressureTracker.getUploadBytesPerSecAverage(), 0.0d);
+        assertEquals((double) sum / movingAverageWindowSize, transferTracker.getUploadBytesPerSecMovingAverage(), 0.0d);
     }
 
     public void testIsUploadTimeMsAverageReady() {
-        pressureTracker = new RemoteSegmentTransferTracker(
-            shardId,
-            directoryFileTransferTracker,
-            pressureSettings.getUploadBytesMovingAverageWindowSize(),
-            pressureSettings.getUploadBytesPerSecMovingAverageWindowSize(),
-            pressureSettings.getUploadTimeMovingAverageWindowSize()
-        );
-        assertFalse(pressureTracker.isUploadTimeMsAverageReady());
+        int movingAverageWindowSize = remoteStoreStatsTrackerFactory.getMovingAverageWindowSize();
+        transferTracker = new RemoteSegmentTransferTracker(shardId, directoryFileTransferTracker, movingAverageWindowSize);
+        assertFalse(transferTracker.isUploadTimeMovingAverageReady());
 
         long sum = 0;
-        for (int i = 1; i < 20; i++) {
-            pressureTracker.addUploadTimeMs(i);
+        for (int i = 1; i < movingAverageWindowSize; i++) {
+            transferTracker.updateUploadTimeMovingAverage(i);
             sum += i;
-            assertFalse(pressureTracker.isUploadTimeMsAverageReady());
-            assertEquals((double) sum / i, pressureTracker.getUploadTimeMsAverage(), 0.0d);
+            assertFalse(transferTracker.isUploadTimeMovingAverageReady());
+            assertEquals((double) sum / i, transferTracker.getUploadTimeMovingAverage(), 0.0d);
         }
 
-        pressureTracker.addUploadTimeMs(20);
-        sum += 20;
-        assertTrue(pressureTracker.isUploadTimeMsAverageReady());
-        assertEquals((double) sum / 20, pressureTracker.getUploadTimeMsAverage(), 0.0d);
+        transferTracker.updateUploadTimeMovingAverage(movingAverageWindowSize);
+        sum += movingAverageWindowSize;
+        assertTrue(transferTracker.isUploadTimeMovingAverageReady());
+        assertEquals((double) sum / movingAverageWindowSize, transferTracker.getUploadTimeMovingAverage(), 0.0d);
 
-        pressureTracker.addUploadTimeMs(100);
+        transferTracker.updateUploadTimeMovingAverage(100);
         sum = sum + 100 - 1;
-        assertEquals((double) sum / 20, pressureTracker.getUploadTimeMsAverage(), 0.0d);
+        assertEquals((double) sum / movingAverageWindowSize, transferTracker.getUploadTimeMovingAverage(), 0.0d);
     }
 
     public void testIsDownloadBytesAverageReady() {
-        pressureTracker = new RemoteSegmentTransferTracker(
+        transferTracker = new RemoteSegmentTransferTracker(
             shardId,
             directoryFileTransferTracker,
-            pressureSettings.getUploadBytesMovingAverageWindowSize(),
-            pressureSettings.getUploadBytesPerSecMovingAverageWindowSize(),
-            pressureSettings.getUploadTimeMovingAverageWindowSize()
+            remoteStoreStatsTrackerFactory.getMovingAverageWindowSize()
         );
-        assertFalse(pressureTracker.getDirectoryFileTransferTracker().isTransferredBytesAverageReady());
+        assertFalse(transferTracker.getDirectoryFileTransferTracker().isTransferredBytesAverageReady());
 
         long sum = 0;
         for (int i = 1; i < 20; i++) {
-            pressureTracker.getDirectoryFileTransferTracker().updateLastSuccessfulTransferSize(i);
+            transferTracker.getDirectoryFileTransferTracker().updateSuccessfulTransferSize(i);
             sum += i;
-            assertFalse(pressureTracker.getDirectoryFileTransferTracker().isTransferredBytesAverageReady());
-            assertEquals((double) sum / i, pressureTracker.getDirectoryFileTransferTracker().getTransferredBytesAverage(), 0.0d);
+            assertFalse(transferTracker.getDirectoryFileTransferTracker().isTransferredBytesAverageReady());
+            assertEquals((double) sum / i, transferTracker.getDirectoryFileTransferTracker().getTransferredBytesAverage(), 0.0d);
         }
 
-        pressureTracker.getDirectoryFileTransferTracker().updateLastSuccessfulTransferSize(20);
+        transferTracker.getDirectoryFileTransferTracker().updateSuccessfulTransferSize(20);
         sum += 20;
-        assertTrue(pressureTracker.getDirectoryFileTransferTracker().isTransferredBytesAverageReady());
-        assertEquals((double) sum / 20, pressureTracker.getDirectoryFileTransferTracker().getTransferredBytesAverage(), 0.0d);
+        assertTrue(transferTracker.getDirectoryFileTransferTracker().isTransferredBytesAverageReady());
+        assertEquals((double) sum / 20, transferTracker.getDirectoryFileTransferTracker().getTransferredBytesAverage(), 0.0d);
 
-        pressureTracker.getDirectoryFileTransferTracker().updateLastSuccessfulTransferSize(100);
+        transferTracker.getDirectoryFileTransferTracker().updateSuccessfulTransferSize(100);
         sum = sum + 100 - 1;
-        assertEquals((double) sum / 20, pressureTracker.getDirectoryFileTransferTracker().getTransferredBytesAverage(), 0.0d);
+        assertEquals((double) sum / 20, transferTracker.getDirectoryFileTransferTracker().getTransferredBytesAverage(), 0.0d);
     }
 
     public void testIsDownloadBytesPerSecAverageReady() {
-        pressureTracker = new RemoteSegmentTransferTracker(
+        transferTracker = new RemoteSegmentTransferTracker(
             shardId,
             directoryFileTransferTracker,
-            pressureSettings.getUploadBytesMovingAverageWindowSize(),
-            pressureSettings.getUploadBytesPerSecMovingAverageWindowSize(),
-            pressureSettings.getUploadTimeMovingAverageWindowSize()
+            remoteStoreStatsTrackerFactory.getMovingAverageWindowSize()
         );
-        assertFalse(pressureTracker.getDirectoryFileTransferTracker().isTransferredBytesPerSecAverageReady());
+        assertFalse(transferTracker.getDirectoryFileTransferTracker().isTransferredBytesPerSecAverageReady());
 
         long sum = 0;
         for (int i = 1; i < 20; i++) {
-            pressureTracker.getDirectoryFileTransferTracker().addTransferredBytesPerSec(i);
+            transferTracker.getDirectoryFileTransferTracker().addTransferredBytesPerSec(i);
             sum += i;
-            assertFalse(pressureTracker.getDirectoryFileTransferTracker().isTransferredBytesPerSecAverageReady());
-            assertEquals((double) sum / i, pressureTracker.getDirectoryFileTransferTracker().getTransferredBytesPerSecAverage(), 0.0d);
+            assertFalse(transferTracker.getDirectoryFileTransferTracker().isTransferredBytesPerSecAverageReady());
+            assertEquals((double) sum / i, transferTracker.getDirectoryFileTransferTracker().getTransferredBytesPerSecAverage(), 0.0d);
         }
 
-        pressureTracker.getDirectoryFileTransferTracker().addTransferredBytesPerSec(20);
+        transferTracker.getDirectoryFileTransferTracker().addTransferredBytesPerSec(20);
         sum += 20;
-        assertTrue(pressureTracker.getDirectoryFileTransferTracker().isTransferredBytesPerSecAverageReady());
-        assertEquals((double) sum / 20, pressureTracker.getDirectoryFileTransferTracker().getTransferredBytesPerSecAverage(), 0.0d);
+        assertTrue(transferTracker.getDirectoryFileTransferTracker().isTransferredBytesPerSecAverageReady());
+        assertEquals((double) sum / 20, transferTracker.getDirectoryFileTransferTracker().getTransferredBytesPerSecAverage(), 0.0d);
 
-        pressureTracker.getDirectoryFileTransferTracker().addTransferredBytesPerSec(100);
+        transferTracker.getDirectoryFileTransferTracker().addTransferredBytesPerSec(100);
         sum = sum + 100 - 1;
-        assertEquals((double) sum / 20, pressureTracker.getDirectoryFileTransferTracker().getTransferredBytesPerSecAverage(), 0.0d);
+        assertEquals((double) sum / 20, transferTracker.getDirectoryFileTransferTracker().getTransferredBytesPerSecAverage(), 0.0d);
+    }
+
+    public void testAddTotalUploadTimeInMs() {
+        transferTracker = new RemoteSegmentTransferTracker(
+            shardId,
+            directoryFileTransferTracker,
+            remoteStoreStatsTrackerFactory.getMovingAverageWindowSize()
+        );
+        long timeToAdd = randomLongBetween(100, 200);
+        transferTracker.addUploadTimeInMillis(timeToAdd);
+        assertEquals(timeToAdd, transferTracker.getTotalUploadTimeInMillis());
+        long moreTimeToAdd = randomLongBetween(100, 200);
+        transferTracker.addUploadTimeInMillis(moreTimeToAdd);
+        assertEquals(timeToAdd + moreTimeToAdd, transferTracker.getTotalUploadTimeInMillis());
+    }
+
+    public void testAddTotalTransferTimeMs() {
+        transferTracker = new RemoteSegmentTransferTracker(
+            shardId,
+            directoryFileTransferTracker,
+            remoteStoreStatsTrackerFactory.getMovingAverageWindowSize()
+        );
+        long timeToAdd = randomLongBetween(100, 200);
+        transferTracker.getDirectoryFileTransferTracker().addTotalTransferTimeInMs(timeToAdd);
+        assertEquals(timeToAdd, transferTracker.getDirectoryFileTransferTracker().getTotalTransferTimeInMs());
+        long moreTimeToAdd = randomLongBetween(100, 200);
+        transferTracker.getDirectoryFileTransferTracker().addTotalTransferTimeInMs(moreTimeToAdd);
+        assertEquals(timeToAdd + moreTimeToAdd, transferTracker.getDirectoryFileTransferTracker().getTotalTransferTimeInMs());
     }
 
     /**
      * Tests whether RemoteSegmentTransferTracker.Stats object generated correctly from RemoteSegmentTransferTracker.
      * */
     public void testStatsObjectCreation() {
-        pressureTracker = constructTracker();
-        RemoteSegmentTransferTracker.Stats pressureTrackerStats = pressureTracker.stats();
-        assertEquals(pressureTracker.getShardId(), pressureTrackerStats.shardId);
-        assertEquals(pressureTracker.getTimeMsLag(), (int) pressureTrackerStats.refreshTimeLagMs);
-        assertEquals(pressureTracker.getLocalRefreshSeqNo(), (int) pressureTrackerStats.localRefreshNumber);
-        assertEquals(pressureTracker.getRemoteRefreshSeqNo(), (int) pressureTrackerStats.remoteRefreshNumber);
-        assertEquals(pressureTracker.getBytesLag(), (int) pressureTrackerStats.bytesLag);
-        assertEquals(pressureTracker.getRejectionCount(), (int) pressureTrackerStats.rejectionCount);
-        assertEquals(pressureTracker.getConsecutiveFailureCount(), (int) pressureTrackerStats.consecutiveFailuresCount);
-        assertEquals(pressureTracker.getUploadBytesStarted(), (int) pressureTrackerStats.uploadBytesStarted);
-        assertEquals(pressureTracker.getUploadBytesSucceeded(), (int) pressureTrackerStats.uploadBytesSucceeded);
-        assertEquals(pressureTracker.getUploadBytesFailed(), (int) pressureTrackerStats.uploadBytesFailed);
-        assertEquals(pressureTracker.getUploadBytesAverage(), pressureTrackerStats.uploadBytesMovingAverage, 0);
-        assertEquals(pressureTracker.getUploadBytesPerSecAverage(), pressureTrackerStats.uploadBytesPerSecMovingAverage, 0);
-        assertEquals(pressureTracker.getUploadTimeMsAverage(), pressureTrackerStats.uploadTimeMovingAverage, 0);
-        assertEquals(pressureTracker.getTotalUploadsStarted(), (int) pressureTrackerStats.totalUploadsStarted);
-        assertEquals(pressureTracker.getTotalUploadsSucceeded(), (int) pressureTrackerStats.totalUploadsSucceeded);
-        assertEquals(pressureTracker.getTotalUploadsFailed(), (int) pressureTrackerStats.totalUploadsFailed);
+        transferTracker = constructTracker();
+        RemoteSegmentTransferTracker.Stats transferTrackerStats = transferTracker.stats();
+        assertEquals(transferTracker.getShardId(), transferTrackerStats.shardId);
+        assertEquals(transferTracker.getTimeMsLag(), (int) transferTrackerStats.refreshTimeLagMs);
+        assertEquals(transferTracker.getLocalRefreshSeqNo(), (int) transferTrackerStats.localRefreshNumber);
+        assertEquals(transferTracker.getRemoteRefreshSeqNo(), (int) transferTrackerStats.remoteRefreshNumber);
+        assertEquals(transferTracker.getBytesLag(), (int) transferTrackerStats.bytesLag);
+        assertEquals(transferTracker.getRejectionCount(), (int) transferTrackerStats.rejectionCount);
+        assertEquals(transferTracker.getConsecutiveFailureCount(), (int) transferTrackerStats.consecutiveFailuresCount);
+        assertEquals(transferTracker.getUploadBytesStarted(), (int) transferTrackerStats.uploadBytesStarted);
+        assertEquals(transferTracker.getUploadBytesSucceeded(), (int) transferTrackerStats.uploadBytesSucceeded);
+        assertEquals(transferTracker.getUploadBytesFailed(), (int) transferTrackerStats.uploadBytesFailed);
+        assertEquals(transferTracker.getUploadBytesMovingAverage(), transferTrackerStats.uploadBytesMovingAverage, 0);
+        assertEquals(transferTracker.getUploadBytesPerSecMovingAverage(), transferTrackerStats.uploadBytesPerSecMovingAverage, 0);
+        assertEquals(transferTracker.getUploadTimeMovingAverage(), transferTrackerStats.uploadTimeMovingAverage, 0);
+        assertEquals(transferTracker.getTotalUploadsStarted(), (int) transferTrackerStats.totalUploadsStarted);
+        assertEquals(transferTracker.getTotalUploadsSucceeded(), (int) transferTrackerStats.totalUploadsSucceeded);
+        assertEquals(transferTracker.getTotalUploadsFailed(), (int) transferTrackerStats.totalUploadsFailed);
     }
 
     /**
@@ -575,64 +541,63 @@ public class RemoteSegmentTransferTrackerTests extends OpenSearchTestCase {
      * This comes into play during internode data transfer.
      */
     public void testStatsObjectCreationViaStream() throws IOException {
-        pressureTracker = constructTracker();
-        RemoteSegmentTransferTracker.Stats pressureTrackerStats = pressureTracker.stats();
+        transferTracker = constructTracker();
+        RemoteSegmentTransferTracker.Stats transferTrackerStats = transferTracker.stats();
         try (BytesStreamOutput out = new BytesStreamOutput()) {
-            pressureTrackerStats.writeTo(out);
+            transferTrackerStats.writeTo(out);
             try (StreamInput in = out.bytes().streamInput()) {
                 RemoteSegmentTransferTracker.Stats deserializedStats = new RemoteSegmentTransferTracker.Stats(in);
-                assertEquals(deserializedStats.shardId, pressureTrackerStats.shardId);
-                assertEquals((int) deserializedStats.refreshTimeLagMs, (int) pressureTrackerStats.refreshTimeLagMs);
-                assertEquals((int) deserializedStats.localRefreshNumber, (int) pressureTrackerStats.localRefreshNumber);
-                assertEquals((int) deserializedStats.remoteRefreshNumber, (int) pressureTrackerStats.remoteRefreshNumber);
-                assertEquals((int) deserializedStats.bytesLag, (int) pressureTrackerStats.bytesLag);
-                assertEquals((int) deserializedStats.rejectionCount, (int) pressureTrackerStats.rejectionCount);
-                assertEquals((int) deserializedStats.consecutiveFailuresCount, (int) pressureTrackerStats.consecutiveFailuresCount);
-                assertEquals((int) deserializedStats.uploadBytesStarted, (int) pressureTrackerStats.uploadBytesStarted);
-                assertEquals((int) deserializedStats.uploadBytesSucceeded, (int) pressureTrackerStats.uploadBytesSucceeded);
-                assertEquals((int) deserializedStats.uploadBytesFailed, (int) pressureTrackerStats.uploadBytesFailed);
-                assertEquals((int) deserializedStats.uploadBytesMovingAverage, pressureTrackerStats.uploadBytesMovingAverage, 0);
+                assertEquals(deserializedStats.shardId, transferTrackerStats.shardId);
+                assertEquals((int) deserializedStats.refreshTimeLagMs, (int) transferTrackerStats.refreshTimeLagMs);
+                assertEquals((int) deserializedStats.localRefreshNumber, (int) transferTrackerStats.localRefreshNumber);
+                assertEquals((int) deserializedStats.remoteRefreshNumber, (int) transferTrackerStats.remoteRefreshNumber);
+                assertEquals((int) deserializedStats.bytesLag, (int) transferTrackerStats.bytesLag);
+                assertEquals((int) deserializedStats.rejectionCount, (int) transferTrackerStats.rejectionCount);
+                assertEquals((int) deserializedStats.consecutiveFailuresCount, (int) transferTrackerStats.consecutiveFailuresCount);
+                assertEquals((int) deserializedStats.uploadBytesStarted, (int) transferTrackerStats.uploadBytesStarted);
+                assertEquals((int) deserializedStats.uploadBytesSucceeded, (int) transferTrackerStats.uploadBytesSucceeded);
+                assertEquals((int) deserializedStats.uploadBytesFailed, (int) transferTrackerStats.uploadBytesFailed);
+                assertEquals((int) deserializedStats.uploadBytesMovingAverage, transferTrackerStats.uploadBytesMovingAverage, 0);
                 assertEquals(
                     (int) deserializedStats.uploadBytesPerSecMovingAverage,
-                    pressureTrackerStats.uploadBytesPerSecMovingAverage,
+                    transferTrackerStats.uploadBytesPerSecMovingAverage,
                     0
                 );
-                assertEquals((int) deserializedStats.uploadTimeMovingAverage, pressureTrackerStats.uploadTimeMovingAverage, 0);
-                assertEquals((int) deserializedStats.totalUploadsStarted, (int) pressureTrackerStats.totalUploadsStarted);
-                assertEquals((int) deserializedStats.totalUploadsSucceeded, (int) pressureTrackerStats.totalUploadsSucceeded);
-                assertEquals((int) deserializedStats.totalUploadsFailed, (int) pressureTrackerStats.totalUploadsFailed);
+                assertEquals((int) deserializedStats.uploadTimeMovingAverage, transferTrackerStats.uploadTimeMovingAverage, 0);
+                assertEquals((int) deserializedStats.totalUploadsStarted, (int) transferTrackerStats.totalUploadsStarted);
+                assertEquals((int) deserializedStats.totalUploadsSucceeded, (int) transferTrackerStats.totalUploadsSucceeded);
+                assertEquals((int) deserializedStats.totalUploadsFailed, (int) transferTrackerStats.totalUploadsFailed);
                 assertEquals(
                     (int) deserializedStats.directoryFileTransferTrackerStats.transferredBytesStarted,
-                    (int) pressureTrackerStats.directoryFileTransferTrackerStats.transferredBytesStarted
+                    (int) transferTrackerStats.directoryFileTransferTrackerStats.transferredBytesStarted
                 );
                 assertEquals(
                     (int) deserializedStats.directoryFileTransferTrackerStats.transferredBytesSucceeded,
-                    (int) pressureTrackerStats.directoryFileTransferTrackerStats.transferredBytesSucceeded
+                    (int) transferTrackerStats.directoryFileTransferTrackerStats.transferredBytesSucceeded
                 );
                 assertEquals(
                     (int) deserializedStats.directoryFileTransferTrackerStats.transferredBytesPerSecMovingAverage,
-                    (int) pressureTrackerStats.directoryFileTransferTrackerStats.transferredBytesPerSecMovingAverage
+                    (int) transferTrackerStats.directoryFileTransferTrackerStats.transferredBytesPerSecMovingAverage
                 );
             }
         }
     }
 
     private RemoteSegmentTransferTracker constructTracker() {
-        RemoteSegmentTransferTracker segmentPressureTracker = new RemoteSegmentTransferTracker(
+        RemoteSegmentTransferTracker transferTracker = new RemoteSegmentTransferTracker(
             shardId,
             new DirectoryFileTransferTracker(),
-            pressureSettings.getUploadBytesMovingAverageWindowSize(),
-            pressureSettings.getUploadBytesPerSecMovingAverageWindowSize(),
-            pressureSettings.getUploadTimeMovingAverageWindowSize()
+            remoteStoreStatsTrackerFactory.getMovingAverageWindowSize()
         );
-        segmentPressureTracker.incrementTotalUploadsFailed();
-        segmentPressureTracker.addUploadTimeMs(System.nanoTime() / 1_000_000L + randomIntBetween(10, 100));
-        segmentPressureTracker.addUploadBytes(99);
-        segmentPressureTracker.updateRemoteRefreshTimeMs(System.nanoTime() / 1_000_000L + randomIntBetween(10, 100));
-        segmentPressureTracker.incrementRejectionCount();
-        segmentPressureTracker.getDirectoryFileTransferTracker().addTransferredBytesStarted(10);
-        segmentPressureTracker.getDirectoryFileTransferTracker().addTransferredBytesSucceeded(10, System.currentTimeMillis());
-        segmentPressureTracker.getDirectoryFileTransferTracker().addTransferredBytesPerSec(5);
-        return segmentPressureTracker;
+        transferTracker.incrementTotalUploadsStarted();
+        transferTracker.incrementTotalUploadsFailed();
+        transferTracker.updateUploadTimeMovingAverage(System.nanoTime() / 1_000_000L + randomIntBetween(10, 100));
+        transferTracker.updateUploadBytesMovingAverage(99);
+        transferTracker.updateRemoteRefreshTimeMs(System.nanoTime() / 1_000_000L + randomIntBetween(10, 100));
+        transferTracker.incrementRejectionCount();
+        transferTracker.getDirectoryFileTransferTracker().addTransferredBytesStarted(10);
+        transferTracker.getDirectoryFileTransferTracker().addTransferredBytesSucceeded(10, System.currentTimeMillis());
+        transferTracker.getDirectoryFileTransferTracker().addTransferredBytesPerSec(5);
+        return transferTracker;
     }
 }

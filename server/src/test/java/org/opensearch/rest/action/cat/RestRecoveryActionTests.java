@@ -33,7 +33,6 @@
 package org.opensearch.rest.action.cat;
 
 import org.opensearch.action.admin.indices.recovery.RecoveryResponse;
-import org.opensearch.core.action.support.DefaultShardOperationFailedException;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.routing.RecoverySource;
 import org.opensearch.cluster.routing.RecoverySource.SnapshotRecoverySource;
@@ -42,6 +41,7 @@ import org.opensearch.common.Randomness;
 import org.opensearch.common.Table;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.xcontent.XContentOpenSearchExtension;
+import org.opensearch.core.action.support.DefaultShardOperationFailedException;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.indices.recovery.RecoveryState;
@@ -49,6 +49,7 @@ import org.opensearch.indices.replication.common.ReplicationLuceneIndex;
 import org.opensearch.indices.replication.common.ReplicationTimer;
 import org.opensearch.test.OpenSearchTestCase;
 
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Date;
@@ -164,9 +165,9 @@ public class RestRecoveryActionTests extends OpenSearchTestCase {
             final List<Object> expectedValues = Arrays.asList(
                 "index",
                 i,
-                XContentOpenSearchExtension.DEFAULT_DATE_PRINTER.print(state.getTimer().startTime()),
+                XContentOpenSearchExtension.DEFAULT_FORMATTER.format(Instant.ofEpochMilli(state.getTimer().startTime())),
                 state.getTimer().startTime(),
-                XContentOpenSearchExtension.DEFAULT_DATE_PRINTER.print(state.getTimer().stopTime()),
+                XContentOpenSearchExtension.DEFAULT_FORMATTER.format(Instant.ofEpochMilli(state.getTimer().stopTime())),
                 state.getTimer().stopTime(),
                 new TimeValue(state.getTimer().time()),
                 state.getRecoverySource().getType().name().toLowerCase(Locale.ROOT),

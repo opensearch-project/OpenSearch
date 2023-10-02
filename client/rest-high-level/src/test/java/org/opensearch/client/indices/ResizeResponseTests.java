@@ -33,8 +33,8 @@
 package org.opensearch.client.indices;
 
 import org.opensearch.client.AbstractResponseTestCase;
-import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.xcontent.XContentParser;
 
 import java.io.IOException;
 

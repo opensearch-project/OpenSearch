@@ -33,10 +33,10 @@ package org.opensearch.action.search;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.FixedBitSet;
-import org.opensearch.core.action.ActionListener;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.routing.GroupShardsIterator;
 import org.opensearch.common.lease.Releasable;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.search.SearchService.CanMatchResponse;
 import org.opensearch.search.SearchShardTarget;
 import org.opensearch.search.builder.SearchSourceBuilder;
@@ -90,7 +90,8 @@ final class CanMatchPreFilterSearchPhase extends AbstractSearchAsyncAction<CanMa
         ClusterState clusterState,
         SearchTask task,
         Function<GroupShardsIterator<SearchShardIterator>, SearchPhase> phaseFactory,
-        SearchResponse.Clusters clusters
+        SearchResponse.Clusters clusters,
+        SearchRequestOperationsListener searchRequestOperationsListener
     ) {
         // We set max concurrent shard requests to the number of shards so no throttling happens for can_match requests
         super(
@@ -110,7 +111,8 @@ final class CanMatchPreFilterSearchPhase extends AbstractSearchAsyncAction<CanMa
             task,
             new CanMatchSearchPhaseResults(shardsIts.size()),
             shardsIts.size(),
-            clusters
+            clusters,
+            searchRequestOperationsListener
         );
         this.phaseFactory = phaseFactory;
         this.shardsIts = shardsIts;

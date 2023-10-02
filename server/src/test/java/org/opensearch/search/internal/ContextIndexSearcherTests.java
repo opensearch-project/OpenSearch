@@ -77,14 +77,14 @@ import org.opensearch.common.lucene.index.OpenSearchDirectoryReader;
 import org.opensearch.common.lucene.index.SequentialStoredFieldsLeafReader;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.io.IOUtils;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.cache.bitset.BitsetFilterCache;
-import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.search.SearchService;
 import org.opensearch.search.aggregations.LeafBucketCollector;
-import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.IndexSettingsModule;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -94,15 +94,15 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 import static org.opensearch.search.internal.ContextIndexSearcher.intersectScorerAndBitSet;
 import static org.opensearch.search.internal.ExitableDirectoryReader.ExitableLeafReader;
 import static org.opensearch.search.internal.ExitableDirectoryReader.ExitablePointValues;
 import static org.opensearch.search.internal.ExitableDirectoryReader.ExitableTerms;
+import static org.opensearch.search.internal.IndexReaderUtils.getLeaves;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.opensearch.search.internal.IndexReaderUtils.getLeaves;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class ContextIndexSearcherTests extends OpenSearchTestCase {
     public void testIntersectScorerAndRoleBits() throws Exception {
@@ -383,7 +383,7 @@ public class ContextIndexSearcherTests extends OpenSearchTestCase {
                 IndexShard indexShard = mock(IndexShard.class);
                 when(searchContext.indexShard()).thenReturn(indexShard);
                 when(searchContext.bucketCollectorProcessor()).thenReturn(SearchContext.NO_OP_BUCKET_COLLECTOR_PROCESSOR);
-                when(searchContext.isConcurrentSegmentSearchEnabled()).thenReturn(false);
+                when(searchContext.shouldUseConcurrentSearch()).thenReturn(false);
                 ContextIndexSearcher searcher = new ContextIndexSearcher(
                     directoryReader,
                     IndexSearcher.getDefaultSimilarity(),
@@ -406,7 +406,7 @@ public class ContextIndexSearcherTests extends OpenSearchTestCase {
                     mock(ExecutorService.class),
                     searchContext
                 );
-                when(searchContext.isConcurrentSegmentSearchEnabled()).thenReturn(true);
+                when(searchContext.shouldUseConcurrentSearch()).thenReturn(true);
                 when(searchContext.getTargetMaxSliceCount()).thenReturn(4);
                 int expectedSliceCount = 4;
                 IndexSearcher.LeafSlice[] slices = searcher.slices(leaves);

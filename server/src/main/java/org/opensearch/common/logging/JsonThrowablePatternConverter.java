@@ -30,6 +30,7 @@
 package org.opensearch.common.logging;
 
 import com.fasterxml.jackson.core.io.JsonStringEncoder;
+
 import org.apache.logging.log4j.core.LogEvent;
 import org.apache.logging.log4j.core.config.Configuration;
 import org.apache.logging.log4j.core.config.plugins.Plugin;

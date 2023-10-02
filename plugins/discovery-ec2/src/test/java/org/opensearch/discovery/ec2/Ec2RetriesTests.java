@@ -33,19 +33,21 @@
 package org.opensearch.discovery.ec2;
 
 import software.amazon.awssdk.services.ec2.model.Instance;
+
 import org.apache.http.HttpStatus;
 import org.apache.http.NameValuePair;
 import org.apache.http.client.utils.URLEncodedUtils;
 import org.opensearch.Version;
 import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.io.Streams;
-import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.core.common.transport.TransportAddress;
 import org.opensearch.common.util.PageCacheRecycler;
+import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.core.common.transport.TransportAddress;
+import org.opensearch.core.indices.breaker.NoneCircuitBreakerService;
 import org.opensearch.discovery.SeedHostsProvider;
 import org.opensearch.discovery.SeedHostsResolver;
-import org.opensearch.core.indices.breaker.NoneCircuitBreakerService;
+import org.opensearch.telemetry.tracing.noop.NoopTracer;
 import org.opensearch.test.transport.MockTransportService;
 import org.opensearch.transport.TransportService;
 import org.opensearch.transport.nio.MockNioTransport;
@@ -79,7 +81,8 @@ public class Ec2RetriesTests extends AbstractEc2MockAPITestCase {
             ),
             threadPool,
             TransportService.NOOP_TRANSPORT_INTERCEPTOR,
-            null
+            null,
+            NoopTracer.INSTANCE
         );
     }
 

@@ -69,10 +69,10 @@ import org.opensearch.script.ScriptType;
 import org.opensearch.search.MultiValueMode;
 import org.opensearch.test.AbstractQueryTestCase;
 import org.opensearch.test.TestGeoShapeFieldMapperPlugin;
-import org.hamcrest.CoreMatchers;
-import org.hamcrest.Matcher;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
+import org.hamcrest.CoreMatchers;
+import org.hamcrest.Matcher;
 
 import java.io.IOException;
 import java.util.Arrays;

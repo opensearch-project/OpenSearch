@@ -8,12 +8,10 @@
 
 package org.opensearch.index.store;
 
-import com.jcraft.jzlib.JZlib;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.codecs.CodecUtil;
-import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfo;
 import org.apache.lucene.index.SegmentInfos;
@@ -25,20 +23,14 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.Version;
-import org.opensearch.ExceptionsHelper;
-import org.opensearch.core.action.ActionListener;
 import org.opensearch.common.UUIDs;
-import org.opensearch.common.blobstore.VerifyingMultiStreamBlobContainer;
-import org.opensearch.common.blobstore.exception.CorruptFileException;
-import org.opensearch.common.blobstore.stream.write.WriteContext;
-import org.opensearch.common.blobstore.stream.write.WritePriority;
-import org.opensearch.common.blobstore.transfer.RemoteTransferContainer;
-import org.opensearch.common.blobstore.transfer.stream.OffsetRangeIndexInputStream;
+import org.opensearch.common.blobstore.AsyncMultiStreamBlobContainer;
 import org.opensearch.common.io.VersionedCodecStreamWrapper;
+import org.opensearch.common.logging.Loggers;
 import org.opensearch.common.lucene.store.ByteArrayIndexInput;
-import org.opensearch.common.util.ByteUtils;
+import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.remote.RemoteStoreUtils;
-import org.opensearch.index.store.exception.ChecksumCombinationException;
 import org.opensearch.index.store.lockmanager.FileLockInfo;
 import org.opensearch.index.store.lockmanager.RemoteStoreCommitLevelLockManager;
 import org.opensearch.index.store.lockmanager.RemoteStoreLockManager;
@@ -49,7 +41,10 @@ import org.opensearch.threadpool.ThreadPool;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.file.NoSuchFileException;
+import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -61,7 +56,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
-import java.util.zip.CRC32;
 
 /**
  * A RemoteDirectory extension for remote segment store. We need to make sure we don't overwrite a segment file once uploaded.
@@ -81,11 +75,6 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
      * For example, _0.cfe in local filesystem will be uploaded to remote segment store as _0.cfe__gX7bNIIBrs0AUNsR2yEG
      */
     public static final String SEGMENT_NAME_UUID_SEPARATOR = "__";
-
-    /**
-     * Number of bytes in the segment file to store checksum
-     */
-    private static final int SEGMENT_CHECKSUM_BYTES = 8;
 
     /**
      * remoteDataDirectory is used to store segment files at path: cluster_UUID/index_UUID/shardId/segments/data
@@ -113,7 +102,9 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
         RemoteSegmentMetadata.METADATA_CODEC
     );
 
-    private static final Logger logger = LogManager.getLogger(RemoteSegmentStoreDirectory.class);
+    private static final Logger staticLogger = LogManager.getLogger(RemoteSegmentStoreDirectory.class);
+
+    private final Logger logger;
 
     /**
      * AtomicBoolean that ensures only one staleCommitDeletion activity is scheduled at a time.
@@ -127,13 +118,15 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
         RemoteDirectory remoteDataDirectory,
         RemoteDirectory remoteMetadataDirectory,
         RemoteStoreLockManager mdLockManager,
-        ThreadPool threadPool
+        ThreadPool threadPool,
+        ShardId shardId
     ) throws IOException {
         super(remoteDataDirectory);
         this.remoteDataDirectory = remoteDataDirectory;
         this.remoteMetadataDirectory = remoteMetadataDirectory;
         this.mdLockManager = mdLockManager;
         this.threadPool = threadPool;
+        this.logger = Loggers.getLogger(getClass(), shardId);
         init();
     }
 
@@ -146,12 +139,14 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
      * @throws IOException if there were any failures in reading the metadata file
      */
     public RemoteSegmentMetadata init() throws IOException {
+        logger.debug("Start initialisation of remote segment metadata");
         RemoteSegmentMetadata remoteSegmentMetadata = readLatestMetadataFile();
         if (remoteSegmentMetadata != null) {
             this.segmentsUploadedToRemoteStore = new ConcurrentHashMap<>(remoteSegmentMetadata.getMetadata());
         } else {
             this.segmentsUploadedToRemoteStore = new ConcurrentHashMap<>();
         }
+        logger.debug("Initialisation of remote segment metadata completed");
         return remoteSegmentMetadata;
     }
 
@@ -200,16 +195,15 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
             logger.trace("Reading latest Metadata file {}", latestMetadataFile);
             remoteSegmentMetadata = readMetadataFile(latestMetadataFile);
         } else {
-            logger.info("No metadata file found, this can happen for new index with no data uploaded to remote segment store");
+            logger.trace("No metadata file found, this can happen for new index with no data uploaded to remote segment store");
         }
 
         return remoteSegmentMetadata;
     }
 
     private RemoteSegmentMetadata readMetadataFile(String metadataFilename) throws IOException {
-        try (IndexInput indexInput = remoteMetadataDirectory.openInput(metadataFilename, IOContext.DEFAULT)) {
-            byte[] metadataBytes = new byte[(int) indexInput.length()];
-            indexInput.readBytes(metadataBytes, 0, (int) indexInput.length());
+        try (InputStream inputStream = remoteMetadataDirectory.getBlobStream(metadataFilename)) {
+            byte[] metadataBytes = inputStream.readAllBytes();
             return metadataStreamWrapper.readStream(new ByteArrayIndexInput(metadataFilename, metadataBytes));
         }
     }
@@ -265,7 +259,7 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
             String[] values = uploadedFilename.split(SEPARATOR);
             UploadedSegmentMetadata metadata = new UploadedSegmentMetadata(values[0], values[1], values[2], Long.parseLong(values[3]));
             if (values.length < 5) {
-                logger.error("Lucene version is missing for UploadedSegmentMetadata: " + uploadedFilename);
+                staticLogger.error("Lucene version is missing for UploadedSegmentMetadata: " + uploadedFilename);
             }
 
             metadata.setWrittenByMajor(Integer.parseInt(values[4]));
@@ -432,75 +426,58 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
      * @param listener Listener to handle upload callback events
      */
     public void copyFrom(Directory from, String src, IOContext context, ActionListener<Void> listener) {
-        if (remoteDataDirectory.getBlobContainer() instanceof VerifyingMultiStreamBlobContainer) {
-            try {
-                String remoteFilename = getNewRemoteSegmentFilename(src);
-                uploadBlob(from, src, remoteFilename, context, listener);
-            } catch (Exception e) {
-                listener.onFailure(e);
-            }
-        } else {
-            try {
+        try {
+            final String remoteFileName = getNewRemoteSegmentFilename(src);
+            boolean uploaded = remoteDataDirectory.copyFrom(from, src, remoteFileName, context, () -> {
+                try {
+                    postUpload(from, src, remoteFileName, getChecksumOfLocalFile(from, src));
+                } catch (IOException e) {
+                    throw new RuntimeException("Exception in segment postUpload for file " + src, e);
+                }
+            }, listener);
+            if (uploaded == false) {
                 copyFrom(from, src, src, context);
                 listener.onResponse(null);
-            } catch (Exception e) {
-                logger.warn(() -> new ParameterizedMessage("Exception while uploading file {} to the remote segment store", src), e);
-                listener.onFailure(e);
             }
+        } catch (Exception e) {
+            logger.warn(() -> new ParameterizedMessage("Exception while uploading file {} to the remote segment store", src), e);
+            listener.onFailure(e);
         }
     }
 
-    private void uploadBlob(Directory from, String src, String remoteFileName, IOContext ioContext, ActionListener<Void> listener)
-        throws Exception {
-        long expectedChecksum = calculateChecksumOfChecksum(from, src);
-        long contentLength;
-        try (IndexInput indexInput = from.openInput(src, ioContext)) {
-            contentLength = indexInput.length();
+    /**
+     * Copies an existing {@code source} file from this directory to a non-existent file (also
+     * named {@code source}) in either {@code destinationDirectory} or {@code destinationPath}.
+     * If the blob container backing this directory supports multipart downloads, the {@code source}
+     * file will be downloaded (potentially in multiple concurrent parts) directly to
+     * {@code destinationPath}. This method will return immediately and {@code fileCompletionListener}
+     * will be notified upon completion.
+     * <p>
+     * If multipart downloads are not supported, then {@code source} file will be copied to a file named
+     * {@code source} in a single part to {@code destinationDirectory}. The download will happen on the
+     * calling thread and {@code fileCompletionListener} will be notified synchronously before this
+     * method returns.
+     *
+     * @param source The source file name
+     * @param destinationDirectory The destination directory (if multipart is not supported)
+     * @param destinationPath The destination path (if multipart is supported)
+     * @param fileCompletionListener The listener to notify of completion
+     */
+    public void copyTo(String source, Directory destinationDirectory, Path destinationPath, ActionListener<String> fileCompletionListener) {
+        final String blobName = getExistingRemoteFilename(source);
+        if (destinationPath != null && remoteDataDirectory.getBlobContainer() instanceof AsyncMultiStreamBlobContainer) {
+            final AsyncMultiStreamBlobContainer blobContainer = (AsyncMultiStreamBlobContainer) remoteDataDirectory.getBlobContainer();
+            final Path destinationFilePath = destinationPath.resolve(source);
+            blobContainer.asyncBlobDownload(blobName, destinationFilePath, threadPool, fileCompletionListener);
+        } else {
+            // Fallback to older mechanism of downloading the file
+            try {
+                destinationDirectory.copyFrom(this, source, source, IOContext.DEFAULT);
+                fileCompletionListener.onResponse(source);
+            } catch (IOException e) {
+                fileCompletionListener.onFailure(e);
+            }
         }
-        RemoteTransferContainer remoteTransferContainer = new RemoteTransferContainer(
-            src,
-            remoteFileName,
-            contentLength,
-            true,
-            WritePriority.NORMAL,
-            (size, position) -> new OffsetRangeIndexInputStream(from.openInput(src, ioContext), size, position),
-            expectedChecksum,
-            remoteDataDirectory.getBlobContainer() instanceof VerifyingMultiStreamBlobContainer
-        );
-        ActionListener<Void> completionListener = ActionListener.wrap(resp -> {
-            try {
-                postUpload(from, src, remoteFileName, getChecksumOfLocalFile(from, src));
-                listener.onResponse(null);
-            } catch (Exception e) {
-                logger.error(() -> new ParameterizedMessage("Exception in segment postUpload for file [{}]", src), e);
-                listener.onFailure(e);
-            }
-        }, ex -> {
-            logger.error(() -> new ParameterizedMessage("Failed to upload blob {}", src), ex);
-            IOException corruptIndexException = ExceptionsHelper.unwrapCorruption(ex);
-            if (corruptIndexException != null) {
-                listener.onFailure(corruptIndexException);
-                return;
-            }
-            Throwable throwable = ExceptionsHelper.unwrap(ex, CorruptFileException.class);
-            if (throwable != null) {
-                CorruptFileException corruptFileException = (CorruptFileException) throwable;
-                listener.onFailure(new CorruptIndexException(corruptFileException.getMessage(), corruptFileException.getFileName()));
-                return;
-            }
-            listener.onFailure(ex);
-        });
-
-        completionListener = ActionListener.runBefore(completionListener, () -> {
-            try {
-                remoteTransferContainer.close();
-            } catch (Exception e) {
-                logger.warn("Error occurred while closing streams", e);
-            }
-        });
-
-        WriteContext writeContext = remoteTransferContainer.createWriteContext();
-        ((VerifyingMultiStreamBlobContainer) remoteDataDirectory.getBlobContainer()).asyncBlobUpload(writeContext, completionListener);
     }
 
     /**
@@ -578,13 +555,6 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
         return metadataFiles.get(0);
     }
 
-    public void copyFrom(Directory from, String src, String dest, IOContext context, String checksum) throws IOException {
-        String remoteFilename;
-        remoteFilename = getNewRemoteSegmentFilename(dest);
-        remoteDataDirectory.copyFrom(from, src, remoteFilename, context);
-        postUpload(from, src, remoteFilename, checksum);
-    }
-
     private void postUpload(Directory from, String src, String remoteFilename, String checksum) throws IOException {
         UploadedSegmentMetadata segmentMetadata = new UploadedSegmentMetadata(src, remoteFilename, checksum, from.fileLength(src));
         segmentsUploadedToRemoteStore.put(src, segmentMetadata);
@@ -596,7 +566,9 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
      */
     @Override
     public void copyFrom(Directory from, String src, String dest, IOContext context) throws IOException {
-        copyFrom(from, src, dest, context, getChecksumOfLocalFile(from, src));
+        String remoteFilename = getNewRemoteSegmentFilename(dest);
+        remoteDataDirectory.copyFrom(from, src, remoteFilename, context);
+        postUpload(from, src, remoteFilename, getChecksumOfLocalFile(from, src));
     }
 
     /**
@@ -715,7 +687,7 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
      */
     private void tryAndDeleteLocalFile(String filename, Directory directory) {
         try {
-            logger.trace("Deleting file: " + filename);
+            logger.debug("Deleting file: " + filename);
             directory.deleteFile(filename);
         } catch (NoSuchFileException | FileNotFoundException e) {
             logger.trace("Exception while deleting. Missing file : " + filename, e);
@@ -727,27 +699,6 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
     private String getChecksumOfLocalFile(Directory directory, String file) throws IOException {
         try (IndexInput indexInput = directory.openInput(file, IOContext.DEFAULT)) {
             return Long.toString(CodecUtil.retrieveChecksum(indexInput));
-        }
-    }
-
-    private long calculateChecksumOfChecksum(Directory directory, String file) throws IOException {
-        try (IndexInput indexInput = directory.openInput(file, IOContext.DEFAULT)) {
-            long storedChecksum = CodecUtil.retrieveChecksum(indexInput);
-            CRC32 checksumOfChecksum = new CRC32();
-            checksumOfChecksum.update(ByteUtils.toByteArrayBE(storedChecksum));
-            try {
-                return JZlib.crc32_combine(storedChecksum, checksumOfChecksum.getValue(), SEGMENT_CHECKSUM_BYTES);
-            } catch (Exception e) {
-                throw new ChecksumCombinationException(
-                    "Potentially corrupted file: Checksum combination failed while combining stored checksum "
-                        + "and calculated checksum of stored checksum in segment file: "
-                        + file
-                        + ", directory: "
-                        + directory,
-                    file,
-                    e
-                );
-            }
         }
     }
 
@@ -786,7 +737,7 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
             Integer.MAX_VALUE
         );
         if (sortedMetadataFileList.size() <= lastNMetadataFilesToKeep) {
-            logger.info(
+            logger.debug(
                 "Number of commits in remote segment store={}, lastNMetadataFilesToKeep={}",
                 sortedMetadataFileList.size(),
                 lastNMetadataFilesToKeep
@@ -814,6 +765,11 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
         }).collect(Collectors.toList());
 
         sortedMetadataFileList.removeAll(metadataFilesToBeDeleted);
+        logger.debug(
+            "metadataFilesEligibleToDelete={} metadataFilesToBeDeleted={}",
+            metadataFilesEligibleToDelete,
+            metadataFilesEligibleToDelete
+        );
 
         Map<String, UploadedSegmentMetadata> activeSegmentFilesMetadataMap = new HashMap<>();
         Set<String> activeSegmentRemoteFilenames = new HashSet<>();
@@ -831,9 +787,11 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
                 .map(metadata -> metadata.uploadedFilename)
                 .collect(Collectors.toSet());
             AtomicBoolean deletionSuccessful = new AtomicBoolean(true);
+            List<String> nonActiveDeletedSegmentFiles = new ArrayList<>();
             staleSegmentRemoteFilenames.stream().filter(file -> !activeSegmentRemoteFilenames.contains(file)).forEach(file -> {
                 try {
                     remoteDataDirectory.deleteFile(file);
+                    nonActiveDeletedSegmentFiles.add(file);
                     if (!activeSegmentFilesMetadataMap.containsKey(getLocalSegmentFilename(file))) {
                         segmentsUploadedToRemoteStore.remove(getLocalSegmentFilename(file));
                     }
@@ -848,8 +806,9 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
                     );
                 }
             });
+            logger.debug("nonActiveDeletedSegmentFiles={}", nonActiveDeletedSegmentFiles);
             if (deletionSuccessful.get()) {
-                logger.info("Deleting stale metadata file {} from remote segment store", metadataFile);
+                logger.debug("Deleting stale metadata file {} from remote segment store", metadataFile);
                 remoteMetadataDirectory.deleteFile(metadataFile);
             }
         }
@@ -900,7 +859,7 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
             1
         );
         if (metadataFiles.size() != 0) {
-            logger.info("Remote directory still has files , not deleting the path");
+            logger.info("Remote directory still has files, not deleting the path");
             return false;
         }
 
@@ -916,6 +875,7 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
         return true;
     }
 
+    @Override
     public void close() throws IOException {
         deleteStaleSegmentsAsync(0, ActionListener.wrap(r -> deleteIfEmpty(), e -> logger.error("Failed to cleanup remote directory")));
     }

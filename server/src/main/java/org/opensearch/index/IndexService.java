@@ -40,7 +40,6 @@ import org.apache.lucene.search.Sort;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.Accountable;
-import org.opensearch.core.Assertions;
 import org.opensearch.client.Client;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
@@ -49,7 +48,6 @@ import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.CheckedFunction;
 import org.opensearch.common.Nullable;
-import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
@@ -57,8 +55,12 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.util.concurrent.AbstractAsyncTask;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
-import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.common.util.io.IOUtils;
+import org.opensearch.core.Assertions;
+import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.core.indices.breaker.CircuitBreakerService;
+import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.env.ShardLock;
 import org.opensearch.env.ShardLockObtainFailedException;
@@ -76,14 +78,13 @@ import org.opensearch.index.fielddata.IndexFieldDataService;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.index.query.SearchIndexNameMatcher;
-import org.opensearch.index.remote.RemoteRefreshSegmentPressureService;
+import org.opensearch.index.remote.RemoteStoreStatsTrackerFactory;
 import org.opensearch.index.seqno.RetentionLeaseSyncer;
 import org.opensearch.index.shard.IndexEventListener;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexShardClosedException;
 import org.opensearch.index.shard.IndexingOperationListener;
 import org.opensearch.index.shard.SearchOperationListener;
-import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.shard.ShardNotFoundException;
 import org.opensearch.index.shard.ShardNotInPrimaryModeException;
 import org.opensearch.index.shard.ShardPath;
@@ -91,7 +92,6 @@ import org.opensearch.index.similarity.SimilarityService;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.index.translog.TranslogFactory;
-import org.opensearch.core.indices.breaker.CircuitBreakerService;
 import org.opensearch.indices.cluster.IndicesClusterStateService;
 import org.opensearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.opensearch.indices.mapper.MapperRegistry;
@@ -176,6 +176,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     private final Supplier<Sort> indexSortSupplier;
     private final ValuesSourceRegistry valuesSourceRegistry;
     private final BiFunction<IndexSettings, ShardRouting, TranslogFactory> translogFactorySupplier;
+    private final Supplier<TimeValue> clusterDefaultRefreshIntervalSupplier;
+    private final Supplier<TimeValue> clusterRemoteTranslogBufferIntervalSupplier;
 
     public IndexService(
         IndexSettings indexSettings,
@@ -208,7 +210,9 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         IndexNameExpressionResolver expressionResolver,
         ValuesSourceRegistry valuesSourceRegistry,
         IndexStorePlugin.RecoveryStateFactory recoveryStateFactory,
-        BiFunction<IndexSettings, ShardRouting, TranslogFactory> translogFactorySupplier
+        BiFunction<IndexSettings, ShardRouting, TranslogFactory> translogFactorySupplier,
+        Supplier<TimeValue> clusterDefaultRefreshIntervalSupplier,
+        Supplier<TimeValue> clusterRemoteTranslogBufferIntervalSupplier
     ) {
         super(indexSettings);
         this.allowExpensiveQueries = allowExpensiveQueries;
@@ -236,8 +240,10 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             if (indexSettings.getIndexSortConfig().hasIndexSort()) {
                 // we delay the actual creation of the sort order for this index because the mapping has not been merged yet.
                 // The sort order is validated right after the merge of the mapping later in the process.
+                boolean shouldWidenIndexSortType = this.indexSettings.shouldWidenIndexSortType();
                 this.indexSortSupplier = () -> indexSettings.getIndexSortConfig()
                     .buildIndexSort(
+                        shouldWidenIndexSortType,
                         mapperService::fieldType,
                         (fieldType, searchLookup) -> indexFieldData.getForField(fieldType, indexFieldData.index().getName(), searchLookup)
                     );
@@ -275,12 +281,14 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         this.readerWrapper = wrapperFactory.apply(this);
         this.searchOperationListeners = Collections.unmodifiableList(searchOperationListeners);
         this.indexingOperationListeners = Collections.unmodifiableList(indexingOperationListeners);
+        this.clusterDefaultRefreshIntervalSupplier = clusterDefaultRefreshIntervalSupplier;
         // kick off async ops for the first shard in this index
         this.refreshTask = new AsyncRefreshTask(this);
         this.trimTranslogTask = new AsyncTrimTranslogTask(this);
         this.globalCheckpointTask = new AsyncGlobalCheckpointTask(this);
         this.retentionLeaseSyncTask = new AsyncRetentionLeaseSyncTask(this);
         this.translogFactorySupplier = translogFactorySupplier;
+        this.clusterRemoteTranslogBufferIntervalSupplier = clusterRemoteTranslogBufferIntervalSupplier;
         updateFsyncTaskIfNecessary();
     }
 
@@ -440,7 +448,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         final Consumer<ShardId> globalCheckpointSyncer,
         final RetentionLeaseSyncer retentionLeaseSyncer,
         final SegmentReplicationCheckpointPublisher checkpointPublisher,
-        final RemoteRefreshSegmentPressureService remoteRefreshSegmentPressureService
+        final RemoteStoreStatsTrackerFactory remoteStoreStatsTrackerFactory
     ) throws IOException {
         Objects.requireNonNull(retentionLeaseSyncer);
         /*
@@ -473,7 +481,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             Store remoteStore = null;
             if (this.indexSettings.isRemoteStoreEnabled()) {
                 Directory remoteDirectory = remoteDirectoryFactory.newDirectory(this.indexSettings, path);
-                remoteStore = new Store(shardId, this.indexSettings, remoteDirectory, lock, Store.OnClose.EMPTY);
+                remoteStore = new Store(shardId, this.indexSettings, remoteDirectory, lock, Store.OnClose.EMPTY, path);
             }
 
             Directory directory = directoryFactory.newDirectory(this.indexSettings, path);
@@ -482,7 +490,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 this.indexSettings,
                 directory,
                 lock,
-                new StoreCloseListener(shardId, () -> eventListener.onStoreClosed(shardId))
+                new StoreCloseListener(shardId, () -> eventListener.onStoreClosed(shardId)),
+                path
             );
             eventListener.onStoreCreated(shardId);
             indexShard = new IndexShard(
@@ -509,7 +518,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 translogFactorySupplier,
                 this.indexSettings.isSegRepEnabled() ? checkpointPublisher : null,
                 remoteStore,
-                remoteRefreshSegmentPressureService
+                remoteStoreStatsTrackerFactory,
+                clusterRemoteTranslogBufferIntervalSupplier
             );
             eventListener.indexShardStateChanged(indexShard, null, indexShard.state(), "shard created");
             eventListener.afterIndexShardCreated(indexShard);
@@ -895,34 +905,45 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                     );
                 }
             }
-            if (refreshTask.getInterval().equals(indexSettings.getRefreshInterval()) == false) {
-                // once we change the refresh interval we schedule yet another refresh
-                // to ensure we are in a clean and predictable state.
-                // it doesn't matter if we move from or to <code>-1</code> in both cases we want
-                // docs to become visible immediately. This also flushes all pending indexing / search requests
-                // that are waiting for a refresh.
-                threadPool.executor(ThreadPool.Names.REFRESH).execute(new AbstractRunnable() {
-                    @Override
-                    public void onFailure(Exception e) {
-                        logger.warn("forced refresh failed after interval change", e);
-                    }
-
-                    @Override
-                    protected void doRun() throws Exception {
-                        maybeRefreshEngine(true);
-                    }
-
-                    @Override
-                    public boolean isForceExecution() {
-                        return true;
-                    }
-                });
-                rescheduleRefreshTasks();
-            }
+            onRefreshIntervalChange();
             updateFsyncTaskIfNecessary();
         }
 
         metadataListeners.forEach(c -> c.accept(newIndexMetadata));
+    }
+
+    /**
+     * Called whenever the refresh interval changes. This can happen in 2 cases -
+     * 1. {@code cluster.default.index.refresh_interval} cluster setting changes. The change would only happen for
+     * indexes relying on cluster default.
+     * 2. {@code index.refresh_interval} index setting changes.
+     */
+    public void onRefreshIntervalChange() {
+        if (refreshTask.getInterval().equals(getRefreshInterval())) {
+            return;
+        }
+        // once we change the refresh interval we schedule yet another refresh
+        // to ensure we are in a clean and predictable state.
+        // it doesn't matter if we move from or to <code>-1</code> in both cases we want
+        // docs to become visible immediately. This also flushes all pending indexing / search requests
+        // that are waiting for a refresh.
+        threadPool.executor(ThreadPool.Names.REFRESH).execute(new AbstractRunnable() {
+            @Override
+            public void onFailure(Exception e) {
+                logger.warn("forced refresh failed after interval change", e);
+            }
+
+            @Override
+            protected void doRun() throws Exception {
+                maybeRefreshEngine(true);
+            }
+
+            @Override
+            public boolean isForceExecution() {
+                return true;
+            }
+        });
+        rescheduleRefreshTasks();
     }
 
     private void updateFsyncTaskIfNecessary() {
@@ -989,7 +1010,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     }
 
     private void maybeRefreshEngine(boolean force) {
-        if (indexSettings.getRefreshInterval().millis() > 0 || force) {
+        if (getRefreshInterval().millis() > 0 || force) {
             for (IndexShard shard : this.shards.values()) {
                 try {
                     shard.scheduledRefresh();
@@ -1061,6 +1082,17 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     }
 
     /**
+     * Gets the refresh interval seen by the index service. Index setting overrides takes the highest precedence.
+     * @return the refresh interval.
+     */
+    private TimeValue getRefreshInterval() {
+        if (getIndexSettings().isExplicitRefresh()) {
+            return getIndexSettings().getRefreshInterval();
+        }
+        return clusterDefaultRefreshIntervalSupplier.get();
+    }
+
+    /**
      * Base asynchronous task
      *
      * @opensearch.internal
@@ -1120,7 +1152,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     final class AsyncRefreshTask extends BaseAsyncTask {
 
         AsyncRefreshTask(IndexService indexService) {
-            super(indexService, indexService.getIndexSettings().getRefreshInterval());
+            super(indexService, indexService.getRefreshInterval());
         }
 
         @Override
@@ -1240,6 +1272,11 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
 
     AsyncRefreshTask getRefreshTask() { // for tests
         return refreshTask;
+    }
+
+    // Visible for test
+    public TimeValue getRefreshTaskInterval() {
+        return refreshTask.getInterval();
     }
 
     AsyncTranslogFSync getFsyncTask() { // for tests

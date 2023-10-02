@@ -33,6 +33,7 @@
 package org.opensearch.search.geo;
 
 import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
+
 import org.apache.lucene.tests.geo.GeoTestUtil;
 import org.opensearch.action.index.IndexRequest;
 import org.opensearch.action.search.SearchResponse;
@@ -50,9 +51,9 @@ import org.opensearch.common.geo.builders.PolygonBuilder;
 import org.opensearch.common.geo.builders.ShapeBuilder;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.DistanceUnit;
+import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.mapper.LegacyGeoShapeFieldMapper;
 import org.opensearch.index.mapper.MapperParsingException;
@@ -60,13 +61,13 @@ import org.opensearch.index.query.ExistsQueryBuilder;
 import org.opensearch.index.query.GeoShapeQueryBuilder;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.test.geo.RandomShapeGenerator;
-import org.locationtech.jts.geom.Coordinate;
-import org.locationtech.spatial4j.shape.Rectangle;
 
 import java.io.IOException;
 import java.util.Locale;
 
-import static com.carrotsearch.randomizedtesting.RandomizedTest.assumeTrue;
+import org.locationtech.jts.geom.Coordinate;
+import org.locationtech.spatial4j.shape.Rectangle;
+
 import static org.opensearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.opensearch.index.query.QueryBuilders.geoIntersectionQuery;
@@ -82,6 +83,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.not;
+import static com.carrotsearch.randomizedtesting.RandomizedTest.assumeTrue;
 
 public class GeoShapeQueryTests extends GeoQueryTests {
     protected static final String[] PREFIX_TREES = new String[] {

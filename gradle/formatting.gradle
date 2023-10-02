@@ -66,6 +66,22 @@ allprojects {
           target '**/*.java'
 
           removeUnusedImports()
+          importOrder(
+              'de.thetaphi',
+              'com.carrotsearch',
+              'com.fasterxml',
+              'com.avast',
+              'com.sun',
+              'com.maxmind|com.github|com.networknt|groovy|nebula',
+              'org.antlr',
+              'software.amazon',
+              'com.azure|com.microsoft|com.ibm|com.google|joptsimple|org.apache|org.bouncycastle|org.codehaus|org.opensearch|org.objectweb|org.joda|org.hamcrest|org.openjdk|org.gradle|org.junit',
+              'javax',
+              'java',
+              '',
+              '\\#java|\\#org.opensearch|\\#org.hamcrest|\\#'
+          )
+
           eclipse().configFile rootProject.file('buildSrc/formatterConfig.xml')
           trimTrailingWhitespace()
           endWithNewline()

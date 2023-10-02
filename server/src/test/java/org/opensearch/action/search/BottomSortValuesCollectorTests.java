@@ -46,10 +46,10 @@ import org.opensearch.test.OpenSearchTestCase;
 import java.time.ZoneId;
 import java.util.Arrays;
 
-import static org.apache.lucene.search.TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO;
 import static org.opensearch.index.mapper.DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.apache.lucene.search.TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO;
 
 public class BottomSortValuesCollectorTests extends OpenSearchTestCase {
     public void testWithStrings() {

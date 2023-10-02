@@ -9,10 +9,8 @@
 package org.opensearch.indices.replication;
 
 import org.apache.lucene.store.AlreadyClosedException;
-import org.junit.Assert;
 import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
-import org.opensearch.core.action.ActionListener;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.node.DiscoveryNode;
@@ -22,7 +20,9 @@ import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.CancellableThreads;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.core.transport.TransportResponse;
 import org.opensearch.index.engine.NRTReplicationEngineFactory;
 import org.opensearch.index.replication.TestReplicationSource;
 import org.opensearch.index.shard.IndexShard;
@@ -37,13 +37,15 @@ import org.opensearch.indices.replication.common.ReplicationCollection;
 import org.opensearch.indices.replication.common.ReplicationFailedException;
 import org.opensearch.indices.replication.common.ReplicationLuceneIndex;
 import org.opensearch.indices.replication.common.ReplicationType;
+import org.opensearch.telemetry.tracing.noop.NoopTracer;
+import org.opensearch.test.transport.CapturingTransport;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.EmptyTransportResponseHandler;
 import org.opensearch.transport.TransportRequestOptions;
-import org.opensearch.core.transport.TransportResponse;
 import org.opensearch.transport.TransportService;
-import org.opensearch.test.transport.CapturingTransport;
+import org.junit.Assert;
+
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
@@ -116,7 +118,8 @@ public class SegmentReplicationTargetServiceTests extends IndexShardTestCase {
             TransportService.NOOP_TRANSPORT_INTERCEPTOR,
             boundAddress -> localNode,
             null,
-            Collections.emptySet()
+            Collections.emptySet(),
+            NoopTracer.INSTANCE
         );
         transportService.start();
         transportService.acceptIncomingRequests();
@@ -242,6 +245,7 @@ public class SegmentReplicationTargetServiceTests extends IndexShardTestCase {
         verify(spy, times(0)).startReplication(any(), any(), any());
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/8928")
     public void testShardAlreadyReplicating() {
         CountDownLatch blockGetCheckpointMetadata = new CountDownLatch(1);
         SegmentReplicationSource source = new TestReplicationSource() {

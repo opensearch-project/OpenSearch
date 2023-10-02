@@ -43,22 +43,23 @@ import org.apache.lucene.search.similarities.Similarity;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
-import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.common.unit.MemorySizeValue;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.core.common.unit.ByteSizeValue;
+import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.core.indices.breaker.CircuitBreakerService;
 import org.opensearch.index.IndexSettings;
+import org.opensearch.index.codec.CodecAliases;
 import org.opensearch.index.codec.CodecService;
 import org.opensearch.index.codec.CodecSettings;
 import org.opensearch.index.mapper.ParsedDocument;
 import org.opensearch.index.seqno.RetentionLeases;
-import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.translog.InternalTranslogFactory;
 import org.opensearch.index.translog.TranslogConfig;
 import org.opensearch.index.translog.TranslogDeletionPolicyFactory;
 import org.opensearch.index.translog.TranslogFactory;
 import org.opensearch.indices.IndexingMemoryController;
-import org.opensearch.core.indices.breaker.CircuitBreakerService;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.util.Comparator;
@@ -133,18 +134,26 @@ public final class EngineConfig {
             case "lz4":
             case "best_compression":
             case "zlib":
-            case "zstd":
-            case "zstd_no_dict":
             case "lucene_default":
                 return s;
             default:
-                if (Codec.availableCodecs().contains(s) == false) { // we don't error message the not officially supported ones
-                    throw new IllegalArgumentException(
-                        "unknown value for [index.codec] must be one of [default, lz4, best_compression, zlib, zstd, zstd_no_dict] but was: "
-                            + s
-                    );
+                if (Codec.availableCodecs().contains(s)) {
+                    return s;
                 }
-                return s;
+
+                for (String codecName : Codec.availableCodecs()) {
+                    Codec codec = Codec.forName(codecName);
+                    if (codec instanceof CodecAliases) {
+                        CodecAliases codecWithAlias = (CodecAliases) codec;
+                        if (codecWithAlias.aliases().contains(s)) {
+                            return s;
+                        }
+                    }
+                }
+
+                throw new IllegalArgumentException(
+                    "unknown value for [index.codec] must be one of [default, lz4, best_compression, zlib] but was: " + s
+                );
         }
     }, Property.IndexScope, Property.NodeScope);
 
@@ -181,9 +190,6 @@ public final class EngineConfig {
 
     private static void doValidateCodecSettings(final String codec) {
         switch (codec) {
-            case "zstd":
-            case "zstd_no_dict":
-                return;
             case "best_compression":
             case "zlib":
             case "lucene_default":
@@ -196,6 +202,18 @@ public final class EngineConfig {
                     if (luceneCodec instanceof CodecSettings
                         && ((CodecSettings) luceneCodec).supports(INDEX_CODEC_COMPRESSION_LEVEL_SETTING)) {
                         return;
+                    }
+                }
+                for (String codecName : Codec.availableCodecs()) {
+                    Codec availableCodec = Codec.forName(codecName);
+                    if (availableCodec instanceof CodecAliases) {
+                        CodecAliases availableCodecWithAlias = (CodecAliases) availableCodec;
+                        if (availableCodecWithAlias.aliases().contains(codec)) {
+                            if (availableCodec instanceof CodecSettings
+                                && ((CodecSettings) availableCodec).supports(INDEX_CODEC_COMPRESSION_LEVEL_SETTING)) {
+                                return;
+                            }
+                        }
                     }
                 }
         }
@@ -238,6 +256,7 @@ public final class EngineConfig {
         this.codecService = builder.codecService;
         this.eventListener = builder.eventListener;
         codecName = builder.indexSettings.getValue(INDEX_CODEC_SETTING);
+
         // We need to make the indexing buffer for this shard at least as large
         // as the amount of memory that is available for all engines on the
         // local node so that decisions to flush segments to disk are made by

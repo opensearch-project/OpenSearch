@@ -8,8 +8,8 @@
 
 package org.opensearch.common.xcontent;
 
-import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.xcontent.json.JsonXContent;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.xcontent.AbstractXContentParser;
 import org.opensearch.core.xcontent.DeprecationHandler;
 import org.opensearch.core.xcontent.MediaType;
@@ -19,6 +19,7 @@ import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentLocation;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.mapper.ParseContext;
+
 import java.io.IOException;
 import java.math.BigInteger;
 import java.nio.CharBuffer;

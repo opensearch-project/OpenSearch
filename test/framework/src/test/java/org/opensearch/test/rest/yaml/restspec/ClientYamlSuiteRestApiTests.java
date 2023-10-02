@@ -32,8 +32,8 @@
 package org.opensearch.test.rest.yaml.restspec;
 
 import org.opensearch.common.util.set.Sets;
-import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.common.xcontent.yaml.YamlXContent;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;

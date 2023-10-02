@@ -5,8 +5,6 @@
 
 package org.opensearch.identity;
 
-import java.util.List;
-import java.util.stream.Collectors;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.OpenSearchException;
@@ -14,6 +12,9 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.identity.noop.NoopIdentityPlugin;
 import org.opensearch.identity.tokens.TokenManager;
 import org.opensearch.plugins.IdentityPlugin;
+
+import java.util.List;
+import java.util.stream.Collectors;
 
 /**
  * Identity and access control for OpenSearch

@@ -45,10 +45,10 @@ import org.opensearch.env.Environment;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.node.Node.DiscoverySettings;
 import org.opensearch.plugins.Plugin;
-import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.InternalTestCluster;
 import org.opensearch.test.MockHttpTransport;
 import org.opensearch.test.NodeConfigurationSource;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.nio.file.Files;

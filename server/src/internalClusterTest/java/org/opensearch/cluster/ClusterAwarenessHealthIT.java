@@ -17,8 +17,8 @@ import org.opensearch.test.OpenSearchIntegTestCase;
 import java.util.List;
 import java.util.Map;
 
-import static org.hamcrest.Matchers.equalTo;
 import static org.opensearch.test.NodeRoles.onlyRole;
+import static org.hamcrest.Matchers.equalTo;
 
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class ClusterAwarenessHealthIT extends OpenSearchIntegTestCase {

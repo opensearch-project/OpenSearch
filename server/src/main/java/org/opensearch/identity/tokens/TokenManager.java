@@ -8,15 +8,33 @@
 
 package org.opensearch.identity.tokens;
 
+import org.opensearch.identity.Subject;
+
 /**
  * This interface defines the expected methods of a token manager
  */
 public interface TokenManager {
 
     /**
-     * Create a new auth token
-     * @param audience: The audience for the token
+     * Create a new on behalf of token
+     *
+     * @param claims: A list of claims for the token to be generated with
      * @return A new auth token
      */
-    public AuthToken issueToken(String audience);
+    public AuthToken issueOnBehalfOfToken(final Subject subject, final OnBehalfOfClaims claims);
+
+    /**
+     * Create a new service account token
+     *
+     * @param audience: A string representing the unique id of the extension for which a service account token should be generated
+     * @return a new auth token
+     */
+    public AuthToken issueServiceAccountToken(final String audience);
+
+    /**
+     * Authenticates a provided authToken
+     * @param authToken: The authToken to authenticate
+     * @return The authenticated subject
+     */
+    public Subject authenticateToken(AuthToken authToken);
 }

@@ -32,6 +32,9 @@
 
 package org.opensearch.index.analysis.phonetic;
 
+import org.apache.commons.codec.EncoderException;
+import org.apache.commons.codec.StringEncoder;
+
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
@@ -40,9 +43,6 @@ import java.util.Locale;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-
-import org.apache.commons.codec.EncoderException;
-import org.apache.commons.codec.StringEncoder;
 
 /**
  * K&ouml;lner Phonetik

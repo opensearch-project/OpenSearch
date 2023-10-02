@@ -74,12 +74,12 @@ import org.opensearch.client.indices.rollover.RolloverRequest;
 import org.opensearch.common.CheckedFunction;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.core.common.util.CollectionUtils;
 import org.opensearch.core.common.Strings;
+import org.opensearch.core.common.unit.ByteSizeValue;
+import org.opensearch.core.common.util.CollectionUtils;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.test.OpenSearchTestCase;
 import org.junit.Assert;
-import org.opensearch.core.common.unit.ByteSizeValue;
 
 import java.io.IOException;
 import java.util.Arrays;

@@ -16,9 +16,9 @@ import org.opensearch.action.support.master.AcknowledgedResponse;
 import org.opensearch.cluster.metadata.ComposableIndexTemplate;
 import org.opensearch.cluster.metadata.DataStream;
 import org.opensearch.cluster.metadata.Template;
-import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.XContentHelper;
+import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.test.OpenSearchIntegTestCase;
@@ -26,9 +26,9 @@ import org.opensearch.test.OpenSearchIntegTestCase;
 import java.util.List;
 import java.util.stream.Collectors;
 
-import static org.hamcrest.Matchers.is;
 import static org.opensearch.test.OpenSearchIntegTestCase.ClusterScope;
 import static org.opensearch.test.OpenSearchIntegTestCase.Scope;
+import static org.hamcrest.Matchers.is;
 
 @ClusterScope(scope = Scope.TEST, numDataNodes = 2)
 public class DataStreamTestCase extends OpenSearchIntegTestCase {

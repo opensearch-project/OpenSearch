@@ -101,6 +101,7 @@ dependencies {
 
   api project(':libs:opensearch-common')
   api project(':libs:opensearch-core')
+  api project(":libs:opensearch-compress")
   api project(':libs:opensearch-secure-sm')
   api project(':libs:opensearch-x-content')
   api project(":libs:opensearch-geo")
@@ -156,9 +157,6 @@ dependencies {
   // protobuf
   api "com.google.protobuf:protobuf-java:${versions.protobuf}"
   api "jakarta.annotation:jakarta.annotation-api:${versions.jakarta_annotation}"
-
-  //zstd
-  api "com.github.luben:zstd-jni:${versions.zstd}"
 
   testImplementation(project(":test:framework")) {
     // tests use the locally compiled version of server

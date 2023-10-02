@@ -52,6 +52,13 @@ public interface TransportResponseHandler<T extends TransportResponse> extends W
 
     String executor();
 
+    /**
+     * This method should be handling the rejection/failure scenarios where connection to the node is rejected or failed.
+     * It should be used to clear up the resources held by the {@link TransportResponseHandler}.
+     * @param exp exception
+     */
+    default void handleRejection(Exception exp) {};
+
     default <Q extends TransportResponse> TransportResponseHandler<Q> wrap(Function<Q, T> converter, Writeable.Reader<Q> reader) {
         final TransportResponseHandler<T> self = this;
         return new TransportResponseHandler<Q>() {

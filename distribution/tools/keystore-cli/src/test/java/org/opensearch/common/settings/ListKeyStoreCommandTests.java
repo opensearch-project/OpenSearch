@@ -32,12 +32,12 @@
 
 package org.opensearch.common.settings;
 
-import java.util.Map;
-
 import org.opensearch.cli.Command;
 import org.opensearch.cli.ExitCodes;
 import org.opensearch.cli.UserException;
 import org.opensearch.env.Environment;
+
+import java.util.Map;
 
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;

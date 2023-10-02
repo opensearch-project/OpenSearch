@@ -31,8 +31,8 @@
 
 package org.opensearch.script;
 
-import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.test.OpenSearchIntegTestCase;

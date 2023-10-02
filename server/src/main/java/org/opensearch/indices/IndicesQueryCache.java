@@ -49,8 +49,8 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.common.unit.ByteSizeValue;
-import org.opensearch.index.cache.query.QueryCacheStats;
 import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.index.cache.query.QueryCacheStats;
 
 import java.io.Closeable;
 import java.io.IOException;

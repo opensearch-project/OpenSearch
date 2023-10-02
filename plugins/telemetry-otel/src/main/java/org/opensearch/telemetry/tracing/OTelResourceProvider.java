@@ -8,6 +8,16 @@
 
 package org.opensearch.telemetry.tracing;
 
+import org.opensearch.common.settings.Settings;
+import org.opensearch.telemetry.TelemetrySettings;
+import org.opensearch.telemetry.tracing.exporter.OTelSpanExporterFactory;
+import org.opensearch.telemetry.tracing.sampler.ProbabilisticSampler;
+import org.opensearch.telemetry.tracing.sampler.RequestSampler;
+
+import java.security.AccessController;
+import java.security.PrivilegedAction;
+import java.util.concurrent.TimeUnit;
+
 import io.opentelemetry.api.OpenTelemetry;
 import io.opentelemetry.api.common.Attributes;
 import io.opentelemetry.api.trace.propagation.W3CTraceContextPropagator;
@@ -19,10 +29,6 @@ import io.opentelemetry.sdk.trace.export.BatchSpanProcessor;
 import io.opentelemetry.sdk.trace.export.SpanExporter;
 import io.opentelemetry.sdk.trace.samplers.Sampler;
 import io.opentelemetry.semconv.resource.attributes.ResourceAttributes;
-import org.opensearch.common.settings.Settings;
-
-import java.util.concurrent.TimeUnit;
-import org.opensearch.telemetry.tracing.exporter.OTelSpanExporterFactory;
 
 import static org.opensearch.telemetry.OTelTelemetrySettings.TRACER_EXPORTER_BATCH_SIZE_SETTING;
 import static org.opensearch.telemetry.OTelTelemetrySettings.TRACER_EXPORTER_DELAY_SETTING;
@@ -36,15 +42,18 @@ public final class OTelResourceProvider {
 
     /**
      * Creates OpenTelemetry instance with default configuration
+     * @param telemetrySettings telemetry settings
      * @param settings cluster settings
      * @return OpenTelemetry instance
      */
-    public static OpenTelemetry get(Settings settings) {
-        return get(
-            settings,
-            OTelSpanExporterFactory.create(settings),
-            ContextPropagators.create(W3CTraceContextPropagator.getInstance()),
-            Sampler.alwaysOn()
+    public static OpenTelemetry get(TelemetrySettings telemetrySettings, Settings settings) {
+        return AccessController.doPrivileged(
+            (PrivilegedAction<OpenTelemetry>) () -> get(
+                settings,
+                OTelSpanExporterFactory.create(settings),
+                ContextPropagators.create(W3CTraceContextPropagator.getInstance()),
+                Sampler.parentBased(new RequestSampler(new ProbabilisticSampler(telemetrySettings)))
+            )
         );
     }
 

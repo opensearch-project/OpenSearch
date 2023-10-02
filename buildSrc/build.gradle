@@ -104,7 +104,7 @@ dependencies {
 
   api 'commons-codec:commons-codec:1.16.0'
   api 'org.apache.commons:commons-compress:1.23.0'
-  api 'org.apache.ant:ant:1.10.13'
+  api 'org.apache.ant:ant:1.10.14'
   api 'com.netflix.nebula:gradle-extra-configurations-plugin:10.0.0'
   api 'com.netflix.nebula:nebula-publishing-plugin:20.3.0'
   api 'com.netflix.nebula:gradle-info-plugin:12.1.6'
@@ -128,10 +128,20 @@ dependencies {
   testFixturesApi "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${props.getProperty('randomizedrunner')}"
   testFixturesApi gradleApi()
   testFixturesApi gradleTestKit()
-  testImplementation 'com.github.tomakehurst:wiremock-jre8-standalone:2.35.0'
+  testImplementation 'org.wiremock:wiremock-standalone:3.1.0'
   testImplementation "org.mockito:mockito-core:${props.getProperty('mockito')}"
   integTestImplementation('org.spockframework:spock-core:2.3-groovy-3.0') {
     exclude module: "groovy"
+  }
+  implementation('org.ajoberstar.grgit:grgit-core:5.2.0') {
+    exclude group: 'org.eclipse.jgit', module: 'org.eclipse.jgit'
+  }
+  implementation 'org.eclipse.jgit:org.eclipse.jgit:6.7.0.202309050840-r'
+}
+
+configurations.all {
+  resolutionStrategy {
+    force "com.google.guava:guava:${props.getProperty('guava')}"
   }
 }
 

@@ -34,17 +34,17 @@ package org.opensearch.index.get;
 
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.Version;
+import org.opensearch.common.document.DocumentField;
+import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.bytes.BytesReference;
-import org.opensearch.common.compress.CompressorFactory;
-import org.opensearch.common.document.DocumentField;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
+import org.opensearch.core.compress.CompressorRegistry;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.mapper.IgnoredFieldMapper;
 import org.opensearch.index.mapper.MapperService;
@@ -206,7 +206,7 @@ public class GetResult implements Writeable, Iterable<DocumentField>, ToXContent
         }
 
         try {
-            this.source = CompressorFactory.uncompressIfNeeded(this.source);
+            this.source = CompressorRegistry.uncompressIfNeeded(this.source);
             return this.source;
         } catch (IOException e) {
             throw new OpenSearchParseException("failed to decompress source", e);

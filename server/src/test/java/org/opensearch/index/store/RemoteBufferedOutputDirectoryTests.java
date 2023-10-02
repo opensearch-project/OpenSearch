@@ -9,9 +9,9 @@
 package org.opensearch.index.store;
 
 import org.apache.lucene.store.IOContext;
-import org.junit.Before;
 import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.test.OpenSearchTestCase;
+import org.junit.Before;
 
 import static org.mockito.Mockito.mock;
 

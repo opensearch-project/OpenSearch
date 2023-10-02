@@ -34,7 +34,6 @@ package org.opensearch.indices.template;
 
 import org.opensearch.action.admin.indices.alias.Alias;
 import org.opensearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
-
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.OpenSearchIntegTestCase.ClusterScope;

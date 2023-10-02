@@ -38,8 +38,8 @@ import org.opensearch.common.Explicit;
 import org.opensearch.common.TriFunction;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.support.XContentMapValues;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.analysis.NamedAnalyzer;
 import org.opensearch.index.mapper.Mapper.TypeParser.ParserContext;
 

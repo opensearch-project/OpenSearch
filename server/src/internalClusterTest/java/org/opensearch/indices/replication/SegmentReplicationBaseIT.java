@@ -16,9 +16,8 @@ import org.opensearch.cluster.routing.IndexRoutingTable;
 import org.opensearch.cluster.routing.IndexShardRoutingTable;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.common.Nullable;
-import org.opensearch.common.settings.Settings;
 import org.opensearch.common.lease.Releasable;
-import org.opensearch.common.util.FeatureFlags;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.IndexModule;
@@ -204,8 +203,7 @@ public class SegmentReplicationBaseIT extends OpenSearchIntegTestCase {
     }
 
     protected boolean segmentReplicationWithRemoteEnabled() {
-        return IndexMetadata.INDEX_REMOTE_STORE_ENABLED_SETTING.get(indexSettings()).booleanValue()
-            && "true".equalsIgnoreCase(featureFlagSettings().get(FeatureFlags.SEGMENT_REPLICATION_EXPERIMENTAL));
+        return IndexMetadata.INDEX_REMOTE_STORE_ENABLED_SETTING.get(indexSettings()).booleanValue();
     }
 
     protected Releasable blockReplication(List<String> nodes, CountDownLatch latch) {
@@ -241,7 +239,7 @@ public class SegmentReplicationBaseIT extends OpenSearchIntegTestCase {
 
     protected void assertReplicaCheckpointUpdated(IndexShard primaryShard) throws Exception {
         assertBusy(() -> {
-            Set<SegmentReplicationShardStats> groupStats = primaryShard.getReplicationStats();
+            Set<SegmentReplicationShardStats> groupStats = primaryShard.getReplicationStatsForTrackedReplicas();
             assertEquals(primaryShard.indexSettings().getNumberOfReplicas(), groupStats.size());
             for (SegmentReplicationShardStats shardStat : groupStats) {
                 assertEquals(0, shardStat.getCheckpointsBehindCount());

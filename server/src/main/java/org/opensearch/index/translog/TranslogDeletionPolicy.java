@@ -33,8 +33,8 @@
 package org.opensearch.index.translog;
 
 import org.apache.lucene.util.Counter;
-import org.opensearch.core.Assertions;
 import org.opensearch.common.lease.Releasable;
+import org.opensearch.core.Assertions;
 import org.opensearch.index.seqno.SequenceNumbers;
 
 import java.io.IOException;

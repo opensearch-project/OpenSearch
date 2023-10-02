@@ -38,9 +38,9 @@ import org.opensearch.common.concurrent.AutoCloseableRefCounted;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.common.util.concurrent.ConcurrentCollections;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexShardClosedException;
-import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;

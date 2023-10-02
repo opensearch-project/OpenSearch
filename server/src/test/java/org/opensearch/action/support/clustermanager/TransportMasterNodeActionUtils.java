@@ -32,9 +32,9 @@
 
 package org.opensearch.action.support.clustermanager;
 
+import org.opensearch.cluster.ClusterState;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.action.ActionResponse;
-import org.opensearch.cluster.ClusterState;
 
 public class TransportMasterNodeActionUtils {
 

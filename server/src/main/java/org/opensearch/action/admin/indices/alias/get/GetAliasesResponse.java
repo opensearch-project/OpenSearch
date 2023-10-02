@@ -32,8 +32,8 @@
 
 package org.opensearch.action.admin.indices.alias.get;
 
-import org.opensearch.core.action.ActionResponse;
 import org.opensearch.cluster.metadata.AliasMetadata;
+import org.opensearch.core.action.ActionResponse;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 

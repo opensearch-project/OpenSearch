@@ -42,8 +42,11 @@ import org.apache.lucene.store.OutputStreamIndexOutput;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.common.CheckedFunction;
+import org.opensearch.common.blobstore.AsyncMultiStreamBlobContainer;
 import org.opensearch.common.blobstore.BlobContainer;
-import org.opensearch.core.common.compress.Compressor;
+import org.opensearch.common.blobstore.stream.write.WritePriority;
+import org.opensearch.common.blobstore.transfer.RemoteTransferContainer;
+import org.opensearch.common.blobstore.transfer.stream.OffsetRangeIndexInputStream;
 import org.opensearch.common.io.Streams;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.lucene.store.ByteArrayIndexInput;
@@ -51,13 +54,16 @@ import org.opensearch.common.lucene.store.IndexOutputOutputStream;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.compress.Compressor;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.gateway.CorruptStateException;
+import org.opensearch.index.store.exception.ChecksumCombinationException;
 import org.opensearch.snapshots.SnapshotInfo;
 
 import java.io.IOException;
@@ -66,6 +72,8 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
+
+import static org.opensearch.common.blobstore.transfer.RemoteTransferContainer.checksumOfChecksum;
 
 /**
  * Snapshot metadata file format used in v2.0 and above
@@ -165,6 +173,61 @@ public final class ChecksumBlobStoreFormat<T extends ToXContent> {
         final String blobName = blobName(name);
         final BytesReference bytes = serialize(obj, blobName, compressor);
         blobContainer.writeBlob(blobName, bytes.streamInput(), bytes.length(), false);
+    }
+
+    /**
+     * Writes blob with resolving the blob name using {@link #blobName} method.
+     * Leverages the multipart upload if supported by the blobContainer.
+     *
+     * @param obj                 object to be serialized
+     * @param blobContainer       blob container
+     * @param name                blob name
+     * @param compressor          whether to use compression
+     * @param listener            listener to listen to write result
+     */
+    public void writeAsync(
+        final T obj,
+        final BlobContainer blobContainer,
+        final String name,
+        final Compressor compressor,
+        ActionListener<Void> listener
+    ) throws IOException {
+        if (blobContainer instanceof AsyncMultiStreamBlobContainer == false) {
+            write(obj, blobContainer, name, compressor);
+            listener.onResponse(null);
+            return;
+        }
+        final String blobName = blobName(name);
+        final BytesReference bytes = serialize(obj, blobName, compressor);
+        final String resourceDescription = "ChecksumBlobStoreFormat.writeAsync(blob=\"" + blobName + "\")";
+        try (IndexInput input = new ByteArrayIndexInput(resourceDescription, BytesReference.toBytes(bytes))) {
+            long expectedChecksum;
+            try {
+                expectedChecksum = checksumOfChecksum(input.clone(), 8);
+            } catch (Exception e) {
+                throw new ChecksumCombinationException(
+                    "Potentially corrupted file: Checksum combination failed while combining stored checksum "
+                        + "and calculated checksum of stored checksum",
+                    resourceDescription,
+                    e
+                );
+            }
+
+            try (
+                RemoteTransferContainer remoteTransferContainer = new RemoteTransferContainer(
+                    blobName,
+                    blobName,
+                    bytes.length(),
+                    true,
+                    WritePriority.HIGH,
+                    (size, position) -> new OffsetRangeIndexInputStream(input, size, position),
+                    expectedChecksum,
+                    ((AsyncMultiStreamBlobContainer) blobContainer).remoteIntegrityCheckSupported()
+                )
+            ) {
+                ((AsyncMultiStreamBlobContainer) blobContainer).asyncBlobUpload(remoteTransferContainer.createWriteContext(), listener);
+            }
+        }
     }
 
     public BytesReference serialize(final T obj, final String blobName, final Compressor compressor) throws IOException {

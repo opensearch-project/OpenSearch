@@ -73,4 +73,8 @@ public class SamplerAggregatorFactory extends AggregatorFactory {
         return new SamplerAggregator(name, shardSize, factories, searchContext, parent, metadata);
     }
 
+    @Override
+    protected boolean supportsConcurrentSegmentSearch() {
+        return true;
+    }
 }

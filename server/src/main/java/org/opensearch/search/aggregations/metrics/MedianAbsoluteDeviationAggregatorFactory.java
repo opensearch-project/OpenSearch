@@ -95,4 +95,9 @@ public class MedianAbsoluteDeviationAggregatorFactory extends ValuesSourceAggreg
             .getAggregator(MedianAbsoluteDeviationAggregationBuilder.REGISTRY_KEY, config)
             .build(name, config.getValuesSource(), config.format(), searchContext, parent, metadata, compression);
     }
+
+    @Override
+    protected boolean supportsConcurrentSegmentSearch() {
+        return true;
+    }
 }

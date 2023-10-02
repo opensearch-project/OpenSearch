@@ -13,6 +13,7 @@ package org.opensearch.action.search;
  * @opensearch.internal
  */
 public enum SearchPhaseName {
+    DFS_PRE_QUERY("dfs_pre_query"),
     QUERY("query"),
     FETCH("fetch"),
     DFS_QUERY("dfs_query"),

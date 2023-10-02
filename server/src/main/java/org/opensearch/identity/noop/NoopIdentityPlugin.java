@@ -8,9 +8,9 @@
 
 package org.opensearch.identity.noop;
 
+import org.opensearch.identity.Subject;
 import org.opensearch.identity.tokens.TokenManager;
 import org.opensearch.plugins.IdentityPlugin;
-import org.opensearch.identity.Subject;
 
 /**
  * Implementation of identity plugin that does not enforce authentication or authorization

@@ -49,18 +49,18 @@ import org.apache.lucene.search.join.ParentChildrenBlockJoinQuery;
 import org.apache.lucene.search.join.ScoreMode;
 import org.opensearch.OpenSearchException;
 import org.opensearch.action.search.MaxScoreCollector;
+import org.opensearch.common.lucene.Lucene;
+import org.opensearch.common.lucene.search.Queries;
+import org.opensearch.common.lucene.search.TopDocsAndMaxScore;
 import org.opensearch.core.ParseField;
 import org.opensearch.core.common.ParsingException;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
-import org.opensearch.common.lucene.Lucene;
-import org.opensearch.common.lucene.search.Queries;
-import org.opensearch.common.lucene.search.TopDocsAndMaxScore;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.mapper.ObjectMapper;
-import org.opensearch.index.search.OpenSearchToParentBlockJoinQuery;
 import org.opensearch.index.search.NestedHelper;
+import org.opensearch.index.search.OpenSearchToParentBlockJoinQuery;
 import org.opensearch.search.SearchHit;
 import org.opensearch.search.fetch.subphase.InnerHitsContext;
 import org.opensearch.search.internal.SearchContext;
@@ -318,10 +318,13 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
             parentFilter = context.bitsetFilter(objectMapper.nestedTypeFilter());
         }
 
+        BitSetProducer previousParentFilter = context.getParentFilter();
         try {
+            context.setParentFilter(parentFilter);
             context.nestedScope().nextLevel(nestedObjectMapper);
             innerQuery = this.query.toQuery(context);
         } finally {
+            context.setParentFilter(previousParentFilter);
             context.nestedScope().previousLevel();
         }
 

@@ -35,8 +35,8 @@ package org.opensearch.client.sniff.documentation;
 import org.apache.hc.core5.http.HttpHost;
 import org.opensearch.client.Node;
 import org.opensearch.client.RestClient;
-import org.opensearch.client.sniff.OpenSearchNodesSniffer;
 import org.opensearch.client.sniff.NodesSniffer;
+import org.opensearch.client.sniff.OpenSearchNodesSniffer;
 import org.opensearch.client.sniff.SniffOnFailureListener;
 import org.opensearch.client.sniff.Sniffer;
 

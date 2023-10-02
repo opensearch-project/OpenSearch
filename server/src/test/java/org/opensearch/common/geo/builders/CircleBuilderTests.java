@@ -33,9 +33,10 @@
 package org.opensearch.common.geo.builders;
 
 import org.opensearch.common.unit.DistanceUnit;
-import org.locationtech.jts.geom.Coordinate;
 
 import java.io.IOException;
+
+import org.locationtech.jts.geom.Coordinate;
 
 public class CircleBuilderTests extends AbstractShapeBuilderTestCase<CircleBuilder> {
 

@@ -32,9 +32,9 @@
 
 package org.opensearch.search.aggregations.pipeline;
 
+import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.aggregations.Aggregation.CommonFields;
 import org.opensearch.search.aggregations.ParsedAggregation;

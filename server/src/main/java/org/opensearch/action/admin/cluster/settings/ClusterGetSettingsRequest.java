@@ -33,8 +33,8 @@
 package org.opensearch.action.admin.cluster.settings;
 
 import org.opensearch.action.ActionRequestValidationException;
-import org.opensearch.action.support.clustermanager.ClusterManagerNodeReadRequest;
 import org.opensearch.action.admin.cluster.state.ClusterStateRequest;
+import org.opensearch.action.support.clustermanager.ClusterManagerNodeReadRequest;
 
 /**
  * This request is specific to the REST client. {@link ClusterStateRequest}

@@ -32,10 +32,10 @@
 
 package org.opensearch.plugins;
 
+import org.opensearch.ingest.Processor;
+
 import java.util.Collections;
 import java.util.Map;
-
-import org.opensearch.ingest.Processor;
 
 /**
  * An extension point for {@link Plugin} implementations to add custom ingest processors

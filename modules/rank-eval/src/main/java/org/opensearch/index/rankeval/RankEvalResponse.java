@@ -33,9 +33,9 @@
 package org.opensearch.index.rankeval;
 
 import org.opensearch.OpenSearchException;
-import org.opensearch.core.action.ActionResponse;
-import org.opensearch.core.ParseField;
 import org.opensearch.common.collect.Tuple;
+import org.opensearch.core.ParseField;
+import org.opensearch.core.action.ActionResponse;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;

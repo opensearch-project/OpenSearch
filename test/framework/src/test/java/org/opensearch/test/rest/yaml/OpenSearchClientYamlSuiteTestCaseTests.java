@@ -31,12 +31,12 @@
 
 package org.opensearch.test.rest.yaml;
 
+import org.opensearch.test.OpenSearchTestCase;
+
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Map;
 import java.util.Set;
-
-import org.opensearch.test.OpenSearchTestCase;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.notNullValue;

@@ -11,31 +11,47 @@ package org.opensearch.index.shard;
 import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.util.Version;
-import org.hamcrest.MatcherAssert;
-import org.junit.Before;
 import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.FeatureFlags;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.index.engine.DocIdSeqNoAndSource;
 import org.opensearch.index.engine.Engine;
 import org.opensearch.index.engine.InternalEngine;
 import org.opensearch.index.engine.NRTReplicationEngineFactory;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.store.StoreFileMetadata;
+import org.opensearch.indices.replication.CheckpointInfoResponse;
+import org.opensearch.indices.replication.GetSegmentFilesResponse;
+import org.opensearch.indices.replication.RemoteStoreReplicationSource;
+import org.opensearch.indices.replication.SegmentReplicationSourceFactory;
+import org.opensearch.indices.replication.SegmentReplicationState;
+import org.opensearch.indices.replication.SegmentReplicationTarget;
+import org.opensearch.indices.replication.SegmentReplicationTargetService;
+import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
+import org.opensearch.indices.replication.common.ReplicationFailedException;
 import org.opensearch.indices.replication.common.ReplicationType;
+import org.hamcrest.MatcherAssert;
+import org.junit.Assert;
 
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
+import static org.opensearch.index.engine.EngineTestCase.assertAtMostOneLuceneDocumentPerSequenceNumber;
+import static org.opensearch.index.shard.RemoteStoreRefreshListener.EXCLUDE_FILES;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
-import static org.opensearch.index.engine.EngineTestCase.assertAtMostOneLuceneDocumentPerSequenceNumber;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class RemoteIndexShardTests extends SegmentReplicationIndexShardTests {
 
@@ -46,14 +62,6 @@ public class RemoteIndexShardTests extends SegmentReplicationIndexShardTests {
         .put(IndexMetadata.SETTING_REMOTE_SEGMENT_STORE_REPOSITORY, REPOSITORY_NAME)
         .put(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY, REPOSITORY_NAME)
         .build();
-
-    @Before
-    public void setup() {
-        // Todo: Remove feature flag once remote store integration with segrep goes GA
-        FeatureFlags.initializeFeatureFlags(
-            Settings.builder().put(FeatureFlags.SEGMENT_REPLICATION_EXPERIMENTAL_SETTING.getKey(), "true").build()
-        );
-    }
 
     protected Settings getIndexSettings() {
         return settings;
@@ -134,10 +142,6 @@ public class RemoteIndexShardTests extends SegmentReplicationIndexShardTests {
             assertEquals(InternalEngine.class, nextPrimary.getEngine().getClass());
             assertDocCounts(nextPrimary, totalDocs, totalDocs);
 
-            // As we are downloading segments from remote segment store on failover, there should not be
-            // any operations replayed from translog
-            assertEquals(prevOperationCount, nextPrimary.translogStats().estimatedNumberOfOperations());
-
             // refresh and push segments to our other replica.
             nextPrimary.refresh("test");
 
@@ -204,11 +208,14 @@ public class RemoteIndexShardTests extends SegmentReplicationIndexShardTests {
                 Set.of("segments_3"),
                 primary.remoteStore().readLastCommittedSegmentsInfo().files(true)
             );
-            MatcherAssert.assertThat(
-                "Segments are referenced in memory only",
-                primaryEngine.getSegmentInfosSnapshot().get().files(false),
-                containsInAnyOrder("_0.cfe", "_0.si", "_0.cfs")
-            );
+
+            try (final GatedCloseable<SegmentInfos> segmentInfosSnapshot = primaryEngine.getSegmentInfosSnapshot()) {
+                MatcherAssert.assertThat(
+                    "Segments are referenced in memory only",
+                    segmentInfosSnapshot.get().files(false),
+                    containsInAnyOrder("_0.cfe", "_0.si", "_0.cfs")
+                );
+            }
 
             final IndexShard replica = shards.addReplica(remotePath);
             replica.store().createEmpty(Version.LATEST);
@@ -236,13 +243,17 @@ public class RemoteIndexShardTests extends SegmentReplicationIndexShardTests {
             MatcherAssert.assertThat(
                 "Replica commits infos bytes referencing latest refresh point",
                 latestReplicaCommit.files(true),
-                containsInAnyOrder("_0.cfe", "_0.si", "_0.cfs", "segments_5")
+                containsInAnyOrder("_0.cfe", "_0.si", "_0.cfs", "segments_6")
             );
-            MatcherAssert.assertThat(
-                "Segments are referenced in memory",
-                replicaEngine.getSegmentInfosSnapshot().get().files(false),
-                containsInAnyOrder("_0.cfe", "_0.si", "_0.cfs")
-            );
+
+            try (final GatedCloseable<SegmentInfos> segmentInfosSnapshot = replicaEngine.getSegmentInfosSnapshot()) {
+                MatcherAssert.assertThat(
+                    "Segments are referenced in memory",
+                    segmentInfosSnapshot.get().files(false),
+                    containsInAnyOrder("_0.cfe", "_0.si", "_0.cfs")
+                );
+            }
+
             final Store.RecoveryDiff recoveryDiff = Store.segmentReplicationDiff(
                 primary.getSegmentMetadataMap(),
                 replica.getSegmentMetadataMap()
@@ -294,20 +305,20 @@ public class RemoteIndexShardTests extends SegmentReplicationIndexShardTests {
             replicateSegments(primary, shards.getReplicas());
             assertDocCount(primary, 1);
             assertDocCount(replica, 1);
-            assertEquals("segments_4", replica.store().readLastCommittedSegmentsInfo().getSegmentsFileName());
-            assertSingleSegmentFile(replica, "segments_4");
+            assertEquals("segments_5", replica.store().readLastCommittedSegmentsInfo().getSegmentsFileName());
+            assertSingleSegmentFile(replica, "segments_5");
 
             shards.indexDocs(1);
             primary.refresh("test");
             replicateSegments(primary, shards.getReplicas());
             assertDocCount(replica, 2);
-            assertSingleSegmentFile(replica, "segments_4");
+            assertSingleSegmentFile(replica, "segments_5");
 
             shards.indexDocs(1);
             flushShard(primary);
             replicateSegments(primary, shards.getReplicas());
             assertDocCount(replica, 3);
-            assertSingleSegmentFile(replica, "segments_5");
+            assertSingleSegmentFile(replica, "segments_6");
 
             final Store.RecoveryDiff diff = Store.segmentReplicationDiff(primary.getSegmentMetadataMap(), replica.getSegmentMetadataMap());
             assertTrue(diff.missing.isEmpty());
@@ -340,6 +351,121 @@ public class RemoteIndexShardTests extends SegmentReplicationIndexShardTests {
             assertTrue(diff.missing.isEmpty());
             logger.info("DIFF FILE {}", diff.different);
             assertTrue(diff.different.isEmpty());
+        }
+    }
+
+    /**
+     * This test validates that unreferenced on disk file are ignored while requesting files from replication source to
+     * prevent FileAlreadyExistsException. It does so by only copying files in first round of segment replication without
+     * committing locally so that in next round of segment replication those files are not considered for download again
+     */
+    public void testSegRepSucceedsOnPreviousCopiedFiles() throws Exception {
+        try (ReplicationGroup shards = createGroup(1, getIndexSettings(), new NRTReplicationEngineFactory())) {
+            shards.startAll();
+            IndexShard primary = shards.getPrimary();
+            final IndexShard replica = shards.getReplicas().get(0);
+
+            shards.indexDocs(10);
+            primary.refresh("Test");
+
+            final SegmentReplicationSourceFactory sourceFactory = mock(SegmentReplicationSourceFactory.class);
+            final SegmentReplicationTargetService targetService = newTargetService(sourceFactory);
+            Runnable[] runAfterGetFiles = { () -> { throw new RuntimeException("Simulated"); }, () -> {} };
+            AtomicInteger index = new AtomicInteger(0);
+            RemoteStoreReplicationSource testRSReplicationSource = new RemoteStoreReplicationSource(replica) {
+                @Override
+                public void getCheckpointMetadata(
+                    long replicationId,
+                    ReplicationCheckpoint checkpoint,
+                    ActionListener<CheckpointInfoResponse> listener
+                ) {
+                    super.getCheckpointMetadata(replicationId, checkpoint, listener);
+                }
+
+                @Override
+                public void getSegmentFiles(
+                    long replicationId,
+                    ReplicationCheckpoint checkpoint,
+                    List<StoreFileMetadata> filesToFetch,
+                    IndexShard indexShard,
+                    ActionListener<GetSegmentFilesResponse> listener
+                ) {
+                    super.getSegmentFiles(replicationId, checkpoint, filesToFetch, indexShard, listener);
+                    runAfterGetFiles[index.getAndIncrement()].run();
+                }
+
+                @Override
+                public String getDescription() {
+                    return "TestRemoteStoreReplicationSource";
+                }
+            };
+            when(sourceFactory.get(any())).thenReturn(testRSReplicationSource);
+            CountDownLatch latch = new CountDownLatch(1);
+
+            // Start first round of segment replication. This should fail with simulated error but with replica having
+            // files in its local store but not in active reader.
+            final SegmentReplicationTarget target = targetService.startReplication(
+                replica,
+                primary.getLatestReplicationCheckpoint(),
+                new SegmentReplicationTargetService.SegmentReplicationListener() {
+                    @Override
+                    public void onReplicationDone(SegmentReplicationState state) {
+                        Assert.fail("Replication should fail with simulated error");
+                    }
+
+                    @Override
+                    public void onReplicationFailure(
+                        SegmentReplicationState state,
+                        ReplicationFailedException e,
+                        boolean sendShardFailure
+                    ) {
+                        assertFalse(sendShardFailure);
+                        logger.error("Replication error", e);
+                        latch.countDown();
+                    }
+                }
+            );
+            latch.await();
+            Set<String> onDiskFiles = new HashSet<>(Arrays.asList(replica.store().directory().listAll()));
+            onDiskFiles.removeIf(name -> EXCLUDE_FILES.contains(name) || name.startsWith(IndexFileNames.SEGMENTS));
+            List<String> activeFiles = replica.getSegmentMetadataMap()
+                .values()
+                .stream()
+                .map(metadata -> metadata.name())
+                .collect(Collectors.toList());
+            assertTrue("Files should not be committed", activeFiles.isEmpty());
+            assertEquals("Files should be copied to disk", false, onDiskFiles.isEmpty());
+            assertEquals(target.state().getStage(), SegmentReplicationState.Stage.GET_FILES);
+
+            // Start next round of segment replication
+            CountDownLatch waitForSecondRound = new CountDownLatch(1);
+            final SegmentReplicationTarget newTarget = targetService.startReplication(
+                replica,
+                primary.getLatestReplicationCheckpoint(),
+                new SegmentReplicationTargetService.SegmentReplicationListener() {
+                    @Override
+                    public void onReplicationDone(SegmentReplicationState state) {
+                        waitForSecondRound.countDown();
+                    }
+
+                    @Override
+                    public void onReplicationFailure(
+                        SegmentReplicationState state,
+                        ReplicationFailedException e,
+                        boolean sendShardFailure
+                    ) {
+                        logger.error("Replication error", e);
+                        Assert.fail("Replication should not fail");
+                        waitForSecondRound.countDown();
+                    }
+                }
+            );
+            waitForSecondRound.await();
+            assertEquals(newTarget.state().getStage(), SegmentReplicationState.Stage.DONE);
+            activeFiles = replica.getSegmentMetadataMap().values().stream().map(metadata -> metadata.name()).collect(Collectors.toList());
+            assertTrue("Replica should have consistent disk & reader", activeFiles.containsAll(onDiskFiles));
+            shards.removeReplica(replica);
+            closeShards(replica);
         }
     }
 

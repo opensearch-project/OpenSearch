@@ -32,6 +32,8 @@
 
 package org.opensearch.search.suggest;
 
+import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.text.Text;
 import org.opensearch.core.xcontent.DeprecationHandler;
@@ -41,8 +43,6 @@ import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContent;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.common.xcontent.XContentType;
-import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.rest.action.search.RestSearchAction;
 import org.opensearch.search.suggest.Suggest.Suggestion;
 import org.opensearch.search.suggest.Suggest.Suggestion.Entry;

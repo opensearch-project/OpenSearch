@@ -32,23 +32,24 @@
 
 package org.opensearch.ingest;
 
-import java.io.IOException;
-import java.io.InputStream;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.OpenSearchException;
 import org.opensearch.OpenSearchParseException;
-import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.common.Nullable;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
+import org.opensearch.common.xcontent.json.JsonXContent;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.script.Script;
 import org.opensearch.script.ScriptService;
 import org.opensearch.script.ScriptType;
 import org.opensearch.script.TemplateScript;
 
+import java.io.IOException;
+import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -510,9 +511,11 @@ public final class ConfigurationUtils {
         Map<String, Processor.Factory> processorFactories,
         ScriptService scriptService,
         String type,
-        Object config
+        @Nullable Object config
     ) throws Exception {
-        if (config instanceof Map) {
+        if (config == null) {
+            throw newConfigurationException(type, null, null, "the config of processor [" + type + "] cannot be null");
+        } else if (config instanceof Map) {
             return readProcessor(processorFactories, scriptService, type, (Map<String, Object>) config);
         } else if (config instanceof String && "script".equals(type)) {
             Map<String, Object> normalizedScript = new HashMap<>(1);
@@ -527,8 +530,11 @@ public final class ConfigurationUtils {
         Map<String, Processor.Factory> processorFactories,
         ScriptService scriptService,
         String type,
-        Map<String, Object> config
+        @Nullable Map<String, Object> config
     ) throws Exception {
+        if (config == null) {
+            throw newConfigurationException(type, null, null, "expect the config of processor [" + type + "] to be map, but is null");
+        }
         String tag = ConfigurationUtils.readOptionalStringProperty(null, null, config, TAG_KEY);
         String description = ConfigurationUtils.readOptionalStringProperty(null, tag, config, DESCRIPTION_KEY);
         boolean ignoreFailure = ConfigurationUtils.readBooleanProperty(null, null, config, IGNORE_FAILURE_KEY, false);

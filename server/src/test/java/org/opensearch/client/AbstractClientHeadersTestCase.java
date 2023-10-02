@@ -34,7 +34,6 @@ package org.opensearch.client;
 
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.action.ActionType;
-import org.opensearch.core.action.ActionListener;
 import org.opensearch.action.admin.cluster.reroute.ClusterRerouteAction;
 import org.opensearch.action.admin.cluster.snapshots.create.CreateSnapshotAction;
 import org.opensearch.action.admin.cluster.stats.ClusterStatsAction;
@@ -49,6 +48,7 @@ import org.opensearch.action.index.IndexAction;
 import org.opensearch.action.search.SearchAction;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.ThreadContext;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.env.Environment;
 import org.opensearch.test.OpenSearchTestCase;

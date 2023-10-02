@@ -9,13 +9,11 @@
 package org.opensearch.test.telemetry.tracing;
 
 import org.opensearch.telemetry.tracing.Span;
+import org.opensearch.telemetry.tracing.SpanCreationContext;
 import org.opensearch.telemetry.tracing.TracingContextPropagator;
 import org.opensearch.telemetry.tracing.TracingTelemetry;
-import org.opensearch.test.telemetry.tracing.validators.AllSpansAreEndedProperly;
-import org.opensearch.test.telemetry.tracing.validators.AllSpansHaveUniqueId;
 
-import java.util.Arrays;
-import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Mock {@link TracingTelemetry} implementation for testing.
@@ -23,18 +21,19 @@ import java.util.List;
 public class MockTracingTelemetry implements TracingTelemetry {
 
     private final SpanProcessor spanProcessor = new StrictCheckSpanProcessor();
+    private final AtomicBoolean shutdown = new AtomicBoolean(false);
 
     /**
      * Base constructor.
      */
-    public MockTracingTelemetry() {
-
-    }
+    public MockTracingTelemetry() {}
 
     @Override
-    public Span createSpan(String spanName, Span parentSpan) {
-        Span span = new MockSpan(spanName, parentSpan, spanProcessor);
-        spanProcessor.onStart(span);
+    public Span createSpan(SpanCreationContext spanCreationContext, Span parentSpan) {
+        Span span = new MockSpan(spanCreationContext, parentSpan, spanProcessor);
+        if (shutdown.get() == false) {
+            spanProcessor.onStart(span);
+        }
         return span;
     }
 
@@ -45,12 +44,7 @@ public class MockTracingTelemetry implements TracingTelemetry {
 
     @Override
     public void close() {
-        List<MockSpanData> spanData = ((StrictCheckSpanProcessor) spanProcessor).getFinishedSpanItems();
-        if (spanData.size() != 0) {
-            TelemetryValidators validators = new TelemetryValidators(
-                Arrays.asList(new AllSpansAreEndedProperly(), new AllSpansHaveUniqueId())
-            );
-            validators.validate(spanData, 1);
-        }
+        shutdown.set(true);
     }
+
 }

@@ -32,16 +32,17 @@
 
 package org.opensearch.repositories.s3;
 
-import org.junit.Before;
-import org.opensearch.common.SuppressForbidden;
-import org.opensearch.common.settings.MockSecureSettings;
-import org.opensearch.common.settings.Settings;
-import org.opensearch.repositories.s3.utils.Protocol;
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
 import software.amazon.awssdk.core.client.config.ClientOverrideConfiguration;
 import software.amazon.awssdk.core.retry.backoff.BackoffStrategy;
 import software.amazon.awssdk.http.apache.ProxyConfiguration;
+
+import org.opensearch.common.SuppressForbidden;
+import org.opensearch.common.settings.MockSecureSettings;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.repositories.s3.utils.Protocol;
+import org.junit.Before;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -49,11 +50,11 @@ import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 
+import static org.opensearch.repositories.s3.S3ClientSettings.PROTOCOL_SETTING;
+import static org.opensearch.repositories.s3.S3ClientSettings.PROXY_TYPE_SETTING;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
-import static org.opensearch.repositories.s3.S3ClientSettings.PROTOCOL_SETTING;
-import static org.opensearch.repositories.s3.S3ClientSettings.PROXY_TYPE_SETTING;
 
 public class AwsS3ServiceImplTests extends AbstractS3RepositoryTestCase {
 

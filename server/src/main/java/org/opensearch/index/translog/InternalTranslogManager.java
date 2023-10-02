@@ -8,15 +8,15 @@
 
 package org.opensearch.index.translog;
 
-import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.store.AlreadyClosedException;
+import org.opensearch.common.logging.Loggers;
 import org.opensearch.common.util.concurrent.ReleasableLock;
 import org.opensearch.common.util.io.IOUtils;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.engine.LifecycleAware;
 import org.opensearch.index.seqno.LocalCheckpointTracker;
-import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.translog.listener.TranslogEventListener;
 
 import java.io.Closeable;
@@ -43,7 +43,7 @@ public class InternalTranslogManager implements TranslogManager, Closeable {
     private final AtomicBoolean pendingTranslogRecovery = new AtomicBoolean(false);
     private final TranslogEventListener translogEventListener;
     private final Supplier<LocalCheckpointTracker> localCheckpointTrackerSupplier;
-    private static final Logger logger = LogManager.getLogger(InternalTranslogManager.class);
+    private final Logger logger;
 
     public InternalTranslogManager(
         TranslogConfig translogConfig,
@@ -76,6 +76,7 @@ public class InternalTranslogManager implements TranslogManager, Closeable {
         assert pendingTranslogRecovery.get() == false : "translog recovery can't be pending before we set it";
         // don't allow commits until we are done with recovering
         pendingTranslogRecovery.set(true);
+        this.logger = Loggers.getLogger(getClass(), shardId);
     }
 
     /**

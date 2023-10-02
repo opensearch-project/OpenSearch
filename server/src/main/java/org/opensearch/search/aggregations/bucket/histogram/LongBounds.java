@@ -33,8 +33,8 @@
 package org.opensearch.search.aggregations.bucket.histogram;
 
 import org.opensearch.common.CheckedFunction;
-import org.opensearch.core.ParseField;
 import org.opensearch.common.Rounding;
+import org.opensearch.core.ParseField;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;

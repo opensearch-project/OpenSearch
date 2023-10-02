@@ -11,13 +11,14 @@ package org.opensearch.index.shard;
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.store.AlreadyClosedException;
-import org.junit.Assert;
 import org.opensearch.ExceptionsHelper;
-import org.opensearch.core.action.ActionListener;
 import org.opensearch.action.admin.indices.flush.FlushRequest;
 import org.opensearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.opensearch.action.index.IndexRequest;
 import org.opensearch.action.support.PlainActionFuture;
+import org.opensearch.cluster.ClusterChangedEvent;
+import org.opensearch.cluster.ClusterState;
+import org.opensearch.cluster.SnapshotsInProgress;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.routing.IndexShardRoutingTable;
 import org.opensearch.cluster.routing.ShardRouting;
@@ -29,19 +30,27 @@ import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.CancellableThreads;
+import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
+import org.opensearch.index.IndexService;
 import org.opensearch.index.IndexSettings;
+import org.opensearch.index.SegmentReplicationShardStats;
+import org.opensearch.index.engine.DocIdSeqNoAndSource;
 import org.opensearch.index.engine.Engine;
 import org.opensearch.index.engine.InternalEngineFactory;
 import org.opensearch.index.engine.NRTReplicationEngine;
 import org.opensearch.index.engine.NRTReplicationEngineFactory;
+import org.opensearch.index.engine.ReadOnlyEngine;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.replication.OpenSearchIndexLevelReplicationTestCase;
 import org.opensearch.index.replication.TestReplicationSource;
+import org.opensearch.index.snapshots.IndexShardSnapshotStatus;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.store.StoreFileMetadata;
 import org.opensearch.index.translog.SnapshotMatchers;
 import org.opensearch.index.translog.Translog;
+import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.indices.recovery.RecoveryTarget;
 import org.opensearch.indices.replication.CheckpointInfoResponse;
@@ -58,24 +67,37 @@ import org.opensearch.indices.replication.common.ReplicationFailedException;
 import org.opensearch.indices.replication.common.ReplicationListener;
 import org.opensearch.indices.replication.common.ReplicationState;
 import org.opensearch.indices.replication.common.ReplicationType;
+import org.opensearch.repositories.IndexId;
+import org.opensearch.snapshots.Snapshot;
+import org.opensearch.snapshots.SnapshotId;
+import org.opensearch.snapshots.SnapshotInfoTests;
+import org.opensearch.snapshots.SnapshotShardsService;
+import org.opensearch.test.VersionUtils;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
+import org.junit.Assert;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 
+import static org.opensearch.index.engine.EngineTestCase.assertAtMostOneLuceneDocumentPerSequenceNumber;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
@@ -84,7 +106,6 @@ import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
-import static org.opensearch.index.engine.EngineTestCase.assertAtMostOneLuceneDocumentPerSequenceNumber;
 
 public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelReplicationTestCase {
 
@@ -773,6 +794,185 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
         }
     }
 
+    public void testQueryDuringEngineResetShowsDocs() throws Exception {
+        final NRTReplicationEngineFactory engineFactory = new NRTReplicationEngineFactory();
+        final NRTReplicationEngineFactory spy = spy(engineFactory);
+        try (ReplicationGroup shards = createGroup(1, settings, indexMapping, spy, createTempDir())) {
+            final IndexShard primaryShard = shards.getPrimary();
+            final IndexShard replicaShard = shards.getReplicas().get(0);
+            shards.startAll();
+            shards.indexDocs(10);
+            shards.refresh("test");
+            replicateSegments(primaryShard, shards.getReplicas());
+            shards.assertAllEqual(10);
+
+            final AtomicReference<Throwable> failed = new AtomicReference<>();
+            doAnswer(ans -> {
+                try {
+                    final Engine engineOrNull = replicaShard.getEngineOrNull();
+                    assertNotNull(engineOrNull);
+                    assertTrue(engineOrNull instanceof ReadOnlyEngine);
+                    shards.assertAllEqual(10);
+                } catch (Throwable e) {
+                    failed.set(e);
+                }
+                return ans.callRealMethod();
+            }).when(spy).newReadWriteEngine(any());
+            shards.promoteReplicaToPrimary(replicaShard).get();
+            assertNull("Expected correct doc count during engine reset", failed.get());
+        }
+    }
+
+    public void testSegmentReplicationStats() throws Exception {
+        final NRTReplicationEngineFactory engineFactory = new NRTReplicationEngineFactory();
+        final NRTReplicationEngineFactory spy = spy(engineFactory);
+        try (ReplicationGroup shards = createGroup(1, settings, indexMapping, spy, createTempDir())) {
+            final IndexShard primaryShard = shards.getPrimary();
+            final IndexShard replicaShard = shards.getReplicas().get(0);
+            shards.startAll();
+
+            assertReplicaCaughtUp(primaryShard);
+
+            shards.indexDocs(10);
+            shards.refresh("test");
+
+            final ReplicationCheckpoint primaryCheckpoint = primaryShard.getLatestReplicationCheckpoint();
+            final long initialCheckpointSize = primaryCheckpoint.getMetadataMap()
+                .values()
+                .stream()
+                .mapToLong(StoreFileMetadata::length)
+                .sum();
+
+            Set<SegmentReplicationShardStats> postRefreshStats = primaryShard.getReplicationStatsForTrackedReplicas();
+            SegmentReplicationShardStats shardStats = postRefreshStats.stream().findFirst().get();
+            assertEquals(1, shardStats.getCheckpointsBehindCount());
+            assertEquals(initialCheckpointSize, shardStats.getBytesBehindCount());
+            replicateSegments(primaryShard, shards.getReplicas());
+            assertReplicaCaughtUp(primaryShard);
+            shards.assertAllEqual(10);
+
+            final List<DocIdSeqNoAndSource> docIdAndSeqNos = getDocIdAndSeqNos(primaryShard);
+            for (DocIdSeqNoAndSource docIdAndSeqNo : docIdAndSeqNos.subList(0, 5)) {
+                deleteDoc(primaryShard, docIdAndSeqNo.getId());
+                // delete on replica for xlog.
+                deleteDoc(replicaShard, docIdAndSeqNo.getId());
+            }
+            primaryShard.forceMerge(new ForceMergeRequest().maxNumSegments(1).flush(true));
+
+            final Map<String, StoreFileMetadata> segmentMetadataMap = primaryShard.getSegmentMetadataMap();
+            final Store.RecoveryDiff diff = Store.segmentReplicationDiff(segmentMetadataMap, replicaShard.getSegmentMetadataMap());
+            final long sizeAfterDeleteAndCommit = diff.missing.stream().mapToLong(StoreFileMetadata::length).sum();
+
+            final Set<SegmentReplicationShardStats> statsAfterFlush = primaryShard.getReplicationStatsForTrackedReplicas();
+            shardStats = statsAfterFlush.stream().findFirst().get();
+            assertEquals(sizeAfterDeleteAndCommit, shardStats.getBytesBehindCount());
+            assertEquals(1, shardStats.getCheckpointsBehindCount());
+
+            replicateSegments(primaryShard, shards.getReplicas());
+            assertReplicaCaughtUp(primaryShard);
+            shards.assertAllEqual(5);
+        }
+    }
+
+    public void testSnapshotWhileFailoverIncomplete() throws Exception {
+        final NRTReplicationEngineFactory engineFactory = new NRTReplicationEngineFactory();
+        final NRTReplicationEngineFactory spy = spy(engineFactory);
+        try (ReplicationGroup shards = createGroup(1, settings, indexMapping, spy, createTempDir())) {
+            final IndexShard primaryShard = shards.getPrimary();
+            final IndexShard replicaShard = shards.getReplicas().get(0);
+            shards.startAll();
+            shards.indexDocs(10);
+            shards.refresh("test");
+            replicateSegments(primaryShard, shards.getReplicas());
+            shards.assertAllEqual(10);
+
+            final SnapshotShardsService shardsService = getSnapshotShardsService(replicaShard);
+            final Snapshot snapshot = new Snapshot(randomAlphaOfLength(10), new SnapshotId(randomAlphaOfLength(5), randomAlphaOfLength(5)));
+
+            final ClusterState initState = addSnapshotIndex(clusterService.state(), snapshot, replicaShard, SnapshotsInProgress.State.INIT);
+            shardsService.clusterChanged(new ClusterChangedEvent("test", initState, clusterService.state()));
+
+            CountDownLatch latch = new CountDownLatch(1);
+            doAnswer(ans -> {
+                final Engine engineOrNull = replicaShard.getEngineOrNull();
+                assertNotNull(engineOrNull);
+                assertTrue(engineOrNull instanceof ReadOnlyEngine);
+                shards.assertAllEqual(10);
+                shardsService.clusterChanged(
+                    new ClusterChangedEvent(
+                        "test",
+                        addSnapshotIndex(clusterService.state(), snapshot, replicaShard, SnapshotsInProgress.State.STARTED),
+                        initState
+                    )
+                );
+                latch.countDown();
+                return ans.callRealMethod();
+            }).when(spy).newReadWriteEngine(any());
+            shards.promoteReplicaToPrimary(replicaShard).get();
+            latch.await();
+            assertBusy(() -> {
+                final IndexShardSnapshotStatus.Copy copy = shardsService.currentSnapshotShards(snapshot).get(replicaShard.shardId).asCopy();
+                final IndexShardSnapshotStatus.Stage stage = copy.getStage();
+                assertEquals(IndexShardSnapshotStatus.Stage.FAILURE, stage);
+                assertNotNull(copy.getFailure());
+                assertTrue(
+                    copy.getFailure()
+                        .contains("snapshot triggered on a new primary following failover and cannot proceed until promotion is complete")
+                );
+            });
+        }
+    }
+
+    private SnapshotShardsService getSnapshotShardsService(IndexShard replicaShard) {
+        final TransportService transportService = mock(TransportService.class);
+        when(transportService.getThreadPool()).thenReturn(threadPool);
+        final IndicesService indicesService = mock(IndicesService.class);
+        final IndexService indexService = mock(IndexService.class);
+        when(indicesService.indexServiceSafe(any())).thenReturn(indexService);
+        when(indexService.getShardOrNull(anyInt())).thenReturn(replicaShard);
+        return new SnapshotShardsService(settings, clusterService, createRepositoriesService(), transportService, indicesService);
+    }
+
+    private ClusterState addSnapshotIndex(
+        ClusterState state,
+        Snapshot snapshot,
+        IndexShard shard,
+        SnapshotsInProgress.State snapshotState
+    ) {
+        final Map<ShardId, SnapshotsInProgress.ShardSnapshotStatus> shardsBuilder = new HashMap<>();
+        ShardRouting shardRouting = shard.shardRouting;
+        shardsBuilder.put(
+            shardRouting.shardId(),
+            new SnapshotsInProgress.ShardSnapshotStatus(state.getNodes().getLocalNode().getId(), "1")
+        );
+        final SnapshotsInProgress.Entry entry = new SnapshotsInProgress.Entry(
+            snapshot,
+            randomBoolean(),
+            false,
+            snapshotState,
+            Collections.singletonList(new IndexId(index.getName(), index.getUUID())),
+            Collections.emptyList(),
+            randomNonNegativeLong(),
+            randomLong(),
+            shardsBuilder,
+            null,
+            SnapshotInfoTests.randomUserMetadata(),
+            VersionUtils.randomVersion(random()),
+            false
+        );
+        return ClusterState.builder(state)
+            .putCustom(SnapshotsInProgress.TYPE, SnapshotsInProgress.of(Collections.singletonList(entry)))
+            .build();
+    }
+
+    private void assertReplicaCaughtUp(IndexShard primaryShard) {
+        Set<SegmentReplicationShardStats> initialStats = primaryShard.getReplicationStatsForTrackedReplicas();
+        assertEquals(initialStats.size(), 1);
+        SegmentReplicationShardStats shardStats = initialStats.stream().findFirst().get();
+        assertEquals(0, shardStats.getCheckpointsBehindCount());
+        assertEquals(0, shardStats.getBytesBehindCount());
+    }
+
     /**
      * Assert persisted and searchable doc counts.  This method should not be used while docs are concurrently indexed because
      * it asserts point in time seqNos are relative to the doc counts.
@@ -786,17 +986,24 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
     }
 
     protected void resolveCheckpointInfoResponseListener(ActionListener<CheckpointInfoResponse> listener, IndexShard primary) {
+        final CopyState copyState;
         try {
-            final CopyState copyState = new CopyState(
+            copyState = new CopyState(
                 ReplicationCheckpoint.empty(primary.shardId, primary.getLatestReplicationCheckpoint().getCodec()),
                 primary
-            );
-            listener.onResponse(
-                new CheckpointInfoResponse(copyState.getCheckpoint(), copyState.getMetadataMap(), copyState.getInfosBytes())
             );
         } catch (IOException e) {
             logger.error("Unexpected error computing CopyState", e);
             Assert.fail("Failed to compute copyState");
+            throw new UncheckedIOException(e);
+        }
+
+        try {
+            listener.onResponse(
+                new CheckpointInfoResponse(copyState.getCheckpoint(), copyState.getMetadataMap(), copyState.getInfosBytes())
+            );
+        } finally {
+            copyState.decRef();
         }
     }
 

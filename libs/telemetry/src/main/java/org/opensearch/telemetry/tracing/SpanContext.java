@@ -8,10 +8,15 @@
 
 package org.opensearch.telemetry.tracing;
 
+import org.opensearch.common.annotation.ExperimentalApi;
+
 /**
  * Wrapped Span will be exposed to the code outside of tracing package for sharing the {@link Span} without having access to
  * its properties.
+ *
+ * @opensearch.experimental
  */
+@ExperimentalApi
 public final class SpanContext {
     private final Span span;
 

@@ -31,7 +31,6 @@
 
 package org.opensearch.common.geo.parsers;
 
-import org.locationtech.jts.geom.Coordinate;
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.common.Explicit;
 import org.opensearch.common.geo.GeoPoint;
@@ -54,6 +53,8 @@ import java.io.IOException;
 import java.io.StreamTokenizer;
 import java.io.StringReader;
 import java.util.List;
+
+import org.locationtech.jts.geom.Coordinate;
 
 /**
  * Parses shape geometry represented in WKT format

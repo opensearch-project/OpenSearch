@@ -8,12 +8,13 @@
 
 package org.opensearch.common.settings;
 
+import org.opensearch.common.settings.Setting.Property;
+import org.opensearch.common.util.FeatureFlags;
+
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
-import org.opensearch.common.settings.Setting.Property;
-import org.opensearch.common.util.FeatureFlags;
 
 /**
  * Encapsulates all valid feature flag level settings.
@@ -35,7 +36,6 @@ public class FeatureFlagSettings extends AbstractScopedSettings {
         new HashSet<>(
             Arrays.asList(
                 FeatureFlags.SEGMENT_REPLICATION_EXPERIMENTAL_SETTING,
-                FeatureFlags.REMOTE_STORE_SETTING,
                 FeatureFlags.EXTENSIONS_SETTING,
                 FeatureFlags.IDENTITY_SETTING,
                 FeatureFlags.CONCURRENT_SEGMENT_SEARCH_SETTING,

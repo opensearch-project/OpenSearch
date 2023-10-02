@@ -31,6 +31,7 @@
 
 package org.opensearch.index.translog;
 
+import org.opensearch.Version;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
@@ -48,14 +49,21 @@ import java.io.IOException;
  * @opensearch.internal
  */
 public class TranslogStats implements Writeable, ToXContentFragment {
-
+    private static final String TRANSLOG = "translog";
     private long translogSizeInBytes;
     private int numberOfOperations;
     private long uncommittedSizeInBytes;
     private int uncommittedOperations;
     private long earliestLastModifiedAge;
 
-    public TranslogStats() {}
+    /**
+     * Stats related to the Remote Translog Store operations
+     */
+    private final RemoteTranslogStats remoteTranslogStats;
+
+    public TranslogStats() {
+        remoteTranslogStats = new RemoteTranslogStats();
+    }
 
     public TranslogStats(StreamInput in) throws IOException {
         numberOfOperations = in.readVInt();
@@ -63,6 +71,9 @@ public class TranslogStats implements Writeable, ToXContentFragment {
         uncommittedOperations = in.readVInt();
         uncommittedSizeInBytes = in.readVLong();
         earliestLastModifiedAge = in.readVLong();
+        remoteTranslogStats = in.getVersion().onOrAfter(Version.V_2_10_0)
+            ? in.readOptionalWriteable(RemoteTranslogStats::new)
+            : new RemoteTranslogStats();
     }
 
     public TranslogStats(
@@ -87,27 +98,37 @@ public class TranslogStats implements Writeable, ToXContentFragment {
         if (earliestLastModifiedAge < 0) {
             throw new IllegalArgumentException("earliestLastModifiedAge must be >= 0");
         }
+
         this.numberOfOperations = numberOfOperations;
         this.translogSizeInBytes = translogSizeInBytes;
         this.uncommittedSizeInBytes = uncommittedSizeInBytes;
         this.uncommittedOperations = uncommittedOperations;
         this.earliestLastModifiedAge = earliestLastModifiedAge;
+        this.remoteTranslogStats = new RemoteTranslogStats();
     }
 
-    public void add(TranslogStats translogStats) {
-        if (translogStats == null) {
+    public void addRemoteTranslogStats(RemoteTranslogStats remoteTranslogStats) {
+        if (this.remoteTranslogStats != null) {
+            this.remoteTranslogStats.add(remoteTranslogStats);
+        }
+    }
+
+    public void add(TranslogStats other) {
+        if (other == null) {
             return;
         }
 
-        this.numberOfOperations += translogStats.numberOfOperations;
-        this.translogSizeInBytes += translogStats.translogSizeInBytes;
-        this.uncommittedOperations += translogStats.uncommittedOperations;
-        this.uncommittedSizeInBytes += translogStats.uncommittedSizeInBytes;
+        this.numberOfOperations += other.numberOfOperations;
+        this.translogSizeInBytes += other.translogSizeInBytes;
+        this.uncommittedOperations += other.uncommittedOperations;
+        this.uncommittedSizeInBytes += other.uncommittedSizeInBytes;
         if (this.earliestLastModifiedAge == 0) {
-            this.earliestLastModifiedAge = translogStats.earliestLastModifiedAge;
+            this.earliestLastModifiedAge = other.earliestLastModifiedAge;
         } else {
-            this.earliestLastModifiedAge = Math.min(this.earliestLastModifiedAge, translogStats.earliestLastModifiedAge);
+            this.earliestLastModifiedAge = Math.min(this.earliestLastModifiedAge, other.earliestLastModifiedAge);
         }
+
+        addRemoteTranslogStats(other.remoteTranslogStats);
     }
 
     public long getTranslogSizeInBytes() {
@@ -132,15 +153,20 @@ public class TranslogStats implements Writeable, ToXContentFragment {
         return earliestLastModifiedAge;
     }
 
+    public RemoteTranslogStats getRemoteTranslogStats() {
+        return remoteTranslogStats;
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject("translog");
-        builder.field("operations", numberOfOperations);
-        builder.humanReadableField("size_in_bytes", "size", new ByteSizeValue(translogSizeInBytes));
-        builder.field("uncommitted_operations", uncommittedOperations);
-        builder.humanReadableField("uncommitted_size_in_bytes", "uncommitted_size", new ByteSizeValue(uncommittedSizeInBytes));
-        builder.field("earliest_last_modified_age", earliestLastModifiedAge);
+        builder.startObject(TRANSLOG);
+        addLocalTranslogStatsXContent(builder);
+        if (remoteTranslogStats != null) {
+            builder = remoteTranslogStats.toXContent(builder, params);
+        }
+
         builder.endObject();
+
         return builder;
     }
 
@@ -156,5 +182,16 @@ public class TranslogStats implements Writeable, ToXContentFragment {
         out.writeVInt(uncommittedOperations);
         out.writeVLong(uncommittedSizeInBytes);
         out.writeVLong(earliestLastModifiedAge);
+        if (out.getVersion().onOrAfter(Version.V_2_10_0)) {
+            out.writeOptionalWriteable(remoteTranslogStats);
+        }
+    }
+
+    private void addLocalTranslogStatsXContent(XContentBuilder builder) throws IOException {
+        builder.field("operations", numberOfOperations);
+        builder.humanReadableField("size_in_bytes", "size", new ByteSizeValue(translogSizeInBytes));
+        builder.field("uncommitted_operations", uncommittedOperations);
+        builder.humanReadableField("uncommitted_size_in_bytes", "uncommitted_size", new ByteSizeValue(uncommittedSizeInBytes));
+        builder.field("earliest_last_modified_age", earliestLastModifiedAge);
     }
 }

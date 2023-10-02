@@ -49,8 +49,8 @@ import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.util.BigArrays;
-import org.opensearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.opensearch.core.indices.breaker.CircuitBreakerService;
+import org.opensearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.MultiValueMode;
 import org.opensearch.search.aggregations.support.ValuesSourceType;
@@ -93,6 +93,13 @@ public interface IndexFieldData<FD extends LeafFieldData> {
      * Returns the {@link SortField} to use for sorting.
      */
     SortField sortField(@Nullable Object missingValue, MultiValueMode sortMode, Nested nested, boolean reverse);
+
+    /**
+     * Returns the {@link SortField} to use for index sorting where we widen the sort field type to higher or equal bytes.
+     */
+    default SortField wideSortField(@Nullable Object missingValue, MultiValueMode sortMode, Nested nested, boolean reverse) {
+        return sortField(missingValue, sortMode, nested, reverse);
+    }
 
     /**
      * Build a sort implementation specialized for aggregations.

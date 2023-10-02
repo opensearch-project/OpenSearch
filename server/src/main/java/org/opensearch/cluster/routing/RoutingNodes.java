@@ -34,7 +34,6 @@ package org.opensearch.cluster.routing;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.CollectionUtil;
-import org.opensearch.core.Assertions;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.Metadata;
@@ -44,6 +43,7 @@ import org.opensearch.cluster.routing.allocation.ExistingShardsAllocator;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.Randomness;
 import org.opensearch.common.collect.Tuple;
+import org.opensearch.core.Assertions;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
 
@@ -82,6 +82,7 @@ import java.util.stream.Stream;
  * @opensearch.internal
  */
 public class RoutingNodes implements Iterable<RoutingNode> {
+    private final Metadata metadata;
 
     private final Map<String, RoutingNode> nodesToShards = new HashMap<>();
 
@@ -107,6 +108,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
     }
 
     public RoutingNodes(ClusterState clusterState, boolean readOnly) {
+        this.metadata = clusterState.getMetadata();
         this.readOnly = readOnly;
         final RoutingTable routingTable = clusterState.routingTable();
         this.nodesPerAttributeNames = Collections.synchronizedMap(new HashMap<>());
@@ -368,9 +370,9 @@ public class RoutingNodes implements Iterable<RoutingNode> {
      * Returns one active replica shard for the given shard id or <code>null</code> if
      * no active replica is found.
      *
-     * Since replicas could possibly be on nodes with a older version of OpenSearch than
-     * the primary is, this will return replicas on the highest version of OpenSearch.
-     *
+     * Since replicas could possibly be on nodes with an older version of OpenSearch than
+     * the primary is, this will return replicas on the highest version of OpenSearch when document
+     * replication is enabled.
      */
     public ShardRouting activeReplicaWithHighestVersion(ShardId shardId) {
         // It's possible for replicaNodeVersion to be null, when disassociating dead nodes
@@ -382,6 +384,30 @@ public class RoutingNodes implements Iterable<RoutingNode> {
             .filter(shr -> !shr.primary() && shr.active())
             .filter(shr -> node(shr.currentNodeId()) != null)
             .max(
+                Comparator.comparing(
+                    shr -> node(shr.currentNodeId()).node(),
+                    Comparator.nullsFirst(Comparator.comparing(DiscoveryNode::getVersion))
+                )
+            )
+            .orElse(null);
+    }
+
+    /**
+     * Returns one active replica shard for the given shard id or <code>null</code> if
+     * no active replica is found.
+     *
+     * Since replicas could possibly be on nodes with a higher version of OpenSearch than
+     * the primary is, this will return replicas on the oldest version of OpenSearch when segment
+     * replication is enabled to allow for replica to read segments from primary.
+     *
+     */
+    public ShardRouting activeReplicaWithOldestVersion(ShardId shardId) {
+        // It's possible for replicaNodeVersion to be null. Therefore, we need to protect against the version being null
+        // (meaning the node will be going away).
+        return assignedShards(shardId).stream()
+            .filter(shr -> !shr.primary() && shr.active())
+            .filter(shr -> node(shr.currentNodeId()) != null)
+            .min(
                 Comparator.comparing(
                     shr -> node(shr.currentNodeId()).node(),
                     Comparator.nullsFirst(Comparator.comparing(DiscoveryNode::getVersion))
@@ -724,7 +750,12 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         RoutingChangesObserver routingChangesObserver
     ) {
         assert failedShard.primary();
-        ShardRouting activeReplica = activeReplicaWithHighestVersion(failedShard.shardId());
+        ShardRouting activeReplica;
+        if (metadata.isSegmentReplicationEnabled(failedShard.getIndexName())) {
+            activeReplica = activeReplicaWithOldestVersion(failedShard.shardId());
+        } else {
+            activeReplica = activeReplicaWithHighestVersion(failedShard.shardId());
+        }
         if (activeReplica == null) {
             moveToUnassigned(failedShard, unassignedInfo);
         } else {

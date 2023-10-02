@@ -34,9 +34,9 @@ package org.opensearch.index.reindex;
 
 import org.opensearch.action.ActionType;
 import org.opensearch.action.search.SearchRequest;
+import org.opensearch.common.xcontent.LoggingDeprecationHandler;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
-import org.opensearch.common.xcontent.LoggingDeprecationHandler;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;

@@ -41,12 +41,12 @@ import org.opensearch.common.geo.GeoPoint;
 import org.opensearch.common.geo.GeoUtils;
 import org.opensearch.common.time.DateUtils;
 import org.opensearch.geometry.utils.Geohash;
-import org.opensearch.script.JodaCompatibleZonedDateTime;
 
 import java.io.IOException;
 import java.math.BigInteger;
 import java.time.Instant;
 import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.AbstractList;
 import java.util.Arrays;
 import java.util.Comparator;
@@ -159,7 +159,7 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
      *
      * @opensearch.internal
      */
-    public static final class Dates extends ScriptDocValues<JodaCompatibleZonedDateTime> {
+    public static final class Dates extends ScriptDocValues<ZonedDateTime> {
 
         private final SortedNumericDocValues in;
         private final boolean isNanos;
@@ -167,7 +167,7 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
         /**
          * Values wrapped in {@link java.time.ZonedDateTime} objects.
          */
-        private JodaCompatibleZonedDateTime[] dates;
+        private ZonedDateTime[] dates;
         private int count;
 
         public Dates(SortedNumericDocValues in, boolean isNanos) {
@@ -179,12 +179,12 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
          * Fetch the first field value or 0 millis after epoch if there are no
          * in.
          */
-        public JodaCompatibleZonedDateTime getValue() {
+        public ZonedDateTime getValue() {
             return get(0);
         }
 
         @Override
-        public JodaCompatibleZonedDateTime get(int index) {
+        public ZonedDateTime get(int index) {
             if (count == 0) {
                 throw new IllegalStateException(
                     "A document doesn't have a value for a field! "
@@ -223,13 +223,13 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
             }
             if (dates == null || count > dates.length) {
                 // Happens for the document. We delay allocating dates so we can allocate it with a reasonable size.
-                dates = new JodaCompatibleZonedDateTime[count];
+                dates = new ZonedDateTime[count];
             }
             for (int i = 0; i < count; ++i) {
                 if (isNanos) {
-                    dates[i] = new JodaCompatibleZonedDateTime(DateUtils.toInstant(in.nextValue()), ZoneOffset.UTC);
+                    dates[i] = ZonedDateTime.ofInstant(DateUtils.toInstant(in.nextValue()), ZoneOffset.UTC);
                 } else {
-                    dates[i] = new JodaCompatibleZonedDateTime(Instant.ofEpochMilli(in.nextValue()), ZoneOffset.UTC);
+                    dates[i] = ZonedDateTime.ofInstant(Instant.ofEpochMilli(in.nextValue()), ZoneOffset.UTC);
                 }
             }
         }

@@ -32,9 +32,9 @@
 
 package org.opensearch.search.sort;
 
+import org.opensearch.common.time.DateFormatter;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
-import org.opensearch.common.time.DateFormatter;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;

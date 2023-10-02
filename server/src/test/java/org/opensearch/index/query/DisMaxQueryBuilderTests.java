@@ -41,6 +41,7 @@ import org.apache.lucene.search.Query;
 import org.opensearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
@@ -155,5 +156,15 @@ public class DisMaxQueryBuilderTests extends AbstractQueryTestCase<DisMaxQueryBu
         QueryBuilder rewrittenAgain = rewritten.rewrite(createShardContext());
         assertEquals(rewrittenAgain, expected);
         assertEquals(Rewriteable.rewrite(dismax, createShardContext()), expected);
+    }
+
+    public void testVisit() {
+        DisMaxQueryBuilder dismax = new DisMaxQueryBuilder();
+        dismax.add(new WrapperQueryBuilder(new WrapperQueryBuilder(new MatchAllQueryBuilder().toString()).toString()));
+
+        List<QueryBuilder> visitedQueries = new ArrayList<>();
+        dismax.visit(createTestVisitor(visitedQueries));
+
+        assertEquals(2, visitedQueries.size());
     }
 }

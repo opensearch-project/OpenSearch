@@ -39,18 +39,18 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.search.similarities.Similarity;
 import org.opensearch.Version;
-import org.opensearch.core.action.ActionListener;
 import org.opensearch.client.Client;
 import org.opensearch.common.CheckedFunction;
-import org.opensearch.core.common.ParsingException;
 import org.opensearch.common.SetOnce;
 import org.opensearch.common.TriFunction;
-import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.lucene.search.Queries;
 import org.opensearch.common.util.BigArrays;
+import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.common.ParsingException;
+import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.core.index.Index;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.core.index.Index;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.IndexSortConfig;
 import org.opensearch.index.analysis.IndexAnalyzers;
@@ -115,6 +115,7 @@ public class QueryShardContext extends QueryRewriteContext {
     private boolean mapUnmappedFieldAsString;
     private NestedScope nestedScope;
     private final ValuesSourceRegistry valuesSourceRegistry;
+    private BitSetProducer parentFilter;
 
     public QueryShardContext(
         int shardId,
@@ -621,5 +622,13 @@ public class QueryShardContext extends QueryRewriteContext {
 
     public AggregationUsageService getUsageService() {
         return valuesSourceRegistry.getUsageService();
+    }
+
+    public BitSetProducer getParentFilter() {
+        return parentFilter;
+    }
+
+    public void setParentFilter(BitSetProducer parentFilter) {
+        this.parentFilter = parentFilter;
     }
 }

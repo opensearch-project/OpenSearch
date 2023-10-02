@@ -35,7 +35,6 @@ package org.opensearch.indices.memory.breaker;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.LeafReader;
-
 import org.opensearch.OpenSearchException;
 import org.opensearch.action.admin.cluster.node.stats.NodeStats;
 import org.opensearch.action.admin.cluster.node.stats.NodesStatsResponse;
@@ -43,12 +42,12 @@ import org.opensearch.action.admin.indices.create.CreateIndexResponse;
 import org.opensearch.action.admin.indices.refresh.RefreshResponse;
 import org.opensearch.action.search.SearchPhaseExecutionException;
 import org.opensearch.action.search.SearchRequestBuilder;
-import org.opensearch.core.common.breaker.CircuitBreaker;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.xcontent.XContentFactory;
+import org.opensearch.core.common.breaker.CircuitBreaker;
 import org.opensearch.index.MockEngineFactoryPlugin;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.indices.IndicesService;
@@ -69,7 +68,6 @@ import java.util.concurrent.ExecutionException;
 
 import static org.opensearch.action.admin.cluster.node.stats.NodesStatsRequest.Metric.BREAKER;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAllSuccessful;
-
 import static org.hamcrest.Matchers.equalTo;
 
 /**

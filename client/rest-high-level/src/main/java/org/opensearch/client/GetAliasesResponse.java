@@ -35,11 +35,11 @@ package org.opensearch.client;
 import org.opensearch.OpenSearchException;
 import org.opensearch.cluster.metadata.AliasMetadata;
 import org.opensearch.common.xcontent.StatusToXContentObject;
+import org.opensearch.core.rest.RestStatus;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.core.xcontent.XContentParser.Token;
-import org.opensearch.core.rest.RestStatus;
 
 import java.io.IOException;
 import java.util.Collections;

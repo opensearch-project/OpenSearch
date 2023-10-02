@@ -11,22 +11,19 @@ package org.opensearch.test.telemetry;
 import org.opensearch.telemetry.Telemetry;
 import org.opensearch.telemetry.TelemetrySettings;
 import org.opensearch.telemetry.metrics.MetricsTelemetry;
-import org.opensearch.test.telemetry.tracing.MockTracingTelemetry;
 import org.opensearch.telemetry.tracing.TracingTelemetry;
+import org.opensearch.test.telemetry.tracing.MockTracingTelemetry;
 
 /**
  * Mock {@link Telemetry} implementation for testing.
  */
 public class MockTelemetry implements Telemetry {
-
-    private final TelemetrySettings settings;
-
     /**
      * Constructor with settings.
      * @param settings telemetry settings.
      */
     public MockTelemetry(TelemetrySettings settings) {
-        this.settings = settings;
+
     }
 
     @Override

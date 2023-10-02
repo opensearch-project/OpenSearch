@@ -43,6 +43,7 @@ import org.opensearch.common.geo.builders.ShapeBuilder;
 import org.opensearch.geometry.LinearRing;
 import org.opensearch.index.mapper.GeoShapeIndexer;
 import org.opensearch.test.OpenSearchTestCase;
+
 import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.jts.geom.LineString;
 import org.locationtech.jts.geom.Polygon;

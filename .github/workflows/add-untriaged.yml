@@ -6,6 +6,7 @@ on:
 
 jobs:
   apply-label:
+    if: github.repository == 'opensearch-project/OpenSearch'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/github-script@v6

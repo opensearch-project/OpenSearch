@@ -36,7 +36,6 @@ import org.opensearch.action.admin.indices.close.TransportCloseIndexAction;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.test.OpenSearchIntegTestCase;
-
 import org.junit.After;
 
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;

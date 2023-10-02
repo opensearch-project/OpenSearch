@@ -33,9 +33,9 @@
 package org.opensearch.action.explain;
 
 import org.apache.lucene.search.Explanation;
+import org.opensearch.common.document.DocumentField;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.bytes.BytesReference;
-import org.opensearch.common.document.DocumentField;
 import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.ToXContent;

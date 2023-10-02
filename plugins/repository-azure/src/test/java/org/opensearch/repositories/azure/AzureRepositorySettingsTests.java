@@ -32,9 +32,6 @@
 
 package org.opensearch.repositories.azure;
 
-import reactor.core.scheduler.Schedulers;
-
-import org.junit.AfterClass;
 import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
@@ -45,6 +42,9 @@ import org.opensearch.env.Environment;
 import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.repositories.blobstore.BlobStoreTestUtil;
 import org.opensearch.test.OpenSearchTestCase;
+import org.junit.AfterClass;
+
+import reactor.core.scheduler.Schedulers;
 
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;

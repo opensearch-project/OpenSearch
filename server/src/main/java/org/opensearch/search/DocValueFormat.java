@@ -34,16 +34,15 @@ package org.opensearch.search;
 
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.util.BytesRef;
+import org.opensearch.Version;
 import org.opensearch.common.Numbers;
-import org.opensearch.core.common.io.stream.NamedWriteable;
-import org.opensearch.core.common.io.stream.StreamInput;
-import org.opensearch.core.common.io.stream.StreamOutput;
-import org.opensearch.common.joda.Joda;
-import org.opensearch.common.joda.JodaDateFormatter;
 import org.opensearch.common.network.InetAddresses;
 import org.opensearch.common.network.NetworkAddress;
 import org.opensearch.common.time.DateFormatter;
 import org.opensearch.common.time.DateMathParser;
+import org.opensearch.core.common.io.stream.NamedWriteable;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.geometry.utils.Geohash;
 import org.opensearch.index.mapper.DateFieldMapper;
 import org.opensearch.search.aggregations.bucket.GeoTileUtils;
@@ -244,13 +243,14 @@ public interface DocValueFormat extends NamedWriteable {
         }
 
         public DateTime(StreamInput in) throws IOException {
-            String datePattern = in.readString();
+            this.formatter = DateFormatter.forPattern(in.readString());
+            this.parser = formatter.toDateMathParser();
             String zoneId = in.readString();
             this.timeZone = ZoneId.of(zoneId);
             this.resolution = DateFieldMapper.Resolution.ofOrdinal(in.readVInt());
-            final boolean isJoda = in.readBoolean();
-            this.formatter = isJoda ? Joda.forPattern(datePattern) : DateFormatter.forPattern(datePattern);
-            this.parser = formatter.toDateMathParser();
+            if (in.getVersion().before(Version.V_3_0_0)) {
+                in.readBoolean(); // ignore deprecated joda
+            }
         }
 
         @Override
@@ -263,8 +263,9 @@ public interface DocValueFormat extends NamedWriteable {
             out.writeString(formatter.pattern());
             out.writeString(timeZone.getId());
             out.writeVInt(resolution.ordinal());
-            // in order not to loose information if the formatter is a joda we send a flag
-            out.writeBoolean(formatter instanceof JodaDateFormatter);// todo pg consider refactor to isJoda method..
+            if (out.getVersion().before(Version.V_3_0_0)) {
+                out.writeBoolean(false); // ignore deprecated joda flag
+            }
         }
 
         public DateMathParser getDateMathParser() {

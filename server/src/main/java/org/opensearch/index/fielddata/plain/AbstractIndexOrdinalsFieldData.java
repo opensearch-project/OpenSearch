@@ -41,6 +41,7 @@ import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.OpenSearchException;
+import org.opensearch.core.indices.breaker.CircuitBreakerService;
 import org.opensearch.index.fielddata.IndexFieldDataCache;
 import org.opensearch.index.fielddata.IndexOrdinalsFieldData;
 import org.opensearch.index.fielddata.LeafOrdinalsFieldData;
@@ -48,7 +49,6 @@ import org.opensearch.index.fielddata.RamAccountingTermsEnum;
 import org.opensearch.index.fielddata.ScriptDocValues;
 import org.opensearch.index.fielddata.ordinals.GlobalOrdinalsBuilder;
 import org.opensearch.index.fielddata.ordinals.GlobalOrdinalsIndexFieldData;
-import org.opensearch.core.indices.breaker.CircuitBreakerService;
 import org.opensearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;

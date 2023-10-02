@@ -31,10 +31,10 @@
 
 package org.opensearch.search.sort;
 
-import java.util.Objects;
-
 import org.apache.lucene.search.SortField;
 import org.opensearch.search.DocValueFormat;
+
+import java.util.Objects;
 
 /**
  * A holder for SortField and doc value format objects

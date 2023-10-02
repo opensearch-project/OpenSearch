@@ -44,7 +44,6 @@ import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.OpenSearchException;
-import org.opensearch.core.action.ActionListener;
 import org.opensearch.action.DocWriteResponse;
 import org.opensearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.opensearch.action.admin.cluster.health.ClusterHealthResponse;
@@ -71,7 +70,6 @@ import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.action.index.IndexResponse;
 import org.opensearch.action.search.ClearScrollResponse;
 import org.opensearch.action.search.SearchResponse;
-import org.opensearch.core.action.support.DefaultShardOperationFailedException;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.client.AdminClient;
 import org.opensearch.client.Client;
@@ -96,9 +94,7 @@ import org.opensearch.cluster.routing.allocation.decider.EnableAllocationDecider
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.Priority;
-import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.collect.Tuple;
-import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.network.NetworkAddress;
 import org.opensearch.common.network.NetworkModule;
 import org.opensearch.common.regex.Regex;
@@ -106,18 +102,24 @@ import org.opensearch.common.settings.FeatureFlagSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.core.common.transport.TransportAddress;
-import org.opensearch.core.common.unit.ByteSizeUnit;
-import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.util.concurrent.ThreadContext;
+import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.xcontent.smile.SmileXContent;
-import org.opensearch.common.util.io.IOUtils;
+import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.action.support.DefaultShardOperationFailedException;
 import org.opensearch.core.common.Strings;
+import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.core.common.transport.TransportAddress;
+import org.opensearch.core.common.unit.ByteSizeUnit;
+import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
+import org.opensearch.core.index.Index;
+import org.opensearch.core.rest.RestStatus;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.ToXContent;
@@ -126,12 +128,11 @@ import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.env.Environment;
 import org.opensearch.env.TestEnvironment;
 import org.opensearch.http.HttpInfo;
-import org.opensearch.core.index.Index;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexSettings;
-import org.opensearch.index.MergePolicyConfig;
 import org.opensearch.index.MergeSchedulerConfig;
 import org.opensearch.index.MockEngineFactoryPlugin;
+import org.opensearch.index.TieredMergePolicyProvider;
 import org.opensearch.index.codec.CodecService;
 import org.opensearch.index.engine.Segment;
 import org.opensearch.index.mapper.CompletionFieldMapper;
@@ -145,7 +146,6 @@ import org.opensearch.monitor.os.OsInfo;
 import org.opensearch.node.NodeMocksPlugin;
 import org.opensearch.plugins.NetworkPlugin;
 import org.opensearch.plugins.Plugin;
-import org.opensearch.core.rest.RestStatus;
 import org.opensearch.rest.action.RestCancellableNodeClient;
 import org.opensearch.script.MockScriptService;
 import org.opensearch.search.MockSearchService;
@@ -157,6 +157,7 @@ import org.opensearch.test.disruption.NetworkDisruption;
 import org.opensearch.test.disruption.ServiceDisruptionScheme;
 import org.opensearch.test.store.MockFSIndexStore;
 import org.opensearch.test.telemetry.MockTelemetryPlugin;
+import org.opensearch.test.telemetry.tracing.StrictCheckSpanProcessor;
 import org.opensearch.test.transport.MockTransportService;
 import org.opensearch.transport.TransportInterceptor;
 import org.opensearch.transport.TransportRequest;
@@ -283,9 +284,7 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
         CodecService.DEFAULT_CODEC,
         CodecService.LZ4,
         CodecService.BEST_COMPRESSION_CODEC,
-        CodecService.ZLIB,
-        CodecService.ZSTD_CODEC,
-        CodecService.ZSTD_NO_DICT_CODEC
+        CodecService.ZLIB
     );
 
     /**
@@ -501,7 +500,7 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
     private static Settings.Builder setRandomIndexMergeSettings(Random random, Settings.Builder builder) {
         if (random.nextBoolean()) {
             builder.put(
-                MergePolicyConfig.INDEX_COMPOUND_FORMAT_SETTING.getKey(),
+                TieredMergePolicyProvider.INDEX_COMPOUND_FORMAT_SETTING.getKey(),
                 (random.nextBoolean() ? random.nextDouble() : random.nextBoolean()).toString()
             );
         }
@@ -1457,6 +1456,18 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
         return actionGet;
     }
 
+    protected ForceMergeResponse forceMerge(int maxNumSegments) {
+        waitForRelocation();
+        ForceMergeResponse actionGet = client().admin()
+            .indices()
+            .prepareForceMerge()
+            .setMaxNumSegments(maxNumSegments)
+            .execute()
+            .actionGet();
+        assertNoFailures(actionGet);
+        return actionGet;
+    }
+
     /**
      * Returns <code>true</code> iff the given index exists otherwise <code>false</code>
      */
@@ -2079,7 +2090,11 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
         return true;
     }
 
-    /** Returns {@code true} if this test cluster should have tracing enabled with MockTelemetryPlugin */
+    /**
+     * Returns {@code true} if this test cluster should have tracing enabled with MockTelemetryPlugin
+     * Disabling this for now as the existing way of strict check do not support multiple nodes internal cluster.
+     * @return boolean.
+     */
     protected boolean addMockTelemetryPlugin() {
         return true;
     }
@@ -2286,6 +2301,7 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
                 INSTANCE.afterInternal(true);
                 checkStaticState(true);
             }
+            StrictCheckSpanProcessor.validateTracingStateOnShutdown();
         } finally {
             SUITE_SEED = null;
             currentCluster = null;
@@ -2303,8 +2319,12 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
          */
         assert INSTANCE == null;
         if (isSuiteScopedTest(targetClass)) {
-            // note we need to do this this way to make sure this is reproducible
-            INSTANCE = (OpenSearchIntegTestCase) targetClass.getConstructor().newInstance();
+            // note we need to do this way to make sure this is reproducible
+            if (isSuiteScopedTestParameterized(targetClass)) {
+                INSTANCE = (OpenSearchIntegTestCase) targetClass.getConstructor(Settings.class).newInstance(Settings.EMPTY);
+            } else {
+                INSTANCE = (OpenSearchIntegTestCase) targetClass.getConstructor().newInstance();
+            }
             boolean success = false;
             try {
                 INSTANCE.printTestMessage("setup");
@@ -2397,6 +2417,16 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
 
     private static boolean isSuiteScopedTest(Class<?> clazz) {
         return clazz.getAnnotation(SuiteScopeTestCase.class) != null;
+    }
+
+    /*
+    * For tests defined with, SuiteScopeTestCase return true if the
+    * class has a constructor that takes a single Settings parameter
+    * */
+    private static boolean isSuiteScopedTestParameterized(Class<?> clazz) {
+        return Arrays.stream(clazz.getConstructors())
+            .filter(x -> x.getParameterTypes().length == 1)
+            .anyMatch(x -> x.getParameterTypes()[0].equals(Settings.class));
     }
 
     /**

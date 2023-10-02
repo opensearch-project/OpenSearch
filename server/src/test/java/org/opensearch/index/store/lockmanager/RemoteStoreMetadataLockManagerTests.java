@@ -8,21 +8,22 @@
 
 package org.opensearch.index.store.lockmanager;
 
-import junit.framework.TestCase;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexOutput;
-import org.junit.Before;
 import org.opensearch.index.store.RemoteBufferedOutputDirectory;
 import org.opensearch.test.OpenSearchTestCase;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
 
+import junit.framework.TestCase;
+
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 public class RemoteStoreMetadataLockManagerTests extends OpenSearchTestCase {
     private RemoteBufferedOutputDirectory lockDirectory;

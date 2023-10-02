@@ -8,7 +8,6 @@
 
 package org.opensearch.geo.tests.common;
 
-import org.junit.Assert;
 import org.opensearch.geo.algorithm.PolygonGenerator;
 import org.opensearch.geometry.Geometry;
 import org.opensearch.geometry.GeometryCollection;
@@ -23,6 +22,7 @@ import org.opensearch.geometry.Rectangle;
 import org.opensearch.geometry.ShapeType;
 import org.opensearch.index.mapper.GeoShapeIndexer;
 import org.opensearch.test.OpenSearchTestCase;
+import org.junit.Assert;
 
 import java.util.ArrayList;
 import java.util.Arrays;

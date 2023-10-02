@@ -32,6 +32,7 @@
 
 package org.opensearch.common.action;
 
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.unit.TimeValue;
 
 import java.util.concurrent.Future;
@@ -42,6 +43,7 @@ import java.util.concurrent.TimeUnit;
  *
  * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public interface ActionFuture<T> extends Future<T> {
 
     /**

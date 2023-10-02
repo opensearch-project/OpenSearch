@@ -40,10 +40,11 @@ import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.search.fetch.subphase.highlight.HighlightBuilder;
 import org.opensearch.test.OpenSearchIntegTestCase;
-import org.locationtech.jts.geom.Coordinate;
 
 import java.util.Collection;
 import java.util.Collections;
+
+import org.locationtech.jts.geom.Coordinate;
 
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.equalTo;

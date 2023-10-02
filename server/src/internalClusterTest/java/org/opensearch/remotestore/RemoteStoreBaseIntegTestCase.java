@@ -8,21 +8,29 @@
 
 package org.opensearch.remotestore;
 
-import org.junit.After;
 import org.opensearch.action.bulk.BulkItemResponse;
 import org.opensearch.action.bulk.BulkRequest;
 import org.opensearch.action.bulk.BulkResponse;
 import org.opensearch.action.index.IndexRequest;
+import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.action.index.IndexResponse;
+import org.opensearch.action.support.WriteRequest;
 import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.cluster.metadata.RepositoriesMetadata;
+import org.opensearch.cluster.metadata.RepositoryMetadata;
+import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.FeatureFlags;
+import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.indices.replication.common.ReplicationType;
+import org.opensearch.repositories.blobstore.BlobStoreRepository;
+import org.opensearch.repositories.fs.FsRepository;
 import org.opensearch.test.OpenSearchIntegTestCase;
+import org.junit.After;
 
 import java.io.IOException;
 import java.nio.file.FileVisitResult;
@@ -32,13 +40,16 @@ import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
 
-import static org.opensearch.indices.IndicesService.CLUSTER_REMOTE_SEGMENT_STORE_REPOSITORY_SETTING;
-import static org.opensearch.indices.IndicesService.CLUSTER_REMOTE_STORE_ENABLED_SETTING;
-import static org.opensearch.indices.IndicesService.CLUSTER_REMOTE_TRANSLOG_REPOSITORY_SETTING;
-import static org.opensearch.indices.IndicesService.CLUSTER_REPLICATION_TYPE_SETTING;
+import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEY;
+import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_REPOSITORY_SETTINGS_ATTRIBUTE_KEY_PREFIX;
+import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_REPOSITORY_TYPE_ATTRIBUTE_KEY_FORMAT;
+import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY;
+import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEY;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 
 public class RemoteStoreBaseIntegTestCase extends OpenSearchIntegTestCase {
@@ -51,8 +62,9 @@ public class RemoteStoreBaseIntegTestCase extends OpenSearchIntegTestCase {
     protected static final String MAX_SEQ_NO_TOTAL = "max-seq-no-total";
     protected static final String MAX_SEQ_NO_REFRESHED_OR_FLUSHED = "max-seq-no-refreshed-or-flushed";
 
-    protected Path absolutePath;
-    protected Path absolutePath2;
+    protected Path segmentRepoPath;
+    protected Path translogRepoPath;
+    protected boolean clusterSettingsSuppliedByTest = false;
     private final List<String> documentKeys = List.of(
         randomAlphaOfLength(5),
         randomAlphaOfLength(5),
@@ -70,7 +82,7 @@ public class RemoteStoreBaseIntegTestCase extends OpenSearchIntegTestCase {
         Map<String, Long> indexingStats = new HashMap<>();
         for (int i = 0; i < numberOfIterations; i++) {
             if (invokeFlush) {
-                flush(index);
+                flushAndRefresh(index);
             } else {
                 refresh(index);
             }
@@ -106,19 +118,18 @@ public class RemoteStoreBaseIntegTestCase extends OpenSearchIntegTestCase {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        return Settings.builder()
-            .put(super.nodeSettings(nodeOrdinal))
-            .put(remoteStoreClusterSettings(REPOSITORY_NAME, REPOSITORY_2_NAME, true))
-            .build();
-    }
-
-    @Override
-    protected Settings featureFlagSettings() {
-        return Settings.builder()
-            .put(super.featureFlagSettings())
-            .put(FeatureFlags.REMOTE_STORE, "true")
-            .put(FeatureFlags.SEGMENT_REPLICATION_EXPERIMENTAL, "true")
-            .build();
+        if (segmentRepoPath == null || translogRepoPath == null) {
+            segmentRepoPath = randomRepoPath().toAbsolutePath();
+            translogRepoPath = randomRepoPath().toAbsolutePath();
+        }
+        if (clusterSettingsSuppliedByTest) {
+            return Settings.builder().put(super.nodeSettings(nodeOrdinal)).build();
+        } else {
+            return Settings.builder()
+                .put(super.nodeSettings(nodeOrdinal))
+                .put(remoteStoreClusterSettings(REPOSITORY_NAME, segmentRepoPath, REPOSITORY_2_NAME, translogRepoPath))
+                .build();
+        }
     }
 
     public Settings indexSettings() {
@@ -126,10 +137,17 @@ public class RemoteStoreBaseIntegTestCase extends OpenSearchIntegTestCase {
     }
 
     protected IndexResponse indexSingleDoc(String indexName) {
-        return client().prepareIndex(indexName)
+        return indexSingleDoc(indexName, false);
+    }
+
+    protected IndexResponse indexSingleDoc(String indexName, boolean forceRefresh) {
+        IndexRequestBuilder indexRequestBuilder = client().prepareIndex(indexName)
             .setId(UUIDs.randomBase64UUID())
-            .setSource(documentKeys.get(randomIntBetween(0, documentKeys.size() - 1)), randomAlphaOfLength(5))
-            .get();
+            .setSource(documentKeys.get(randomIntBetween(0, documentKeys.size() - 1)), randomAlphaOfLength(5));
+        if (forceRefresh) {
+            indexRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+        }
+        return indexRequestBuilder.get();
     }
 
     protected BulkResponse indexBulk(String indexName, int numDocs) {
@@ -144,28 +162,120 @@ public class RemoteStoreBaseIntegTestCase extends OpenSearchIntegTestCase {
         return client().bulk(bulkRequest).actionGet();
     }
 
-    public static Settings remoteStoreClusterSettings(String segmentRepoName) {
-        return remoteStoreClusterSettings(segmentRepoName, segmentRepoName);
+    public static Settings remoteStoreClusterSettings(String name, Path path) {
+        return remoteStoreClusterSettings(name, path, name, path);
     }
 
     public static Settings remoteStoreClusterSettings(
         String segmentRepoName,
+        Path segmentRepoPath,
+        String segmentRepoType,
         String translogRepoName,
-        boolean randomizeSameRepoForRSSAndRTS
+        Path translogRepoPath,
+        String translogRepoType
     ) {
-        return remoteStoreClusterSettings(
+        Settings.Builder settingsBuilder = Settings.builder();
+        settingsBuilder.put(
+            buildRemoteStoreNodeAttributes(
+                segmentRepoName,
+                segmentRepoPath,
+                segmentRepoType,
+                translogRepoName,
+                translogRepoPath,
+                translogRepoType,
+                false
+            )
+        );
+        return settingsBuilder.build();
+    }
+
+    public static Settings remoteStoreClusterSettings(
+        String segmentRepoName,
+        Path segmentRepoPath,
+        String translogRepoName,
+        Path translogRepoPath
+    ) {
+        Settings.Builder settingsBuilder = Settings.builder();
+        settingsBuilder.put(buildRemoteStoreNodeAttributes(segmentRepoName, segmentRepoPath, translogRepoName, translogRepoPath, false));
+        return settingsBuilder.build();
+    }
+
+    public static Settings buildRemoteStoreNodeAttributes(
+        String segmentRepoName,
+        Path segmentRepoPath,
+        String translogRepoName,
+        Path translogRepoPath,
+        boolean withRateLimiterAttributes
+    ) {
+        return buildRemoteStoreNodeAttributes(
             segmentRepoName,
-            randomizeSameRepoForRSSAndRTS ? (randomBoolean() ? translogRepoName : segmentRepoName) : translogRepoName
+            segmentRepoPath,
+            FsRepository.TYPE,
+            translogRepoName,
+            translogRepoPath,
+            FsRepository.TYPE,
+            withRateLimiterAttributes
         );
     }
 
-    public static Settings remoteStoreClusterSettings(String segmentRepoName, String translogRepoName) {
-        return Settings.builder()
-            .put(CLUSTER_REPLICATION_TYPE_SETTING.getKey(), ReplicationType.SEGMENT)
-            .put(CLUSTER_REMOTE_STORE_ENABLED_SETTING.getKey(), true)
-            .put(CLUSTER_REMOTE_SEGMENT_STORE_REPOSITORY_SETTING.getKey(), segmentRepoName)
-            .put(CLUSTER_REMOTE_TRANSLOG_REPOSITORY_SETTING.getKey(), translogRepoName)
-            .build();
+    public static Settings buildRemoteStoreNodeAttributes(
+        String segmentRepoName,
+        Path segmentRepoPath,
+        String segmentRepoType,
+        String translogRepoName,
+        Path translogRepoPath,
+        String translogRepoType,
+        boolean withRateLimiterAttributes
+    ) {
+        String segmentRepoTypeAttributeKey = String.format(
+            Locale.getDefault(),
+            "node.attr." + REMOTE_STORE_REPOSITORY_TYPE_ATTRIBUTE_KEY_FORMAT,
+            segmentRepoName
+        );
+        String segmentRepoSettingsAttributeKeyPrefix = String.format(
+            Locale.getDefault(),
+            "node.attr." + REMOTE_STORE_REPOSITORY_SETTINGS_ATTRIBUTE_KEY_PREFIX,
+            segmentRepoName
+        );
+        String translogRepoTypeAttributeKey = String.format(
+            Locale.getDefault(),
+            "node.attr." + REMOTE_STORE_REPOSITORY_TYPE_ATTRIBUTE_KEY_FORMAT,
+            translogRepoName
+        );
+        String translogRepoSettingsAttributeKeyPrefix = String.format(
+            Locale.getDefault(),
+            "node.attr." + REMOTE_STORE_REPOSITORY_SETTINGS_ATTRIBUTE_KEY_PREFIX,
+            translogRepoName
+        );
+        String stateRepoTypeAttributeKey = String.format(
+            Locale.getDefault(),
+            "node.attr." + REMOTE_STORE_REPOSITORY_TYPE_ATTRIBUTE_KEY_FORMAT,
+            segmentRepoName
+        );
+        String stateRepoSettingsAttributeKeyPrefix = String.format(
+            Locale.getDefault(),
+            "node.attr." + REMOTE_STORE_REPOSITORY_SETTINGS_ATTRIBUTE_KEY_PREFIX,
+            segmentRepoName
+        );
+
+        Settings.Builder settings = Settings.builder()
+            .put("node.attr." + REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY, segmentRepoName)
+            .put(segmentRepoTypeAttributeKey, segmentRepoType)
+            .put(segmentRepoSettingsAttributeKeyPrefix + "location", segmentRepoPath)
+            .put("node.attr." + REMOTE_STORE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEY, translogRepoName)
+            .put(translogRepoTypeAttributeKey, translogRepoType)
+            .put(translogRepoSettingsAttributeKeyPrefix + "location", translogRepoPath)
+            .put("node.attr." + REMOTE_STORE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEY, segmentRepoName)
+            .put(stateRepoTypeAttributeKey, segmentRepoType)
+            .put(stateRepoSettingsAttributeKeyPrefix + "location", segmentRepoPath);
+
+        if (withRateLimiterAttributes) {
+            settings.put(segmentRepoSettingsAttributeKeyPrefix + "compress", randomBoolean())
+                .put(segmentRepoSettingsAttributeKeyPrefix + "max_remote_download_bytes_per_sec", "4kb")
+                .put(segmentRepoSettingsAttributeKeyPrefix + "chunk_size", 200, ByteSizeUnit.BYTES);
+        }
+
+        return settings.build();
     }
 
     private Settings defaultIndexSettings() {
@@ -199,26 +309,46 @@ public class RemoteStoreBaseIntegTestCase extends OpenSearchIntegTestCase {
             .build();
     }
 
-    protected void putRepository(Path path) {
-        putRepository(path, REPOSITORY_NAME);
-    }
-
-    protected void putRepository(Path path, String repoName) {
-        assertAcked(clusterAdmin().preparePutRepository(repoName).setType("fs").setSettings(Settings.builder().put("location", path)));
-    }
-
-    protected void setupRepo() {
-        internalCluster().startClusterManagerOnlyNode();
-        absolutePath = randomRepoPath().toAbsolutePath();
-        putRepository(absolutePath);
-        absolutePath2 = randomRepoPath().toAbsolutePath();
-        putRepository(absolutePath2, REPOSITORY_2_NAME);
-    }
-
     @After
     public void teardown() {
+        clusterSettingsSuppliedByTest = false;
+        assertRemoteStoreRepositoryOnAllNodes(REPOSITORY_NAME);
+        assertRemoteStoreRepositoryOnAllNodes(REPOSITORY_2_NAME);
         assertAcked(clusterAdmin().prepareDeleteRepository(REPOSITORY_NAME));
         assertAcked(clusterAdmin().prepareDeleteRepository(REPOSITORY_2_NAME));
+    }
+
+    public RepositoryMetadata buildRepositoryMetadata(DiscoveryNode node, String name) {
+        Map<String, String> nodeAttributes = node.getAttributes();
+        String type = nodeAttributes.get(String.format(Locale.getDefault(), REMOTE_STORE_REPOSITORY_TYPE_ATTRIBUTE_KEY_FORMAT, name));
+
+        String settingsAttributeKeyPrefix = String.format(Locale.getDefault(), REMOTE_STORE_REPOSITORY_SETTINGS_ATTRIBUTE_KEY_PREFIX, name);
+        Map<String, String> settingsMap = node.getAttributes()
+            .keySet()
+            .stream()
+            .filter(key -> key.startsWith(settingsAttributeKeyPrefix))
+            .collect(Collectors.toMap(key -> key.replace(settingsAttributeKeyPrefix, ""), key -> node.getAttributes().get(key)));
+
+        Settings.Builder settings = Settings.builder();
+        settingsMap.entrySet().forEach(entry -> settings.put(entry.getKey(), entry.getValue()));
+        settings.put(BlobStoreRepository.SYSTEM_REPOSITORY_SETTING.getKey(), true);
+
+        return new RepositoryMetadata(name, type, settings.build());
+    }
+
+    public void assertRemoteStoreRepositoryOnAllNodes(String repositoryName) {
+        RepositoriesMetadata repositories = internalCluster().getInstance(ClusterService.class, internalCluster().getNodeNames()[0])
+            .state()
+            .metadata()
+            .custom(RepositoriesMetadata.TYPE);
+        RepositoryMetadata actualRepository = repositories.repository(repositoryName);
+
+        for (String nodeName : internalCluster().getNodeNames()) {
+            ClusterService clusterService = internalCluster().getInstance(ClusterService.class, nodeName);
+            DiscoveryNode node = clusterService.localNode();
+            RepositoryMetadata expectedRepository = buildRepositoryMetadata(node, repositoryName);
+            assertTrue(actualRepository.equalsIgnoreGenerations(expectedRepository));
+        }
     }
 
     public static int getFileCount(Path path) throws Exception {
@@ -238,5 +368,4 @@ public class RemoteStoreBaseIntegTestCase extends OpenSearchIntegTestCase {
 
         return filesExisting.get();
     }
-
 }

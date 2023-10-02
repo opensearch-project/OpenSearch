@@ -8,8 +8,6 @@
 
 package org.opensearch.telemetry;
 
-import org.junit.After;
-import org.junit.Before;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
@@ -17,18 +15,22 @@ import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.telemetry.tracing.OTelTracingTelemetry;
 import org.opensearch.telemetry.tracing.TracingTelemetry;
 import org.opensearch.test.OpenSearchTestCase;
+import org.junit.After;
+import org.junit.Before;
 
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
 import java.util.Optional;
+import java.util.Set;
 
 import static org.opensearch.telemetry.OTelTelemetryPlugin.OTEL_TRACER_NAME;
+import static org.opensearch.telemetry.OTelTelemetrySettings.OTEL_TRACER_SPAN_EXPORTER_CLASS_SETTING;
 import static org.opensearch.telemetry.OTelTelemetrySettings.TRACER_EXPORTER_BATCH_SIZE_SETTING;
 import static org.opensearch.telemetry.OTelTelemetrySettings.TRACER_EXPORTER_DELAY_SETTING;
 import static org.opensearch.telemetry.OTelTelemetrySettings.TRACER_EXPORTER_MAX_QUEUE_SIZE_SETTING;
-import static org.opensearch.telemetry.OTelTelemetrySettings.OTEL_TRACER_SPAN_EXPORTER_CLASS_SETTING;
+import static org.opensearch.telemetry.TelemetrySettings.TRACER_ENABLED_SETTING;
+import static org.opensearch.telemetry.TelemetrySettings.TRACER_SAMPLER_PROBABILITY;
 
 public class OTelTelemetryPluginTests extends OpenSearchTestCase {
 
@@ -42,7 +44,9 @@ public class OTelTelemetryPluginTests extends OpenSearchTestCase {
         // io.opentelemetry.sdk.OpenTelemetrySdk.close waits only for 10 seconds for shutdown to complete.
         Settings settings = Settings.builder().put(TRACER_EXPORTER_DELAY_SETTING.getKey(), "1s").build();
         oTelTracerModulePlugin = new OTelTelemetryPlugin(settings);
-        telemetry = oTelTracerModulePlugin.getTelemetry(null);
+        telemetry = oTelTracerModulePlugin.getTelemetry(
+            new TelemetrySettings(Settings.EMPTY, new ClusterSettings(settings, Set.of(TRACER_ENABLED_SETTING, TRACER_SAMPLER_PROBABILITY)))
+        );
         tracingTelemetry = telemetry.get().getTracingTelemetry();
     }
 

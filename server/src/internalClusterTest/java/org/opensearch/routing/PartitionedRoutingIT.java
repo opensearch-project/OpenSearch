@@ -38,12 +38,13 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.test.OpenSearchIntegTestCase;
-import org.mockito.internal.util.collections.Sets;
 
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
+
+import org.mockito.internal.util.collections.Sets;
 
 public class PartitionedRoutingIT extends OpenSearchIntegTestCase {
 

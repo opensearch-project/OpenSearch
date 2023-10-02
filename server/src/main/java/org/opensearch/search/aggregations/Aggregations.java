@@ -31,8 +31,8 @@
 
 package org.opensearch.search.aggregations;
 
-import org.opensearch.core.common.ParsingException;
 import org.opensearch.common.SetOnce;
+import org.opensearch.core.common.ParsingException;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;

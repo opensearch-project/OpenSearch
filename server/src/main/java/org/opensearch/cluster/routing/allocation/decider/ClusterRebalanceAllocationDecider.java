@@ -32,8 +32,6 @@
 
 package org.opensearch.cluster.routing.allocation.decider;
 
-import java.util.Locale;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.cluster.routing.ShardRouting;
@@ -42,6 +40,8 @@ import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
+
+import java.util.Locale;
 
 /**
  * This {@link AllocationDecider} controls re-balancing operations based on the

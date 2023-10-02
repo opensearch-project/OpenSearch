@@ -146,4 +146,8 @@ public class FiltersAggregatorFactory extends AggregatorFactory {
         );
     }
 
+    @Override
+    protected boolean supportsConcurrentSegmentSearch() {
+        return true;
+    }
 }

@@ -8,37 +8,22 @@
 
 package org.opensearch.extensions.rest;
 
-import java.util.Collections;
-import java.util.List;
-import java.util.Optional;
-import java.util.Set;
-import java.util.concurrent.TimeUnit;
-import java.util.function.Function;
-
-import static java.util.Collections.emptyMap;
-import static java.util.Collections.emptySet;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.spy;
-import static org.mockito.Mockito.when;
-
-import org.junit.After;
-import org.junit.Before;
-import org.mockito.Mockito;
 import org.opensearch.Version;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.network.NetworkService;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.PageCacheRecycler;
+import org.opensearch.core.common.bytes.BytesArray;
+import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.core.indices.breaker.NoneCircuitBreakerService;
+import org.opensearch.core.rest.RestStatus;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.extensions.ExtensionsManager;
 import org.opensearch.extensions.ExtensionsSettings;
-import org.opensearch.core.indices.breaker.NoneCircuitBreakerService;
+import org.opensearch.identity.IdentityService;
 import org.opensearch.rest.RestRequest;
-import org.opensearch.core.common.bytes.BytesArray;
-import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
-import org.opensearch.core.rest.RestStatus;
+import org.opensearch.telemetry.tracing.noop.NoopTracer;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.rest.FakeRestChannel;
 import org.opensearch.test.rest.FakeRestRequest;
@@ -47,6 +32,24 @@ import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 import org.opensearch.transport.nio.MockNioTransport;
+import org.junit.After;
+import org.junit.Before;
+
+import java.util.Collections;
+import java.util.List;
+import java.util.Optional;
+import java.util.Set;
+import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
+
+import org.mockito.Mockito;
+
+import static java.util.Collections.emptyMap;
+import static java.util.Collections.emptySet;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.when;
 
 public class RestInitializeExtensionActionTests extends OpenSearchTestCase {
 
@@ -80,7 +83,8 @@ public class RestInitializeExtensionActionTests extends OpenSearchTestCase {
                 Version.CURRENT
             ),
             null,
-            Collections.emptySet()
+            Collections.emptySet(),
+            NoopTracer.INSTANCE
         );
 
     }
@@ -115,7 +119,7 @@ public class RestInitializeExtensionActionTests extends OpenSearchTestCase {
     }
 
     public void testRestInitializeExtensionActionFailure() throws Exception {
-        ExtensionsManager extensionsManager = new ExtensionsManager(Set.of());
+        ExtensionsManager extensionsManager = new ExtensionsManager(Set.of(), new IdentityService(Settings.EMPTY, List.of()));
         RestInitializeExtensionAction restInitializeExtensionAction = new RestInitializeExtensionAction(extensionsManager);
 
         final String content = "{\"name\":\"ad-extension\",\"uniqueId\":\"\",\"hostAddress\":\"127.0.0.1\","
@@ -148,7 +152,10 @@ public class RestInitializeExtensionActionTests extends OpenSearchTestCase {
             Function.identity(),
             Setting.Property.ExtensionScope
         );
-        ExtensionsManager extensionsManager = new ExtensionsManager(Set.of(boolSetting, stringSetting, intSetting, listSetting));
+        ExtensionsManager extensionsManager = new ExtensionsManager(
+            Set.of(boolSetting, stringSetting, intSetting, listSetting),
+            new IdentityService(Settings.EMPTY, List.of())
+        );
         ExtensionsManager spy = spy(extensionsManager);
 
         // optionally, you can stub out some methods:
@@ -195,7 +202,10 @@ public class RestInitializeExtensionActionTests extends OpenSearchTestCase {
             Function.identity(),
             Setting.Property.ExtensionScope
         );
-        ExtensionsManager extensionsManager = new ExtensionsManager(Set.of(boolSetting, stringSetting, intSetting, listSetting));
+        ExtensionsManager extensionsManager = new ExtensionsManager(
+            Set.of(boolSetting, stringSetting, intSetting, listSetting),
+            new IdentityService(Settings.EMPTY, List.of())
+        );
         ExtensionsManager spy = spy(extensionsManager);
 
         // optionally, you can stub out some methods:

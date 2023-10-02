@@ -12,9 +12,9 @@ import org.opensearch.cli.Terminal;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsException;
+import org.opensearch.common.xcontent.yaml.YamlXContent;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.yaml.YamlXContent;
 
 import java.io.IOException;
 import java.io.OutputStream;

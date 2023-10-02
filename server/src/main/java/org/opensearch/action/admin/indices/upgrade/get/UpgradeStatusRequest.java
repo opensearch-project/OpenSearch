@@ -33,8 +33,8 @@
 package org.opensearch.action.admin.indices.upgrade.get;
 
 import org.opensearch.action.support.broadcast.BroadcastRequest;
-import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.Strings;
+import org.opensearch.core.common.io.stream.StreamInput;
 
 import java.io.IOException;
 

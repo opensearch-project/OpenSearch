@@ -32,6 +32,8 @@
 
 package org.opensearch.common.unit;
 
+import org.opensearch.common.annotation.PublicApi;
+
 import java.util.Locale;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
@@ -41,6 +43,7 @@ import java.util.concurrent.TimeUnit;
  *
  * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class TimeValue implements Comparable<TimeValue> {
 
     /** How many nano-seconds in one milli-second */

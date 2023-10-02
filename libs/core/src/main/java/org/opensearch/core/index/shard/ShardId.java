@@ -32,65 +32,110 @@
 
 package org.opensearch.core.index.shard;
 
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
+import org.opensearch.core.index.Index;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.core.index.Index;
 
 import java.io.IOException;
 
 /**
  * Allows for shard level components to be injected with the shard id.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class ShardId implements Comparable<ShardId>, ToXContentFragment, Writeable {
 
     private final Index index;
     private final int shardId;
     private final int hashCode;
 
+    /**
+     * Constructs a new shard id.
+     * @param index the index name
+     * @param shardId the shard id
+     */
     public ShardId(Index index, int shardId) {
         this.index = index;
         this.shardId = shardId;
         this.hashCode = computeHashCode();
     }
 
+    /**
+     * Constructs a new shard id with the given index name, index unique identifier, and shard id.
+     * @param index the index name
+     * @param indexUUID  the index unique identifier
+     * @param shardId the shard id
+     */
     public ShardId(String index, String indexUUID, int shardId) {
         this(new Index(index, indexUUID), shardId);
     }
 
+    /**
+     * Constructs a new shardId from a stream.
+     * @param in the stream to read from
+     * @throws IOException if an error occurs while reading from the stream
+     * @see #writeTo(StreamOutput)
+     */
     public ShardId(StreamInput in) throws IOException {
         index = new Index(in);
         shardId = in.readVInt();
         hashCode = computeHashCode();
     }
 
+    /**
+     * Writes this shard id to a stream.
+     * @param out the stream to write to
+     * @throws IOException if an error occurs while writing to the stream
+     */
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         index.writeTo(out);
         out.writeVInt(shardId);
     }
 
+    /**
+     * Returns the index of this shard id.
+     * @return the index of this shard id
+     */
     public Index getIndex() {
         return index;
     }
 
+    /**
+     * Returns the name of the index of this shard id.
+     * @return the name of the index of this shard id
+     */
     public String getIndexName() {
         return index.getName();
     }
 
+    /**
+     *  Return the shardId of this shard id.
+     * @return the shardId of this shard id
+     * @see #getId()
+     */
     public int id() {
         return this.shardId;
     }
 
+    /**
+     * Returns the shard id of this shard id.
+     * @return the shard id of this shard id
+     */
     public int getId() {
         return id();
     }
 
+    /**
+     * Returns a string representation of this shard id.
+     * @return "[indexName][shardId]"
+     */
     @Override
     public String toString() {
         return "[" + index.getName() + "][" + shardId + "]";
@@ -98,9 +143,13 @@ public class ShardId implements Comparable<ShardId>, ToXContentFragment, Writeab
 
     /**
      * Parse the string representation of this shardId back to an object.
+     *
      * We lose index uuid information here, but since we use toString in
      * rest responses, this is the best we can do to reconstruct the object
      * on the client side.
+     *
+     * @param shardIdString the string representation of the shard id
+     *                      (Expect a string of format "[indexName][shardId]" (square brackets included))
      */
     public static ShardId fromString(String shardIdString) {
         int splitPosition = shardIdString.indexOf("][");
@@ -120,17 +169,30 @@ public class ShardId implements Comparable<ShardId>, ToXContentFragment, Writeab
         return shardId == shardId1.shardId && index.equals(shardId1.index);
     }
 
+    /** Returns the hash code of this shard id.
+     *
+     * @return the hash code of this shard id
+     */
     @Override
     public int hashCode() {
         return hashCode;
     }
 
+    /** Computes the hash code of this shard id.
+     *
+     * @return the hash code of this shard id.
+     */
     private int computeHashCode() {
         int result = index != null ? index.hashCode() : 0;
         result = 31 * result + shardId;
         return result;
     }
 
+    /**
+     * Compares this ShardId with the specified ShardId.
+     * @param o the ShardId to be compared.
+     * @return a negative integer, zero, or a positive integer if this ShardId is less than, equal to, or greater than the specified ShardId
+     */
     @Override
     public int compareTo(ShardId o) {
         if (o.getId() == shardId) {

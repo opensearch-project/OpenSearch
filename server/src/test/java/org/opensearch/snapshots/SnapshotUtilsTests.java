@@ -45,8 +45,8 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
-import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_VERSION_CREATED;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 
 public class SnapshotUtilsTests extends OpenSearchTestCase {
     public void testIndexNameFiltering() {

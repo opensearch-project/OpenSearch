@@ -20,18 +20,11 @@ import org.opensearch.common.settings.Settings;
  * @opensearch.internal
  */
 public class FeatureFlags {
-
     /**
      * Gates the visibility of the segment replication experimental features that allows users to test unreleased beta features.
      */
     public static final String SEGMENT_REPLICATION_EXPERIMENTAL =
         "opensearch.experimental.feature.segment_replication_experimental.enabled";
-
-    /**
-     * Gates the visibility of the index setting that allows persisting data to remote store along with local disk.
-     * Once the feature is ready for production release, this feature flag can be removed.
-     */
-    public static final String REMOTE_STORE = "opensearch.experimental.feature.remote_store.enabled";
 
     /**
      * Gates the ability for Searchable Snapshots to read snapshots that are older than the
@@ -95,8 +88,6 @@ public class FeatureFlags {
         false,
         Property.NodeScope
     );
-
-    public static final Setting<Boolean> REMOTE_STORE_SETTING = Setting.boolSetting(REMOTE_STORE, false, Property.NodeScope);
 
     public static final Setting<Boolean> EXTENSIONS_SETTING = Setting.boolSetting(EXTENSIONS, false, Property.NodeScope);
 

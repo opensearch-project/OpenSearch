@@ -8,13 +8,16 @@
 
 package org.opensearch.telemetry.tracing;
 
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicReference;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.ThreadContext;
+import org.opensearch.telemetry.tracing.attributes.Attributes;
 import org.opensearch.telemetry.tracing.runnable.TraceableRunnable;
 import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.test.telemetry.tracing.MockSpan;
 import org.opensearch.test.telemetry.tracing.MockTracingTelemetry;
+
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 
 public class TraceableRunnableTests extends OpenSearchTestCase {
 
@@ -25,36 +28,53 @@ public class TraceableRunnableTests extends OpenSearchTestCase {
 
     public void testRunnableWithNullParent() throws Exception {
         String spanName = "testRunnable";
-        DefaultTracer defaultTracer = new DefaultTracer(new MockTracingTelemetry(), contextStorage);
+        final DefaultTracer defaultTracer = new DefaultTracer(new MockTracingTelemetry(), contextStorage);
         final AtomicBoolean isRunnableCompleted = new AtomicBoolean(false);
+        final AtomicReference<String> spanNameCaptured = new AtomicReference<>();
+        final AtomicReference<String> attributeValue = new AtomicReference<>();
         TraceableRunnable traceableRunnable = new TraceableRunnable(
             defaultTracer,
-            spanName,
-            null,
-            () -> { isRunnableCompleted.set(true); }
+            SpanCreationContext.internal().name(spanName).attributes(Attributes.create().addAttribute("name", "value")),
+            () -> {
+                spanNameCaptured.set(defaultTracer.getCurrentSpan().getSpan().getSpanName());
+                attributeValue.set((String) ((MockSpan) defaultTracer.getCurrentSpan().getSpan()).getAttribute("name"));
+                isRunnableCompleted.set(true);
+            }
         );
         traceableRunnable.run();
         assertTrue(isRunnableCompleted.get());
-        assertEquals(spanName, defaultTracer.getCurrentSpan().getSpan().getSpanName());
-        assertEquals(null, defaultTracer.getCurrentSpan().getSpan().getParentSpan());
+        assertEquals(spanName, spanNameCaptured.get());
+        assertEquals(null, defaultTracer.getCurrentSpan());
+        assertEquals(null, defaultTracer.getCurrentSpan());
+        assertEquals("value", attributeValue.get());
     }
 
     public void testRunnableWithParent() throws Exception {
         String spanName = "testRunnable";
         String parentSpanName = "parentSpan";
         DefaultTracer defaultTracer = new DefaultTracer(new MockTracingTelemetry(), contextStorage);
-        defaultTracer.startSpan(parentSpanName);
-        SpanContext parentSpan = defaultTracer.getCurrentSpan();
-        AtomicReference<SpanContext> currrntSpan = new AtomicReference<>(new SpanContext(null));
+        ScopedSpan scopedSpan = defaultTracer.startScopedSpan(
+            SpanCreationContext.internal().name(parentSpanName).attributes(Attributes.EMPTY)
+        );
+        SpanContext parentSpanContext = defaultTracer.getCurrentSpan();
+        AtomicReference<SpanContext> currentSpan = new AtomicReference<>();
         final AtomicBoolean isRunnableCompleted = new AtomicBoolean(false);
-        TraceableRunnable traceableRunnable = new TraceableRunnable(defaultTracer, spanName, parentSpan, () -> {
-            isRunnableCompleted.set(true);
-            currrntSpan.set(defaultTracer.getCurrentSpan());
-        });
+        TraceableRunnable traceableRunnable = new TraceableRunnable(
+            defaultTracer,
+            SpanCreationContext.internal()
+                .name(spanName)
+                .attributes(Attributes.create().addAttribute("name", "value"))
+                .parent(parentSpanContext),
+            () -> {
+                isRunnableCompleted.set(true);
+                currentSpan.set(defaultTracer.getCurrentSpan());
+            }
+        );
         traceableRunnable.run();
         assertTrue(isRunnableCompleted.get());
-        assertEquals(spanName, currrntSpan.get().getSpan().getSpanName());
-        assertEquals(parentSpan.getSpan(), currrntSpan.get().getSpan().getParentSpan());
-        assertEquals(parentSpan.getSpan(), defaultTracer.getCurrentSpan().getSpan());
+        assertEquals(spanName, currentSpan.get().getSpan().getSpanName());
+        assertEquals(((DefaultScopedSpan) scopedSpan).getSpan(), currentSpan.get().getSpan().getParentSpan());
+        assertEquals(((DefaultScopedSpan) scopedSpan).getSpan(), defaultTracer.getCurrentSpan().getSpan());
+        scopedSpan.close();
     }
 }

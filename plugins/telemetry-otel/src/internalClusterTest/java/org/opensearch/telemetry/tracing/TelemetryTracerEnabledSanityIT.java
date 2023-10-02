@@ -8,13 +8,14 @@
 
 package org.opensearch.telemetry.tracing;
 
+import org.opensearch.client.Client;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.telemetry.TelemetrySettings;
-import org.opensearch.test.OpenSearchIntegTestCase;
-import org.opensearch.telemetry.OTelTelemetrySettings;
 import org.opensearch.plugins.Plugin;
-import org.opensearch.client.Client;
+import org.opensearch.telemetry.OTelTelemetrySettings;
+import org.opensearch.telemetry.TelemetrySettings;
+import org.opensearch.telemetry.tracing.attributes.Attributes;
+import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.telemetry.tracing.TelemetryValidators;
 import org.opensearch.test.telemetry.tracing.validators.AllSpansAreEndedProperly;
 import org.opensearch.test.telemetry.tracing.validators.AllSpansHaveUniqueId;
@@ -38,6 +39,7 @@ public class TelemetryTracerEnabledSanityIT extends OpenSearchIntegTestCase {
                 "org.opensearch.telemetry.tracing.InMemorySingletonSpanExporter"
             )
             .put(OTelTelemetrySettings.TRACER_EXPORTER_DELAY_SETTING.getKey(), TimeValue.timeValueSeconds(1))
+            .put(TelemetrySettings.TRACER_SAMPLER_PROBABILITY.getKey(), 1.0d)
             .build();
     }
 
@@ -52,13 +54,9 @@ public class TelemetryTracerEnabledSanityIT extends OpenSearchIntegTestCase {
     }
 
     public void testSanityChecksWhenTracingEnabled() throws Exception {
-        Client client = client();
+        Client client = internalCluster().clusterManagerClient();
         // ENABLE TRACING
-        client.admin()
-            .cluster()
-            .prepareUpdateSettings()
-            .setTransientSettings(Settings.builder().put(TelemetrySettings.TRACER_ENABLED_SETTING.getKey(), true))
-            .get();
+        updateTelemetrySetting(client, true);
 
         // Create Index and ingest data
         String indexName = "test-index-11";
@@ -70,9 +68,12 @@ public class TelemetryTracerEnabledSanityIT extends OpenSearchIntegTestCase {
         ensureGreen();
         refresh();
 
-        // Make the search calls;
-        client.prepareSearch().setQuery(queryStringQuery("fox")).get();
-        client.prepareSearch().setQuery(queryStringQuery("jumps")).get();
+        // Make the search calls; adding the searchType and PreFilterShardSize to make the query path predictable across all the runs.
+        client.prepareSearch().setSearchType("query_then_fetch").setPreFilterShardSize(3).setQuery(queryStringQuery("fox")).get();
+        client.prepareSearch().setSearchType("query_then_fetch").setPreFilterShardSize(3).setQuery(queryStringQuery("jumps")).get();
+
+        ensureGreen();
+        refresh();
 
         // Sleep for about 3s to wait for traces are published, delay is (the delay is 1s).
         Thread.sleep(3000);
@@ -81,15 +82,23 @@ public class TelemetryTracerEnabledSanityIT extends OpenSearchIntegTestCase {
             Arrays.asList(
                 new AllSpansAreEndedProperly(),
                 new AllSpansHaveUniqueId(),
-                new NumberOfTraceIDsEqualToRequests(),
+                new NumberOfTraceIDsEqualToRequests(Attributes.create().addAttribute("action", "indices:data/read/search[phase/query]")),
                 new TotalRootSpansEqualToRequests()
             )
         );
 
-        InMemorySingletonSpanExporter exporter = InMemorySingletonSpanExporter.create();
+        InMemorySingletonSpanExporter exporter = InMemorySingletonSpanExporter.INSTANCE;
         if (!exporter.getFinishedSpanItems().isEmpty()) {
-            validators.validate(exporter.getFinishedSpanItems(), 2);
+            validators.validate(exporter.getFinishedSpanItems(), 6);
         }
+    }
+
+    private static void updateTelemetrySetting(Client client, boolean value) {
+        client.admin()
+            .cluster()
+            .prepareUpdateSettings()
+            .setTransientSettings(Settings.builder().put(TelemetrySettings.TRACER_ENABLED_SETTING.getKey(), value))
+            .get();
     }
 
 }

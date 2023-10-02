@@ -46,17 +46,18 @@
 
 package org.opensearch.transport;
 
-import io.netty.buffer.ByteBuf;
-import io.netty.channel.Channel;
-import io.netty.channel.ChannelOutboundBuffer;
-import io.netty.channel.RecvByteBufAllocator;
-import io.netty.channel.socket.nio.NioSocketChannel;
 import org.opensearch.common.SuppressForbidden;
 import org.opensearch.core.common.unit.ByteSizeValue;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.SocketChannel;
+
+import io.netty.buffer.ByteBuf;
+import io.netty.channel.Channel;
+import io.netty.channel.ChannelOutboundBuffer;
+import io.netty.channel.RecvByteBufAllocator;
+import io.netty.channel.socket.nio.NioSocketChannel;
 
 import static io.netty.channel.internal.ChannelUtils.MAX_BYTES_PER_GATHERING_WRITE_ATTEMPTED_LOW_THRESHOLD;
 

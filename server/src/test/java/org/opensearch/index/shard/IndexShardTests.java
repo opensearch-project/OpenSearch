@@ -49,10 +49,8 @@ import org.apache.lucene.tests.mockfile.ExtrasFS;
 import org.apache.lucene.tests.store.BaseDirectoryWrapper;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Constants;
-import org.junit.Assert;
 import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
-import org.opensearch.core.action.ActionListener;
 import org.opensearch.action.admin.indices.flush.FlushRequest;
 import org.opensearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.opensearch.action.admin.indices.stats.CommonStats;
@@ -74,7 +72,6 @@ import org.opensearch.cluster.routing.UnassignedInfo;
 import org.opensearch.common.CheckedFunction;
 import org.opensearch.common.Randomness;
 import org.opensearch.common.UUIDs;
-import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.io.PathUtils;
@@ -89,9 +86,11 @@ import org.opensearch.common.util.concurrent.AtomicArray;
 import org.opensearch.common.util.concurrent.ConcurrentCollections;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.Assertions;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.core.indices.breaker.NoneCircuitBreakerService;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
@@ -124,6 +123,9 @@ import org.opensearch.index.mapper.SourceFieldMapper;
 import org.opensearch.index.mapper.SourceToParse;
 import org.opensearch.index.mapper.Uid;
 import org.opensearch.index.mapper.VersionFieldMapper;
+import org.opensearch.index.remote.RemoteSegmentStats;
+import org.opensearch.index.remote.RemoteSegmentTransferTracker;
+import org.opensearch.index.remote.RemoteTranslogTransferTracker;
 import org.opensearch.index.seqno.ReplicationTracker;
 import org.opensearch.index.seqno.RetentionLease;
 import org.opensearch.index.seqno.RetentionLeaseSyncer;
@@ -136,12 +138,12 @@ import org.opensearch.index.store.StoreStats;
 import org.opensearch.index.store.StoreUtils;
 import org.opensearch.index.translog.InternalTranslogFactory;
 import org.opensearch.index.translog.RemoteBlobStoreInternalTranslogFactory;
+import org.opensearch.index.translog.RemoteTranslogStats;
 import org.opensearch.index.translog.TestTranslog;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.index.translog.TranslogStats;
 import org.opensearch.index.translog.listener.TranslogEventListener;
 import org.opensearch.indices.IndicesQueryCache;
-import org.opensearch.core.indices.breaker.NoneCircuitBreakerService;
 import org.opensearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.indices.recovery.RecoveryTarget;
@@ -158,6 +160,7 @@ import org.opensearch.test.FieldMaskingReader;
 import org.opensearch.test.VersionUtils;
 import org.opensearch.test.store.MockFSDirectoryFactory;
 import org.opensearch.threadpool.ThreadPool;
+import org.junit.Assert;
 
 import java.io.IOException;
 import java.nio.charset.Charset;
@@ -196,6 +199,12 @@ import java.util.stream.Stream;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
+import static org.opensearch.cluster.routing.TestShardRouting.newShardRouting;
+import static org.opensearch.common.lucene.Lucene.cleanLuceneIndex;
+import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.opensearch.core.xcontent.ToXContent.EMPTY_PARAMS;
+import static org.opensearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
+import static org.opensearch.test.hamcrest.RegexMatcher.matches;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.either;
@@ -216,12 +225,6 @@ import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.oneOf;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.Mockito.mock;
-import static org.opensearch.cluster.routing.TestShardRouting.newShardRouting;
-import static org.opensearch.common.lucene.Lucene.cleanLuceneIndex;
-import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.opensearch.core.xcontent.ToXContent.EMPTY_PARAMS;
-import static org.opensearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
-import static org.opensearch.test.hamcrest.RegexMatcher.matches;
 
 /**
  * Simple unit-test IndexShard related operations.
@@ -1777,7 +1780,7 @@ public class IndexShardTests extends IndexShardTestCase {
             }
         };
 
-        try (Store store = createStore(shardId, new IndexSettings(metadata, Settings.EMPTY), directory)) {
+        try (Store store = createStore(shardId, new IndexSettings(metadata, Settings.EMPTY), directory, shardPath)) {
             IndexShard shard = newShard(
                 shardRouting,
                 shardPath,
@@ -1811,6 +1814,34 @@ public class IndexShardTests extends IndexShardTestCase {
                 assertTrue(store.isMarkedCorrupted());
             }
         }
+    }
+
+    public void testShardStatsWithRemoteStoreEnabled() throws IOException {
+        IndexShard shard = newStartedShard(
+            Settings.builder()
+                .put(IndexMetadata.SETTING_REPLICATION_TYPE, "SEGMENT")
+                .put(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, true)
+                .build()
+        );
+        RemoteSegmentTransferTracker remoteSegmentTransferTracker = shard.getRemoteStoreStatsTrackerFactory()
+            .getRemoteSegmentTransferTracker(shard.shardId);
+        RemoteTranslogTransferTracker remoteTranslogTransferTracker = shard.getRemoteStoreStatsTrackerFactory()
+            .getRemoteTranslogTransferTracker(shard.shardId);
+        populateSampleRemoteSegmentStats(remoteSegmentTransferTracker);
+        populateSampleRemoteTranslogStats(remoteTranslogTransferTracker);
+        ShardStats shardStats = new ShardStats(
+            shard.routingEntry(),
+            shard.shardPath(),
+            new CommonStats(new IndicesQueryCache(Settings.EMPTY), shard, new CommonStatsFlags()),
+            shard.commitStats(),
+            shard.seqNoStats(),
+            shard.getRetentionLeaseStats()
+        );
+        RemoteSegmentStats remoteSegmentStats = shardStats.getStats().getSegments().getRemoteSegmentStats();
+        assertRemoteSegmentStats(remoteSegmentTransferTracker, remoteSegmentStats);
+        RemoteTranslogStats remoteTranslogStats = shardStats.getStats().getTranslog().getRemoteTranslogStats();
+        assertRemoteTranslogStats(remoteTranslogTransferTracker, remoteTranslogStats);
+        closeShards(shard);
     }
 
     public void testRefreshMetric() throws IOException {
@@ -4873,5 +4904,44 @@ public class IndexShardTests extends IndexShardTestCase {
         assertThat(thirdForceMergeUUID, not(equalTo(secondForceMergeUUID)));
         assertThat(thirdForceMergeUUID, equalTo(secondForceMergeRequest.forceMergeUUID()));
         closeShards(shard);
+    }
+
+    private void populateSampleRemoteSegmentStats(RemoteSegmentTransferTracker tracker) {
+        tracker.addUploadBytesStarted(30L);
+        tracker.addUploadBytesSucceeded(10L);
+        tracker.addUploadBytesFailed(10L);
+    }
+
+    private void populateSampleRemoteTranslogStats(RemoteTranslogTransferTracker tracker) {
+        tracker.incrementTotalUploadsStarted();
+        tracker.incrementTotalUploadsStarted();
+        tracker.incrementTotalUploadsStarted();
+        tracker.incrementTotalUploadsSucceeded();
+        tracker.incrementTotalUploadsFailed();
+        int bytesStarted = randomIntBetween(100, 1000);
+        tracker.addUploadBytesStarted(bytesStarted);
+        tracker.addUploadBytesSucceeded(randomIntBetween(1, bytesStarted / 2));
+        tracker.addUploadBytesFailed(randomIntBetween(1, bytesStarted / 2));
+    }
+
+    private static void assertRemoteTranslogStats(
+        RemoteTranslogTransferTracker remoteTranslogTransferTracker,
+        RemoteTranslogStats remoteTranslogStats
+    ) {
+        assertEquals(remoteTranslogTransferTracker.getTotalUploadsStarted(), remoteTranslogStats.getTotalUploadsStarted());
+        assertEquals(remoteTranslogTransferTracker.getTotalUploadsSucceeded(), remoteTranslogStats.getTotalUploadsSucceeded());
+        assertEquals(remoteTranslogTransferTracker.getTotalUploadsFailed(), remoteTranslogStats.getTotalUploadsFailed());
+        assertEquals(remoteTranslogTransferTracker.getUploadBytesStarted(), remoteTranslogStats.getUploadBytesStarted());
+        assertEquals(remoteTranslogTransferTracker.getUploadBytesSucceeded(), remoteTranslogStats.getUploadBytesSucceeded());
+        assertEquals(remoteTranslogTransferTracker.getUploadBytesFailed(), remoteTranslogStats.getUploadBytesFailed());
+    }
+
+    private static void assertRemoteSegmentStats(
+        RemoteSegmentTransferTracker remoteSegmentTransferTracker,
+        RemoteSegmentStats remoteSegmentStats
+    ) {
+        assertEquals(remoteSegmentTransferTracker.getUploadBytesStarted(), remoteSegmentStats.getUploadBytesStarted());
+        assertEquals(remoteSegmentTransferTracker.getUploadBytesSucceeded(), remoteSegmentStats.getUploadBytesSucceeded());
+        assertEquals(remoteSegmentTransferTracker.getUploadBytesFailed(), remoteSegmentStats.getUploadBytesFailed());
     }
 }

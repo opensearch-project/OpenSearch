@@ -83,6 +83,11 @@ public class ReverseNestedAggregatorFactory extends AggregatorFactory {
         }
     }
 
+    @Override
+    protected boolean supportsConcurrentSegmentSearch() {
+        return true;
+    }
+
     /**
      * Unmapped class for reverse nested agg
      *

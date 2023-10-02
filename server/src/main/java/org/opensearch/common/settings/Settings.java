@@ -38,27 +38,28 @@ import org.opensearch.OpenSearchParseException;
 import org.opensearch.Version;
 import org.opensearch.common.Booleans;
 import org.opensearch.common.SetOnce;
+import org.opensearch.common.annotation.PublicApi;
+import org.opensearch.common.logging.DeprecationLogger;
+import org.opensearch.common.logging.LogConfigurator;
+import org.opensearch.common.unit.MemorySizeValue;
+import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.util.io.IOUtils;
+import org.opensearch.common.xcontent.LoggingDeprecationHandler;
+import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
-import org.opensearch.common.logging.DeprecationLogger;
-import org.opensearch.common.logging.LogConfigurator;
+import org.opensearch.core.common.settings.SecureString;
 import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.core.common.unit.ByteSizeValue;
-import org.opensearch.common.unit.MemorySizeValue;
-import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.xcontent.LoggingDeprecationHandler;
-import org.opensearch.core.xcontent.MediaTypeRegistry;
-import org.opensearch.core.xcontent.XContentParserUtils;
-import org.opensearch.common.xcontent.XContentType;
-import org.opensearch.core.common.settings.SecureString;
 import org.opensearch.core.xcontent.DeprecationHandler;
 import org.opensearch.core.xcontent.MediaType;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.common.util.io.IOUtils;
+import org.opensearch.core.xcontent.XContentParserUtils;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -88,14 +89,16 @@ import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static org.opensearch.core.common.unit.ByteSizeValue.parseBytesSizeValue;
+import static org.opensearch.common.settings.AbstractScopedSettings.ARCHIVED_SETTINGS_PREFIX;
 import static org.opensearch.common.unit.TimeValue.parseTimeValue;
+import static org.opensearch.core.common.unit.ByteSizeValue.parseBytesSizeValue;
 
 /**
  * An immutable settings implementation.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public final class Settings implements ToXContentFragment {
 
     public static final Settings EMPTY = new Builder().build();
@@ -749,8 +752,9 @@ public final class Settings implements ToXContentFragment {
      * settings implementation. Use {@link Settings#builder()} in order to
      * construct it.
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public static class Builder {
 
         public static final Settings EMPTY_SETTINGS = new Builder().build();
@@ -1217,7 +1221,7 @@ public final class Settings implements ToXContentFragment {
         }
 
         /**
-         * Checks that all settings in the builder start with the specified prefix.
+         * Checks that all settings(except archived settings and wildcards) in the builder start with the specified prefix.
          *
          * If a setting doesn't start with the prefix, the builder appends the prefix to such setting.
          */
@@ -1227,7 +1231,7 @@ public final class Settings implements ToXContentFragment {
             while (iterator.hasNext()) {
                 Map.Entry<String, Object> entry = iterator.next();
                 String key = entry.getKey();
-                if (key.startsWith(prefix) == false && key.endsWith("*") == false) {
+                if (key.startsWith(prefix) == false && key.endsWith("*") == false && key.startsWith(ARCHIVED_SETTINGS_PREFIX) == false) {
                     replacements.put(prefix + key, entry.getValue());
                     iterator.remove();
                 }

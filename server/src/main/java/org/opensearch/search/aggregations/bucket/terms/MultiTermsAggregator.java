@@ -11,17 +11,18 @@ package org.opensearch.search.aggregations.bucket.terms;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.NumericUtils;
 import org.apache.lucene.util.PriorityQueue;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.common.CheckedSupplier;
 import org.opensearch.common.Numbers;
-import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.common.io.stream.BytesStreamOutput;
+import org.opensearch.common.lease.Releasable;
+import org.opensearch.common.lease.Releasables;
+import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
-import org.opensearch.common.lease.Releasables;
+import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.index.fielddata.SortedBinaryDocValues;
 import org.opensearch.index.fielddata.SortedNumericDoubleValues;
 import org.opensearch.search.DocValueFormat;
@@ -218,8 +219,8 @@ public class MultiTermsAggregator extends DeferableBucketAggregator {
         return new LeafBucketCollector() {
             @Override
             public void collect(int doc, long owningBucketOrd) throws IOException {
-                for (List<Object> value : collector.apply(doc)) {
-                    long bucketOrd = bucketOrds.add(owningBucketOrd, encode(value));
+                for (BytesRef compositeKey : collector.apply(doc)) {
+                    long bucketOrd = bucketOrds.add(owningBucketOrd, compositeKey);
                     if (bucketOrd < 0) {
                         bucketOrd = -1 - bucketOrd;
                         collectExistingBucket(sub, doc, bucketOrd);
@@ -233,16 +234,7 @@ public class MultiTermsAggregator extends DeferableBucketAggregator {
 
     @Override
     protected void doClose() {
-        Releasables.close(bucketOrds);
-    }
-
-    private static BytesRef encode(List<Object> values) {
-        try (BytesStreamOutput output = new BytesStreamOutput()) {
-            output.writeCollection(values, StreamOutput::writeGenericValue);
-            return output.bytes().toBytesRef();
-        } catch (IOException e) {
-            throw ExceptionsHelper.convertToRuntime(e);
-        }
+        Releasables.close(bucketOrds, multiTermsValue);
     }
 
     private static List<Object> decode(BytesRef bytesRef) {
@@ -279,8 +271,8 @@ public class MultiTermsAggregator extends DeferableBucketAggregator {
             MultiTermsValuesSourceCollector collector = multiTermsValue.getValues(ctx);
             // brute force
             for (int docId = 0; docId < ctx.reader().maxDoc(); ++docId) {
-                for (List<Object> value : collector.apply(docId)) {
-                    bucketOrds.add(owningBucketOrd, encode(value));
+                for (BytesRef compositeKey : collector.apply(docId)) {
+                    bucketOrds.add(owningBucketOrd, compositeKey);
                 }
             }
         }
@@ -295,7 +287,7 @@ public class MultiTermsAggregator extends DeferableBucketAggregator {
          * Collect a list values of multi_terms on each doc.
          * Each terms could have multi_values, so the result is the cartesian product of each term's values.
          */
-        List<List<Object>> apply(int doc) throws IOException;
+        List<BytesRef> apply(int doc) throws IOException;
     }
 
     @FunctionalInterface
@@ -314,7 +306,46 @@ public class MultiTermsAggregator extends DeferableBucketAggregator {
         /**
          * Collect a list values of a term on specific doc.
          */
-        List<Object> apply(int doc) throws IOException;
+        List<TermValue<?>> apply(int doc) throws IOException;
+    }
+
+    /**
+     * Represents an individual term value.
+     */
+    static class TermValue<T> implements Writeable {
+        private static final Writer<BytesRef> BYTES_REF_WRITER = StreamOutput.getWriter(BytesRef.class);
+        private static final Writer<Long> LONG_WRITER = StreamOutput.getWriter(Long.class);
+        private static final Writer<BigInteger> BIG_INTEGER_WRITER = StreamOutput.getWriter(BigInteger.class);
+        private static final Writer<Double> DOUBLE_WRITER = StreamOutput.getWriter(Double.class);
+
+        private final T value;
+        private final Writer<T> writer;
+
+        private TermValue(T value, Writer<T> writer) {
+            this.value = value;
+            this.writer = writer;
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            writer.write(out, value);
+        }
+
+        public static TermValue<BytesRef> of(BytesRef value) {
+            return new TermValue<>(value, BYTES_REF_WRITER);
+        }
+
+        public static TermValue<Long> of(Long value) {
+            return new TermValue<>(value, LONG_WRITER);
+        }
+
+        public static TermValue<BigInteger> of(BigInteger value) {
+            return new TermValue<>(value, BIG_INTEGER_WRITER);
+        }
+
+        public static TermValue<Double> of(Double value) {
+            return new TermValue<>(value, DOUBLE_WRITER);
+        }
     }
 
     /**
@@ -322,8 +353,9 @@ public class MultiTermsAggregator extends DeferableBucketAggregator {
      *
      * @opensearch.internal
      */
-    static class MultiTermsValuesSource {
+    static class MultiTermsValuesSource implements Releasable {
         private final List<InternalValuesSource> valuesSources;
+        private final BytesStreamOutput scratch = new BytesStreamOutput();
 
         public MultiTermsValuesSource(List<InternalValuesSource> valuesSources) {
             this.valuesSources = valuesSources;
@@ -336,36 +368,49 @@ public class MultiTermsAggregator extends DeferableBucketAggregator {
             }
             return new MultiTermsValuesSourceCollector() {
                 @Override
-                public List<List<Object>> apply(int doc) throws IOException {
-                    List<CheckedSupplier<List<Object>, IOException>> collectedValues = new ArrayList<>();
+                public List<BytesRef> apply(int doc) throws IOException {
+                    List<List<TermValue<?>>> collectedValues = new ArrayList<>();
                     for (InternalValuesSourceCollector collector : collectors) {
-                        collectedValues.add(() -> collector.apply(doc));
+                        collectedValues.add(collector.apply(doc));
                     }
-                    List<List<Object>> result = new ArrayList<>();
-                    apply(0, collectedValues, new ArrayList<>(), result);
+                    List<BytesRef> result = new ArrayList<>();
+                    scratch.seek(0);
+                    scratch.writeVInt(collectors.size()); // number of fields per composite key
+                    cartesianProduct(result, scratch, collectedValues, 0);
                     return result;
                 }
 
                 /**
-                 * DFS traverse each term's values and add cartesian product to results lists.
+                 * Cartesian product using depth first search.
+                 *
+                 * <p>
+                 * Composite keys are encoded to a {@link BytesRef} in a format compatible with {@link StreamOutput::writeGenericValue},
+                 * but reuses the encoding of the shared prefixes from the previous levels to avoid wasteful work.
                  */
-                private void apply(
-                    int index,
-                    List<CheckedSupplier<List<Object>, IOException>> collectedValues,
-                    List<Object> current,
-                    List<List<Object>> results
+                private void cartesianProduct(
+                    List<BytesRef> compositeKeys,
+                    BytesStreamOutput scratch,
+                    List<List<TermValue<?>>> collectedValues,
+                    int index
                 ) throws IOException {
-                    if (index == collectedValues.size()) {
-                        results.add(List.copyOf(current));
-                    } else if (null != collectedValues.get(index)) {
-                        for (Object value : collectedValues.get(index).get()) {
-                            current.add(value);
-                            apply(index + 1, collectedValues, current, results);
-                            current.remove(current.size() - 1);
-                        }
+                    if (collectedValues.size() == index) {
+                        compositeKeys.add(BytesRef.deepCopyOf(scratch.bytes().toBytesRef()));
+                        return;
+                    }
+
+                    long position = scratch.position();
+                    for (TermValue<?> value : collectedValues.get(index)) {
+                        value.writeTo(scratch); // encode the value
+                        cartesianProduct(compositeKeys, scratch, collectedValues, index + 1); // dfs
+                        scratch.seek(position); // backtrack
                     }
                 }
             };
+        }
+
+        @Override
+        public void close() {
+            scratch.close();
         }
     }
 
@@ -379,27 +424,26 @@ public class MultiTermsAggregator extends DeferableBucketAggregator {
             return ctx -> {
                 SortedBinaryDocValues values = valuesSource.bytesValues(ctx);
                 return doc -> {
-                    BytesRefBuilder previous = new BytesRefBuilder();
-
                     if (false == values.advanceExact(doc)) {
                         return Collections.emptyList();
                     }
                     int valuesCount = values.docValueCount();
-                    List<Object> termValues = new ArrayList<>(valuesCount);
+                    List<TermValue<?>> termValues = new ArrayList<>(valuesCount);
 
                     // SortedBinaryDocValues don't guarantee uniqueness so we
                     // need to take care of dups
-                    previous.clear();
+                    BytesRef previous = null;
                     for (int i = 0; i < valuesCount; ++i) {
                         BytesRef bytes = values.nextValue();
                         if (includeExclude != null && false == includeExclude.accept(bytes)) {
                             continue;
                         }
-                        if (i > 0 && previous.get().equals(bytes)) {
+                        if (i > 0 && bytes.equals(previous)) {
                             continue;
                         }
-                        previous.copyBytes(bytes);
-                        termValues.add(BytesRef.deepCopyOf(bytes));
+                        BytesRef copy = BytesRef.deepCopyOf(bytes);
+                        termValues.add(TermValue.of(copy));
+                        previous = copy;
                     }
                     return termValues;
                 };
@@ -414,12 +458,12 @@ public class MultiTermsAggregator extends DeferableBucketAggregator {
                         int valuesCount = values.docValueCount();
 
                         BigInteger previous = Numbers.MAX_UNSIGNED_LONG_VALUE;
-                        List<Object> termValues = new ArrayList<>(valuesCount);
+                        List<TermValue<?>> termValues = new ArrayList<>(valuesCount);
                         for (int i = 0; i < valuesCount; ++i) {
                             BigInteger val = Numbers.toUnsignedBigInteger(values.nextValue());
                             if (previous.compareTo(val) != 0 || i == 0) {
                                 if (longFilter == null || longFilter.accept(NumericUtils.doubleToSortableLong(val.doubleValue()))) {
-                                    termValues.add(val);
+                                    termValues.add(TermValue.of(val));
                                 }
                                 previous = val;
                             }
@@ -439,12 +483,12 @@ public class MultiTermsAggregator extends DeferableBucketAggregator {
                         int valuesCount = values.docValueCount();
 
                         long previous = Long.MAX_VALUE;
-                        List<Object> termValues = new ArrayList<>(valuesCount);
+                        List<TermValue<?>> termValues = new ArrayList<>(valuesCount);
                         for (int i = 0; i < valuesCount; ++i) {
                             long val = values.nextValue();
                             if (previous != val || i == 0) {
                                 if (longFilter == null || longFilter.accept(val)) {
-                                    termValues.add(val);
+                                    termValues.add(TermValue.of(val));
                                 }
                                 previous = val;
                             }
@@ -464,12 +508,12 @@ public class MultiTermsAggregator extends DeferableBucketAggregator {
                         int valuesCount = values.docValueCount();
 
                         double previous = Double.MAX_VALUE;
-                        List<Object> termValues = new ArrayList<>(valuesCount);
+                        List<TermValue<?>> termValues = new ArrayList<>(valuesCount);
                         for (int i = 0; i < valuesCount; ++i) {
                             double val = values.nextValue();
                             if (previous != val || i == 0) {
                                 if (longFilter == null || longFilter.accept(NumericUtils.doubleToSortableLong(val))) {
-                                    termValues.add(val);
+                                    termValues.add(TermValue.of(val));
                                 }
                                 previous = val;
                             }

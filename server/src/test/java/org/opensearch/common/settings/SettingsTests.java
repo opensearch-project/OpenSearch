@@ -34,18 +34,18 @@ package org.opensearch.common.settings;
 
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.Version;
-import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.io.stream.BytesStreamOutput;
+import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.settings.SecureString;
 import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.core.common.unit.ByteSizeValue;
-import org.opensearch.common.unit.TimeValue;
-import org.opensearch.core.common.settings.SecureString;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.ByteArrayInputStream;
@@ -299,6 +299,20 @@ public class SettingsTests extends OpenSearchTestCase {
 
         assertThat(settings.size(), equalTo(1));
         assertThat(settings.get("foo.test"), equalTo("test"));
+    }
+
+    public void testPrefixNormalizationArchived() {
+        Settings settings = Settings.builder().put("archived.foo.bar", "baz").normalizePrefix("foo.").build();
+
+        assertThat(settings.size(), equalTo(1));
+        assertThat(settings.get("foo.archived.foo.bar"), nullValue());
+        assertThat(settings.get("archived.foo.bar"), equalTo("baz"));
+
+        settings = Settings.builder().put("archived.foo.*", "baz").normalizePrefix("foo.").build();
+
+        assertThat(settings.size(), equalTo(1));
+        assertThat(settings.get("foo.archived.foo.*"), nullValue());
+        assertThat(settings.get("archived.foo.*"), equalTo("baz"));
     }
 
     public void testFilteredMap() {

@@ -9,19 +9,22 @@
 package org.opensearch.indices.replication;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.IndexFormatTooNewException;
 import org.apache.lucene.index.IndexFormatTooOldException;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.store.AlreadyClosedException;
+import org.apache.lucene.store.IOContext;
+import org.apache.lucene.store.IndexInput;
 import org.opensearch.OpenSearchCorruptionException;
 import org.opensearch.OpenSearchException;
-import org.opensearch.core.action.ActionListener;
 import org.opensearch.action.StepListener;
 import org.opensearch.common.UUIDs;
-import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.util.CancellableThreads;
+import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.store.StoreFileMetadata;
@@ -33,8 +36,11 @@ import org.opensearch.indices.replication.common.ReplicationLuceneIndex;
 import org.opensearch.indices.replication.common.ReplicationTarget;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * Represents the target of a replication event.
@@ -178,7 +184,27 @@ public class SegmentReplicationTarget extends ReplicationTarget {
         cancellableThreads.checkForCancel();
         state.setStage(SegmentReplicationState.Stage.FILE_DIFF);
         final Store.RecoveryDiff diff = Store.segmentReplicationDiff(checkpointInfo.getMetadataMap(), indexShard.getSegmentMetadataMap());
-        logger.trace(() -> new ParameterizedMessage("Replication diff for checkpoint {} {}", checkpointInfo.getCheckpoint(), diff));
+        // local files
+        final Set<String> localFiles = Set.of(indexShard.store().directory().listAll());
+        // set of local files that can be reused
+        final Set<String> reuseFiles = diff.missing.stream()
+            .filter(storeFileMetadata -> localFiles.contains(storeFileMetadata.name()))
+            .filter(this::validateLocalChecksum)
+            .map(StoreFileMetadata::name)
+            .collect(Collectors.toSet());
+
+        final List<StoreFileMetadata> missingFiles = diff.missing.stream()
+            .filter(md -> reuseFiles.contains(md.name()) == false)
+            .collect(Collectors.toList());
+
+        logger.trace(
+            () -> new ParameterizedMessage(
+                "Replication diff for checkpoint {} {} {}",
+                checkpointInfo.getCheckpoint(),
+                missingFiles,
+                diff.different
+            )
+        );
         /*
          * Segments are immutable. So if the replica has any segments with the same name that differ from the one in the incoming
          * snapshot from source that means the local copy of the segment has been corrupted/changed in some way and we throw an
@@ -194,10 +220,25 @@ public class SegmentReplicationTarget extends ReplicationTarget {
             );
         }
 
-        for (StoreFileMetadata file : diff.missing) {
+        for (StoreFileMetadata file : missingFiles) {
             state.getIndex().addFileDetail(file.name(), file.length(), false);
         }
-        return diff.missing;
+        return missingFiles;
+    }
+
+    private boolean validateLocalChecksum(StoreFileMetadata file) {
+        try (IndexInput indexInput = indexShard.store().directory().openInput(file.name(), IOContext.DEFAULT)) {
+            String checksum = Store.digestToString(CodecUtil.retrieveChecksum(indexInput));
+            if (file.checksum().equals(checksum)) {
+                return true;
+            } else {
+                // clear local copy with mismatch. Safe because file is not referenced by active reader.
+                store.deleteQuiet(file.name());
+                return false;
+            }
+        } catch (IOException e) {
+            throw new UncheckedIOException("Error reading " + file, e);
+        }
     }
 
     private void finalizeReplication(CheckpointInfoResponse checkpointInfoResponse) throws OpenSearchCorruptionException {

@@ -9,6 +9,7 @@
 package org.opensearch.cluster.routing.allocation.allocator;
 
 import org.apache.logging.log4j.Logger;
+import org.opensearch.cluster.routing.RecoverySource;
 import org.opensearch.cluster.routing.RoutingNode;
 import org.opensearch.cluster.routing.RoutingNodes;
 import org.opensearch.cluster.routing.RoutingPool;
@@ -20,7 +21,6 @@ import org.opensearch.cluster.routing.allocation.RoutingAllocation;
 import org.opensearch.cluster.routing.allocation.decider.Decision;
 import org.opensearch.cluster.routing.allocation.decider.DiskThresholdDecider;
 import org.opensearch.common.Randomness;
-import org.opensearch.cluster.routing.RecoverySource;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;

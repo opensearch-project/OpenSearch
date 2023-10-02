@@ -31,8 +31,8 @@
 
 package org.opensearch.index.mapper;
 
-import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.tests.util.TestUtil;
+import org.apache.lucene.util.BytesRef;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.Arrays;

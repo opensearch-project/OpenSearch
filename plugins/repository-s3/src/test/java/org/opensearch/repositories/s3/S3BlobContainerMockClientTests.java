@@ -8,28 +8,6 @@
 
 package org.opensearch.repositories.s3;
 
-import org.apache.lucene.store.IndexInput;
-import org.junit.After;
-import org.junit.Before;
-import org.mockito.invocation.InvocationOnMock;
-import org.opensearch.core.action.ActionListener;
-import org.opensearch.cluster.metadata.RepositoryMetadata;
-import org.opensearch.common.CheckedTriFunction;
-import org.opensearch.common.StreamContext;
-import org.opensearch.common.blobstore.BlobPath;
-import org.opensearch.common.blobstore.stream.write.StreamContextSupplier;
-import org.opensearch.common.blobstore.stream.write.WriteContext;
-import org.opensearch.common.blobstore.stream.write.WritePriority;
-import org.opensearch.common.blobstore.transfer.stream.OffsetRangeIndexInputStream;
-import org.opensearch.common.io.InputStreamContainer;
-import org.opensearch.common.lucene.store.ByteArrayIndexInput;
-import org.opensearch.common.settings.Settings;
-import org.opensearch.core.common.unit.ByteSizeValue;
-import org.opensearch.common.util.io.IOUtils;
-import org.opensearch.repositories.s3.async.AsyncExecutorContainer;
-import org.opensearch.repositories.s3.async.AsyncTransferManager;
-import org.opensearch.repositories.s3.async.AsyncTransferEventLoopGroup;
-import org.opensearch.test.OpenSearchTestCase;
 import software.amazon.awssdk.core.async.AsyncRequestBody;
 import software.amazon.awssdk.services.s3.S3AsyncClient;
 import software.amazon.awssdk.services.s3.model.AbortMultipartUploadRequest;
@@ -44,6 +22,28 @@ import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import software.amazon.awssdk.services.s3.model.PutObjectResponse;
 import software.amazon.awssdk.services.s3.model.UploadPartRequest;
 import software.amazon.awssdk.services.s3.model.UploadPartResponse;
+
+import org.apache.lucene.store.IndexInput;
+import org.opensearch.cluster.metadata.RepositoryMetadata;
+import org.opensearch.common.CheckedTriFunction;
+import org.opensearch.common.StreamContext;
+import org.opensearch.common.blobstore.BlobPath;
+import org.opensearch.common.blobstore.stream.write.StreamContextSupplier;
+import org.opensearch.common.blobstore.stream.write.WriteContext;
+import org.opensearch.common.blobstore.stream.write.WritePriority;
+import org.opensearch.common.blobstore.transfer.stream.OffsetRangeIndexInputStream;
+import org.opensearch.common.io.InputStreamContainer;
+import org.opensearch.common.lucene.store.ByteArrayIndexInput;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.io.IOUtils;
+import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.common.unit.ByteSizeValue;
+import org.opensearch.repositories.s3.async.AsyncExecutorContainer;
+import org.opensearch.repositories.s3.async.AsyncTransferEventLoopGroup;
+import org.opensearch.repositories.s3.async.AsyncTransferManager;
+import org.opensearch.test.OpenSearchTestCase;
+import org.junit.After;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -61,6 +61,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+
+import org.mockito.invocation.InvocationOnMock;
 
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.doAnswer;

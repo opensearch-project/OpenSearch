@@ -17,7 +17,6 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
-import org.opensearch.core.action.ActionListener;
 import org.opensearch.action.LatchedActionListener;
 import org.opensearch.action.bulk.BackoffPolicy;
 import org.opensearch.action.support.GroupedActionListener;
@@ -25,6 +24,7 @@ import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.logging.Loggers;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.UploadListener;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.index.engine.EngineException;
 import org.opensearch.index.engine.InternalEngine;
 import org.opensearch.index.remote.RemoteSegmentTransferTracker;
@@ -89,7 +89,6 @@ public final class RemoteStoreRefreshListener extends CloseableRetryableRefreshL
     private long primaryTerm;
     private volatile Iterator<TimeValue> backoffDelayIterator;
     private final SegmentReplicationCheckpointPublisher checkpointPublisher;
-    private final UploadListener statsListener;
 
     public RemoteStoreRefreshListener(
         IndexShard indexShard,
@@ -117,26 +116,6 @@ public final class RemoteStoreRefreshListener extends CloseableRetryableRefreshL
         this.segmentTracker = segmentTracker;
         resetBackOffDelayIterator();
         this.checkpointPublisher = checkpointPublisher;
-        this.statsListener = new UploadListener() {
-            @Override
-            public void beforeUpload(String file) {
-                // Start tracking the upload bytes started
-                segmentTracker.addUploadBytesStarted(segmentTracker.getLatestLocalFileNameLengthMap().get(file));
-            }
-
-            @Override
-            public void onSuccess(String file) {
-                // Track upload success
-                segmentTracker.addUploadBytesSucceeded(segmentTracker.getLatestLocalFileNameLengthMap().get(file));
-                segmentTracker.addToLatestUploadedFiles(file);
-            }
-
-            @Override
-            public void onFailure(String file) {
-                // Track upload failure
-                segmentTracker.addUploadBytesFailed(segmentTracker.getLatestLocalFileNameLengthMap().get(file));
-            }
-        };
     }
 
     @Override
@@ -148,6 +127,7 @@ public final class RemoteStoreRefreshListener extends CloseableRetryableRefreshL
             segmentTracker.updateLocalRefreshTimeAndSeqNo();
             try {
                 if (this.primaryTerm != indexShard.getOperationPrimaryTerm()) {
+                    logger.debug("primaryTerm update from={} to={}", primaryTerm, indexShard.getOperationPrimaryTerm());
                     this.primaryTerm = indexShard.getOperationPrimaryTerm();
                     this.remoteDirectory.init();
                 }
@@ -171,8 +151,6 @@ public final class RemoteStoreRefreshListener extends CloseableRetryableRefreshL
     @Override
     protected boolean performAfterRefreshWithPermit(boolean didRefresh) {
         boolean successful;
-        // The third condition exists for uploading the zero state segments where the refresh has not changed the reader reference, but it
-        // is important to upload the zero state segments so that the restore does not break.
         if (shouldSync(didRefresh)) {
             successful = syncSegments();
         } else {
@@ -182,6 +160,8 @@ public final class RemoteStoreRefreshListener extends CloseableRetryableRefreshL
     }
 
     private boolean shouldSync(boolean didRefresh) {
+        // The third condition exists for uploading the zero state segments where the refresh has not changed the reader reference, but it
+        // is important to upload the zero state segments so that the restore does not break.
         return this.primaryTerm != indexShard.getOperationPrimaryTerm()
             || didRefresh
             || remoteDirectory.getSegmentsUploadedToRemoteStore().isEmpty();
@@ -189,12 +169,17 @@ public final class RemoteStoreRefreshListener extends CloseableRetryableRefreshL
 
     private boolean syncSegments() {
         if (indexShard.getReplicationTracker().isPrimaryMode() == false || indexShard.state() == IndexShardState.CLOSED) {
-            logger.info(
+            logger.debug(
                 "Skipped syncing segments with primaryMode={} indexShardState={}",
                 indexShard.getReplicationTracker().isPrimaryMode(),
                 indexShard.state()
             );
-            return true;
+            // Following check is required to enable retry and make sure that we do not lose this refresh event
+            // When primary shard is restored from remote store, the recovery happens first followed by changing
+            // primaryMode to true. Due to this, the refresh that is triggered post replay of translog will not go through
+            // if following condition does not exist. The segments created as part of translog replay will not be present
+            // in the remote store.
+            return indexShard.state() != IndexShardState.STARTED || !(indexShard.getEngine() instanceof InternalEngine);
         }
         ReplicationCheckpoint checkpoint = indexShard.getLatestReplicationCheckpoint();
         beforeSegmentsSync();
@@ -230,8 +215,10 @@ public final class RemoteStoreRefreshListener extends CloseableRetryableRefreshL
                         @Override
                         public void onResponse(Void unused) {
                             try {
+                                logger.debug("New segments upload successful");
                                 // Start metadata file upload
                                 uploadMetadata(localSegmentsPostRefresh, segmentInfos, checkpoint);
+                                logger.debug("Metadata upload successful");
                                 clearStaleFilesFromLocalSegmentChecksumMap(localSegmentsPostRefresh);
                                 onSuccessfulSegmentsSync(
                                     refreshTimeMs,
@@ -275,6 +262,7 @@ public final class RemoteStoreRefreshListener extends CloseableRetryableRefreshL
         updateFinalStatusInSegmentTracker(successful.get(), bytesBeforeUpload, startTimeInNS);
         // If there are failures in uploading segments, then we should retry as search idle can lead to
         // refresh not occurring until write happens.
+        logger.debug("syncSegments runStatus={}", successful.get());
         return successful.get();
     }
 
@@ -313,6 +301,7 @@ public final class RemoteStoreRefreshListener extends CloseableRetryableRefreshL
         indexShard.getEngine().translogManager().setMinSeqNoToKeep(lastRefreshedCheckpoint + 1);
         // Publishing the new checkpoint which is used for remote store + segrep indexes
         checkpointPublisher.publish(indexShard, checkpoint);
+        logger.debug("onSuccessfulSegmentsSync lastRefreshedCheckpoint={} checkpoint={}", lastRefreshedCheckpoint, checkpoint);
     }
 
     /**
@@ -365,14 +354,18 @@ public final class RemoteStoreRefreshListener extends CloseableRetryableRefreshL
     private void uploadNewSegments(Collection<String> localSegmentsPostRefresh, ActionListener<Void> listener) {
         Collection<String> filteredFiles = localSegmentsPostRefresh.stream().filter(file -> !skipUpload(file)).collect(Collectors.toList());
         if (filteredFiles.size() == 0) {
+            logger.debug("No new segments to upload in uploadNewSegments");
             listener.onResponse(null);
             return;
         }
 
+        logger.debug("Effective new segments files to upload {}", filteredFiles);
         ActionListener<Collection<Void>> mappedListener = ActionListener.map(listener, resp -> null);
         GroupedActionListener<Void> batchUploadListener = new GroupedActionListener<>(mappedListener, filteredFiles.size());
 
         for (String src : filteredFiles) {
+            // Initializing listener here to ensure that the stats increment operations are thread-safe
+            UploadListener statsListener = createUploadListener();
             ActionListener<Void> aggregatedListener = ActionListener.wrap(resp -> {
                 statsListener.onSuccess(src);
                 batchUploadListener.onResponse(resp);
@@ -441,12 +434,43 @@ public final class RemoteStoreRefreshListener extends CloseableRetryableRefreshL
             long bytesUploaded = segmentTracker.getUploadBytesSucceeded() - bytesBeforeUpload;
             long timeTakenInMS = TimeValue.nsecToMSec(System.nanoTime() - startTimeInNS);
             segmentTracker.incrementTotalUploadsSucceeded();
-            segmentTracker.addUploadBytes(bytesUploaded);
-            segmentTracker.addUploadBytesPerSec((bytesUploaded * 1_000L) / Math.max(1, timeTakenInMS));
-            segmentTracker.addUploadTimeMs(timeTakenInMS);
+            segmentTracker.updateUploadBytesMovingAverage(bytesUploaded);
+            segmentTracker.updateUploadBytesPerSecMovingAverage((bytesUploaded * 1_000L) / Math.max(1, timeTakenInMS));
+            segmentTracker.updateUploadTimeMovingAverage(timeTakenInMS);
         } else {
             segmentTracker.incrementTotalUploadsFailed();
         }
+    }
+
+    /**
+     * Creates an {@link UploadListener} containing the stats population logic which would be triggered before and after segment upload events
+     */
+    private UploadListener createUploadListener() {
+        return new UploadListener() {
+            private long uploadStartTime = 0;
+
+            @Override
+            public void beforeUpload(String file) {
+                // Start tracking the upload bytes started
+                segmentTracker.addUploadBytesStarted(segmentTracker.getLatestLocalFileNameLengthMap().get(file));
+                uploadStartTime = System.currentTimeMillis();
+            }
+
+            @Override
+            public void onSuccess(String file) {
+                // Track upload success
+                segmentTracker.addUploadBytesSucceeded(segmentTracker.getLatestLocalFileNameLengthMap().get(file));
+                segmentTracker.addToLatestUploadedFiles(file);
+                segmentTracker.addUploadTimeInMillis(Math.max(1, System.currentTimeMillis() - uploadStartTime));
+            }
+
+            @Override
+            public void onFailure(String file) {
+                // Track upload failure
+                segmentTracker.addUploadBytesFailed(segmentTracker.getLatestLocalFileNameLengthMap().get(file));
+                segmentTracker.addUploadTimeInMillis(Math.max(1, System.currentTimeMillis() - uploadStartTime));
+            }
+        };
     }
 
     @Override

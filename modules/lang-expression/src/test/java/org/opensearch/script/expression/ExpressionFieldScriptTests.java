@@ -47,8 +47,8 @@ import java.text.ParseException;
 import java.util.Collections;
 
 import static org.hamcrest.Matchers.equalTo;
-import static org.mockito.Mockito.anyInt;
 import static org.mockito.Mockito.any;
+import static org.mockito.Mockito.anyInt;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 

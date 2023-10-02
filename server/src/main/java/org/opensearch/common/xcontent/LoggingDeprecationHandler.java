@@ -32,8 +32,8 @@
 
 package org.opensearch.common.xcontent;
 
-import org.opensearch.core.ParseField;
 import org.opensearch.common.logging.DeprecationLogger;
+import org.opensearch.core.ParseField;
 import org.opensearch.core.xcontent.DeprecationHandler;
 import org.opensearch.core.xcontent.XContentLocation;
 

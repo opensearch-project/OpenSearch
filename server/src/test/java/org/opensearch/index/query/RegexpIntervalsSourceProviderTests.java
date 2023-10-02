@@ -8,9 +8,6 @@
 
 package org.opensearch.index.query;
 
-import static org.opensearch.index.query.IntervalsSourceProvider.Regexp;
-import static org.opensearch.index.query.IntervalsSourceProvider.fromXContent;
-
 import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.test.AbstractSerializingTestCase;
@@ -18,6 +15,9 @@ import org.opensearch.test.AbstractSerializingTestCase;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
+
+import static org.opensearch.index.query.IntervalsSourceProvider.Regexp;
+import static org.opensearch.index.query.IntervalsSourceProvider.fromXContent;
 
 public class RegexpIntervalsSourceProviderTests extends AbstractSerializingTestCase<Regexp> {
     private static final List<String> FLAGS = Arrays.asList("INTERSECTION", "COMPLEMENT", "EMPTY", "ANYSTRING", "INTERVAL", "NONE");

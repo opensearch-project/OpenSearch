@@ -32,10 +32,10 @@
 
 package org.opensearch.client.core;
 
-import org.opensearch.core.action.support.DefaultShardOperationFailedException;
 import org.opensearch.client.AbstractResponseTestCase;
-import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.action.support.DefaultShardOperationFailedException;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.seqno.RetentionLeaseNotFoundException;
 
 import java.io.IOException;

@@ -42,8 +42,8 @@ import org.opensearch.cluster.routing.IndexShardRoutingTable;
 import org.opensearch.cluster.routing.RoutingTable;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.common.UUIDs;
-import org.opensearch.core.common.io.stream.ByteBufferStreamInput;
 import org.opensearch.common.io.stream.BytesStreamOutput;
+import org.opensearch.core.common.io.stream.ByteBufferStreamInput;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;

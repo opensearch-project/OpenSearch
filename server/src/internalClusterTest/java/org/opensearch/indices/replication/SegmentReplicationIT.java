@@ -9,22 +9,26 @@
 package org.opensearch.indices.replication;
 
 import com.carrotsearch.randomizedtesting.RandomizedTest;
+
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.document.TextField;
+import org.apache.lucene.index.Fields;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.StandardDirectoryReader;
 import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.BytesRef;
-import org.junit.Before;
-import org.opensearch.common.action.ActionFuture;
+import org.opensearch.action.admin.indices.alias.Alias;
 import org.opensearch.action.admin.indices.flush.FlushRequest;
 import org.opensearch.action.admin.indices.stats.IndicesStatsRequest;
 import org.opensearch.action.admin.indices.stats.IndicesStatsResponse;
+import org.opensearch.action.get.GetResponse;
+import org.opensearch.action.get.MultiGetRequest;
+import org.opensearch.action.get.MultiGetResponse;
 import org.opensearch.action.index.IndexResponse;
 import org.opensearch.action.search.CreatePitAction;
 import org.opensearch.action.search.CreatePitRequest;
@@ -35,22 +39,28 @@ import org.opensearch.action.search.PitTestsUtil;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.action.search.SearchType;
 import org.opensearch.action.support.WriteRequest;
+import org.opensearch.action.termvectors.TermVectorsRequestBuilder;
+import org.opensearch.action.termvectors.TermVectorsResponse;
 import org.opensearch.action.update.UpdateResponse;
 import org.opensearch.client.Requests;
-import org.opensearch.cluster.health.ClusterHealthStatus;
 import org.opensearch.cluster.ClusterState;
+import org.opensearch.cluster.health.ClusterHealthStatus;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.cluster.routing.Preference;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.ShardRoutingState;
 import org.opensearch.cluster.routing.allocation.command.CancelAllocationCommand;
+import org.opensearch.common.action.ActionFuture;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.concurrent.GatedCloseable;
-import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lucene.index.OpenSearchDirectoryReader;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.lease.Releasable;
+import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.SegmentReplicationPerGroupStats;
 import org.opensearch.index.SegmentReplicationPressureService;
@@ -60,21 +70,22 @@ import org.opensearch.index.engine.Engine;
 import org.opensearch.index.engine.EngineConfig;
 import org.opensearch.index.engine.NRTReplicationReaderManager;
 import org.opensearch.index.shard.IndexShard;
-import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.indices.recovery.FileChunkRequest;
 import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
 import org.opensearch.indices.replication.common.ReplicationType;
+import org.opensearch.node.NodeClosedException;
 import org.opensearch.search.SearchService;
 import org.opensearch.search.builder.PointInTimeBuilder;
 import org.opensearch.search.internal.PitReaderContext;
 import org.opensearch.search.sort.SortOrder;
-import org.opensearch.node.NodeClosedException;
 import org.opensearch.test.BackgroundIndexer;
 import org.opensearch.test.InternalTestCluster;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.transport.MockTransportService;
 import org.opensearch.transport.TransportService;
+import org.junit.Before;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -89,17 +100,19 @@ import static java.util.Arrays.asList;
 import static org.opensearch.action.search.PitTestsUtil.assertSegments;
 import static org.opensearch.action.search.SearchContextId.decode;
 import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.opensearch.index.query.QueryBuilders.boolQuery;
 import static org.opensearch.index.query.QueryBuilders.matchAllQuery;
 import static org.opensearch.index.query.QueryBuilders.matchQuery;
-import static org.opensearch.index.query.QueryBuilders.termQuery;
-import static org.opensearch.index.query.QueryBuilders.boolQuery;
 import static org.opensearch.index.query.QueryBuilders.rangeQuery;
+import static org.opensearch.index.query.QueryBuilders.termQuery;
 import static org.opensearch.indices.replication.SegmentReplicationTarget.REPLICATION_PREFIX;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAllSuccessful;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertNoFailures;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertSearchHits;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class SegmentReplicationIT extends SegmentReplicationBaseIT {
@@ -107,6 +120,10 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
     @Before
     private void setup() {
         internalCluster().startClusterManagerOnlyNode();
+    }
+
+    private static String indexOrAlias() {
+        return randomBoolean() ? INDEX_NAME : "alias";
     }
 
     public void testPrimaryStopped_ReplicaPromoted() throws Exception {
@@ -131,8 +148,9 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
         final ShardRouting replicaShardRouting = getShardRoutingForNodeName(replica);
         assertNotNull(replicaShardRouting);
         assertTrue(replicaShardRouting + " should be promoted as a primary", replicaShardRouting.primary());
-        refresh(INDEX_NAME);
-        assertHitCount(client(replica).prepareSearch(INDEX_NAME).setSize(0).setPreference("_only_local").get(), 2);
+        final SearchResponse response = client(replica).prepareSearch(INDEX_NAME).setSize(0).setPreference("_only_local").get();
+        // new primary should have at least the doc count from the first set of segments.
+        assertTrue(response.getHits().getTotalHits().value >= 1);
 
         // assert we can index into the new primary.
         client().prepareIndex(INDEX_NAME).setId("3").setSource("bar", "baz").setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
@@ -615,7 +633,7 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
 
         createIndex(INDEX_NAME);
         ensureGreen(INDEX_NAME);
-        final int initialDocCount = scaledRandomIntBetween(0, 200);
+        final int initialDocCount = scaledRandomIntBetween(1, 20);
         try (
             BackgroundIndexer indexer = new BackgroundIndexer(
                 INDEX_NAME,
@@ -632,7 +650,7 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
             refresh(INDEX_NAME);
             waitForSearchableDocs(initialDocCount, nodeA, nodeB);
 
-            final int additionalDocCount = scaledRandomIntBetween(0, 200);
+            final int additionalDocCount = scaledRandomIntBetween(0, 20);
             final int expectedHitCount = initialDocCount + additionalDocCount;
             indexer.start(additionalDocCount);
             waitForDocs(expectedHitCount, indexer);
@@ -641,6 +659,7 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
             ensureGreen(INDEX_NAME);
 
             Set<String> ids = indexer.getIds();
+            assertFalse(ids.isEmpty());
             String id = ids.toArray()[0].toString();
             client(nodeA).prepareDelete(INDEX_NAME, id).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
 
@@ -1438,4 +1457,324 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
         ensureYellow(INDEX_NAME);
         assertDocCounts(1, primary);
     }
+
+    /**
+     * Tests whether segment replication supports realtime get requests and reads and parses source from the translog to serve strong reads.
+     */
+    public void testRealtimeGetRequestsSuccessful() {
+        final String primary = internalCluster().startDataOnlyNode();
+        // refresh interval disabled to ensure refresh rate of index (when data is ready for search) doesn't affect realtime get
+        assertAcked(
+            prepareCreate(INDEX_NAME).setSettings(Settings.builder().put("index.refresh_interval", -1).put(indexSettings()))
+                .addAlias(new Alias("alias"))
+        );
+        final String replica = internalCluster().startDataOnlyNode();
+        ensureGreen(INDEX_NAME);
+
+        final String id = routingKeyForShard(INDEX_NAME, 0);
+
+        GetResponse response = client(replica).prepareGet(indexOrAlias(), "1").get();
+        assertFalse(response.isExists());
+
+        // index doc 1
+        client().prepareIndex(indexOrAlias()).setId("1").setSource("foo", "bar").get();
+
+        // non realtime get 1
+        response = client().prepareGet(indexOrAlias(), "1").setRealtime(false).get();
+        assertFalse(response.isExists());
+
+        // realtime get 1
+        response = client(replica).prepareGet(indexOrAlias(), "1").get();
+        assertTrue(response.isExists());
+        assertThat(response.getIndex(), equalTo(INDEX_NAME));
+        assertThat(response.getSourceAsMap().get("foo").toString(), equalTo("bar"));
+
+        // index doc 2
+        client().prepareIndex(indexOrAlias()).setId("2").setSource("foo2", "bar2").setRouting(id).get();
+
+        // realtime get 2 (with routing)
+        response = client(replica).prepareGet(indexOrAlias(), "2").setRouting(id).get();
+        assertTrue(response.isExists());
+        assertThat(response.getIndex(), equalTo(INDEX_NAME));
+        assertThat(response.getSourceAsMap().get("foo2").toString(), equalTo("bar2"));
+    }
+
+    public void testRealtimeGetRequestsUnsuccessful() {
+        final String primary = internalCluster().startDataOnlyNode();
+        assertAcked(
+            prepareCreate(INDEX_NAME).setSettings(
+                Settings.builder().put("index.refresh_interval", -1).put(indexSettings()).put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 2)
+            ).addAlias(new Alias("alias"))
+        );
+        final String replica = internalCluster().startDataOnlyNode();
+        ensureGreen(INDEX_NAME);
+
+        final String id = routingKeyForShard(INDEX_NAME, 0);
+        final String routingOtherShard = routingKeyForShard(INDEX_NAME, 1);
+
+        // index doc 1
+        client().prepareIndex(indexOrAlias()).setId("1").setSource("foo", "bar").setRouting(id).get();
+
+        // non realtime get 1
+        GetResponse response = client().prepareGet(indexOrAlias(), "1").setRealtime(false).get();
+        assertFalse(response.isExists());
+
+        // realtime get 1 (preference = _replica)
+        response = client(replica).prepareGet(indexOrAlias(), "1").setPreference(Preference.REPLICA.type()).get();
+        assertFalse(response.isExists());
+        assertThat(response.getIndex(), equalTo(INDEX_NAME));
+
+        // realtime get 1 (with routing set)
+        response = client(replica).prepareGet(INDEX_NAME, "1").setRouting(routingOtherShard).get();
+        assertFalse(response.isExists());
+        assertThat(response.getIndex(), equalTo(INDEX_NAME));
+    }
+
+    /**
+     * Tests whether segment replication supports realtime MultiGet requests and reads and parses source from the translog to serve strong reads.
+     */
+    public void testRealtimeMultiGetRequestsSuccessful() {
+        final String primary = internalCluster().startDataOnlyNode();
+        // refresh interval disabled to ensure refresh rate of index (when data is ready for search) doesn't affect realtime multi get
+        assertAcked(
+            prepareCreate(INDEX_NAME).setSettings(
+                Settings.builder().put("index.refresh_interval", -1).put(indexSettings()).put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 2)
+            ).addAlias(new Alias("alias"))
+        );
+        final String replica = internalCluster().startDataOnlyNode();
+        ensureGreen(INDEX_NAME);
+
+        final String id = routingKeyForShard(INDEX_NAME, 0);
+
+        // index doc 1
+        client().prepareIndex(INDEX_NAME).setId("1").setSource("foo", "bar").get();
+
+        // index doc 2
+        client().prepareIndex(INDEX_NAME).setId("2").setSource("foo2", "bar2").setRouting(id).get();
+
+        // multi get non realtime 1
+        MultiGetResponse mgetResponse = client().prepareMultiGet()
+            .add(new MultiGetRequest.Item(INDEX_NAME, "1"))
+            .add(new MultiGetRequest.Item("nonExistingIndex", "1"))
+            .setRealtime(false)
+            .get();
+        assertThat(mgetResponse.getResponses().length, is(2));
+
+        assertThat(mgetResponse.getResponses()[0].getIndex(), is(INDEX_NAME));
+        assertFalse(mgetResponse.getResponses()[0].isFailed());
+        assertFalse(mgetResponse.getResponses()[0].getResponse().isExists());
+
+        // multi get realtime 1
+        mgetResponse = client(replica).prepareMultiGet()
+            .add(new MultiGetRequest.Item(INDEX_NAME, "1"))
+            .add(new MultiGetRequest.Item(INDEX_NAME, "2").routing(id))
+            .add(new MultiGetRequest.Item("nonExistingIndex", "1"))
+            .get();
+
+        assertThat(mgetResponse.getResponses().length, is(3));
+        assertThat(mgetResponse.getResponses()[0].getIndex(), is(INDEX_NAME));
+        assertFalse(mgetResponse.getResponses()[0].isFailed());
+        assertThat(mgetResponse.getResponses()[0].getResponse().getSourceAsMap().get("foo").toString(), equalTo("bar"));
+
+        assertThat(mgetResponse.getResponses()[1].getIndex(), is(INDEX_NAME));
+        assertFalse(mgetResponse.getResponses()[1].isFailed());
+        assertThat(mgetResponse.getResponses()[1].getResponse().getSourceAsMap().get("foo2").toString(), equalTo("bar2"));
+
+        assertThat(mgetResponse.getResponses()[2].getIndex(), is("nonExistingIndex"));
+        assertTrue(mgetResponse.getResponses()[2].isFailed());
+        assertThat(mgetResponse.getResponses()[2].getFailure().getMessage(), is("no such index [nonExistingIndex]"));
+    }
+
+    public void testRealtimeMultiGetRequestsUnsuccessful() {
+        final String primary = internalCluster().startDataOnlyNode();
+        assertAcked(
+            prepareCreate(INDEX_NAME).setSettings(
+                Settings.builder().put("index.refresh_interval", -1).put(indexSettings()).put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 2)
+            ).addAlias(new Alias("alias"))
+        );
+        final String replica = internalCluster().startDataOnlyNode();
+        ensureGreen(INDEX_NAME);
+
+        final String id = routingKeyForShard(INDEX_NAME, 0);
+        final String routingOtherShard = routingKeyForShard(INDEX_NAME, 1);
+
+        // index doc 1
+        client().prepareIndex(indexOrAlias()).setId("1").setSource("foo", "bar").setRouting(id).get();
+
+        // realtime multi get 1 (preference = _replica)
+        MultiGetResponse mgetResponse = client(replica).prepareMultiGet()
+            .add(new MultiGetRequest.Item(INDEX_NAME, "1"))
+            .setPreference(Preference.REPLICA.type())
+            .add(new MultiGetRequest.Item("nonExistingIndex", "1"))
+            .get();
+        assertThat(mgetResponse.getResponses().length, is(2));
+        assertThat(mgetResponse.getResponses()[0].getIndex(), is(INDEX_NAME));
+        assertFalse(mgetResponse.getResponses()[0].getResponse().isExists());
+
+        assertThat(mgetResponse.getResponses()[1].getIndex(), is("nonExistingIndex"));
+        assertTrue(mgetResponse.getResponses()[1].isFailed());
+
+        // realtime multi get 1 (routing set)
+        mgetResponse = client(replica).prepareMultiGet()
+            .add(new MultiGetRequest.Item(INDEX_NAME, "1").routing(routingOtherShard))
+            .add(new MultiGetRequest.Item("nonExistingIndex", "1"))
+            .get();
+        assertThat(mgetResponse.getResponses().length, is(2));
+        assertThat(mgetResponse.getResponses()[0].getIndex(), is(INDEX_NAME));
+        // expecting failure since we explicitly route request to a shard on which it doesn't exist
+        assertFalse(mgetResponse.getResponses()[0].getResponse().isExists());
+        assertThat(mgetResponse.getResponses()[1].getIndex(), is("nonExistingIndex"));
+        assertTrue(mgetResponse.getResponses()[1].isFailed());
+
+    }
+
+    /**
+     * Tests whether segment replication supports realtime termvector requests and reads and parses source from the translog to serve strong reads.
+     */
+    public void testRealtimeTermVectorRequestsSuccessful() throws IOException {
+        final String primary = internalCluster().startDataOnlyNode();
+        XContentBuilder mapping = jsonBuilder().startObject()
+            .startObject("properties")
+            .startObject("field")
+            .field("type", "text")
+            .field("term_vector", "with_positions_offsets_payloads")
+            .field("analyzer", "tv_test")
+            .endObject()
+            .endObject()
+            .endObject();
+        // refresh interval disabled to ensure refresh rate of index (when data is ready for search) doesn't affect realtime termvectors
+        assertAcked(
+            prepareCreate(INDEX_NAME).setMapping(mapping)
+                .addAlias(new Alias("alias"))
+                .setSettings(
+                    Settings.builder()
+                        .put(indexSettings())
+                        .put("index.analysis.analyzer.tv_test.tokenizer", "standard")
+                        .put("index.refresh_interval", -1)
+                        .putList("index.analysis.analyzer.tv_test.filter", "lowercase")
+                )
+        );
+        final String replica = internalCluster().startDataOnlyNode();
+        ensureGreen(INDEX_NAME);
+        final String id = routingKeyForShard(INDEX_NAME, 0);
+
+        TermVectorsResponse response = client(replica).prepareTermVectors(indexOrAlias(), "1").get();
+        assertFalse(response.isExists());
+
+        // index doc 1
+        client().prepareIndex(INDEX_NAME)
+            .setId(Integer.toString(1))
+            .setSource(jsonBuilder().startObject().field("field", "the quick brown fox jumps over the lazy dog").endObject())
+            .execute()
+            .actionGet();
+
+        // non realtime termvectors 1
+        response = client().prepareTermVectors(indexOrAlias(), Integer.toString(1)).setRealtime(false).get();
+        assertFalse(response.isExists());
+
+        // realtime termvectors 1
+        TermVectorsRequestBuilder resp = client().prepareTermVectors(indexOrAlias(), Integer.toString(1))
+            .setPayloads(true)
+            .setOffsets(true)
+            .setPositions(true)
+            .setRealtime(true)
+            .setSelectedFields();
+        response = resp.execute().actionGet();
+        assertThat(response.getIndex(), equalTo(INDEX_NAME));
+        assertThat("doc id: " + 1 + " doesn't exists but should", response.isExists(), equalTo(true));
+        Fields fields = response.getFields();
+        assertThat(fields.size(), equalTo(1));
+
+        // index doc 2 with routing
+        client().prepareIndex(INDEX_NAME)
+            .setId(Integer.toString(2))
+            .setRouting(id)
+            .setSource(jsonBuilder().startObject().field("field", "the quick brown fox jumps over the lazy dog").endObject())
+            .execute()
+            .actionGet();
+
+        // realtime termvectors 2 with routing
+        resp = client().prepareTermVectors(indexOrAlias(), Integer.toString(2))
+            .setPayloads(true)
+            .setOffsets(true)
+            .setPositions(true)
+            .setRouting(id)
+            .setSelectedFields();
+        response = resp.execute().actionGet();
+        assertThat(response.getIndex(), equalTo(INDEX_NAME));
+        assertThat("doc id: " + 1 + " doesn't exists but should", response.isExists(), equalTo(true));
+        fields = response.getFields();
+        assertThat(fields.size(), equalTo(1));
+
+    }
+
+    public void testRealtimeTermVectorRequestsUnSuccessful() throws IOException {
+        final String primary = internalCluster().startDataOnlyNode();
+        XContentBuilder mapping = jsonBuilder().startObject()
+            .startObject("properties")
+            .startObject("field")
+            .field("type", "text")
+            .field("term_vector", "with_positions_offsets_payloads")
+            .field("analyzer", "tv_test")
+            .endObject()
+            .endObject()
+            .endObject();
+        // refresh interval disabled to ensure refresh rate of index (when data is ready for search) doesn't affect realtime termvectors
+        assertAcked(
+            prepareCreate(INDEX_NAME).setMapping(mapping)
+                .addAlias(new Alias("alias"))
+                .setSettings(
+                    Settings.builder()
+                        .put(indexSettings())
+                        .put("index.analysis.analyzer.tv_test.tokenizer", "standard")
+                        .put("index.refresh_interval", -1)
+                        .putList("index.analysis.analyzer.tv_test.filter", "lowercase")
+                        .put(indexSettings())
+                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 2)
+                )
+        );
+        final String replica = internalCluster().startDataOnlyNode();
+        ensureGreen(INDEX_NAME);
+        final String id = routingKeyForShard(INDEX_NAME, 0);
+        final String routingOtherShard = routingKeyForShard(INDEX_NAME, 1);
+
+        // index doc 1
+        client().prepareIndex(INDEX_NAME)
+            .setId(Integer.toString(1))
+            .setSource(jsonBuilder().startObject().field("field", "the quick brown fox jumps over the lazy dog").endObject())
+            .setRouting(id)
+            .execute()
+            .actionGet();
+
+        // non realtime termvectors 1
+        TermVectorsResponse response = client().prepareTermVectors(indexOrAlias(), Integer.toString(1)).setRealtime(false).get();
+        assertFalse(response.isExists());
+
+        // realtime termvectors (preference = _replica)
+        TermVectorsRequestBuilder resp = client(replica).prepareTermVectors(indexOrAlias(), Integer.toString(1))
+            .setPayloads(true)
+            .setOffsets(true)
+            .setPositions(true)
+            .setPreference(Preference.REPLICA.type())
+            .setRealtime(true)
+            .setSelectedFields();
+        response = resp.execute().actionGet();
+
+        assertFalse(response.isExists());
+        assertThat(response.getIndex(), equalTo(INDEX_NAME));
+
+        // realtime termvectors (with routing set)
+        resp = client(replica).prepareTermVectors(indexOrAlias(), Integer.toString(1))
+            .setPayloads(true)
+            .setOffsets(true)
+            .setPositions(true)
+            .setRouting(routingOtherShard)
+            .setSelectedFields();
+        response = resp.execute().actionGet();
+
+        assertFalse(response.isExists());
+        assertThat(response.getIndex(), equalTo(INDEX_NAME));
+
+    }
+
 }

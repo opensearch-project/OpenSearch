@@ -32,6 +32,8 @@
 
 package org.opensearch.core.common.settings;
 
+import org.opensearch.common.annotation.PublicApi;
+
 import java.io.Closeable;
 import java.util.Arrays;
 import java.util.Objects;
@@ -39,8 +41,9 @@ import java.util.Objects;
 /**
  * A String implementations which allows clearing the underlying char array.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public final class SecureString implements CharSequence, Closeable {
 
     private char[] chars;

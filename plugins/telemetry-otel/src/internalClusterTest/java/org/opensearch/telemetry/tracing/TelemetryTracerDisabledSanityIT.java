@@ -63,6 +63,8 @@ public class TelemetryTracerDisabledSanityIT extends OpenSearchIntegTestCase {
 
         ensureGreen();
         refresh();
+        InMemorySingletonSpanExporter exporter = InMemorySingletonSpanExporter.INSTANCE;
+        exporter.reset();
 
         // Make the search call;
         client.prepareSearch().setQuery(queryStringQuery("fox")).get();
@@ -70,7 +72,6 @@ public class TelemetryTracerDisabledSanityIT extends OpenSearchIntegTestCase {
         // Sleep for about 3s to wait for traces are published (the delay is 1s)
         Thread.sleep(3000);
 
-        InMemorySingletonSpanExporter exporter = InMemorySingletonSpanExporter.create();
         assertTrue(exporter.getFinishedSpanItems().isEmpty());
     }
 

@@ -8,12 +8,15 @@
 
 package org.opensearch.test.telemetry.tracing;
 
+import org.opensearch.telemetry.tracing.Span;
+import org.opensearch.test.telemetry.tracing.validators.AllSpansAreEndedProperly;
+import org.opensearch.test.telemetry.tracing.validators.AllSpansHaveUniqueId;
+
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-
-import org.opensearch.telemetry.tracing.Span;
 
 /**
  * Strict check span processor to validate the spans.
@@ -57,8 +60,28 @@ public class StrictCheckSpanProcessor implements SpanProcessor {
             System.nanoTime(),
             false,
             span.getSpanName(),
-            Thread.currentThread().getStackTrace()
+            Thread.currentThread().getStackTrace(),
+            (span instanceof MockSpan) ? ((MockSpan) span).getAttributes() : Map.of()
         );
         return spanData;
+    }
+
+    /**
+     * Ensures the strict check succeeds for all the spans.
+     */
+    public static void validateTracingStateOnShutdown() {
+        List<MockSpanData> spanData = new ArrayList<>(spanMap.values());
+        if (spanData.size() != 0) {
+            TelemetryValidators validators = new TelemetryValidators(
+                Arrays.asList(new AllSpansAreEndedProperly(), new AllSpansHaveUniqueId())
+            );
+            try {
+                validators.validate(spanData, 1);
+            } catch (Error e) {
+                spanMap.clear();
+                throw e;
+            }
+        }
+
     }
 }

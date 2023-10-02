@@ -32,11 +32,11 @@
 
 package org.opensearch.ingest;
 
-import java.util.Collections;
-import java.util.Map;
-
 import org.opensearch.plugins.IngestPlugin;
 import org.opensearch.plugins.Plugin;
+
+import java.util.Collections;
+import java.util.Map;
 
 /**
  * Adds an ingest processor to be used in tests.

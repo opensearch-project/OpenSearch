@@ -42,11 +42,21 @@ import java.util.Objects;
  *
  * @opensearch.internal
  */
-abstract class SearchPhase implements CheckedRunnable<IOException> {
+public abstract class SearchPhase implements CheckedRunnable<IOException> {
     private final String name;
+    private long startTimeInNanos;
 
     protected SearchPhase(String name) {
         this.name = Objects.requireNonNull(name, "name must not be null");
+    }
+
+    public long getStartTimeInNanos() {
+        return startTimeInNanos;
+    }
+
+    public void recordAndRun() throws IOException {
+        this.startTimeInNanos = System.nanoTime();
+        run();
     }
 
     /**

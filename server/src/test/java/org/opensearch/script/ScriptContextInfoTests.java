@@ -32,13 +32,13 @@
 
 package org.opensearch.script;
 
-import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.common.collect.Tuple;
+import org.opensearch.common.xcontent.XContentFactory;
+import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.xcontent.DeprecationHandler;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.script.ScriptContextInfo.ScriptMethodInfo;
 import org.opensearch.script.ScriptContextInfo.ScriptMethodInfo.ParameterInfo;

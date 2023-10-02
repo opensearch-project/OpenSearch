@@ -32,6 +32,7 @@
 package org.opensearch.gradle.precommit;
 
 import de.thetaphi.forbiddenapis.cli.CliMain;
+
 import org.apache.commons.io.output.NullOutputStream;
 import org.opensearch.gradle.LoggedExec;
 import org.opensearch.gradle.OS;

@@ -32,8 +32,8 @@
 package org.opensearch.search.aggregations.metrics;
 
 import org.opensearch.common.Nullable;
-import org.opensearch.core.ParseField;
 import org.opensearch.common.TriFunction;
+import org.opensearch.core.ParseField;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;

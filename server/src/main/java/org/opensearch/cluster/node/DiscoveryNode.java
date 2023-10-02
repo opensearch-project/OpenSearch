@@ -34,15 +34,17 @@ package org.opensearch.cluster.node;
 
 import org.opensearch.Version;
 import org.opensearch.common.UUIDs;
+import org.opensearch.common.annotation.PublicApi;
+import org.opensearch.common.settings.Setting;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
-import org.opensearch.common.settings.Setting;
-import org.opensearch.common.settings.Settings;
 import org.opensearch.core.common.transport.TransportAddress;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.node.Node;
+import org.opensearch.node.remotestore.RemoteStoreNodeService;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -60,12 +62,14 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.opensearch.node.NodeRoleSettings.NODE_ROLES_SETTING;
+import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_NODE_ATTRIBUTE_KEY_PREFIX;
 
 /**
  * A discovery node represents a node that is part of the cluster.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class DiscoveryNode implements Writeable, ToXContentFragment {
 
     static final String COORDINATING_ONLY = "coordinating_only";
@@ -279,6 +283,27 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
         return new DiscoveryNode(Node.NODE_NAME_SETTING.get(settings), nodeId, publishAddress, attributes, roles, Version.CURRENT);
     }
 
+    /** Creates a DiscoveryNode representing the local node and verifies the repository. */
+    public static DiscoveryNode createRemoteNodeLocal(
+        Settings settings,
+        TransportAddress publishAddress,
+        String nodeId,
+        RemoteStoreNodeService remoteStoreNodeService
+    ) {
+        Map<String, String> attributes = Node.NODE_ATTRIBUTES.getAsMap(settings);
+        Set<DiscoveryNodeRole> roles = getRolesFromSettings(settings);
+        DiscoveryNode discoveryNode = new DiscoveryNode(
+            Node.NODE_NAME_SETTING.get(settings),
+            nodeId,
+            publishAddress,
+            attributes,
+            roles,
+            Version.CURRENT
+        );
+        remoteStoreNodeService.createAndVerifyRepositories(discoveryNode);
+        return discoveryNode;
+    }
+
     /** extract node roles from the given settings */
     public static Set<DiscoveryNodeRole> getRolesFromSettings(final Settings settings) {
         if (NODE_ROLES_SETTING.exists(settings)) {
@@ -456,6 +481,15 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
      */
     public boolean isSearchNode() {
         return roles.contains(DiscoveryNodeRole.SEARCH_ROLE);
+    }
+
+    /**
+     * Returns whether the node is a remote store node.
+     *
+     * @return true if the node contains remote store node attributes, false otherwise
+     */
+    public boolean isRemoteStoreNode() {
+        return this.getAttributes().keySet().stream().anyMatch(key -> key.startsWith(REMOTE_STORE_NODE_ATTRIBUTE_KEY_PREFIX));
     }
 
     /**

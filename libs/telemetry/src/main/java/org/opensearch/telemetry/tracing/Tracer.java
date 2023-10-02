@@ -8,6 +8,9 @@
 
 package org.opensearch.telemetry.tracing;
 
+import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.telemetry.tracing.http.HttpTracer;
+
 import java.io.Closeable;
 
 /**
@@ -15,28 +18,39 @@ import java.io.Closeable;
  * It automatically handles the context propagation between threads, tasks, nodes etc.
  *
  * All methods on the Tracer object are multi-thread safe.
+ *
+ * @opensearch.experimental
  */
-public interface Tracer extends Closeable {
-
+@ExperimentalApi
+public interface Tracer extends HttpTracer, Closeable {
     /**
-     * Starts the {@link Span} with given name
+     * Starts the {@link Span} with given {@link SpanCreationContext}
      *
-     * @param spanName span name
-     * @return scope of the span, must be closed with explicit close or with try-with-resource
+     * @param context span context
+     * @return span, must be closed.
      */
-    SpanScope startSpan(String spanName);
-
-    /**
-     *  Started the {@link Span} with the given name and parent.
-     * @param spanName span name.
-     * @param parentSpan parent span.
-     * @return scope of the span, must be closed with explicit close or with try-with-resource
-     */
-    SpanScope startSpan(String spanName, SpanContext parentSpan);
+    Span startSpan(SpanCreationContext context);
 
     /**
      * Returns the current span.
      * @return current wrapped span.
      */
     SpanContext getCurrentSpan();
+
+    /**
+     * Start the span and scoped it. This must be used for scenarios where {@link SpanScope} and {@link Span} lifecycles
+     * are same and ends within the same thread where created.
+     * @param spanCreationContext span creation context
+     * @return scope of the span, must be closed with explicit close or with try-with-resource
+     */
+    ScopedSpan startScopedSpan(SpanCreationContext spanCreationContext);
+
+    /**
+     * Creates the Span Scope for a current thread. It's mandatory to scope the span just after creation so that it will
+     * automatically manage the attach /detach to the current thread.
+     * @param span span to be scoped
+     * @return ScopedSpan
+     */
+    SpanScope withSpanInScope(Span span);
+
 }
