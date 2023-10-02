@@ -21,8 +21,6 @@ import java.security.AccessController;
 import java.security.PrivilegedActionException;
 import java.security.PrivilegedExceptionAction;
 
-import io.opentelemetry.exporter.otlp.metrics.OtlpGrpcMetricExporter;
-import io.opentelemetry.sdk.metrics.export.AggregationTemporalitySelector;
 import io.opentelemetry.sdk.metrics.export.MetricExporter;
 
 /**
@@ -48,15 +46,8 @@ public class OTelMetricsExporterFactory {
      */
     public static MetricExporter create(Settings settings) {
         Class<MetricExporter> MetricExporterProviderClass = OTelTelemetrySettings.OTEL_METRICS_EXPORTER_CLASS_SETTING.get(settings);
-        MetricExporter metricExporter;
-        if (MetricExporterProviderClass.getName().equals("io.opentelemetry.exporter.otlp.metrics.OtlpGrpcMetricExporter")) {
-            metricExporter = OtlpGrpcMetricExporter.builder()
-                .setAggregationTemporalitySelector(AggregationTemporalitySelector.deltaPreferred())
-                .build();
-        } else {
-            metricExporter = instantiateExporter(MetricExporterProviderClass);
-        }
-        logger.info("Successfully instantiated the Metrics Exporter class {}", MetricExporterProviderClass);
+        MetricExporter metricExporter = instantiateExporter(MetricExporterProviderClass);
+        logger.info("Successfully instantiated the Metrics MetricExporter class {}", MetricExporterProviderClass);
         return metricExporter;
     }
 
@@ -83,7 +74,7 @@ public class OTelMetricsExporterFactory {
                         throw new IllegalStateException("No create factory method exist in [" + exporterProviderClass.getName() + "]");
                     } else {
                         throw new IllegalStateException(
-                            "Exporter instantiation failed for class [" + exporterProviderClass.getName() + "]",
+                            "MetricExporter instantiation failed for class [" + exporterProviderClass.getName() + "]",
                             e.getCause()
                         );
                     }
@@ -91,7 +82,7 @@ public class OTelMetricsExporterFactory {
             });
         } catch (PrivilegedActionException ex) {
             throw new IllegalStateException(
-                "Exporter instantiation failed for class [" + exporterProviderClass.getName() + "]",
+                "MetricExporter instantiation failed for class [" + exporterProviderClass.getName() + "]",
                 ex.getCause()
             );
         }
