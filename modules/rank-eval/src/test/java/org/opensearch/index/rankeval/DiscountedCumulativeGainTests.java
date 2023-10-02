@@ -94,7 +94,7 @@ public class DiscountedCumulativeGainTests extends OpenSearchTestCase {
         /*
           Check with normalization: to get the maximal possible dcg, sort documents by
           relevance in descending order
-          <p>
+
           rank | relevance | 2^(relevance) - 1 | log_2(rank + 1) | (2^(relevance) - 1) / log_2(rank + 1)
           ---------------------------------------------------------------------------------------
           1 | 3 | 7.0 | 1.0  | 7.0
@@ -146,7 +146,7 @@ public class DiscountedCumulativeGainTests extends OpenSearchTestCase {
         /*
           Check with normalization: to get the maximal possible dcg, sort documents by
           relevance in descending order
-          <p>
+
           rank | relevance | 2^(relevance) - 1 | log_2(rank + 1) | (2^(relevance) - 1) / log_2(rank + 1)
           ----------------------------------------------------------------------------------------
           1 | 3 | 7.0 | 1.0  | 7.0
@@ -203,7 +203,7 @@ public class DiscountedCumulativeGainTests extends OpenSearchTestCase {
         /*
           Check with normalization: to get the maximal possible dcg, sort documents by
           relevance in descending order
-          <p>
+
           rank | relevance | 2^(relevance) - 1 | log_2(rank + 1) | (2^(relevance) - 1) / log_2(rank + 1)
           ---------------------------------------------------------------------------------------
           1 | 3 | 7.0 | 1.0  | 7.0
