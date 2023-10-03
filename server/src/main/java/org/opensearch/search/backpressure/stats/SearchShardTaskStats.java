@@ -31,7 +31,7 @@ import java.util.Objects;
 public class SearchShardTaskStats implements ToXContentObject, Writeable {
     private final long cancellationCount;
     private final long limitReachedCount;
-    private long completionCount;
+    private final long completionCount;
     private final Map<TaskResourceUsageTrackerType, TaskResourceUsageTracker.Stats> resourceUsageTrackerStats;
 
     public SearchShardTaskStats(
