@@ -213,7 +213,7 @@ Closure commonPackageConfig(String type, boolean jdk, String architecture) {
     configurationFile '/etc/opensearch/jvm.options'
     configurationFile '/etc/opensearch/log4j2.properties'
     from("${packagingFiles}") {
-      dirMode 02750
+      dirMode 0750
       into('/etc')
       permissionGroup 'opensearch'
       includeEmptyDirs true
@@ -223,7 +223,7 @@ Closure commonPackageConfig(String type, boolean jdk, String architecture) {
     }
     from("${packagingFiles}/etc/opensearch") {
       into('/etc/opensearch')
-      dirMode 02750
+      dirMode 0750
       fileMode 0660
       permissionGroup 'opensearch'
       includeEmptyDirs true
@@ -281,8 +281,8 @@ Closure commonPackageConfig(String type, boolean jdk, String architecture) {
         dirMode mode
       }
     }
-    copyEmptyDir('/var/log/opensearch', 'opensearch', 'opensearch', 02750)
-    copyEmptyDir('/var/lib/opensearch', 'opensearch', 'opensearch', 02750)
+    copyEmptyDir('/var/log/opensearch', 'opensearch', 'opensearch', 0750)
+    copyEmptyDir('/var/lib/opensearch', 'opensearch', 'opensearch', 0750)
     copyEmptyDir('/usr/share/opensearch/plugins', 'root', 'root', 0755)
 
     into '/usr/share/opensearch'
