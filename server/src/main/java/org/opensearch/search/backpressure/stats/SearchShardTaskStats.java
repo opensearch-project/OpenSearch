@@ -31,7 +31,7 @@ import java.util.Objects;
 public class SearchShardTaskStats implements ToXContentObject, Writeable {
     private final long cancellationCount;
     private final long limitReachedCount;
-    private final Long completionCount;
+    private final long completionCount;
     private final Map<TaskResourceUsageTrackerType, TaskResourceUsageTracker.Stats> resourceUsageTrackerStats;
 
     public SearchShardTaskStats(
@@ -50,9 +50,9 @@ public class SearchShardTaskStats implements ToXContentObject, Writeable {
         this.cancellationCount = in.readVLong();
         this.limitReachedCount = in.readVLong();
         if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
-            completionCount = in.readOptionalVLong();
+            completionCount = in.readVLong();
         } else {
-            completionCount = null;
+            completionCount = -1;
         }
 
         MapBuilder<TaskResourceUsageTrackerType, TaskResourceUsageTracker.Stats> builder = new MapBuilder<>();
@@ -71,7 +71,7 @@ public class SearchShardTaskStats implements ToXContentObject, Writeable {
             builder.field(entry.getKey().getName(), entry.getValue());
         }
         builder.endObject();
-        if (completionCount != null) {
+        if (completionCount != -1) {
             builder.field("completion_count", completionCount);
         }
 
@@ -88,7 +88,7 @@ public class SearchShardTaskStats implements ToXContentObject, Writeable {
         out.writeVLong(cancellationCount);
         out.writeVLong(limitReachedCount);
         if (out.getVersion().onOrAfter(Version.V_3_0_0)) {
-            out.writeOptionalVLong(completionCount);
+            out.writeVLong(completionCount);
         }
 
         out.writeOptionalWriteable(resourceUsageTrackerStats.get(TaskResourceUsageTrackerType.CPU_USAGE_TRACKER));
@@ -103,7 +103,7 @@ public class SearchShardTaskStats implements ToXContentObject, Writeable {
         SearchShardTaskStats that = (SearchShardTaskStats) o;
         return cancellationCount == that.cancellationCount
             && limitReachedCount == that.limitReachedCount
-            && Objects.equals(completionCount, that.completionCount)
+            && completionCount == completionCount
             && resourceUsageTrackerStats.equals(that.resourceUsageTrackerStats);
     }
 
