@@ -17,9 +17,8 @@ import org.opensearch.core.action.ActionListener;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
-import org.junit.AfterClass;
+import org.junit.After;
 import org.junit.Before;
-import org.junit.BeforeClass;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -31,6 +30,7 @@ import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.function.UnaryOperator;
 
 import static org.opensearch.common.blobstore.stream.read.listener.ListenerTestUtils.CountingCompletionListener;
@@ -44,19 +44,19 @@ import static org.opensearch.common.blobstore.stream.read.listener.ListenerTestU
 public class ReadContextListenerTests extends OpenSearchTestCase {
 
     private Path path;
-    private static ThreadPool threadPool;
+    private ThreadPool threadPool;
     private static final int NUMBER_OF_PARTS = 5;
     private static final int PART_SIZE = 10;
     private static final String TEST_SEGMENT_FILE = "test_segment_file";
     private static final int MAX_CONCURRENT_STREAMS = 10;
 
-    @BeforeClass
-    public static void setup() {
+    @Before
+    public void setup() {
         threadPool = new TestThreadPool(ReadContextListenerTests.class.getName());
     }
 
-    @AfterClass
-    public static void cleanup() {
+    @After
+    public void cleanup() {
         threadPool.shutdown();
     }
 
@@ -130,6 +130,7 @@ public class ReadContextListenerTests extends OpenSearchTestCase {
 
         countDownLatch.await();
         assertFalse(Files.exists(fileLocation));
+        assertFalse(Files.exists(readContextListener.getTmpFileLocation()));
     }
 
     public void testReadContextListenerException() {
@@ -147,6 +148,108 @@ public class ReadContextListenerTests extends OpenSearchTestCase {
         readContextListener.onFailure(exception);
         assertEquals(1, listener.getFailureCount());
         assertEquals(exception, listener.getException());
+    }
+
+    public void testWriteToTempFile() throws Exception {
+        final String fileName = UUID.randomUUID().toString();
+        Path fileLocation = path.resolve(fileName);
+        List<ReadContext.StreamPartCreator> blobPartStreams = initializeBlobPartStreams();
+        CountDownLatch countDownLatch = new CountDownLatch(1);
+        ActionListener<String> completionListener = new LatchedActionListener<>(new PlainActionFuture<>(), countDownLatch);
+        ReadContextListener readContextListener = new ReadContextListener(
+            TEST_SEGMENT_FILE,
+            fileLocation,
+            completionListener,
+            threadPool,
+            UnaryOperator.identity(),
+            MAX_CONCURRENT_STREAMS
+        );
+        ByteArrayInputStream assertingStream = new ByteArrayInputStream(randomByteArrayOfLength(PART_SIZE)) {
+            @Override
+            public int read(byte[] b) throws IOException {
+                assertTrue("parts written to temp file location", Files.exists(readContextListener.getTmpFileLocation()));
+                return super.read(b);
+            }
+        };
+        blobPartStreams.add(
+            NUMBER_OF_PARTS,
+            () -> CompletableFuture.supplyAsync(
+                () -> new InputStreamContainer(assertingStream, PART_SIZE, PART_SIZE * NUMBER_OF_PARTS),
+                threadPool.generic()
+            )
+        );
+        ReadContext readContext = new ReadContext((long) (PART_SIZE + 1) * NUMBER_OF_PARTS + 1, blobPartStreams, null);
+        readContextListener.onResponse(readContext);
+
+        countDownLatch.await();
+        assertTrue(Files.exists(fileLocation));
+        assertFalse(Files.exists(readContextListener.getTmpFileLocation()));
+    }
+
+    public void testWriteToTempFile_alreadyExists_replacesFile() throws Exception {
+        final String fileName = UUID.randomUUID().toString();
+        Path fileLocation = path.resolve(fileName);
+        // create an empty file at location.
+        Files.createFile(fileLocation);
+        assertEquals(0, Files.readAllBytes(fileLocation).length);
+        List<ReadContext.StreamPartCreator> blobPartStreams = initializeBlobPartStreams();
+        CountDownLatch countDownLatch = new CountDownLatch(1);
+        ActionListener<String> completionListener = new LatchedActionListener<>(new PlainActionFuture<>(), countDownLatch);
+        ReadContextListener readContextListener = new ReadContextListener(
+            TEST_SEGMENT_FILE,
+            fileLocation,
+            completionListener,
+            threadPool,
+            UnaryOperator.identity(),
+            MAX_CONCURRENT_STREAMS
+        );
+        ReadContext readContext = new ReadContext((long) (PART_SIZE + 1) * NUMBER_OF_PARTS, blobPartStreams, null);
+        readContextListener.onResponse(readContext);
+
+        countDownLatch.await();
+        assertTrue(Files.exists(fileLocation));
+        assertEquals(50, Files.readAllBytes(fileLocation).length);
+        assertFalse(Files.exists(readContextListener.getTmpFileLocation()));
+    }
+
+    /**
+     * Simulate a node drop by invoking shutDownNow on the thread pool while writing a part.
+     */
+    public void testTerminateThreadsWhileWritingParts() throws Exception {
+        final String fileName = UUID.randomUUID().toString();
+        Path fileLocation = path.resolve(fileName);
+        List<ReadContext.StreamPartCreator> blobPartStreams = initializeBlobPartStreams();
+        CountDownLatch countDownLatch = new CountDownLatch(1);
+        ActionListener<String> completionListener = new LatchedActionListener<>(new PlainActionFuture<>(), countDownLatch);
+        ReadContextListener readContextListener = new ReadContextListener(
+            TEST_SEGMENT_FILE,
+            fileLocation,
+            completionListener,
+            threadPool,
+            UnaryOperator.identity(),
+            MAX_CONCURRENT_STREAMS
+        );
+        ByteArrayInputStream assertingStream = new ByteArrayInputStream(randomByteArrayOfLength(PART_SIZE)) {
+            @Override
+            public int read(byte[] b) throws IOException {
+                assertTrue("parts written to temp file location", Files.exists(readContextListener.getTmpFileLocation()));
+                threadPool.shutdownNow();
+                return super.read(b);
+            }
+        };
+        blobPartStreams.add(
+            NUMBER_OF_PARTS,
+            () -> CompletableFuture.supplyAsync(
+                () -> new InputStreamContainer(assertingStream, PART_SIZE, PART_SIZE * NUMBER_OF_PARTS + 1),
+                threadPool.generic()
+            )
+        );
+        ReadContext readContext = new ReadContext((long) (PART_SIZE + 1) * NUMBER_OF_PARTS + 1, blobPartStreams, null);
+        readContextListener.onResponse(readContext);
+        countDownLatch.await(5, TimeUnit.SECONDS);
+        assertTrue(terminate(threadPool));
+        assertFalse(Files.exists(fileLocation));
+        assertFalse(Files.exists(readContextListener.getTmpFileLocation()));
     }
 
     private List<ReadContext.StreamPartCreator> initializeBlobPartStreams() {
