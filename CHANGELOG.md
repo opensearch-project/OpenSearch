@@ -107,10 +107,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `org.xerial.snappy:snappy-java` from 1.1.10.3 to 1.1.10.4 ([#10206](https://github.com/opensearch-project/OpenSearch/pull/10206))
 - Bump `com.google.api.grpc:proto-google-common-protos` from 2.10.0 to 2.25.0 ([#10208](https://github.com/opensearch-project/OpenSearch/pull/10208))
 - Bump `codecov/codecov-action` from 2 to 3 ([#10209](https://github.com/opensearch-project/OpenSearch/pull/10209))
-- Bump `org.bouncycastle:bcpkix-jdk15to18` from 1.75 to 1.76 ([#10219](https://github.com/opensearch-project/OpenSearch/pull/10219))`
-- Bump `org.bouncycastle:bcprov-jdk15to18` from 1.75 to 1.76 ([#10219](https://github.com/opensearch-project/OpenSearch/pull/10219))`
-- Bump `org.bouncycastle:bcmail-jdk15to18` from 1.75 to 1.76 ([#10219](https://github.com/opensearch-project/OpenSearch/pull/10219))`
-- Bump Lucene from 9.7.0 to 9.8.0 ([#10276](https://github.com/opensearch-project/OpenSearch/pull/10276))
+- Bump `org.bouncycastle:bcpkix-jdk15to18` from 1.75 to 1.76 ([10219](https://github.com/opensearch-project/OpenSearch/pull/10219))`
+- Bump `org.bouncycastle:bcprov-jdk15to18` from 1.75 to 1.76 ([10219](https://github.com/opensearch-project/OpenSearch/pull/10219))`
+- Bump `org.bouncycastle:bcmail-jdk15to18` from 1.75 to 1.76 ([10219](https://github.com/opensearch-project/OpenSearch/pull/10219))`
+- Bump Lucene from 9.7.0 to 9.8.0 ([10276](https://github.com/opensearch-project/OpenSearch/pull/10276))
+- Bump `com.netflix.nebula.ospackage-base` from 11.4.0 to 11.5.0 ([#10295](https://github.com/opensearch-project/OpenSearch/pull/10295))
 - Bump asm from 9.5 to 9.6 ([#10302](https://github.com/opensearch-project/OpenSearch/pull/10302))
 - Bump netty from 4.1.97.Final to 4.1.99.Final ([#10303](https://github.com/opensearch-project/OpenSearch/pull/10303))
 - Bump `peter-evans/create-pull-request` from 3 to 5 ([#10301](https://github.com/opensearch-project/OpenSearch/pull/10301))
