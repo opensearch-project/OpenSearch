@@ -21,7 +21,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 
-import io.opentelemetry.api.OpenTelemetry;
+import io.opentelemetry.sdk.OpenTelemetrySdk;
 
 /**
  * Telemetry plugin based on Otel
@@ -64,7 +64,7 @@ public class OTelTelemetryPlugin extends Plugin implements TelemetryPlugin {
     }
 
     private Telemetry telemetry(TelemetrySettings telemetrySettings) {
-        final OpenTelemetry openTelemetry = OTelResourceProvider.get(telemetrySettings, settings);
+        final OpenTelemetrySdk openTelemetry = OTelResourceProvider.get(telemetrySettings, settings);
         return new OTelTelemetry(new OTelTracingTelemetry(openTelemetry), new OTelMetricsTelemetry(openTelemetry));
     }
 

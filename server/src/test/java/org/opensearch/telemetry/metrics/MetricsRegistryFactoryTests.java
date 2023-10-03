@@ -37,7 +37,7 @@ public class MetricsRegistryFactoryTests extends OpenSearchTestCase {
         metricsRegistryFactory.close();
     }
 
-    public void testGetMeterRegistrywithUnavailableMetricsTelemetry() {
+    public void testGetMeterRegistryWithUnavailableMetricsTelemetry() {
         Settings settings = Settings.builder().put(TelemetrySettings.TRACER_ENABLED_SETTING.getKey(), false).build();
         TelemetrySettings telemetrySettings = new TelemetrySettings(settings, new ClusterSettings(settings, getClusterSettings()));
         Telemetry mockTelemetry = mock(Telemetry.class);
@@ -51,7 +51,7 @@ public class MetricsRegistryFactoryTests extends OpenSearchTestCase {
         assertTrue(metricsRegistry.createUpDownCounter("test", "test", "test") == NoopCounter.INSTANCE);
     }
 
-    public void testGetTracerWithAvailableTracingTelemetryReturnsWrappedTracer() {
+    public void testGetMetricsWithAvailableMetricsTelemetry() {
         Settings settings = Settings.builder().put(TelemetrySettings.TRACER_ENABLED_SETTING.getKey(), true).build();
         TelemetrySettings telemetrySettings = new TelemetrySettings(settings, new ClusterSettings(settings, getClusterSettings()));
         Telemetry mockTelemetry = mock(Telemetry.class);
@@ -59,7 +59,7 @@ public class MetricsRegistryFactoryTests extends OpenSearchTestCase {
         metricsRegistryFactory = new MetricsRegistryFactory(telemetrySettings, Optional.of(mockTelemetry));
 
         MetricsRegistry metricsRegistry = metricsRegistryFactory.getMetricsRegistry();
-        assertTrue(metricsRegistry instanceof WrappedMetricsRegistry);
+        assertTrue(metricsRegistry instanceof DefaultMetricsRegistry);
 
     }
 

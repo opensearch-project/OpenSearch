@@ -15,10 +15,10 @@ import org.opensearch.test.OpenSearchTestCase;
 import java.util.Collections;
 import java.util.Map;
 
-import io.opentelemetry.api.OpenTelemetry;
 import io.opentelemetry.api.common.AttributesBuilder;
 import io.opentelemetry.api.trace.SpanBuilder;
 import io.opentelemetry.api.trace.Tracer;
+import io.opentelemetry.sdk.OpenTelemetrySdk;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
@@ -29,7 +29,7 @@ import static org.mockito.Mockito.when;
 public class OTelTracingTelemetryTests extends OpenSearchTestCase {
 
     public void testCreateSpanWithoutParent() {
-        OpenTelemetry mockOpenTelemetry = mock(OpenTelemetry.class);
+        OpenTelemetrySdk mockOpenTelemetry = mock(OpenTelemetrySdk.class);
         Tracer mockTracer = mock(Tracer.class);
         when(mockOpenTelemetry.getTracer(OTelTelemetryPlugin.INSTRUMENTATION_SCOPE_NAME)).thenReturn(mockTracer);
         SpanBuilder mockSpanBuilder = mock(SpanBuilder.class);
@@ -47,7 +47,7 @@ public class OTelTracingTelemetryTests extends OpenSearchTestCase {
     }
 
     public void testCreateSpanWithParent() {
-        OpenTelemetry mockOpenTelemetry = mock(OpenTelemetry.class);
+        OpenTelemetrySdk mockOpenTelemetry = mock(OpenTelemetrySdk.class);
         Tracer mockTracer = mock(Tracer.class);
         when(mockOpenTelemetry.getTracer(OTelTelemetryPlugin.INSTRUMENTATION_SCOPE_NAME)).thenReturn(mockTracer);
         SpanBuilder mockSpanBuilder = mock(SpanBuilder.class);
@@ -71,7 +71,7 @@ public class OTelTracingTelemetryTests extends OpenSearchTestCase {
     }
 
     public void testCreateSpanWithParentWithMultipleAttributes() {
-        OpenTelemetry mockOpenTelemetry = mock(OpenTelemetry.class);
+        OpenTelemetrySdk mockOpenTelemetry = mock(OpenTelemetrySdk.class);
         Tracer mockTracer = mock(Tracer.class);
         when(mockOpenTelemetry.getTracer(OTelTelemetryPlugin.INSTRUMENTATION_SCOPE_NAME)).thenReturn(mockTracer);
         SpanBuilder mockSpanBuilder = mock(SpanBuilder.class);
@@ -117,7 +117,7 @@ public class OTelTracingTelemetryTests extends OpenSearchTestCase {
     }
 
     public void testGetContextPropagator() {
-        OpenTelemetry mockOpenTelemetry = mock(OpenTelemetry.class);
+        OpenTelemetrySdk mockOpenTelemetry = mock(OpenTelemetrySdk.class);
         Tracer mockTracer = mock(Tracer.class);
         when(mockOpenTelemetry.getTracer(OTelTelemetryPlugin.INSTRUMENTATION_SCOPE_NAME)).thenReturn(mockTracer);
 

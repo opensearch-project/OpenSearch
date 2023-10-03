@@ -28,13 +28,6 @@ public class TelemetrySettings {
         Setting.Property.Dynamic
     );
 
-    public static final Setting<Boolean> METRICS_ENABLED_SETTING = Setting.boolSetting(
-        "telemetry.metrics.enabled",
-        false,
-        Setting.Property.NodeScope,
-        Setting.Property.Dynamic
-    );
-
     /**
      * Probability of sampler
      */
@@ -60,16 +53,12 @@ public class TelemetrySettings {
     private volatile boolean tracingEnabled;
     private volatile double samplingProbability;
 
-    private volatile boolean metricsEnabled;
-
     public TelemetrySettings(Settings settings, ClusterSettings clusterSettings) {
         this.tracingEnabled = TRACER_ENABLED_SETTING.get(settings);
         this.samplingProbability = TRACER_SAMPLER_PROBABILITY.get(settings);
-        this.metricsEnabled = METRICS_ENABLED_SETTING.get(settings);
 
         clusterSettings.addSettingsUpdateConsumer(TRACER_ENABLED_SETTING, this::setTracingEnabled);
         clusterSettings.addSettingsUpdateConsumer(TRACER_SAMPLER_PROBABILITY, this::setSamplingProbability);
-        clusterSettings.addSettingsUpdateConsumer(METRICS_ENABLED_SETTING, this::setMetricsEnabled);
     }
 
     public void setTracingEnabled(boolean tracingEnabled) {
@@ -94,21 +83,4 @@ public class TelemetrySettings {
     public double getSamplingProbability() {
         return samplingProbability;
     }
-
-    /**
-     * update the metrics enabled property.
-     * @param metricsEnabled metrics enabled.
-     */
-    public void setMetricsEnabled(boolean metricsEnabled) {
-        this.metricsEnabled = metricsEnabled;
-    }
-
-    /**
-     * Returns whether metrics are enabled or not.
-     * @return enabled/disabled flag.
-     */
-    public boolean isMetricsEnabled() {
-        return metricsEnabled;
-    }
-
 }

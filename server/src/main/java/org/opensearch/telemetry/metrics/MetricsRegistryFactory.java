@@ -65,17 +65,12 @@ public class MetricsRegistryFactory implements Closeable {
     private MetricsRegistry metricsRegistry(Optional<Telemetry> telemetry) {
         MetricsRegistry metricsRegistry = telemetry.map(Telemetry::getMetricsTelemetry)
             .map(metricsTelemetry -> createDefaultMetricsRegistry(metricsTelemetry))
-            .map(defaultMetricsRegistry -> createWrappedMetricsRegistry(defaultMetricsRegistry))
             .orElse(NoopMetricsRegistry.INSTANCE);
         return metricsRegistry;
     }
 
     private MetricsRegistry createDefaultMetricsRegistry(MetricsTelemetry metricsTelemetry) {
         return new DefaultMetricsRegistry(metricsTelemetry);
-    }
-
-    private MetricsRegistry createWrappedMetricsRegistry(MetricsRegistry metricsRegistry) {
-        return new WrappedMetricsRegistry(telemetrySettings, metricsRegistry);
     }
 
 }

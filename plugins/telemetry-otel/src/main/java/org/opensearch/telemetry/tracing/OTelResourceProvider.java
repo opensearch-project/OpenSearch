@@ -19,7 +19,6 @@ import java.security.AccessController;
 import java.security.PrivilegedAction;
 import java.util.concurrent.TimeUnit;
 
-import io.opentelemetry.api.OpenTelemetry;
 import io.opentelemetry.api.common.Attributes;
 import io.opentelemetry.api.trace.propagation.W3CTraceContextPropagator;
 import io.opentelemetry.context.propagation.ContextPropagators;
@@ -47,11 +46,11 @@ public final class OTelResourceProvider {
      * Creates OpenTelemetry instance with default configuration
      * @param telemetrySettings telemetry settings
      * @param settings cluster settings
-     * @return OpenTelemetry instance
+     * @return OpenTelemetrySdk instance
      */
-    public static OpenTelemetry get(TelemetrySettings telemetrySettings, Settings settings) {
+    public static OpenTelemetrySdk get(TelemetrySettings telemetrySettings, Settings settings) {
         return AccessController.doPrivileged(
-            (PrivilegedAction<OpenTelemetry>) () -> get(
+            (PrivilegedAction<OpenTelemetrySdk>) () -> get(
                 settings,
                 OTelSpanExporterFactory.create(settings),
                 ContextPropagators.create(W3CTraceContextPropagator.getInstance()),
@@ -66,9 +65,14 @@ public final class OTelResourceProvider {
      * @param spanExporter span exporter instance
      * @param contextPropagators context propagator instance
      * @param sampler sampler instance
-     * @return Opentelemetry instance
+     * @return OpenTelemetrySdk instance
      */
-    public static OpenTelemetry get(Settings settings, SpanExporter spanExporter, ContextPropagators contextPropagators, Sampler sampler) {
+    public static OpenTelemetrySdk get(
+        Settings settings,
+        SpanExporter spanExporter,
+        ContextPropagators contextPropagators,
+        Sampler sampler
+    ) {
         Resource resource = Resource.create(Attributes.of(ResourceAttributes.SERVICE_NAME, "OpenSearch"));
         SdkTracerProvider sdkTracerProvider = createSdkTracerProvider(settings, spanExporter, sampler, resource);
         SdkMeterProvider sdkMeterProvider = createSdkMetricProvider(settings, resource);

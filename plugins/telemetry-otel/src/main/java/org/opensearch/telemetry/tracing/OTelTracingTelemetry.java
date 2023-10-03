@@ -13,7 +13,6 @@ import org.apache.logging.log4j.Logger;
 import org.opensearch.telemetry.OTelAttributesConverter;
 import org.opensearch.telemetry.OTelTelemetryPlugin;
 
-import io.opentelemetry.api.OpenTelemetry;
 import io.opentelemetry.context.Context;
 import io.opentelemetry.sdk.OpenTelemetrySdk;
 
@@ -23,14 +22,14 @@ import io.opentelemetry.sdk.OpenTelemetrySdk;
 public class OTelTracingTelemetry implements TracingTelemetry {
 
     private static final Logger logger = LogManager.getLogger(OTelTracingTelemetry.class);
-    private final OpenTelemetry openTelemetry;
+    private final OpenTelemetrySdk openTelemetry;
     private final io.opentelemetry.api.trace.Tracer otelTracer;
 
     /**
      * Creates OTel based Telemetry
      * @param openTelemetry OpenTelemetry instance
      */
-    public OTelTracingTelemetry(OpenTelemetry openTelemetry) {
+    public OTelTracingTelemetry(OpenTelemetrySdk openTelemetry) {
         this.openTelemetry = openTelemetry;
         this.otelTracer = openTelemetry.getTracer(OTelTelemetryPlugin.INSTRUMENTATION_SCOPE_NAME);
 
@@ -39,7 +38,7 @@ public class OTelTracingTelemetry implements TracingTelemetry {
     @Override
     public void close() {
         try {
-            ((OpenTelemetrySdk) openTelemetry).getSdkTracerProvider().close();
+            openTelemetry.getSdkTracerProvider().close();
         } catch (Exception e) {
             logger.warn("Error while closing Opentelemetry", e);
         }

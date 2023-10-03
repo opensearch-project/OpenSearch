@@ -13,7 +13,6 @@ import org.opensearch.telemetry.OTelTelemetryPlugin;
 import org.opensearch.telemetry.metrics.tags.Tags;
 import org.opensearch.test.OpenSearchTestCase;
 
-import io.opentelemetry.api.OpenTelemetry;
 import io.opentelemetry.api.metrics.DoubleCounter;
 import io.opentelemetry.api.metrics.DoubleCounterBuilder;
 import io.opentelemetry.api.metrics.DoubleUpDownCounter;
@@ -21,6 +20,7 @@ import io.opentelemetry.api.metrics.DoubleUpDownCounterBuilder;
 import io.opentelemetry.api.metrics.LongCounterBuilder;
 import io.opentelemetry.api.metrics.LongUpDownCounterBuilder;
 import io.opentelemetry.api.metrics.Meter;
+import io.opentelemetry.sdk.OpenTelemetrySdk;
 
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -32,7 +32,7 @@ public class OTelMetricsTelemetryTests extends OpenSearchTestCase {
         String counterName = "test-counter";
         String description = "test";
         String unit = "1";
-        OpenTelemetry mockOpenTelemetry = mock(OpenTelemetry.class);
+        OpenTelemetrySdk mockOpenTelemetry = mock(OpenTelemetrySdk.class);
         Meter mockMeter = mock(Meter.class);
         DoubleCounter mockOTelDoubleCounter = mock(DoubleCounter.class);
         LongCounterBuilder mockOTelLongCounterBuilder = mock(LongCounterBuilder.class);
@@ -58,7 +58,7 @@ public class OTelMetricsTelemetryTests extends OpenSearchTestCase {
         String counterName = "test-counter";
         String description = "test";
         String unit = "1";
-        OpenTelemetry mockOpenTelemetry = mock(OpenTelemetry.class);
+        OpenTelemetrySdk mockOpenTelemetry = mock(OpenTelemetrySdk.class);
         Meter mockMeter = mock(Meter.class);
         DoubleCounter mockOTelDoubleCounter = mock(DoubleCounter.class);
         LongCounterBuilder mockOTelLongCounterBuilder = mock(LongCounterBuilder.class);
@@ -81,7 +81,7 @@ public class OTelMetricsTelemetryTests extends OpenSearchTestCase {
         String counterName = "test-counter";
         String description = "test";
         String unit = "1";
-        OpenTelemetry mockOpenTelemetry = mock(OpenTelemetry.class);
+        OpenTelemetrySdk mockOpenTelemetry = mock(OpenTelemetrySdk.class);
         Meter mockMeter = mock(Meter.class);
         DoubleUpDownCounter mockOTelUpDownDoubleCounter = mock(DoubleUpDownCounter.class);
         LongUpDownCounterBuilder mockOTelLongUpDownCounterBuilder = mock(LongUpDownCounterBuilder.class);
