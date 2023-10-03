@@ -11,7 +11,7 @@ grant {
     permission java.lang.RuntimePermission "accessDeclaredMembers";
     permission java.net.NetPermission "getProxySelector";
     permission java.net.SocketPermission "*", "connect,resolve";
-    permission java.util.PropertyPermission "otel.experimental.sdk.metrics.debug", "read,write";
+    permission java.util.PropertyPermission "*", "read,write";
 };
 
 
