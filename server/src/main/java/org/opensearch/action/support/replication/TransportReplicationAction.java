@@ -416,8 +416,10 @@ public abstract class TransportReplicationAction<
             releasable::close
         );
 
-        final Span span = getTracer().startSpan(SpanBuilder.from("shardPrimaryWrite", clusterService.localNode().getId(), request.getRequest().shardId()));
-        try(SpanScope spanScope = getTracer().withSpanInScope(span)) {
+        final Span span = getTracer().startSpan(
+            SpanBuilder.from("shardPrimaryWrite", clusterService.localNode().getId(), request.getRequest().shardId())
+        );
+        try (SpanScope spanScope = getTracer().withSpanInScope(span)) {
             new AsyncPrimaryAction(request, TraceableActionListener.create(listener, span, getTracer()), (ReplicationTask) task).run();
         } catch (RuntimeException e) {
             listener.onFailure(e);
@@ -698,10 +700,12 @@ public abstract class TransportReplicationAction<
             releasable::close
         );
 
-        final Span span = getTracer().startSpan(SpanBuilder.from(
-            "shardReplicaWrite", clusterService.localNode().getId(), replicaRequest.getRequest().shardId()));
-        try(SpanScope spanScope = getTracer().withSpanInScope(span)) {
-            new AsyncReplicaAction(replicaRequest, TraceableActionListener.create(listener, span, getTracer()), (ReplicationTask) task).run();
+        final Span span = getTracer().startSpan(
+            SpanBuilder.from("shardReplicaWrite", clusterService.localNode().getId(), replicaRequest.getRequest().shardId())
+        );
+        try (SpanScope spanScope = getTracer().withSpanInScope(span)) {
+            new AsyncReplicaAction(replicaRequest, TraceableActionListener.create(listener, span, getTracer()), (ReplicationTask) task)
+                .run();
         } catch (RuntimeException e) {
             listener.onFailure(e);
         }

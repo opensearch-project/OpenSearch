@@ -654,58 +654,59 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                 );
 
                 final Span span = tracer.startSpan(SpanBuilder.from("bulkShardAction", nodeId, bulkShardRequest));
-                ActionListener traceableActionListener = TraceableActionListener.create(
-                    ActionListener.runBefore(new ActionListener<BulkShardResponse>() {
-                        @Override
-                        public void onResponse(BulkShardResponse bulkShardResponse) {
-                            for (BulkItemResponse bulkItemResponse : bulkShardResponse.getResponses()) {
-                                // we may have no response if item failed
-                                if (bulkItemResponse.getResponse() != null) {
-                                    bulkItemResponse.getResponse().setShardInfo(bulkShardResponse.getShardInfo());
+                try (SpanScope spanScope = tracer.withSpanInScope(span)) {
+                    shardBulkAction.execute(
+                        bulkShardRequest,
+                        TraceableActionListener.create(ActionListener.runBefore(new ActionListener<BulkShardResponse>() {
+                            @Override
+                            public void onResponse(BulkShardResponse bulkShardResponse) {
+                                for (BulkItemResponse bulkItemResponse : bulkShardResponse.getResponses()) {
+                                    // we may have no response if item failed
+                                    if (bulkItemResponse.getResponse() != null) {
+                                        bulkItemResponse.getResponse().setShardInfo(bulkShardResponse.getShardInfo());
+                                    }
+
+                                    docStatusStats.inc(bulkItemResponse.status());
+                                    responses.set(bulkItemResponse.getItemId(), bulkItemResponse);
                                 }
 
-                                docStatusStats.inc(bulkItemResponse.status());
-                                responses.set(bulkItemResponse.getItemId(), bulkItemResponse);
+                                if (counter.decrementAndGet() == 0) {
+                                    finishHim();
+                                }
                             }
 
-                            if (counter.decrementAndGet() == 0) {
-                                finishHim();
-                            }
-                        }
+                            @Override
+                            public void onFailure(Exception e) {
+                                // create failures for all relevant requests
+                                for (BulkItemRequest request : requests) {
+                                    final String indexName = concreteIndices.getConcreteIndex(request.index()).getName();
+                                    final DocWriteRequest<?> docWriteRequest = request.request();
+                                    final BulkItemResponse bulkItemResponse = new BulkItemResponse(
+                                        request.id(),
+                                        docWriteRequest.opType(),
+                                        new BulkItemResponse.Failure(indexName, docWriteRequest.id(), e)
+                                    );
 
-                        @Override
-                        public void onFailure(Exception e) {
-                            // create failures for all relevant requests
-                            for (BulkItemRequest request : requests) {
-                                final String indexName = concreteIndices.getConcreteIndex(request.index()).getName();
-                                final DocWriteRequest<?> docWriteRequest = request.request();
-                                final BulkItemResponse bulkItemResponse = new BulkItemResponse(
-                                    request.id(),
-                                    docWriteRequest.opType(),
-                                    new BulkItemResponse.Failure(indexName, docWriteRequest.id(), e)
+                                    docStatusStats.inc(bulkItemResponse.status());
+                                    responses.set(request.id(), bulkItemResponse);
+                                }
+
+                                if (counter.decrementAndGet() == 0) {
+                                    finishHim();
+                                }
+                            }
+
+                            private void finishHim() {
+                                indicesService.addDocStatusStats(docStatusStats);
+                                listener.onResponse(
+                                    new BulkResponse(
+                                        responses.toArray(new BulkItemResponse[responses.length()]),
+                                        buildTookInMillis(startTimeNanos)
+                                    )
                                 );
-
-                                docStatusStats.inc(bulkItemResponse.status());
-                                responses.set(request.id(), bulkItemResponse);
                             }
-
-                            if (counter.decrementAndGet() == 0) {
-                                finishHim();
-                            }
-                        }
-
-                        private void finishHim() {
-                            indicesService.addDocStatusStats(docStatusStats);
-                            listener.onResponse(
-                                new BulkResponse(responses.toArray(new BulkItemResponse[responses.length()]), buildTookInMillis(startTimeNanos))
-                            );
-                        }
-                    }, releasable::close),
-                    span,
-                    tracer
-                );
-                try(SpanScope spanScope = tracer.withSpanInScope(span)) {
-                    shardBulkAction.execute(bulkShardRequest, traceableActionListener);
+                        }, releasable::close), span, tracer)
+                    );
                 }
             }
             bulkRequest = null; // allow memory for bulk request items to be reclaimed before all items have been completed
