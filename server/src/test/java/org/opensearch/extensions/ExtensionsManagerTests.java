@@ -36,6 +36,7 @@ import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.common.transport.TransportAddress;
 import org.opensearch.core.indices.breaker.NoneCircuitBreakerService;
 import org.opensearch.core.transport.TransportResponse;
+import org.opensearch.discovery.InitializeExtensionRequest;
 import org.opensearch.env.Environment;
 import org.opensearch.env.EnvironmentSettingsResponse;
 import org.opensearch.extensions.ExtensionsSettings.Extension;
@@ -77,6 +78,7 @@ import static org.opensearch.test.ClusterServiceUtils.createClusterService;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
@@ -409,11 +411,81 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
                 )
             );
 
-            // Test needs to be changed to mock the connection between the local node and an extension. Assert statment is commented out for
-            // now.
+            // Test needs to be changed to mock the connection between the local node and an extension.
             // Link to issue: https://github.com/opensearch-project/OpenSearch/issues/4045
             // mockLogAppender.assertAllExpectationsMatched();
         }
+    }
+
+    public void testInitializeExtension() throws Exception {
+        ExtensionsManager extensionsManager = new ExtensionsManager(Set.of(), identityService);
+
+        TransportService mockTransportService = spy(
+            new TransportService(
+                Settings.EMPTY,
+                mock(Transport.class),
+                threadPool,
+                TransportService.NOOP_TRANSPORT_INTERCEPTOR,
+                x -> null,
+                null,
+                Collections.emptySet(),
+                NoopTracer.INSTANCE
+            )
+        );
+
+        doNothing().when(mockTransportService).connectToExtensionNode(any(DiscoveryExtensionNode.class));
+
+        doNothing().when(mockTransportService)
+            .sendRequest(any(DiscoveryExtensionNode.class), anyString(), any(InitializeExtensionRequest.class), any());
+
+        extensionsManager.initializeServicesAndRestHandler(
+            actionModule,
+            settingsModule,
+            mockTransportService,
+            clusterService,
+            settings,
+            client,
+            identityService
+        );
+
+        Extension firstExtension = new Extension(
+            "firstExtension",
+            "uniqueid1",
+            "127.0.0.0",
+            "9301",
+            "0.0.7",
+            "2.0.0",
+            "2.0.0",
+            List.of(),
+            null
+        );
+
+        extensionsManager.initializeExtension(firstExtension);
+
+        Extension secondExtension = new Extension(
+            "secondExtension",
+            "uniqueid2",
+            "127.0.0.0",
+            "9301",
+            "0.0.7",
+            "2.0.0",
+            "2.0.0",
+            List.of(),
+            null
+        );
+
+        extensionsManager.initializeExtension(secondExtension);
+
+        ThreadPool.terminate(threadPool, 3, TimeUnit.SECONDS);
+
+        verify(mockTransportService, times(2)).connectToExtensionNode(any(DiscoveryExtensionNode.class));
+
+        verify(mockTransportService, times(2)).sendRequest(
+            any(DiscoveryExtensionNode.class),
+            anyString(),
+            any(InitializeExtensionRequest.class),
+            any()
+        );
     }
 
     public void testHandleRegisterRestActionsRequest() throws Exception {
@@ -422,6 +494,11 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
         initialize(extensionsManager);
 
         String uniqueIdStr = "uniqueid1";
+
+        extensionsManager.loadExtension(
+            new Extension("firstExtension", uniqueIdStr, "127.0.0.0", "9300", "0.0.7", "3.0.0", "3.0.0", List.of(), null)
+        );
+
         List<String> actionsList = List.of("GET /foo foo", "PUT /bar bar", "POST /baz baz");
         List<String> deprecatedActionsList = List.of("GET /deprecated/foo foo_deprecated", "It's deprecated!");
         RegisterRestActionsRequest registerActionsRequest = new RegisterRestActionsRequest(uniqueIdStr, actionsList, deprecatedActionsList);
@@ -429,6 +506,58 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
             .handleRegisterRestActionsRequest(registerActionsRequest, actionModule.getDynamicActionRegistry());
         assertEquals(AcknowledgedResponse.class, response.getClass());
         assertTrue(((AcknowledgedResponse) response).getStatus());
+    }
+
+    public void testHandleRegisterRestActionsRequestRequiresDiscoveryNode() throws Exception {
+
+        ExtensionsManager extensionsManager = new ExtensionsManager(Set.of(), identityService);
+        initialize(extensionsManager);
+
+        RegisterRestActionsRequest registerActionsRequest = new RegisterRestActionsRequest("uniqueId1", List.of(), List.of());
+
+        expectThrows(
+            IllegalStateException.class,
+            () -> extensionsManager.getRestActionsRequestHandler()
+                .handleRegisterRestActionsRequest(registerActionsRequest, actionModule.getDynamicActionRegistry())
+        );
+    }
+
+    public void testHandleRegisterRestActionsRequestMultiple() throws Exception {
+
+        ExtensionsManager extensionsManager = new ExtensionsManager(Set.of(), identityService);
+        initialize(extensionsManager);
+
+        List<String> actionsList = List.of("GET /foo foo", "PUT /bar bar", "POST /baz baz");
+        List<String> deprecatedActionsList = List.of("GET /deprecated/foo foo_deprecated", "It's deprecated!");
+        for (int i = 0; i < 2; i++) {
+            String uniqueIdStr = "uniqueid-%d" + i;
+
+            Set<Setting<?>> additionalSettings = extAwarePlugin.getExtensionSettings().stream().collect(Collectors.toSet());
+            ExtensionScopedSettings extensionScopedSettings = new ExtensionScopedSettings(additionalSettings);
+            Extension firstExtension = new Extension(
+                "Extension %s" + i,
+                uniqueIdStr,
+                "127.0.0.0",
+                "9300",
+                "0.0.7",
+                "3.0.0",
+                "3.0.0",
+                List.of(),
+                extensionScopedSettings
+            );
+
+            extensionsManager.loadExtension(firstExtension);
+
+            RegisterRestActionsRequest registerActionsRequest = new RegisterRestActionsRequest(
+                uniqueIdStr,
+                actionsList,
+                deprecatedActionsList
+            );
+            TransportResponse response = extensionsManager.getRestActionsRequestHandler()
+                .handleRegisterRestActionsRequest(registerActionsRequest, actionModule.getDynamicActionRegistry());
+            assertEquals(AcknowledgedResponse.class, response.getClass());
+            assertTrue(((AcknowledgedResponse) response).getStatus());
+        }
     }
 
     public void testHandleRegisterSettingsRequest() throws Exception {
@@ -452,6 +581,9 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
         initialize(extensionsManager);
 
         String uniqueIdStr = "uniqueid1";
+        extensionsManager.loadExtension(
+            new Extension("firstExtension", uniqueIdStr, "127.0.0.0", "9300", "0.0.7", "3.0.0", "3.0.0", List.of(), null)
+        );
         List<String> actionsList = List.of("FOO /foo", "PUT /bar", "POST /baz");
         List<String> deprecatedActionsList = List.of("GET /deprecated/foo", "It's deprecated!");
         RegisterRestActionsRequest registerActionsRequest = new RegisterRestActionsRequest(uniqueIdStr, actionsList, deprecatedActionsList);
@@ -467,6 +599,9 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
         initialize(extensionsManager);
 
         String uniqueIdStr = "uniqueid1";
+        extensionsManager.loadExtension(
+            new Extension("firstExtension", uniqueIdStr, "127.0.0.0", "9300", "0.0.7", "3.0.0", "3.0.0", List.of(), null)
+        );
         List<String> actionsList = List.of("GET /foo", "PUT /bar", "POST /baz");
         List<String> deprecatedActionsList = List.of("FOO /deprecated/foo", "It's deprecated!");
         RegisterRestActionsRequest registerActionsRequest = new RegisterRestActionsRequest(uniqueIdStr, actionsList, deprecatedActionsList);
@@ -481,6 +616,9 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
         ExtensionsManager extensionsManager = new ExtensionsManager(Set.of(), identityService);
         initialize(extensionsManager);
         String uniqueIdStr = "uniqueid1";
+        extensionsManager.loadExtension(
+            new Extension("firstExtension", uniqueIdStr, "127.0.0.0", "9300", "0.0.7", "3.0.0", "3.0.0", List.of(), null)
+        );
         List<String> actionsList = List.of("GET", "PUT /bar", "POST /baz");
         List<String> deprecatedActionsList = List.of("GET /deprecated/foo", "It's deprecated!");
         RegisterRestActionsRequest registerActionsRequest = new RegisterRestActionsRequest(uniqueIdStr, actionsList, deprecatedActionsList);
@@ -495,6 +633,9 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
         ExtensionsManager extensionsManager = new ExtensionsManager(Set.of(), identityService);
         initialize(extensionsManager);
         String uniqueIdStr = "uniqueid1";
+        extensionsManager.loadExtension(
+            new Extension("firstExtension", uniqueIdStr, "127.0.0.0", "9300", "0.0.7", "3.0.0", "3.0.0", List.of(), null)
+        );
         List<String> actionsList = List.of("GET /foo", "PUT /bar", "POST /baz");
         List<String> deprecatedActionsList = List.of("GET", "It's deprecated!");
         RegisterRestActionsRequest registerActionsRequest = new RegisterRestActionsRequest(uniqueIdStr, actionsList, deprecatedActionsList);
