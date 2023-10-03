@@ -969,7 +969,7 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
         assertEquals(objectSize, readContext.getBlobSize());
 
         for (int partNumber = 1; partNumber < objectPartCount; partNumber++) {
-            InputStreamContainer inputStreamContainer = readContext.getPartStreams().get(partNumber).get();
+            InputStreamContainer inputStreamContainer = readContext.getPartStreams().get(partNumber).get().join();
             final int offset = partNumber * partSize;
             assertEquals(partSize, inputStreamContainer.getContentLength());
             assertEquals(offset, inputStreamContainer.getOffset());
@@ -1024,7 +1024,7 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
         assertEquals(checksum, readContext.getBlobChecksum());
         assertEquals(objectSize, readContext.getBlobSize());
 
-        InputStreamContainer inputStreamContainer = readContext.getPartStreams().stream().findFirst().get().get();
+        InputStreamContainer inputStreamContainer = readContext.getPartStreams().stream().findFirst().get().get().join();
         assertEquals(objectSize, inputStreamContainer.getContentLength());
         assertEquals(0, inputStreamContainer.getOffset());
         assertEquals(objectSize, inputStreamContainer.getInputStream().readAllBytes().length);

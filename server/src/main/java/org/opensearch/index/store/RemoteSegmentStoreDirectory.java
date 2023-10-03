@@ -25,6 +25,7 @@ import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.Version;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.blobstore.AsyncMultiStreamBlobContainer;
+import org.opensearch.common.blobstore.stream.read.listener.ReadContextListener;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.io.VersionedCodecStreamWrapper;
 import org.opensearch.common.logging.Loggers;
@@ -37,6 +38,7 @@ import org.opensearch.index.store.lockmanager.RemoteStoreCommitLevelLockManager;
 import org.opensearch.index.store.lockmanager.RemoteStoreLockManager;
 import org.opensearch.index.store.remote.metadata.RemoteSegmentMetadata;
 import org.opensearch.index.store.remote.metadata.RemoteSegmentMetadataHandler;
+import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
 import org.opensearch.threadpool.ThreadPool;
 
@@ -90,6 +92,8 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
 
     private final ThreadPool threadPool;
 
+    private final RecoverySettings recoverySettings;
+
     /**
      * Keeps track of local segment filename to uploaded filename along with other attributes like checksum.
      * This map acts as a cache layer for uploaded segment filenames which helps avoid calling listAll() each time.
@@ -122,13 +126,15 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
         RemoteDirectory remoteMetadataDirectory,
         RemoteStoreLockManager mdLockManager,
         ThreadPool threadPool,
-        ShardId shardId
+        ShardId shardId,
+        RecoverySettings recoverySettings
     ) throws IOException {
         super(remoteDataDirectory);
         this.remoteDataDirectory = remoteDataDirectory;
         this.remoteMetadataDirectory = remoteMetadataDirectory;
         this.mdLockManager = mdLockManager;
         this.threadPool = threadPool;
+        this.recoverySettings = recoverySettings;
         this.logger = Loggers.getLogger(getClass(), shardId);
         init();
     }
@@ -488,7 +494,15 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
         if (destinationPath != null && remoteDataDirectory.getBlobContainer() instanceof AsyncMultiStreamBlobContainer) {
             final AsyncMultiStreamBlobContainer blobContainer = (AsyncMultiStreamBlobContainer) remoteDataDirectory.getBlobContainer();
             final Path destinationFilePath = destinationPath.resolve(source);
-            blobContainer.asyncBlobDownload(blobName, destinationFilePath, fileCompletionListener);
+            final ReadContextListener readContextListener = new ReadContextListener(
+                blobName,
+                destinationFilePath,
+                fileCompletionListener,
+                threadPool,
+                remoteDataDirectory.getDownloadRateLimiter(),
+                recoverySettings.getMaxConcurrentRemoteStoreStreams()
+            );
+            blobContainer.readBlobAsync(blobName, readContextListener);
         } else {
             // Fallback to older mechanism of downloading the file
             try {

@@ -161,6 +161,7 @@ import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.shard.PrimaryReplicaSyncer.ResyncTask;
 import org.opensearch.index.similarity.SimilarityService;
 import org.opensearch.index.store.RemoteSegmentStoreDirectory;
+import org.opensearch.index.store.RemoteSegmentStoreDirectoryFactory;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.store.Store.MetadataSnapshot;
 import org.opensearch.index.store.StoreFileMetadata;
@@ -340,6 +341,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private final RemoteStoreStatsTrackerFactory remoteStoreStatsTrackerFactory;
 
     private final List<ReferenceManager.RefreshListener> internalRefreshListener = new ArrayList<>();
+    private final RemoteSegmentStoreDirectoryFactory remoteSegmentStoreDirectoryFactory;
 
     public IndexShard(
         final ShardRouting shardRouting,
@@ -367,7 +369,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         @Nullable final Store remoteStore,
         final RemoteStoreStatsTrackerFactory remoteStoreStatsTrackerFactory,
         final Supplier<TimeValue> clusterRemoteTranslogBufferIntervalSupplier,
-        final String nodeId
+        final String nodeId,
+        // Wiring a directory factory here breaks some intended abstractions, but this remote directory
+        // factory is used not as a Lucene directory but instead to copy files from a remote store when
+        // restoring a shallow snapshot.
+        @Nullable final RemoteSegmentStoreDirectoryFactory remoteSegmentStoreDirectoryFactory
     ) throws IOException {
         super(shardRouting.shardId(), indexSettings);
         assert shardRouting.initializing();
@@ -463,6 +469,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             ? false
             : mapperService.documentMapper().mappers().containsTimeStampField();
         this.remoteStoreStatsTrackerFactory = remoteStoreStatsTrackerFactory;
+        this.remoteSegmentStoreDirectoryFactory = remoteSegmentStoreDirectoryFactory;
     }
 
     public ThreadPool getThreadPool() {
@@ -2695,7 +2702,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     public void restoreFromSnapshotAndRemoteStore(
         Repository repository,
-        RepositoriesService repositoriesService,
+        RemoteSegmentStoreDirectoryFactory remoteSegmentStoreDirectoryFactory,
         ActionListener<Boolean> listener
     ) {
         try {
@@ -2703,7 +2710,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             assert recoveryState.getRecoverySource().getType() == RecoverySource.Type.SNAPSHOT : "invalid recovery type: "
                 + recoveryState.getRecoverySource();
             StoreRecovery storeRecovery = new StoreRecovery(shardId, logger);
-            storeRecovery.recoverFromSnapshotAndRemoteStore(this, repository, repositoriesService, listener, threadPool);
+            storeRecovery.recoverFromSnapshotAndRemoteStore(this, repository, remoteSegmentStoreDirectoryFactory, listener);
         } catch (Exception e) {
             listener.onFailure(e);
         }
@@ -3543,7 +3550,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                         "from snapshot and remote store",
                         recoveryState,
                         recoveryListener,
-                        l -> restoreFromSnapshotAndRemoteStore(repositoriesService.repository(repo), repositoriesService, l)
+                        l -> restoreFromSnapshotAndRemoteStore(repositoriesService.repository(repo), remoteSegmentStoreDirectoryFactory, l)
                     );
                     // indicesService.indexService(shardRouting.shardId().getIndex()).addMetadataListener();
                 } else {

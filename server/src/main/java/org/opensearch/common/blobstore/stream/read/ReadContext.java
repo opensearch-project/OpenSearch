@@ -13,6 +13,7 @@ import org.opensearch.common.io.InputStreamContainer;
 
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.function.Supplier;
 
 /**
  * ReadContext is used to encapsulate all data needed by <code>BlobContainer#readBlobAsync</code>
@@ -20,10 +21,10 @@ import java.util.concurrent.CompletableFuture;
 @ExperimentalApi
 public class ReadContext {
     private final long blobSize;
-    private final List<CompletableFuture<InputStreamContainer>> asyncPartStreams;
+    private final List<StreamPartCreator> asyncPartStreams;
     private final String blobChecksum;
 
-    public ReadContext(long blobSize, List<CompletableFuture<InputStreamContainer>> asyncPartStreams, String blobChecksum) {
+    public ReadContext(long blobSize, List<StreamPartCreator> asyncPartStreams, String blobChecksum) {
         this.blobSize = blobSize;
         this.asyncPartStreams = asyncPartStreams;
         this.blobChecksum = blobChecksum;
@@ -47,7 +48,23 @@ public class ReadContext {
         return blobSize;
     }
 
-    public List<CompletableFuture<InputStreamContainer>> getPartStreams() {
+    public List<StreamPartCreator> getPartStreams() {
         return asyncPartStreams;
+    }
+
+    /**
+     * Functional interface defining an instance that can create an async action
+     * to create a part of an object represented as an InputStreamContainer.
+     */
+    @FunctionalInterface
+    public interface StreamPartCreator extends Supplier<CompletableFuture<InputStreamContainer>> {
+        /**
+         * Kicks off a async process to start streaming.
+         *
+         * @return When the returned future is completed, streaming has
+         * just begun. Clients must fully consume the resulting stream.
+         */
+        @Override
+        CompletableFuture<InputStreamContainer> get();
     }
 }

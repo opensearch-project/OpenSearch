@@ -125,11 +125,11 @@ public class MockFsAsyncBlobContainer extends FsBlobContainer implements AsyncMu
                 long contentLength = listBlobs().get(blobName).length();
                 long partSize = contentLength / 10;
                 int numberOfParts = (int) ((contentLength % partSize) == 0 ? contentLength / partSize : (contentLength / partSize) + 1);
-                List<CompletableFuture<InputStreamContainer>> blobPartStreams = new ArrayList<>();
+                List<ReadContext.StreamPartCreator> blobPartStreams = new ArrayList<>();
                 for (int partNumber = 0; partNumber < numberOfParts; partNumber++) {
                     long offset = partNumber * partSize;
                     InputStreamContainer blobPartStream = new InputStreamContainer(readBlob(blobName, offset, partSize), partSize, offset);
-                    blobPartStreams.add(CompletableFuture.completedFuture(blobPartStream));
+                    blobPartStreams.add(() -> CompletableFuture.completedFuture(blobPartStream));
                 }
                 ReadContext blobReadContext = new ReadContext(contentLength, blobPartStreams, null);
                 listener.onResponse(blobReadContext);
