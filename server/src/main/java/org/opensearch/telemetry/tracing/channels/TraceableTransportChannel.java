@@ -29,8 +29,6 @@ public class TraceableTransportChannel implements TransportChannel {
     private final Span span;
     private final Tracer tracer;
 
-    private final TcpChannel tcpChannel;
-
     /**
      * Constructor.
      * @param delegate delegate
@@ -41,7 +39,6 @@ public class TraceableTransportChannel implements TransportChannel {
         this.delegate = delegate;
         this.span = span;
         this.tracer = tracer;
-        this.tcpChannel = tcpChannel;
     }
 
     /**
@@ -88,6 +85,9 @@ public class TraceableTransportChannel implements TransportChannel {
     public void sendResponse(TransportResponse response) throws IOException {
         try (SpanScope scope = tracer.withSpanInScope(span)) {
             delegate.sendResponse(response);
+        } catch (final IOException ex) {
+            span.setError(ex);
+            throw ex;
         } finally {
             span.endSpan();
         }
