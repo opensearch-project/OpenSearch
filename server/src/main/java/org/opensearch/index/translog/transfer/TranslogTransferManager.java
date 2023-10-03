@@ -65,7 +65,7 @@ public class TranslogTransferManager {
 
     private static final long TRANSFER_TIMEOUT_IN_MILLIS = 30000;
 
-    private static final int METADATA_FILES_TO_FETCH = 100;
+    private static final int METADATA_FILES_TO_FETCH = 10;
 
     private final Logger logger;
     private final static String METADATA_DIR = "metadata";

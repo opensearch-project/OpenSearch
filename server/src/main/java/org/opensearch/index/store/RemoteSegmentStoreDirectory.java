@@ -114,7 +114,7 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
 
     private final AtomicLong metadataUploadCounter = new AtomicLong(0);
 
-    public static final int METADATA_FILES_TO_FETCH = 100;
+    public static final int METADATA_FILES_TO_FETCH = 10;
 
     public RemoteSegmentStoreDirectory(
         RemoteDirectory remoteDataDirectory,
