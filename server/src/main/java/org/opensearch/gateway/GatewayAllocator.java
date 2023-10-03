@@ -188,12 +188,28 @@ public class GatewayAllocator implements ExistingShardsAllocator {
     public AllocateUnassignedDecision explainUnassignedShardAllocation(ShardRouting unassignedShard, RoutingAllocation routingAllocation) {
         assert unassignedShard.unassigned();
         assert routingAllocation.debugDecision();
-        if (unassignedShard.primary()) {
-            assert primaryShardAllocator != null;
-            return primaryShardAllocator.makeAllocationDecision(unassignedShard, routingAllocation, logger);
+        boolean batchMode = routingAllocation.nodes().getMinNodeVersion().onOrAfter(Version.CURRENT);
+        if (batchMode) {
+            // TODO add integ test for testing this behaviour when shard is unassigned but failed many times and is ultimately removed from batch
+            if (getBatchId(unassignedShard, unassignedShard.primary()) == null) {
+                createAndUpdateBatches(routingAllocation, unassignedShard.primary());
+            }
+            assert getBatchId(unassignedShard, unassignedShard.primary()) != null;
+            if (unassignedShard.primary()) {
+                assert primaryBatchShardAllocator != null;
+                return primaryBatchShardAllocator.makeAllocationDecision(unassignedShard, routingAllocation, logger);
+            } else {
+                assert replicaBatchShardAllocator != null;
+                return replicaBatchShardAllocator.makeAllocationDecision(unassignedShard, routingAllocation, logger);
+            }
         } else {
-            assert replicaShardAllocator != null;
-            return replicaShardAllocator.makeAllocationDecision(unassignedShard, routingAllocation, logger);
+            if (unassignedShard.primary()) {
+                assert primaryShardAllocator != null;
+                return primaryShardAllocator.makeAllocationDecision(unassignedShard, routingAllocation, logger);
+            } else {
+                assert replicaShardAllocator != null;
+                return replicaShardAllocator.makeAllocationDecision(unassignedShard, routingAllocation, logger);
+            }
         }
     }
 
