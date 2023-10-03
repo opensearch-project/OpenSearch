@@ -341,22 +341,13 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
             return RemoteStoreUtils.invertLong(filenameTokens[2]);
         }
 
-        public static Tuple<Tuple<Long, Long>, String> getNodeIdByPrimaryTermAndGeneration(String filename) {
-            String[] tokens = filename.split(SEPARATOR);
-            if (tokens.length < 8) {
-                // For versions < 2.11, we don't have node id.
-                return null;
-            }
-            return new Tuple<>(new Tuple<>(RemoteStoreUtils.invertLong(tokens[1]), RemoteStoreUtils.invertLong(tokens[2])), tokens[5]);
-        }
-
         public static Tuple<String, String> getNodeIdByPrimaryTermAndGen(String filename) {
             String[] tokens = filename.split(SEPARATOR);
             if (tokens.length < 8) {
                 // For versions < 2.11, we don't have node id.
                 return null;
             }
-            String primaryTermAndGen = String.join(SEPARATOR, tokens[2], tokens[3]);
+            String primaryTermAndGen = String.join(SEPARATOR, tokens[1], tokens[2], tokens[3]);
 
             String nodeId = tokens[5];
             return new Tuple<>(primaryTermAndGen, nodeId);
