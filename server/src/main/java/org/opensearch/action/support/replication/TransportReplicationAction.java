@@ -423,6 +423,7 @@ public abstract class TransportReplicationAction<
             new AsyncPrimaryAction(request, TraceableActionListener.create(listener, span, getTracer()), (ReplicationTask) task).run();
         } catch (RuntimeException e) {
             listener.onFailure(e);
+            span.endSpan();
         }
     }
 
@@ -708,6 +709,7 @@ public abstract class TransportReplicationAction<
                 .run();
         } catch (RuntimeException e) {
             listener.onFailure(e);
+            span.endSpan();
         }
     }
 
