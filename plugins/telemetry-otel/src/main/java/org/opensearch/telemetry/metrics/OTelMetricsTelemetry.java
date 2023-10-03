@@ -10,9 +10,8 @@ package org.opensearch.telemetry.metrics;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.opensearch.telemetry.OTelTelemetryPlugin;
 
-import java.io.Closeable;
-import java.io.IOException;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
 
@@ -20,6 +19,7 @@ import io.opentelemetry.api.OpenTelemetry;
 import io.opentelemetry.api.metrics.DoubleCounter;
 import io.opentelemetry.api.metrics.DoubleUpDownCounter;
 import io.opentelemetry.api.metrics.Meter;
+import io.opentelemetry.sdk.OpenTelemetrySdk;
 
 /**
  * OTel implementation for {@link MetricsTelemetry}
@@ -35,7 +35,7 @@ public class OTelMetricsTelemetry implements MetricsTelemetry {
      */
     public OTelMetricsTelemetry(OpenTelemetry openTelemetry) {
         this.openTelemetry = openTelemetry;
-        this.otelMeter = openTelemetry.getMeter("os-meter");
+        this.otelMeter = openTelemetry.getMeter(OTelTelemetryPlugin.INSTRUMENTATION_SCOPE_NAME);
     }
 
     @Override
@@ -66,8 +66,8 @@ public class OTelMetricsTelemetry implements MetricsTelemetry {
     public void close() {
         // There is no harm closing the openTelemetry multiple times.
         try {
-            ((Closeable) openTelemetry).close();
-        } catch (IOException e) {
+            ((OpenTelemetrySdk) openTelemetry).getSdkMeterProvider().close();
+        } catch (Exception e) {
             logger.warn("Error while closing Opentelemetry", e);
         }
     }

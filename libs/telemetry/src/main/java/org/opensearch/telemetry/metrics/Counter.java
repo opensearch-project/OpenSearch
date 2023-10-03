@@ -8,11 +8,14 @@
 
 package org.opensearch.telemetry.metrics;
 
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.telemetry.metrics.tags.Tags;
 
 /**
  * Counter adds the value to the existing metric.
+ * {@opensearch.experimental}
  */
+@ExperimentalApi
 public interface Counter {
 
     /**

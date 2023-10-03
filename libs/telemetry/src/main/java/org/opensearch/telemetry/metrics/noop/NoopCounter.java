@@ -8,12 +8,15 @@
 
 package org.opensearch.telemetry.metrics.noop;
 
+import org.opensearch.common.annotation.InternalApi;
 import org.opensearch.telemetry.metrics.Counter;
 import org.opensearch.telemetry.metrics.tags.Tags;
 
 /**
  * No-op {@link Counter}
+ * {@opensearch.internal}
  */
+@InternalApi
 public class NoopCounter implements Counter {
 
     /**

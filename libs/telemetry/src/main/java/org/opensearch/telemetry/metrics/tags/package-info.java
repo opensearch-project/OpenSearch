@@ -8,5 +8,9 @@
 
 /**
  * Contains metrics related classes
+ * @opensearch.experimental
  */
+@ExperimentalApi
 package org.opensearch.telemetry.metrics.tags;
+
+import org.opensearch.common.annotation.ExperimentalApi;

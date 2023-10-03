@@ -8,5 +8,9 @@
 
 /**
  * Contains metrics related classes
+ * {@opensearch.internal}
  */
+@InternalApi
 package org.opensearch.telemetry.metrics.noop;
+
+import org.opensearch.common.annotation.InternalApi;

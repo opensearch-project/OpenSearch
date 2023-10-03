@@ -9,7 +9,8 @@
 package org.opensearch.telemetry.metrics;
 
 import org.opensearch.telemetry.OTelAttributesConverter;
-import org.opensearch.telemetry.tracing.attributes.Attributes;
+import org.opensearch.telemetry.OTelTelemetryPlugin;
+import org.opensearch.telemetry.metrics.tags.Tags;
 import org.opensearch.test.OpenSearchTestCase;
 
 import io.opentelemetry.api.OpenTelemetry;
@@ -37,7 +38,7 @@ public class OTelMetricsTelemetryTests extends OpenSearchTestCase {
         LongCounterBuilder mockOTelLongCounterBuilder = mock(LongCounterBuilder.class);
         DoubleCounterBuilder mockOTelDoubleCounterBuilder = mock(DoubleCounterBuilder.class);
 
-        when(mockOpenTelemetry.getMeter("os-meter")).thenReturn(mockMeter);
+        when(mockOpenTelemetry.getMeter(OTelTelemetryPlugin.INSTRUMENTATION_SCOPE_NAME)).thenReturn(mockMeter);
         MetricsTelemetry metricsTelemetry = new OTelMetricsTelemetry(mockOpenTelemetry);
         when(mockMeter.counterBuilder(counterName)).thenReturn(mockOTelLongCounterBuilder);
         when(mockOTelLongCounterBuilder.setDescription(description)).thenReturn(mockOTelLongCounterBuilder);
@@ -48,9 +49,9 @@ public class OTelMetricsTelemetryTests extends OpenSearchTestCase {
         Counter counter = metricsTelemetry.createCounter(counterName, description, unit);
         counter.add(1.0);
         verify(mockOTelDoubleCounter).add(1.0);
-        Attributes attributes = Attributes.create().addAttribute("test", "test");
-        counter.add(2.0, attributes);
-        verify(mockOTelDoubleCounter).add(2.0, OTelAttributesConverter.convert(attributes));
+        Tags tags = Tags.create().addTag("test", "test");
+        counter.add(2.0, tags);
+        verify(mockOTelDoubleCounter).add(2.0, OTelAttributesConverter.convert(tags));
     }
 
     public void testCounterNegativeValue() {
@@ -63,7 +64,7 @@ public class OTelMetricsTelemetryTests extends OpenSearchTestCase {
         LongCounterBuilder mockOTelLongCounterBuilder = mock(LongCounterBuilder.class);
         DoubleCounterBuilder mockOTelDoubleCounterBuilder = mock(DoubleCounterBuilder.class);
 
-        when(mockOpenTelemetry.getMeter("os-meter")).thenReturn(mockMeter);
+        when(mockOpenTelemetry.getMeter(OTelTelemetryPlugin.INSTRUMENTATION_SCOPE_NAME)).thenReturn(mockMeter);
         MetricsTelemetry metricsTelemetry = new OTelMetricsTelemetry(mockOpenTelemetry);
         when(mockMeter.counterBuilder(counterName)).thenReturn(mockOTelLongCounterBuilder);
         when(mockOTelLongCounterBuilder.setDescription(description)).thenReturn(mockOTelLongCounterBuilder);
@@ -86,7 +87,7 @@ public class OTelMetricsTelemetryTests extends OpenSearchTestCase {
         LongUpDownCounterBuilder mockOTelLongUpDownCounterBuilder = mock(LongUpDownCounterBuilder.class);
         DoubleUpDownCounterBuilder mockOTelDoubleUpDownCounterBuilder = mock(DoubleUpDownCounterBuilder.class);
 
-        when(mockOpenTelemetry.getMeter("os-meter")).thenReturn(mockMeter);
+        when(mockOpenTelemetry.getMeter(OTelTelemetryPlugin.INSTRUMENTATION_SCOPE_NAME)).thenReturn(mockMeter);
         MetricsTelemetry metricsTelemetry = new OTelMetricsTelemetry(mockOpenTelemetry);
         when(mockMeter.upDownCounterBuilder(counterName)).thenReturn(mockOTelLongUpDownCounterBuilder);
         when(mockOTelLongUpDownCounterBuilder.setDescription(description)).thenReturn(mockOTelLongUpDownCounterBuilder);
@@ -97,8 +98,8 @@ public class OTelMetricsTelemetryTests extends OpenSearchTestCase {
         Counter counter = metricsTelemetry.createUpDownCounter(counterName, description, unit);
         counter.add(1.0);
         verify(mockOTelUpDownDoubleCounter).add(1.0);
-        Attributes attributes = Attributes.create().addAttribute("test", "test");
-        counter.add(-2.0, attributes);
-        verify(mockOTelUpDownDoubleCounter).add((-2.0), OTelAttributesConverter.convert(attributes));
+        Tags tags = Tags.create().addTag("test", "test");
+        counter.add(-2.0, tags);
+        verify(mockOTelUpDownDoubleCounter).add((-2.0), OTelAttributesConverter.convert(tags));
     }
 }

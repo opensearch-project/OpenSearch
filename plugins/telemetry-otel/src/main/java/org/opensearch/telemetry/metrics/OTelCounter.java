@@ -16,7 +16,7 @@ import io.opentelemetry.api.metrics.DoubleCounter;
 /**
  * OTel Counter
  */
-public class OTelCounter implements Counter {
+class OTelCounter implements Counter {
 
     private final DoubleCounter otelDoubleCounter;
 

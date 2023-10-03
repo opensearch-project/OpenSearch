@@ -18,4 +18,9 @@ import java.io.Closeable;
  * @opensearch.experimental
  */
 @ExperimentalApi
-public interface MetricsTelemetry extends MetricsRegistry, Closeable {}
+public interface MetricsTelemetry extends MetricsRegistry, Closeable {
+    /**
+     * closes the resource
+     */
+    void close();
+}

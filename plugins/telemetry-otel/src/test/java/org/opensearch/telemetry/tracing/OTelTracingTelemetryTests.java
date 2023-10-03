@@ -8,6 +8,7 @@
 
 package org.opensearch.telemetry.tracing;
 
+import org.opensearch.telemetry.OTelTelemetryPlugin;
 import org.opensearch.telemetry.tracing.attributes.Attributes;
 import org.opensearch.test.OpenSearchTestCase;
 
@@ -30,7 +31,7 @@ public class OTelTracingTelemetryTests extends OpenSearchTestCase {
     public void testCreateSpanWithoutParent() {
         OpenTelemetry mockOpenTelemetry = mock(OpenTelemetry.class);
         Tracer mockTracer = mock(Tracer.class);
-        when(mockOpenTelemetry.getTracer("os-tracer")).thenReturn(mockTracer);
+        when(mockOpenTelemetry.getTracer(OTelTelemetryPlugin.INSTRUMENTATION_SCOPE_NAME)).thenReturn(mockTracer);
         SpanBuilder mockSpanBuilder = mock(SpanBuilder.class);
         when(mockTracer.spanBuilder("span_name")).thenReturn(mockSpanBuilder);
         when(mockSpanBuilder.setAllAttributes(any(io.opentelemetry.api.common.Attributes.class))).thenReturn(mockSpanBuilder);
@@ -48,7 +49,7 @@ public class OTelTracingTelemetryTests extends OpenSearchTestCase {
     public void testCreateSpanWithParent() {
         OpenTelemetry mockOpenTelemetry = mock(OpenTelemetry.class);
         Tracer mockTracer = mock(Tracer.class);
-        when(mockOpenTelemetry.getTracer("os-tracer")).thenReturn(mockTracer);
+        when(mockOpenTelemetry.getTracer(OTelTelemetryPlugin.INSTRUMENTATION_SCOPE_NAME)).thenReturn(mockTracer);
         SpanBuilder mockSpanBuilder = mock(SpanBuilder.class);
         when(mockTracer.spanBuilder("span_name")).thenReturn(mockSpanBuilder);
         when(mockSpanBuilder.setParent(any())).thenReturn(mockSpanBuilder);
@@ -72,7 +73,7 @@ public class OTelTracingTelemetryTests extends OpenSearchTestCase {
     public void testCreateSpanWithParentWithMultipleAttributes() {
         OpenTelemetry mockOpenTelemetry = mock(OpenTelemetry.class);
         Tracer mockTracer = mock(Tracer.class);
-        when(mockOpenTelemetry.getTracer("os-tracer")).thenReturn(mockTracer);
+        when(mockOpenTelemetry.getTracer(OTelTelemetryPlugin.INSTRUMENTATION_SCOPE_NAME)).thenReturn(mockTracer);
         SpanBuilder mockSpanBuilder = mock(SpanBuilder.class);
         when(mockTracer.spanBuilder("span_name")).thenReturn(mockSpanBuilder);
         when(mockSpanBuilder.setParent(any())).thenReturn(mockSpanBuilder);
@@ -118,7 +119,7 @@ public class OTelTracingTelemetryTests extends OpenSearchTestCase {
     public void testGetContextPropagator() {
         OpenTelemetry mockOpenTelemetry = mock(OpenTelemetry.class);
         Tracer mockTracer = mock(Tracer.class);
-        when(mockOpenTelemetry.getTracer("os-tracer")).thenReturn(mockTracer);
+        when(mockOpenTelemetry.getTracer(OTelTelemetryPlugin.INSTRUMENTATION_SCOPE_NAME)).thenReturn(mockTracer);
 
         TracingTelemetry tracingTelemetry = new OTelTracingTelemetry(mockOpenTelemetry);
 

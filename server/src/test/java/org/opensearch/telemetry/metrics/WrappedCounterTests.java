@@ -6,15 +6,13 @@
  * compatible open source license.
  */
 
-package org.opensearch.telemetry.tracing.metrics;
+package org.opensearch.telemetry.metrics;
 
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.telemetry.TelemetrySettings;
-import org.opensearch.telemetry.metrics.Counter;
-import org.opensearch.telemetry.metrics.WrappedCounter;
 import org.opensearch.telemetry.metrics.tags.Tags;
 import org.opensearch.test.OpenSearchTestCase;
 

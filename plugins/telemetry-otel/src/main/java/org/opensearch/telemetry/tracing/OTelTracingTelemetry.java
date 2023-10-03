@@ -11,12 +11,11 @@ package org.opensearch.telemetry.tracing;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.telemetry.OTelAttributesConverter;
-
-import java.io.Closeable;
-import java.io.IOException;
+import org.opensearch.telemetry.OTelTelemetryPlugin;
 
 import io.opentelemetry.api.OpenTelemetry;
 import io.opentelemetry.context.Context;
+import io.opentelemetry.sdk.OpenTelemetrySdk;
 
 /**
  * OTel based Telemetry provider
@@ -33,15 +32,15 @@ public class OTelTracingTelemetry implements TracingTelemetry {
      */
     public OTelTracingTelemetry(OpenTelemetry openTelemetry) {
         this.openTelemetry = openTelemetry;
-        this.otelTracer = openTelemetry.getTracer("os-tracer");
+        this.otelTracer = openTelemetry.getTracer(OTelTelemetryPlugin.INSTRUMENTATION_SCOPE_NAME);
 
     }
 
     @Override
     public void close() {
         try {
-            ((Closeable) openTelemetry).close();
-        } catch (IOException e) {
+            ((OpenTelemetrySdk) openTelemetry).getSdkTracerProvider().close();
+        } catch (Exception e) {
             logger.warn("Error while closing Opentelemetry", e);
         }
     }

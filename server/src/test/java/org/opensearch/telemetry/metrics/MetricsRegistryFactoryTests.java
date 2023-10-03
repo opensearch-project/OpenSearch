@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.telemetry.tracing.metrics;
+package org.opensearch.telemetry.metrics;
 
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
@@ -14,10 +14,6 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.telemetry.Telemetry;
 import org.opensearch.telemetry.TelemetrySettings;
-import org.opensearch.telemetry.metrics.MetricsRegistry;
-import org.opensearch.telemetry.metrics.MetricsRegistryFactory;
-import org.opensearch.telemetry.metrics.MetricsTelemetry;
-import org.opensearch.telemetry.metrics.WrappedMetricsRegistry;
 import org.opensearch.telemetry.metrics.noop.NoopCounter;
 import org.opensearch.telemetry.metrics.noop.NoopMetricsRegistry;
 import org.opensearch.telemetry.tracing.TracingTelemetry;
