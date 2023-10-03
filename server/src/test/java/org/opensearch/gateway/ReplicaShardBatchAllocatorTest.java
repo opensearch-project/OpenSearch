@@ -44,6 +44,7 @@ import org.opensearch.index.seqno.ReplicationTracker;
 import org.opensearch.index.seqno.RetentionLease;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.store.StoreFileMetadata;
+import org.opensearch.indices.store.StoreFilesMetadata;
 import org.opensearch.indices.store.TransportNodesListShardStoreMetadataBatch;
 import org.opensearch.indices.store.TransportNodesListShardStoreMetadataBatch.NodeStoreFilesMetadataBatch;
 import org.opensearch.snapshots.SnapshotShardSizeInfo;
@@ -112,7 +113,7 @@ public class ReplicaShardBatchAllocatorTest extends OpenSearchAllocationTestCase
         );
         testBatchAllocator.clean();
         allocateAllUnassignedBatch(allocation);
-        assertThat(testBatchAllocator.getFetchDataCalledAndClean(), equalTo(true));
+        assertThat(testBatchAllocator.getFetchDataCalledAndClean(), equalTo(false));
         assertThat(testBatchAllocator.getShardEligibleFetchDataCountAndClean(), equalTo(0));
         assertThat(allocation.routingNodes().shardsWithState(ShardRoutingState.UNASSIGNED).size(), equalTo(1));
         assertThat(allocation.routingNodes().shardsWithState(ShardRoutingState.UNASSIGNED).get(0).shardId(), equalTo(shardId));
@@ -706,7 +707,7 @@ public class ReplicaShardBatchAllocatorTest extends OpenSearchAllocationTestCase
             data.put(
                 node,
                 new TransportNodesListShardStoreMetadataBatch.NodeStoreFilesMetadata(
-                    new TransportNodesListShardStoreMetadataBatch.StoreFilesMetadata(
+                    new StoreFilesMetadata(
                         shardId,
                         new Store.MetadataSnapshot(unmodifiableMap(filesAsMap), unmodifiableMap(commitData), randomInt()),
                         peerRecoveryRetentionLeases
