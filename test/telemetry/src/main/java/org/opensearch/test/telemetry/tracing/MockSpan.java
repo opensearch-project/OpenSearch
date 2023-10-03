@@ -166,7 +166,7 @@ public class MockSpan extends AbstractSpan {
     }
 
     public void setError(Exception exception) {
-        putMetadata("ERROR", exception.getMessage());
+        putMetadata("ERROR", exception != null ? exception.getMessage() : null);
     }
 
     private static class IdGenerator {

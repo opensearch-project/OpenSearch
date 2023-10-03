@@ -57,7 +57,7 @@ class OTelSpan extends AbstractSpan {
 
     @Override
     public void setError(Exception exception) {
-        delegateSpan.setStatus(StatusCode.ERROR, exception.getMessage());
+        delegateSpan.setStatus(StatusCode.ERROR, exception != null ? exception.getMessage() : "no description");
     }
 
     @Override

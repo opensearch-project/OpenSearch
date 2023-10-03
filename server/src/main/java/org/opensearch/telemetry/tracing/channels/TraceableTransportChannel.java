@@ -15,7 +15,6 @@ import org.opensearch.core.transport.TransportResponse;
 import org.opensearch.telemetry.tracing.Span;
 import org.opensearch.telemetry.tracing.SpanScope;
 import org.opensearch.telemetry.tracing.Tracer;
-import org.opensearch.telemetry.tracing.listener.TraceableActionListener;
 import org.opensearch.transport.TcpChannel;
 import org.opensearch.transport.TransportChannel;
 
@@ -31,8 +30,6 @@ public class TraceableTransportChannel implements TransportChannel {
     private final Tracer tracer;
 
     private final TcpChannel tcpChannel;
-
-    private final static ActionListener<Void> DUMMY_ACTION_LISTENER = ActionListener.wrap(() -> {});
 
     /**
      * Constructor.
@@ -57,7 +54,20 @@ public class TraceableTransportChannel implements TransportChannel {
      */
     public static TransportChannel create(TransportChannel delegate, final Span span, final Tracer tracer, final TcpChannel tcpChannel) {
         if (FeatureFlags.isEnabled(FeatureFlags.TELEMETRY) == true) {
-            tcpChannel.addCloseListener(TraceableActionListener.create(DUMMY_ACTION_LISTENER, span, tracer));
+            tcpChannel.addCloseListener(new ActionListener<Void>() {
+                @Override
+                public void onResponse(Void unused) {
+                    onFailure(null);
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    span.addEvent("The TransportChannel was closed without sending the response");
+                    span.setError(e);
+                    span.endSpan();
+                }
+            });
+
             return new TraceableTransportChannel(delegate, span, tracer, tcpChannel);
         } else {
             return delegate;

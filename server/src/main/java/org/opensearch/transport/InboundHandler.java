@@ -271,6 +271,10 @@ public class InboundHandler {
                     sendErrorResponse(action, traceableTransportChannel, e);
                 }
             }
+        } catch (Exception e) {
+            span.setError(e);
+            span.endSpan();
+            throw e;
         }
     }
 

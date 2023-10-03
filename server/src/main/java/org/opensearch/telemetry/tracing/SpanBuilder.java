@@ -135,11 +135,13 @@ public final class SpanBuilder {
      * @return context
      */
     public static SpanCreationContext from(String action, TcpChannel tcpChannel) {
-        return new SpanCreationContext(createSpanName(action, tcpChannel), buildSpanAttributes(action, tcpChannel));
+        return SpanCreationContext.server().name(createSpanName(action, tcpChannel)).attributes(buildSpanAttributes(action, tcpChannel));
     }
 
     private static String createSpanName(String action, TcpChannel tcpChannel) {
-        return action + SEPARATOR + tcpChannel.getLocalAddress().getHostString();
+        return action + SEPARATOR + (tcpChannel.getRemoteAddress() != null
+            ? tcpChannel.getRemoteAddress().getHostString()
+            : tcpChannel.getLocalAddress().getHostString());
     }
 
     private static Attributes buildSpanAttributes(String action, TcpChannel tcpChannel) {
