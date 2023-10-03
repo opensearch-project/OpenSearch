@@ -15,11 +15,11 @@ missing-dep-on-jarwrapper
 
 # we prefer to not make our config and log files world readable
 non-standard-file-perm etc/default/opensearch 0660 != 0644
-non-standard-dir-perm etc/opensearch/ 2750 != 0755
-non-standard-dir-perm etc/opensearch/jvm.options.d/ 2750 != 0755
+non-standard-dir-perm etc/opensearch/ 0750 != 0755
+non-standard-dir-perm etc/opensearch/jvm.options.d/ 0750 != 0755
 non-standard-file-perm etc/opensearch/*
-non-standard-dir-perm var/lib/opensearch/ 2750 != 0755
-non-standard-dir-perm var/log/opensearch/ 2750 != 0755
+non-standard-dir-perm var/lib/opensearch/ 0750 != 0755
+non-standard-dir-perm var/log/opensearch/ 0750 != 0755
 executable-is-not-world-readable etc/init.d/opensearch 0750
 non-standard-file-permissions-for-etc-init.d-script etc/init.d/opensearch 0750 != 0755
 
