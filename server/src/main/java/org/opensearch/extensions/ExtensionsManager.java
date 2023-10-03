@@ -300,7 +300,7 @@ public class ExtensionsManager {
      * Loads a single extension
      * @param extension The extension to be loaded
      */
-    public void loadExtension(Extension extension) throws IOException {
+    public DiscoveryExtensionNode loadExtension(Extension extension) throws IOException {
         validateExtension(extension);
         DiscoveryExtensionNode discoveryExtensionNode = new DiscoveryExtensionNode(
             extension.getName(),
@@ -314,6 +314,12 @@ public class ExtensionsManager {
         extensionIdMap.put(extension.getUniqueId(), discoveryExtensionNode);
         extensionSettingsMap.put(extension.getUniqueId(), extension);
         logger.info("Loaded extension with uniqueId " + extension.getUniqueId() + ": " + extension);
+        return discoveryExtensionNode;
+    }
+
+    public void initializeExtension(Extension extension) throws IOException {
+        DiscoveryExtensionNode node = loadExtension(extension);
+        initializeExtensionNode(node);
     }
 
     private void validateField(String fieldName, String value) throws IOException {
@@ -340,11 +346,11 @@ public class ExtensionsManager {
      */
     public void initialize() {
         for (DiscoveryExtensionNode extension : extensionIdMap.values()) {
-            initializeExtension(extension);
+            initializeExtensionNode(extension);
         }
     }
 
-    private void initializeExtension(DiscoveryExtensionNode extension) {
+    public void initializeExtensionNode(DiscoveryExtensionNode extensionNode) {
 
         final CompletableFuture<InitializeExtensionResponse> inProgressFuture = new CompletableFuture<>();
         final TransportResponseHandler<InitializeExtensionResponse> initializeExtensionResponseHandler = new TransportResponseHandler<
@@ -384,7 +390,8 @@ public class ExtensionsManager {
         transportService.getThreadPool().generic().execute(new AbstractRunnable() {
             @Override
             public void onFailure(Exception e) {
-                extensionIdMap.remove(extension.getId());
+                logger.warn("Error registering extension: " + extensionNode.getId(), e);
+                extensionIdMap.remove(extensionNode.getId());
                 if (e.getCause() instanceof ConnectTransportException) {
                     logger.info("No response from extension to request.", e);
                     throw (ConnectTransportException) e.getCause();
@@ -399,11 +406,11 @@ public class ExtensionsManager {
 
             @Override
             protected void doRun() throws Exception {
-                transportService.connectToExtensionNode(extension);
+                transportService.connectToExtensionNode(extensionNode);
                 transportService.sendRequest(
-                    extension,
+                    extensionNode,
                     REQUEST_EXTENSION_ACTION_NAME,
-                    new InitializeExtensionRequest(transportService.getLocalNode(), extension, issueServiceAccount(extension)),
+                    new InitializeExtensionRequest(transportService.getLocalNode(), extensionNode, issueServiceAccount(extensionNode)),
                     initializeExtensionResponseHandler
                 );
             }
