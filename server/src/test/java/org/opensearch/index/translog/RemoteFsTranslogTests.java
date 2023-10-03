@@ -108,7 +108,6 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 @LuceneTestCase.SuppressFileSystems("ExtrasFS")
-
 public class RemoteFsTranslogTests extends OpenSearchTestCase {
 
     protected final ShardId shardId = new ShardId("index", "_na_", 1);
@@ -621,6 +620,7 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
 
         translog.setMinSeqNoToKeep(2);
 
+        assertBusy(() -> assertTrue(translog.isRemoteGenerationDeletionPermitsAvailable()));
         translog.trimUnreferencedReaders();
         assertEquals(1, translog.readers.size());
         assertEquals(1, translog.stats().estimatedNumberOfOperations());

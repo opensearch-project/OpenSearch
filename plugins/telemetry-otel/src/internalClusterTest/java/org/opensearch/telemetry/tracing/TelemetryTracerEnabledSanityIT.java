@@ -89,7 +89,7 @@ public class TelemetryTracerEnabledSanityIT extends OpenSearchIntegTestCase {
 
         InMemorySingletonSpanExporter exporter = InMemorySingletonSpanExporter.INSTANCE;
         if (!exporter.getFinishedSpanItems().isEmpty()) {
-            validators.validate(exporter.getFinishedSpanItems(), 2);
+            validators.validate(exporter.getFinishedSpanItems(), 6);
         }
     }
 

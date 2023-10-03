@@ -78,6 +78,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
@@ -171,11 +172,12 @@ public class GatewayMetaState implements Closeable {
                             // If the cluster UUID loaded from local is unknown (_na_) then fetch the best state from remote
                             // If there is no valid state on remote, continue with initial empty state
                             // If there is a valid state, then restore index metadata using this state
+                            String lastKnownClusterUUID = ClusterState.UNKNOWN_UUID;
                             if (ClusterState.UNKNOWN_UUID.equals(clusterState.metadata().clusterUUID())) {
-                                String lastKnownClusterUUID = remoteClusterStateService.getLastKnownUUIDFromRemote(
+                                lastKnownClusterUUID = remoteClusterStateService.getLastKnownUUIDFromRemote(
                                     clusterState.getClusterName().value()
                                 );
-                                if (!ClusterState.UNKNOWN_UUID.equals(lastKnownClusterUUID)) {
+                                if (ClusterState.UNKNOWN_UUID.equals(lastKnownClusterUUID) == false) {
                                     // Load state from remote
                                     final RemoteRestoreResult remoteRestoreResult = remoteStoreRestoreService.restore(
                                         clusterState,
@@ -186,7 +188,7 @@ public class GatewayMetaState implements Closeable {
                                     clusterState = remoteRestoreResult.getClusterState();
                                 }
                             }
-                            remotePersistedState = new RemotePersistedState(remoteClusterStateService);
+                            remotePersistedState = new RemotePersistedState(remoteClusterStateService, lastKnownClusterUUID);
                         }
                         persistedState = new LucenePersistedState(persistedClusterStateService, currentTerm, clusterState);
                     } else {
@@ -647,9 +649,11 @@ public class GatewayMetaState implements Closeable {
         private ClusterState lastAcceptedState;
         private ClusterMetadataManifest lastAcceptedManifest;
         private final RemoteClusterStateService remoteClusterStateService;
+        private String previousClusterUUID;
 
-        public RemotePersistedState(final RemoteClusterStateService remoteClusterStateService) {
+        public RemotePersistedState(final RemoteClusterStateService remoteClusterStateService, final String previousClusterUUID) {
             this.remoteClusterStateService = remoteClusterStateService;
+            this.previousClusterUUID = previousClusterUUID;
         }
 
         @Override
@@ -674,7 +678,26 @@ public class GatewayMetaState implements Closeable {
             try {
                 final ClusterMetadataManifest manifest;
                 if (shouldWriteFullClusterState(clusterState)) {
-                    manifest = remoteClusterStateService.writeFullMetadata(clusterState);
+                    if (clusterState.metadata().clusterUUIDCommitted() == true) {
+                        final Optional<ClusterMetadataManifest> latestManifest = remoteClusterStateService.getLatestClusterMetadataManifest(
+                            clusterState.getClusterName().value(),
+                            clusterState.metadata().clusterUUID()
+                        );
+                        if (latestManifest.isPresent()) {
+                            // The previous UUID should not change for the current UUID. So fetching the latest manifest
+                            // from remote store and getting the previous UUID.
+                            previousClusterUUID = latestManifest.get().getPreviousClusterUUID();
+                        } else {
+                            // When the user starts the cluster with remote state disabled but later enables the remote state,
+                            // there will not be any manifest for the current cluster UUID.
+                            logger.error(
+                                "Latest manifest is not present in remote store for cluster UUID: {}",
+                                clusterState.metadata().clusterUUID()
+                            );
+                            previousClusterUUID = ClusterState.UNKNOWN_UUID;
+                        }
+                    }
+                    manifest = remoteClusterStateService.writeFullMetadata(clusterState, previousClusterUUID);
                 } else {
                     assert verifyManifestAndClusterState(lastAcceptedManifest, lastAcceptedState) == true
                         : "Previous manifest and previous ClusterState are not in sync";
@@ -723,11 +746,19 @@ public class GatewayMetaState implements Closeable {
             try {
                 assert lastAcceptedState != null : "Last accepted state is not present";
                 assert lastAcceptedManifest != null : "Last accepted manifest is not present";
+                ClusterState clusterState = lastAcceptedState;
+                if (lastAcceptedState.metadata().clusterUUID().equals(Metadata.UNKNOWN_CLUSTER_UUID) == false
+                    && lastAcceptedState.metadata().clusterUUIDCommitted() == false) {
+                    Metadata.Builder metadataBuilder = Metadata.builder(lastAcceptedState.metadata());
+                    metadataBuilder.clusterUUIDCommitted(true);
+                    clusterState = ClusterState.builder(lastAcceptedState).metadata(metadataBuilder).build();
+                }
                 final ClusterMetadataManifest committedManifest = remoteClusterStateService.markLastStateAsCommitted(
-                    lastAcceptedState,
+                    clusterState,
                     lastAcceptedManifest
                 );
                 lastAcceptedManifest = committedManifest;
+                lastAcceptedState = clusterState;
             } catch (Exception e) {
                 handleExceptionOnWrite(e);
             }

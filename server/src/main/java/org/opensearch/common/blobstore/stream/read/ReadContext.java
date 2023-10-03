@@ -28,6 +28,12 @@ public class ReadContext {
         this.blobChecksum = blobChecksum;
     }
 
+    public ReadContext(ReadContext readContext) {
+        this.blobSize = readContext.blobSize;
+        this.partStreams = readContext.partStreams;
+        this.blobChecksum = readContext.blobChecksum;
+    }
+
     public String getBlobChecksum() {
         return blobChecksum;
     }

@@ -39,6 +39,7 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
+import org.apache.lucene.search.SortedNumericSortField;
 import org.apache.lucene.search.TopFieldDocs;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.core.common.Strings;
@@ -142,6 +143,27 @@ public abstract class AbstractFieldDataImplTestCase extends AbstractFieldDataTes
             assertThat(topDocs.scoreDocs[1].doc, equalTo(0));
             assertThat(topDocs.scoreDocs[2].doc, equalTo(1));
         }
+    }
+
+    public void testWideSortField() throws Exception {
+        if (this instanceof NoOrdinalsStringFieldDataTests || this instanceof PagedBytesStringFieldDataTests) {
+            return; // Numeric types are not supported there.
+        }
+        // integer to long widening should happen
+        IndexFieldData<?> indexFieldData = getForField("int", "value");
+        SortField sortField = indexFieldData.wideSortField(null, MultiValueMode.MIN, null, false);
+        assertTrue(((SortedNumericSortField) sortField).getNumericType() == SortField.Type.LONG);
+
+        // long to long no widening should happen
+        indexFieldData = getForField("long", "value");
+        sortField = indexFieldData.wideSortField(null, MultiValueMode.MIN, null, false);
+        assertTrue(((SortedNumericSortField) sortField).getNumericType() == SortField.Type.LONG);
+
+        // float to float no widening should happen
+        indexFieldData = getForField("float", "value");
+        sortField = indexFieldData.wideSortField(null, MultiValueMode.MIN, null, false);
+        assertTrue(((SortedNumericSortField) sortField).getNumericType() == SortField.Type.FLOAT);
+
     }
 
     protected abstract void fillSingleValueWithMissing() throws Exception;

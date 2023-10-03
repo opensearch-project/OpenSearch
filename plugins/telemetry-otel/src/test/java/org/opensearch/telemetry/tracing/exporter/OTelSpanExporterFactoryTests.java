@@ -63,4 +63,15 @@ public class OTelSpanExporterFactoryTests extends OpenSearchTestCase {
 
     }
 
+    public void testSpanExporterGetDefaultMethod() {
+        Settings settings = Settings.builder()
+            .put(
+                OTelTelemetrySettings.OTEL_TRACER_SPAN_EXPORTER_CLASS_SETTING.getKey(),
+                "org.opensearch.telemetry.tracing.exporter.DummySpanExporterWithGetDefault"
+            )
+            .build();
+
+        assertTrue(OTelSpanExporterFactory.create(settings) instanceof DummySpanExporterWithGetDefault);
+    }
+
 }

@@ -211,8 +211,8 @@ public abstract class BaseWordDelimiterTokenFilterFactoryTestCase extends OpenSe
     }
 
     public void testTypeTableParsingError() {
-        String[] rules = { "# This is a comment", "$ => DIGIT", "\\u200D => ALPHANUM", "abc => ALPHA" };
+        String[] rules = { "# This is a comment", "# => ALPHANUM", "$ => DIGIT", "\\u200D => ALPHANUM", "abc => ALPHA" };
         RuntimeException ex = expectThrows(RuntimeException.class, () -> createTokenFilterFactoryWithTypeTable(rules));
-        assertEquals("Line [4]: Invalid mapping rule: [abc => ALPHA]. Only a single character is allowed.", ex.getMessage());
+        assertEquals("Line [5]: Invalid mapping rule: [abc => ALPHA]. Only a single character is allowed.", ex.getMessage());
     }
 }

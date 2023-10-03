@@ -48,10 +48,14 @@ public class TracerFactoryTests extends OpenSearchTestCase {
         Tracer tracer = tracerFactory.getTracer();
 
         assertTrue(tracer instanceof NoopTracer);
-        assertTrue(tracer.startSpan("foo") == NoopSpan.INSTANCE);
-        assertTrue(tracer.startScopedSpan(new SpanCreationContext("foo", Attributes.EMPTY)) == ScopedSpan.NO_OP);
-        assertTrue(tracer.startScopedSpan(new SpanCreationContext("foo", Attributes.EMPTY)) == ScopedSpan.NO_OP);
-        assertTrue(tracer.withSpanInScope(tracer.startSpan("foo")) == SpanScope.NO_OP);
+        assertTrue(tracer.startSpan(SpanCreationContext.internal().name("foo").attributes(Attributes.EMPTY)) == NoopSpan.INSTANCE);
+        assertTrue(tracer.startScopedSpan(SpanCreationContext.internal().name("foo").attributes(Attributes.EMPTY)) == ScopedSpan.NO_OP);
+        assertTrue(tracer.startScopedSpan(SpanCreationContext.internal().name("foo").attributes(Attributes.EMPTY)) == ScopedSpan.NO_OP);
+        assertTrue(
+            tracer.withSpanInScope(
+                tracer.startSpan(SpanCreationContext.internal().name("foo").attributes(Attributes.EMPTY))
+            ) == SpanScope.NO_OP
+        );
     }
 
     public void testGetTracerWithUnavailableTracingTelemetry() {
@@ -64,7 +68,7 @@ public class TracerFactoryTests extends OpenSearchTestCase {
         Tracer tracer = tracerFactory.getTracer();
 
         assertTrue(tracer instanceof NoopTracer);
-        assertTrue(tracer.startScopedSpan(new SpanCreationContext("foo", Attributes.EMPTY)) == ScopedSpan.NO_OP);
+        assertTrue(tracer.startScopedSpan(SpanCreationContext.internal().name("foo").attributes(Attributes.EMPTY)) == ScopedSpan.NO_OP);
     }
 
     public void testGetTracerWithAvailableTracingTelemetryReturnsWrappedTracer() {

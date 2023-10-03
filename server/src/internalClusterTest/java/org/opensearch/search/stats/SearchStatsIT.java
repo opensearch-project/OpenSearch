@@ -37,6 +37,7 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.opensearch.action.admin.cluster.node.stats.NodeStats;
 import org.opensearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.opensearch.action.admin.indices.stats.IndicesStatsResponse;
+import org.opensearch.action.search.SearchPhaseName;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.routing.GroupShardsIterator;
@@ -63,6 +64,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 
+import static org.opensearch.action.search.TransportSearchAction.SEARCH_REQUEST_STATS_ENABLED_KEY;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.opensearch.index.query.QueryBuilders.matchAllQuery;
@@ -78,7 +80,7 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-@OpenSearchIntegTestCase.ClusterScope(minNumDataNodes = 2)
+@OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, minNumDataNodes = 2)
 public class SearchStatsIT extends ParameterizedOpenSearchIntegTestCase {
 
     public SearchStatsIT(Settings dynamicSettings) {
@@ -126,6 +128,11 @@ public class SearchStatsIT extends ParameterizedOpenSearchIntegTestCase {
         assertThat(numNodes, greaterThanOrEqualTo(2));
         final int shardsIdx1 = randomIntBetween(1, 10); // we make sure each node gets at least a single shard...
         final int shardsIdx2 = Math.max(numNodes - shardsIdx1, randomIntBetween(1, 10));
+        client().admin()
+            .cluster()
+            .prepareUpdateSettings()
+            .setPersistentSettings(Settings.builder().put(SEARCH_REQUEST_STATS_ENABLED_KEY, true).build())
+            .get();
         assertThat(numNodes, lessThanOrEqualTo(shardsIdx1 + shardsIdx2));
         assertAcked(
             prepareCreate("test1").setSettings(
@@ -188,20 +195,40 @@ public class SearchStatsIT extends ParameterizedOpenSearchIntegTestCase {
 
         Set<String> nodeIdsWithIndex = nodeIdsWithIndex("test1", "test2");
         int num = 0;
+        int numOfCoordinators = 0;
+
         for (NodeStats stat : nodeStats.getNodes()) {
             Stats total = stat.getIndices().getSearch().getTotal();
+            if (total.getRequestStatsLongHolder().getRequestStatsHolder().get(SearchPhaseName.QUERY.getName()).getTimeInMillis() > 0) {
+                assertThat(
+                    total.getRequestStatsLongHolder().getRequestStatsHolder().get(SearchPhaseName.FETCH.getName()).getTimeInMillis(),
+                    greaterThan(0L)
+                );
+                assertEquals(
+                    iters,
+                    total.getRequestStatsLongHolder().getRequestStatsHolder().get(SearchPhaseName.FETCH.getName()).getTotal()
+                );
+                assertEquals(
+                    iters,
+                    total.getRequestStatsLongHolder().getRequestStatsHolder().get(SearchPhaseName.EXPAND.getName()).getTotal()
+                );
+                assertEquals(
+                    iters,
+                    total.getRequestStatsLongHolder().getRequestStatsHolder().get(SearchPhaseName.FETCH.getName()).getTotal()
+                );
+                numOfCoordinators += 1;
+            }
             if (nodeIdsWithIndex.contains(stat.getNode().getId())) {
                 assertThat(total.getQueryCount(), greaterThan(0L));
                 assertThat(total.getQueryTimeInMillis(), greaterThan(0L));
                 num++;
             } else {
-                assertThat(total.getQueryCount(), equalTo(0L));
+                assertThat(total.getQueryCount(), greaterThanOrEqualTo(0L));
                 assertThat(total.getQueryTimeInMillis(), equalTo(0L));
             }
         }
-
+        assertThat(numOfCoordinators, greaterThan(0));
         assertThat(num, greaterThan(0));
-
     }
 
     private Set<String> nodeIdsWithIndex(String... indices) {

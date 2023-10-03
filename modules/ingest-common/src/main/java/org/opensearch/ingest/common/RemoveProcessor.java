@@ -32,6 +32,7 @@
 
 package org.opensearch.ingest.common;
 
+import org.opensearch.core.common.Strings;
 import org.opensearch.ingest.AbstractProcessor;
 import org.opensearch.ingest.ConfigurationUtils;
 import org.opensearch.ingest.IngestDocument;
@@ -66,16 +67,20 @@ public final class RemoveProcessor extends AbstractProcessor {
 
     @Override
     public IngestDocument execute(IngestDocument document) {
-        if (ignoreMissing) {
-            fields.forEach(field -> {
-                String path = document.renderTemplate(field);
-                if (document.hasField(path)) {
-                    document.removeField(path);
+        fields.forEach(field -> {
+            String path = document.renderTemplate(field);
+            final boolean fieldPathIsNullOrEmpty = Strings.isNullOrEmpty(path);
+            if (fieldPathIsNullOrEmpty || document.hasField(path) == false) {
+                if (ignoreMissing) {
+                    return;
+                } else if (fieldPathIsNullOrEmpty) {
+                    throw new IllegalArgumentException("field path cannot be null nor empty");
+                } else {
+                    throw new IllegalArgumentException("field [" + path + "] doesn't exist");
                 }
-            });
-        } else {
-            fields.forEach(document::removeField);
-        }
+            }
+            document.removeField(path);
+        });
         return document;
     }
 

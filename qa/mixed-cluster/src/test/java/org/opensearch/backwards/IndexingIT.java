@@ -67,13 +67,14 @@ import static org.hamcrest.Matchers.equalTo;
 public class IndexingIT extends OpenSearchRestTestCase {
 
     protected static final Version UPGRADE_FROM_VERSION = Version.fromString(System.getProperty("tests.upgrade_from_version"));
+    private static final String TEST_MAPPING = createTestMapping();
 
 
     private int indexDocs(String index, final int idStart, final int numDocs) throws IOException {
         for (int i = 0; i < numDocs; i++) {
             final int id = idStart + i;
             Request request = new Request("PUT", index + "/_doc/" + id);
-            request.setJsonEntity("{\"test\": \"test_" + randomAlphaOfLength(2) + "\"}");
+            request.setJsonEntity("{\"test\": \"test_" + randomAlphaOfLength(2) + "\", \"sortfield\": \""+ randomIntBetween(0, numDocs) + "\"}");
             assertOK(client().performRequest(request));
         }
         return numDocs;
@@ -129,9 +130,10 @@ public class IndexingIT extends OpenSearchRestTestCase {
             .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
             .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
             .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
+            .putList("index.sort.field", "sortfield")
             .put("index.routing.allocation.include._name", bwcNames);
         final String index = "test-index";
-        createIndex(index, settings.build());
+        createIndex(index, settings.build(), TEST_MAPPING);
         ensureNoInitializingShards(); // wait for all other shard activity to finish
 
         int docCount = 200;
@@ -178,9 +180,10 @@ public class IndexingIT extends OpenSearchRestTestCase {
             .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
             .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
             .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
+            .putList("index.sort.field", "sortfield")
             .put("index.routing.allocation.exclude._name", bwcNames);
         final String index = "test-index";
-        createIndex(index, settings.build());
+        createIndex(index, settings.build(), TEST_MAPPING);
         ensureNoInitializingShards(); // wait for all other shard activity to finish
         printClusterRouting();
 
@@ -214,11 +217,12 @@ public class IndexingIT extends OpenSearchRestTestCase {
         Settings.Builder settings = Settings.builder()
                 .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
                 .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 2)
+                .putList("index.sort.field", "sortfield")
                 .put("index.routing.allocation.include._name", bwcNames);
         final String index = "indexversionprop";
         final int minUpdates = 5;
         final int maxUpdates = 10;
-        createIndex(index, settings.build());
+        createIndex(index, settings.build(), TEST_MAPPING);
         try (RestClient newNodeClient = buildClient(restClientSettings(),
                 nodes.getNewNodes().stream().map(Node::getPublishAddress).toArray(HttpHost[]::new))) {
 
@@ -300,10 +304,11 @@ public class IndexingIT extends OpenSearchRestTestCase {
         Settings.Builder settings = Settings.builder()
             .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
             .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 2)
+            .putList("index.sort.field", "sortfield")
             .put("index.routing.allocation.include._name", bwcNames);
 
         final String index = "test";
-        createIndex(index, settings.build());
+        createIndex(index, settings.build(), TEST_MAPPING);
         try (RestClient newNodeClient = buildClient(restClientSettings(),
             nodes.getNewNodes().stream().map(Node::getPublishAddress).toArray(HttpHost[]::new))) {
             int numDocs = 0;
@@ -382,10 +387,11 @@ public class IndexingIT extends OpenSearchRestTestCase {
         Settings.Builder settings = Settings.builder()
             .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), between(5, 10))
             .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 1)
+            .putList("index.sort.field", "sortfield")
             .put("index.routing.allocation.include._name", bwcNames);
 
         final String index = "test-snapshot-index";
-        createIndex(index, settings.build());
+        createIndex(index, settings.build(), TEST_MAPPING);
         indexDocs(index, 0, between(50, 100));
         ensureGreen(index);
         assertOK(client().performRequest(new Request("POST", index + "/_refresh")));
@@ -419,7 +425,8 @@ public class IndexingIT extends OpenSearchRestTestCase {
         createIndex(index, Settings.builder()
             .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), numShards)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numOfReplicas)
-            .put("index.routing.allocation.include._name", newNodes).build());
+            .putList("index.sort.field", "sortfield")
+            .put("index.routing.allocation.include._name", newNodes).build(), TEST_MAPPING);
         ensureGreen(index);
         indexDocs(index, randomIntBetween(0, 100), between(1, 100));
         try (RestClient oldNodeClient = buildClient(restClientSettings(),
@@ -663,5 +670,16 @@ public class IndexingIT extends OpenSearchRestTestCase {
                 ", seqNoStats=" + seqNoStats +
                 '}';
         }
+    }
+
+    private static String createTestMapping() {
+        return "  \"properties\": {\n"
+            + "    \"test\": {\n"
+            + "      \"type\": \"text\"\n"
+            + "    },\n"
+            + "    \"sortfield\": {\n"
+            + "      \"type\": \"integer\"\n"
+            + "    }\n"
+            + "  }";
     }
 }

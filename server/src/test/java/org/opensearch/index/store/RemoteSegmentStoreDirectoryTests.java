@@ -8,6 +8,8 @@
 
 package org.opensearch.index.store;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.IndexFormatTooNewException;
@@ -28,6 +30,7 @@ import org.opensearch.common.io.VersionedCodecStreamWrapper;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.lucene.store.ByteArrayIndexInput;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.util.concurrent.OpenSearchExecutors;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.bytes.BytesReference;
@@ -46,6 +49,7 @@ import org.junit.Before;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.nio.file.NoSuchFileException;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
@@ -61,6 +65,8 @@ import org.mockito.Mockito;
 import static org.opensearch.test.RemoteStoreTestUtils.createMetadataFileBytes;
 import static org.opensearch.test.RemoteStoreTestUtils.getDummyMetadata;
 import static org.hamcrest.CoreMatchers.is;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.contains;
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.doThrow;
@@ -73,6 +79,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class RemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
+    private static final Logger logger = LogManager.getLogger(RemoteSegmentStoreDirectoryTests.class);
     private RemoteDirectory remoteDataDirectory;
     private RemoteDirectory remoteMetadataDirectory;
     private RemoteStoreMetadataLockManager mdLockManager;
@@ -93,13 +100,6 @@ public class RemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
         remoteMetadataDirectory = mock(RemoteDirectory.class);
         mdLockManager = mock(RemoteStoreMetadataLockManager.class);
         threadPool = mock(ThreadPool.class);
-
-        remoteSegmentStoreDirectory = new RemoteSegmentStoreDirectory(
-            remoteDataDirectory,
-            remoteMetadataDirectory,
-            mdLockManager,
-            threadPool
-        );
         testUploadTracker = new TestUploadListener();
 
         Settings indexSettings = Settings.builder()
@@ -109,6 +109,13 @@ public class RemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
         ExecutorService executorService = OpenSearchExecutors.newDirectExecutorService();
 
         indexShard = newStartedShard(false, indexSettings, new NRTReplicationEngineFactory());
+        remoteSegmentStoreDirectory = new RemoteSegmentStoreDirectory(
+            remoteDataDirectory,
+            remoteMetadataDirectory,
+            mdLockManager,
+            threadPool,
+            indexShard.shardId()
+        );
         try (Store store = indexShard.store()) {
             segmentInfos = store.readLastCommittedSegmentsInfo();
         }
@@ -516,6 +523,114 @@ public class RemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
         storeDirectory.close();
     }
 
+    public void testCopyFilesToMultipart() throws Exception {
+        Settings settings = Settings.builder().build();
+        FeatureFlags.initializeFeatureFlags(settings);
+
+        String filename = "_0.cfe";
+        populateMetadata();
+        remoteSegmentStoreDirectory.init();
+
+        Directory storeDirectory = mock(Directory.class);
+        AsyncMultiStreamBlobContainer blobContainer = mock(AsyncMultiStreamBlobContainer.class);
+        when(remoteDataDirectory.getBlobContainer()).thenReturn(blobContainer);
+
+        Mockito.doAnswer(invocation -> {
+            ActionListener<String> completionListener = invocation.getArgument(3);
+            completionListener.onResponse(invocation.getArgument(0));
+            return null;
+        }).when(blobContainer).asyncBlobDownload(any(), any(), any(), any());
+
+        CountDownLatch downloadLatch = new CountDownLatch(1);
+        ActionListener<String> completionListener = new ActionListener<String>() {
+            @Override
+            public void onResponse(String unused) {
+                downloadLatch.countDown();
+            }
+
+            @Override
+            public void onFailure(Exception e) {}
+        };
+        Path path = createTempDir();
+        remoteSegmentStoreDirectory.copyTo(filename, storeDirectory, path, completionListener);
+        assertTrue(downloadLatch.await(5000, TimeUnit.SECONDS));
+        verify(blobContainer, times(1)).asyncBlobDownload(contains(filename), eq(path.resolve(filename)), any(), any());
+        verify(storeDirectory, times(0)).copyFrom(any(), any(), any(), any());
+    }
+
+    public void testCopyFilesTo() throws Exception {
+        String filename = "_0.cfe";
+        populateMetadata();
+        remoteSegmentStoreDirectory.init();
+
+        Directory storeDirectory = mock(Directory.class);
+        CountDownLatch downloadLatch = new CountDownLatch(1);
+        ActionListener<String> completionListener = new ActionListener<>() {
+            @Override
+            public void onResponse(String unused) {
+                downloadLatch.countDown();
+            }
+
+            @Override
+            public void onFailure(Exception e) {}
+        };
+        Path path = createTempDir();
+        remoteSegmentStoreDirectory.copyTo(filename, storeDirectory, path, completionListener);
+        assertTrue(downloadLatch.await(5000, TimeUnit.MILLISECONDS));
+        verify(storeDirectory, times(1)).copyFrom(any(), eq(filename), eq(filename), eq(IOContext.DEFAULT));
+    }
+
+    public void testCopyFilesToEmptyPath() throws Exception {
+        String filename = "_0.cfe";
+        populateMetadata();
+        remoteSegmentStoreDirectory.init();
+
+        Directory storeDirectory = mock(Directory.class);
+        AsyncMultiStreamBlobContainer blobContainer = mock(AsyncMultiStreamBlobContainer.class);
+        when(remoteDataDirectory.getBlobContainer()).thenReturn(blobContainer);
+
+        CountDownLatch downloadLatch = new CountDownLatch(1);
+        ActionListener<String> completionListener = new ActionListener<>() {
+            @Override
+            public void onResponse(String unused) {
+                downloadLatch.countDown();
+            }
+
+            @Override
+            public void onFailure(Exception e) {}
+        };
+        remoteSegmentStoreDirectory.copyTo(filename, storeDirectory, null, completionListener);
+        assertTrue(downloadLatch.await(5000, TimeUnit.MILLISECONDS));
+        verify(storeDirectory, times(1)).copyFrom(any(), eq(filename), eq(filename), eq(IOContext.DEFAULT));
+    }
+
+    public void testCopyFilesToException() throws Exception {
+        String filename = "_0.cfe";
+        populateMetadata();
+        remoteSegmentStoreDirectory.init();
+
+        Directory storeDirectory = mock(Directory.class);
+        Mockito.doThrow(new IOException())
+            .when(storeDirectory)
+            .copyFrom(any(Directory.class), anyString(), anyString(), any(IOContext.class));
+        CountDownLatch downloadLatch = new CountDownLatch(1);
+        ActionListener<String> completionListener = new ActionListener<>() {
+            @Override
+            public void onResponse(String unused) {
+
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                downloadLatch.countDown();
+            }
+        };
+        Path path = createTempDir();
+        remoteSegmentStoreDirectory.copyTo(filename, storeDirectory, path, completionListener);
+        assertTrue(downloadLatch.await(5000, TimeUnit.MILLISECONDS));
+        verify(storeDirectory, times(1)).copyFrom(any(), eq(filename), eq(filename), eq(IOContext.DEFAULT));
+    }
+
     public void testCopyFilesFromMultipartIOException() throws Exception {
         String filename = "_100.si";
         AsyncMultiStreamBlobContainer blobContainer = mock(AsyncMultiStreamBlobContainer.class);
@@ -524,7 +639,8 @@ public class RemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
             remoteDataDirectory,
             remoteMetadataDirectory,
             mdLockManager,
-            threadPool
+            threadPool,
+            indexShard.shardId()
         );
 
         populateMetadata();
