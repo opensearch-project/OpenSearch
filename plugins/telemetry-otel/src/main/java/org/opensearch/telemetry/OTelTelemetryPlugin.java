@@ -28,6 +28,9 @@ import io.opentelemetry.sdk.OpenTelemetrySdk;
  */
 public class OTelTelemetryPlugin extends Plugin implements TelemetryPlugin {
 
+    /**
+     * Instrumentation scope name.
+     */
     public static final String INSTRUMENTATION_SCOPE_NAME = "org.opensearch.telemetry";
 
     static final String OTEL_TRACER_NAME = "otel";
