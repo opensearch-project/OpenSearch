@@ -33,6 +33,7 @@
 package org.opensearch.action.search;
 
 import org.apache.lucene.search.TotalHits;
+import org.opensearch.Version;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.xcontent.StatusToXContentObject;
@@ -63,7 +64,9 @@ import org.opensearch.search.suggest.Suggest;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.Supplier;
@@ -94,6 +97,7 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
     private final ShardSearchFailure[] shardFailures;
     private final Clusters clusters;
     private final long tookInMillis;
+    private final PhaseTook phaseTook;
 
     public SearchResponse(StreamInput in) throws IOException {
         super(in);
@@ -112,6 +116,11 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
         clusters = new Clusters(in);
         scrollId = in.readOptionalString();
         tookInMillis = in.readVLong();
+        if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
+            phaseTook = in.readOptionalWriteable(PhaseTook::new);
+        } else {
+            phaseTook = null;
+        }
         skippedShards = in.readVInt();
         pointInTimeId = in.readOptionalString();
     }
@@ -126,7 +135,7 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
         ShardSearchFailure[] shardFailures,
         Clusters clusters
     ) {
-        this(internalResponse, scrollId, totalShards, successfulShards, skippedShards, tookInMillis, shardFailures, clusters, null);
+        this(internalResponse, scrollId, totalShards, successfulShards, skippedShards, tookInMillis, null, shardFailures, clusters, null);
     }
 
     public SearchResponse(
@@ -140,6 +149,32 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
         Clusters clusters,
         String pointInTimeId
     ) {
+        this(
+            internalResponse,
+            scrollId,
+            totalShards,
+            successfulShards,
+            skippedShards,
+            tookInMillis,
+            null,
+            shardFailures,
+            clusters,
+            pointInTimeId
+        );
+    }
+
+    public SearchResponse(
+        SearchResponseSections internalResponse,
+        String scrollId,
+        int totalShards,
+        int successfulShards,
+        int skippedShards,
+        long tookInMillis,
+        PhaseTook phaseTook,
+        ShardSearchFailure[] shardFailures,
+        Clusters clusters,
+        String pointInTimeId
+    ) {
         this.internalResponse = internalResponse;
         this.scrollId = scrollId;
         this.pointInTimeId = pointInTimeId;
@@ -148,6 +183,7 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
         this.successfulShards = successfulShards;
         this.skippedShards = skippedShards;
         this.tookInMillis = tookInMillis;
+        this.phaseTook = phaseTook;
         this.shardFailures = shardFailures;
         assert skippedShards <= totalShards : "skipped: " + skippedShards + " total: " + totalShards;
         assert scrollId == null || pointInTimeId == null : "SearchResponse can't have both scrollId ["
@@ -208,6 +244,13 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
      */
     public TimeValue getTook() {
         return new TimeValue(tookInMillis);
+    }
+
+    /**
+     * How long the request took in each search phase.
+     */
+    public PhaseTook getPhaseTook() {
+        return phaseTook;
     }
 
     /**
@@ -298,6 +341,9 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
             builder.field(POINT_IN_TIME_ID.getPreferredName(), pointInTimeId);
         }
         builder.field(TOOK.getPreferredName(), tookInMillis);
+        if (phaseTook != null) {
+            phaseTook.toXContent(builder, params);
+        }
         builder.field(TIMED_OUT.getPreferredName(), isTimedOut());
         if (isTerminatedEarly() != null) {
             builder.field(TERMINATED_EARLY.getPreferredName(), isTerminatedEarly());
@@ -337,6 +383,7 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
         Boolean terminatedEarly = null;
         int numReducePhases = 1;
         long tookInMillis = -1;
+        PhaseTook phaseTook = null;
         int successfulShards = -1;
         int totalShards = -1;
         int skippedShards = 0; // 0 for BWC
@@ -401,6 +448,24 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
                             parser.skipChildren();
                         }
                     }
+                } else if (PhaseTook.PHASE_TOOK.match(currentFieldName, parser.getDeprecationHandler())) {
+                    Map<String, Long> phaseTookMap = new HashMap<>();
+
+                    while ((token = parser.nextToken()) != Token.END_OBJECT) {
+                        if (token == Token.FIELD_NAME) {
+                            currentFieldName = parser.currentName();
+                        } else if (token.isValue()) {
+                            try {
+                                SearchPhaseName.valueOf(currentFieldName.toUpperCase(Locale.ROOT));
+                                phaseTookMap.put(currentFieldName, parser.longValue());
+                            } catch (final IllegalArgumentException ex) {
+                                parser.skipChildren();
+                            }
+                        } else {
+                            parser.skipChildren();
+                        }
+                    }
+                    phaseTook = new PhaseTook(phaseTookMap);
                 } else if (Clusters._CLUSTERS_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     int successful = -1;
                     int total = -1;
@@ -472,6 +537,7 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
             successfulShards,
             skippedShards,
             tookInMillis,
+            phaseTook,
             failures.toArray(ShardSearchFailure.EMPTY_ARRAY),
             clusters,
             searchContextId
@@ -491,6 +557,9 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
         clusters.writeTo(out);
         out.writeOptionalString(scrollId);
         out.writeVLong(tookInMillis);
+        if (out.getVersion().onOrAfter(Version.V_3_0_0)) {
+            out.writeOptionalWriteable(phaseTook);
+        }
         out.writeVInt(skippedShards);
         out.writeOptionalString(pointInTimeId);
     }
@@ -601,6 +670,68 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
         @Override
         public String toString() {
             return "Clusters{total=" + total + ", successful=" + successful + ", skipped=" + skipped + '}';
+        }
+    }
+
+    /**
+     * Holds info about the clusters that the search was executed on: how many in total, how many of them were successful
+     * and how many of them were skipped.
+     *
+     * @opensearch.internal
+     */
+    public static class PhaseTook implements ToXContentFragment, Writeable {
+        static final ParseField PHASE_TOOK = new ParseField("phase_took");
+        private final Map<String, Long> phaseTookMap;
+
+        public PhaseTook(Map<String, Long> phaseTookMap) {
+            this.phaseTookMap = phaseTookMap;
+        }
+
+        private PhaseTook(StreamInput in) throws IOException {
+            this(in.readMap(StreamInput::readString, StreamInput::readLong));
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeMap(phaseTookMap, StreamOutput::writeString, StreamOutput::writeLong);
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject(PHASE_TOOK.getPreferredName());
+
+            for (SearchPhaseName searchPhaseName : SearchPhaseName.values()) {
+                if (phaseTookMap.containsKey(searchPhaseName.getName())) {
+                    builder.field(searchPhaseName.getName(), phaseTookMap.get(searchPhaseName.getName()));
+                } else {
+                    builder.field(searchPhaseName.getName(), 0);
+                }
+            }
+            builder.endObject();
+            return builder;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
+            PhaseTook phaseTook = (PhaseTook) o;
+
+            for (String searchPhaseNameString : phaseTookMap.keySet()) {
+                if (!phaseTookMap.get(searchPhaseNameString).equals(phaseTook.phaseTookMap.get(searchPhaseNameString))) {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(phaseTookMap);
         }
     }
 
