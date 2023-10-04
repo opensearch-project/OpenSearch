@@ -50,6 +50,8 @@ import org.opensearch.repositories.RepositoryException;
 import org.opensearch.repositories.blobstore.BlobStoreRepository;
 
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.function.Function;
 
 /**
@@ -186,5 +188,13 @@ public class FsRepository extends BlobStoreRepository {
     @Override
     public BlobPath basePath() {
         return basePath;
+    }
+
+    @Override
+    public List<Setting<?>> getRestrictedSystemRepositorySettings() {
+        List<Setting<?>> restrictedSettings = new ArrayList<>();
+        restrictedSettings.addAll(super.getRestrictedSystemRepositorySettings());
+        restrictedSettings.add(LOCATION_SETTING);
+        return restrictedSettings;
     }
 }
