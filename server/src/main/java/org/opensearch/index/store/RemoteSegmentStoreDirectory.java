@@ -461,22 +461,43 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
      * @param source The source file name
      * @param destinationDirectory The destination directory (if multipart is not supported)
      * @param destinationPath The destination path (if multipart is supported)
+     * @param tracker instance of {@link DirectoryFileTransferTracker} for tracking download stats
      * @param fileCompletionListener The listener to notify of completion
      */
-    public void copyTo(String source, Directory destinationDirectory, Path destinationPath, ActionListener<String> fileCompletionListener) {
+    public void copyTo(
+        String source,
+        Directory destinationDirectory,
+        Path destinationPath,
+        DirectoryFileTransferTracker tracker,
+        ActionListener<String> fileCompletionListener
+    ) {
         final String blobName = getExistingRemoteFilename(source);
         if (destinationPath != null && remoteDataDirectory.getBlobContainer() instanceof AsyncMultiStreamBlobContainer) {
+            long length = 0L;
+            try {
+                length = fileLength(source);
+            } catch (IOException ex) {
+                logger.error("Unable to fetch segment length for stats tracking", ex);
+            }
+            final long fileLength = length;
+            final long startTime = System.currentTimeMillis();
+            tracker.addTransferredBytesStarted(fileLength);
             final AsyncMultiStreamBlobContainer blobContainer = (AsyncMultiStreamBlobContainer) remoteDataDirectory.getBlobContainer();
             final Path destinationFilePath = destinationPath.resolve(source);
-            blobContainer.asyncBlobDownload(blobName, destinationFilePath, threadPool, fileCompletionListener);
+            final ActionListener<String> completionListener = ActionListener.wrap(response -> {
+                tracker.addTransferredBytesSucceeded(fileLength, startTime);
+                fileCompletionListener.onResponse(response);
+            }, e -> {
+                tracker.addTransferredBytesFailed(fileLength, startTime);
+                fileCompletionListener.onFailure(e);
+            });
+            blobContainer.asyncBlobDownload(blobName, destinationFilePath, completionListener);
         } else {
             // Fallback to older mechanism of downloading the file
-            try {
+            ActionListener.completeWith(fileCompletionListener, () -> {
                 destinationDirectory.copyFrom(this, source, source, IOContext.DEFAULT);
-                fileCompletionListener.onResponse(source);
-            } catch (IOException e) {
-                fileCompletionListener.onFailure(e);
-            }
+                return source;
+            });
         }
     }
 

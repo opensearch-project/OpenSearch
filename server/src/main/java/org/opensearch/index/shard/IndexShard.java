@@ -62,7 +62,6 @@ import org.opensearch.action.ActionRunnable;
 import org.opensearch.action.admin.indices.flush.FlushRequest;
 import org.opensearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.opensearch.action.admin.indices.upgrade.post.UpgradeRequest;
-import org.opensearch.action.support.GroupedActionListener;
 import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.action.support.replication.PendingReplicationActions;
 import org.opensearch.action.support.replication.ReplicationResponse;
@@ -161,6 +160,7 @@ import org.opensearch.index.seqno.SeqNoStats;
 import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.shard.PrimaryReplicaSyncer.ResyncTask;
 import org.opensearch.index.similarity.SimilarityService;
+import org.opensearch.index.store.DirectoryFileTransferTracker;
 import org.opensearch.index.store.RemoteSegmentStoreDirectory;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.store.Store.MetadataSnapshot;
@@ -611,14 +611,14 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 && currentRouting.relocating()
                 && replicationTracker.isRelocated()
                 && (newRouting.relocating() == false || newRouting.equalsIgnoringMetadata(currentRouting) == false)) {
-                    // if the shard is not in primary mode anymore (after primary relocation) we have to fail when any changes in shard
-                    // routing occur (e.g. due to recovery failure / cancellation). The reason is that at the moment we cannot safely
-                    // reactivate primary mode without risking two active primaries.
-                    throw new IndexShardRelocatedException(
-                        shardId(),
-                        "Shard is marked as relocated, cannot safely move to state " + newRouting.state()
-                    );
-                }
+                // if the shard is not in primary mode anymore (after primary relocation) we have to fail when any changes in shard
+                // routing occur (e.g. due to recovery failure / cancellation). The reason is that at the moment we cannot safely
+                // reactivate primary mode without risking two active primaries.
+                throw new IndexShardRelocatedException(
+                    shardId(),
+                    "Shard is marked as relocated, cannot safely move to state " + newRouting.state()
+                );
+            }
             assert newRouting.active() == false || state == IndexShardState.STARTED || state == IndexShardState.CLOSED
                 : "routing is active, but local shard state isn't. routing: " + newRouting + ", local state: " + state;
             persistMetadata(path, indexSettings, newRouting, currentRouting, logger);
@@ -753,10 +753,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             this.shardRouting = newRouting;
 
             assert this.shardRouting.primary() == false || this.shardRouting.started() == false || // note that we use started and not
-            // active to avoid relocating shards
+                // active to avoid relocating shards
                 this.indexShardOperationPermits.isBlocked() || // if permits are blocked, we are still transitioning
                 this.replicationTracker.isPrimaryMode() : "a started primary with non-pending operation term must be in primary mode "
-                    + this.shardRouting;
+                + this.shardRouting;
             shardStateUpdated.countDown();
         }
         if (currentRouting.active() == false && newRouting.active()) {
@@ -2354,9 +2354,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         updateRetentionLeasesOnReplica(loadRetentionLeases());
         assert recoveryState.getRecoverySource().expectEmptyRetentionLeases() == false || getRetentionLeases().leases().isEmpty()
             : "expected empty set of retention leases with recovery source ["
-                + recoveryState.getRecoverySource()
-                + "] but got "
-                + getRetentionLeases();
+            + recoveryState.getRecoverySource()
+            + "] but got "
+            + getRetentionLeases();
         synchronized (engineMutex) {
             assert currentEngineReference.get() == null : "engine is running";
             verifyNotClosed();
@@ -3334,11 +3334,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
              */
             assert (state() != IndexShardState.POST_RECOVERY && state() != IndexShardState.STARTED)
                 || indexSettings.isRemoteTranslogStoreEnabled() : "supposedly in-sync shard copy received a global checkpoint ["
-                    + globalCheckpoint
-                    + "] "
-                    + "that is higher than its local checkpoint ["
-                    + localCheckpoint
-                    + "]";
+                + globalCheckpoint
+                + "] "
+                + "that is higher than its local checkpoint ["
+                + localCheckpoint
+                + "]";
             return;
         }
         replicationTracker.updateGlobalCheckpointOnReplica(globalCheckpoint, reason);
@@ -3359,10 +3359,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             + "]";
         assert getLocalCheckpoint() == primaryContext.getCheckpointStates().get(routingEntry().allocationId().getId()).getLocalCheckpoint()
             || indexSettings().getTranslogDurability() == Durability.ASYNC : "local checkpoint ["
-                + getLocalCheckpoint()
-                + "] does not match checkpoint from primary context ["
-                + primaryContext
-                + "]";
+            + getLocalCheckpoint()
+            + "] does not match checkpoint from primary context ["
+            + primaryContext
+            + "]";
         synchronized (mutex) {
             replicationTracker.activateWithPrimaryContext(primaryContext); // make changes to primaryMode flag only under mutex
         }
@@ -3766,7 +3766,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
          */
         boolean isReadOnlyReplica = indexSettings.isSegRepEnabled()
             && (shardRouting.primary() == false
-                || (shardRouting.isRelocationTarget() && recoveryState.getStage() != RecoveryState.Stage.FINALIZE));
+            || (shardRouting.isRelocationTarget() && recoveryState.getStage() != RecoveryState.Stage.FINALIZE));
 
         return this.engineConfigFactory.newEngineConfig(
             shardId,
@@ -4916,24 +4916,18 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         RemoteSegmentStoreDirectory targetRemoteDirectory,
         Set<String> toDownloadSegments,
         final Runnable onFileSync
-    ) {
-        final PlainActionFuture<Void> completionListener = PlainActionFuture.newFuture();
-        final GroupedActionListener<Void> batchDownloadListener = new GroupedActionListener<>(
-            ActionListener.map(completionListener, v -> null),
-            toDownloadSegments.size()
-        );
-
-        final ActionListener<String> segmentsDownloadListener = ActionListener.map(batchDownloadListener, fileName -> {
+    ) throws IOException {
+        final Path indexPath = store.shardPath() == null ? null : store.shardPath().resolveIndex();
+        final DirectoryFileTransferTracker tracker = store.getDirectoryFileTransferTracker();
+        for (String segment : toDownloadSegments) {
+            final PlainActionFuture<String> segmentListener = PlainActionFuture.newFuture();
+            sourceRemoteDirectory.copyTo(segment, storeDirectory, indexPath, tracker, segmentListener);
+            segmentListener.actionGet();
             onFileSync.run();
             if (targetRemoteDirectory != null) {
-                targetRemoteDirectory.copyFrom(storeDirectory, fileName, fileName, IOContext.DEFAULT);
+                targetRemoteDirectory.copyFrom(storeDirectory, segment, segment, IOContext.DEFAULT);
             }
-            return null;
-        });
-
-        final Path indexPath = store.shardPath() == null ? null : store.shardPath().resolveIndex();
-        toDownloadSegments.forEach(file -> { sourceRemoteDirectory.copyTo(file, storeDirectory, indexPath, segmentsDownloadListener); });
-        completionListener.actionGet();
+        }
     }
 
     private boolean localDirectoryContains(Directory localDirectory, String file, long checksum) {
