@@ -10,7 +10,6 @@ package org.opensearch.common.blobstore.stream.read.listener;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.IOUtils;
 import org.opensearch.action.support.GroupedActionListener;
 import org.opensearch.common.SuppressForbidden;
