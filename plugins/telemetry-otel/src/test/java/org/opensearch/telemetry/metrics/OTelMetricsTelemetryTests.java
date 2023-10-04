@@ -13,9 +13,6 @@ import org.opensearch.telemetry.OTelTelemetryPlugin;
 import org.opensearch.telemetry.metrics.tags.Tags;
 import org.opensearch.test.OpenSearchTestCase;
 
-import java.io.IOException;
-import java.util.concurrent.atomic.AtomicBoolean;
-
 import io.opentelemetry.api.metrics.DoubleCounter;
 import io.opentelemetry.api.metrics.DoubleCounterBuilder;
 import io.opentelemetry.api.metrics.DoubleUpDownCounter;
@@ -31,6 +28,7 @@ import static org.mockito.Mockito.when;
 
 public class OTelMetricsTelemetryTests extends OpenSearchTestCase {
 
+    @SuppressWarnings({ "rawtypes", "unchecked" })
     public void testCounter() {
         String counterName = "test-counter";
         String description = "test";
@@ -41,7 +39,7 @@ public class OTelMetricsTelemetryTests extends OpenSearchTestCase {
         DoubleCounterBuilder mockOTelDoubleCounterBuilder = mock(DoubleCounterBuilder.class);
         MeterProvider meterProvider = mock(MeterProvider.class);
         when(meterProvider.get(OTelTelemetryPlugin.INSTRUMENTATION_SCOPE_NAME)).thenReturn(mockMeter);
-        MetricsTelemetry metricsTelemetry = new OTelMetricsTelemetry(meterProvider, () -> {});
+        MetricsTelemetry metricsTelemetry = new OTelMetricsTelemetry(meterProvider);
         when(mockMeter.counterBuilder(counterName)).thenReturn(mockOTelLongCounterBuilder);
         when(mockOTelLongCounterBuilder.setDescription(description)).thenReturn(mockOTelLongCounterBuilder);
         when(mockOTelLongCounterBuilder.setUnit(unit)).thenReturn(mockOTelLongCounterBuilder);
@@ -56,6 +54,7 @@ public class OTelMetricsTelemetryTests extends OpenSearchTestCase {
         verify(mockOTelDoubleCounter).add(2.0, OTelAttributesConverter.convert(tags));
     }
 
+    @SuppressWarnings({ "rawtypes", "unchecked" })
     public void testCounterNegativeValue() {
         String counterName = "test-counter";
         String description = "test";
@@ -67,7 +66,7 @@ public class OTelMetricsTelemetryTests extends OpenSearchTestCase {
 
         MeterProvider meterProvider = mock(MeterProvider.class);
         when(meterProvider.get(OTelTelemetryPlugin.INSTRUMENTATION_SCOPE_NAME)).thenReturn(mockMeter);
-        MetricsTelemetry metricsTelemetry = new OTelMetricsTelemetry(meterProvider, () -> {});
+        MetricsTelemetry metricsTelemetry = new OTelMetricsTelemetry(meterProvider);
         when(mockMeter.counterBuilder(counterName)).thenReturn(mockOTelLongCounterBuilder);
         when(mockOTelLongCounterBuilder.setDescription(description)).thenReturn(mockOTelLongCounterBuilder);
         when(mockOTelLongCounterBuilder.setUnit(unit)).thenReturn(mockOTelLongCounterBuilder);
@@ -79,6 +78,7 @@ public class OTelMetricsTelemetryTests extends OpenSearchTestCase {
         verify(mockOTelDoubleCounter).add(-1.0);
     }
 
+    @SuppressWarnings({ "rawtypes", "unchecked" })
     public void testUpDownCounter() {
         String counterName = "test-counter";
         String description = "test";
@@ -90,7 +90,7 @@ public class OTelMetricsTelemetryTests extends OpenSearchTestCase {
 
         MeterProvider meterProvider = mock(MeterProvider.class);
         when(meterProvider.get(OTelTelemetryPlugin.INSTRUMENTATION_SCOPE_NAME)).thenReturn(mockMeter);
-        MetricsTelemetry metricsTelemetry = new OTelMetricsTelemetry(meterProvider, () -> {});
+        MetricsTelemetry metricsTelemetry = new OTelMetricsTelemetry(meterProvider);
         when(mockMeter.upDownCounterBuilder(counterName)).thenReturn(mockOTelLongUpDownCounterBuilder);
         when(mockOTelLongUpDownCounterBuilder.setDescription(description)).thenReturn(mockOTelLongUpDownCounterBuilder);
         when(mockOTelLongUpDownCounterBuilder.setUnit(unit)).thenReturn(mockOTelLongUpDownCounterBuilder);
@@ -103,13 +103,5 @@ public class OTelMetricsTelemetryTests extends OpenSearchTestCase {
         Tags tags = Tags.create().addTag("test", "test");
         counter.add(-2.0, tags);
         verify(mockOTelUpDownDoubleCounter).add((-2.0), OTelAttributesConverter.convert(tags));
-    }
-
-    public void testClose() throws IOException {
-        final AtomicBoolean closed = new AtomicBoolean(false);
-        MeterProvider meterProvider = mock(MeterProvider.class);
-        MetricsTelemetry metricsTelemetry = new OTelMetricsTelemetry(meterProvider, () -> closed.set(true));
-        metricsTelemetry.close();
-        assertTrue(closed.get());
     }
 }

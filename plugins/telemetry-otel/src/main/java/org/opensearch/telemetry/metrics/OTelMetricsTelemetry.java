@@ -28,16 +28,15 @@ import io.opentelemetry.api.metrics.MeterProvider;
 public class OTelMetricsTelemetry<T extends MeterProvider & Closeable> implements MetricsTelemetry {
     private static final Logger logger = LogManager.getLogger(OTelMetricsTelemetry.class);
     private final Meter otelMeter;
-    private final Closeable metricsProviderClosable;
+    private final T meterProvider;
 
     /**
      * Creates OTel based {@link MetricsTelemetry}.
      * @param meterProvider {@link MeterProvider} instance
-     * @param meterProviderCloseable closable to close the meter.
      */
-    public OTelMetricsTelemetry(T meterProvider, Closeable meterProviderCloseable) {
+    public OTelMetricsTelemetry(T meterProvider) {
+        this.meterProvider = meterProvider;
         this.otelMeter = meterProvider.get(OTelTelemetryPlugin.INSTRUMENTATION_SCOPE_NAME);
-        this.metricsProviderClosable = meterProviderCloseable;
     }
 
     @Override
@@ -66,6 +65,6 @@ public class OTelMetricsTelemetry<T extends MeterProvider & Closeable> implement
 
     @Override
     public void close() throws IOException {
-        metricsProviderClosable.close();
+        meterProvider.close();
     }
 }
