@@ -13,6 +13,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.IOUtils;
 import org.opensearch.action.support.GroupedActionListener;
+import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.annotation.InternalApi;
 import org.opensearch.common.blobstore.stream.read.ReadContext;
@@ -86,6 +87,7 @@ public class ReadContextListener implements ActionListener<ReadContext> {
         }
     }
 
+    @SuppressForbidden(reason = "need to fsync once all parts received")
     private ActionListener<Collection<String>> getFileCompletionListener() {
         return ActionListener.wrap(response -> {
             logger.trace(() -> new ParameterizedMessage("renaming temp file [{}] to [{}]", tmpFileLocation, fileLocation));
