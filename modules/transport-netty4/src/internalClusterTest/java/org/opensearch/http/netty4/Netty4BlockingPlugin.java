@@ -21,6 +21,7 @@ import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.Netty4ModulePlugin;
 import org.opensearch.transport.SharedGroupFactory;
 
+import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.Map;
 import java.util.function.Supplier;
@@ -108,7 +109,7 @@ public class Netty4BlockingPlugin extends Netty4ModulePlugin {
         public void channelRead0(ChannelHandlerContext ctx, DefaultHttpRequest msg) throws Exception {
             ReferenceCountUtil.retain(msg);
             if (isBlocked(msg)) {
-                ByteBuf buf = Unpooled.copiedBuffer("Hit header_verifier".getBytes());
+                ByteBuf buf = Unpooled.copiedBuffer("Hit header_verifier".getBytes(StandardCharsets.UTF_8));
                 final FullHttpResponse response = new DefaultFullHttpResponse(msg.protocolVersion(), HttpResponseStatus.UNAUTHORIZED, buf);
                 ctx.writeAndFlush(response).addListener(ChannelFutureListener.CLOSE);
                 ReferenceCountUtil.release(msg);
