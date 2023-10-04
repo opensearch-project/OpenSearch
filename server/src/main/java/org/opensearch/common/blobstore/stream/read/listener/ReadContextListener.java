@@ -90,7 +90,7 @@ public class ReadContextListener implements ActionListener<ReadContext> {
     @SuppressForbidden(reason = "need to fsync once all parts received")
     private ActionListener<Collection<String>> getFileCompletionListener() {
         return ActionListener.wrap(response -> {
-            logger.trace(() -> new ParameterizedMessage("renaming temp file [{}] to [{}]", tmpFileLocation, fileLocation));
+            logger.trace("renaming temp file [{}] to [{}]", tmpFileLocation, fileLocation);
             try {
                 IOUtils.fsync(tmpFileLocation, false);
                 Files.move(tmpFileLocation, fileLocation, StandardCopyOption.ATOMIC_MOVE);
