@@ -1023,7 +1023,6 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
         assertEquals(1, readContext.getNumberOfParts());
         assertEquals(checksum, readContext.getBlobChecksum());
         assertEquals(objectSize, readContext.getBlobSize());
-
         InputStreamContainer inputStreamContainer = readContext.getPartStreams().stream().findFirst().get().get().join();
         assertEquals(objectSize, inputStreamContainer.getContentLength());
         assertEquals(0, inputStreamContainer.getOffset());

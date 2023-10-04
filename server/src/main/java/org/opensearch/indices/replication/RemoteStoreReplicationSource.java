@@ -20,6 +20,7 @@ import org.opensearch.core.action.ActionListener;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexShardState;
 import org.opensearch.index.shard.ShardPath;
+import org.opensearch.index.store.DirectoryFileTransferTracker;
 import org.opensearch.index.store.RemoteSegmentStoreDirectory;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.store.StoreFileMetadata;
@@ -121,7 +122,8 @@ public class RemoteStoreReplicationSource implements SegmentReplicationSource {
                         assert directoryFiles.contains(file) == false : "Local store already contains the file " + file;
                         toDownloadSegments.add(fileMetadata);
                     }
-                    downloadSegments(storeDirectory, remoteDirectory, toDownloadSegments, shardPath, listener);
+                    final DirectoryFileTransferTracker transferTracker = indexShard.store().getDirectoryFileTransferTracker();
+                    downloadSegments(storeDirectory, remoteDirectory, toDownloadSegments, shardPath, transferTracker, listener);
                     logger.debug("Downloaded segment files from remote store {}", toDownloadSegments);
                 } finally {
                     indexShard.store().decRef();
@@ -138,12 +140,14 @@ public class RemoteStoreReplicationSource implements SegmentReplicationSource {
         RemoteSegmentStoreDirectory remoteStoreDirectory,
         List<StoreFileMetadata> toDownloadSegments,
         ShardPath shardPath,
+        DirectoryFileTransferTracker tracker,
         ActionListener<GetSegmentFilesResponse> completionListener
     ) {
+
         final Path indexPath = shardPath == null ? null : shardPath.resolveIndex();
         for (StoreFileMetadata storeFileMetadata : toDownloadSegments) {
             final PlainActionFuture<String> segmentListener = PlainActionFuture.newFuture();
-            remoteStoreDirectory.copyTo(storeFileMetadata.name(), storeDirectory, indexPath, segmentListener);
+            remoteStoreDirectory.copyTo(storeFileMetadata.name(), storeDirectory, indexPath, tracker, segmentListener);
             segmentListener.actionGet();
         }
         completionListener.onResponse(new GetSegmentFilesResponse(toDownloadSegments));

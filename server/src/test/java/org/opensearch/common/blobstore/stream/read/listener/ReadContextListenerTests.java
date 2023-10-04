@@ -100,6 +100,7 @@ public class ReadContextListenerTests extends OpenSearchTestCase {
             UnaryOperator.identity(),
             MAX_CONCURRENT_STREAMS
         );
+
         InputStream badInputStream = new InputStream() {
 
             @Override
@@ -148,6 +149,7 @@ public class ReadContextListenerTests extends OpenSearchTestCase {
         assertEquals(1, listener.getFailureCount());
         assertEquals(exception, listener.getException());
     }
+
 
     private List<ReadContext.StreamPartCreator> initializeBlobPartStreams() {
         List<ReadContext.StreamPartCreator> blobPartStreams = new ArrayList<>();

@@ -596,10 +596,15 @@ public class RemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
             public void onFailure(Exception e) {}
         };
         Path path = createTempDir();
-        remoteSegmentStoreDirectory.copyTo(filename, storeDirectory, path, completionListener);
+        DirectoryFileTransferTracker directoryFileTransferTracker = new DirectoryFileTransferTracker();
+        long sourceFileLengthInBytes = remoteSegmentStoreDirectory.fileLength(filename);
+        remoteSegmentStoreDirectory.copyTo(filename, storeDirectory, path, new DirectoryFileTransferTracker(), completionListener);
         assertTrue(downloadLatch.await(5000, TimeUnit.SECONDS));
         verify(blobContainer, times(1)).readBlobAsync(contains(filename), any());
         verify(storeDirectory, times(0)).copyFrom(any(), any(), any(), any());
+
+        // Verify stats are updated to DirectoryFileTransferTracker
+        assertEquals(sourceFileLengthInBytes, directoryFileTransferTracker.getTransferredBytesSucceeded());
     }
 
     public void testCopyFilesTo() throws Exception {
@@ -619,7 +624,7 @@ public class RemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
             public void onFailure(Exception e) {}
         };
         Path path = createTempDir();
-        remoteSegmentStoreDirectory.copyTo(filename, storeDirectory, path, completionListener);
+        remoteSegmentStoreDirectory.copyTo(filename, storeDirectory, path, new DirectoryFileTransferTracker(), completionListener);
         assertTrue(downloadLatch.await(5000, TimeUnit.MILLISECONDS));
         verify(storeDirectory, times(1)).copyFrom(any(), eq(filename), eq(filename), eq(IOContext.DEFAULT));
     }
@@ -643,7 +648,7 @@ public class RemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
             @Override
             public void onFailure(Exception e) {}
         };
-        remoteSegmentStoreDirectory.copyTo(filename, storeDirectory, null, completionListener);
+        remoteSegmentStoreDirectory.copyTo(filename, storeDirectory, null, new DirectoryFileTransferTracker(), completionListener);
         assertTrue(downloadLatch.await(5000, TimeUnit.MILLISECONDS));
         verify(storeDirectory, times(1)).copyFrom(any(), eq(filename), eq(filename), eq(IOContext.DEFAULT));
     }
@@ -670,7 +675,7 @@ public class RemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
             }
         };
         Path path = createTempDir();
-        remoteSegmentStoreDirectory.copyTo(filename, storeDirectory, path, completionListener);
+        remoteSegmentStoreDirectory.copyTo(filename, storeDirectory, path, new DirectoryFileTransferTracker(), completionListener);
         assertTrue(downloadLatch.await(5000, TimeUnit.MILLISECONDS));
         verify(storeDirectory, times(1)).copyFrom(any(), eq(filename), eq(filename), eq(IOContext.DEFAULT));
     }

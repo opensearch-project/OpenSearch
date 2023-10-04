@@ -19,6 +19,7 @@ import org.opensearch.core.action.ActionListener;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 
 /**
