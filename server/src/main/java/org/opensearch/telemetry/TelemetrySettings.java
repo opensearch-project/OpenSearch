@@ -28,6 +28,20 @@ public class TelemetrySettings {
         Setting.Property.Dynamic
     );
 
+    public static final Setting<Boolean> TRACER_FEATURE_ENABLED_SETTING = Setting.boolSetting(
+        "telemetry.feature.tracer.enabled",
+        false,
+        Setting.Property.NodeScope,
+        Setting.Property.Final
+    );
+
+    public static final Setting<Boolean> METRICS_FEATURE_ENABLED_SETTING = Setting.boolSetting(
+        "telemetry.feature.metrics.enabled",
+        false,
+        Setting.Property.NodeScope,
+        Setting.Property.Final
+    );
+
     /**
      * Probability of sampler
      */

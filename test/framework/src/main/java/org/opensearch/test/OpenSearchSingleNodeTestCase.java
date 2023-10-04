@@ -225,6 +225,10 @@ public abstract class OpenSearchSingleNodeTestCase extends OpenSearchTestCase {
         return true;
     }
 
+    protected boolean addMockTelemetryPlugin() {
+        return true;
+    }
+
     private Node newNode() {
         final Path tempDir = createTempDir();
         final String nodeName = nodeSettings().get(Node.NODE_NAME_SETTING.getKey(), "node_s_0");
@@ -254,6 +258,7 @@ public abstract class OpenSearchSingleNodeTestCase extends OpenSearchTestCase {
             .putList(INITIAL_CLUSTER_MANAGER_NODES_SETTING.getKey(), nodeName)
             .put(FeatureFlags.TELEMETRY_SETTING.getKey(), true)
             .put(TelemetrySettings.TRACER_ENABLED_SETTING.getKey(), true)
+            .put(TelemetrySettings.TRACER_FEATURE_ENABLED_SETTING.getKey(), true)
             .put(nodeSettings()) // allow test cases to provide their own settings or override these
             .put(featureFlagSettings);
         if (FeatureFlags.CONCURRENT_SEGMENT_SEARCH_SETTING.get(featureFlagSettings)) {
@@ -271,7 +276,10 @@ public abstract class OpenSearchSingleNodeTestCase extends OpenSearchTestCase {
             plugins.add(MockHttpTransport.TestPlugin.class);
         }
         plugins.add(MockScriptService.TestPlugin.class);
-        plugins.add(MockTelemetryPlugin.class);
+
+        if (addMockTelemetryPlugin()) {
+            plugins.add(MockTelemetryPlugin.class);
+        }
         Node node = new MockNode(settingsBuilder.build(), plugins, forbidPrivateIndexSettings());
         try {
             node.start();

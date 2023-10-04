@@ -12,6 +12,7 @@ import org.opensearch.client.Client;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.plugins.Plugin;
+import org.opensearch.telemetry.IntegrationTestOTelTelemetryPlugin;
 import org.opensearch.telemetry.OTelTelemetrySettings;
 import org.opensearch.telemetry.TelemetrySettings;
 import org.opensearch.telemetry.tracing.attributes.Attributes;
@@ -88,9 +89,7 @@ public class TelemetryTracerEnabledSanityIT extends OpenSearchIntegTestCase {
         );
 
         InMemorySingletonSpanExporter exporter = InMemorySingletonSpanExporter.INSTANCE;
-        if (!exporter.getFinishedSpanItems().isEmpty()) {
-            validators.validate(exporter.getFinishedSpanItems(), 6);
-        }
+        validators.validate(exporter.getFinishedSpanItems(), 6);
     }
 
     private static void updateTelemetrySetting(Client client, boolean value) {

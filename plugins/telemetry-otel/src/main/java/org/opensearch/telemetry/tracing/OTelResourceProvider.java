@@ -17,12 +17,14 @@ import org.opensearch.telemetry.tracing.sampler.RequestSampler;
 
 import java.security.AccessController;
 import java.security.PrivilegedAction;
+import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 
 import io.opentelemetry.api.common.Attributes;
 import io.opentelemetry.api.trace.propagation.W3CTraceContextPropagator;
 import io.opentelemetry.context.propagation.ContextPropagators;
 import io.opentelemetry.sdk.OpenTelemetrySdk;
+import io.opentelemetry.sdk.OpenTelemetrySdkBuilder;
 import io.opentelemetry.sdk.metrics.SdkMeterProvider;
 import io.opentelemetry.sdk.metrics.export.PeriodicMetricReader;
 import io.opentelemetry.sdk.resources.Resource;
@@ -48,39 +50,24 @@ public final class OTelResourceProvider {
      * @param settings cluster settings
      * @return OpenTelemetrySdk instance
      */
-    public static OpenTelemetrySdk get(TelemetrySettings telemetrySettings, Settings settings) {
-        return AccessController.doPrivileged(
-            (PrivilegedAction<OpenTelemetrySdk>) () -> get(
-                settings,
-                OTelSpanExporterFactory.create(settings),
-                ContextPropagators.create(W3CTraceContextPropagator.getInstance()),
-                Sampler.parentBased(new RequestSampler(new ProbabilisticSampler(telemetrySettings)))
-            )
-        );
-    }
-
-    /**
-     * Creates OpenTelemetry instance with provided configuration
-     * @param settings cluster settings
-     * @param spanExporter span exporter instance
-     * @param contextPropagators context propagator instance
-     * @param sampler sampler instance
-     * @return OpenTelemetrySdk instance
-     */
-    public static OpenTelemetrySdk get(
-        Settings settings,
-        SpanExporter spanExporter,
-        ContextPropagators contextPropagators,
-        Sampler sampler
-    ) {
-        Resource resource = Resource.create(Attributes.of(ResourceAttributes.SERVICE_NAME, "OpenSearch"));
-        SdkTracerProvider sdkTracerProvider = createSdkTracerProvider(settings, spanExporter, sampler, resource);
-        SdkMeterProvider sdkMeterProvider = createSdkMetricProvider(settings, resource);
-        return OpenTelemetrySdk.builder()
-            .setTracerProvider(sdkTracerProvider)
-            .setMeterProvider(sdkMeterProvider)
-            .setPropagators(contextPropagators)
-            .buildAndRegisterGlobal();
+    public static Optional<OpenTelemetrySdk> get(TelemetrySettings telemetrySettings, Settings settings) {
+        return AccessController.doPrivileged((PrivilegedAction<Optional<OpenTelemetrySdk>>) () -> {
+            if (TelemetrySettings.TRACER_FEATURE_ENABLED_SETTING.get(settings)
+                || TelemetrySettings.METRICS_FEATURE_ENABLED_SETTING.get(settings)) {
+                Resource resource = Resource.create(Attributes.of(ResourceAttributes.SERVICE_NAME, "OpenSearch"));
+                OpenTelemetrySdkBuilder builder = OpenTelemetrySdk.builder();
+                if (TelemetrySettings.TRACER_FEATURE_ENABLED_SETTING.get(settings)) {
+                    builder.setTracerProvider(createSdkTracerProvider(telemetrySettings, settings, resource))
+                        .setPropagators(ContextPropagators.create(W3CTraceContextPropagator.getInstance()));
+                }
+                if (TelemetrySettings.METRICS_FEATURE_ENABLED_SETTING.get(settings)) {
+                    builder.setMeterProvider(createSdkMetricProvider(settings, resource));
+                }
+                return Optional.of(builder.buildAndRegisterGlobal());
+            } else {
+                return Optional.empty();
+            }
+        });
     }
 
     private static SdkMeterProvider createSdkMetricProvider(Settings settings, Resource resource) {
@@ -94,16 +81,11 @@ public final class OTelResourceProvider {
             .build();
     }
 
-    private static SdkTracerProvider createSdkTracerProvider(
-        Settings settings,
-        SpanExporter spanExporter,
-        Sampler sampler,
-        Resource resource
-    ) {
+    private static SdkTracerProvider createSdkTracerProvider(TelemetrySettings telemetrySettings, Settings settings, Resource resource) {
         return SdkTracerProvider.builder()
-            .addSpanProcessor(spanProcessor(settings, spanExporter))
+            .addSpanProcessor(spanProcessor(settings, OTelSpanExporterFactory.create(settings)))
             .setResource(resource)
-            .setSampler(sampler)
+            .setSampler(Sampler.parentBased(new RequestSampler(new ProbabilisticSampler(telemetrySettings))))
             .build();
     }
 
