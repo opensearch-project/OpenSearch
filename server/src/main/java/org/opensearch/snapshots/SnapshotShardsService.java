@@ -412,7 +412,7 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
                         indexShard.acquireLockOnCommitData(snapshot.getSnapshotId().getUUID(), primaryTerm, commitGeneration);
                     } catch (NoSuchFileException e) {
                         wrappedSnapshot.close();
-                        logger.info(
+                        logger.warn(
                             "Exception while acquiring lock on primaryTerm = {} and generation = {}",
                             primaryTerm,
                             commitGeneration
