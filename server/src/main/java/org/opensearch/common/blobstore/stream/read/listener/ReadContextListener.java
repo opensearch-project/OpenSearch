@@ -94,6 +94,8 @@ public class ReadContextListener implements ActionListener<ReadContext> {
             try {
                 IOUtils.fsync(tmpFileLocation, false);
                 Files.move(tmpFileLocation, fileLocation, StandardCopyOption.ATOMIC_MOVE);
+                // sync parent dir metadata
+                IOUtils.fsync(fileLocation.getParent(), true);
                 completionListener.onResponse(blobName);
             } catch (IOException e) {
                 logger.error("Unable to rename temp file + " + tmpFileLocation, e);
