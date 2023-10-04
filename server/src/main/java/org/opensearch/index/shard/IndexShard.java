@@ -57,6 +57,7 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.ThreadInterruptedException;
 import org.opensearch.ExceptionsHelper;
+import org.opensearch.OpenSearchCorruptionException;
 import org.opensearch.OpenSearchException;
 import org.opensearch.action.ActionRunnable;
 import org.opensearch.action.admin.indices.flush.FlushRequest;
@@ -1776,6 +1777,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     public Map<String, StoreFileMetadata> getSegmentMetadataMap() throws IOException {
         try (final GatedCloseable<SegmentInfos> snapshot = getSegmentInfosSnapshot()) {
             return store.getSegmentMetadataMap(snapshot.get());
+        } catch (IOException e) {
+            throw new OpenSearchCorruptionException("Error fetching local metadata");
         }
     }
 

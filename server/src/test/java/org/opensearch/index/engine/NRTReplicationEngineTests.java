@@ -30,6 +30,7 @@ import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.test.IndexSettingsModule;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collection;
@@ -575,6 +576,29 @@ public class NRTReplicationEngineTests extends EngineTestCase {
             );
             assertFalse(List.of(nrtEngineStore.directory().listAll()).contains(lastCommittedSegmentInfos.getSegmentsFileName()));
         }
+    }
+
+    public void testCommitOnCloseThrowsException_decRefStore() throws Exception {
+        final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
+
+        final Store nrtEngineStore = createStore(INDEX_SETTINGS, newDirectory());
+        final NRTReplicationEngine nrtEngine = buildNrtReplicaEngine(globalCheckpoint, nrtEngineStore, INDEX_SETTINGS);
+        List<Engine.Operation> operations = generateHistoryOnReplica(
+            randomIntBetween(1, 10),
+            randomBoolean(),
+            randomBoolean(),
+            randomBoolean()
+        );
+        indexOperations(nrtEngine, operations.subList(0, 2));
+        // wipe the nrt directory initially so we can sync with primary.
+        cleanAndCopySegmentsFromPrimary(nrtEngine);
+        nrtEngineStore.directory().deleteFile("_0.si");
+        assertEquals(2, nrtEngineStore.refCount());
+        nrtEngine.close();
+        assertEquals(1, nrtEngineStore.refCount());
+        assertTrue(nrtEngineStore.isMarkedCorrupted());
+        // store will throw when eventually closed, not handled here.
+        assertThrows(UncheckedIOException.class, nrtEngineStore::close);
     }
 
     private void copySegments(Collection<String> latestPrimaryFiles, Engine nrtEngine) throws IOException {

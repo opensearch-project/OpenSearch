@@ -437,13 +437,38 @@ public class NRTReplicationEngine extends Engine {
                     latestSegmentInfos.counter = latestSegmentInfos.counter + SI_COUNTER_INCREMENT;
                     latestSegmentInfos.changed();
                 }
-                commitSegmentInfos(latestSegmentInfos);
-                IOUtils.close(readerManager, translogManager, store::decRef);
+                try {
+                    commitSegmentInfos(latestSegmentInfos);
+                } catch (IOException e) {
+                    // mark the store corrupted unless we are closing as result of engine failure.
+                    // in this case Engine#failShard will handle store corruption.
+                    if (failEngineLock.isHeldByCurrentThread() == false && store.isMarkedCorrupted() == false) {
+                        try {
+                            store.markStoreCorrupted(e);
+                        } catch (IOException ex) {
+                            logger.warn("Unable to mark store corrupted", ex);
+                        }
+                    }
+                }
+                try {
+                    IOUtils.close(readerManager);
+                } catch (Exception e) {
+                    logger.warn("Failed to close reader manager");
+                }
+                try {
+                    IOUtils.close(translogManager);
+                } catch (Exception e) {
+                    logger.warn("Failed to close translog");
+                }
             } catch (Exception e) {
                 logger.warn("failed to close engine", e);
             } finally {
-                logger.debug("engine closed [{}]", reason);
-                closedLatch.countDown();
+                try {
+                    store.decRef();
+                    logger.warn("engine closed [{}]", reason);
+                } finally {
+                    closedLatch.countDown();
+                }
             }
         }
     }
