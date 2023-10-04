@@ -211,7 +211,7 @@ public class InboundHandler {
                     header.isHandshake(),
                     message.takeBreakerReleaseControl()
                 );
-                TransportChannel traceableTransportChannel = TraceableTcpTransportChannel.create(transportChannel, span, tracer, channel);
+                TransportChannel traceableTransportChannel = TraceableTcpTransportChannel.create(transportChannel, span, tracer);
                 try {
                     handshaker.handleHandshake(traceableTransportChannel, requestId, stream);
                 } catch (Exception e) {
@@ -241,7 +241,7 @@ public class InboundHandler {
                     header.isHandshake(),
                     message.takeBreakerReleaseControl()
                 );
-                TransportChannel traceableTransportChannel = TraceableTcpTransportChannel.create(transportChannel, span, tracer, channel);
+                TransportChannel traceableTransportChannel = TraceableTcpTransportChannel.create(transportChannel, span, tracer);
                 try {
                     messageListener.onRequestReceived(requestId, action);
                     if (message.isShortCircuit()) {

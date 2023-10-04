@@ -16,7 +16,6 @@ import org.opensearch.telemetry.tracing.Span;
 import org.opensearch.telemetry.tracing.SpanScope;
 import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.transport.BaseTcpTransportChannel;
-import org.opensearch.transport.TcpChannel;
 import org.opensearch.transport.TcpTransportChannel;
 import org.opensearch.transport.TransportChannel;
 
@@ -50,12 +49,11 @@ public class TraceableTcpTransportChannel extends BaseTcpTransportChannel {
      * @param delegate delegate
      * @param span     span
      * @param tracer tracer
-     * @param tcpChannel tcpChannel
      * @return transport channel
      */
-    public static TransportChannel create(TcpTransportChannel delegate, final Span span, final Tracer tracer, final TcpChannel tcpChannel) {
+    public static TransportChannel create(TcpTransportChannel delegate, final Span span, final Tracer tracer) {
         if (FeatureFlags.isEnabled(FeatureFlags.TELEMETRY) == true) {
-            tcpChannel.addCloseListener(new ActionListener<Void>() {
+            delegate.getChannel().addCloseListener(new ActionListener<Void>() {
                 @Override
                 public void onResponse(Void unused) {
                     onFailure(null);
