@@ -805,6 +805,38 @@ public class RemoteClusterStateService implements Closeable {
     }
 
     /**
+     * Purges all remote cluster state against provided cluster UUIDs
+     *
+     * @param clusterName name of the cluster
+     * @param clusterUUIDs clusteUUIDs for which the remote state needs to be purged
+     */
+    private void deleteStaleUUIDsClusterMetadata(String clusterName, List<String> clusterUUIDs) {
+        clusterUUIDs.forEach(clusterUUID -> {
+            getBlobStoreTransferService().deleteAsync(
+                ThreadPool.Names.REMOTE_PURGE,
+                getCusterMetadataBasePath(clusterName, clusterUUID),
+                new ActionListener<>() {
+                    @Override
+                    public void onResponse(Void unused) {
+                        logger.info("Deleted all remote cluster metadata for cluster UUID - {}", clusterUUID);
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        logger.error(
+                            new ParameterizedMessage(
+                                "Exception occurred while deleting all remote cluster metadata for cluster UUID {}",
+                                clusterUUID
+                            ),
+                            e
+                        );
+                    }
+                }
+            );
+        });
+    }
+
+    /**
      * Deletes older than last {@code versionsToRetain} manifests. Also cleans up unreferenced IndexMetadata associated with older manifests
      *
      * @param clusterName name of the cluster
@@ -909,38 +941,6 @@ public class RemoteClusterStateService implements Closeable {
     private void deleteStalePaths(String clusterName, String clusterUUID, List<String> stalePaths) throws IOException {
         logger.debug(String.format(Locale.ROOT, "Deleting stale files from remote - %s", stalePaths));
         getBlobStoreTransferService().deleteBlobs(getCusterMetadataBasePath(clusterName, clusterUUID), stalePaths);
-    }
-
-    /**
-     * Purges all remote cluster state against provided cluster UUIDs
-     *
-     * @param clusterName name of the cluster
-     * @param clusterUUIDs clusteUUIDs for which the remote state needs to be purged
-     */
-    private void deleteStaleUUIDsClusterMetadata(String clusterName, List<String> clusterUUIDs) {
-        clusterUUIDs.forEach(clusterUUID -> {
-            getBlobStoreTransferService().deleteAsync(
-                ThreadPool.Names.REMOTE_PURGE,
-                getCusterMetadataBasePath(clusterName, clusterUUID),
-                new ActionListener<>() {
-                    @Override
-                    public void onResponse(Void unused) {
-                        logger.info("Deleted all remote cluster metadata for cluster UUID - {}", clusterUUID);
-                    }
-
-                    @Override
-                    public void onFailure(Exception e) {
-                        logger.error(
-                            new ParameterizedMessage(
-                                "Exception occurred while deleting all remote cluster metadata for cluster UUID {}",
-                                clusterUUID
-                            ),
-                            e
-                        );
-                    }
-                }
-            );
-        });
     }
 
     /**
