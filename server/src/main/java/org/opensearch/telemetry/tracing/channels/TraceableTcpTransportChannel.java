@@ -17,6 +17,7 @@ import org.opensearch.telemetry.tracing.SpanScope;
 import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.transport.BaseTcpTransportChannel;
 import org.opensearch.transport.TcpChannel;
+import org.opensearch.transport.TcpTransportChannel;
 import org.opensearch.transport.TransportChannel;
 
 import java.io.IOException;
@@ -35,10 +36,9 @@ public class TraceableTcpTransportChannel extends BaseTcpTransportChannel {
      * @param delegate delegate
      * @param span span
      * @param tracer tracer
-     * @param channel channel
      */
-    public TraceableTcpTransportChannel(TransportChannel delegate, Span span, Tracer tracer, TcpChannel channel) {
-        super(channel);
+    public TraceableTcpTransportChannel(TcpTransportChannel delegate, Span span, Tracer tracer) {
+        super(delegate.getChannel());
         this.delegate = delegate;
         this.span = span;
         this.tracer = tracer;
@@ -53,7 +53,7 @@ public class TraceableTcpTransportChannel extends BaseTcpTransportChannel {
      * @param tcpChannel tcpChannel
      * @return transport channel
      */
-    public static TransportChannel create(TransportChannel delegate, final Span span, final Tracer tracer, final TcpChannel tcpChannel) {
+    public static TransportChannel create(TcpTransportChannel delegate, final Span span, final Tracer tracer, final TcpChannel tcpChannel) {
         if (FeatureFlags.isEnabled(FeatureFlags.TELEMETRY) == true) {
             tcpChannel.addCloseListener(new ActionListener<Void>() {
                 @Override
@@ -69,7 +69,7 @@ public class TraceableTcpTransportChannel extends BaseTcpTransportChannel {
                 }
             });
 
-            return new TraceableTcpTransportChannel(delegate, span, tracer, tcpChannel);
+            return new TraceableTcpTransportChannel(delegate, span, tracer);
         } else {
             return delegate;
         }

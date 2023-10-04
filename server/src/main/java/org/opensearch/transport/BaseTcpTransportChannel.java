@@ -29,4 +29,5 @@ public abstract class BaseTcpTransportChannel implements TransportChannel {
     public TcpChannel getChannel() {
         return channel;
     }
+
 }

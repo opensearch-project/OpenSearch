@@ -50,7 +50,6 @@ public final class TcpTransportChannel extends BaseTcpTransportChannel {
 
     private final AtomicBoolean released = new AtomicBoolean();
     private final OutboundHandler outboundHandler;
-    private final TcpChannel channel;
     private final String action;
     private final long requestId;
     private final Version version;
@@ -73,7 +72,6 @@ public final class TcpTransportChannel extends BaseTcpTransportChannel {
         super(channel);
         this.version = version;
         this.features = features;
-        this.channel = channel;
         this.outboundHandler = outboundHandler;
         this.action = action;
         this.requestId = requestId;
@@ -84,7 +82,7 @@ public final class TcpTransportChannel extends BaseTcpTransportChannel {
 
     @Override
     public String getProfileName() {
-        return channel.getProfile();
+        return getChannel().getProfile();
     }
 
     @Override
@@ -94,7 +92,7 @@ public final class TcpTransportChannel extends BaseTcpTransportChannel {
                 // update outbound network time with current time before sending response over network
                 ((QuerySearchResult) response).getShardSearchRequest().setOutboundNetworkTime(System.currentTimeMillis());
             }
-            outboundHandler.sendResponse(version, features, channel, requestId, action, response, compressResponse, isHandshake);
+            outboundHandler.sendResponse(version, features, getChannel(), requestId, action, response, compressResponse, isHandshake);
         } finally {
             release(false);
         }
@@ -103,7 +101,7 @@ public final class TcpTransportChannel extends BaseTcpTransportChannel {
     @Override
     public void sendResponse(Exception exception) throws IOException {
         try {
-            outboundHandler.sendErrorResponse(version, features, channel, requestId, action, exception);
+            outboundHandler.sendErrorResponse(version, features, getChannel(), requestId, action, exception);
         } finally {
             release(true);
         }
