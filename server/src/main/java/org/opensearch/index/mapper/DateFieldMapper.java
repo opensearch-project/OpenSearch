@@ -52,6 +52,7 @@ import org.opensearch.common.time.DateFormatters;
 import org.opensearch.common.time.DateMathParser;
 import org.opensearch.common.time.DateUtils;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.util.LocaleUtils;
 import org.opensearch.index.fielddata.IndexFieldData;
 import org.opensearch.index.fielddata.IndexNumericFieldData.NumericType;
@@ -100,6 +101,12 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
         "strict_date_time_no_millis||strict_date_optional_time||epoch_millis",
         "strict_date_optional_time"
     );
+
+    public static DateFormatter getDefaultDateTimeFormatter() {
+        return FeatureFlags.isEnabled(FeatureFlags.DATETIME_FORMATTER_CACHING_SETTING)
+            ? DEFAULT_DATE_TIME_FORMATTER
+            : LEGACY_DEFAULT_DATE_TIME_FORMATTER;
+    }
 
     /**
      * Resolution of the date time
@@ -231,13 +238,13 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
             "format",
             false,
             m -> toType(m).format,
-            DEFAULT_DATE_TIME_FORMATTER.pattern()
+            getDefaultDateTimeFormatter().pattern()
         );
         private final Parameter<String> printFormat = Parameter.stringParam(
             "print_format",
             false,
             m -> toType(m).printFormat,
-            DEFAULT_DATE_TIME_FORMATTER.printPattern()
+            getDefaultDateTimeFormatter().printPattern()
         ).acceptsNull();
         private final Parameter<Locale> locale = new Parameter<>(
             "locale",
@@ -365,7 +372,7 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
         }
 
         public DateFieldType(String name) {
-            this(name, true, false, true, DEFAULT_DATE_TIME_FORMATTER, Resolution.MILLISECONDS, null, Collections.emptyMap());
+            this(name, true, false, true, getDefaultDateTimeFormatter(), Resolution.MILLISECONDS, null, Collections.emptyMap());
         }
 
         public DateFieldType(String name, DateFormatter dateFormatter) {
@@ -373,7 +380,7 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
         }
 
         public DateFieldType(String name, Resolution resolution) {
-            this(name, true, false, true, DEFAULT_DATE_TIME_FORMATTER, resolution, null, Collections.emptyMap());
+            this(name, true, false, true, getDefaultDateTimeFormatter(), resolution, null, Collections.emptyMap());
         }
 
         public DateFieldType(String name, Resolution resolution, DateFormatter dateFormatter) {

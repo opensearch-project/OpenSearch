@@ -88,6 +88,17 @@ public class FeatureFlags {
         return settings != null && settings.getAsBoolean(featureFlagName, false);
     }
 
+    public static boolean isEnabled(Setting<Boolean> featureFlag) {
+        if ("true".equalsIgnoreCase(System.getProperty(featureFlag.getKey()))) {
+            // TODO: Remove the if condition once FeatureFlags are only supported via opensearch.yml
+            return true;
+        } else if (settings != null) {
+            return featureFlag.get(settings);
+        } else {
+            return featureFlag.getDefault(Settings.EMPTY);
+        }
+    }
+
     public static final Setting<Boolean> SEGMENT_REPLICATION_EXPERIMENTAL_SETTING = Setting.boolSetting(
         SEGMENT_REPLICATION_EXPERIMENTAL,
         false,

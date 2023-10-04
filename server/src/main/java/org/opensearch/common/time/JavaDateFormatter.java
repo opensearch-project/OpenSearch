@@ -52,6 +52,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 
@@ -149,7 +150,7 @@ class JavaDateFormatter implements DateFormatter {
         if (parsers.length == 0) {
             this.parsers = Collections.singletonList(printer);
         } else {
-            this.parsers = Arrays.asList(parsers);
+            this.parsers = new CopyOnWriteArrayList<>(parsers);
         }
         List<DateTimeFormatter> roundUp = createRoundUpParser(format, roundupParserConsumer);
         this.roundupParser = new RoundUpFormatter(format, roundUp);
@@ -218,7 +219,7 @@ class JavaDateFormatter implements DateFormatter {
             printer,
             roundUpParsers,
             parsers,
-            canCacheLastParsedFormatter & FeatureFlags.isEnabled(FeatureFlags.DATETIME_FORMATTER_CACHING)
+            canCacheLastParsedFormatter & FeatureFlags.isEnabled(FeatureFlags.DATETIME_FORMATTER_CACHING_SETTING)
         ); // check if caching is enabled
     }
 
@@ -234,7 +235,7 @@ class JavaDateFormatter implements DateFormatter {
         this.printFormat = printFormat;
         this.printer = printer;
         this.roundupParser = roundUpParsers != null ? new RoundUpFormatter(format, roundUpParsers) : null;
-        this.parsers = parsers;
+        this.parsers = new CopyOnWriteArrayList<>(parsers);
         this.canCacheLastParsedFormatter = canCacheLastParsedFormatter;
     }
 
@@ -296,8 +297,10 @@ class JavaDateFormatter implements DateFormatter {
             }
             if (lastParsedformatter != null) {
                 if (canCacheLastParsedFormatter && lastParsedformatter != parsers.get(0)) {
-                    parsers.remove(lastParsedformatter);
-                    parsers.add(0, lastParsedformatter);
+                    synchronized (parsers) {
+                        parsers.remove(lastParsedformatter);
+                        parsers.add(0, lastParsedformatter);
+                    }
                 }
                 return (TemporalAccessor) object;
             }
@@ -316,7 +319,9 @@ class JavaDateFormatter implements DateFormatter {
         if (zoneId.equals(zone())) {
             return this;
         }
-        List<DateTimeFormatter> parsers = this.parsers.stream().map(p -> p.withZone(zoneId)).collect(Collectors.toList());
+        List<DateTimeFormatter> parsers = new CopyOnWriteArrayList<>(
+            this.parsers.stream().map(p -> p.withZone(zoneId)).collect(Collectors.toList())
+        );
         List<DateTimeFormatter> roundUpParsers = this.roundupParser.getParsers()
             .stream()
             .map(p -> p.withZone(zoneId))
@@ -330,7 +335,9 @@ class JavaDateFormatter implements DateFormatter {
         if (locale.equals(locale())) {
             return this;
         }
-        List<DateTimeFormatter> parsers = this.parsers.stream().map(p -> p.withLocale(locale)).collect(Collectors.toList());
+        List<DateTimeFormatter> parsers = new CopyOnWriteArrayList<>(
+            this.parsers.stream().map(p -> p.withLocale(locale)).collect(Collectors.toList())
+        );
         List<DateTimeFormatter> roundUpParsers = this.roundupParser.getParsers()
             .stream()
             .map(p -> p.withLocale(locale))

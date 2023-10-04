@@ -344,6 +344,6 @@ public class CumulativeSumAggregatorTests extends AggregatorTestCase {
     }
 
     private static long asLong(String dateTime) {
-        return DateFormatters.from(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parse(dateTime)).toInstant().toEpochMilli();
+        return DateFormatters.from(DateFieldMapper.getDefaultDateTimeFormatter().parse(dateTime)).toInstant().toEpochMilli();
     }
 }

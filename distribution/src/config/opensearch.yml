@@ -126,4 +126,4 @@ ${path.logs}
 # Gates the optimization of datetime formatters caching along with change in default datetime formatter
 # Once there is no observed impact on performance, this feature flag can be removed.
 #
-#opensearch.experimental.optimization.datetime_formatter_caching.enabled: true
+#opensearch.experimental.optimization.datetime_formatter_caching.enabled: false
