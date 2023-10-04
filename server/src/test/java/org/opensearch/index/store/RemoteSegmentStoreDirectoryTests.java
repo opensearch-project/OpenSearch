@@ -598,7 +598,7 @@ public class RemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
         Path path = createTempDir();
         DirectoryFileTransferTracker directoryFileTransferTracker = new DirectoryFileTransferTracker();
         long sourceFileLengthInBytes = remoteSegmentStoreDirectory.fileLength(filename);
-        remoteSegmentStoreDirectory.copyTo(filename, storeDirectory, path, new DirectoryFileTransferTracker(), completionListener);
+        remoteSegmentStoreDirectory.copyTo(filename, storeDirectory, path, directoryFileTransferTracker, completionListener);
         assertTrue(downloadLatch.await(5000, TimeUnit.SECONDS));
         verify(blobContainer, times(1)).readBlobAsync(contains(filename), any());
         verify(storeDirectory, times(0)).copyFrom(any(), any(), any(), any());
