@@ -42,7 +42,6 @@ import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.util.concurrent.OpenSearchExecutors;
-import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.common.util.net.NetUtils;
 import org.opensearch.core.common.unit.ByteSizeUnit;
@@ -53,7 +52,6 @@ import org.opensearch.http.HttpChannel;
 import org.opensearch.http.HttpHandlingSettings;
 import org.opensearch.http.HttpReadTimeoutException;
 import org.opensearch.http.HttpServerChannel;
-import org.opensearch.rest.RestResponse;
 import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.NettyAllocator;
@@ -80,6 +78,7 @@ import io.netty.channel.SimpleChannelInboundHandler;
 import io.netty.channel.socket.nio.NioChannelOption;
 import io.netty.handler.codec.ByteToMessageDecoder;
 import io.netty.handler.codec.http.HttpContentCompressor;
+import io.netty.handler.codec.http.HttpContentDecompressor;
 import io.netty.handler.codec.http.HttpMessage;
 import io.netty.handler.codec.http.HttpObjectAggregator;
 import io.netty.handler.codec.http.HttpRequestDecoder;
@@ -340,12 +339,6 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
         "opensearch-http-server-channel"
     );
 
-    public static final AttributeKey<RestResponse> EARLY_RESPONSE = AttributeKey.newInstance("opensearch-http-early-response");
-    public static final AttributeKey<ThreadContext.StoredContext> CONTEXT_TO_RESTORE = AttributeKey.newInstance(
-        "opensearch-http-request-thread-context"
-    );
-    public static final AttributeKey<Boolean> SHOULD_DECOMPRESS = AttributeKey.newInstance("opensearch-http-should-decompress");
-
     protected static class HttpChannelHandler extends ChannelInitializer<Channel> {
 
         private final Netty4HttpServerTransport transport;
@@ -427,7 +420,7 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
                     final ChannelPipeline pipeline = ctx.pipeline();
                     pipeline.addAfter(ctx.name(), "handler", getRequestHandler());
                     pipeline.replace(this, "header_verifier", transport.createHeaderVerifier());
-                    pipeline.addAfter("header_verifier", "decoder_compress", new Netty4ConditionalDecompressor());
+                    pipeline.addAfter("header_verifier", "decoder_compress", transport.createDecompressor());
                     pipeline.addAfter("decoder_compress", "aggregator", aggregator);
                     if (handlingSettings.isCompression()) {
                         pipeline.addAfter(
@@ -454,7 +447,7 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
             decoder.setCumulator(ByteToMessageDecoder.COMPOSITE_CUMULATOR);
             pipeline.addLast("decoder", decoder);
             pipeline.addLast("header_verifier", transport.createHeaderVerifier());
-            pipeline.addLast("decoder_compress", new Netty4ConditionalDecompressor());
+            pipeline.addLast("decoder_compress", transport.createDecompressor());
             pipeline.addLast("encoder", new HttpResponseEncoder());
             final HttpObjectAggregator aggregator = new HttpObjectAggregator(handlingSettings.getMaxContentLength());
             aggregator.setMaxCumulationBufferComponents(transport.maxCompositeBufferComponents);
@@ -501,7 +494,7 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
                         .addLast("byte_buf_sizer", byteBufSizer)
                         .addLast("read_timeout", new ReadTimeoutHandler(transport.readTimeoutMillis, TimeUnit.MILLISECONDS))
                         .addLast("header_verifier", transport.createHeaderVerifier())
-                        .addLast("decoder_decompress", new Netty4ConditionalDecompressor());
+                        .addLast("decoder_decompress", transport.createDecompressor());
 
                     if (handlingSettings.isCompression()) {
                         childChannel.pipeline()
@@ -543,5 +536,9 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
     protected ChannelInboundHandlerAdapter createHeaderVerifier() {
         // pass-through
         return new ChannelInboundHandlerAdapter();
+    }
+
+    protected ChannelInboundHandlerAdapter createDecompressor() {
+        return new HttpContentDecompressor();
     }
 }

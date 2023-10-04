@@ -53,7 +53,6 @@ import org.opensearch.core.common.transport.TransportAddress;
 import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.rest.RestChannel;
-import org.opensearch.rest.RestHandlerContext;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.telemetry.tracing.Span;
 import org.opensearch.telemetry.tracing.SpanBuilder;
@@ -360,29 +359,20 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
      *
      * @param httpRequest that is incoming
      * @param httpChannel that received the http request
-     * @param requestContext context carried over to the request handler from earlier stages in the request pipeline
      */
-    public void incomingRequest(final HttpRequest httpRequest, final HttpChannel httpChannel, final RestHandlerContext requestContext) {
+    public void incomingRequest(final HttpRequest httpRequest, final HttpChannel httpChannel) {
         final Span span = tracer.startSpan(SpanBuilder.from(httpRequest), httpRequest.getHeaders());
         try (final SpanScope httpRequestSpanScope = tracer.withSpanInScope(span)) {
             HttpChannel traceableHttpChannel = TraceableHttpChannel.create(httpChannel, span, tracer);
-            handleIncomingRequest(httpRequest, traceableHttpChannel, requestContext, httpRequest.getInboundException());
+            handleIncomingRequest(httpRequest, traceableHttpChannel, httpRequest.getInboundException());
         }
     }
 
     // Visible for testing
-    protected void dispatchRequest(
-        final RestRequest restRequest,
-        final RestChannel channel,
-        final Throwable badRequestCause,
-        final ThreadContext.StoredContext storedContext
-    ) {
+    void dispatchRequest(final RestRequest restRequest, final RestChannel channel, final Throwable badRequestCause) {
         RestChannel traceableRestChannel = channel;
         final ThreadContext threadContext = threadPool.getThreadContext();
         try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
-            if (storedContext != null) {
-                storedContext.restore();
-            }
             final Span span = tracer.startSpan(SpanBuilder.from(restRequest));
             try (final SpanScope spanScope = tracer.withSpanInScope(span)) {
                 if (channel != null) {
@@ -398,12 +388,7 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
 
     }
 
-    private void handleIncomingRequest(
-        final HttpRequest httpRequest,
-        final HttpChannel httpChannel,
-        final RestHandlerContext requestContext,
-        final Exception exception
-    ) {
+    private void handleIncomingRequest(final HttpRequest httpRequest, final HttpChannel httpChannel, final Exception exception) {
         if (exception == null) {
             HttpResponse earlyResponse = corsHandler.handleInbound(httpRequest);
             if (earlyResponse != null) {
@@ -477,12 +462,7 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
             channel = innerChannel;
         }
 
-        if (requestContext.hasEarlyResponse()) {
-            channel.sendResponse(requestContext.getEarlyResponse());
-            return;
-        }
-
-        dispatchRequest(restRequest, channel, badRequestCause, requestContext.getContextToRestore());
+        dispatchRequest(restRequest, channel, badRequestCause);
     }
 
     public static RestRequest createRestRequest(

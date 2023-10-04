@@ -49,7 +49,6 @@ import org.opensearch.core.indices.breaker.NoneCircuitBreakerService;
 import org.opensearch.core.rest.RestStatus;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.rest.RestChannel;
-import org.opensearch.rest.RestHandlerContext;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.RestResponse;
 import org.opensearch.tasks.Task;
@@ -217,11 +216,11 @@ public class AbstractHttpServerTransportTests extends OpenSearchTestCase {
             }
         ) {
 
-            transport.dispatchRequest(null, null, null, null);
+            transport.dispatchRequest(null, null, null);
             assertNull(threadPool.getThreadContext().getHeader("foo"));
             assertNull(threadPool.getThreadContext().getTransient("bar"));
 
-            transport.dispatchRequest(null, null, new Exception(), null);
+            transport.dispatchRequest(null, null, new Exception());
             assertNull(threadPool.getThreadContext().getHeader("foo_bad"));
             assertNull(threadPool.getThreadContext().getTransient("bar_bad"));
         }
@@ -338,7 +337,7 @@ public class AbstractHttpServerTransportTests extends OpenSearchTestCase {
                     .withInboundException(inboundException)
                     .build();
 
-                transport.incomingRequest(fakeRestRequest.getHttpRequest(), fakeRestRequest.getHttpChannel(), RestHandlerContext.EMPTY);
+                transport.incomingRequest(fakeRestRequest.getHttpRequest(), fakeRestRequest.getHttpChannel());
 
                 final Exception inboundExceptionExcludedPath;
                 if (randomBoolean()) {
@@ -355,11 +354,7 @@ public class AbstractHttpServerTransportTests extends OpenSearchTestCase {
                     .withInboundException(inboundExceptionExcludedPath)
                     .build();
 
-                transport.incomingRequest(
-                    fakeRestRequestExcludedPath.getHttpRequest(),
-                    fakeRestRequestExcludedPath.getHttpChannel(),
-                    RestHandlerContext.EMPTY
-                );
+                transport.incomingRequest(fakeRestRequestExcludedPath.getHttpRequest(), fakeRestRequestExcludedPath.getHttpChannel());
                 appender.assertAllExpectationsMatched();
             }
         }

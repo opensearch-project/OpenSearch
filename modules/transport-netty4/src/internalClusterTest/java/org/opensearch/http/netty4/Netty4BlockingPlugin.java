@@ -25,10 +25,14 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.function.Supplier;
 
+import io.netty.buffer.ByteBuf;
+import io.netty.buffer.Unpooled;
 import io.netty.channel.ChannelFutureListener;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
+import io.netty.channel.SimpleChannelInboundHandler;
 import io.netty.handler.codec.http.DefaultFullHttpResponse;
+import io.netty.handler.codec.http.DefaultHttpRequest;
 import io.netty.handler.codec.http.FullHttpResponse;
 import io.netty.handler.codec.http.HttpRequest;
 import io.netty.handler.codec.http.HttpResponseStatus;
@@ -98,18 +102,14 @@ public class Netty4BlockingPlugin extends Netty4ModulePlugin {
     }
 
     /** POC for how an external header verifier would be implemented */
-    public class ExampleBlockingNetty4HeaderVerifier extends ChannelInboundHandlerAdapter {
+    public class ExampleBlockingNetty4HeaderVerifier extends SimpleChannelInboundHandler<DefaultHttpRequest> {
 
         @Override
-        public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
-            if (!(msg instanceof HttpRequest)) {
-                ctx.fireChannelRead(msg);
-                return;
-            }
-
-            HttpRequest request = (HttpRequest) msg;
-            if (!isAuthenticated(request)) {
-                final FullHttpResponse response = new DefaultFullHttpResponse(request.protocolVersion(), HttpResponseStatus.UNAUTHORIZED);
+        public void channelRead0(ChannelHandlerContext ctx, DefaultHttpRequest msg) throws Exception {
+            ReferenceCountUtil.retain(msg);
+            if (isBlocked(msg)) {
+                ByteBuf buf = Unpooled.copiedBuffer("Hit header_verifier".getBytes());
+                final FullHttpResponse response = new DefaultFullHttpResponse(msg.protocolVersion(), HttpResponseStatus.UNAUTHORIZED, buf);
                 ctx.writeAndFlush(response).addListener(ChannelFutureListener.CLOSE);
                 ReferenceCountUtil.release(msg);
             } else {
@@ -118,10 +118,10 @@ public class Netty4BlockingPlugin extends Netty4ModulePlugin {
             }
         }
 
-        private boolean isAuthenticated(HttpRequest request) {
+        private boolean isBlocked(HttpRequest request) {
             final boolean shouldBlock = request.headers().contains("blockme");
 
-            return !shouldBlock;
+            return shouldBlock;
         }
     }
 }
