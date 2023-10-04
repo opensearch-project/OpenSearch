@@ -14,11 +14,12 @@ import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.Collections;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
 
+import io.opentelemetry.api.OpenTelemetry;
 import io.opentelemetry.api.common.AttributesBuilder;
 import io.opentelemetry.api.trace.SpanBuilder;
 import io.opentelemetry.api.trace.Tracer;
-import io.opentelemetry.sdk.OpenTelemetrySdk;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
@@ -27,9 +28,8 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class OTelTracingTelemetryTests extends OpenSearchTestCase {
-
     public void testCreateSpanWithoutParent() {
-        OpenTelemetrySdk mockOpenTelemetry = mock(OpenTelemetrySdk.class);
+        OpenTelemetry mockOpenTelemetry = mock(OpenTelemetry.class);
         Tracer mockTracer = mock(Tracer.class);
         when(mockOpenTelemetry.getTracer(OTelTelemetryPlugin.INSTRUMENTATION_SCOPE_NAME)).thenReturn(mockTracer);
         SpanBuilder mockSpanBuilder = mock(SpanBuilder.class);
@@ -39,7 +39,7 @@ public class OTelTracingTelemetryTests extends OpenSearchTestCase {
         when(mockSpanBuilder.setSpanKind(any(io.opentelemetry.api.trace.SpanKind.class))).thenReturn(mockSpanBuilder);
         Map<String, String> attributeMap = Collections.singletonMap("name", "value");
         Attributes attributes = Attributes.create().addAttribute("name", "value");
-        TracingTelemetry tracingTelemetry = new OTelTracingTelemetry(mockOpenTelemetry);
+        TracingTelemetry tracingTelemetry = new OTelTracingTelemetry(mockOpenTelemetry, () -> {});
         Span span = tracingTelemetry.createSpan(SpanCreationContext.internal().name("span_name").attributes(attributes), null);
         verify(mockSpanBuilder, never()).setParent(any());
         verify(mockSpanBuilder).setAllAttributes(createAttribute(attributes));
@@ -47,7 +47,7 @@ public class OTelTracingTelemetryTests extends OpenSearchTestCase {
     }
 
     public void testCreateSpanWithParent() {
-        OpenTelemetrySdk mockOpenTelemetry = mock(OpenTelemetrySdk.class);
+        OpenTelemetry mockOpenTelemetry = mock(OpenTelemetry.class);
         Tracer mockTracer = mock(Tracer.class);
         when(mockOpenTelemetry.getTracer(OTelTelemetryPlugin.INSTRUMENTATION_SCOPE_NAME)).thenReturn(mockTracer);
         SpanBuilder mockSpanBuilder = mock(SpanBuilder.class);
@@ -59,7 +59,7 @@ public class OTelTracingTelemetryTests extends OpenSearchTestCase {
 
         Span parentSpan = new OTelSpan("parent_span", mock(io.opentelemetry.api.trace.Span.class), null);
 
-        TracingTelemetry tracingTelemetry = new OTelTracingTelemetry(mockOpenTelemetry);
+        TracingTelemetry tracingTelemetry = new OTelTracingTelemetry(mockOpenTelemetry, () -> {});
         Attributes attributes = Attributes.create().addAttribute("name", 1l);
         Span span = tracingTelemetry.createSpan(SpanCreationContext.internal().name("span_name").attributes(attributes), parentSpan);
 
@@ -71,7 +71,7 @@ public class OTelTracingTelemetryTests extends OpenSearchTestCase {
     }
 
     public void testCreateSpanWithParentWithMultipleAttributes() {
-        OpenTelemetrySdk mockOpenTelemetry = mock(OpenTelemetrySdk.class);
+        OpenTelemetry mockOpenTelemetry = mock(OpenTelemetry.class);
         Tracer mockTracer = mock(Tracer.class);
         when(mockOpenTelemetry.getTracer(OTelTelemetryPlugin.INSTRUMENTATION_SCOPE_NAME)).thenReturn(mockTracer);
         SpanBuilder mockSpanBuilder = mock(SpanBuilder.class);
@@ -83,7 +83,7 @@ public class OTelTracingTelemetryTests extends OpenSearchTestCase {
 
         Span parentSpan = new OTelSpan("parent_span", mock(io.opentelemetry.api.trace.Span.class), null);
 
-        TracingTelemetry tracingTelemetry = new OTelTracingTelemetry(mockOpenTelemetry);
+        TracingTelemetry tracingTelemetry = new OTelTracingTelemetry(mockOpenTelemetry, () -> {});
         Attributes attributes = Attributes.create()
             .addAttribute("key1", 1l)
             .addAttribute("key2", 2.0)
@@ -117,13 +117,21 @@ public class OTelTracingTelemetryTests extends OpenSearchTestCase {
     }
 
     public void testGetContextPropagator() {
-        OpenTelemetrySdk mockOpenTelemetry = mock(OpenTelemetrySdk.class);
+        OpenTelemetry mockOpenTelemetry = mock(OpenTelemetry.class);
         Tracer mockTracer = mock(Tracer.class);
         when(mockOpenTelemetry.getTracer(OTelTelemetryPlugin.INSTRUMENTATION_SCOPE_NAME)).thenReturn(mockTracer);
 
-        TracingTelemetry tracingTelemetry = new OTelTracingTelemetry(mockOpenTelemetry);
+        TracingTelemetry tracingTelemetry = new OTelTracingTelemetry(mockOpenTelemetry, () -> {});
 
         assertTrue(tracingTelemetry.getContextPropagator() instanceof OTelTracingContextPropagator);
+    }
+
+    public void testClose() {
+        OpenTelemetry mockOpenTelemetry = mock(OpenTelemetry.class);
+        final AtomicBoolean closed = new AtomicBoolean(false);
+        TracingTelemetry tracingTelemetry = new OTelTracingTelemetry(mockOpenTelemetry, () -> closed.set(true));
+        tracingTelemetry.close();
+        assertTrue(closed.get());
     }
 
 }

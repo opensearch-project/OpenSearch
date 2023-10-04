@@ -12,29 +12,32 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.telemetry.OTelTelemetryPlugin;
 
+import java.io.Closeable;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
 
+import io.opentelemetry.api.OpenTelemetry;
 import io.opentelemetry.api.metrics.DoubleCounter;
 import io.opentelemetry.api.metrics.DoubleUpDownCounter;
 import io.opentelemetry.api.metrics.Meter;
-import io.opentelemetry.sdk.OpenTelemetrySdk;
 
 /**
  * OTel implementation for {@link MetricsTelemetry}
  */
 public class OTelMetricsTelemetry implements MetricsTelemetry {
     private static final Logger logger = LogManager.getLogger(OTelMetricsTelemetry.class);
-    private final OpenTelemetrySdk openTelemetry;
+    private final OpenTelemetry openTelemetry;
     private final Meter otelMeter;
+    private final Closeable metricsProviderClosable;
 
     /**
      * Constructor.
      * @param openTelemetry telemetry.
      */
-    public OTelMetricsTelemetry(OpenTelemetrySdk openTelemetry) {
+    public OTelMetricsTelemetry(OpenTelemetry openTelemetry, Closeable metricsProviderClosable) {
         this.openTelemetry = openTelemetry;
         this.otelMeter = openTelemetry.getMeter(OTelTelemetryPlugin.INSTRUMENTATION_SCOPE_NAME);
+        this.metricsProviderClosable = metricsProviderClosable;
     }
 
     @Override
@@ -63,11 +66,10 @@ public class OTelMetricsTelemetry implements MetricsTelemetry {
 
     @Override
     public void close() {
-        // There is no harm closing the openTelemetry multiple times.
         try {
-            openTelemetry.getSdkMeterProvider().close();
+            metricsProviderClosable.close();
         } catch (Exception e) {
-            logger.warn("Error while closing Opentelemetry", e);
+            logger.warn("Error while closing Opentelemetry MeterProvider", e);
         }
     }
 }

@@ -13,6 +13,9 @@ import org.opensearch.telemetry.OTelTelemetryPlugin;
 import org.opensearch.telemetry.metrics.tags.Tags;
 import org.opensearch.test.OpenSearchTestCase;
 
+import java.util.concurrent.atomic.AtomicBoolean;
+
+import io.opentelemetry.api.OpenTelemetry;
 import io.opentelemetry.api.metrics.DoubleCounter;
 import io.opentelemetry.api.metrics.DoubleCounterBuilder;
 import io.opentelemetry.api.metrics.DoubleUpDownCounter;
@@ -20,7 +23,6 @@ import io.opentelemetry.api.metrics.DoubleUpDownCounterBuilder;
 import io.opentelemetry.api.metrics.LongCounterBuilder;
 import io.opentelemetry.api.metrics.LongUpDownCounterBuilder;
 import io.opentelemetry.api.metrics.Meter;
-import io.opentelemetry.sdk.OpenTelemetrySdk;
 
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -32,14 +34,14 @@ public class OTelMetricsTelemetryTests extends OpenSearchTestCase {
         String counterName = "test-counter";
         String description = "test";
         String unit = "1";
-        OpenTelemetrySdk mockOpenTelemetry = mock(OpenTelemetrySdk.class);
+        OpenTelemetry mockOpenTelemetry = mock(OpenTelemetry.class);
         Meter mockMeter = mock(Meter.class);
         DoubleCounter mockOTelDoubleCounter = mock(DoubleCounter.class);
         LongCounterBuilder mockOTelLongCounterBuilder = mock(LongCounterBuilder.class);
         DoubleCounterBuilder mockOTelDoubleCounterBuilder = mock(DoubleCounterBuilder.class);
 
         when(mockOpenTelemetry.getMeter(OTelTelemetryPlugin.INSTRUMENTATION_SCOPE_NAME)).thenReturn(mockMeter);
-        MetricsTelemetry metricsTelemetry = new OTelMetricsTelemetry(mockOpenTelemetry);
+        MetricsTelemetry metricsTelemetry = new OTelMetricsTelemetry(mockOpenTelemetry, () -> {});
         when(mockMeter.counterBuilder(counterName)).thenReturn(mockOTelLongCounterBuilder);
         when(mockOTelLongCounterBuilder.setDescription(description)).thenReturn(mockOTelLongCounterBuilder);
         when(mockOTelLongCounterBuilder.setUnit(unit)).thenReturn(mockOTelLongCounterBuilder);
@@ -58,14 +60,14 @@ public class OTelMetricsTelemetryTests extends OpenSearchTestCase {
         String counterName = "test-counter";
         String description = "test";
         String unit = "1";
-        OpenTelemetrySdk mockOpenTelemetry = mock(OpenTelemetrySdk.class);
+        OpenTelemetry mockOpenTelemetry = mock(OpenTelemetry.class);
         Meter mockMeter = mock(Meter.class);
         DoubleCounter mockOTelDoubleCounter = mock(DoubleCounter.class);
         LongCounterBuilder mockOTelLongCounterBuilder = mock(LongCounterBuilder.class);
         DoubleCounterBuilder mockOTelDoubleCounterBuilder = mock(DoubleCounterBuilder.class);
 
         when(mockOpenTelemetry.getMeter(OTelTelemetryPlugin.INSTRUMENTATION_SCOPE_NAME)).thenReturn(mockMeter);
-        MetricsTelemetry metricsTelemetry = new OTelMetricsTelemetry(mockOpenTelemetry);
+        MetricsTelemetry metricsTelemetry = new OTelMetricsTelemetry(mockOpenTelemetry, () -> {});
         when(mockMeter.counterBuilder(counterName)).thenReturn(mockOTelLongCounterBuilder);
         when(mockOTelLongCounterBuilder.setDescription(description)).thenReturn(mockOTelLongCounterBuilder);
         when(mockOTelLongCounterBuilder.setUnit(unit)).thenReturn(mockOTelLongCounterBuilder);
@@ -81,14 +83,14 @@ public class OTelMetricsTelemetryTests extends OpenSearchTestCase {
         String counterName = "test-counter";
         String description = "test";
         String unit = "1";
-        OpenTelemetrySdk mockOpenTelemetry = mock(OpenTelemetrySdk.class);
+        OpenTelemetry mockOpenTelemetry = mock(OpenTelemetry.class);
         Meter mockMeter = mock(Meter.class);
         DoubleUpDownCounter mockOTelUpDownDoubleCounter = mock(DoubleUpDownCounter.class);
         LongUpDownCounterBuilder mockOTelLongUpDownCounterBuilder = mock(LongUpDownCounterBuilder.class);
         DoubleUpDownCounterBuilder mockOTelDoubleUpDownCounterBuilder = mock(DoubleUpDownCounterBuilder.class);
 
         when(mockOpenTelemetry.getMeter(OTelTelemetryPlugin.INSTRUMENTATION_SCOPE_NAME)).thenReturn(mockMeter);
-        MetricsTelemetry metricsTelemetry = new OTelMetricsTelemetry(mockOpenTelemetry);
+        MetricsTelemetry metricsTelemetry = new OTelMetricsTelemetry(mockOpenTelemetry, () -> {});
         when(mockMeter.upDownCounterBuilder(counterName)).thenReturn(mockOTelLongUpDownCounterBuilder);
         when(mockOTelLongUpDownCounterBuilder.setDescription(description)).thenReturn(mockOTelLongUpDownCounterBuilder);
         when(mockOTelLongUpDownCounterBuilder.setUnit(unit)).thenReturn(mockOTelLongUpDownCounterBuilder);
@@ -101,5 +103,13 @@ public class OTelMetricsTelemetryTests extends OpenSearchTestCase {
         Tags tags = Tags.create().addTag("test", "test");
         counter.add(-2.0, tags);
         verify(mockOTelUpDownDoubleCounter).add((-2.0), OTelAttributesConverter.convert(tags));
+    }
+
+    public void testClose() {
+        OpenTelemetry mockOpenTelemetry = mock(OpenTelemetry.class);
+        final AtomicBoolean closed = new AtomicBoolean(false);
+        MetricsTelemetry metricsTelemetry = new OTelMetricsTelemetry(mockOpenTelemetry, () -> closed.set(true));
+        metricsTelemetry.close();
+        assertTrue(closed.get());
     }
 }

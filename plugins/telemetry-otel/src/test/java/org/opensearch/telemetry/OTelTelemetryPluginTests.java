@@ -78,5 +78,6 @@ public class OTelTelemetryPluginTests extends OpenSearchTestCase {
     @After
     public void cleanup() {
         tracingTelemetry.close();
+        metricsTelemetry.close();
     }
 }

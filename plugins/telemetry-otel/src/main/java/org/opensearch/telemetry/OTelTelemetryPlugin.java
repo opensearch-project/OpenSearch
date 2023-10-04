@@ -68,7 +68,10 @@ public class OTelTelemetryPlugin extends Plugin implements TelemetryPlugin {
 
     private Telemetry telemetry(TelemetrySettings telemetrySettings) {
         final OpenTelemetrySdk openTelemetry = OTelResourceProvider.get(telemetrySettings, settings);
-        return new OTelTelemetry(new OTelTracingTelemetry(openTelemetry), new OTelMetricsTelemetry(openTelemetry));
+        return new OTelTelemetry(
+            new OTelTracingTelemetry(openTelemetry, () -> openTelemetry.getSdkTracerProvider().close()),
+            new OTelMetricsTelemetry(openTelemetry, () -> openTelemetry.getSdkMeterProvider().close())
+        );
     }
 
 }
