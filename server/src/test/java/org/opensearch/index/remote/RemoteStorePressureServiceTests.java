@@ -58,7 +58,7 @@ public class RemoteStorePressureServiceTests extends OpenSearchTestCase {
     public void testIsSegmentsUploadBackpressureEnabled() {
         remoteStoreStatsTrackerFactory = new RemoteStoreStatsTrackerFactory(clusterService, Settings.EMPTY);
         pressureService = new RemoteStorePressureService(clusterService, Settings.EMPTY, remoteStoreStatsTrackerFactory);
-        assertFalse(pressureService.isSegmentsUploadBackpressureEnabled());
+        assertTrue(pressureService.isSegmentsUploadBackpressureEnabled());
 
         Settings newSettings = Settings.builder()
             .put(RemoteStorePressureSettings.REMOTE_REFRESH_SEGMENT_PRESSURE_ENABLED.getKey(), "true")
