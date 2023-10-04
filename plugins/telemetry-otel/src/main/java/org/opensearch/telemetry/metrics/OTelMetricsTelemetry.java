@@ -13,6 +13,7 @@ import org.apache.logging.log4j.Logger;
 import org.opensearch.telemetry.OTelTelemetryPlugin;
 
 import java.io.Closeable;
+import java.io.IOException;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
 
@@ -31,7 +32,7 @@ public class OTelMetricsTelemetry<T extends MeterProvider & Closeable> implement
 
     /**
      * Creates OTel based {@link MetricsTelemetry}.
-     * @param meterProvider OpenTelemetry instance
+     * @param meterProvider {@link MeterProvider} instance
      * @param meterProviderCloseable closable to close the meter.
      */
     public OTelMetricsTelemetry(T meterProvider, Closeable meterProviderCloseable) {
@@ -67,7 +68,7 @@ public class OTelMetricsTelemetry<T extends MeterProvider & Closeable> implement
     public void close() {
         try {
             metricsProviderClosable.close();
-        } catch (Exception e) {
+        } catch (IOException e) {
             logger.warn("Error while closing Opentelemetry MeterProvider", e);
         }
     }

@@ -32,7 +32,8 @@ public class OTelTracingTelemetry<T extends TracerProvider & Closeable> implemen
 
     /**
      * Creates OTel based {@link TracingTelemetry}
-     * @param tracerProvider OpenTelemetry instance
+     * @param tracerProvider {@link TracerProvider} instance.
+     * @param openTelemetry OpenTelemetry instance
      * @param tracerProviderCloseable closable to close the tracer
      */
     public OTelTracingTelemetry(T tracerProvider, OpenTelemetry openTelemetry, Closeable tracerProviderCloseable) {
