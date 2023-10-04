@@ -626,9 +626,7 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
         when((blobStoreRepository.basePath())).thenReturn(blobPath);
         BlobContainer uuidContainerContainer = mock(BlobContainer.class);
         BlobContainer manifest2Container = mock(BlobContainer.class);
-        BlobContainer manifest2IndexContainer = mock(BlobContainer.class);
         BlobContainer manifest3Container = mock(BlobContainer.class);
-        BlobContainer manifest3IndexContainer = mock(BlobContainer.class);
         when(blobStore.blobContainer(any())).then(invocation -> {
             BlobPath blobPath1 = invocation.getArgument(0);
             if (blobPath1.buildAsString().endsWith("cluster-state/")) {
