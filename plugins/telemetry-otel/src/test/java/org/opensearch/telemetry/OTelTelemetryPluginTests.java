@@ -37,7 +37,7 @@ import static org.opensearch.telemetry.TelemetrySettings.TRACER_SAMPLER_PROBABIL
 
 public class OTelTelemetryPluginTests extends OpenSearchTestCase {
 
-    private OTelTelemetryPlugin oTelTelemetryModulePlugin;
+    private OTelTelemetryPlugin oTelTelemetryPlugin;
     private Optional<Telemetry> telemetry;
     private TracingTelemetry tracingTelemetry;
 
@@ -48,8 +48,8 @@ public class OTelTelemetryPluginTests extends OpenSearchTestCase {
         // TRACER_EXPORTER_DELAY_SETTING should always be less than 10 seconds because
         // io.opentelemetry.sdk.OpenTelemetrySdk.close waits only for 10 seconds for shutdown to complete.
         Settings settings = Settings.builder().put(TRACER_EXPORTER_DELAY_SETTING.getKey(), "1s").build();
-        oTelTelemetryModulePlugin = new OTelTelemetryPlugin(settings);
-        telemetry = oTelTelemetryModulePlugin.getTelemetry(
+        oTelTelemetryPlugin = new OTelTelemetryPlugin(settings);
+        telemetry = oTelTelemetryPlugin.getTelemetry(
             new TelemetrySettings(Settings.EMPTY, new ClusterSettings(settings, Set.of(TRACER_ENABLED_SETTING, TRACER_SAMPLER_PROBABILITY)))
         );
         tracingTelemetry = telemetry.get().getTracingTelemetry();
@@ -59,7 +59,7 @@ public class OTelTelemetryPluginTests extends OpenSearchTestCase {
     public void testGetTelemetry() {
         Set<Setting<?>> allTracerSettings = new HashSet<>();
         ClusterSettings.FEATURE_FLAGGED_CLUSTER_SETTINGS.get(List.of(FeatureFlags.TELEMETRY)).stream().forEach((allTracerSettings::add));
-        assertEquals(OTEL_TRACER_NAME, oTelTelemetryModulePlugin.getName());
+        assertEquals(OTEL_TRACER_NAME, oTelTelemetryPlugin.getName());
         assertTrue(tracingTelemetry instanceof OTelTracingTelemetry);
         assertTrue(metricsTelemetry instanceof OTelMetricsTelemetry);
         assertEquals(
@@ -70,7 +70,7 @@ public class OTelTelemetryPluginTests extends OpenSearchTestCase {
                 OTEL_TRACER_SPAN_EXPORTER_CLASS_SETTING,
                 OTEL_METRICS_EXPORTER_CLASS_SETTING
             ),
-            oTelTelemetryModulePlugin.getSettings()
+            oTelTelemetryPlugin.getSettings()
         );
 
     }

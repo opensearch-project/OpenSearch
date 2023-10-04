@@ -16,28 +16,26 @@ import java.io.Closeable;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
 
-import io.opentelemetry.api.OpenTelemetry;
 import io.opentelemetry.api.metrics.DoubleCounter;
 import io.opentelemetry.api.metrics.DoubleUpDownCounter;
 import io.opentelemetry.api.metrics.Meter;
+import io.opentelemetry.api.metrics.MeterProvider;
 
 /**
  * OTel implementation for {@link MetricsTelemetry}
  */
-public class OTelMetricsTelemetry implements MetricsTelemetry {
+public class OTelMetricsTelemetry<T extends MeterProvider & Closeable> implements MetricsTelemetry {
     private static final Logger logger = LogManager.getLogger(OTelMetricsTelemetry.class);
-    private final OpenTelemetry openTelemetry;
     private final Meter otelMeter;
     private final Closeable metricsProviderClosable;
 
     /**
      * Creates OTel based {@link MetricsTelemetry}.
-     * @param openTelemetry OpenTelemetry instance
+     * @param meterProvider OpenTelemetry instance
      * @param meterProviderCloseable closable to close the meter.
      */
-    public OTelMetricsTelemetry(OpenTelemetry openTelemetry, Closeable meterProviderCloseable) {
-        this.openTelemetry = openTelemetry;
-        this.otelMeter = openTelemetry.getMeter(OTelTelemetryPlugin.INSTRUMENTATION_SCOPE_NAME);
+    public OTelMetricsTelemetry(T meterProvider, Closeable meterProviderCloseable) {
+        this.otelMeter = meterProvider.get(OTelTelemetryPlugin.INSTRUMENTATION_SCOPE_NAME);
         this.metricsProviderClosable = meterProviderCloseable;
     }
 

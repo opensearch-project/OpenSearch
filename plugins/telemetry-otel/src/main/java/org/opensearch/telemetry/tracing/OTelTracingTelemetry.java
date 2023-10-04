@@ -14,14 +14,16 @@ import org.opensearch.telemetry.OTelAttributesConverter;
 import org.opensearch.telemetry.OTelTelemetryPlugin;
 
 import java.io.Closeable;
+import java.io.IOException;
 
 import io.opentelemetry.api.OpenTelemetry;
+import io.opentelemetry.api.trace.TracerProvider;
 import io.opentelemetry.context.Context;
 
 /**
  * OTel based Telemetry provider
  */
-public class OTelTracingTelemetry implements TracingTelemetry {
+public class OTelTracingTelemetry<T extends TracerProvider & Closeable> implements TracingTelemetry {
 
     private static final Logger logger = LogManager.getLogger(OTelTracingTelemetry.class);
     private final OpenTelemetry openTelemetry;
@@ -30,12 +32,12 @@ public class OTelTracingTelemetry implements TracingTelemetry {
 
     /**
      * Creates OTel based {@link TracingTelemetry}
-     * @param openTelemetry OpenTelemetry instance
+     * @param tracerProvider OpenTelemetry instance
      * @param tracerProviderCloseable closable to close the tracer
      */
-    public OTelTracingTelemetry(OpenTelemetry openTelemetry, Closeable tracerProviderCloseable) {
+    public OTelTracingTelemetry(T tracerProvider, OpenTelemetry openTelemetry, Closeable tracerProviderCloseable) {
+        this.otelTracer = tracerProvider.get(OTelTelemetryPlugin.INSTRUMENTATION_SCOPE_NAME);
         this.openTelemetry = openTelemetry;
-        this.otelTracer = openTelemetry.getTracer(OTelTelemetryPlugin.INSTRUMENTATION_SCOPE_NAME);
         this.tracerProviderClosable = tracerProviderCloseable;
     }
 
@@ -43,7 +45,7 @@ public class OTelTracingTelemetry implements TracingTelemetry {
     public void close() {
         try {
             tracerProviderClosable.close();
-        } catch (Exception e) {
+        } catch (IOException e) {
             logger.warn("Error while closing Opentelemetry TracerProvider", e);
         }
     }

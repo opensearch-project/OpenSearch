@@ -12,14 +12,13 @@ import org.opensearch.telemetry.OTelTelemetryPlugin;
 import org.opensearch.telemetry.tracing.attributes.Attributes;
 import org.opensearch.test.OpenSearchTestCase;
 
-import java.util.Collections;
-import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import io.opentelemetry.api.OpenTelemetry;
 import io.opentelemetry.api.common.AttributesBuilder;
 import io.opentelemetry.api.trace.SpanBuilder;
 import io.opentelemetry.api.trace.Tracer;
+import io.opentelemetry.api.trace.TracerProvider;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
@@ -30,16 +29,16 @@ import static org.mockito.Mockito.when;
 public class OTelTracingTelemetryTests extends OpenSearchTestCase {
     public void testCreateSpanWithoutParent() {
         OpenTelemetry mockOpenTelemetry = mock(OpenTelemetry.class);
+        TracerProvider tracerProvider = mock(TracerProvider.class);
         Tracer mockTracer = mock(Tracer.class);
-        when(mockOpenTelemetry.getTracer(OTelTelemetryPlugin.INSTRUMENTATION_SCOPE_NAME)).thenReturn(mockTracer);
+        when(tracerProvider.get(OTelTelemetryPlugin.INSTRUMENTATION_SCOPE_NAME)).thenReturn(mockTracer);
         SpanBuilder mockSpanBuilder = mock(SpanBuilder.class);
         when(mockTracer.spanBuilder("span_name")).thenReturn(mockSpanBuilder);
         when(mockSpanBuilder.setAllAttributes(any(io.opentelemetry.api.common.Attributes.class))).thenReturn(mockSpanBuilder);
         when(mockSpanBuilder.startSpan()).thenReturn(mock(io.opentelemetry.api.trace.Span.class));
         when(mockSpanBuilder.setSpanKind(any(io.opentelemetry.api.trace.SpanKind.class))).thenReturn(mockSpanBuilder);
-        Map<String, String> attributeMap = Collections.singletonMap("name", "value");
         Attributes attributes = Attributes.create().addAttribute("name", "value");
-        TracingTelemetry tracingTelemetry = new OTelTracingTelemetry(mockOpenTelemetry, () -> {});
+        TracingTelemetry tracingTelemetry = new OTelTracingTelemetry(tracerProvider, mockOpenTelemetry, () -> {});
         Span span = tracingTelemetry.createSpan(SpanCreationContext.internal().name("span_name").attributes(attributes), null);
         verify(mockSpanBuilder, never()).setParent(any());
         verify(mockSpanBuilder).setAllAttributes(createAttribute(attributes));
@@ -49,7 +48,8 @@ public class OTelTracingTelemetryTests extends OpenSearchTestCase {
     public void testCreateSpanWithParent() {
         OpenTelemetry mockOpenTelemetry = mock(OpenTelemetry.class);
         Tracer mockTracer = mock(Tracer.class);
-        when(mockOpenTelemetry.getTracer(OTelTelemetryPlugin.INSTRUMENTATION_SCOPE_NAME)).thenReturn(mockTracer);
+        TracerProvider tracerProvider = mock(TracerProvider.class);
+        when(tracerProvider.get(OTelTelemetryPlugin.INSTRUMENTATION_SCOPE_NAME)).thenReturn(mockTracer);
         SpanBuilder mockSpanBuilder = mock(SpanBuilder.class);
         when(mockTracer.spanBuilder("span_name")).thenReturn(mockSpanBuilder);
         when(mockSpanBuilder.setParent(any())).thenReturn(mockSpanBuilder);
@@ -59,7 +59,7 @@ public class OTelTracingTelemetryTests extends OpenSearchTestCase {
 
         Span parentSpan = new OTelSpan("parent_span", mock(io.opentelemetry.api.trace.Span.class), null);
 
-        TracingTelemetry tracingTelemetry = new OTelTracingTelemetry(mockOpenTelemetry, () -> {});
+        TracingTelemetry tracingTelemetry = new OTelTracingTelemetry(tracerProvider, mockOpenTelemetry, () -> {});
         Attributes attributes = Attributes.create().addAttribute("name", 1l);
         Span span = tracingTelemetry.createSpan(SpanCreationContext.internal().name("span_name").attributes(attributes), parentSpan);
 
@@ -73,7 +73,8 @@ public class OTelTracingTelemetryTests extends OpenSearchTestCase {
     public void testCreateSpanWithParentWithMultipleAttributes() {
         OpenTelemetry mockOpenTelemetry = mock(OpenTelemetry.class);
         Tracer mockTracer = mock(Tracer.class);
-        when(mockOpenTelemetry.getTracer(OTelTelemetryPlugin.INSTRUMENTATION_SCOPE_NAME)).thenReturn(mockTracer);
+        TracerProvider tracerProvider = mock(TracerProvider.class);
+        when(tracerProvider.get(OTelTelemetryPlugin.INSTRUMENTATION_SCOPE_NAME)).thenReturn(mockTracer);
         SpanBuilder mockSpanBuilder = mock(SpanBuilder.class);
         when(mockTracer.spanBuilder("span_name")).thenReturn(mockSpanBuilder);
         when(mockSpanBuilder.setParent(any())).thenReturn(mockSpanBuilder);
@@ -83,7 +84,7 @@ public class OTelTracingTelemetryTests extends OpenSearchTestCase {
 
         Span parentSpan = new OTelSpan("parent_span", mock(io.opentelemetry.api.trace.Span.class), null);
 
-        TracingTelemetry tracingTelemetry = new OTelTracingTelemetry(mockOpenTelemetry, () -> {});
+        TracingTelemetry tracingTelemetry = new OTelTracingTelemetry(tracerProvider, mockOpenTelemetry, () -> {});
         Attributes attributes = Attributes.create()
             .addAttribute("key1", 1l)
             .addAttribute("key2", 2.0)
@@ -119,17 +120,19 @@ public class OTelTracingTelemetryTests extends OpenSearchTestCase {
     public void testGetContextPropagator() {
         OpenTelemetry mockOpenTelemetry = mock(OpenTelemetry.class);
         Tracer mockTracer = mock(Tracer.class);
-        when(mockOpenTelemetry.getTracer(OTelTelemetryPlugin.INSTRUMENTATION_SCOPE_NAME)).thenReturn(mockTracer);
+        TracerProvider tracerProvider = mock(TracerProvider.class);
+        when(tracerProvider.get(OTelTelemetryPlugin.INSTRUMENTATION_SCOPE_NAME)).thenReturn(mockTracer);
 
-        TracingTelemetry tracingTelemetry = new OTelTracingTelemetry(mockOpenTelemetry, () -> {});
+        TracingTelemetry tracingTelemetry = new OTelTracingTelemetry(tracerProvider, mockOpenTelemetry, () -> {});
 
         assertTrue(tracingTelemetry.getContextPropagator() instanceof OTelTracingContextPropagator);
     }
 
     public void testClose() {
         OpenTelemetry mockOpenTelemetry = mock(OpenTelemetry.class);
+        TracerProvider tracerProvider = mock(TracerProvider.class);
         final AtomicBoolean closed = new AtomicBoolean(false);
-        TracingTelemetry tracingTelemetry = new OTelTracingTelemetry(mockOpenTelemetry, () -> closed.set(true));
+        TracingTelemetry tracingTelemetry = new OTelTracingTelemetry(tracerProvider, mockOpenTelemetry, () -> closed.set(true));
         tracingTelemetry.close();
         assertTrue(closed.get());
     }
