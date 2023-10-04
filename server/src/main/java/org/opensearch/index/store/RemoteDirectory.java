@@ -62,9 +62,9 @@ public class RemoteDirectory extends Directory {
     protected final BlobContainer blobContainer;
     private static final Logger logger = LogManager.getLogger(RemoteDirectory.class);
 
-    protected final UnaryOperator<OffsetRangeInputStream> uploadRateLimiter;
+    private final UnaryOperator<OffsetRangeInputStream> uploadRateLimiter;
 
-    protected final UnaryOperator<InputStream> downloadRateLimiter;
+    private final UnaryOperator<InputStream> downloadRateLimiter;
 
     /**
      * Number of bytes in the segment file to store checksum
@@ -331,6 +331,10 @@ public class RemoteDirectory extends Directory {
             return true;
         }
         return false;
+    }
+
+    protected UnaryOperator<InputStream> getDownloadRateLimiter() {
+        return downloadRateLimiter;
     }
 
     private void uploadBlob(

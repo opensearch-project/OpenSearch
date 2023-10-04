@@ -20,6 +20,7 @@ import org.opensearch.test.OpenSearchTestCase;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 import java.util.function.UnaryOperator;
 
 import org.mockito.Mockito;
@@ -51,10 +52,12 @@ public class AsyncMultiStreamEncryptedBlobContainerTests extends OpenSearchTestC
         // Objects needed for API call
         final byte[] data = new byte[size];
         Randomness.get().nextBytes(data);
+
         final InputStreamContainer inputStreamContainer = new InputStreamContainer(new ByteArrayInputStream(data), data.length, 0);
         final ListenerTestUtils.CountingCompletionListener<ReadContext> completionListener =
             new ListenerTestUtils.CountingCompletionListener<>();
-        final ReadContext readContext = new ReadContext(size, List.of(inputStreamContainer), null);
+        final CompletableFuture<InputStreamContainer> streamContainerFuture = CompletableFuture.completedFuture(inputStreamContainer);
+        final ReadContext readContext = new ReadContext(size, List.of(() -> streamContainerFuture), null);
 
         Mockito.doAnswer(invocation -> {
             ActionListener<ReadContext> readContextActionListener = invocation.getArgument(1);
@@ -76,7 +79,7 @@ public class AsyncMultiStreamEncryptedBlobContainerTests extends OpenSearchTestC
         assertEquals(1, response.getNumberOfParts());
         assertEquals(size, response.getBlobSize());
 
-        InputStreamContainer responseContainer = response.getPartStreams().get(0);
+        InputStreamContainer responseContainer = response.getPartStreams().get(0).get().join();
         assertEquals(0, responseContainer.getOffset());
         assertEquals(size, responseContainer.getContentLength());
         assertEquals(100, responseContainer.getInputStream().available());
@@ -99,7 +102,8 @@ public class AsyncMultiStreamEncryptedBlobContainerTests extends OpenSearchTestC
         final InputStreamContainer inputStreamContainer = new InputStreamContainer(new ByteArrayInputStream(data), data.length, 0);
         final ListenerTestUtils.CountingCompletionListener<ReadContext> completionListener =
             new ListenerTestUtils.CountingCompletionListener<>();
-        final ReadContext readContext = new ReadContext(size, List.of(inputStreamContainer), null);
+        final CompletableFuture<InputStreamContainer> streamContainerFuture = CompletableFuture.completedFuture(inputStreamContainer);
+        final ReadContext readContext = new ReadContext(size, List.of(() -> streamContainerFuture), null);
 
         Mockito.doAnswer(invocation -> {
             ActionListener<ReadContext> readContextActionListener = invocation.getArgument(1);
