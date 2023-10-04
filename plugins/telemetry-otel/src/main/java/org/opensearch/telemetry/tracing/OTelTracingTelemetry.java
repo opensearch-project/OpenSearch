@@ -29,13 +29,14 @@ public class OTelTracingTelemetry implements TracingTelemetry {
     private final io.opentelemetry.api.trace.Tracer otelTracer;
 
     /**
-     * Creates OTel based Telemetry
+     * Creates OTel based {@link TracingTelemetry}
      * @param openTelemetry OpenTelemetry instance
+     * @param tracerProviderCloseable closable to close the tracer
      */
-    public OTelTracingTelemetry(OpenTelemetry openTelemetry, Closeable tracerProviderClosable) {
+    public OTelTracingTelemetry(OpenTelemetry openTelemetry, Closeable tracerProviderCloseable) {
         this.openTelemetry = openTelemetry;
         this.otelTracer = openTelemetry.getTracer(OTelTelemetryPlugin.INSTRUMENTATION_SCOPE_NAME);
-        this.tracerProviderClosable = tracerProviderClosable;
+        this.tracerProviderClosable = tracerProviderCloseable;
     }
 
     @Override

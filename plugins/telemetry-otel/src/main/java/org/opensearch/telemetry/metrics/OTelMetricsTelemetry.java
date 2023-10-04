@@ -31,13 +31,19 @@ public class OTelMetricsTelemetry implements MetricsTelemetry {
     private final Closeable metricsProviderClosable;
 
     /**
-     * Constructor.
+     * Creates OTel based {@link MetricsTelemetry}.
      * @param openTelemetry telemetry.
      */
-    public OTelMetricsTelemetry(OpenTelemetry openTelemetry, Closeable metricsProviderClosable) {
+
+    /**
+     * Creates OTel based {@link MetricsTelemetry}.
+     * @param openTelemetry OpenTelemetry instance
+     * @param meterProviderCloseable closable to close the meter.
+     */
+    public OTelMetricsTelemetry(OpenTelemetry openTelemetry, Closeable meterProviderCloseable) {
         this.openTelemetry = openTelemetry;
         this.otelMeter = openTelemetry.getMeter(OTelTelemetryPlugin.INSTRUMENTATION_SCOPE_NAME);
-        this.metricsProviderClosable = metricsProviderClosable;
+        this.metricsProviderClosable = meterProviderCloseable;
     }
 
     @Override
