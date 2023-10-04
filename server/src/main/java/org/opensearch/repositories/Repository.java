@@ -42,6 +42,7 @@ import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.lifecycle.LifecycleComponent;
+import org.opensearch.common.settings.Setting;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.mapper.MapperService;
@@ -55,6 +56,7 @@ import org.opensearch.snapshots.SnapshotInfo;
 
 import java.io.IOException;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
@@ -355,6 +357,14 @@ public interface Repository extends LifecycleComponent {
         RecoveryState recoveryState,
         ActionListener<Void> listener
     );
+
+    /**
+     * Returns the list of restricted system repository settings that cannot be mutated post repository creation.
+     * @return list of settings
+     */
+    default List<Setting<?>> getRestrictedSystemRepositorySettings() {
+        return Collections.emptyList();
+    }
 
     /**
      * Returns Snapshot Shard Metadata for remote store interop enabled snapshot.

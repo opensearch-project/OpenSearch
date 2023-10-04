@@ -67,7 +67,9 @@ import org.opensearch.snapshots.SnapshotsService;
 import org.opensearch.threadpool.Scheduler;
 import org.opensearch.threadpool.ThreadPool;
 
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
@@ -471,6 +473,15 @@ class S3Repository extends MeteredBlobStoreRepository {
     @Override
     protected ByteSizeValue chunkSize() {
         return chunkSize;
+    }
+
+    @Override
+    public List<Setting<?>> getRestrictedSystemRepositorySettings() {
+        List<Setting<?>> restrictedSettings = new ArrayList<>();
+        restrictedSettings.addAll(super.getRestrictedSystemRepositorySettings());
+        restrictedSettings.add(BUCKET_SETTING);
+        restrictedSettings.add(BASE_PATH_SETTING);
+        return restrictedSettings;
     }
 
     @Override
