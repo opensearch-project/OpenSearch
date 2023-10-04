@@ -40,6 +40,10 @@ public class ReloadableFsRepository extends FsRepository {
 
     @Override
     public void reload(RepositoryMetadata repositoryMetadata) {
+        if (isReloadable() == false) {
+            return;
+        }
+
         super.reload(repositoryMetadata);
         validateLocation();
         readMetadata();

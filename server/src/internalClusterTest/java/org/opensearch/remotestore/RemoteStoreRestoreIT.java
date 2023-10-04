@@ -19,7 +19,6 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.Repository;
-import org.opensearch.repositories.blobstore.BlobStoreRepository;
 import org.opensearch.test.InternalTestCluster;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
@@ -424,7 +423,6 @@ public class RemoteStoreRestoreIT extends BaseRemoteStoreRestoreIT {
             .collect(Collectors.toMap(key -> key.replace(settingsAttributeKeyPrefix, ""), key -> node.getAttributes().get(key)));
         Settings.Builder settings = Settings.builder();
         settingsMap.entrySet().forEach(entry -> settings.put(entry.getKey(), entry.getValue()));
-        settings.put(BlobStoreRepository.SYSTEM_REPOSITORY_SETTING.getKey(), true);
         settings.put("location", segmentRepoPath).put("max_remote_download_bytes_per_sec", 4, ByteSizeUnit.KB);
 
         assertAcked(client().admin().cluster().preparePutRepository(REPOSITORY_NAME).setType("fs").setSettings(settings).get());
