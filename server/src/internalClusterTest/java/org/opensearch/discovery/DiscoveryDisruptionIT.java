@@ -136,7 +136,7 @@ public class DiscoveryDisruptionIT extends AbstractDisruptionTestCase {
 
         // shutting down the nodes, to avoid the leakage check tripping
         // on the states associated with the commit requests we may have dropped
-        internalCluster().stopRandomNonClusterManagerNode();
+        internalCluster().stopRandomNodeNotCurrentClusterManager();
     }
 
     public void testClusterFormingWithASlowNode() {
