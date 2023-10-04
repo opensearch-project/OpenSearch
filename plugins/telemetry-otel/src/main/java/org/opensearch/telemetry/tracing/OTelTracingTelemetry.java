@@ -8,8 +8,6 @@
 
 package org.opensearch.telemetry.tracing;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.opensearch.telemetry.OTelAttributesConverter;
 import org.opensearch.telemetry.OTelTelemetryPlugin;
 
@@ -24,8 +22,6 @@ import io.opentelemetry.context.Context;
  * OTel based Telemetry provider
  */
 public class OTelTracingTelemetry<T extends TracerProvider & Closeable> implements TracingTelemetry {
-
-    private static final Logger logger = LogManager.getLogger(OTelTracingTelemetry.class);
     private final OpenTelemetry openTelemetry;
     private final T tracerProvider;
     private final io.opentelemetry.api.trace.Tracer otelTracer;

@@ -8,8 +8,6 @@
 
 package org.opensearch.telemetry.metrics;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.opensearch.telemetry.OTelTelemetryPlugin;
 
 import java.io.Closeable;
@@ -26,7 +24,6 @@ import io.opentelemetry.api.metrics.MeterProvider;
  * OTel implementation for {@link MetricsTelemetry}
  */
 public class OTelMetricsTelemetry<T extends MeterProvider & Closeable> implements MetricsTelemetry {
-    private static final Logger logger = LogManager.getLogger(OTelMetricsTelemetry.class);
     private final Meter otelMeter;
     private final T meterProvider;
 
