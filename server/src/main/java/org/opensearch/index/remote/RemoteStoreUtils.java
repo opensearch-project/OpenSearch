@@ -8,7 +8,13 @@
 
 package org.opensearch.index.remote;
 
+import org.opensearch.common.collect.Tuple;
+
 import java.util.Arrays;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.function.Function;
 
 /**
  * Utils for remote store
@@ -69,4 +75,31 @@ public class RemoteStoreUtils {
 
         return filename.substring(0, endIdx);
     }
+
+    /**
+     *
+     * @param mdFiles List of segment/translog metadata files
+     * @param fn Function to extract PrimaryTerm_Generation and Node Id from metadata file name .
+     *          fn returns null if node id is not part of the file name
+     */
+    static public void verifyNoMultipleWriters(List<String> mdFiles, Function<String, Tuple<String, String>> fn) {
+        Map<String, String> nodesByPrimaryTermAndGen = new HashMap<>();
+        mdFiles.forEach(mdFile -> {
+            Tuple<String, String> nodeIdByPrimaryTermAndGen = fn.apply(mdFile);
+            if (nodeIdByPrimaryTermAndGen != null) {
+                if (nodesByPrimaryTermAndGen.containsKey(nodeIdByPrimaryTermAndGen.v1())
+                    && (!nodesByPrimaryTermAndGen.get(nodeIdByPrimaryTermAndGen.v1()).equals(nodeIdByPrimaryTermAndGen.v2()))) {
+                    throw new IllegalStateException(
+                        "Multiple metadata files from different nodes"
+                            + nodeIdByPrimaryTermAndGen.v1()
+                            + " and "
+                            + nodeIdByPrimaryTermAndGen.v2()
+                            + "having same primary term and generations detected"
+                    );
+                }
+                nodesByPrimaryTermAndGen.put(nodeIdByPrimaryTermAndGen.v1(), nodeIdByPrimaryTermAndGen.v2());
+            }
+        });
+    }
+
 }

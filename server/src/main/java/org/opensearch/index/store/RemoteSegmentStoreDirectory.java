@@ -25,6 +25,7 @@ import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.Version;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.blobstore.AsyncMultiStreamBlobContainer;
+import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.io.VersionedCodecStreamWrapper;
 import org.opensearch.common.logging.Loggers;
 import org.opensearch.common.lucene.store.ByteArrayIndexInput;
@@ -114,6 +115,8 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
 
     private final AtomicLong metadataUploadCounter = new AtomicLong(0);
 
+    public static final int METADATA_FILES_TO_FETCH = 10;
+
     public RemoteSegmentStoreDirectory(
         RemoteDirectory remoteDataDirectory,
         RemoteDirectory remoteMetadataDirectory,
@@ -187,8 +190,10 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
 
         List<String> metadataFiles = remoteMetadataDirectory.listFilesByPrefixInLexicographicOrder(
             MetadataFilenameUtils.METADATA_PREFIX,
-            1
+            METADATA_FILES_TO_FETCH
         );
+
+        RemoteStoreUtils.verifyNoMultipleWriters(metadataFiles, MetadataFilenameUtils::getNodeIdByPrimaryTermAndGen);
 
         if (metadataFiles.isEmpty() == false) {
             String latestMetadataFile = metadataFiles.get(0);
@@ -306,12 +311,13 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
         }
 
         // Visible for testing
-        static String getMetadataFilename(
+        public static String getMetadataFilename(
             long primaryTerm,
             long generation,
             long translogGeneration,
             long uploadCounter,
-            int metadataVersion
+            int metadataVersion,
+            String nodeId
         ) {
             return String.join(
                 SEPARATOR,
@@ -320,6 +326,7 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
                 RemoteStoreUtils.invertLong(generation),
                 RemoteStoreUtils.invertLong(translogGeneration),
                 RemoteStoreUtils.invertLong(uploadCounter),
+                nodeId,
                 RemoteStoreUtils.invertLong(System.currentTimeMillis()),
                 String.valueOf(metadataVersion)
             );
@@ -334,6 +341,19 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
         static long getGeneration(String[] filenameTokens) {
             return RemoteStoreUtils.invertLong(filenameTokens[2]);
         }
+
+        public static Tuple<String, String> getNodeIdByPrimaryTermAndGen(String filename) {
+            String[] tokens = filename.split(SEPARATOR);
+            if (tokens.length < 8) {
+                // For versions < 2.11, we don't have node id.
+                return null;
+            }
+            String primaryTermAndGen = String.join(SEPARATOR, tokens[1], tokens[2], tokens[3]);
+
+            String nodeId = tokens[5];
+            return new Tuple<>(primaryTermAndGen, nodeId);
+        }
+
     }
 
     /**
@@ -593,6 +613,7 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
      * @param storeDirectory instance of local directory to temporarily create metadata file before upload
      * @param translogGeneration translog generation
      * @param replicationCheckpoint ReplicationCheckpoint of primary shard
+     * @param nodeId node id
      * @throws IOException in case of I/O error while uploading the metadata file
      */
     public void uploadMetadata(
@@ -600,7 +621,8 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
         SegmentInfos segmentInfosSnapshot,
         Directory storeDirectory,
         long translogGeneration,
-        ReplicationCheckpoint replicationCheckpoint
+        ReplicationCheckpoint replicationCheckpoint,
+        String nodeId
     ) throws IOException {
         synchronized (this) {
             String metadataFilename = MetadataFilenameUtils.getMetadataFilename(
@@ -608,7 +630,8 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
                 segmentInfosSnapshot.getGeneration(),
                 translogGeneration,
                 metadataUploadCounter.incrementAndGet(),
-                RemoteSegmentMetadata.CURRENT_VERSION
+                RemoteSegmentMetadata.CURRENT_VERSION,
+                nodeId
             );
             try {
                 try (IndexOutput indexOutput = storeDirectory.createOutput(metadataFilename, IOContext.DEFAULT)) {
