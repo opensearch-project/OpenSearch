@@ -56,6 +56,8 @@ class Netty4HttpRequestHandler extends SimpleChannelInboundHandler<HttpPipelined
         final Netty4HttpChannel channel = ctx.channel().attr(Netty4HttpServerTransport.HTTP_CHANNEL_KEY).get();
         final RestResponse earlyResponse = ctx.channel().attr(Netty4HttpServerTransport.EARLY_RESPONSE).get();
         final ThreadContext.StoredContext contextToRestore = ctx.channel().attr(Netty4HttpServerTransport.CONTEXT_TO_RESTORE).get();
+        ctx.channel().attr(Netty4HttpServerTransport.CONTEXT_TO_RESTORE).set(null);
+        ctx.channel().attr(Netty4HttpServerTransport.EARLY_RESPONSE).set(null);
         final RestHandlerContext requestContext = new RestHandlerContext(earlyResponse, contextToRestore);
         boolean success = false;
         try {
