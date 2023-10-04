@@ -103,11 +103,11 @@ public class RemoteClusterStateService implements Closeable {
         Property.Final
     );
 
-    private static final String CLUSTER_STATE_PATH_TOKEN = "cluster-state";
-    private static final String INDEX_PATH_TOKEN = "index";
-    private static final String MANIFEST_PATH_TOKEN = "manifest";
-    private static final String MANIFEST_FILE_PREFIX = "manifest";
-    private static final String INDEX_METADATA_FILE_PREFIX = "metadata";
+    public static final String CLUSTER_STATE_PATH_TOKEN = "cluster-state";
+    public static final String INDEX_PATH_TOKEN = "index";
+    public static final String MANIFEST_PATH_TOKEN = "manifest";
+    public static final String MANIFEST_FILE_PREFIX = "manifest";
+    public static final String INDEX_METADATA_FILE_PREFIX = "metadata";
 
     private final String nodeId;
     private final Supplier<RepositoriesService> repositoriesService;
