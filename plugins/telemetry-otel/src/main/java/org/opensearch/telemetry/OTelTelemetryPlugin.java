@@ -23,7 +23,6 @@ import java.util.Optional;
 
 import io.opentelemetry.sdk.OpenTelemetrySdk;
 import io.opentelemetry.sdk.metrics.SdkMeterProvider;
-import io.opentelemetry.sdk.trace.SdkTracerProvider;
 
 /**
  * Telemetry plugin based on Otel
@@ -71,11 +70,7 @@ public class OTelTelemetryPlugin extends Plugin implements TelemetryPlugin {
     private Telemetry telemetry(TelemetrySettings telemetrySettings) {
         final OpenTelemetrySdk openTelemetry = OTelResourceProvider.get(telemetrySettings, settings);
         return new OTelTelemetry(
-            new OTelTracingTelemetry<SdkTracerProvider>(
-                openTelemetry.getSdkTracerProvider(),
-                openTelemetry,
-                () -> openTelemetry.getSdkTracerProvider().close()
-            ),
+            new OTelTracingTelemetry<OpenTelemetrySdk>(openTelemetry, () -> openTelemetry.getSdkTracerProvider().close()),
             new OTelMetricsTelemetry<SdkMeterProvider>(
                 openTelemetry.getSdkMeterProvider(),
                 () -> openTelemetry.getSdkMeterProvider().close()

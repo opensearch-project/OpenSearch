@@ -13,6 +13,7 @@ import org.opensearch.telemetry.OTelTelemetryPlugin;
 import org.opensearch.telemetry.metrics.tags.Tags;
 import org.opensearch.test.OpenSearchTestCase;
 
+import java.io.IOException;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import io.opentelemetry.api.metrics.DoubleCounter;
@@ -104,7 +105,7 @@ public class OTelMetricsTelemetryTests extends OpenSearchTestCase {
         verify(mockOTelUpDownDoubleCounter).add((-2.0), OTelAttributesConverter.convert(tags));
     }
 
-    public void testClose() {
+    public void testClose() throws IOException {
         final AtomicBoolean closed = new AtomicBoolean(false);
         MeterProvider meterProvider = mock(MeterProvider.class);
         MetricsTelemetry metricsTelemetry = new OTelMetricsTelemetry(meterProvider, () -> closed.set(true));

@@ -20,6 +20,7 @@ import org.opensearch.test.OpenSearchTestCase;
 import org.junit.After;
 import org.junit.Before;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
@@ -76,7 +77,7 @@ public class OTelTelemetryPluginTests extends OpenSearchTestCase {
     }
 
     @After
-    public void cleanup() {
+    public void cleanup() throws IOException {
         tracingTelemetry.close();
         metricsTelemetry.close();
     }

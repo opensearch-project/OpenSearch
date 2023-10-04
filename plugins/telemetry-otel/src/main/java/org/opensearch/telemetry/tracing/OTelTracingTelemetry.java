@@ -17,38 +17,32 @@ import java.io.Closeable;
 import java.io.IOException;
 
 import io.opentelemetry.api.OpenTelemetry;
-import io.opentelemetry.api.trace.TracerProvider;
 import io.opentelemetry.context.Context;
 
 /**
  * OTel based Telemetry provider
  */
-public class OTelTracingTelemetry<T extends TracerProvider & Closeable> implements TracingTelemetry {
+public class OTelTracingTelemetry<T extends OpenTelemetry & Closeable> implements TracingTelemetry {
 
     private static final Logger logger = LogManager.getLogger(OTelTracingTelemetry.class);
-    private final OpenTelemetry openTelemetry;
+    private final T openTelemetry;
     private final Closeable tracerProviderClosable;
     private final io.opentelemetry.api.trace.Tracer otelTracer;
 
     /**
      * Creates OTel based {@link TracingTelemetry}
-     * @param tracerProvider {@link TracerProvider} instance.
      * @param openTelemetry OpenTelemetry instance
      * @param tracerProviderCloseable closable to close the tracer
      */
-    public OTelTracingTelemetry(T tracerProvider, OpenTelemetry openTelemetry, Closeable tracerProviderCloseable) {
-        this.otelTracer = tracerProvider.get(OTelTelemetryPlugin.INSTRUMENTATION_SCOPE_NAME);
+    public OTelTracingTelemetry(T openTelemetry, Closeable tracerProviderCloseable) {
         this.openTelemetry = openTelemetry;
+        this.otelTracer = openTelemetry.getTracer(OTelTelemetryPlugin.INSTRUMENTATION_SCOPE_NAME);
         this.tracerProviderClosable = tracerProviderCloseable;
     }
 
     @Override
-    public void close() {
-        try {
-            tracerProviderClosable.close();
-        } catch (IOException e) {
-            logger.warn("Error while closing Opentelemetry TracerProvider", e);
-        }
+    public void close() throws IOException {
+        tracerProviderClosable.close();
     }
 
     @Override

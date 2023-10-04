@@ -19,8 +19,5 @@ import java.io.Closeable;
  */
 @ExperimentalApi
 public interface MetricsTelemetry extends MetricsRegistry, Closeable {
-    /**
-     * closes the resource
-     */
-    void close();
+
 }

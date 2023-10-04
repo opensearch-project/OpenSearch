@@ -65,11 +65,7 @@ public class OTelMetricsTelemetry<T extends MeterProvider & Closeable> implement
     }
 
     @Override
-    public void close() {
-        try {
-            metricsProviderClosable.close();
-        } catch (IOException e) {
-            logger.warn("Error while closing Opentelemetry MeterProvider", e);
-        }
+    public void close() throws IOException {
+        metricsProviderClosable.close();
     }
 }
