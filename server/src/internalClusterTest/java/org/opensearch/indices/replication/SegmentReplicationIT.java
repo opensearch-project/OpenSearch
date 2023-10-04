@@ -1883,9 +1883,7 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
 
         final IndexShard indexShard = getIndexShard(replicaNode, INDEX_NAME);
         waitForSearchableDocs(INDEX_NAME, 100, List.of(replicaNode));
-        logger.info("All files {}", List.of(indexShard.store().directory().listAll()));
         indexShard.store().directory().deleteFile("_0.si");
-        logger.info("post files {}", List.of(indexShard.store().directory().listAll()));
 
         for (int i = 101; i < 201; i++) {
             client().prepareIndex(INDEX_NAME)
