@@ -105,6 +105,7 @@ import org.opensearch.indices.analysis.AnalysisModule;
 import org.opensearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason;
 import org.opensearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.opensearch.indices.mapper.MapperRegistry;
+import org.opensearch.indices.recovery.DefaultRecoverySettings;
 import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.plugins.IndexStorePlugin;
 import org.opensearch.repositories.RepositoriesService;
@@ -257,7 +258,7 @@ public class IndexModuleTests extends OpenSearchTestCase {
             writableRegistry(),
             () -> false,
             null,
-            new RemoteSegmentStoreDirectoryFactory(() -> repositoriesService, threadPool),
+            new RemoteSegmentStoreDirectoryFactory(() -> repositoriesService, threadPool, DefaultRecoverySettings.INSTANCE),
             translogFactorySupplier,
             () -> IndexSettings.DEFAULT_REFRESH_INTERVAL,
             () -> IndexSettings.DEFAULT_REMOTE_TRANSLOG_BUFFER_INTERVAL

@@ -1126,7 +1126,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                                     // see https://github.com/opensearch-project/OpenSearch/issues/8469
                                     new RemoteSegmentStoreDirectoryFactory(
                                         remoteStoreLockManagerFactory.getRepositoriesService(),
-                                        threadPool
+                                        threadPool,
+                                        recoverySettings
                                     ).newDirectory(
                                         remoteStoreRepoForIndex,
                                         indexUUID,
@@ -1596,7 +1597,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                                             // see https://github.com/opensearch-project/OpenSearch/issues/8469
                                             new RemoteSegmentStoreDirectoryFactory(
                                                 remoteStoreLockManagerFactory.getRepositoriesService(),
-                                                threadPool
+                                                threadPool,
+                                                recoverySettings
                                             ).newDirectory(
                                                 remoteStoreRepoForIndex,
                                                 indexUUID,
