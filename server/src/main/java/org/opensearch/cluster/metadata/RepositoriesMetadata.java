@@ -54,6 +54,8 @@ import java.util.Collections;
 import java.util.EnumSet;
 import java.util.List;
 
+import static org.opensearch.repositories.blobstore.BlobStoreRepository.SYSTEM_REPOSITORY_SETTING;
+
 /**
  * Contains metadata about registered snapshot repositories
  *
@@ -288,8 +290,12 @@ public class RepositoriesMetadata extends AbstractNamedDiffable<Custom> implemen
         if (repository.cryptoMetadata() != null) {
             repository.cryptoMetadata().toXContent(repository.cryptoMetadata(), builder, params);
         }
+        Settings settings = repository.settings();
+        if (SYSTEM_REPOSITORY_SETTING.get(settings)) {
+            settings = repository.settings().filter(s -> !s.equals(SYSTEM_REPOSITORY_SETTING.getKey()));
+        }
         builder.startObject("settings");
-        repository.settings().toXContent(builder, params);
+        settings.toXContent(builder, params);
         builder.endObject();
 
         if (params.paramAsBoolean(HIDE_GENERATIONS_PARAM, false) == false) {
