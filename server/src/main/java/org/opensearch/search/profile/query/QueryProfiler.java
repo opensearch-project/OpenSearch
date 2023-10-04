@@ -35,8 +35,14 @@ package org.opensearch.search.profile.query;
 import org.apache.lucene.search.Query;
 import org.opensearch.search.profile.AbstractProfiler;
 import org.opensearch.search.profile.ContextualProfileBreakdown;
+import org.opensearch.search.profile.Timer;
 
+import java.util.Comparator;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * This class acts as a thread-local storage for profiling a query.  It also
@@ -60,6 +66,11 @@ public final class QueryProfiler extends AbstractProfiler<ContextualProfileBreak
 
     public QueryProfiler(boolean concurrent) {
         super(concurrent ? new ConcurrentQueryProfileTree() : new InternalQueryProfileTree());
+        if (concurrent) {
+            long threadId = Thread.currentThread().getId();
+            threadToProfileTree = new ConcurrentHashMap<>();
+            threadToProfileTree.put(threadId, (ConcurrentQueryProfileTree) profileTree);
+        }
     }
 
     /** Set the collector that is associated with this profiler. */
@@ -89,10 +100,55 @@ public final class QueryProfiler extends AbstractProfiler<ContextualProfileBreak
     }
 
     /**
+     * The rewriting process is complex and hard to display because queries can undergo significant changes.
+     * Instead of showing intermediate results, we display the cumulative time for the non-concurrent search case.
+     * In the concurrent search case, we compute the sum of the non-overlapping time across all slices and add
+     * the rewrite time from the non-concurrent path.
      * @return total time taken to rewrite all queries in this profile
      */
     public long getRewriteTime() {
-        return ((AbstractQueryProfileTree) profileTree).getRewriteTime();
+        long rewriteTime = ((AbstractQueryProfileTree) profileTree).getRewriteTime();
+        if (profileTree instanceof ConcurrentQueryProfileTree) {
+            List<Timer> timers = getConcurrentPathRewriteTimers();
+            LinkedList<long[]> mergedIntervals = mergeRewriteTimeIntervals(timers);
+            for (long[] interval : mergedIntervals) {
+                rewriteTime += interval[1] - interval[0];
+            }
+        }
+        return rewriteTime;
+    }
+
+    // package private for unit testing
+    LinkedList<long[]> mergeRewriteTimeIntervals(List<Timer> timers) {
+        LinkedList<long[]> mergedIntervals = new LinkedList<>();
+        timers.sort(Comparator.comparingLong(Timer::getEarliestTimerStartTime));
+        for (Timer timer : timers) {
+            long startTime = timer.getEarliestTimerStartTime();
+            long endTime = timer.getEarliestTimerStartTime() + timer.getApproximateTiming();
+            if (mergedIntervals.isEmpty() || mergedIntervals.getLast()[1] < timer.getEarliestTimerStartTime()) {
+                long[] interval = new long[2];
+                interval[0] = startTime;
+                interval[1] = endTime;
+                mergedIntervals.add(interval);
+            } else {
+                mergedIntervals.getLast()[1] = Math.max(mergedIntervals.getLast()[1], endTime);
+            }
+        }
+        return mergedIntervals;
+    }
+
+    /**
+     * @return a list of concurrent path rewrite timers for this concurrent search
+     */
+    public List<Timer> getConcurrentPathRewriteTimers() {
+        return ((ConcurrentQueryProfileTree) profileTree).getConcurrentPathRewriteTimers();
+    }
+
+    /**
+     * @return the thread to profile tree map for this concurrent search
+     */
+    public Map<Long, ConcurrentQueryProfileTree> getThreadToProfileTree() {
+        return threadToProfileTree;
     }
 
     /**

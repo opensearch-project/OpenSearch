@@ -12,7 +12,9 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Collector;
 import org.opensearch.search.profile.ContextualProfileBreakdown;
 import org.opensearch.search.profile.ProfileResult;
+import org.opensearch.search.profile.Timer;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -22,6 +24,7 @@ import java.util.Map;
  * @opensearch.internal
  */
 public class ConcurrentQueryProfileTree extends AbstractQueryProfileTree {
+    protected List<Timer> concurrentPathRewriteTimers = new ArrayList<>();
 
     @Override
     protected ContextualProfileBreakdown<QueryTimingType> createProfileBreakdown() {
@@ -87,5 +90,12 @@ public class ConcurrentQueryProfileTree extends AbstractQueryProfileTree {
                 updateCollectorToLeavesForChildBreakdowns(currentChild, collectorToLeaves);
             }
         }
+    }
+
+    /**
+     * @return the concurrent path rewrite timer list for this profile tree
+     */
+    public List<Timer> getConcurrentPathRewriteTimers() {
+        return concurrentPathRewriteTimers;
     }
 }

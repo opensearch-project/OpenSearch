@@ -32,7 +32,11 @@
 
 package org.opensearch.search.profile;
 
+import org.opensearch.search.profile.query.ConcurrentQueryProfileTree;
+
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Base class for a profiler
@@ -42,6 +46,7 @@ import java.util.List;
 public class AbstractProfiler<PB extends AbstractProfileBreakdown<?>, E> {
 
     protected final AbstractInternalProfileTree<PB, E> profileTree;
+    protected Map<Long, ConcurrentQueryProfileTree> threadToProfileTree;
 
     public AbstractProfiler(AbstractInternalProfileTree<PB, E> profileTree) {
         this.profileTree = profileTree;
@@ -59,14 +64,27 @@ public class AbstractProfiler<PB extends AbstractProfileBreakdown<?>, E> {
      * Removes the last (e.g. most recent) element on the stack.
      */
     public void pollLastElement() {
-        profileTree.pollLast();
+        if (threadToProfileTree == null) {
+            profileTree.pollLast();
+        } else {
+            long threadId = Thread.currentThread().getId();
+            ConcurrentQueryProfileTree concurrentProfileTree = threadToProfileTree.get(threadId);
+            concurrentProfileTree.pollLast();
+        }
     }
 
     /**
      * @return a hierarchical representation of the profiled tree
      */
     public List<ProfileResult> getTree() {
-        return profileTree.getTree();
+        if (threadToProfileTree == null) {
+            return profileTree.getTree();
+        }
+        List<ProfileResult> profileResults = new ArrayList<>();
+        for (Map.Entry<Long, ConcurrentQueryProfileTree> profile : threadToProfileTree.entrySet()) {
+            profileResults.addAll(profile.getValue().getTree());
+        }
+        return profileResults;
     }
 
 }
