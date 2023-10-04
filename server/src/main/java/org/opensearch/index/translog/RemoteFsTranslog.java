@@ -242,15 +242,10 @@ public class RemoteFsTranslog extends Translog {
 
     @Override
     public boolean ensureSynced(Location location) throws IOException {
-        try {
-            assert location.generation <= current.getGeneration();
-            if (location.generation == current.getGeneration()) {
-                ensureOpen();
-                return prepareAndUpload(primaryTermSupplier.getAsLong(), location.generation);
-            }
-        } catch (final Exception ex) {
-            closeOnTragicEvent(ex);
-            throw ex;
+        assert location.generation <= current.getGeneration();
+        if (location.generation == current.getGeneration()) {
+            ensureOpen();
+            return prepareAndUpload(primaryTermSupplier.getAsLong(), location.generation);
         }
         return false;
     }
@@ -355,14 +350,8 @@ public class RemoteFsTranslog extends Translog {
 
     @Override
     public void sync() throws IOException {
-        try {
-            if (syncToDisk() || syncNeeded()) {
-                prepareAndUpload(primaryTermSupplier.getAsLong(), null);
-            }
-        } catch (final Exception e) {
-            tragedy.setTragicException(e);
-            closeOnTragicEvent(e);
-            throw e;
+        if (syncToDisk() || syncNeeded()) {
+            prepareAndUpload(primaryTermSupplier.getAsLong(), null);
         }
     }
 
