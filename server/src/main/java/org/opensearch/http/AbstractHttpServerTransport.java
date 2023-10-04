@@ -298,6 +298,7 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
     }
 
     public void onException(HttpChannel channel, Exception e) {
+        channel.handleException(e);
         if (lifecycle.started() == false) {
             // just close and ignore - we are already stopped and just need to make sure we release all resources
             CloseableChannel.closeChannel(channel);

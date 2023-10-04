@@ -519,7 +519,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 this.indexSettings.isSegRepEnabled() ? checkpointPublisher : null,
                 remoteStore,
                 remoteStoreStatsTrackerFactory,
-                clusterRemoteTranslogBufferIntervalSupplier
+                clusterRemoteTranslogBufferIntervalSupplier,
+                nodeEnv.nodeId()
             );
             eventListener.indexShardStateChanged(indexShard, null, indexShard.state(), "shard created");
             eventListener.afterIndexShardCreated(indexShard);

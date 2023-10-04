@@ -82,7 +82,7 @@ public class MergeStats implements Writeable, ToXContentFragment {
         totalStoppedTimeInMillis = in.readVLong();
         totalThrottledTimeInMillis = in.readVLong();
         totalBytesPerSecAutoThrottle = in.readVLong();
-        if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
+        if (in.getVersion().onOrAfter(Version.V_2_11_0)) {
             unreferencedFileCleanUpsPerformed = in.readOptionalVLong();
         }
     }
@@ -297,7 +297,7 @@ public class MergeStats implements Writeable, ToXContentFragment {
         out.writeVLong(totalStoppedTimeInMillis);
         out.writeVLong(totalThrottledTimeInMillis);
         out.writeVLong(totalBytesPerSecAutoThrottle);
-        if (out.getVersion().onOrAfter(Version.V_3_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_2_11_0)) {
             out.writeOptionalVLong(unreferencedFileCleanUpsPerformed);
         }
     }

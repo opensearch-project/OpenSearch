@@ -346,7 +346,8 @@ public final class RemoteStoreRefreshListener extends CloseableRetryableRefreshL
                 segmentInfosSnapshot,
                 storeDirectory,
                 translogFileGeneration,
-                replicationCheckpoint
+                replicationCheckpoint,
+                indexShard.getNodeId()
             );
         }
     }
