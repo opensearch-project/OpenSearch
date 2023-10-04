@@ -119,6 +119,7 @@ import org.opensearch.index.translog.TranslogFactory;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.opensearch.indices.recovery.AsyncRecoveryTarget;
+import org.opensearch.indices.recovery.DefaultRecoverySettings;
 import org.opensearch.indices.recovery.PeerRecoveryTargetService;
 import org.opensearch.indices.recovery.RecoveryFailedException;
 import org.opensearch.indices.recovery.RecoveryResponse;
@@ -640,7 +641,7 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
                 Collections.emptyList(),
                 clusterSettings
             );
-            Store remoteStore = null;
+            Store remoteStore;
             RemoteStoreStatsTrackerFactory remoteStoreStatsTrackerFactory = null;
             RepositoriesService mockRepoSvc = mock(RepositoriesService.class);
 
@@ -659,6 +660,8 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
                 remoteStoreStatsTrackerFactory = new RemoteStoreStatsTrackerFactory(clusterService, indexSettings.getSettings());
                 BlobStoreRepository repo = createRepository(remotePath);
                 when(mockRepoSvc.repository(any())).thenAnswer(invocationOnMock -> repo);
+            } else {
+                remoteStore = null;
             }
 
             final BiFunction<IndexSettings, ShardRouting, TranslogFactory> translogFactorySupplier = (settings, shardRouting) -> {
@@ -698,7 +701,8 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
                 remoteStore,
                 remoteStoreStatsTrackerFactory,
                 () -> IndexSettings.DEFAULT_REMOTE_TRANSLOG_BUFFER_INTERVAL,
-                "dummy-node"
+                "dummy-node",
+                null
             );
             indexShard.addShardFailureCallback(DEFAULT_SHARD_FAILURE_HANDLER);
             if (remoteStoreStatsTrackerFactory != null) {
@@ -785,7 +789,14 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
         RemoteStoreLockManager remoteStoreLockManager = new RemoteStoreMetadataLockManager(
             new RemoteBufferedOutputDirectory(getBlobContainer(remoteShardPath.resolveIndex()))
         );
-        return new RemoteSegmentStoreDirectory(dataDirectory, metadataDirectory, remoteStoreLockManager, threadPool, shardId);
+        return new RemoteSegmentStoreDirectory(
+            dataDirectory,
+            metadataDirectory,
+            remoteStoreLockManager,
+            threadPool,
+            shardId,
+            DefaultRecoverySettings.INSTANCE
+        );
     }
 
     private RemoteDirectory newRemoteDirectory(Path f) throws IOException {
