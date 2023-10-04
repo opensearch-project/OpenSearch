@@ -50,7 +50,7 @@ import org.opensearch.telemetry.tracing.Span;
 import org.opensearch.telemetry.tracing.SpanBuilder;
 import org.opensearch.telemetry.tracing.SpanScope;
 import org.opensearch.telemetry.tracing.Tracer;
-import org.opensearch.telemetry.tracing.channels.TraceableTransportChannel;
+import org.opensearch.telemetry.tracing.channels.TraceableTcpTransportChannel;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.io.EOFException;
@@ -200,7 +200,7 @@ public class InboundHandler {
                 assert message.isShortCircuit() == false;
                 final StreamInput stream = namedWriteableStream(message.openOrGetStreamInput());
                 assertRemoteVersion(stream, header.getVersion());
-                final TransportChannel transportChannel = new TcpTransportChannel(
+                final TcpTransportChannel transportChannel = new TcpTransportChannel(
                     outboundHandler,
                     channel,
                     action,
@@ -211,7 +211,7 @@ public class InboundHandler {
                     header.isHandshake(),
                     message.takeBreakerReleaseControl()
                 );
-                TransportChannel traceableTransportChannel = TraceableTransportChannel.create(transportChannel, span, tracer, channel);
+                TransportChannel traceableTransportChannel = TraceableTcpTransportChannel.create(transportChannel, span, tracer, channel);
                 try {
                     handshaker.handleHandshake(traceableTransportChannel, requestId, stream);
                 } catch (Exception e) {
@@ -230,7 +230,7 @@ public class InboundHandler {
                     }
                 }
             } else {
-                final TransportChannel transportChannel = new TcpTransportChannel(
+                final TcpTransportChannel transportChannel = new TcpTransportChannel(
                     outboundHandler,
                     channel,
                     action,
@@ -241,7 +241,7 @@ public class InboundHandler {
                     header.isHandshake(),
                     message.takeBreakerReleaseControl()
                 );
-                TransportChannel traceableTransportChannel = TraceableTransportChannel.create(transportChannel, span, tracer, channel);
+                TransportChannel traceableTransportChannel = TraceableTcpTransportChannel.create(transportChannel, span, tracer, channel);
                 try {
                     messageListener.onRequestReceived(requestId, action);
                     if (message.isShortCircuit()) {

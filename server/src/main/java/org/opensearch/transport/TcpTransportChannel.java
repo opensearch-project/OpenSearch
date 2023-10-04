@@ -46,7 +46,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  *
  * @opensearch.internal
  */
-public final class TcpTransportChannel implements TransportChannel {
+public final class TcpTransportChannel extends BaseTcpTransportChannel {
 
     private final AtomicBoolean released = new AtomicBoolean();
     private final OutboundHandler outboundHandler;
@@ -70,6 +70,7 @@ public final class TcpTransportChannel implements TransportChannel {
         boolean isHandshake,
         Releasable breakerRelease
     ) {
+        super(channel);
         this.version = version;
         this.features = features;
         this.channel = channel;
@@ -131,7 +132,4 @@ public final class TcpTransportChannel implements TransportChannel {
         return version;
     }
 
-    public TcpChannel getChannel() {
-        return channel;
-    }
 }

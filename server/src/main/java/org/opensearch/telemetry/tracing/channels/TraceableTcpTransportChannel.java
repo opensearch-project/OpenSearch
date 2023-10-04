@@ -15,6 +15,7 @@ import org.opensearch.core.transport.TransportResponse;
 import org.opensearch.telemetry.tracing.Span;
 import org.opensearch.telemetry.tracing.SpanScope;
 import org.opensearch.telemetry.tracing.Tracer;
+import org.opensearch.transport.BaseTcpTransportChannel;
 import org.opensearch.transport.TcpChannel;
 import org.opensearch.transport.TransportChannel;
 
@@ -23,7 +24,7 @@ import java.io.IOException;
 /**
  * Tracer wrapped {@link TransportChannel}
  */
-public class TraceableTransportChannel implements TransportChannel {
+public class TraceableTcpTransportChannel extends BaseTcpTransportChannel {
 
     private final TransportChannel delegate;
     private final Span span;
@@ -34,8 +35,10 @@ public class TraceableTransportChannel implements TransportChannel {
      * @param delegate delegate
      * @param span span
      * @param tracer tracer
+     * @param channel channel
      */
-    public TraceableTransportChannel(TransportChannel delegate, Span span, Tracer tracer, TcpChannel tcpChannel) {
+    public TraceableTcpTransportChannel(TransportChannel delegate, Span span, Tracer tracer, TcpChannel channel) {
+        super(channel);
         this.delegate = delegate;
         this.span = span;
         this.tracer = tracer;
@@ -47,6 +50,7 @@ public class TraceableTransportChannel implements TransportChannel {
      * @param delegate delegate
      * @param span     span
      * @param tracer tracer
+     * @param tcpChannel tcpChannel
      * @return transport channel
      */
     public static TransportChannel create(TransportChannel delegate, final Span span, final Tracer tracer, final TcpChannel tcpChannel) {
@@ -65,7 +69,7 @@ public class TraceableTransportChannel implements TransportChannel {
                 }
             });
 
-            return new TraceableTransportChannel(delegate, span, tracer, tcpChannel);
+            return new TraceableTcpTransportChannel(delegate, span, tracer, tcpChannel);
         } else {
             return delegate;
         }
