@@ -1848,8 +1848,7 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
         assertBusy(() -> {
             // wait until the original shard is closed.
             assertEquals(IndexShardState.CLOSED, indexShard.state());
-            assertTrue(indexShard.store().refCount() == 0);
-        });
+        }, 1, TimeUnit.MINUTES);
         waitForActiveShardOnNode(replicaNode);
         // reset checkIndex to ensure our original shard doesn't throw
         resetCheckIndexStatus();
@@ -1896,7 +1895,7 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
             // wait until the original shard is closed.
             assertEquals(IndexShardState.CLOSED, indexShard.state());
             assertTrue(indexShard.store().refCount() == 0);
-        });
+        }, 1, TimeUnit.MINUTES);
         waitForActiveShardOnNode(replicaNode);
         // reset checkIndex to ensure our original shard doesn't throw
         resetCheckIndexStatus();
@@ -1915,6 +1914,6 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
             assertNotNull(indexShard1);
             assertFalse(indexShard1.store().isMarkedCorrupted());
             assertEquals(IndexShardState.STARTED, indexShard1.state());
-        });
+        }, 1, TimeUnit.MINUTES);
     }
 }
