@@ -113,7 +113,8 @@ public class RepositoryCredentialsTests extends OpenSearchSingleNodeTestCase imp
         final Settings.Builder repositorySettings = Settings.builder()
             // repository settings for credentials override node secure settings
             .put(S3Repository.ACCESS_KEY_SETTING.getKey(), "insecure_aws_key")
-            .put(S3Repository.SECRET_KEY_SETTING.getKey(), "insecure_aws_secret");
+            .put(S3Repository.SECRET_KEY_SETTING.getKey(), "insecure_aws_secret")
+            .put("storage_class", "standard");
 
         final String clientName = randomFrom("default", "other", null);
         if (clientName != null) {
@@ -150,6 +151,7 @@ public class RepositoryCredentialsTests extends OpenSearchSingleNodeTestCase imp
         final String clientName = randomFrom("default", "other");
 
         final Settings.Builder repositorySettings = Settings.builder();
+        repositorySettings.put("storage_class", "standard");
         final boolean hasInsecureSettings = randomBoolean();
         if (hasInsecureSettings) {
             // repository settings for credentials override node secure settings
@@ -241,6 +243,7 @@ public class RepositoryCredentialsTests extends OpenSearchSingleNodeTestCase imp
             Settings.builder()
                 .put(S3Repository.ACCESS_KEY_SETTING.getKey(), "insecure_aws_key")
                 .put(S3Repository.SECRET_KEY_SETTING.getKey(), "insecure_aws_secret")
+                .put("storage_class", "standard")
                 .build()
         );
 

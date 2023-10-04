@@ -194,13 +194,13 @@ class S3Repository extends MeteredBlobStoreRepository {
      * Sets the S3 storage class type for the backup files. Values may be standard, reduced_redundancy,
      * standard_ia, onezone_ia and intelligent_tiering. Defaults to standard.
      */
-    static final Setting<String> STORAGE_CLASS_SETTING = Setting.simpleString("storage_class");
+    static final Setting<String> STORAGE_CLASS_SETTING = Setting.simpleString("storage_class", StorageClass.STANDARD.toString());
 
     /**
      * The S3 repository supports all S3 canned ACLs : private, public-read, public-read-write,
      * authenticated-read, log-delivery-write, bucket-owner-read, bucket-owner-full-control. Defaults to private.
      */
-    static final Setting<String> CANNED_ACL_SETTING = Setting.simpleString("canned_acl");
+    static final Setting<String> CANNED_ACL_SETTING = Setting.simpleString("canned_acl", ObjectCannedACL.PRIVATE.toString());
 
     static final Setting<String> CLIENT_NAME = new Setting<>("client", "default", Function.identity());
 
