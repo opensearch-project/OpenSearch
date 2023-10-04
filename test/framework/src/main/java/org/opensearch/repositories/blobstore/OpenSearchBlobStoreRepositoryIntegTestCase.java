@@ -96,6 +96,7 @@ public abstract class OpenSearchBlobStoreRepositoryIntegTestCase extends OpenSea
         final boolean compress = randomBoolean();
         final Settings.Builder builder = Settings.builder();
         builder.put("compress", compress);
+        builder.put("storage_class", "standard");
         if (compress) {
             builder.put("compression_type", randomFrom(CompressorRegistry.registeredCompressors().keySet()));
         }
