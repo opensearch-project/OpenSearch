@@ -633,12 +633,8 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
             BlobPath blobPath1 = invocation.getArgument(0);
             if (blobPath1.buildAsString().endsWith("cluster-state/")) {
                 return uuidContainerContainer;
-            } else if (blobPath1.buildAsString().contains("cluster-state/cluster-uuid2/" + INDEX_PATH_TOKEN)) {
-                return manifest2IndexContainer;
             } else if (blobPath1.buildAsString().contains("cluster-state/cluster-uuid2/")) {
                 return manifest2Container;
-            } else if (blobPath1.buildAsString().contains("cluster-state/cluster-uuid3/" + INDEX_PATH_TOKEN)) {
-                return manifest3IndexContainer;
             } else if (blobPath1.buildAsString().contains("cluster-state/cluster-uuid3/")) {
                 return manifest3Container;
             } else {
@@ -669,13 +665,11 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
             )
         ).thenReturn(List.of(new PlainBlobMetadata("mainfest3", 1L)));
         remoteClusterStateService.start();
-        remoteClusterStateService.deleteStaleClusterUUID(clusterState, clusterMetadataManifest);
+        remoteClusterStateService.deleteStaleClusterUUIDs(clusterState, clusterMetadataManifest);
         try {
             assertBusy(() -> {
                 verify(manifest2Container, times(1)).delete();
-                verify(manifest2IndexContainer, times(1)).delete();
                 verify(manifest3Container, times(1)).delete();
-                verify(manifest3IndexContainer, times(1)).delete();
             });
         } catch (Exception e) {
             throw new RuntimeException(e);

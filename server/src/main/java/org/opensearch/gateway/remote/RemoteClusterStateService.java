@@ -397,7 +397,7 @@ public class RemoteClusterStateService implements Closeable {
             previousManifest.getPreviousClusterUUID(),
             true
         );
-        deleteStaleClusterUUID(clusterState, committedManifest);
+        deleteStaleClusterUUIDs(clusterState, committedManifest);
         return committedManifest;
     }
 
@@ -913,10 +913,42 @@ public class RemoteClusterStateService implements Closeable {
 
     /**
      * Purges all remote cluster state against provided cluster UUIDs
+     *
+     * @param clusterName name of the cluster
+     * @param clusterUUIDs clusteUUIDs for which the remote state needs to be purged
+     */
+    private void deleteStaleUUIDsClusterMetadata(String clusterName, List<String> clusterUUIDs) {
+        clusterUUIDs.forEach(clusterUUID -> {
+            getBlobStoreTransferService().deleteAsync(
+                ThreadPool.Names.REMOTE_PURGE,
+                getCusterMetadataBasePath(clusterName, clusterUUID),
+                new ActionListener<>() {
+                    @Override
+                    public void onResponse(Void unused) {
+                        logger.info("Deleted all remote cluster metadata for cluster UUID - {}", clusterUUID);
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        logger.error(
+                            new ParameterizedMessage(
+                                "Exception occurred while deleting all remote cluster metadata for cluster UUID {}",
+                                clusterUUID
+                            ),
+                            e
+                        );
+                    }
+                }
+            );
+        });
+    }
+
+    /**
+     * Purges all remote cluster state against provided cluster UUIDs
      * @param clusterState current state of the cluster
      * @param committedManifest last committed ClusterMetadataManifest
      */
-    public void deleteStaleClusterUUID(ClusterState clusterState, ClusterMetadataManifest committedManifest) {
+    public void deleteStaleClusterUUIDs(ClusterState clusterState, ClusterMetadataManifest committedManifest) {
         threadpool.executor(ThreadPool.Names.REMOTE_PURGE).execute(() -> {
             String clusterName = clusterState.getClusterName().value();
             logger.info("Deleting stale cluster UUIDs data from remote [{}]", clusterName);
@@ -930,50 +962,7 @@ public class RemoteClusterStateService implements Closeable {
             // Retain last 2 cluster uuids data
             allClustersUUIDsInRemote.remove(committedManifest.getClusterUUID());
             allClustersUUIDsInRemote.remove(committedManifest.getPreviousClusterUUID());
-            allClustersUUIDsInRemote.forEach(clusterUUID -> {
-                logger.info("Deleting stale cluster UUID [{}] from remote [{}]", clusterUUID, clusterName);
-                List<BlobMetadata> allManifestFiles = getManifestFileNames(clusterName, clusterUUID, Integer.MAX_VALUE);
-                Collections.reverse(allManifestFiles);
-                allManifestFiles.forEach(manifestFile -> {
-                    // First delete all index metadata files and then delete manifest file.
-                    // This is to ensure that if manifest file is deleted then index metadata files are also deleted.
-                    // Otherwise we can endup with dangling index metadata files in remote state store.
-                    getBlobStoreTransferService().deleteAsync(
-                        ThreadPool.Names.REMOTE_PURGE,
-                        getCusterMetadataBasePath(clusterName, clusterUUID).add(INDEX_PATH_TOKEN),
-                        new ActionListener<>() {
-                            @Override
-                            public void onResponse(Void unused) {
-                                logger.info("Deleted all remote cluster metadata for cluster UUID - {}", clusterUUID);
-                            }
-
-                            @Override
-                            public void onFailure(Exception e) {
-                                logger.error(
-                                    new ParameterizedMessage(
-                                        "Exception occurred while deleting all remote cluster metadata for cluster UUID {}",
-                                        clusterUUID
-                                    ),
-                                    e
-                                );
-                            }
-                        }
-                    );
-                    try {
-                        getBlobStoreTransferService().delete(getManifestFolderPath(clusterName, clusterUUID).add(manifestFile.name()));
-                    } catch (IOException e) {
-                        logger.info(
-                            String.format(
-                                Locale.ROOT,
-                                "Unable to delete manifest file [%s] for cluster uuid [%s]",
-                                manifestFile.name(),
-                                clusterUUID
-                            ),
-                            e
-                        );
-                    }
-                });
-            });
+            deleteStaleUUIDsClusterMetadata(clusterName, new ArrayList<>(allClustersUUIDsInRemote));
         });
     }
 }
