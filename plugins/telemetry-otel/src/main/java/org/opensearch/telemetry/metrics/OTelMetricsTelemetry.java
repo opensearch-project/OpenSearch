@@ -32,11 +32,6 @@ public class OTelMetricsTelemetry implements MetricsTelemetry {
 
     /**
      * Creates OTel based {@link MetricsTelemetry}.
-     * @param openTelemetry telemetry.
-     */
-
-    /**
-     * Creates OTel based {@link MetricsTelemetry}.
      * @param openTelemetry OpenTelemetry instance
      * @param meterProviderCloseable closable to close the meter.
      */
