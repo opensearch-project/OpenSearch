@@ -64,7 +64,6 @@ public class DeleteSnapshotIT extends AbstractSnapshotIntegTestCase {
         assert (getRepositoryData(snapshotRepoName).getSnapshotIds().size() == 0);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/9115")
     public void testDeleteShallowCopySnapshot() throws Exception {
         disableRepoConsistencyCheck("Remote store repository is being used in the test");
         final Path remoteStoreRepoPath = randomRepoPath();
