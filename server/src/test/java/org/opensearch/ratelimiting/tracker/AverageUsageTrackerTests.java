@@ -58,8 +58,9 @@ public class AverageUsageTrackerTests extends OpenSearchTestCase {
 
     private void assertAverageUsageStats(AbstractAverageUsageTracker usageTracker) {
         usageTracker.recordUsage(1);
+        assertFalse(usageTracker.isReady());
         usageTracker.recordUsage(2);
-
+        assertTrue(usageTracker.isReady());
         assertEquals(2, usageTracker.getWindowSize());
         assertEquals(1.5, usageTracker.getAverage(), 0.0);
         usageTracker.recordUsage(5);
@@ -84,11 +85,14 @@ public class AverageUsageTrackerTests extends OpenSearchTestCase {
         usageTracker.recordUsage(1);
         usageTracker.recordUsage(2);
         usageTracker.recordUsage(1);
+        assertFalse(usageTracker.isReady());
         usageTracker.recordUsage(2);
+        assertTrue(usageTracker.isReady());
         assertEquals(4, usageTracker.getWindowSize());
         // (1 + 2 + 1 + 2 ) / 4 = 1.5
         assertEquals(1.5, usageTracker.getAverage(), 0.0);
         usageTracker.recordUsage(2);
+        assertTrue(usageTracker.isReady());
         // ( 2 + 1 + 2 + 2 ) / 4 = 1.75
         assertEquals(1.75, usageTracker.getAverage(), 0.0);
     }

@@ -8,6 +8,10 @@
 
 package org.opensearch.remotestore;
 
+import org.opensearch.client.Client;
+import org.opensearch.cluster.metadata.RepositoryMetadata;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.disruption.NetworkDisruption;
@@ -93,5 +97,69 @@ public class RemoteStoreRepositoryRegistrationIT extends RemoteStoreBaseIntegTes
         ensureStableCluster(6);
 
         internalCluster().clearDisruptionScheme();
+    }
+
+    public void testMultiNodeClusterRandomNodeRecoverNetworkIsolationPostNonRestrictedSettingsUpdate() {
+        Set<String> nodesInOneSide = internalCluster().startNodes(3).stream().collect(Collectors.toCollection(HashSet::new));
+        Set<String> nodesInAnotherSide = internalCluster().startNodes(3).stream().collect(Collectors.toCollection(HashSet::new));
+        ensureStableCluster(6);
+
+        NetworkDisruption networkDisruption = new NetworkDisruption(
+            new NetworkDisruption.TwoPartitions(nodesInOneSide, nodesInAnotherSide),
+            NetworkDisruption.DISCONNECT
+        );
+        internalCluster().setDisruptionScheme(networkDisruption);
+
+        networkDisruption.startDisrupting();
+
+        final Client client = client(nodesInOneSide.iterator().next());
+        RepositoryMetadata repositoryMetadata = client.admin()
+            .cluster()
+            .prepareGetRepositories(REPOSITORY_NAME)
+            .get()
+            .repositories()
+            .get(0);
+        Settings.Builder updatedSettings = Settings.builder().put(repositoryMetadata.settings()).put("chunk_size", new ByteSizeValue(20));
+        updatedSettings.remove("system_repository");
+
+        client.admin()
+            .cluster()
+            .preparePutRepository(repositoryMetadata.name())
+            .setType(repositoryMetadata.type())
+            .setSettings(updatedSettings)
+            .get();
+
+        ensureStableCluster(3, nodesInOneSide.stream().findAny().get());
+        networkDisruption.stopDisrupting();
+
+        ensureStableCluster(6);
+
+        internalCluster().clearDisruptionScheme();
+    }
+
+    public void testNodeRestartPostNonRestrictedSettingsUpdate() throws Exception {
+        internalCluster().startClusterManagerOnlyNode();
+        internalCluster().startNodes(3);
+
+        final Client client = client();
+        RepositoryMetadata repositoryMetadata = client.admin()
+            .cluster()
+            .prepareGetRepositories(REPOSITORY_NAME)
+            .get()
+            .repositories()
+            .get(0);
+        Settings.Builder updatedSettings = Settings.builder().put(repositoryMetadata.settings()).put("chunk_size", new ByteSizeValue(20));
+        updatedSettings.remove("system_repository");
+
+        client.admin()
+            .cluster()
+            .preparePutRepository(repositoryMetadata.name())
+            .setType(repositoryMetadata.type())
+            .setSettings(updatedSettings)
+            .get();
+
+        internalCluster().restartRandomDataNode();
+
+        ensureStableCluster(4);
     }
 }

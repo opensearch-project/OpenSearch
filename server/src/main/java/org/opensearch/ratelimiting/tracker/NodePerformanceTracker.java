@@ -53,6 +53,13 @@ public class NodePerformanceTracker extends AbstractLifecycleComponent {
         return 0.0;
     }
 
+    /**
+     * Return if any of the resource usage trackers are ready
+     */
+    public boolean isReady() {
+        return memoryUsageTracker.isReady() || cpuUsageTracker.isReady();
+    }
+
     void initialize() {
         cpuUsageTracker = new AverageCpuUsageTracker(
             threadPool,

@@ -43,6 +43,11 @@ import java.net.InetSocketAddress;
  * @opensearch.internal
  */
 public interface HttpChannel extends CloseableChannel {
+    /**
+     * Notify HTTP channel that exception happens and the response may not be sent (for example, timeout)
+     * @param ex the exception being raised
+     */
+    default void handleException(Exception ex) {}
 
     /**
      * Sends an http response to the channel. The listener will be executed once the send process has been

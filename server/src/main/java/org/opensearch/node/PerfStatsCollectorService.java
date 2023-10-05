@@ -113,7 +113,7 @@ public class PerfStatsCollectorService extends AbstractLifecycleComponent implem
      * Fetch local node performance statistics and add it to store along with the current timestamp
      */
     private void getLocalNodePerformanceStats() {
-        if (clusterService.state() != null) {
+        if (nodePerformanceTracker.isReady() && clusterService.state() != null) {
             collectNodePerfStatistics(
                 clusterService.state().nodes().getLocalNodeId(),
                 nodePerformanceTracker.getCpuUtilizationPercent(),

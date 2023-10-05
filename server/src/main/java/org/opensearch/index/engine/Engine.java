@@ -145,6 +145,7 @@ public abstract class Engine implements LifecycleAware, Closeable {
     protected final EngineConfig engineConfig;
     protected final Store store;
     protected final AtomicBoolean isClosed = new AtomicBoolean(false);
+    private final CounterMetric totalUnreferencedFileCleanUpsPerformed = new CounterMetric();
     private final CountDownLatch closedLatch = new CountDownLatch(1);
     protected final EventListener eventListener;
     protected final ReentrantLock failEngineLock = new ReentrantLock();
@@ -265,6 +266,13 @@ public abstract class Engine implements LifecycleAware, Closeable {
             }
         }
         return new DocsStats(numDocs, numDeletedDocs, sizeInBytes);
+    }
+
+    /**
+     * Returns the unreferenced file cleanup count for this engine.
+     */
+    public long unreferencedFileCleanUpsPerformed() {
+        return totalUnreferencedFileCleanUpsPerformed.count();
     }
 
     /**
@@ -1340,7 +1348,9 @@ public abstract class Engine implements LifecycleAware, Closeable {
                     .setOpenMode(IndexWriterConfig.OpenMode.APPEND)
             )
         ) {
-            // do nothing and close this will kick off IndexFileDeleter which will remove all unreferenced files.
+            // do nothing except increasing metric count and close this will kick off IndexFileDeleter which will
+            // remove all unreferenced files
+            totalUnreferencedFileCleanUpsPerformed.inc();
         } catch (Exception ex) {
             logger.error("Error while deleting unreferenced file ", ex);
         }
