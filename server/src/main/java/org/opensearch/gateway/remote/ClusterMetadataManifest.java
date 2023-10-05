@@ -40,6 +40,7 @@ public class ClusterMetadataManifest implements Writeable, ToXContentFragment {
     private static final ParseField OPENSEARCH_VERSION_FIELD = new ParseField("opensearch_version");
     private static final ParseField NODE_ID_FIELD = new ParseField("node_id");
     private static final ParseField COMMITTED_FIELD = new ParseField("committed");
+    private static final ParseField GLOBAL_METADATA_FIELD = new ParseField("global_metadata");
     private static final ParseField INDICES_FIELD = new ParseField("indices");
     private static final ParseField PREVIOUS_CLUSTER_UUID = new ParseField("previous_cluster_uuid");
     private static final ParseField CLUSTER_UUID_COMMITTED = new ParseField("cluster_uuid_committed");
@@ -84,6 +85,10 @@ public class ClusterMetadataManifest implements Writeable, ToXContentFragment {
         return (boolean) fields[9];
     }
 
+    private static String globalMetadataFileName(Object[] fields) {
+        return (String) fields[10];
+    }
+
     private static final ConstructingObjectParser<ClusterMetadataManifest, Void> PARSER = new ConstructingObjectParser<>(
         "cluster_metadata_manifest",
         fields -> new ClusterMetadataManifest(
@@ -94,6 +99,7 @@ public class ClusterMetadataManifest implements Writeable, ToXContentFragment {
             opensearchVersion(fields),
             nodeId(fields),
             committed(fields),
+            globalMetadataFileName(fields),
             indices(fields),
             previousClusterUUID(fields),
             clusterUUIDCommitted(fields)
@@ -115,8 +121,10 @@ public class ClusterMetadataManifest implements Writeable, ToXContentFragment {
         );
         PARSER.declareString(ConstructingObjectParser.constructorArg(), PREVIOUS_CLUSTER_UUID);
         PARSER.declareBoolean(ConstructingObjectParser.constructorArg(), CLUSTER_UUID_COMMITTED);
+        PARSER.declareString(ConstructingObjectParser.constructorArg(), GLOBAL_METADATA_FIELD);
     }
 
+    private final String globalMetadataFileName;
     private final List<UploadedIndexMetadata> indices;
     private final long clusterTerm;
     private final long stateVersion;
@@ -168,6 +176,10 @@ public class ClusterMetadataManifest implements Writeable, ToXContentFragment {
         return clusterUUIDCommitted;
     }
 
+    public String getGlobalMetadataFileName() {
+        return globalMetadataFileName;
+    }
+
     public ClusterMetadataManifest(
         long clusterTerm,
         long version,
@@ -176,6 +188,7 @@ public class ClusterMetadataManifest implements Writeable, ToXContentFragment {
         Version opensearchVersion,
         String nodeId,
         boolean committed,
+        String globalMetadataFileName,
         List<UploadedIndexMetadata> indices,
         String previousClusterUUID,
         boolean clusterUUIDCommitted
@@ -187,6 +200,7 @@ public class ClusterMetadataManifest implements Writeable, ToXContentFragment {
         this.opensearchVersion = opensearchVersion;
         this.nodeId = nodeId;
         this.committed = committed;
+        this.globalMetadataFileName = globalMetadataFileName;
         this.indices = Collections.unmodifiableList(indices);
         this.previousClusterUUID = previousClusterUUID;
         this.clusterUUIDCommitted = clusterUUIDCommitted;
@@ -203,6 +217,11 @@ public class ClusterMetadataManifest implements Writeable, ToXContentFragment {
         this.indices = Collections.unmodifiableList(in.readList(UploadedIndexMetadata::new));
         this.previousClusterUUID = in.readString();
         this.clusterUUIDCommitted = in.readBoolean();
+        if(in.getVersion().onOrAfter(Version.V_3_0_0)) {
+            this.globalMetadataFileName = in.readString();
+        } else {
+            this.globalMetadataFileName = null;
+        }
     }
 
     public static Builder builder() {
@@ -231,6 +250,7 @@ public class ClusterMetadataManifest implements Writeable, ToXContentFragment {
         builder.endArray();
         builder.field(PREVIOUS_CLUSTER_UUID.getPreferredName(), getPreviousClusterUUID());
         builder.field(CLUSTER_UUID_COMMITTED.getPreferredName(), isClusterUUIDCommitted());
+        builder.field(GLOBAL_METADATA_FIELD.getPreferredName(), getGlobalMetadataFileName());
         return builder;
     }
 
@@ -246,6 +266,9 @@ public class ClusterMetadataManifest implements Writeable, ToXContentFragment {
         out.writeCollection(indices);
         out.writeString(previousClusterUUID);
         out.writeBoolean(clusterUUIDCommitted);
+        if(out.getVersion().onOrAfter(Version.V_3_0_0)) {
+            out.writeString(globalMetadataFileName);
+        }
     }
 
     @Override
@@ -266,12 +289,14 @@ public class ClusterMetadataManifest implements Writeable, ToXContentFragment {
             && Objects.equals(nodeId, that.nodeId)
             && Objects.equals(committed, that.committed)
             && Objects.equals(previousClusterUUID, that.previousClusterUUID)
-            && Objects.equals(clusterUUIDCommitted, that.clusterUUIDCommitted);
+            && Objects.equals(clusterUUIDCommitted, that.clusterUUIDCommitted)
+            && Objects.equals(globalMetadataFileName, that.globalMetadataFileName);
     }
 
     @Override
     public int hashCode() {
         return Objects.hash(
+            globalMetadataFileName,
             indices,
             clusterTerm,
             stateVersion,
@@ -301,6 +326,7 @@ public class ClusterMetadataManifest implements Writeable, ToXContentFragment {
      */
     public static class Builder {
 
+        private String globalMetadataFileName;
         private List<UploadedIndexMetadata> indices;
         private long clusterTerm;
         private long stateVersion;
@@ -314,6 +340,11 @@ public class ClusterMetadataManifest implements Writeable, ToXContentFragment {
 
         public Builder indices(List<UploadedIndexMetadata> indices) {
             this.indices = indices;
+            return this;
+        }
+
+        public Builder globalMetadataFileName(String globalMetadataFileName) {
+            this.globalMetadataFileName = globalMetadataFileName;
             return this;
         }
 
@@ -378,6 +409,7 @@ public class ClusterMetadataManifest implements Writeable, ToXContentFragment {
             this.opensearchVersion = manifest.opensearchVersion;
             this.nodeId = manifest.nodeId;
             this.committed = manifest.committed;
+            this.globalMetadataFileName = manifest.globalMetadataFileName;
             this.indices = new ArrayList<>(manifest.indices);
             this.previousClusterUUID = manifest.previousClusterUUID;
             this.clusterUUIDCommitted = manifest.clusterUUIDCommitted;
@@ -392,6 +424,7 @@ public class ClusterMetadataManifest implements Writeable, ToXContentFragment {
                 opensearchVersion,
                 nodeId,
                 committed,
+                globalMetadataFileName,
                 indices,
                 previousClusterUUID,
                 clusterUUIDCommitted
