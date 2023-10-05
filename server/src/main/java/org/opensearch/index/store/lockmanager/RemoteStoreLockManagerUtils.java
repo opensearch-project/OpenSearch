@@ -15,10 +15,10 @@ package org.opensearch.index.store.lockmanager;
  */
 public class RemoteStoreLockManagerUtils {
     static final String FILE_TO_LOCK_NAME = "file_to_lock";
-    static final String V1_LOCK_SEPARATOR = "___";
+    static final String PRE_OS210_LOCK_SEPARATOR = "___";
     static final String SEPARATOR = "...";
     // for versions <= 2.10, we have lock files with this extension.
-    static final String V1_LOCK_FILE_EXTENSION = ".lock";
+    static final String PRE_OS210_LOCK_FILE_EXTENSION = ".lock";
     static final String LOCK_FILE_EXTENSION = ".v2_lock";
     static final String ACQUIRER_ID = "acquirer_id";
     public static final String NO_TTL = "-1";

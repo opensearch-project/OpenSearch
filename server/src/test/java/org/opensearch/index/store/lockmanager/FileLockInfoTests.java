@@ -20,8 +20,8 @@ public class FileLockInfoTests extends OpenSearchTestCase {
     String testMetadata1 = "metadata__9223372036854775806__9223372036854775803__9223372036854775790"
         + "__9223372036854775800___Hf3Dbw2QQagfGLlVBOUrg__9223370340398865071__1";
 
-    String oldLock = testMetadata1 + RemoteStoreLockManagerUtils.V1_LOCK_SEPARATOR + testAcquirerId2
-        + RemoteStoreLockManagerUtils.V1_LOCK_FILE_EXTENSION;
+    String oldLock = testMetadata1 + RemoteStoreLockManagerUtils.PRE_OS210_LOCK_SEPARATOR + testAcquirerId2
+        + RemoteStoreLockManagerUtils.PRE_OS210_LOCK_FILE_EXTENSION;
     String newLock = testMetadata1 + RemoteStoreLockManagerUtils.SEPARATOR + testAcquirerId3
         + RemoteStoreLockManagerUtils.LOCK_FILE_EXTENSION;
 
@@ -53,6 +53,16 @@ public class FileLockInfoTests extends OpenSearchTestCase {
     public void testGetLockPrefixFailureCase() {
         FileLockInfo fileLockInfo = FileLockInfo.getLockInfoBuilder().withAcquirerId(testAcquirerId).build();
         assertThrows(IllegalArgumentException.class, fileLockInfo::getLockPrefix);
+    }
+
+    public void testGetFileToLockNameFromLock() {
+        assertEquals(testMetadata1, FileLockInfo.LockFileUtils.getFileToLockNameFromLock(oldLock));
+        assertEquals(testMetadata1, FileLockInfo.LockFileUtils.getFileToLockNameFromLock(newLock));
+    }
+
+    public void testGetAcquirerIdFromLock() {
+        assertEquals(testAcquirerId2, FileLockInfo.LockFileUtils.getAcquirerIdFromLock(oldLock));
+        assertEquals(testAcquirerId3, FileLockInfo.LockFileUtils.getAcquirerIdFromLock(newLock));
     }
 
     public void testGetLocksForAcquirer() throws NoSuchFileException {
