@@ -450,22 +450,13 @@ public class NRTReplicationEngine extends Engine {
                         }
                     }
                 }
-                try {
-                    IOUtils.close(readerManager);
-                } catch (Exception e) {
-                    logger.warn("Failed to close reader manager");
-                }
-                try {
-                    IOUtils.close(translogManager);
-                } catch (Exception e) {
-                    logger.warn("Failed to close translog");
-                }
+                IOUtils.close(readerManager, translogManager);
             } catch (Exception e) {
-                logger.warn("failed to close engine", e);
+                logger.error("failed to close engine", e);
             } finally {
                 try {
                     store.decRef();
-                    logger.warn("engine closed [{}]", reason);
+                    logger.debug("engine closed [{}]", reason);
                 } finally {
                     closedLatch.countDown();
                 }

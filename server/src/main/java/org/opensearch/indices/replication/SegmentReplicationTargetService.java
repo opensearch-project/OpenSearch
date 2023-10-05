@@ -11,6 +11,7 @@ package org.opensearch.indices.replication;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.lucene.index.CorruptIndexException;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.OpenSearchCorruptionException;
 import org.opensearch.action.support.ChannelActionListener;
@@ -28,6 +29,7 @@ import org.opensearch.core.transport.TransportResponse;
 import org.opensearch.index.shard.IndexEventListener;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexShardState;
+import org.opensearch.index.store.Store;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.recovery.FileChunkRequest;
 import org.opensearch.indices.recovery.ForceSyncRequest;
@@ -46,6 +48,7 @@ import org.opensearch.transport.TransportRequestHandler;
 import org.opensearch.transport.TransportRequestOptions;
 import org.opensearch.transport.TransportService;
 
+import java.io.IOException;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicLong;
@@ -522,13 +525,31 @@ public class SegmentReplicationTargetService implements IndexEventListener {
             @Override
             public void onFailure(Exception e) {
                 logger.debug("Replication failed {}", target.description());
-                if (e instanceof OpenSearchCorruptionException) {
+                if (isStoreCorrupt(target.indexShard())
+                    || e instanceof OpenSearchCorruptionException
+                    || e instanceof CorruptIndexException) {
                     onGoingReplications.fail(replicationId, new ReplicationFailedException("Store corruption during replication", e), true);
                     return;
                 }
                 onGoingReplications.fail(replicationId, new ReplicationFailedException("Segment Replication failed", e), false);
             }
         });
+    }
+
+    private static boolean isStoreCorrupt(IndexShard indexShard) {
+        final Store store = indexShard.store();
+        if (store.tryIncRef()) {
+            try {
+                return store.isMarkedCorrupted();
+            } catch (IOException ex) {
+                logger.warn("Unable to determine if store is corrupt", ex);
+                return false;
+            } finally {
+                store.decRef();
+            }
+        }
+        // store already closed.
+        return false;
     }
 
     private class FileChunkTransportRequestHandler implements TransportRequestHandler<FileChunkRequest> {
