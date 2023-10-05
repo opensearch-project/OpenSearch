@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.throttling.tracker;
+package org.opensearch.ratelimiting.tracker;
 
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.test.OpenSearchTestCase;

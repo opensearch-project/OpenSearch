@@ -16,7 +16,10 @@ import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.common.transport.TransportAddress;
+import org.opensearch.ratelimiting.tracker.NodePerformanceTracker;
+import org.opensearch.ratelimiting.tracker.PerformanceTrackerSettings;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
@@ -26,31 +29,51 @@ import org.junit.Before;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
+import static org.opensearch.test.ClusterServiceUtils.createClusterService;
 import static org.hamcrest.Matchers.greaterThan;
 
+/**
+ * Tests for PerfStatsCollectorService where we test collect, get and schedulers are working as expected
+ */
 public class PerfStatsCollectorServiceTests extends OpenSearchTestCase {
 
     private ClusterService clusterService;
     private PerfStatsCollectorService collector;
     private ThreadPool threadpool;
+    NodePerformanceTracker tracker;
 
     @Before
     public void setUp() throws Exception {
         super.setUp();
+
         threadpool = new TestThreadPool("performance_collector_tests");
-        clusterService = new ClusterService(
-            Settings.EMPTY,
-            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-            threadpool
+
+        clusterService = createClusterService(threadpool);
+
+        Settings settings = Settings.builder()
+            .put(PerformanceTrackerSettings.GLOBAL_JVM_USAGE_AC_WINDOW_DURATION_SETTING.getKey(), new TimeValue(500, TimeUnit.MILLISECONDS))
+            .build();
+        tracker = new NodePerformanceTracker(
+            threadpool,
+            settings,
+            new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
         );
-        collector = new PerfStatsCollectorService(clusterService);
+        collector = new PerfStatsCollectorService(tracker, clusterService, threadpool);
+        tracker.start();
+        collector.start();
     }
 
     @After
     public void tearDown() throws Exception {
         super.tearDown();
         threadpool.shutdownNow();
+        clusterService.close();
+        collector.stop();
+        tracker.stop();
+        collector.close();
+        tracker.close();
     }
 
     public void testNodePerformanceStats() {
@@ -68,6 +91,26 @@ public class PerfStatsCollectorServiceTests extends OpenSearchTestCase {
 
         nodePerformanceStatistics = collector.getNodeStatistics("node2");
         assertTrue(nodePerformanceStatistics.isEmpty());
+    }
+
+    public void testScheduler() throws Exception {
+        /**
+         * Wait for cluster state to be ready so that localNode().getId() is ready and we add the values to the map
+         */
+        assertBusy(() -> assertTrue(collector.getNodeStatistics(clusterService.localNode().getId()).isPresent()), 5, TimeUnit.SECONDS);
+        assertTrue(collector.getNodeStatistics(clusterService.localNode().getId()).isPresent());
+        /**
+         * Wait for memory utilization to be reported greater than 0
+         */
+        assertBusy(
+            () -> assertThat(
+                collector.getNodeStatistics(clusterService.localNode().getId()).get().getMemoryUtilizationPercent(),
+                greaterThan(0.0)
+            ),
+            5,
+            TimeUnit.SECONDS
+        );
+        assertTrue(collector.getNodeStatistics("Invalid").isEmpty());
     }
 
     /*
@@ -123,7 +166,7 @@ public class PerfStatsCollectorServiceTests extends OpenSearchTestCase {
         }
     }
 
-    public void testNodeRemoval() throws Exception {
+    public void testNodeRemoval() {
         collector.collectNodePerfStatistics("node1", randomIntBetween(1, 100), randomIntBetween(1, 100), System.currentTimeMillis());
         collector.collectNodePerfStatistics("node2", randomIntBetween(1, 100), randomIntBetween(1, 100), System.currentTimeMillis());
 

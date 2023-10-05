@@ -9,4 +9,4 @@
 /**
  * Node level performance stats tracker package
  */
-package org.opensearch.throttling.tracker;
+package org.opensearch.ratelimiting.tracker;

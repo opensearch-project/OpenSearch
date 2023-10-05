@@ -56,13 +56,12 @@ public class GlobalPerformanceStats implements Writeable, ToXContentFragment {
             builder.startObject(nodeId);
             NodePerformanceStatistics perfStats = nodeIdToPerfStatsMap.get(nodeId);
             if (perfStats != null) {
-
-                builder.field("cpu_utilization_percent", String.format(Locale.ROOT, "%.1f", perfStats.cpuUtilizationPercent));
-                builder.field("memory_utilization_percent", String.format(Locale.ROOT, "%.1f", perfStats.memoryUtilizationPercent));
                 builder.field(
                     "elapsed_time",
                     new TimeValue(System.currentTimeMillis() - perfStats.timestamp, TimeUnit.MILLISECONDS).toString()
                 );
+                builder.field("cpu_utilization_percent", String.format(Locale.ROOT, "%.1f", perfStats.cpuUtilizationPercent));
+                builder.field("memory_utilization_percent", String.format(Locale.ROOT, "%.1f", perfStats.memoryUtilizationPercent));
             }
             builder.endObject();
         }

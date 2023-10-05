@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.throttling.tracker;
+package org.opensearch.ratelimiting.tracker;
 
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
@@ -26,22 +26,9 @@ public class PerformanceTrackerSettings {
         /**
          * This is the default window duration on which the average resource utilization values will be calculated
          */
-        private static final long WINDOW_DURATION_IN_MILLIS = 30;
-        /**
-         * Defines interval to refresh performance stats
-         */
-        private static final long REFRESH_INTERVAL_IN_MILLIS = 1000;
+        private static final long WINDOW_DURATION_IN_SECONDS = 30;
     }
 
-    /**
-     * This setting sets the polling interval of node performance tracker to refresh the performance stats
-     */
-    public static final Setting<Long> REFRESH_INTERVAL_MILLIS = Setting.longSetting(
-        "node.performance_tracker.refresh_interval_millis",
-        Defaults.REFRESH_INTERVAL_IN_MILLIS,
-        1,
-        Setting.Property.NodeScope
-    );
     public static final Setting<TimeValue> GLOBAL_CPU_USAGE_AC_POLLING_INTERVAL_SETTING = Setting.positiveTimeSetting(
         "node.perf_tracker.global_cpu_usage.polling_interval",
         TimeValue.timeValueMillis(Defaults.POLLING_INTERVAL_IN_MILLIS),
@@ -49,7 +36,7 @@ public class PerformanceTrackerSettings {
     );
     public static final Setting<TimeValue> GLOBAL_CPU_USAGE_AC_WINDOW_DURATION_SETTING = Setting.positiveTimeSetting(
         "node.perf_tracker.global_cpu_usage.window_duration",
-        TimeValue.timeValueSeconds(Defaults.WINDOW_DURATION_IN_MILLIS),
+        TimeValue.timeValueSeconds(Defaults.WINDOW_DURATION_IN_SECONDS),
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
@@ -62,12 +49,10 @@ public class PerformanceTrackerSettings {
 
     public static final Setting<TimeValue> GLOBAL_JVM_USAGE_AC_WINDOW_DURATION_SETTING = Setting.positiveTimeSetting(
         "node.perf_tracker.global_jvmmp.window_duration",
-        TimeValue.timeValueSeconds(Defaults.WINDOW_DURATION_IN_MILLIS),
+        TimeValue.timeValueSeconds(Defaults.WINDOW_DURATION_IN_SECONDS),
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
-
-    private volatile long refreshInterval;
     private volatile TimeValue cpuWindowDuration;
     private volatile TimeValue cpuPollingInterval;
     private volatile TimeValue memoryWindowDuration;
@@ -78,7 +63,6 @@ public class PerformanceTrackerSettings {
         this.cpuWindowDuration = GLOBAL_CPU_USAGE_AC_WINDOW_DURATION_SETTING.get(settings);
         this.memoryPollingInterval = GLOBAL_JVM_USAGE_AC_POLLING_INTERVAL_SETTING.get(settings);
         this.memoryWindowDuration = GLOBAL_JVM_USAGE_AC_WINDOW_DURATION_SETTING.get(settings);
-        this.refreshInterval = REFRESH_INTERVAL_MILLIS.get(settings);
 
         clusterSettings.addSettingsUpdateConsumer(GLOBAL_CPU_USAGE_AC_WINDOW_DURATION_SETTING, this::setCpuWindowDuration);
         clusterSettings.addSettingsUpdateConsumer(GLOBAL_JVM_USAGE_AC_WINDOW_DURATION_SETTING, this::setMemoryWindowDuration);
@@ -98,10 +82,6 @@ public class PerformanceTrackerSettings {
 
     public TimeValue getMemoryWindowDuration() {
         return memoryWindowDuration;
-    }
-
-    public long getRefreshInterval() {
-        return refreshInterval;
     }
 
     public void setCpuWindowDuration(TimeValue cpuWindowDuration) {

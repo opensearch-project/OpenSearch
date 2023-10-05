@@ -6,16 +6,11 @@
  * compatible open source license.
  */
 
-package org.opensearch.throttling.tracker;
+package org.opensearch.ratelimiting.tracker;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.opensearch.common.lifecycle.AbstractLifecycleComponent;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.unit.TimeValue;
-import org.opensearch.node.PerfStatsCollectorService;
-import org.opensearch.threadpool.Scheduler;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -24,52 +19,38 @@ import java.io.IOException;
  * This tracks the performance of node resources such as CPU, IO and memory
  */
 public class NodePerformanceTracker extends AbstractLifecycleComponent {
-    private double cpuUtilizationPercent;
-    private double memoryUtilizationPercent;
     private ThreadPool threadPool;
-    private volatile Scheduler.Cancellable scheduledFuture;
     private final ClusterSettings clusterSettings;
     private AverageCpuUsageTracker cpuUsageTracker;
     private AverageMemoryUsageTracker memoryUsageTracker;
-    private PerfStatsCollectorService perfStatsCollectorService;
 
     private PerformanceTrackerSettings performanceTrackerSettings;
-    private static final Logger logger = LogManager.getLogger(NodePerformanceTracker.class);
-    private final TimeValue interval;
 
-    public static final String LOCAL_NODE = "LOCAL";
-
-    public NodePerformanceTracker(
-        PerfStatsCollectorService perfStatsCollectorService,
-        ThreadPool threadPool,
-        Settings settings,
-        ClusterSettings clusterSettings
-    ) {
-        this.perfStatsCollectorService = perfStatsCollectorService;
+    public NodePerformanceTracker(ThreadPool threadPool, Settings settings, ClusterSettings clusterSettings) {
         this.threadPool = threadPool;
         this.clusterSettings = clusterSettings;
         this.performanceTrackerSettings = new PerformanceTrackerSettings(settings, clusterSettings);
-        interval = new TimeValue(performanceTrackerSettings.getRefreshInterval());
         initialize();
     }
 
+    /**
+     * Return CPU utilization average if we have enough datapoints, otherwise return 0
+     */
     public double getCpuUtilizationPercent() {
-        return cpuUtilizationPercent;
+        if (cpuUsageTracker.isReady()) {
+            return cpuUsageTracker.getAverage();
+        }
+        return 0.0;
     }
 
+    /**
+     * Return memory utilization average if we have enough datapoints, otherwise return 0
+     */
     public double getMemoryUtilizationPercent() {
-        return memoryUtilizationPercent;
-    }
-
-    void doRun() {
-        this.cpuUtilizationPercent = cpuUsageTracker.getAverage();
-        this.memoryUtilizationPercent = memoryUsageTracker.getAverage();
-        perfStatsCollectorService.collectNodePerfStatistics(
-            LOCAL_NODE,
-            getCpuUtilizationPercent(),
-            getMemoryUtilizationPercent(),
-            System.currentTimeMillis()
-        );
+        if (memoryUsageTracker.isReady()) {
+            return memoryUsageTracker.getAverage();
+        }
+        return 0.0;
     }
 
     void initialize() {
@@ -78,7 +59,6 @@ public class NodePerformanceTracker extends AbstractLifecycleComponent {
             performanceTrackerSettings.getCpuPollingInterval(),
             performanceTrackerSettings.getCpuWindowDuration()
         );
-
         clusterSettings.addSettingsUpdateConsumer(
             PerformanceTrackerSettings.GLOBAL_CPU_USAGE_AC_WINDOW_DURATION_SETTING,
             cpuUsageTracker::setWindowSize
@@ -97,22 +77,12 @@ public class NodePerformanceTracker extends AbstractLifecycleComponent {
 
     @Override
     protected void doStart() {
-        scheduledFuture = threadPool.scheduleWithFixedDelay(() -> {
-            try {
-                doRun();
-            } catch (Exception e) {
-                logger.debug("failure in node performance tracker", e);
-            }
-        }, interval, ThreadPool.Names.GENERIC);
         cpuUsageTracker.doStart();
         memoryUsageTracker.doStart();
     }
 
     @Override
     protected void doStop() {
-        if (scheduledFuture != null) {
-            scheduledFuture.cancel();
-        }
         cpuUsageTracker.doStop();
         memoryUsageTracker.doStop();
     }

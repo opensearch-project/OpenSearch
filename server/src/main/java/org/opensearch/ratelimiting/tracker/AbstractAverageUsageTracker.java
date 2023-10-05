@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.throttling.tracker;
+package org.opensearch.ratelimiting.tracker;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -43,6 +43,13 @@ public abstract class AbstractAverageUsageTracker extends AbstractLifecycleCompo
 
     public double getAverage() {
         return observations.get().getAverage();
+    }
+
+    /**
+     * Checks if we have datapoints more than or equal to the window size
+     */
+    public boolean isReady() {
+        return observations.get().isReady();
     }
 
     public void setWindowSize(TimeValue windowDuration) {

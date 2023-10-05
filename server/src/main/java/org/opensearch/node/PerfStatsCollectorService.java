@@ -8,12 +8,20 @@
 
 package org.opensearch.node;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.opensearch.cluster.ClusterChangedEvent;
 import org.opensearch.cluster.ClusterStateListener;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.lifecycle.AbstractLifecycleComponent;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.ConcurrentCollections;
+import org.opensearch.ratelimiting.tracker.NodePerformanceTracker;
+import org.opensearch.threadpool.Scheduler;
+import org.opensearch.threadpool.ThreadPool;
 
+import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
@@ -23,10 +31,27 @@ import java.util.concurrent.ConcurrentMap;
  * This collects node level performance statistics such as cpu, memory, IO of each node and makes it available for
  * coordinator node to aid in throttling, ranking etc
  */
-public class PerfStatsCollectorService implements ClusterStateListener {
+public class PerfStatsCollectorService extends AbstractLifecycleComponent implements ClusterStateListener {
+
+    /**
+     * This refresh interval denotes the polling interval of PerfStatsCollectorService to refresh the performance stats
+     * from local node
+     */
+    private static long REFRESH_INTERVAL_IN_MILLIS = 1000;
+
+    private static final Logger logger = LogManager.getLogger(PerfStatsCollectorService.class);
     private final ConcurrentMap<String, NodePerformanceStatistics> nodeIdToPerfStats = ConcurrentCollections.newConcurrentMap();
 
-    public PerfStatsCollectorService(ClusterService clusterService) {
+    private ThreadPool threadPool;
+    private volatile Scheduler.Cancellable scheduledFuture;
+
+    private NodePerformanceTracker nodePerformanceTracker;
+    private ClusterService clusterService;
+
+    public PerfStatsCollectorService(NodePerformanceTracker nodePerformanceTracker, ClusterService clusterService, ThreadPool threadPool) {
+        this.threadPool = threadPool;
+        this.nodePerformanceTracker = nodePerformanceTracker;
+        this.clusterService = clusterService;
         clusterService.addListener(this);
     }
 
@@ -84,4 +109,41 @@ public class PerfStatsCollectorService implements ClusterStateListener {
         return new GlobalPerformanceStats(getAllNodeStatistics());
     }
 
+    /**
+     * Fetch local node performance statistics and add it to store along with the current timestamp
+     */
+    private void getLocalNodePerformanceStats() {
+        if (clusterService.state() != null) {
+            collectNodePerfStatistics(
+                clusterService.state().nodes().getLocalNodeId(),
+                nodePerformanceTracker.getCpuUtilizationPercent(),
+                nodePerformanceTracker.getMemoryUtilizationPercent(),
+                System.currentTimeMillis()
+            );
+        }
+    }
+
+    @Override
+    protected void doStart() {
+        /**
+         * Fetch local node performance statistics every second
+         */
+        scheduledFuture = threadPool.scheduleWithFixedDelay(() -> {
+            try {
+                getLocalNodePerformanceStats();
+            } catch (Exception e) {
+                logger.warn("failure in PerfStatsCollectorService", e);
+            }
+        }, new TimeValue(REFRESH_INTERVAL_IN_MILLIS), ThreadPool.Names.GENERIC);
+    }
+
+    @Override
+    protected void doStop() {
+        if (scheduledFuture != null) {
+            scheduledFuture.cancel();
+        }
+    }
+
+    @Override
+    protected void doClose() throws IOException {}
 }

@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.throttling.tracker;
+package org.opensearch.ratelimiting.tracker;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
