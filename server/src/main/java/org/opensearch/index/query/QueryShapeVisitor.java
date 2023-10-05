@@ -22,7 +22,7 @@ public class QueryShapeVisitor implements QueryBuilderVisitor {
     private final Map<BooleanClause.Occur, List<QueryShapeVisitor>> childVisitors = new EnumMap<>(BooleanClause.Occur.class);
 
     @Override
-    public void accept(QueryBuilder qb) {
+    public void accept(QueryBuilder qb, int level) {
         queryType.set(qb.getName());
     }
 
@@ -36,10 +36,10 @@ public class QueryShapeVisitor implements QueryBuilderVisitor {
         QueryBuilderVisitor childVisitorWrapper = new QueryBuilderVisitor() {
             QueryShapeVisitor currentChild;
             @Override
-            public void accept(QueryBuilder qb) {
+            public void accept(QueryBuilder qb, int level) {
                 currentChild = new QueryShapeVisitor();
                 childVisitorList.add(currentChild);
-                currentChild.accept(qb);
+                currentChild.accept(qb, level+1);
             }
 
             @Override
