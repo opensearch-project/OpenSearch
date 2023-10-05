@@ -94,14 +94,7 @@ class GoogleCloudStorageRepository extends MeteredBlobStoreRepository {
         final ClusterService clusterService,
         final RecoverySettings recoverySettings
     ) {
-        super(
-            metadata,
-            getSetting(COMPRESS_SETTING, metadata),
-            namedXContentRegistry,
-            clusterService,
-            recoverySettings,
-            buildLocation(metadata)
-        );
+        super(metadata, namedXContentRegistry, clusterService, recoverySettings, buildLocation(metadata));
         this.storageService = storageService;
 
         String basePath = BASE_PATH.get(metadata.settings());

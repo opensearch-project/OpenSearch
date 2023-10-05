@@ -859,14 +859,7 @@ public class RepositoriesServiceTests extends OpenSearchTestCase {
         private final TestCryptoProvider cryptoHandler;
 
         private MeteredRepositoryTypeA(RepositoryMetadata metadata, ClusterService clusterService) {
-            super(
-                metadata,
-                false,
-                mock(NamedXContentRegistry.class),
-                clusterService,
-                mock(RecoverySettings.class),
-                Map.of("bucket", "bucket-a")
-            );
+            super(metadata, mock(NamedXContentRegistry.class), clusterService, mock(RecoverySettings.class), Map.of("bucket", "bucket-a"));
 
             if (metadata.cryptoMetadata() != null) {
                 cryptoHandler = new TestCryptoProvider(
@@ -900,14 +893,7 @@ public class RepositoriesServiceTests extends OpenSearchTestCase {
         private final TestCryptoProvider cryptoHandler;
 
         private MeteredRepositoryTypeB(RepositoryMetadata metadata, ClusterService clusterService) {
-            super(
-                metadata,
-                false,
-                mock(NamedXContentRegistry.class),
-                clusterService,
-                mock(RecoverySettings.class),
-                Map.of("bucket", "bucket-b")
-            );
+            super(metadata, mock(NamedXContentRegistry.class), clusterService, mock(RecoverySettings.class), Map.of("bucket", "bucket-b"));
 
             if (metadata.cryptoMetadata() != null) {
                 cryptoHandler = new TestCryptoProvider(
