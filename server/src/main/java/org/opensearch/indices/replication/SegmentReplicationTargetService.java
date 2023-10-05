@@ -525,12 +525,10 @@ public class SegmentReplicationTargetService implements IndexEventListener {
             @Override
             public void onFailure(Exception e) {
                 logger.debug("Replication failed {}", target.description());
-                    if (isStoreCorrupt(target)
-                        || e instanceof CorruptIndexException
-                        || e instanceof OpenSearchCorruptionException) {
-                        onGoingReplications.fail(replicationId, new ReplicationFailedException("Store corruption during replication", e), true);
-                        return;
-                    }
+                if (isStoreCorrupt(target) || e instanceof CorruptIndexException || e instanceof OpenSearchCorruptionException) {
+                    onGoingReplications.fail(replicationId, new ReplicationFailedException("Store corruption during replication", e), true);
+                    return;
+                }
                 onGoingReplications.fail(replicationId, new ReplicationFailedException("Segment Replication failed", e), false);
             }
         });
