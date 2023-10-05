@@ -411,7 +411,7 @@ public enum CoreValuesSourceType implements ValuesSourceType {
         @Override
         public DocValueFormat getFormatter(String format, ZoneId tz) {
             return new DocValueFormat.DateTime(
-                format == null ? DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER : DateFormatter.forPattern(format),
+                format == null ? DateFieldMapper.getDefaultDateTimeFormatter() : DateFormatter.forPattern(format),
                 tz == null ? ZoneOffset.UTC : tz,
                 // If we were just looking at fields, we could read the resolution from the field settings, but we need to deal with script
                 // output, which has no way to indicate the resolution, so we need to default to something. Milliseconds is the standard.

@@ -1245,7 +1245,7 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
     }
 
     private static long asLong(String dateTime) {
-        return DateFormatters.from(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parse(dateTime)).toInstant().toEpochMilli();
+        return DateFormatters.from(DateFieldMapper.getDefaultDateTimeFormatter().parse(dateTime)).toInstant().toEpochMilli();
     }
 
     private static long asLong(String dateTime, DateFieldMapper.DateFieldType fieldType) {
