@@ -205,7 +205,12 @@ public class SimulatePipelineRequest extends ActionRequest implements ToXContent
             String routing = ConfigurationUtils.readOptionalStringOrIntProperty(null, null, dataMap, Metadata.ROUTING.getFieldName());
             Long version = null;
             if (dataMap.containsKey(Metadata.VERSION.getFieldName())) {
-                version = (Long) ConfigurationUtils.readObject(null, null, dataMap, Metadata.VERSION.getFieldName());
+                Object versionFieldValue = ConfigurationUtils.readObject(null, null, dataMap, Metadata.VERSION.getFieldName());
+                if (versionFieldValue instanceof Integer || versionFieldValue instanceof Long) {
+                    version = ((Number) versionFieldValue).longValue();
+                } else {
+                    throw new IllegalArgumentException("Failed to parse parameter [_version], only int or long is accepted");
+                }
             }
             VersionType versionType = null;
             if (dataMap.containsKey(Metadata.VERSION_TYPE.getFieldName())) {
@@ -215,12 +220,25 @@ public class SimulatePipelineRequest extends ActionRequest implements ToXContent
             }
             IngestDocument ingestDocument = new IngestDocument(index, type, id, routing, version, versionType, document);
             if (dataMap.containsKey(Metadata.IF_SEQ_NO.getFieldName())) {
-                Long ifSeqNo = (Long) ConfigurationUtils.readObject(null, null, dataMap, Metadata.IF_SEQ_NO.getFieldName());
-                ingestDocument.setFieldValue(Metadata.IF_SEQ_NO.getFieldName(), ifSeqNo);
+                Object ifSeqNoFieldValue = ConfigurationUtils.readObject(null, null, dataMap, Metadata.IF_SEQ_NO.getFieldName());
+                if (ifSeqNoFieldValue instanceof Integer || ifSeqNoFieldValue instanceof Long) {
+                    ingestDocument.setFieldValue(Metadata.IF_SEQ_NO.getFieldName(), ((Number) ifSeqNoFieldValue).longValue());
+                } else {
+                    throw new IllegalArgumentException("Failed to parse parameter [_if_seq_no], only int or long is accepted");
+                }
             }
             if (dataMap.containsKey(Metadata.IF_PRIMARY_TERM.getFieldName())) {
-                Long ifPrimaryTerm = (Long) ConfigurationUtils.readObject(null, null, dataMap, Metadata.IF_PRIMARY_TERM.getFieldName());
-                ingestDocument.setFieldValue(Metadata.IF_PRIMARY_TERM.getFieldName(), ifPrimaryTerm);
+                Object ifPrimaryTermFieldValue = ConfigurationUtils.readObject(
+                    null,
+                    null,
+                    dataMap,
+                    Metadata.IF_PRIMARY_TERM.getFieldName()
+                );
+                if (ifPrimaryTermFieldValue instanceof Integer || ifPrimaryTermFieldValue instanceof Long) {
+                    ingestDocument.setFieldValue(Metadata.IF_PRIMARY_TERM.getFieldName(), ((Number) ifPrimaryTermFieldValue).longValue());
+                } else {
+                    throw new IllegalArgumentException("Failed to parse parameter [_if_primary_term], only int or long is accepted");
+                }
             }
             ingestDocumentList.add(ingestDocument);
         }

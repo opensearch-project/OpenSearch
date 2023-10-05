@@ -10,6 +10,8 @@ Inspired from [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 ### Deprecated
 ### Removed
 ### Fixed
+- Fix class_cast_exception when passing int to _version and other metadata fields in ingest simulate API ([#10101](https://github.com/opensearch-project/OpenSearch/pull/10101))
+
 ### Security
 
 [Unreleased]: https://github.com/opensearch-project/OpenSearch/compare/1.3.12...HEAD
