@@ -150,7 +150,7 @@ public class RestSendToExtensionAction extends BaseRestHandler {
 
     @Override
     public String getName() {
-        return SEND_TO_EXTENSION_ACTION;
+        return this.discoveryExtensionNode.getId() + ":" + SEND_TO_EXTENSION_ACTION;
     }
 
     @Override

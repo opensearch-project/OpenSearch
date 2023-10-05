@@ -90,6 +90,7 @@ import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.time.Duration;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 import static java.util.Collections.emptyMap;
 
@@ -100,7 +101,7 @@ class S3Service implements Closeable {
 
     private static final String DEFAULT_S3_ENDPOINT = "s3.amazonaws.com";
 
-    private volatile Map<S3ClientSettings, AmazonS3Reference> clientsCache = emptyMap();
+    private volatile Map<S3ClientSettings, AmazonS3Reference> clientsCache = new ConcurrentHashMap<>();
 
     /**
      * Client settings calculated from static configuration and settings in the keystore.
@@ -111,7 +112,7 @@ class S3Service implements Closeable {
      * Client settings derived from those in {@link #staticClientSettings} by combining them with settings
      * in the {@link RepositoryMetadata}.
      */
-    private volatile Map<Settings, S3ClientSettings> derivedClientSettings = emptyMap();
+    private volatile Map<Settings, S3ClientSettings> derivedClientSettings = new ConcurrentHashMap<>();
 
     S3Service(final Path configPath) {
         staticClientSettings = MapBuilder.<String, S3ClientSettings>newMapBuilder()

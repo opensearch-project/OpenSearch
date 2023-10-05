@@ -144,8 +144,10 @@ public class AsyncMultiStreamEncryptedBlobContainer<T, U> extends EncryptedBlobC
         }
 
         @Override
-        public List<InputStreamContainer> getPartStreams() {
-            return super.getPartStreams().stream().map(this::decryptInputStreamContainer).collect(Collectors.toList());
+        public List<StreamPartCreator> getPartStreams() {
+            return super.getPartStreams().stream()
+                .map(supplier -> (StreamPartCreator) () -> supplier.get().thenApply(this::decryptInputStreamContainer))
+                .collect(Collectors.toUnmodifiableList());
         }
 
         /**
