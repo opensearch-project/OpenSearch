@@ -116,14 +116,7 @@ public class AzureRepository extends MeteredBlobStoreRepository {
         final ClusterService clusterService,
         final RecoverySettings recoverySettings
     ) {
-        super(
-            metadata,
-            COMPRESS_SETTING.get(metadata.settings()),
-            namedXContentRegistry,
-            clusterService,
-            recoverySettings,
-            buildLocation(metadata)
-        );
+        super(metadata, namedXContentRegistry, clusterService, recoverySettings, buildLocation(metadata));
         this.chunkSize = Repository.CHUNK_SIZE_SETTING.get(metadata.settings());
         this.storageService = storageService;
 
