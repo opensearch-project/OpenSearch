@@ -117,7 +117,7 @@ public final class SpanBuilder {
     }
 
     private static String createSpanName(String action, Transport.Connection connection) {
-        return action + SEPARATOR + (connection.getNode() != null ? connection.getNode().getHostAddress() : null);
+        return action + SEPARATOR + ((connection != null && connection.getNode() != null) ? connection.getNode().getHostAddress() : null);
     }
 
     private static Attributes buildSpanAttributes(String action, Transport.Connection connection) {
