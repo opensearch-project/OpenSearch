@@ -76,6 +76,7 @@ public class SingleNodeDiscoveryIT extends OpenSearchIntegTestCase {
             @Override
             public Settings nodeSettings(int nodeOrdinal) {
                 return Settings.builder()
+                    .put(featureFlagSettings())
                     .put("discovery.type", "single-node")
                     .put("transport.type", getTestTransportType())
                     /*
@@ -142,6 +143,7 @@ public class SingleNodeDiscoveryIT extends OpenSearchIntegTestCase {
                 @Override
                 public Settings nodeSettings(int nodeOrdinal) {
                     return Settings.builder()
+                        .put(featureFlagSettings())
                         .put("discovery.type", "zen")
                         .put("transport.type", getTestTransportType())
                         .put(DiscoverySettings.INITIAL_STATE_TIMEOUT_SETTING.getKey(), "0s")

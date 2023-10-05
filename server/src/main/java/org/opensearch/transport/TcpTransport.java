@@ -68,6 +68,7 @@ import org.opensearch.core.indices.breaker.CircuitBreakerService;
 import org.opensearch.core.rest.RestStatus;
 import org.opensearch.monitor.jvm.JvmInfo;
 import org.opensearch.node.Node;
+import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -159,7 +160,8 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         PageCacheRecycler pageCacheRecycler,
         CircuitBreakerService circuitBreakerService,
         NamedWriteableRegistry namedWriteableRegistry,
-        NetworkService networkService
+        NetworkService networkService,
+        Tracer tracer
     ) {
         this.settings = settings;
         this.profileSettings = getProfileSettings(settings);
@@ -208,7 +210,8 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
             handshaker,
             keepAlive,
             requestHandlers,
-            responseHandlers
+            responseHandlers,
+            tracer
         );
     }
 

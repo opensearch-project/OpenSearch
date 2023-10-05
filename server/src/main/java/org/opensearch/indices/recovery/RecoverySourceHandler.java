@@ -201,9 +201,13 @@ public abstract class RecoverySourceHandler {
         final StepListener<Void> finalizeStep = new StepListener<>();
         // Recovery target can trim all operations >= startingSeqNo as we have sent all these operations in the phase 2
         final long trimAboveSeqNo = startingSeqNo - 1;
-        sendSnapshotStep.whenComplete(r -> finalizeRecovery(r.targetLocalCheckpoint, trimAboveSeqNo, finalizeStep), onFailure);
+        sendSnapshotStep.whenComplete(r -> {
+            logger.debug("sendSnapshotStep completed");
+            finalizeRecovery(r.targetLocalCheckpoint, trimAboveSeqNo, finalizeStep);
+        }, onFailure);
 
         finalizeStep.whenComplete(r -> {
+            logger.debug("finalizeStep completed");
             final long phase1ThrottlingWaitTime = 0L; // TODO: return the actual throttle time
             final SendSnapshotResult sendSnapshotResult = sendSnapshotStep.result();
             final SendFileResult sendFileResult = sendFileStep.result();
@@ -233,7 +237,10 @@ public abstract class RecoverySourceHandler {
         GatedCloseable<IndexCommit> wrappedSafeCommit,
         Releasable releaseStore
     ) {
-        sendFileStep.whenComplete(r -> IOUtils.close(wrappedSafeCommit, releaseStore), e -> {
+        sendFileStep.whenComplete(r -> {
+            logger.debug("sendFileStep completed");
+            IOUtils.close(wrappedSafeCommit, releaseStore);
+        }, e -> {
             try {
                 IOUtils.close(wrappedSafeCommit, releaseStore);
             } catch (final IOException ex) {
@@ -445,16 +452,22 @@ public abstract class RecoverySourceHandler {
                     sendFileInfoStep
                 );
 
-                sendFileInfoStep.whenComplete(
-                    r -> sendFiles(store, phase1Files.toArray(new StoreFileMetadata[0]), translogOps, sendFilesStep),
-                    listener::onFailure
-                );
+                sendFileInfoStep.whenComplete(r -> {
+                    logger.debug("sendFileInfoStep completed");
+                    sendFiles(store, phase1Files.toArray(new StoreFileMetadata[0]), translogOps, sendFilesStep);
+                }, listener::onFailure);
 
                 // When doing peer recovery of remote store enabled replica, retention leases are not required.
                 if (skipCreateRetentionLeaseStep) {
-                    sendFilesStep.whenComplete(r -> createRetentionLeaseStep.onResponse(null), listener::onFailure);
+                    sendFilesStep.whenComplete(r -> {
+                        logger.debug("sendFilesStep completed");
+                        createRetentionLeaseStep.onResponse(null);
+                    }, listener::onFailure);
                 } else {
-                    sendFilesStep.whenComplete(r -> createRetentionLease(startingSeqNo, createRetentionLeaseStep), listener::onFailure);
+                    sendFilesStep.whenComplete(r -> {
+                        logger.debug("sendFilesStep completed");
+                        createRetentionLease(startingSeqNo, createRetentionLeaseStep);
+                    }, listener::onFailure);
                 }
 
                 createRetentionLeaseStep.whenComplete(retentionLease -> {
@@ -471,6 +484,7 @@ public abstract class RecoverySourceHandler {
                 final long totalSize = totalSizeInBytes;
                 final long existingTotalSize = existingTotalSizeInBytes;
                 cleanFilesStep.whenComplete(r -> {
+                    logger.debug("cleanFilesStep completed");
                     final TimeValue took = stopWatch.totalTime();
                     logger.trace("recovery [phase1]: took [{}]", took);
                     listener.onResponse(
@@ -541,7 +555,10 @@ public abstract class RecoverySourceHandler {
                     new ThreadedActionListener<>(logger, shard.getThreadPool(), ThreadPool.Names.GENERIC, cloneRetentionLeaseStep, false)
                 );
                 logger.trace("cloned primary's retention lease as [{}]", clonedLease);
-                cloneRetentionLeaseStep.whenComplete(rr -> listener.onResponse(clonedLease), listener::onFailure);
+                cloneRetentionLeaseStep.whenComplete(rr -> {
+                    logger.debug("cloneRetentionLeaseStep completed");
+                    listener.onResponse(clonedLease);
+                }, listener::onFailure);
             } catch (RetentionLeaseNotFoundException e) {
                 // it's possible that the primary has no retention lease yet if we are doing a rolling upgrade from a version before
                 // 7.4, and in that case we just create a lease using the local checkpoint of the safe commit which we're using for
@@ -554,7 +571,10 @@ public abstract class RecoverySourceHandler {
                     estimatedGlobalCheckpoint,
                     new ThreadedActionListener<>(logger, shard.getThreadPool(), ThreadPool.Names.GENERIC, addRetentionLeaseStep, false)
                 );
-                addRetentionLeaseStep.whenComplete(rr -> listener.onResponse(newLease), listener::onFailure);
+                addRetentionLeaseStep.whenComplete(rr -> {
+                    logger.debug("addRetentionLeaseStep completed");
+                    listener.onResponse(newLease);
+                }, listener::onFailure);
                 logger.trace("created retention lease with estimated checkpoint of [{}]", estimatedGlobalCheckpoint);
             }
         }, shardId + " establishing retention lease for [" + request.targetAllocationId() + "]", shard, cancellableThreads, logger);
@@ -810,6 +830,7 @@ public abstract class RecoverySourceHandler {
         cancellableThreads.checkForCancel();
         recoveryTarget.finalizeRecovery(globalCheckpoint, trimAboveSeqNo, finalizeListener);
         finalizeListener.whenComplete(r -> {
+            logger.debug("finalizeListenerStep completed");
             RunUnderPrimaryPermit.run(
                 () -> shard.updateGlobalCheckpointForShard(request.targetAllocationId(), globalCheckpoint),
                 shardId + " updating " + request.targetAllocationId() + "'s global checkpoint",

@@ -13,6 +13,7 @@ import org.opensearch.core.common.Strings;
 import org.opensearch.http.HttpRequest;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.telemetry.tracing.attributes.Attributes;
+import org.opensearch.transport.TcpChannel;
 import org.opensearch.transport.Transport;
 
 import java.util.Arrays;
@@ -45,7 +46,7 @@ public final class SpanBuilder {
      * @return context.
      */
     public static SpanCreationContext from(HttpRequest request) {
-        return new SpanCreationContext(createSpanName(request), buildSpanAttributes(request));
+        return SpanCreationContext.server().name(createSpanName(request)).attributes(buildSpanAttributes(request));
     }
 
     /**
@@ -54,7 +55,7 @@ public final class SpanBuilder {
      * @return context
      */
     public static SpanCreationContext from(RestRequest request) {
-        return new SpanCreationContext(createSpanName(request), buildSpanAttributes(request));
+        return SpanCreationContext.client().name(createSpanName(request)).attributes(buildSpanAttributes(request));
     }
 
     /**
@@ -64,7 +65,7 @@ public final class SpanBuilder {
      * @return context
      */
     public static SpanCreationContext from(String action, Transport.Connection connection) {
-        return new SpanCreationContext(createSpanName(action, connection), buildSpanAttributes(action, connection));
+        return SpanCreationContext.server().name(createSpanName(action, connection)).attributes(buildSpanAttributes(action, connection));
     }
 
     private static String createSpanName(HttpRequest httpRequest) {
@@ -124,6 +125,28 @@ public final class SpanBuilder {
         if (connection != null && connection.getNode() != null) {
             attributes.addAttribute(AttributeNames.TRANSPORT_TARGET_HOST, connection.getNode().getHostAddress());
         }
+        return attributes;
+    }
+
+    /**
+     * Creates {@link SpanCreationContext} from Inbound Handler.
+     * @param action action.
+     * @param tcpChannel tcp channel.
+     * @return context
+     */
+    public static SpanCreationContext from(String action, TcpChannel tcpChannel) {
+        return SpanCreationContext.server().name(createSpanName(action, tcpChannel)).attributes(buildSpanAttributes(action, tcpChannel));
+    }
+
+    private static String createSpanName(String action, TcpChannel tcpChannel) {
+        return action + SEPARATOR + (tcpChannel.getRemoteAddress() != null
+            ? tcpChannel.getRemoteAddress().getHostString()
+            : tcpChannel.getLocalAddress().getHostString());
+    }
+
+    private static Attributes buildSpanAttributes(String action, TcpChannel tcpChannel) {
+        Attributes attributes = Attributes.create().addAttribute(AttributeNames.TRANSPORT_ACTION, action);
+        attributes.addAttribute(AttributeNames.TRANSPORT_HOST, tcpChannel.getLocalAddress().getHostString());
         return attributes;
     }
 

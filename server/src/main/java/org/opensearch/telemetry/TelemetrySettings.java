@@ -12,6 +12,7 @@ import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.unit.TimeValue;
 
 /**
  * Wrapper class to encapsulate tracing related settings
@@ -37,6 +38,16 @@ public class TelemetrySettings {
         1.00d,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
+    );
+
+    /**
+     * metrics publish interval in seconds.
+     */
+    public static final Setting<TimeValue> METRICS_PUBLISH_INTERVAL_SETTING = Setting.timeSetting(
+        "telemetry.otel.metrics.publish.interval",
+        TimeValue.timeValueSeconds(60),
+        Setting.Property.NodeScope,
+        Setting.Property.Final
     );
 
     private volatile boolean tracingEnabled;

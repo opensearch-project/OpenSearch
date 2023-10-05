@@ -1,0 +1,93 @@
+---
+teardown:
+  - do:
+      ingest.delete_pipeline:
+        id: "my_pipeline"
+        ignore: 404
+
+---
+"Test remove processor with non-existing field and without ignore_missing":
+  - do:
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        body:  >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "remove" : {
+                  "field" : "{{unknown}}"
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      catch: /field path cannot be null nor empty/
+      index:
+        index: test
+        id: 1
+        pipeline: "my_pipeline"
+        body: { message: "foo bar baz" }
+
+---
+"Test remove processor with resolved field path doesn't exist":
+  - do:
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        body:  >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "remove" : {
+                  "field" : "{{foo}}"
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      catch: /field \[bar\] doesn\'t exist/
+      index:
+        index: test
+        id: 1
+        pipeline: "my_pipeline"
+        body: {
+          message: "foo bar baz",
+          foo: "bar"
+        }
+
+---
+"Test remove processor with non-existing field and ignore_missing":
+  - do:
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        body:  >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "remove" : {
+                  "field" : "{{unknown}}",
+                  "ignore_missing" : true
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      index:
+        index: test
+        id: 1
+        pipeline: "my_pipeline"
+        body: { message: "foo bar baz" }
+
+  - do:
+      get:
+        index: test
+        id: 1
+  - match: { _source.message: "foo bar baz" }

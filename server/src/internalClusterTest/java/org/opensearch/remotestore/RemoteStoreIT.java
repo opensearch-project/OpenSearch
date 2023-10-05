@@ -8,6 +8,8 @@
 
 package org.opensearch.remotestore;
 
+import org.opensearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
+import org.opensearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.opensearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.opensearch.action.admin.indices.get.GetIndexRequest;
 import org.opensearch.action.admin.indices.get.GetIndexResponse;
@@ -23,7 +25,9 @@ import org.opensearch.core.index.Index;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.shard.IndexShard;
+import org.opensearch.index.translog.Translog.Durability;
 import org.opensearch.indices.IndicesService;
+import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.test.OpenSearchIntegTestCase;
@@ -33,16 +37,20 @@ import org.hamcrest.MatcherAssert;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.opensearch.index.shard.RemoteStoreRefreshListener.LAST_N_METADATA_FILES_TO_KEEP;
 import static org.opensearch.indices.IndicesService.CLUSTER_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.comparesEqualTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.oneOf;
 
@@ -111,6 +119,16 @@ public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
     }
 
     public void testPeerRecoveryWithRemoteStoreAndRemoteTranslogFlush() throws Exception {
+        testPeerRecovery(randomIntBetween(2, 5), true);
+    }
+
+    public void testPeerRecoveryWithLowActivityTimeout() throws Exception {
+        ClusterUpdateSettingsRequest req = new ClusterUpdateSettingsRequest().persistentSettings(
+            Settings.builder()
+                .put(RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey(), "20kb")
+                .put(RecoverySettings.INDICES_RECOVERY_ACTIVITY_TIMEOUT_SETTING.getKey(), "1s")
+        );
+        internalCluster().client().admin().cluster().updateSettings(req).get();
         testPeerRecovery(randomIntBetween(2, 5), true);
     }
 
@@ -318,6 +336,86 @@ public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
         );
     }
 
+    public void testRequestDurabilityWhenRestrictSettingExplicitFalse() throws ExecutionException, InterruptedException {
+        // Explicit node settings and request durability
+        testRestrictSettingFalse(true, Durability.REQUEST);
+    }
+
+    public void testAsyncDurabilityWhenRestrictSettingExplicitFalse() throws ExecutionException, InterruptedException {
+        // Explicit node settings and async durability
+        testRestrictSettingFalse(true, Durability.ASYNC);
+    }
+
+    public void testRequestDurabilityWhenRestrictSettingImplicitFalse() throws ExecutionException, InterruptedException {
+        // No node settings and request durability
+        testRestrictSettingFalse(false, Durability.REQUEST);
+    }
+
+    public void testAsyncDurabilityWhenRestrictSettingImplicitFalse() throws ExecutionException, InterruptedException {
+        // No node settings and async durability
+        testRestrictSettingFalse(false, Durability.ASYNC);
+    }
+
+    private void testRestrictSettingFalse(boolean setRestrictFalse, Durability durability) throws ExecutionException, InterruptedException {
+        String clusterManagerName;
+        if (setRestrictFalse) {
+            clusterManagerName = internalCluster().startClusterManagerOnlyNode(
+                Settings.builder().put(IndicesService.CLUSTER_REMOTE_INDEX_RESTRICT_ASYNC_DURABILITY_SETTING.getKey(), false).build()
+            );
+        } else {
+            clusterManagerName = internalCluster().startClusterManagerOnlyNode();
+        }
+        String dataNode = internalCluster().startDataOnlyNodes(1).get(0);
+        Settings indexSettings = Settings.builder()
+            .put(indexSettings())
+            .put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), durability)
+            .build();
+        createIndex(INDEX_NAME, indexSettings);
+        IndexShard indexShard = getIndexShard(dataNode);
+        assertEquals(durability, indexShard.indexSettings().getTranslogDurability());
+
+        durability = randomFrom(Durability.values());
+        client(clusterManagerName).admin()
+            .indices()
+            .updateSettings(
+                new UpdateSettingsRequest(INDEX_NAME).settings(
+                    Settings.builder().put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), durability)
+                )
+            )
+            .get();
+        assertEquals(durability, indexShard.indexSettings().getTranslogDurability());
+    }
+
+    public void testAsyncDurabilityThrowsExceptionWhenRestrictSettingTrue() throws ExecutionException, InterruptedException {
+        String expectedExceptionMsg =
+            "index setting [index.translog.durability=async] is not allowed as cluster setting [cluster.remote_store.index.restrict.async-durability=true]";
+        String clusterManagerName = internalCluster().startClusterManagerOnlyNode(
+            Settings.builder().put(IndicesService.CLUSTER_REMOTE_INDEX_RESTRICT_ASYNC_DURABILITY_SETTING.getKey(), true).build()
+        );
+        String dataNode = internalCluster().startDataOnlyNodes(1).get(0);
+
+        // Case 1 - Test create index fails
+        Settings indexSettings = Settings.builder()
+            .put(indexSettings())
+            .put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), Durability.ASYNC)
+            .build();
+        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () -> createIndex(INDEX_NAME, indexSettings));
+        assertEquals(expectedExceptionMsg, exception.getMessage());
+
+        // Case 2 - Test update index fails
+        createIndex(INDEX_NAME);
+        IndexShard indexShard = getIndexShard(dataNode);
+        assertEquals(Durability.REQUEST, indexShard.indexSettings().getTranslogDurability());
+        exception = assertThrows(
+            IllegalArgumentException.class,
+            () -> client(clusterManagerName).admin()
+                .indices()
+                .updateSettings(new UpdateSettingsRequest(INDEX_NAME).settings(indexSettings))
+                .actionGet()
+        );
+        assertEquals(expectedExceptionMsg, exception.getMessage());
+    }
+
     private IndexShard getIndexShard(String dataNode) throws ExecutionException, InterruptedException {
         String clusterManagerName = internalCluster().getClusterManagerName();
         IndicesService indicesService = internalCluster().getInstance(IndicesService.class, dataNode);
@@ -345,5 +443,70 @@ public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
             .prepareUpdateSettings()
             .setTransientSettings(Settings.builder().putNull(CLUSTER_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING.getKey()))
             .get();
+    }
+
+    public void testRestoreSnapshotToIndexWithSameNameDifferentUUID() throws Exception {
+        internalCluster().startClusterManagerOnlyNode();
+        List<String> dataNodes = internalCluster().startDataOnlyNodes(2);
+
+        Path absolutePath = randomRepoPath().toAbsolutePath();
+        assertAcked(
+            clusterAdmin().preparePutRepository("test-repo").setType("fs").setSettings(Settings.builder().put("location", absolutePath))
+        );
+
+        logger.info("--> Create index and ingest 50 docs");
+        createIndex(INDEX_NAME, remoteStoreIndexSettings(1));
+        indexBulk(INDEX_NAME, 50);
+        flushAndRefresh(INDEX_NAME);
+
+        String originalIndexUUID = client().admin()
+            .indices()
+            .prepareGetSettings(INDEX_NAME)
+            .get()
+            .getSetting(INDEX_NAME, IndexMetadata.SETTING_INDEX_UUID);
+        assertNotNull(originalIndexUUID);
+        assertNotEquals(IndexMetadata.INDEX_UUID_NA_VALUE, originalIndexUUID);
+
+        ensureGreen();
+
+        logger.info("--> take a snapshot");
+        client().admin().cluster().prepareCreateSnapshot("test-repo", "test-snap").setIndices(INDEX_NAME).setWaitForCompletion(true).get();
+
+        logger.info("--> wipe all indices");
+        cluster().wipeIndices(INDEX_NAME);
+
+        logger.info("--> Create index with the same name, different UUID");
+        assertAcked(
+            prepareCreate(INDEX_NAME).setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 1))
+        );
+
+        ensureGreen(TimeValue.timeValueSeconds(30), INDEX_NAME);
+
+        String newIndexUUID = client().admin()
+            .indices()
+            .prepareGetSettings(INDEX_NAME)
+            .get()
+            .getSetting(INDEX_NAME, IndexMetadata.SETTING_INDEX_UUID);
+        assertNotNull(newIndexUUID);
+        assertNotEquals(IndexMetadata.INDEX_UUID_NA_VALUE, newIndexUUID);
+        assertNotEquals(newIndexUUID, originalIndexUUID);
+
+        logger.info("--> close index");
+        client().admin().indices().prepareClose(INDEX_NAME).get();
+
+        logger.info("--> restore all indices from the snapshot");
+        RestoreSnapshotResponse restoreSnapshotResponse = clusterAdmin().prepareRestoreSnapshot("test-repo", "test-snap")
+            .setWaitForCompletion(true)
+            .execute()
+            .actionGet();
+        assertThat(restoreSnapshotResponse.getRestoreInfo().totalShards(), greaterThan(0));
+
+        flushAndRefresh(INDEX_NAME);
+
+        ensureGreen(INDEX_NAME);
+        assertBusy(() -> {
+            assertHitCount(client(dataNodes.get(0)).prepareSearch(INDEX_NAME).setSize(0).get(), 50);
+            assertHitCount(client(dataNodes.get(1)).prepareSearch(INDEX_NAME).setSize(0).get(), 50);
+        });
     }
 }

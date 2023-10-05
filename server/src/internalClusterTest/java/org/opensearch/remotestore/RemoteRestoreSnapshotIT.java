@@ -57,7 +57,7 @@ public class RemoteRestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
 
     @After
     public void teardown() {
-        assertAcked(clusterAdmin().prepareDeleteRepository(BASE_REMOTE_REPO));
+        clusterAdmin().prepareCleanupRepository(BASE_REMOTE_REPO).get();
     }
 
     @Override
@@ -422,7 +422,7 @@ public class RemoteRestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
         assertDocsPresentInIndex(client, restoredIndexName1, numDocsInIndex1 + 2);
     }
 
-    public void testRestoreShallowSnapshotRepositoryOverriden() throws ExecutionException, InterruptedException {
+    public void testRestoreShallowSnapshotRepository() throws ExecutionException, InterruptedException {
         String indexName1 = "testindex1";
         String snapshotRepoName = "test-restore-snapshot-repo";
         String remoteStoreRepoNameUpdated = "test-rs-repo-updated" + TEST_REMOTE_STORE_REPO_SUFFIX;
@@ -464,22 +464,7 @@ public class RemoteRestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
         assertThat(snapshotInfo1.successfulShards(), equalTo(snapshotInfo1.totalShards()));
         assertThat(snapshotInfo1.state(), equalTo(SnapshotState.SUCCESS));
 
-        createRepository(BASE_REMOTE_REPO, "fs", absolutePath2);
-
-        RestoreSnapshotResponse restoreSnapshotResponse = client.admin()
-            .cluster()
-            .prepareRestoreSnapshot(snapshotRepoName, snapshotName1)
-            .setWaitForCompletion(true)
-            .setIndices(indexName1)
-            .setRenamePattern(indexName1)
-            .setRenameReplacement(restoredIndexName1)
-            .get();
-
-        assertTrue(restoreSnapshotResponse.getRestoreInfo().failedShards() > 0);
-
-        ensureRed(restoredIndexName1);
-
-        client().admin().indices().close(Requests.closeIndexRequest(restoredIndexName1)).get();
+        client().admin().indices().close(Requests.closeIndexRequest(indexName1)).get();
         createRepository(remoteStoreRepoNameUpdated, "fs", remoteRepoPath);
         RestoreSnapshotResponse restoreSnapshotResponse2 = client.admin()
             .cluster()

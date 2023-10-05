@@ -46,6 +46,13 @@ import java.io.IOException;
  * helps organize and use size representations that may be maintained
  * separately across various contexts.
  *
+ * It use conventional data storage values (base-2) :
+ * <ul>
+ *     <li>1KB = 1024 bytes</li>
+ *     <li>1MB = 1024KB</li>
+ *     <li> ... </li>
+ * </ul>
+ *
  * @opensearch.api
  */
 @PublicApi(since = "1.0.0")

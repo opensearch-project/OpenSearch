@@ -88,6 +88,7 @@ import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.MapperService.MergeReason;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.index.shard.IndexSettingProvider;
+import org.opensearch.index.translog.Translog;
 import org.opensearch.indices.IndexCreationException;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.InvalidIndexNameException;
@@ -922,6 +923,7 @@ public class MetadataCreateIndexService {
         validateTranslogRetentionSettings(indexSettings);
         validateStoreTypeSettings(indexSettings);
         validateRefreshIntervalSettings(request.settings(), clusterSettings);
+        validateTranslogDurabilitySettings(request.settings(), clusterSettings, settings);
 
         return indexSettings;
     }
@@ -1491,7 +1493,7 @@ public class MetadataCreateIndexService {
     /**
      * Validates {@code index.refresh_interval} is equal or below the {@code cluster.minimum.index.refresh_interval}.
      *
-     * @param requestSettings settings passed in during index create request
+     * @param requestSettings settings passed in during index create/update request
      * @param clusterSettings cluster setting
      */
     static void validateRefreshIntervalSettings(Settings requestSettings, ClusterSettings clusterSettings) {
@@ -1509,5 +1511,28 @@ public class MetadataCreateIndexService {
                     + "]"
             );
         }
+    }
+
+    /**
+     * Validates {@code index.translog.durability} is not async if the {@code cluster.remote_store.index.restrict.async-durability} is set to true.
+     *
+     * @param requestSettings settings passed in during index create/update request
+     * @param clusterSettings cluster setting
+     */
+    static void validateTranslogDurabilitySettings(Settings requestSettings, ClusterSettings clusterSettings, Settings settings) {
+        if (isRemoteStoreAttributePresent(settings) == false
+            || IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.exists(requestSettings) == false
+            || clusterSettings.get(IndicesService.CLUSTER_REMOTE_INDEX_RESTRICT_ASYNC_DURABILITY_SETTING) == false) {
+            return;
+        }
+        Translog.Durability durability = IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.get(requestSettings);
+        if (durability.equals(Translog.Durability.ASYNC)) {
+            throw new IllegalArgumentException(
+                "index setting [index.translog.durability=async] is not allowed as cluster setting ["
+                    + IndicesService.CLUSTER_REMOTE_INDEX_RESTRICT_ASYNC_DURABILITY_SETTING.getKey()
+                    + "=true]"
+            );
+        }
+
     }
 }

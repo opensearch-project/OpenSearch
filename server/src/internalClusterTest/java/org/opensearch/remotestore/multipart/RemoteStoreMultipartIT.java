@@ -46,8 +46,26 @@ public class RemoteStoreMultipartIT extends RemoteStoreIT {
         return Stream.concat(super.nodePlugins().stream(), Stream.of(MockFsRepositoryPlugin.class)).collect(Collectors.toList());
     }
 
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal) {
+        return Settings.builder()
+            .put(super.nodeSettings(nodeOrdinal))
+            .put(
+                remoteStoreClusterSettings(
+                    REPOSITORY_NAME,
+                    segmentRepoPath,
+                    MockFsRepositoryPlugin.TYPE,
+                    REPOSITORY_2_NAME,
+                    translogRepoPath,
+                    MockFsRepositoryPlugin.TYPE
+                )
+            )
+            .build();
+    }
+
     @Before
     public void setup() {
+        clusterSettingsSuppliedByTest = true;
         overrideBuildRepositoryMetadata = false;
         repositoryLocation = randomRepoPath();
         compress = randomBoolean();
@@ -86,11 +104,19 @@ public class RemoteStoreMultipartIT extends RemoteStoreIT {
         } else {
             return super.buildRepositoryMetadata(node, name);
         }
+
     }
 
     public void testRateLimitedRemoteUploads() throws Exception {
+        clusterSettingsSuppliedByTest = true;
         overrideBuildRepositoryMetadata = true;
-        internalCluster().startNode();
+        Settings.Builder clusterSettings = Settings.builder()
+            .put(remoteStoreClusterSettings(REPOSITORY_NAME, repositoryLocation, REPOSITORY_2_NAME, repositoryLocation));
+        clusterSettings.put(
+            String.format(Locale.getDefault(), "node.attr." + REMOTE_STORE_REPOSITORY_TYPE_ATTRIBUTE_KEY_FORMAT, REPOSITORY_NAME),
+            MockFsRepositoryPlugin.TYPE
+        );
+        internalCluster().startNode(clusterSettings.build());
         Client client = client();
         logger.info("-->  updating repository");
         assertAcked(
@@ -100,7 +126,6 @@ public class RemoteStoreMultipartIT extends RemoteStoreIT {
                 .setType(MockFsRepositoryPlugin.TYPE)
                 .setSettings(
                     Settings.builder()
-                        .put(BlobStoreRepository.SYSTEM_REPOSITORY_SETTING.getKey(), true)
                         .put("location", repositoryLocation)
                         .put("compress", compress)
                         .put("max_remote_upload_bytes_per_sec", "1kb")

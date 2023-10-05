@@ -1,0 +1,66 @@
+---
+teardown:
+  - do:
+      ingest.delete_pipeline:
+        id: "my_pipeline"
+        ignore: 404
+
+---
+"Test rename processor with non-existing field and without ignore_missing":
+  - do:
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        body:  >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "rename" : {
+                  "field" : "{{field_foo}}",
+                  "target_field" : "bar"
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      catch: '/field path cannot be null nor empty/'
+      index:
+        index: test
+        id: 1
+        pipeline: "my_pipeline"
+        body: { message: "foo bar baz" }
+
+---
+"Test rename processor with non-existing field and ignore_missing":
+  - do:
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        body:  >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "rename" : {
+                  "field" : "{{field_foo}}",
+                  "target_field" : "bar",
+                  "ignore_missing" : true
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      index:
+        index: test
+        id: 1
+        pipeline: "my_pipeline"
+        body: { message: "foo bar baz" }
+
+  - do:
+      get:
+        index: test
+        id: 1
+  - match: { _source.message: "foo bar baz" }

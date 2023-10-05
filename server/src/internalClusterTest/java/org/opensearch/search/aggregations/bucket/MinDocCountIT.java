@@ -37,6 +37,7 @@ import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.action.search.SearchRequest;
 import org.opensearch.action.search.SearchResponse;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.common.time.DateFormatter;
 import org.opensearch.index.fielddata.ScriptDocValues;
 import org.opensearch.index.query.QueryBuilder;
@@ -80,6 +81,10 @@ public class MinDocCountIT extends AbstractTermsTestCase {
 
     private static final QueryBuilder QUERY = QueryBuilders.termQuery("match", true);
     private static int cardinality;
+
+    public MinDocCountIT(Settings dynamicSettings) {
+        super(dynamicSettings);
+    }
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {

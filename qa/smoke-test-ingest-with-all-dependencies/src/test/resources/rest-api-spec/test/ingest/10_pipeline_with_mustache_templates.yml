@@ -208,7 +208,7 @@
         id: 1
   - length: { _source: 2 }
   - match: { _source.do_nothing: "foo" }
-  - match: { _source.error: "processor first_processor [remove]: field [field_to_remove] not present as part of path [field_to_remove]" }
+  - match: { _source.error: "processor first_processor [remove]: field [field_to_remove] doesn't exist" }
 
 ---
 "Test rolling up json object arrays":

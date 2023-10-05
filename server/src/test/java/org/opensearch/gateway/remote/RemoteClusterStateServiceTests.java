@@ -64,6 +64,8 @@ import java.util.function.Supplier;
 import org.mockito.ArgumentCaptor;
 import org.mockito.ArgumentMatchers;
 
+import static org.opensearch.gateway.remote.RemoteClusterStateService.DELIMITER;
+import static org.opensearch.gateway.remote.RemoteClusterStateService.MANIFEST_FILE_PREFIX;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEY;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_REPOSITORY_SETTINGS_ATTRIBUTE_KEY_PREFIX;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_REPOSITORY_TYPE_ATTRIBUTE_KEY_FORMAT;
@@ -76,6 +78,8 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
@@ -135,7 +139,7 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
 
     public void testFailWriteFullMetadataNonClusterManagerNode() throws IOException {
         final ClusterState clusterState = generateClusterStateWithOneIndex().build();
-        final ClusterMetadataManifest manifest = remoteClusterStateService.writeFullMetadata(clusterState);
+        final ClusterMetadataManifest manifest = remoteClusterStateService.writeFullMetadata(clusterState, randomAlphaOfLength(10));
         Assert.assertThat(manifest, nullValue());
     }
 
@@ -169,7 +173,7 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
         final ClusterState clusterState = generateClusterStateWithOneIndex().nodes(nodesWithLocalNodeClusterManager()).build();
         mockBlobStoreObjects();
         remoteClusterStateService.start();
-        final ClusterMetadataManifest manifest = remoteClusterStateService.writeFullMetadata(clusterState);
+        final ClusterMetadataManifest manifest = remoteClusterStateService.writeFullMetadata(clusterState, "prev-cluster-uuid");
         final UploadedIndexMetadata uploadedIndexMetadata = new UploadedIndexMetadata("test-index", "index-uuid", "metadata-filename");
         List<UploadedIndexMetadata> indices = List.of(uploadedIndexMetadata);
 
@@ -190,6 +194,7 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
         assertThat(manifest.getStateVersion(), is(expectedManifest.getStateVersion()));
         assertThat(manifest.getClusterUUID(), is(expectedManifest.getClusterUUID()));
         assertThat(manifest.getStateUUID(), is(expectedManifest.getStateUUID()));
+        assertThat(manifest.getPreviousClusterUUID(), is(expectedManifest.getPreviousClusterUUID()));
     }
 
     public void testWriteFullMetadataInParallelSuccess() throws IOException {
@@ -205,7 +210,7 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
         }).when(container).asyncBlobUpload(writeContextArgumentCaptor.capture(), actionListenerArgumentCaptor.capture());
 
         remoteClusterStateService.start();
-        final ClusterMetadataManifest manifest = remoteClusterStateService.writeFullMetadata(clusterState);
+        final ClusterMetadataManifest manifest = remoteClusterStateService.writeFullMetadata(clusterState, "prev-cluster-uuid");
 
         final UploadedIndexMetadata uploadedIndexMetadata = new UploadedIndexMetadata("test-index", "index-uuid", "metadata-filename");
         List<UploadedIndexMetadata> indices = List.of(uploadedIndexMetadata);
@@ -216,6 +221,7 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
             .stateVersion(1L)
             .stateUUID("state-uuid")
             .clusterUUID("cluster-uuid")
+            .previousClusterUUID("prev-cluster-uuid")
             .build();
 
         assertThat(manifest.getIndices().size(), is(1));
@@ -226,6 +232,7 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
         assertThat(manifest.getStateVersion(), is(expectedManifest.getStateVersion()));
         assertThat(manifest.getClusterUUID(), is(expectedManifest.getClusterUUID()));
         assertThat(manifest.getStateUUID(), is(expectedManifest.getStateUUID()));
+        assertThat(manifest.getPreviousClusterUUID(), is(expectedManifest.getPreviousClusterUUID()));
 
         assertEquals(actionListenerArgumentCaptor.getAllValues().size(), 1);
         assertEquals(writeContextArgumentCaptor.getAllValues().size(), 1);
@@ -266,7 +273,7 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
         remoteClusterStateService.start();
         assertThrows(
             RemoteClusterStateService.IndexMetadataTransferException.class,
-            () -> remoteClusterStateService.writeFullMetadata(clusterState)
+            () -> remoteClusterStateService.writeFullMetadata(clusterState, randomAlphaOfLength(10))
         );
     }
 
@@ -331,13 +338,8 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
         final ClusterState clusterState = generateClusterStateWithOneIndex().nodes(nodesWithLocalNodeClusterManager()).build();
 
         BlobContainer blobContainer = mockBlobStoreObjects();
-        when(
-            blobContainer.listBlobsByPrefixInSortedOrder(
-                "manifest" + RemoteClusterStateService.DELIMITER,
-                1,
-                BlobContainer.BlobNameSortOrder.LEXICOGRAPHIC
-            )
-        ).thenThrow(IOException.class);
+        when(blobContainer.listBlobsByPrefixInSortedOrder("manifest" + DELIMITER, 1, BlobContainer.BlobNameSortOrder.LEXICOGRAPHIC))
+            .thenThrow(IOException.class);
 
         remoteClusterStateService.start();
         Exception e = assertThrows(
@@ -354,13 +356,8 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
         final ClusterState clusterState = generateClusterStateWithOneIndex().nodes(nodesWithLocalNodeClusterManager()).build();
 
         BlobContainer blobContainer = mockBlobStoreObjects();
-        when(
-            blobContainer.listBlobsByPrefixInSortedOrder(
-                "manifest" + RemoteClusterStateService.DELIMITER,
-                1,
-                BlobContainer.BlobNameSortOrder.LEXICOGRAPHIC
-            )
-        ).thenReturn(List.of());
+        when(blobContainer.listBlobsByPrefixInSortedOrder("manifest" + DELIMITER, 1, BlobContainer.BlobNameSortOrder.LEXICOGRAPHIC))
+            .thenReturn(List.of());
 
         remoteClusterStateService.start();
         Optional<ClusterMetadataManifest> manifest = remoteClusterStateService.getLatestClusterMetadataManifest(
@@ -375,13 +372,8 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
 
         BlobContainer blobContainer = mockBlobStoreObjects();
         BlobMetadata blobMetadata = new PlainBlobMetadata("manifestFileName", 1);
-        when(
-            blobContainer.listBlobsByPrefixInSortedOrder(
-                "manifest" + RemoteClusterStateService.DELIMITER,
-                1,
-                BlobContainer.BlobNameSortOrder.LEXICOGRAPHIC
-            )
-        ).thenReturn(Arrays.asList(blobMetadata));
+        when(blobContainer.listBlobsByPrefixInSortedOrder("manifest" + DELIMITER, 1, BlobContainer.BlobNameSortOrder.LEXICOGRAPHIC))
+            .thenReturn(Arrays.asList(blobMetadata));
         when(blobContainer.readBlob("manifestFileName")).thenThrow(FileNotFoundException.class);
 
         remoteClusterStateService.start();
@@ -571,17 +563,114 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
 
     public void testGetValidPreviousClusterUUIDForInvalidChain() throws IOException {
         Map<String, String> clusterUUIDsPointers = Map.of(
-            "cluster-uuid1",
-            ClusterState.UNKNOWN_UUID,
             "cluster-uuid2",
-            ClusterState.UNKNOWN_UUID,
+            "cluster-uuid1",
             "cluster-uuid3",
-            "cluster-uuid2"
+            "cluster-uuid2",
+            "cluster-uuid5",
+            "cluster-uuid4"
         );
         mockObjectsForGettingPreviousClusterUUID(clusterUUIDsPointers);
 
         remoteClusterStateService.start();
         assertThrows(IllegalStateException.class, () -> remoteClusterStateService.getLastKnownUUIDFromRemote("test-cluster"));
+    }
+
+    public void testGetValidPreviousClusterUUIDWithMultipleChains() throws IOException {
+        Map<String, String> clusterUUIDsPointers = Map.of(
+            "cluster-uuid2",
+            "cluster-uuid1",
+            "cluster-uuid1",
+            ClusterState.UNKNOWN_UUID,
+            "cluster-uuid3",
+            "cluster-uuid1"
+        );
+        mockObjectsForGettingPreviousClusterUUID(clusterUUIDsPointers);
+
+        remoteClusterStateService.start();
+        String previousClusterUUID = remoteClusterStateService.getLastKnownUUIDFromRemote("test-cluster");
+        assertThat(previousClusterUUID, equalTo("cluster-uuid3"));
+    }
+
+    public void testGetValidPreviousClusterUUIDWithInvalidMultipleChains() throws IOException {
+        Map<String, String> clusterUUIDsPointers = Map.of(
+            "cluster-uuid1",
+            ClusterState.UNKNOWN_UUID,
+            "cluster-uuid2",
+            "cluster-uuid1",
+            "cluster-uuid3",
+            ClusterState.UNKNOWN_UUID
+        );
+        mockObjectsForGettingPreviousClusterUUID(clusterUUIDsPointers);
+
+        remoteClusterStateService.start();
+        assertThrows(IllegalStateException.class, () -> remoteClusterStateService.getLastKnownUUIDFromRemote("test-cluster"));
+    }
+
+    public void testDeleteStaleClusterUUIDs() throws IOException {
+        final ClusterState clusterState = generateClusterStateWithOneIndex().nodes(nodesWithLocalNodeClusterManager()).build();
+        ClusterMetadataManifest clusterMetadataManifest = ClusterMetadataManifest.builder()
+            .indices(List.of())
+            .clusterTerm(1L)
+            .stateVersion(1L)
+            .stateUUID(randomAlphaOfLength(10))
+            .clusterUUID("cluster-uuid1")
+            .nodeId("nodeA")
+            .opensearchVersion(VersionUtils.randomOpenSearchVersion(random()))
+            .previousClusterUUID(ClusterState.UNKNOWN_UUID)
+            .committed(true)
+            .build();
+
+        BlobPath blobPath = new BlobPath().add("random-path");
+        when((blobStoreRepository.basePath())).thenReturn(blobPath);
+        BlobContainer uuidContainerContainer = mock(BlobContainer.class);
+        BlobContainer manifest2Container = mock(BlobContainer.class);
+        BlobContainer manifest3Container = mock(BlobContainer.class);
+        when(blobStore.blobContainer(any())).then(invocation -> {
+            BlobPath blobPath1 = invocation.getArgument(0);
+            if (blobPath1.buildAsString().endsWith("cluster-state/")) {
+                return uuidContainerContainer;
+            } else if (blobPath1.buildAsString().contains("cluster-state/cluster-uuid2/")) {
+                return manifest2Container;
+            } else if (blobPath1.buildAsString().contains("cluster-state/cluster-uuid3/")) {
+                return manifest3Container;
+            } else {
+                throw new IllegalArgumentException("Unexpected blob path " + blobPath1);
+            }
+        });
+        Map<String, BlobContainer> blobMetadataMap = Map.of(
+            "cluster-uuid1",
+            mock(BlobContainer.class),
+            "cluster-uuid2",
+            mock(BlobContainer.class),
+            "cluster-uuid3",
+            mock(BlobContainer.class)
+        );
+        when(uuidContainerContainer.children()).thenReturn(blobMetadataMap);
+        when(
+            manifest2Container.listBlobsByPrefixInSortedOrder(
+                MANIFEST_FILE_PREFIX + DELIMITER,
+                Integer.MAX_VALUE,
+                BlobContainer.BlobNameSortOrder.LEXICOGRAPHIC
+            )
+        ).thenReturn(List.of(new PlainBlobMetadata("mainfest2", 1L)));
+        when(
+            manifest3Container.listBlobsByPrefixInSortedOrder(
+                MANIFEST_FILE_PREFIX + DELIMITER,
+                Integer.MAX_VALUE,
+                BlobContainer.BlobNameSortOrder.LEXICOGRAPHIC
+            )
+        ).thenReturn(List.of(new PlainBlobMetadata("mainfest3", 1L)));
+        remoteClusterStateService.start();
+        remoteClusterStateService.deleteStaleClusterUUIDs(clusterState, clusterMetadataManifest);
+        try {
+            assertBusy(() -> {
+                verify(manifest2Container, times(1)).delete();
+                verify(manifest3Container, times(1)).delete();
+            });
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
     }
 
     private void mockObjectsForGettingPreviousClusterUUID(Map<String, String> clusterUUIDsPointers) throws IOException {
@@ -598,42 +687,92 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
         when(blobContainer3.path()).thenReturn(blobPath);
 
         mockBlobContainerForClusterUUIDs(uuidBlobContainer, clusterUUIDsPointers.keySet());
+        List<UploadedIndexMetadata> uploadedIndexMetadataList1 = List.of(
+            new UploadedIndexMetadata("index1", "index-uuid1", "key1"),
+            new UploadedIndexMetadata("index2", "index-uuid2", "key2")
+        );
         final ClusterMetadataManifest clusterManifest1 = generateClusterMetadataManifest(
             "cluster-uuid1",
             clusterUUIDsPointers.get("cluster-uuid1"),
-            randomAlphaOfLength(10)
+            randomAlphaOfLength(10),
+            uploadedIndexMetadataList1
         );
-        mockBlobContainer(blobContainer1, clusterManifest1, Map.of());
+        Settings indexSettings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build();
+        IndexMetadata indexMetadata1 = IndexMetadata.builder("index1")
+            .settings(indexSettings)
+            .numberOfShards(1)
+            .numberOfReplicas(1)
+            .build();
+        IndexMetadata indexMetadata2 = IndexMetadata.builder("index2")
+            .settings(indexSettings)
+            .numberOfShards(1)
+            .numberOfReplicas(1)
+            .build();
+        Map<String, IndexMetadata> indexMetadataMap1 = Map.of("index-uuid1", indexMetadata1, "index-uuid2", indexMetadata2);
+        mockBlobContainer(blobContainer1, clusterManifest1, indexMetadataMap1);
 
+        List<UploadedIndexMetadata> uploadedIndexMetadataList2 = List.of(
+            new UploadedIndexMetadata("index1", "index-uuid1", "key1"),
+            new UploadedIndexMetadata("index2", "index-uuid2", "key2")
+        );
         final ClusterMetadataManifest clusterManifest2 = generateClusterMetadataManifest(
             "cluster-uuid2",
             clusterUUIDsPointers.get("cluster-uuid2"),
-            randomAlphaOfLength(10)
+            randomAlphaOfLength(10),
+            uploadedIndexMetadataList2
         );
-        mockBlobContainer(blobContainer2, clusterManifest2, Map.of());
+        IndexMetadata indexMetadata3 = IndexMetadata.builder("index1")
+            .settings(indexSettings)
+            .numberOfShards(1)
+            .numberOfReplicas(1)
+            .build();
+        IndexMetadata indexMetadata4 = IndexMetadata.builder("index2")
+            .settings(indexSettings)
+            .numberOfShards(1)
+            .numberOfReplicas(1)
+            .build();
+        Map<String, IndexMetadata> indexMetadataMap2 = Map.of("index-uuid1", indexMetadata3, "index-uuid2", indexMetadata4);
+        mockBlobContainer(blobContainer2, clusterManifest2, indexMetadataMap2);
 
+        List<UploadedIndexMetadata> uploadedIndexMetadataList3 = List.of(new UploadedIndexMetadata("index1", "index-uuid1", "key1"));
         final ClusterMetadataManifest clusterManifest3 = generateClusterMetadataManifest(
             "cluster-uuid3",
             clusterUUIDsPointers.get("cluster-uuid3"),
-            randomAlphaOfLength(10)
+            randomAlphaOfLength(10),
+            uploadedIndexMetadataList3
         );
-        mockBlobContainer(blobContainer3, clusterManifest3, Map.of());
+        IndexMetadata indexMetadata5 = IndexMetadata.builder("index1")
+            .settings(indexSettings)
+            .numberOfShards(1)
+            .numberOfReplicas(1)
+            .build();
+        Map<String, IndexMetadata> indexMetadataMap3 = Map.of("index-uuid1", indexMetadata5);
+        mockBlobContainer(blobContainer3, clusterManifest3, indexMetadataMap3);
 
         when(blobStore.blobContainer(ArgumentMatchers.any())).thenReturn(
             uuidBlobContainer,
             blobContainer1,
             blobContainer1,
-            blobContainer2,
-            blobContainer2,
             blobContainer3,
-            blobContainer3
+            blobContainer3,
+            blobContainer2,
+            blobContainer2,
+            blobContainer1,
+            blobContainer2,
+            blobContainer1,
+            blobContainer2
         );
         when(blobStoreRepository.getCompressor()).thenReturn(new DeflateCompressor());
     }
 
-    private ClusterMetadataManifest generateClusterMetadataManifest(String clusterUUID, String previousClusterUUID, String stateUUID) {
+    private ClusterMetadataManifest generateClusterMetadataManifest(
+        String clusterUUID,
+        String previousClusterUUID,
+        String stateUUID,
+        List<UploadedIndexMetadata> uploadedIndexMetadata
+    ) {
         return ClusterMetadataManifest.builder()
-            .indices(List.of())
+            .indices(uploadedIndexMetadata)
             .clusterTerm(1L)
             .stateVersion(1L)
             .stateUUID(stateUUID)
@@ -642,6 +781,7 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
             .opensearchVersion(VersionUtils.randomOpenSearchVersion(random()))
             .previousClusterUUID(previousClusterUUID)
             .committed(true)
+            .clusterUUIDCommitted(true)
             .build();
     }
 
@@ -675,13 +815,8 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
         Map<String, IndexMetadata> indexMetadataMap
     ) throws IOException {
         BlobMetadata blobMetadata = new PlainBlobMetadata("manifestFileName", 1);
-        when(
-            blobContainer.listBlobsByPrefixInSortedOrder(
-                "manifest" + RemoteClusterStateService.DELIMITER,
-                1,
-                BlobContainer.BlobNameSortOrder.LEXICOGRAPHIC
-            )
-        ).thenReturn(Arrays.asList(blobMetadata));
+        when(blobContainer.listBlobsByPrefixInSortedOrder("manifest" + DELIMITER, 1, BlobContainer.BlobNameSortOrder.LEXICOGRAPHIC))
+            .thenReturn(Arrays.asList(blobMetadata));
 
         BytesReference bytes = RemoteClusterStateService.CLUSTER_METADATA_MANIFEST_FORMAT.serialize(
             clusterMetadataManifest,

@@ -103,11 +103,11 @@ public class RemoteClusterStateService implements Closeable {
         Property.Final
     );
 
-    private static final String CLUSTER_STATE_PATH_TOKEN = "cluster-state";
-    private static final String INDEX_PATH_TOKEN = "index";
-    private static final String MANIFEST_PATH_TOKEN = "manifest";
-    private static final String MANIFEST_FILE_PREFIX = "manifest";
-    private static final String INDEX_METADATA_FILE_PREFIX = "metadata";
+    public static final String CLUSTER_STATE_PATH_TOKEN = "cluster-state";
+    public static final String INDEX_PATH_TOKEN = "index";
+    public static final String MANIFEST_PATH_TOKEN = "manifest";
+    public static final String MANIFEST_FILE_PREFIX = "manifest";
+    public static final String INDEX_METADATA_FILE_PREFIX = "metadata";
 
     private final String nodeId;
     private final Supplier<RepositoriesService> repositoriesService;
@@ -152,19 +152,12 @@ public class RemoteClusterStateService implements Closeable {
      * @return A manifest object which contains the details of uploaded entity metadata.
      */
     @Nullable
-    public ClusterMetadataManifest writeFullMetadata(ClusterState clusterState) throws IOException {
+    public ClusterMetadataManifest writeFullMetadata(ClusterState clusterState, String previousClusterUUID) throws IOException {
         final long startTimeNanos = relativeTimeNanosSupplier.getAsLong();
         if (clusterState.nodes().isLocalNodeElectedClusterManager() == false) {
             logger.error("Local node is not elected cluster manager. Exiting");
             return null;
         }
-
-        // should fetch the previous cluster UUID before writing full cluster state.
-        // Whenever a new election happens, a new leader will be elected and it might have stale previous UUID
-        final String previousClusterUUID = fetchPreviousClusterUUID(
-            clusterState.getClusterName().value(),
-            clusterState.metadata().clusterUUID()
-        );
 
         // any validations before/after upload ?
         final List<UploadedIndexMetadata> allUploadedIndexMetadata = writeIndexMetadataParallel(
@@ -392,13 +385,20 @@ public class RemoteClusterStateService implements Closeable {
     @Nullable
     public ClusterMetadataManifest markLastStateAsCommitted(ClusterState clusterState, ClusterMetadataManifest previousManifest)
         throws IOException {
+        assert clusterState != null : "Last accepted cluster state is not set";
         if (clusterState.nodes().isLocalNodeElectedClusterManager() == false) {
             logger.error("Local node is not elected cluster manager. Exiting");
             return null;
         }
-        assert clusterState != null : "Last accepted cluster state is not set";
         assert previousManifest != null : "Last cluster metadata manifest is not set";
-        return uploadManifest(clusterState, previousManifest.getIndices(), previousManifest.getPreviousClusterUUID(), true);
+        ClusterMetadataManifest committedManifest = uploadManifest(
+            clusterState,
+            previousManifest.getIndices(),
+            previousManifest.getPreviousClusterUUID(),
+            true
+        );
+        deleteStaleClusterUUIDs(clusterState, committedManifest);
+        return committedManifest;
     }
 
     @Override
@@ -436,7 +436,8 @@ public class RemoteClusterStateService implements Closeable {
                 nodeId,
                 committed,
                 uploadedIndexMetadata,
-                previousClusterUUID
+                previousClusterUUID,
+                clusterState.metadata().clusterUUIDCommitted()
             );
             writeMetadataManifest(clusterState.getClusterName().value(), clusterState.metadata().clusterUUID(), manifest, manifestFileName);
             return manifest;
@@ -582,7 +583,7 @@ public class RemoteClusterStateService implements Closeable {
         try {
             Set<String> clusterUUIDs = getAllClusterUUIDs(clusterName);
             Map<String, ClusterMetadataManifest> latestManifests = getLatestManifestForAllClusterUUIDs(clusterName, clusterUUIDs);
-            List<String> validChain = createClusterChain(latestManifests);
+            List<String> validChain = createClusterChain(latestManifests, clusterName);
             if (validChain.isEmpty()) {
                 return ClusterState.UNKNOWN_UUID;
             }
@@ -623,7 +624,7 @@ public class RemoteClusterStateService implements Closeable {
      * @param manifestsByClusterUUID Map of latest ClusterMetadataManifest for every cluster UUID
      * @return List of cluster UUIDs. The first element is the most recent cluster UUID in the chain
      */
-    private List<String> createClusterChain(final Map<String, ClusterMetadataManifest> manifestsByClusterUUID) {
+    private List<String> createClusterChain(final Map<String, ClusterMetadataManifest> manifestsByClusterUUID, final String clusterName) {
         final Map<String, String> clusterUUIDGraph = manifestsByClusterUUID.values()
             .stream()
             .collect(Collectors.toMap(ClusterMetadataManifest::getClusterUUID, ClusterMetadataManifest::getPreviousClusterUUID));
@@ -637,18 +638,29 @@ public class RemoteClusterStateService implements Closeable {
             return Collections.emptyList();
         }
         if (validClusterUUIDs.size() > 1) {
-            throw new IllegalStateException(
-                String.format(
-                    Locale.ROOT,
-                    "The system has ended into multiple valid cluster states in the remote store. "
-                        + "Please check their latest manifest to decide which one you want to keep. Valid Cluster UUIDs: - %s",
-                    validClusterUUIDs
-                )
+            // If the valid cluster UUIDs are more that 1, it means there was some race condition where
+            // more then 2 cluster manager nodes tried to become active cluster manager and published
+            // 2 cluster UUIDs which followed the same previous UUID.
+            final Map<String, ClusterMetadataManifest> manifestsByClusterUUIDTrimmed = trimClusterUUIDs(
+                manifestsByClusterUUID,
+                validClusterUUIDs,
+                clusterName
             );
+            if (manifestsByClusterUUID.size() == manifestsByClusterUUIDTrimmed.size()) {
+                throw new IllegalStateException(
+                    String.format(
+                        Locale.ROOT,
+                        "The system has ended into multiple valid cluster states in the remote store. "
+                            + "Please check their latest manifest to decide which one you want to keep. Valid Cluster UUIDs: - %s",
+                        validClusterUUIDs
+                    )
+                );
+            }
+            return createClusterChain(manifestsByClusterUUIDTrimmed, clusterName);
         }
         final List<String> validChain = new ArrayList<>();
         String currentUUID = validClusterUUIDs.get(0);
-        while (!ClusterState.UNKNOWN_UUID.equals(currentUUID)) {
+        while (currentUUID != null && !ClusterState.UNKNOWN_UUID.equals(currentUUID)) {
             validChain.add(currentUUID);
             // Getting the previous cluster UUID of a cluster UUID from the clusterUUID Graph
             currentUUID = clusterUUIDGraph.get(currentUUID);
@@ -656,8 +668,86 @@ public class RemoteClusterStateService implements Closeable {
         return validChain;
     }
 
+    /**
+     * This method take a map of manifests for different cluster UUIDs and removes the
+     * manifest of a cluster UUID if the latest metadata for that cluster UUID is equivalent
+     * to the latest metadata of its previous UUID.
+     * @return Trimmed map of manifests
+     */
+    private Map<String, ClusterMetadataManifest> trimClusterUUIDs(
+        final Map<String, ClusterMetadataManifest> latestManifestsByClusterUUID,
+        final List<String> validClusterUUIDs,
+        final String clusterName
+    ) {
+        final Map<String, ClusterMetadataManifest> trimmedUUIDs = new HashMap<>(latestManifestsByClusterUUID);
+        for (String clusterUUID : validClusterUUIDs) {
+            ClusterMetadataManifest currentManifest = trimmedUUIDs.get(clusterUUID);
+            // Here we compare the manifest of current UUID to that of previous UUID
+            // In case currentUUID's latest manifest is same as previous UUIDs latest manifest,
+            // that means it was restored from previousUUID and no IndexMetadata update was performed on it.
+            if (ClusterState.UNKNOWN_UUID.equals(currentManifest.getPreviousClusterUUID())) {
+                if (currentManifest.getIndices().isEmpty()) {
+                    trimmedUUIDs.remove(clusterUUID);
+                }
+            } else {
+                ClusterMetadataManifest previousManifest = trimmedUUIDs.get(currentManifest.getPreviousClusterUUID());
+                if (isMetadataEqual(currentManifest, previousManifest, clusterName)) {
+                    trimmedUUIDs.remove(clusterUUID);
+                }
+            }
+        }
+        return trimmedUUIDs;
+    }
+
+    private boolean isMetadataEqual(ClusterMetadataManifest first, ClusterMetadataManifest second, String clusterName) {
+        // todo clusterName can be set as final in the constructor
+        if (first.getIndices().size() != second.getIndices().size()) {
+            return false;
+        }
+        final Map<String, UploadedIndexMetadata> secondIndices = second.getIndices()
+            .stream()
+            .collect(Collectors.toMap(md -> md.getIndexName(), Function.identity()));
+        for (UploadedIndexMetadata uploadedIndexMetadata : first.getIndices()) {
+            final IndexMetadata firstIndexMetadata = getIndexMetadata(clusterName, first.getClusterUUID(), uploadedIndexMetadata);
+            final UploadedIndexMetadata secondUploadedIndexMetadata = secondIndices.get(uploadedIndexMetadata.getIndexName());
+            if (secondUploadedIndexMetadata == null) {
+                return false;
+            }
+            final IndexMetadata secondIndexMetadata = getIndexMetadata(clusterName, second.getClusterUUID(), secondUploadedIndexMetadata);
+            if (firstIndexMetadata.equals(secondIndexMetadata) == false) {
+                return false;
+            }
+        }
+        return true;
+    }
+
     private boolean isInvalidClusterUUID(ClusterMetadataManifest manifest) {
-        return !manifest.isCommitted() && manifest.getIndices().isEmpty();
+        return !manifest.isClusterUUIDCommitted();
+    }
+
+    /**
+     * Fetch ClusterMetadataManifest files from remote state store in order
+     *
+     * @param clusterUUID uuid of cluster state to refer to in remote
+     * @param clusterName name of the cluster
+     * @param limit max no of files to fetch
+     * @return all manifest file names
+     */
+    private List<BlobMetadata> getManifestFileNames(String clusterName, String clusterUUID, int limit) throws IllegalStateException {
+        try {
+            /**
+             * {@link BlobContainer#listBlobsByPrefixInSortedOrder} will list the latest manifest file first
+             * as the manifest file name generated via {@link RemoteClusterStateService#getManifestFileName} ensures
+             * when sorted in LEXICOGRAPHIC order the latest uploaded manifest file comes on top.
+             */
+            return manifestContainer(clusterName, clusterUUID).listBlobsByPrefixInSortedOrder(
+                MANIFEST_FILE_PREFIX + DELIMITER,
+                limit,
+                BlobContainer.BlobNameSortOrder.LEXICOGRAPHIC
+            );
+        } catch (IOException e) {
+            throw new IllegalStateException("Error while fetching latest manifest file for remote cluster state", e);
+        }
     }
 
     /**
@@ -668,22 +758,9 @@ public class RemoteClusterStateService implements Closeable {
      * @return latest ClusterMetadataManifest filename
      */
     private Optional<String> getLatestManifestFileName(String clusterName, String clusterUUID) throws IllegalStateException {
-        try {
-            /**
-             * {@link BlobContainer#listBlobsByPrefixInSortedOrder} will get the latest manifest file
-             * as the manifest file name generated via {@link RemoteClusterStateService#getManifestFileName} ensures
-             * when sorted in LEXICOGRAPHIC order the latest uploaded manifest file comes on top.
-             */
-            List<BlobMetadata> manifestFilesMetadata = manifestContainer(clusterName, clusterUUID).listBlobsByPrefixInSortedOrder(
-                MANIFEST_FILE_PREFIX + DELIMITER,
-                1,
-                BlobContainer.BlobNameSortOrder.LEXICOGRAPHIC
-            );
-            if (manifestFilesMetadata != null && !manifestFilesMetadata.isEmpty()) {
-                return Optional.of(manifestFilesMetadata.get(0).name());
-            }
-        } catch (IOException e) {
-            throw new IllegalStateException("Error while fetching latest manifest file for remote cluster state", e);
+        List<BlobMetadata> manifestFilesMetadata = getManifestFileNames(clusterName, clusterUUID, 1);
+        if (manifestFilesMetadata != null && !manifestFilesMetadata.isEmpty()) {
+            return Optional.of(manifestFilesMetadata.get(0).name());
         }
         logger.info("No manifest file present in remote store for cluster name: {}, cluster UUID: {}", clusterName, clusterUUID);
         return Optional.empty();
@@ -729,10 +806,11 @@ public class RemoteClusterStateService implements Closeable {
 
     /**
      * Purges all remote cluster state against provided cluster UUIDs
+     *
      * @param clusterName name of the cluster
      * @param clusterUUIDs clusteUUIDs for which the remote state needs to be purged
      */
-    public void deleteStaleClusterMetadata(String clusterName, List<String> clusterUUIDs) {
+    private void deleteStaleUUIDsClusterMetadata(String clusterName, List<String> clusterUUIDs) {
         clusterUUIDs.forEach(clusterUUID -> {
             getBlobStoreTransferService().deleteAsync(
                 ThreadPool.Names.REMOTE_PURGE,
@@ -760,6 +838,7 @@ public class RemoteClusterStateService implements Closeable {
 
     /**
      * Deletes older than last {@code versionsToRetain} manifests. Also cleans up unreferenced IndexMetadata associated with older manifests
+     *
      * @param clusterName name of the cluster
      * @param clusterUUID uuid of cluster state to refer to in remote
      * @param manifestsToRetain no of latest manifest files to keep in remote
@@ -862,5 +941,28 @@ public class RemoteClusterStateService implements Closeable {
     private void deleteStalePaths(String clusterName, String clusterUUID, List<String> stalePaths) throws IOException {
         logger.debug(String.format(Locale.ROOT, "Deleting stale files from remote - %s", stalePaths));
         getBlobStoreTransferService().deleteBlobs(getCusterMetadataBasePath(clusterName, clusterUUID), stalePaths);
+    }
+
+    /**
+     * Purges all remote cluster state against provided cluster UUIDs
+     * @param clusterState current state of the cluster
+     * @param committedManifest last committed ClusterMetadataManifest
+     */
+    public void deleteStaleClusterUUIDs(ClusterState clusterState, ClusterMetadataManifest committedManifest) {
+        threadpool.executor(ThreadPool.Names.REMOTE_PURGE).execute(() -> {
+            String clusterName = clusterState.getClusterName().value();
+            logger.info("Deleting stale cluster UUIDs data from remote [{}]", clusterName);
+            Set<String> allClustersUUIDsInRemote;
+            try {
+                allClustersUUIDsInRemote = new HashSet<>(getAllClusterUUIDs(clusterState.getClusterName().value()));
+            } catch (IOException e) {
+                logger.info(String.format(Locale.ROOT, "Error while fetching all cluster UUIDs for [%s]", clusterName));
+                return;
+            }
+            // Retain last 2 cluster uuids data
+            allClustersUUIDsInRemote.remove(committedManifest.getClusterUUID());
+            allClustersUUIDsInRemote.remove(committedManifest.getPreviousClusterUUID());
+            deleteStaleUUIDsClusterMetadata(clusterName, new ArrayList<>(allClustersUUIDsInRemote));
+        });
     }
 }

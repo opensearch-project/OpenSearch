@@ -259,7 +259,7 @@ public class IndexingIT extends AbstractRollingTestCase {
      * This test verifies that during rolling upgrades the segment replication does not break when replica shards can
      * be running on older codec versions.
      *
-     * @throws Exception
+     * @throws Exception exception
      */
     @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/7679")
     public void testIndexingWithSegRep() throws Exception {

@@ -154,6 +154,7 @@ public class TransportBulkActionIndicesThatCannotBeCreatedTests extends OpenSear
                 Settings.EMPTY,
                 new ClusterService(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), null)
             ),
+            null,
             new SystemIndices(emptyMap())
         ) {
             @Override

@@ -100,6 +100,11 @@ public final class MockSearchPhaseContext implements SearchPhaseContext {
     }
 
     @Override
+    public SearchPhase getCurrentPhase() {
+        return null;
+    }
+
+    @Override
     public void sendSearchResponse(InternalSearchResponse internalSearchResponse, AtomicArray<SearchPhaseResult> queryResults) {
         String scrollId = getRequest().scroll() != null ? TransportSearchHelper.buildScrollId(queryResults, Version.CURRENT) : null;
         String searchContextId = getRequest().pointInTimeBuilder() != null

@@ -25,16 +25,19 @@ import java.util.Objects;
 public class InitializeExtensionRequest extends TransportRequest {
     private final DiscoveryNode sourceNode;
     private final DiscoveryExtensionNode extension;
+    private final String serviceAccountHeader;
 
-    public InitializeExtensionRequest(DiscoveryNode sourceNode, DiscoveryExtensionNode extension) {
+    public InitializeExtensionRequest(DiscoveryNode sourceNode, DiscoveryExtensionNode extension, String serviceAccountHeader) {
         this.sourceNode = sourceNode;
         this.extension = extension;
+        this.serviceAccountHeader = serviceAccountHeader;
     }
 
     public InitializeExtensionRequest(StreamInput in) throws IOException {
         super(in);
         sourceNode = new DiscoveryNode(in);
         extension = new DiscoveryExtensionNode(in);
+        serviceAccountHeader = in.readString();
     }
 
     @Override
@@ -42,6 +45,7 @@ public class InitializeExtensionRequest extends TransportRequest {
         super.writeTo(out);
         sourceNode.writeTo(out);
         extension.writeTo(out);
+        out.writeString(serviceAccountHeader);
     }
 
     public DiscoveryNode getSourceNode() {
@@ -50,6 +54,10 @@ public class InitializeExtensionRequest extends TransportRequest {
 
     public DiscoveryExtensionNode getExtension() {
         return extension;
+    }
+
+    public String getServiceAccountHeader() {
+        return serviceAccountHeader;
     }
 
     @Override
@@ -62,7 +70,9 @@ public class InitializeExtensionRequest extends TransportRequest {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         InitializeExtensionRequest that = (InitializeExtensionRequest) o;
-        return Objects.equals(sourceNode, that.sourceNode) && Objects.equals(extension, that.extension);
+        return Objects.equals(sourceNode, that.sourceNode)
+            && Objects.equals(extension, that.extension)
+            && Objects.equals(serviceAccountHeader, that.getServiceAccountHeader());
     }
 
     @Override

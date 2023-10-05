@@ -33,7 +33,7 @@ apply plugin: 'opensearch.java'
 group = 'hdfs'
 
 versions << [
-  'jetty': '9.4.51.v20230217'
+  'jetty': '9.4.52.v20230823'
 ]
 
 dependencies {
@@ -50,7 +50,7 @@ dependencies {
     exclude module: "json-io"
   }
   api "org.codehaus.jettison:jettison:${versions.jettison}"
-  api "org.apache.commons:commons-compress:1.23.0"
+  api "org.apache.commons:commons-compress:${versions.commonscompress}"
   api "commons-codec:commons-codec:${versions.commonscodec}"
   api "org.apache.logging.log4j:log4j-core:${versions.log4j}"
   api "io.netty:netty-all:${versions.netty}"
@@ -72,5 +72,5 @@ dependencies {
     exclude group: "com.squareup.okio"
   }
   runtimeOnly "com.squareup.okio:okio:3.5.0"
-  runtimeOnly "org.xerial.snappy:snappy-java:1.1.10.3"
+  runtimeOnly "org.xerial.snappy:snappy-java:1.1.10.5"
 }

@@ -24,6 +24,7 @@ import org.opensearch.common.lucene.store.ByteArrayIndexInput;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.index.remote.RemoteStoreUtils;
 import org.opensearch.index.remote.RemoteTranslogTransferTracker;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.index.translog.transfer.listener.TranslogTransferListener;
@@ -63,6 +64,8 @@ public class TranslogTransferManager {
     private final RemoteTranslogTransferTracker remoteTranslogTransferTracker;
 
     private static final long TRANSFER_TIMEOUT_IN_MILLIS = 30000;
+
+    private static final int METADATA_FILES_TO_FETCH = 10;
 
     private final Logger logger;
     private final static String METADATA_DIR = "metadata";
@@ -227,7 +230,7 @@ public class TranslogTransferManager {
     }
 
     public boolean downloadTranslog(String primaryTerm, String generation, Path location) throws IOException {
-        logger.info(
+        logger.trace(
             "Downloading translog files with: Primary Term = {}, Generation = {}, Location = {}",
             primaryTerm,
             generation,
@@ -275,6 +278,10 @@ public class TranslogTransferManager {
         LatchedActionListener<List<BlobMetadata>> latchedActionListener = new LatchedActionListener<>(
             ActionListener.wrap(blobMetadataList -> {
                 if (blobMetadataList.isEmpty()) return;
+                RemoteStoreUtils.verifyNoMultipleWriters(
+                    blobMetadataList.stream().map(BlobMetadata::name).collect(Collectors.toList()),
+                    TranslogTransferMetadata::getNodeIdByPrimaryTermAndGen
+                );
                 String filename = blobMetadataList.get(0).name();
                 boolean downloadStatus = false;
                 long downloadStartTime = System.nanoTime(), bytesToRead = 0;
@@ -289,11 +296,15 @@ public class TranslogTransferManager {
                     exceptionSetOnce.set(e);
                 } finally {
                     remoteTranslogTransferTracker.addDownloadTimeInMillis((System.nanoTime() - downloadStartTime) / 1_000_000L);
+                    logger.debug("translogMetadataDownloadStatus={}", downloadStatus);
                     if (downloadStatus) {
                         remoteTranslogTransferTracker.addDownloadBytesSucceeded(bytesToRead);
                     }
                 }
             }, e -> {
+                if (e instanceof RuntimeException) {
+                    throw (RuntimeException) e;
+                }
                 logger.error(() -> new ParameterizedMessage("Exception while listing metadata files"), e);
                 exceptionSetOnce.set((IOException) e);
             }),
@@ -304,7 +315,7 @@ public class TranslogTransferManager {
             transferService.listAllInSortedOrder(
                 remoteMetadataTransferPath,
                 TranslogTransferMetadata.METADATA_PREFIX,
-                1,
+                METADATA_FILES_TO_FETCH,
                 latchedActionListener
             );
             latch.await();

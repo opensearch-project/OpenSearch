@@ -43,18 +43,33 @@ import java.io.IOException;
 import java.util.Locale;
 
 /**
- * Class encapsulating stats about the circuit breaker
+ * Class encapsulating stats about the {@link org.opensearch.core.common.breaker.CircuitBreaker}
  *
  * @opensearch.internal
  */
 public class CircuitBreakerStats implements Writeable, ToXContentObject {
 
+    /** The name of the circuit breaker */
     private final String name;
+    /** The limit size in byte of the circuit breaker. Field : "limit_size_in_bytes" */
     private final long limit;
+    /** The estimated size in byte of the breaker. Field : "estimated_size_in_bytes" */
     private final long estimated;
+    /** The number of times the breaker has been tripped. Field : "tripped" */
     private final long trippedCount;
+    /** The overhead of the breaker. Field : "overhead" */
     private final double overhead;
 
+    /**
+     * Constructs new instance
+     *
+     * @param name The name of the circuit breaker
+     * @param limit The limit size in byte of the circuit breaker
+     * @param estimated The estimated size in byte of the breaker
+     * @param overhead The overhead of the breaker
+     * @param trippedCount The number of times the breaker has been tripped
+     * @see org.opensearch.core.common.breaker.CircuitBreaker
+     */
     public CircuitBreakerStats(String name, long limit, long estimated, double overhead, long trippedCount) {
         this.name = name;
         this.limit = limit;
@@ -63,6 +78,14 @@ public class CircuitBreakerStats implements Writeable, ToXContentObject {
         this.overhead = overhead;
     }
 
+    /**
+     * Constructs new instance from the {@link StreamInput}
+     *
+     * @param in The StreamInput
+     * @throws IOException if an error occurs while reading from the StreamInput
+     * @see org.opensearch.core.common.breaker.CircuitBreaker
+     * @see #writeTo(StreamOutput)
+     */
     public CircuitBreakerStats(StreamInput in) throws IOException {
         this.limit = in.readLong();
         this.estimated = in.readLong();
@@ -71,6 +94,13 @@ public class CircuitBreakerStats implements Writeable, ToXContentObject {
         this.name = in.readString();
     }
 
+    /**
+     * Writes this instance into a {@link StreamOutput}
+     *
+     * @param out The StreamOutput
+     * @throws IOException if an error occurs while writing to the StreamOutput
+     * @see #CircuitBreakerStats(StreamInput)
+     */
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeLong(limit);
@@ -80,22 +110,42 @@ public class CircuitBreakerStats implements Writeable, ToXContentObject {
         out.writeString(name);
     }
 
+    /**
+     * Returns the name of the circuit breaker
+     * @return The name of the circuit breaker
+     */
     public String getName() {
         return this.name;
     }
 
+    /**
+     * Returns the limit size in byte of the circuit breaker
+     * @return The limit size in byte of the circuit breaker
+     */
     public long getLimit() {
         return this.limit;
     }
 
+    /**
+     * Returns the estimated size in byte of the breaker
+     * @return The estimated size in byte of the breaker
+     */
     public long getEstimated() {
         return this.estimated;
     }
 
+    /**
+     * Returns the number of times the breaker has been tripped
+     * @return The number of times the breaker has been tripped
+     */
     public long getTrippedCount() {
         return this.trippedCount;
     }
 
+    /**
+     * Returns the overhead of the breaker
+     * @return The overhead of the breaker
+     */
     public double getOverhead() {
         return this.overhead;
     }
@@ -113,6 +163,10 @@ public class CircuitBreakerStats implements Writeable, ToXContentObject {
         return builder;
     }
 
+    /**
+     * Returns a String representation of this CircuitBreakerStats
+     * @return "[name,limit=limit/limit_human,estimated=estimated/estimated_human,overhead=overhead,tripped=trippedCount]"
+     */
     @Override
     public String toString() {
         return "["

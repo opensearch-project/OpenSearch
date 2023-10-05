@@ -112,6 +112,15 @@ public class RenameProcessorTests extends OpenSearchTestCase {
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("field [" + fieldName + "] doesn't exist"));
         }
+
+        // when using template snippet, the resolved field path maybe empty
+        processor = createRenameProcessor("", RandomDocumentPicks.randomFieldName(random()), false);
+        try {
+            processor.execute(ingestDocument);
+            fail("processor execute should have failed");
+        } catch (IllegalArgumentException e) {
+            assertThat(e.getMessage(), equalTo("field path cannot be null nor empty"));
+        }
     }
 
     public void testRenameNonExistingFieldWithIgnoreMissing() throws Exception {
@@ -119,6 +128,11 @@ public class RenameProcessorTests extends OpenSearchTestCase {
         IngestDocument ingestDocument = new IngestDocument(originalIngestDocument);
         String fieldName = RandomDocumentPicks.randomFieldName(random());
         Processor processor = createRenameProcessor(fieldName, RandomDocumentPicks.randomFieldName(random()), true);
+        processor.execute(ingestDocument);
+        assertIngestDocument(originalIngestDocument, ingestDocument);
+
+        // when using template snippet, the resolved field path maybe empty
+        processor = createRenameProcessor("", RandomDocumentPicks.randomFieldName(random()), true);
         processor.execute(ingestDocument);
         assertIngestDocument(originalIngestDocument, ingestDocument);
     }
