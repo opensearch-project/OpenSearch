@@ -294,4 +294,40 @@ public class SimulatePipelineRequestParsingTests extends OpenSearchTestCase {
         );
         assertThat(e3.getMessage(), containsString("required property is missing"));
     }
+
+    public void testNotValidMetadataFields() {
+        List<IngestDocument.Metadata> fields = Arrays.asList(VERSION, IF_SEQ_NO, IF_PRIMARY_TERM);
+        for (IngestDocument.Metadata field : fields) {
+            String metadataFieldName = field.getFieldName();
+            Map<String, Object> requestContent = new HashMap<>();
+            List<Map<String, Object>> docs = new ArrayList<>();
+            requestContent.put(Fields.DOCS, docs);
+            Map<String, Object> doc = new HashMap<>();
+            doc.put(metadataFieldName, randomAlphaOfLengthBetween(1, 10));
+            doc.put(Fields.SOURCE, Collections.singletonMap(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 10)));
+            docs.add(doc);
+
+            Map<String, Object> pipelineConfig = new HashMap<>();
+            List<Map<String, Object>> processors = new ArrayList<>();
+            Map<String, Object> processorConfig = new HashMap<>();
+            List<Map<String, Object>> onFailureProcessors = new ArrayList<>();
+            int numOnFailureProcessors = randomIntBetween(0, 1);
+            for (int j = 0; j < numOnFailureProcessors; j++) {
+                onFailureProcessors.add(Collections.singletonMap("mock_processor", Collections.emptyMap()));
+            }
+            if (numOnFailureProcessors > 0) {
+                processorConfig.put("on_failure", onFailureProcessors);
+            }
+            processors.add(Collections.singletonMap("mock_processor", processorConfig));
+            pipelineConfig.put("processors", processors);
+
+            requestContent.put(Fields.PIPELINE, pipelineConfig);
+
+            assertThrows(
+                "Failed to parse parameter [" + metadataFieldName + "], only int or long is accepted",
+                IllegalArgumentException.class,
+                () -> SimulatePipelineRequest.parse(requestContent, false, ingestService)
+            );
+        }
+    }
 }

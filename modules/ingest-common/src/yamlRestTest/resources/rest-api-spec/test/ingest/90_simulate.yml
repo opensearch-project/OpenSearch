@@ -1040,11 +1040,76 @@ teardown:
                 "_id": "id",
                 "_routing": "foo",
                 "_version": "bar",
-                "_if_seq_no": 123,
-                "_if_primary_term": 1,
                 "_source": {
                   "foo": "bar"
                 }
               }
             ]
           }
+  - match: { status: 400 }
+  - match: { error.root_cause.0.type: "illegal_argument_exception" }
+  - match: { error.root_cause.0.reason: "Failed to parse parameter [_version], only int or long is accepted" }
+
+  - do:
+      catch: bad_request
+      ingest.simulate:
+        body: >
+          {
+            "pipeline": {
+              "description": "_description",
+              "processors": [
+                {
+                  "set" : {
+                    "field" : "field2",
+                    "value": "foo"
+                  }
+                }
+              ]
+            },
+            "docs": [
+              {
+                "_index": "index",
+                "_id": "id",
+                "_routing": "foo",
+                "_if_seq_no": "123",
+                "_source": {
+                  "foo": "bar"
+                }
+              }
+            ]
+          }
+  - match: { status: 400 }
+  - match: { error.root_cause.0.type: "illegal_argument_exception" }
+  - match: { error.root_cause.0.reason: "Failed to parse parameter [_if_seq_no], only int or long is accepted" }
+
+  - do:
+      catch: bad_request
+      ingest.simulate:
+        body: >
+          {
+            "pipeline": {
+              "description": "_description",
+              "processors": [
+                {
+                  "set" : {
+                    "field" : "field2",
+                    "value": "foo"
+                  }
+                }
+              ]
+            },
+            "docs": [
+              {
+                "_index": "index",
+                "_id": "id",
+                "_routing": "foo",
+                "_if_primary_term": "1",
+                "_source": {
+                  "foo": "bar"
+                }
+              }
+            ]
+          }
+  - match: { status: 400 }
+  - match: { error.root_cause.0.type: "illegal_argument_exception" }
+  - match: { error.root_cause.0.reason: "Failed to parse parameter [_if_primary_term], only int or long is accepted" }
