@@ -58,6 +58,7 @@ import org.opensearch.node.Node;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.tasks.TaskManager;
 import org.opensearch.telemetry.tracing.Tracer;
+import org.opensearch.telemetry.tracing.noop.NoopTracer;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.tasks.MockTaskManager;
 import org.opensearch.threadpool.ThreadPool;
@@ -140,7 +141,8 @@ public final class MockTransportService extends TransportService {
             new NetworkService(Collections.emptyList()),
             new MockPageCacheRecycler(settings),
             namedWriteableRegistry,
-            new NoneCircuitBreakerService()
+            new NoneCircuitBreakerService(),
+            NoopTracer.INSTANCE
         );
     }
 
