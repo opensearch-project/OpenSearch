@@ -160,6 +160,7 @@ import org.opensearch.index.seqno.SeqNoStats;
 import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.shard.PrimaryReplicaSyncer.ResyncTask;
 import org.opensearch.index.similarity.SimilarityService;
+import org.opensearch.index.store.DirectoryFileTransferTracker;
 import org.opensearch.index.store.RemoteSegmentStoreDirectory;
 import org.opensearch.index.store.RemoteSegmentStoreDirectoryFactory;
 import org.opensearch.index.store.Store;
@@ -4929,9 +4930,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         final Runnable onFileSync
     ) throws IOException {
         final Path indexPath = store.shardPath() == null ? null : store.shardPath().resolveIndex();
+        final DirectoryFileTransferTracker tracker = store.getDirectoryFileTransferTracker();
         for (String segment : toDownloadSegments) {
             final PlainActionFuture<String> segmentListener = PlainActionFuture.newFuture();
-            sourceRemoteDirectory.copyTo(segment, storeDirectory, indexPath, segmentListener);
+            sourceRemoteDirectory.copyTo(segment, storeDirectory, indexPath, tracker, segmentListener);
             segmentListener.actionGet();
             onFileSync.run();
             if (targetRemoteDirectory != null) {
