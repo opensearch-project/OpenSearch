@@ -487,13 +487,14 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
      * @param source The source file name
      * @param destinationDirectory The destination directory (if multipart is not supported)
      * @param destinationPath The destination path (if multipart is supported)
+     * @param fileTransferTracker Tracker used for file transfer stats
      * @param fileCompletionListener The listener to notify of completion
      */
     public void copyTo(
         String source,
         Directory destinationDirectory,
         Path destinationPath,
-        DirectoryFileTransferTracker tracker,
+        DirectoryFileTransferTracker fileTransferTracker,
         ActionListener<String> fileCompletionListener
     ) {
         final String blobName = getExistingRemoteFilename(source);
@@ -506,14 +507,14 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
             }
             final long fileLength = length;
             final long startTime = System.currentTimeMillis();
-            tracker.addTransferredBytesStarted(fileLength);
+            fileTransferTracker.addTransferredBytesStarted(fileLength);
             final AsyncMultiStreamBlobContainer blobContainer = (AsyncMultiStreamBlobContainer) remoteDataDirectory.getBlobContainer();
             final Path destinationFilePath = destinationPath.resolve(source);
             final ActionListener<String> completionListener = ActionListener.wrap(response -> {
-                tracker.addTransferredBytesSucceeded(fileLength, startTime);
+                fileTransferTracker.addTransferredBytesSucceeded(fileLength, startTime);
                 fileCompletionListener.onResponse(response);
             }, e -> {
-                tracker.addTransferredBytesFailed(fileLength, startTime);
+                fileTransferTracker.addTransferredBytesFailed(fileLength, startTime);
                 fileCompletionListener.onFailure(e);
             });
             final ReadContextListener readContextListener = new ReadContextListener(

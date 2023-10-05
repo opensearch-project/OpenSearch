@@ -4930,10 +4930,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         final Runnable onFileSync
     ) throws IOException {
         final Path indexPath = store.shardPath() == null ? null : store.shardPath().resolveIndex();
-        final DirectoryFileTransferTracker tracker = store.getDirectoryFileTransferTracker();
+        final DirectoryFileTransferTracker fileTransferTracker = store.getDirectoryFileTransferTracker();
         for (String segment : toDownloadSegments) {
             final PlainActionFuture<String> segmentListener = PlainActionFuture.newFuture();
-            sourceRemoteDirectory.copyTo(segment, storeDirectory, indexPath, tracker, segmentListener);
+            sourceRemoteDirectory.copyTo(segment, storeDirectory, indexPath, fileTransferTracker, segmentListener);
             segmentListener.actionGet();
             onFileSync.run();
             if (targetRemoteDirectory != null) {

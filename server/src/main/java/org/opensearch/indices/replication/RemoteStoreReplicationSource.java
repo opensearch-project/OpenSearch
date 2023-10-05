@@ -122,8 +122,8 @@ public class RemoteStoreReplicationSource implements SegmentReplicationSource {
                         assert directoryFiles.contains(file) == false : "Local store already contains the file " + file;
                         toDownloadSegments.add(fileMetadata);
                     }
-                    final DirectoryFileTransferTracker transferTracker = indexShard.store().getDirectoryFileTransferTracker();
-                    downloadSegments(storeDirectory, remoteDirectory, toDownloadSegments, shardPath, transferTracker, listener);
+                    final DirectoryFileTransferTracker fileTransferTracker = indexShard.store().getDirectoryFileTransferTracker();
+                    downloadSegments(storeDirectory, remoteDirectory, toDownloadSegments, shardPath, fileTransferTracker, listener);
                     logger.debug("Downloaded segment files from remote store {}", toDownloadSegments);
                 } finally {
                     indexShard.store().decRef();
@@ -140,13 +140,13 @@ public class RemoteStoreReplicationSource implements SegmentReplicationSource {
         RemoteSegmentStoreDirectory remoteStoreDirectory,
         List<StoreFileMetadata> toDownloadSegments,
         ShardPath shardPath,
-        DirectoryFileTransferTracker tracker,
+        DirectoryFileTransferTracker fileTransferTracker,
         ActionListener<GetSegmentFilesResponse> completionListener
     ) {
         final Path indexPath = shardPath == null ? null : shardPath.resolveIndex();
         for (StoreFileMetadata storeFileMetadata : toDownloadSegments) {
             final PlainActionFuture<String> segmentListener = PlainActionFuture.newFuture();
-            remoteStoreDirectory.copyTo(storeFileMetadata.name(), storeDirectory, indexPath, tracker, segmentListener);
+            remoteStoreDirectory.copyTo(storeFileMetadata.name(), storeDirectory, indexPath, fileTransferTracker, segmentListener);
             segmentListener.actionGet();
         }
         completionListener.onResponse(new GetSegmentFilesResponse(toDownloadSegments));
