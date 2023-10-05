@@ -11,6 +11,7 @@ package org.opensearch.index.store.lockmanager;
 import java.nio.file.NoSuchFileException;
 import java.util.Arrays;
 import java.util.List;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 /**
@@ -21,6 +22,7 @@ import java.util.stream.Collectors;
 public class FileLockInfo implements LockInfo {
     private String fileToLock;
     private String acquirerId;
+    private static final int INVALID_INDEX = -1;
 
     public String getAcquirerId() {
         return acquirerId;
@@ -88,7 +90,11 @@ public class FileLockInfo implements LockInfo {
         }
 
         public static String getFileToLockNameFromLock(String lockName) {
-            String[] lockNameTokens = lockName.split(RemoteStoreLockManagerUtils.SEPARATOR);
+            if (lockName.endsWith(RemoteStoreLockManagerUtils.V1_LOCK_FILE_EXTENSION)) {
+                // this is the old lock file created for versions <= 2.10
+                return getFileToLockNameFromV1Lock(lockName);
+            }
+            String[] lockNameTokens = lockName.split(Pattern.quote(RemoteStoreLockManagerUtils.SEPARATOR));
 
             if (lockNameTokens.length != 2) {
                 throw new IllegalArgumentException("Provided Lock Name " + lockName + " is not Valid.");
@@ -97,12 +103,37 @@ public class FileLockInfo implements LockInfo {
         }
 
         public static String getAcquirerIdFromLock(String lockName) {
-            String[] lockNameTokens = lockName.split(RemoteStoreLockManagerUtils.SEPARATOR);
+            if (lockName.endsWith(RemoteStoreLockManagerUtils.V1_LOCK_FILE_EXTENSION)) {
+                // this is the old lock file created for versions <= 2.10
+                return getAcquirerIdFromV1Lock(lockName);
+            }
+            String[] lockNameTokens = lockName.split(Pattern.quote(RemoteStoreLockManagerUtils.SEPARATOR));
 
             if (lockNameTokens.length != 2) {
                 throw new IllegalArgumentException("Provided Lock Name " + lockName + " is not Valid.");
             }
             return lockNameTokens[1].replace(RemoteStoreLockManagerUtils.LOCK_FILE_EXTENSION, "");
+        }
+
+        private static String getFileToLockNameFromV1Lock(String lockName) {
+            if (lockName.lastIndexOf(RemoteStoreLockManagerUtils.V1_LOCK_SEPARATOR) == INVALID_INDEX
+                || lockName.lastIndexOf(RemoteStoreLockManagerUtils.V1_LOCK_FILE_EXTENSION) == INVALID_INDEX) {
+                throw new IllegalArgumentException("Provided Lock Name " + lockName + " is not Valid.");
+            }
+            String acquirerId = getAcquirerIdFromV1Lock(lockName);
+            return lockName.substring(0, lockName.lastIndexOf(acquirerId));
+        }
+
+        private static String getAcquirerIdFromV1Lock(String lockName) {
+            if (lockName.lastIndexOf(RemoteStoreLockManagerUtils.V1_LOCK_SEPARATOR) == INVALID_INDEX
+                || lockName.lastIndexOf(RemoteStoreLockManagerUtils.V1_LOCK_FILE_EXTENSION) == INVALID_INDEX) {
+                throw new IllegalArgumentException("Provided Lock Name " + lockName + " is not Valid.");
+            }
+            return lockName.substring(
+                lockName.lastIndexOf(RemoteStoreLockManagerUtils.V1_LOCK_SEPARATOR) + RemoteStoreLockManagerUtils.V1_LOCK_SEPARATOR
+                    .length(),
+                lockName.lastIndexOf(RemoteStoreLockManagerUtils.V1_LOCK_FILE_EXTENSION)
+            );
         }
     }
 
