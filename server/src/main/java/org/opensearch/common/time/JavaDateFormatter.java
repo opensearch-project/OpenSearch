@@ -53,8 +53,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.locks.ReadWriteLock;
-import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 
@@ -76,7 +74,7 @@ class JavaDateFormatter implements DateFormatter {
     private final List<DateTimeFormatter> parsers;
     private final JavaDateFormatter roundupParser;
     private final Boolean canCacheLastParsedFormatter;
-    private final ReadWriteLock parserLock = new ReentrantReadWriteLock();
+    private volatile DateTimeFormatter lastParsedformatter = null;
 
     /**
      * A round up formatter
@@ -289,36 +287,22 @@ class JavaDateFormatter implements DateFormatter {
     private TemporalAccessor doParse(String input) {
         if (parsers.size() > 1) {
             Object object = null;
-            DateTimeFormatter lastParsedformatter = null;
-            parserLock.readLock().lock();
-            try {
-                for (DateTimeFormatter formatter : parsers) {
-                    ParsePosition pos = new ParsePosition(0);
-                    object = formatter.toFormat().parseObject(input, pos);
-                    if (parsingSucceeded(object, input, pos)) {
-                        lastParsedformatter = formatter;
-                        break;
-                    }
+            if (canCacheLastParsedFormatter && lastParsedformatter != null) {
+                ParsePosition pos = new ParsePosition(0);
+                object = lastParsedformatter.toFormat().parseObject(input, pos);
+                if (parsingSucceeded(object, input, pos)) {
+                    return (TemporalAccessor) object;
                 }
-            } finally {
-                parserLock.readLock().unlock();
+            }
+            for (DateTimeFormatter formatter : parsers) {
+                ParsePosition pos = new ParsePosition(0);
+                object = formatter.toFormat().parseObject(input, pos);
+                if (parsingSucceeded(object, input, pos)) {
+                    lastParsedformatter = formatter;
+                    return (TemporalAccessor) object;
+                }
             }
 
-            if (lastParsedformatter != null) {
-                if (canCacheLastParsedFormatter) {
-                    parserLock.writeLock().lock();
-                    try {
-                        if (lastParsedformatter != parsers.get(0)) {
-                            parsers.remove(lastParsedformatter);
-                            parsers.add(0, lastParsedformatter);
-                        }
-                    } finally {
-                        parserLock.writeLock().unlock();
-                    }
-                }
-
-                return (TemporalAccessor) object;
-            }
             throw new DateTimeParseException("Failed to parse with all enclosed parsers", input, 0);
         }
         return this.parsers.get(0).parse(input);
