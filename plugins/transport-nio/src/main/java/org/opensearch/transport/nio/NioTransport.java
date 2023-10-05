@@ -52,6 +52,7 @@ import org.opensearch.nio.NioGroup;
 import org.opensearch.nio.NioSelector;
 import org.opensearch.nio.NioSocketChannel;
 import org.opensearch.nio.ServerChannelContext;
+import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TcpTransport;
 import org.opensearch.transport.TransportSettings;
@@ -84,9 +85,10 @@ public class NioTransport extends TcpTransport {
         PageCacheRecycler pageCacheRecycler,
         NamedWriteableRegistry namedWriteableRegistry,
         CircuitBreakerService circuitBreakerService,
-        NioGroupFactory groupFactory
+        NioGroupFactory groupFactory,
+        Tracer tracer
     ) {
-        super(settings, version, threadPool, pageCacheRecycler, circuitBreakerService, namedWriteableRegistry, networkService);
+        super(settings, version, threadPool, pageCacheRecycler, circuitBreakerService, namedWriteableRegistry, networkService, tracer);
         this.pageAllocator = new PageAllocator(pageCacheRecycler);
         this.groupFactory = groupFactory;
     }
