@@ -99,9 +99,10 @@ public interface QueryBuilder extends NamedWriteable, ToXContentObject, Rewritea
     /**
      * Recurse through the QueryBuilder tree, visiting any child QueryBuilder.
      * @param visitor a query builder visitor to be called by each query builder in the tree.
+     * @param level level of the current query builder based on the QueryBuilder tree. 0 is top/root level.
      */
-    default void visit(QueryBuilderVisitor visitor) {
-        visitor.accept(this);
+    default void visit(QueryBuilderVisitor visitor, int level) {
+        visitor.accept(this, level);
     };
 
 }

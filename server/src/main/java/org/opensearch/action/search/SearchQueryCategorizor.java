@@ -27,6 +27,7 @@ import org.opensearch.index.query.TermQueryBuilder;
 import org.opensearch.index.query.WildcardQueryBuilder;
 import org.opensearch.index.query.functionscore.FunctionScoreQueryBuilder;
 import org.opensearch.search.builder.SearchSourceBuilder;
+import org.opensearch.telemetry.tracing.attributes.Attributes;
 
 public class SearchQueryCategorizor {
 
@@ -39,43 +40,43 @@ public class SearchQueryCategorizor {
 
         // Get and log the query shape
         QueryShapeVisitor shapeVisitor = new QueryShapeVisitor();
-        topLevelQueryBuilder.visit(shapeVisitor);
+        topLevelQueryBuilder.visit(shapeVisitor, 0);
         String queryShapeJson = shapeVisitor.prettyPrintTree("  ");
         log.info("Query shape : " + queryShapeJson);
 
         // Increment the query counters using Metric Framework
         QueryBuilderVisitor queryBuilderVisitor = new QueryBuilderVisitor() {
             @Override
-            public void accept(QueryBuilder qb) {
+            public void accept(QueryBuilder qb, int level) {
                 // This method will be called for every QueryBuilder node in the tree.
                 // The tree referred to here is the tree of querybuilders for the incoming search
                 // query with the topLevelQueryBuilder as the root.
 
                 // Increment counter for current QueryBuilder using Metric Framework.
                 if (qb instanceof AggregationQ) {
-                    searchQueryCounters.aggCounter.add(1);
+                    searchQueryCounters.aggCounter.add(1, Attributes.create().addAttribute("level", level));
                 } else if (qb instanceof BoolQueryBuilder) {
-                    searchQueryCounters.boolCounter.add(1);
+                    searchQueryCounters.boolCounter.add(1, Attributes.create().addAttribute("level", level));
                 } else if (qb instanceof FunctionScoreQueryBuilder) {
-                    searchQueryCounters.functionScoreCounter.add(1);
+                    searchQueryCounters.functionScoreCounter.add(1, Attributes.create().addAttribute("level", level));
                 } else if (qb instanceof MatchQueryBuilder) {
-                    searchQueryCounters.matchCounter.add(1);
+                    searchQueryCounters.matchCounter.add(1, Attributes.create().addAttribute("level", level));
                 } else if (qb instanceof MatchPhraseQueryBuilder) {
-                    searchQueryCounters.matchPhrasePrefixCounter.add(1);
+                    searchQueryCounters.matchPhrasePrefixCounter.add(1, Attributes.create().addAttribute("level", level));
                 } else if (qb instanceof MultiMatchQueryBuilder) {
-                    searchQueryCounters.multiMatchCounter.add(1);
+                    searchQueryCounters.multiMatchCounter.add(1, Attributes.create().addAttribute("level", level));
                 } else if (qb instanceof QueryStringQueryBuilder) {
-                    searchQueryCounters.queryStringQueryCounter.add(1);
+                    searchQueryCounters.queryStringQueryCounter.add(1, Attributes.create().addAttribute("level", level));
                 } else if (qb instanceof RangeQueryBuilder) {
-                    searchQueryCounters.rangeCounter.add(1);
+                    searchQueryCounters.rangeCounter.add(1, Attributes.create().addAttribute("level", level));
                 } else if (qb instanceof RegexpQueryBuilder) {
-                    searchQueryCounters.regexCounter.add(1);
+                    searchQueryCounters.regexCounter.add(1, Attributes.create().addAttribute("level", level));
                 } else if (qb instanceof TermQueryBuilder) {
-                    searchQueryCounters.termCounter.add(1);
+                    searchQueryCounters.termCounter.add(1, Attributes.create().addAttribute("level", level));
                 } else if (qb instanceof WildcardQueryBuilder) {
-                    searchQueryCounters.wildcardCounter.add(1);
+                    searchQueryCounters.wildcardCounter.add(1, Attributes.create().addAttribute("level", level));
                 } else {
-                    searchQueryCounters.otherQueryCounter.add(1);
+                    searchQueryCounters.otherQueryCounter.add(1, Attributes.create().addAttribute("level", level));
                 }
             }
 
@@ -84,7 +85,7 @@ public class SearchQueryCategorizor {
                 return this;
             }
         };
-        topLevelQueryBuilder.visit(queryBuilderVisitor);
+        topLevelQueryBuilder.visit(queryBuilderVisitor, 0);
     }
 
 }
