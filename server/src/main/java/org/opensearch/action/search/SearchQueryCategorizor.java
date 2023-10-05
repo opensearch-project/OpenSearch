@@ -42,7 +42,7 @@ public class SearchQueryCategorizor {
         QueryShapeVisitor shapeVisitor = new QueryShapeVisitor();
         topLevelQueryBuilder.visit(shapeVisitor, 0);
         String queryShapeJson = shapeVisitor.prettyPrintTree("  ");
-        log.info("Query shape : " + queryShapeJson);
+        log.debug("Query shape : " + queryShapeJson);
 
         // Increment the query counters using Metric Framework
         QueryBuilderVisitor queryBuilderVisitor = new QueryBuilderVisitor() {
