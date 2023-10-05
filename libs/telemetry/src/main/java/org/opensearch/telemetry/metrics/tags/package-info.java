@@ -6,18 +6,11 @@
  * compatible open source license.
  */
 
-package org.opensearch.telemetry.metrics;
-
-import org.opensearch.common.annotation.ExperimentalApi;
-
-import java.io.Closeable;
-
 /**
- * Interface for metrics telemetry providers
-  *
+ * Contains metrics related classes
  * @opensearch.experimental
  */
 @ExperimentalApi
-public interface MetricsTelemetry extends MetricsRegistry, Closeable {
+package org.opensearch.telemetry.metrics.tags;
 
-}
+import org.opensearch.common.annotation.ExperimentalApi;
