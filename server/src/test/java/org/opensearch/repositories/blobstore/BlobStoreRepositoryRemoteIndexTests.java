@@ -144,7 +144,7 @@ public class BlobStoreRepositoryRemoteIndexTests extends BlobStoreRepositoryHelp
         final SnapshotId snapshotId1 = createSnapshotResponse.getSnapshotInfo().snapshotId();
 
         String[] lockFiles = getLockFilesInRemoteStore(remoteStoreIndexName, remoteStoreRepositoryName);
-        assert (lockFiles.length == 0) : "there should be no lock files present in directory, but found " + Arrays.toString(lockFiles);
+        assertEquals("there should be no lock files present in directory, but found " + Arrays.toString(lockFiles), 0, lockFiles.length);
         logger.info("--> create remote index shallow snapshot");
         Settings snapshotRepoSettingsForShallowCopy = Settings.builder()
             .put(snapshotRepoSettings)
@@ -161,8 +161,8 @@ public class BlobStoreRepositoryRemoteIndexTests extends BlobStoreRepositoryHelp
         final SnapshotId snapshotId2 = createSnapshotResponse.getSnapshotInfo().snapshotId();
 
         lockFiles = getLockFilesInRemoteStore(remoteStoreIndexName, remoteStoreRepositoryName);
-        assert (lockFiles.length == 1) : "there should be only one lock file, but found " + Arrays.toString(lockFiles);
-        assert lockFiles[0].endsWith(snapshotId2.getUUID() + ".lock");
+        assertEquals("there should be only one lock file, but found " + Arrays.toString(lockFiles), 1, lockFiles.length);
+        assertTrue(lockFiles[0].endsWith(snapshotId2.getUUID() + ".v2_lock"));
 
         logger.info("--> create another normal snapshot");
         updateRepository(client, snapshotRepositoryName, snapshotRepoSettings);
@@ -175,8 +175,8 @@ public class BlobStoreRepositoryRemoteIndexTests extends BlobStoreRepositoryHelp
         final SnapshotId snapshotId3 = createSnapshotResponse.getSnapshotInfo().snapshotId();
 
         lockFiles = getLockFilesInRemoteStore(remoteStoreIndexName, remoteStoreRepositoryName);
-        assert (lockFiles.length == 1) : "there should be only one lock file, but found " + Arrays.toString(lockFiles);
-        assert lockFiles[0].endsWith(snapshotId2.getUUID() + ".lock");
+        assertEquals("there should be only one lock file, but found " + Arrays.toString(lockFiles), 1, lockFiles.length);
+        assertTrue(lockFiles[0].endsWith(snapshotId2.getUUID() + ".v2_lock"));
 
         logger.info("--> make sure the node's repository can resolve the snapshots");
         final List<SnapshotId> originalSnapshots = Arrays.asList(snapshotId1, snapshotId2, snapshotId3);
@@ -236,8 +236,8 @@ public class BlobStoreRepositoryRemoteIndexTests extends BlobStoreRepositoryHelp
         final SnapshotId snapshotId = createSnapshotResponse.getSnapshotInfo().snapshotId();
 
         String[] lockFiles = getLockFilesInRemoteStore(remoteStoreIndexName, remoteStoreRepositoryName);
-        assert (lockFiles.length == 1) : "there should be only one lock file, but found " + Arrays.toString(lockFiles);
-        assert lockFiles[0].endsWith(snapshotId.getUUID() + ".lock");
+        assertEquals("there should be only one lock file, but found " + Arrays.toString(lockFiles), 1, lockFiles.length);
+        assertTrue(lockFiles[0].endsWith(snapshotId.getUUID() + ".v2_lock"));
 
         final RepositoriesService repositoriesService = getInstanceFromNode(RepositoriesService.class);
         final BlobStoreRepository repository = (BlobStoreRepository) repositoriesService.repository(snapshotRepositoryName);
@@ -312,8 +312,8 @@ public class BlobStoreRepositoryRemoteIndexTests extends BlobStoreRepositoryHelp
         final SnapshotId snapshotId1 = createSnapshotResponse.getSnapshotInfo().snapshotId();
 
         String[] lockFiles = getLockFilesInRemoteStore(remoteStoreIndexName, remoteStoreRepositoryName);
-        assert (lockFiles.length == 1) : "lock files are " + Arrays.toString(lockFiles);
-        assert lockFiles[0].endsWith(snapshotId1.getUUID() + ".lock");
+        assertEquals("lock files are " + Arrays.toString(lockFiles), 1, lockFiles.length);
+        assertTrue(lockFiles[0].endsWith(snapshotId1.getUUID() + ".v2_lock"));
 
         logger.info("--> create second remote index shallow snapshot");
         createSnapshotResponse = client.admin()
@@ -325,10 +325,10 @@ public class BlobStoreRepositoryRemoteIndexTests extends BlobStoreRepositoryHelp
         final SnapshotId snapshotId2 = createSnapshotResponse.getSnapshotInfo().snapshotId();
 
         lockFiles = getLockFilesInRemoteStore(remoteStoreIndexName, remoteStoreRepositoryName);
-        assert (lockFiles.length == 2) : "lock files are " + Arrays.toString(lockFiles);
+        assertEquals("lock files are " + Arrays.toString(lockFiles), 2, lockFiles.length);
         List<SnapshotId> shallowCopySnapshotIDs = Arrays.asList(snapshotId1, snapshotId2);
         for (SnapshotId snapshotId : shallowCopySnapshotIDs) {
-            assert lockFiles[0].contains(snapshotId.getUUID()) || lockFiles[1].contains(snapshotId.getUUID());
+            assertTrue(lockFiles[0].contains(snapshotId.getUUID()) || lockFiles[1].contains(snapshotId.getUUID()));
         }
         logger.info("--> create third remote index shallow snapshot");
         createSnapshotResponse = client.admin()
@@ -340,12 +340,14 @@ public class BlobStoreRepositoryRemoteIndexTests extends BlobStoreRepositoryHelp
         final SnapshotId snapshotId3 = createSnapshotResponse.getSnapshotInfo().snapshotId();
 
         lockFiles = getLockFilesInRemoteStore(remoteStoreIndexName, remoteStoreRepositoryName);
-        assert (lockFiles.length == 3);
+        assertEquals(3, lockFiles.length);
         shallowCopySnapshotIDs = Arrays.asList(snapshotId1, snapshotId2, snapshotId3);
         for (SnapshotId snapshotId : shallowCopySnapshotIDs) {
-            assert lockFiles[0].contains(snapshotId.getUUID())
-                || lockFiles[1].contains(snapshotId.getUUID())
-                || lockFiles[2].contains(snapshotId.getUUID());
+            assertTrue(
+                lockFiles[0].contains(snapshotId.getUUID())
+                    || lockFiles[1].contains(snapshotId.getUUID())
+                    || lockFiles[2].contains(snapshotId.getUUID())
+            );
         }
         logger.info("--> create normal snapshot");
         createRepository(client, snapshotRepositoryName, snapshotRepoSettings);
@@ -358,12 +360,14 @@ public class BlobStoreRepositoryRemoteIndexTests extends BlobStoreRepositoryHelp
         final SnapshotId snapshotId4 = createSnapshotResponse.getSnapshotInfo().snapshotId();
 
         lockFiles = getLockFilesInRemoteStore(remoteStoreIndexName, remoteStoreRepositoryName);
-        assert (lockFiles.length == 3) : "lock files are " + Arrays.toString(lockFiles);
+        assertEquals("lock files are " + Arrays.toString(lockFiles), 3, lockFiles.length);
         shallowCopySnapshotIDs = Arrays.asList(snapshotId1, snapshotId2, snapshotId3);
         for (SnapshotId snapshotId : shallowCopySnapshotIDs) {
-            assert lockFiles[0].contains(snapshotId.getUUID())
-                || lockFiles[1].contains(snapshotId.getUUID())
-                || lockFiles[2].contains(snapshotId.getUUID());
+            assertTrue(
+                lockFiles[0].contains(snapshotId.getUUID())
+                    || lockFiles[1].contains(snapshotId.getUUID())
+                    || lockFiles[2].contains(snapshotId.getUUID())
+            );
         }
 
         logger.info("--> make sure the node's repository can resolve the snapshots");
