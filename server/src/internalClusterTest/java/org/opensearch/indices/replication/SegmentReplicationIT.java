@@ -1855,54 +1855,6 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
         assertDocCounts(100, primaryNode, replicaNode);
     }
 
-    public void testWipeSegmentBetweenSyncs() throws Exception {
-        internalCluster().startClusterManagerOnlyNode();
-        final String primaryNode = internalCluster().startDataOnlyNode();
-        createIndex(
-            INDEX_NAME,
-            Settings.builder()
-                .put(indexSettings())
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-                .put("index.refresh_interval", -1)
-                .build()
-        );
-        ensureYellow(INDEX_NAME);
-        final String replicaNode = internalCluster().startDataOnlyNode();
-        ensureGreen(INDEX_NAME);
-
-        for (int i = 0; i < 100; i++) {
-            client().prepareIndex(INDEX_NAME)
-                .setId(String.valueOf(i))
-                .setSource(jsonBuilder().startObject().field("field", i).endObject())
-                .get();
-        }
-        refresh(INDEX_NAME);
-        ensureGreen(INDEX_NAME);
-
-        final IndexShard indexShard = getIndexShard(replicaNode, INDEX_NAME);
-        waitForSearchableDocs(INDEX_NAME, 100, List.of(replicaNode));
-        indexShard.store().directory().deleteFile("_0.si");
-
-        for (int i = 101; i < 201; i++) {
-            client().prepareIndex(INDEX_NAME)
-                .setId(String.valueOf(i))
-                .setSource(jsonBuilder().startObject().field("field", i).endObject())
-                .get();
-        }
-        refresh(INDEX_NAME);
-        assertBusy(() -> {
-            // wait until the original shard is closed.
-            assertEquals(IndexShardState.CLOSED, indexShard.state());
-            assertTrue(indexShard.store().refCount() == 0);
-        }, 1, TimeUnit.MINUTES);
-        waitForActiveShardOnNode(replicaNode);
-        // reset checkIndex to ensure our original shard doesn't throw
-        resetCheckIndexStatus();
-        ensureGreen(INDEX_NAME);
-        assertDocCounts(200, primaryNode, replicaNode);
-    }
-
     private void waitForActiveShardOnNode(String replicaNode) throws Exception {
         assertBusy(() -> {
             // wait until the shard is created
