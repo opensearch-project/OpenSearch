@@ -14,7 +14,7 @@ import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.util.Version;
-import org.opensearch.action.support.GroupedActionListener;
+import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.index.shard.IndexShard;
@@ -141,14 +141,12 @@ public class RemoteStoreReplicationSource implements SegmentReplicationSource {
         ActionListener<GetSegmentFilesResponse> completionListener
     ) {
         final Path indexPath = shardPath == null ? null : shardPath.resolveIndex();
-        final GroupedActionListener<Void> batchDownloadListener = new GroupedActionListener<>(
-            ActionListener.map(completionListener, v -> new GetSegmentFilesResponse(toDownloadSegments)),
-            toDownloadSegments.size()
-        );
-        ActionListener<String> segmentsDownloadListener = ActionListener.map(batchDownloadListener, result -> null);
-        toDownloadSegments.forEach(
-            fileMetadata -> remoteStoreDirectory.copyTo(fileMetadata.name(), storeDirectory, indexPath, segmentsDownloadListener)
-        );
+        for (StoreFileMetadata storeFileMetadata : toDownloadSegments) {
+            final PlainActionFuture<String> segmentListener = PlainActionFuture.newFuture();
+            remoteStoreDirectory.copyTo(storeFileMetadata.name(), storeDirectory, indexPath, segmentListener);
+            segmentListener.actionGet();
+        }
+        completionListener.onResponse(new GetSegmentFilesResponse(toDownloadSegments));
     }
 
     @Override

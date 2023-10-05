@@ -759,9 +759,12 @@ public class Node implements Closeable {
             rerouteServiceReference.set(rerouteService);
             clusterService.setRerouteService(rerouteService);
 
+            final RecoverySettings recoverySettings = new RecoverySettings(settings, settingsModule.getClusterSettings());
+
             final IndexStorePlugin.DirectoryFactory remoteDirectoryFactory = new RemoteSegmentStoreDirectoryFactory(
                 repositoriesServiceReference::get,
-                threadPool
+                threadPool,
+                recoverySettings
             );
 
             final SearchRequestStats searchRequestStats = new SearchRequestStats();
@@ -952,7 +955,6 @@ public class Node implements Closeable {
                 transportService.getTaskManager()
             );
 
-            final RecoverySettings recoverySettings = new RecoverySettings(settings, settingsModule.getClusterSettings());
             RepositoriesModule repositoriesModule = new RepositoriesModule(
                 this.environment,
                 pluginsService.filterPlugins(RepositoryPlugin.class),
