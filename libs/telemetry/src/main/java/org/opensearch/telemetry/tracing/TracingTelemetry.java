@@ -35,9 +35,4 @@ public interface TracingTelemetry extends Closeable {
      */
     TracingContextPropagator getContextPropagator();
 
-    /**
-     * closes the resource
-     */
-    void close();
-
 }
