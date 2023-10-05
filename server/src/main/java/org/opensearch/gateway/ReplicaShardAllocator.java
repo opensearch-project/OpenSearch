@@ -601,9 +601,5 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
         public boolean hasAnyData() {
             return matchingNodes.isEmpty() == false;
         }
-
-        public Map<String, NodeAllocationResult> getNodeDecisions() {
-            return this.nodeDecisions;
-        }
     }
 }
