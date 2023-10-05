@@ -19,8 +19,6 @@ import org.opensearch.http.HttpServerTransport;
 import org.opensearch.http.netty4.Netty4HttpServerTransport;
 import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.threadpool.ThreadPool;
-import org.opensearch.transport.Netty4ModulePlugin;
-import org.opensearch.transport.SharedGroupFactory;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Collections;
