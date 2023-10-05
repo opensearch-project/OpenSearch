@@ -52,8 +52,8 @@ public final class OTelResourceProvider {
      */
     public static Optional<OpenTelemetrySdk> get(TelemetrySettings telemetrySettings, Settings settings) {
         return AccessController.doPrivileged((PrivilegedAction<Optional<OpenTelemetrySdk>>) () -> {
-            if (TelemetrySettings.TRACER_FEATURE_ENABLED_SETTING.get(settings)
-                || TelemetrySettings.METRICS_FEATURE_ENABLED_SETTING.get(settings)) {
+            if ((TelemetrySettings.TRACER_FEATURE_ENABLED_SETTING.get(settings) == true)
+                || (TelemetrySettings.METRICS_FEATURE_ENABLED_SETTING.get(settings) == true)) {
                 Resource resource = Resource.create(Attributes.of(ResourceAttributes.SERVICE_NAME, "OpenSearch"));
                 OpenTelemetrySdkBuilder builder = OpenTelemetrySdk.builder();
                 if (TelemetrySettings.TRACER_FEATURE_ENABLED_SETTING.get(settings)) {

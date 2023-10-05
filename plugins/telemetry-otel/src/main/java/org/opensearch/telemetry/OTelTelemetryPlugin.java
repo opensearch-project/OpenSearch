@@ -80,16 +80,16 @@ public class OTelTelemetryPlugin extends Plugin implements TelemetryPlugin {
     }
 
     private MetricsTelemetry getMetricsTelemetry(Settings settings, OpenTelemetrySdk openTelemetry) {
-        if (TelemetrySettings.METRICS_FEATURE_ENABLED_SETTING.get(settings)) {
-            return new OTelMetricsTelemetry(openTelemetry.getSdkMeterProvider());
+        if (TelemetrySettings.METRICS_FEATURE_ENABLED_SETTING.get(settings) == true) {
+            return new OTelMetricsTelemetry<>(openTelemetry.getSdkMeterProvider());
         } else {
             return null;
         }
     }
 
     private TracingTelemetry getTracingTelemetry(Settings settings, OpenTelemetrySdk openTelemetry) {
-        if (TelemetrySettings.TRACER_FEATURE_ENABLED_SETTING.get(settings)) {
-            return new OTelTracingTelemetry(openTelemetry, openTelemetry.getTracerProvider());
+        if (TelemetrySettings.TRACER_FEATURE_ENABLED_SETTING.get(settings) == true) {
+            return new OTelTracingTelemetry<>(openTelemetry, openTelemetry.getSdkTracerProvider());
         } else {
             return null;
         }
