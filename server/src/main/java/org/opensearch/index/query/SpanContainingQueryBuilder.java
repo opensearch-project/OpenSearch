@@ -191,9 +191,9 @@ public class SpanContainingQueryBuilder extends AbstractQueryBuilder<SpanContain
     }
 
     @Override
-    public void visit(QueryBuilderVisitor visitor) {
-        visitor.accept(this);
-        visitor.getChildVisitor(BooleanClause.Occur.MUST).accept(big);
-        visitor.getChildVisitor(BooleanClause.Occur.MUST).accept(little);
+    public void visit(QueryBuilderVisitor visitor, int level) {
+        visitor.accept(this, level);
+        visitor.getChildVisitor(BooleanClause.Occur.MUST).accept(big, level+1);
+        visitor.getChildVisitor(BooleanClause.Occur.MUST).accept(little, level+1);
     }
 }
