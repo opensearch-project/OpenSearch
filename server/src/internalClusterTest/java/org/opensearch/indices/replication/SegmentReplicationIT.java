@@ -49,7 +49,6 @@ import org.opensearch.cluster.health.ClusterHealthStatus;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.routing.Preference;
-import org.opensearch.cluster.routing.RecoverySource;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.ShardRoutingState;
 import org.opensearch.cluster.routing.allocation.command.CancelAllocationCommand;
@@ -1839,15 +1838,15 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
                 .setSource(jsonBuilder().startObject().field("field", i).endObject())
                 .get();
         }
-        final long originalRecoveryTime = getRecoveryStopTime();
+        final long originalRecoveryTime = getRecoveryStopTime(replicaNode);
         assertNotEquals(originalRecoveryTime, 0);
         refresh(INDEX_NAME);
         latch.await();
         assertTrue(failed.get());
-        waitForNewPeerRecovery(originalRecoveryTime);
+        waitForNewPeerRecovery(replicaNode, originalRecoveryTime);
         // reset checkIndex to ensure our original shard doesn't throw
         resetCheckIndexStatus();
-        assertDocCounts(100, primaryNode, replicaNode);
+        waitForSearchableDocs(100, primaryNode, replicaNode);
     }
 
     public void testWipeSegmentBetweenSyncs() throws Exception {
@@ -1866,7 +1865,7 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
         final String replicaNode = internalCluster().startDataOnlyNode();
         ensureGreen(INDEX_NAME);
 
-        for (int i = 0; i < 100; i++) {
+        for (int i = 0; i < 10; i++) {
             client().prepareIndex(INDEX_NAME)
                 .setId(String.valueOf(i))
                 .setSource(jsonBuilder().startObject().field("field", i).endObject())
@@ -1874,39 +1873,40 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
         }
         refresh(INDEX_NAME);
         ensureGreen(INDEX_NAME);
-        final long originalRecoveryTime = getRecoveryStopTime();
+        final long originalRecoveryTime = getRecoveryStopTime(replicaNode);
 
         final IndexShard indexShard = getIndexShard(replicaNode, INDEX_NAME);
-        waitForSearchableDocs(INDEX_NAME, 100, List.of(replicaNode));
+        waitForSearchableDocs(INDEX_NAME, 10, List.of(replicaNode));
         indexShard.store().directory().deleteFile("_0.si");
 
-        for (int i = 101; i < 201; i++) {
+        for (int i = 11; i < 21; i++) {
             client().prepareIndex(INDEX_NAME)
                 .setId(String.valueOf(i))
                 .setSource(jsonBuilder().startObject().field("field", i).endObject())
                 .get();
         }
         refresh(INDEX_NAME);
-        waitForNewPeerRecovery(originalRecoveryTime);
+        waitForNewPeerRecovery(replicaNode, originalRecoveryTime);
         resetCheckIndexStatus();
-        assertDocCounts(200, primaryNode, replicaNode);
+        waitForSearchableDocs(20, primaryNode, replicaNode);
     }
 
-    private static void waitForNewPeerRecovery(long originalRecoveryTime) throws Exception {
+    private void waitForNewPeerRecovery(String replicaNode, long originalRecoveryTime) throws Exception {
         assertBusy(() -> {
             // assert we have a peer recovery after the original
-            final long time = getRecoveryStopTime();
+            final long time = getRecoveryStopTime(replicaNode);
             assertNotEquals(time, 0);
             assertNotEquals(originalRecoveryTime, time);
 
         }, 1, TimeUnit.MINUTES);
     }
 
-    private static long getRecoveryStopTime() {
+    private long getRecoveryStopTime(String nodeName) {
         final RecoveryResponse recoveryResponse = client().admin().indices().prepareRecoveries(INDEX_NAME).get();
         final List<RecoveryState> recoveryStates = recoveryResponse.shardRecoveryStates().get(INDEX_NAME);
+        logger.info("Recovery states {}", recoveryResponse);
         for (RecoveryState recoveryState : recoveryStates) {
-            if (recoveryState.getRecoverySource().getType() == RecoverySource.Type.PEER) {
+            if (recoveryState.getTargetNode().getName().equals(nodeName)) {
                 return recoveryState.getTimer().stopTime();
             }
         }

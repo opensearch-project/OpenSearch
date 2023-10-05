@@ -379,6 +379,7 @@ public class NRTReplicationEngine extends Engine {
             try {
                 commitSegmentInfos();
             } catch (IOException e) {
+                maybeFailEngine("flush", e);
                 throw new FlushFailedEngineException(shardId, e);
             } finally {
                 flushLock.unlock();

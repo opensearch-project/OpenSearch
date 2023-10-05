@@ -600,6 +600,27 @@ public class NRTReplicationEngineTests extends EngineTestCase {
         assertThrows(RuntimeException.class, nrtEngineStore::close);
     }
 
+    public void testFlushThrowsFlushFailedExceptionOnCorruption() throws Exception {
+        final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
+
+        final Store nrtEngineStore = createStore(INDEX_SETTINGS, newDirectory());
+        final NRTReplicationEngine nrtEngine = buildNrtReplicaEngine(globalCheckpoint, nrtEngineStore, INDEX_SETTINGS);
+        List<Engine.Operation> operations = generateHistoryOnReplica(
+            randomIntBetween(1, 10),
+            randomBoolean(),
+            randomBoolean(),
+            randomBoolean()
+        );
+        indexOperations(nrtEngine, operations);
+        // wipe the nrt directory initially so we can sync with primary.
+        cleanAndCopySegmentsFromPrimary(nrtEngine);
+        nrtEngineStore.directory().deleteFile("_0.si");
+        assertThrows(FlushFailedEngineException.class, nrtEngine::flush);
+        assertTrue(nrtEngineStore.isMarkedCorrupted());
+        // store will throw when eventually closed, not handled here.
+        assertThrows(RuntimeException.class, nrtEngineStore::close);
+    }
+
     private void copySegments(Collection<String> latestPrimaryFiles, Engine nrtEngine) throws IOException {
         final Store store = nrtEngine.store;
         final List<String> replicaFiles = List.of(store.directory().listAll());
