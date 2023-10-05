@@ -135,7 +135,8 @@ public class TransportResyncReplicationActionTests extends OpenSearchTestCase {
                     new NetworkService(emptyList()),
                     PageCacheRecycler.NON_RECYCLING_INSTANCE,
                     new NamedWriteableRegistry(emptyList()),
-                    new NoneCircuitBreakerService()
+                    new NoneCircuitBreakerService(),
+                    NoopTracer.INSTANCE
                 )
             ) {
 

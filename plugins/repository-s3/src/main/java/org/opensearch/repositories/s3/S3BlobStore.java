@@ -50,6 +50,12 @@ import java.io.IOException;
 import java.util.Locale;
 import java.util.Map;
 
+import static org.opensearch.repositories.s3.S3Repository.BUCKET_SETTING;
+import static org.opensearch.repositories.s3.S3Repository.BUFFER_SIZE_SETTING;
+import static org.opensearch.repositories.s3.S3Repository.CANNED_ACL_SETTING;
+import static org.opensearch.repositories.s3.S3Repository.SERVER_SIDE_ENCRYPTION_SETTING;
+import static org.opensearch.repositories.s3.S3Repository.STORAGE_CLASS_SETTING;
+
 class S3BlobStore implements BlobStore {
 
     private static final Logger logger = LogManager.getLogger(S3BlobStore.class);
@@ -58,17 +64,17 @@ class S3BlobStore implements BlobStore {
 
     private final S3AsyncService s3AsyncService;
 
-    private final String bucket;
+    private volatile String bucket;
 
-    private final ByteSizeValue bufferSize;
+    private volatile ByteSizeValue bufferSize;
 
-    private final boolean serverSideEncryption;
+    private volatile boolean serverSideEncryption;
 
-    private final ObjectCannedACL cannedACL;
+    private volatile ObjectCannedACL cannedACL;
 
-    private final StorageClass storageClass;
+    private volatile StorageClass storageClass;
 
-    private final RepositoryMetadata repositoryMetadata;
+    private volatile RepositoryMetadata repositoryMetadata;
 
     private final StatsMetricPublisher statsMetricPublisher = new StatsMetricPublisher();
 
@@ -105,8 +111,14 @@ class S3BlobStore implements BlobStore {
         this.priorityExecutorBuilder = priorityExecutorBuilder;
     }
 
-    public boolean isMultipartUploadEnabled() {
-        return multipartUploadEnabled;
+    @Override
+    public void reload(RepositoryMetadata repositoryMetadata) {
+        this.repositoryMetadata = repositoryMetadata;
+        this.bucket = BUCKET_SETTING.get(repositoryMetadata.settings());
+        this.serverSideEncryption = SERVER_SIDE_ENCRYPTION_SETTING.get(repositoryMetadata.settings());
+        this.bufferSize = BUFFER_SIZE_SETTING.get(repositoryMetadata.settings());
+        this.cannedACL = initCannedACL(CANNED_ACL_SETTING.get(repositoryMetadata.settings()));
+        this.storageClass = initStorageClass(STORAGE_CLASS_SETTING.get(repositoryMetadata.settings()));
     }
 
     @Override
