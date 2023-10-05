@@ -1907,7 +1907,7 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
         logger.info("Recovery states {}", recoveryResponse);
         for (RecoveryState recoveryState : recoveryStates) {
             if (recoveryState.getTargetNode().getName().equals(nodeName)) {
-                return recoveryState.getTime().stopTime();
+                return recoveryState.getTimer().stopTime();
             }
         }
         return 0L;
