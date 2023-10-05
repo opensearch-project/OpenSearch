@@ -118,7 +118,8 @@ public class NetworkModuleTests extends OpenSearchTestCase {
                 PageCacheRecycler pageCacheRecycler,
                 CircuitBreakerService circuitBreakerService,
                 NamedWriteableRegistry namedWriteableRegistry,
-                NetworkService networkService
+                NetworkService networkService,
+                Tracer tracer
             ) {
                 return Collections.singletonMap("custom", custom);
             }
@@ -176,7 +177,8 @@ public class NetworkModuleTests extends OpenSearchTestCase {
                 PageCacheRecycler pageCacheRecycler,
                 CircuitBreakerService circuitBreakerService,
                 NamedWriteableRegistry namedWriteableRegistry,
-                NetworkService networkService
+                NetworkService networkService,
+                Tracer tracer
             ) {
                 return Collections.singletonMap("default_custom", customTransport);
             }
@@ -220,7 +222,8 @@ public class NetworkModuleTests extends OpenSearchTestCase {
                 PageCacheRecycler pageCacheRecycler,
                 CircuitBreakerService circuitBreakerService,
                 NamedWriteableRegistry namedWriteableRegistry,
-                NetworkService networkService
+                NetworkService networkService,
+                Tracer tracer
             ) {
                 return Collections.singletonMap("default_custom", customTransport);
             }
