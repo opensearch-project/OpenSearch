@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.http.netty4;
+package org.opensearch.transport;
 
 import org.opensearch.common.network.NetworkService;
 import org.opensearch.common.settings.ClusterSettings;
@@ -16,6 +16,7 @@ import org.opensearch.common.util.PageCacheRecycler;
 import org.opensearch.core.indices.breaker.CircuitBreakerService;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.http.HttpServerTransport;
+import org.opensearch.http.netty4.Netty4HttpServerTransport;
 import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.Netty4ModulePlugin;

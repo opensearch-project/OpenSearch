@@ -99,7 +99,7 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
     protected final ThreadPool threadPool;
     protected final Dispatcher dispatcher;
     protected final CorsHandler corsHandler;
-    protected final NamedXContentRegistry xContentRegistry;
+    private final NamedXContentRegistry xContentRegistry;
 
     protected final PortsRange port;
     protected final ByteSizeValue maxContentLength;
@@ -112,7 +112,7 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
     private final Set<HttpServerChannel> httpServerChannels = Collections.newSetFromMap(new ConcurrentHashMap<>());
 
     private final HttpTracer httpTracer;
-    protected final Tracer tracer;
+    private final Tracer tracer;
 
     protected AbstractHttpServerTransport(
         Settings settings,
