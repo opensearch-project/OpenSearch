@@ -412,13 +412,13 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
         {
             RestRequest innerRestRequest;
             try {
-                innerRestRequest = RestRequest.request(xContentRegistry, httpRequest, httpChannel, true);
+                innerRestRequest = RestRequest.request(xContentRegistry, httpRequest, httpChannel);
             } catch (final RestRequest.ContentTypeHeaderException e) {
                 badRequestCause = ExceptionsHelper.useOrSuppress(badRequestCause, e);
-                innerRestRequest = requestWithoutContentTypeHeader(httpRequest, httpChannel, badRequestCause, true);
+                innerRestRequest = requestWithoutContentTypeHeader(httpRequest, httpChannel, badRequestCause);
             } catch (final RestRequest.BadParameterException e) {
                 badRequestCause = ExceptionsHelper.useOrSuppress(badRequestCause, e);
-                innerRestRequest = RestRequest.requestWithoutParameters(xContentRegistry, httpRequest, httpChannel, true);
+                innerRestRequest = RestRequest.requestWithoutParameters(xContentRegistry, httpRequest, httpChannel);
             }
             restRequest = innerRestRequest;
         }
@@ -466,75 +466,13 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
         dispatchRequest(restRequest, channel, badRequestCause);
     }
 
-    public static RestRequest createRestRequest(
-        final NamedXContentRegistry xContentRegistry,
-        final HttpRequest httpRequest,
-        final HttpChannel httpChannel
-    ) {
-        Exception badRequestCause = httpRequest.getInboundException();
-
-        /*
-         * We want to create a REST request from the incoming request from Netty. However, creating this request could fail if there
-         * are incorrectly encoded parameters, or the Content-Type header is invalid. If one of these specific failures occurs, we
-         * attempt to create a REST request again without the input that caused the exception (e.g., we remove the Content-Type header,
-         * or skip decoding the parameters). Once we have a request in hand, we then dispatch the request as a bad request with the
-         * underlying exception that caused us to treat the request as bad.
-         */
-        final RestRequest restRequest;
-        {
-            RestRequest innerRestRequest;
-            try {
-                innerRestRequest = RestRequest.request(xContentRegistry, httpRequest, httpChannel, false);
-            } catch (final RestRequest.ContentTypeHeaderException e) {
-                badRequestCause = ExceptionsHelper.useOrSuppress(badRequestCause, e);
-                innerRestRequest = requestWithoutContentTypeHeader(xContentRegistry, httpRequest, httpChannel, badRequestCause, false);
-            } catch (final RestRequest.BadParameterException e) {
-                badRequestCause = ExceptionsHelper.useOrSuppress(badRequestCause, e);
-                innerRestRequest = RestRequest.requestWithoutParameters(xContentRegistry, httpRequest, httpChannel, false);
-            }
-            restRequest = innerRestRequest;
-        }
-        return restRequest;
-    }
-
-    private static RestRequest requestWithoutContentTypeHeader(
-        NamedXContentRegistry xContentRegistry,
-        HttpRequest httpRequest,
-        HttpChannel httpChannel,
-        Exception badRequestCause,
-        boolean shouldGenerateRequestId
-    ) {
+    private RestRequest requestWithoutContentTypeHeader(HttpRequest httpRequest, HttpChannel httpChannel, Exception badRequestCause) {
         HttpRequest httpRequestWithoutContentType = httpRequest.removeHeader("Content-Type");
         try {
-            return RestRequest.request(xContentRegistry, httpRequestWithoutContentType, httpChannel, shouldGenerateRequestId);
+            return RestRequest.request(xContentRegistry, httpRequestWithoutContentType, httpChannel);
         } catch (final RestRequest.BadParameterException e) {
             badRequestCause.addSuppressed(e);
-            return RestRequest.requestWithoutParameters(
-                xContentRegistry,
-                httpRequestWithoutContentType,
-                httpChannel,
-                shouldGenerateRequestId
-            );
-        }
-    }
-
-    private RestRequest requestWithoutContentTypeHeader(
-        HttpRequest httpRequest,
-        HttpChannel httpChannel,
-        Exception badRequestCause,
-        boolean shouldGenerateRequestId
-    ) {
-        HttpRequest httpRequestWithoutContentType = httpRequest.removeHeader("Content-Type");
-        try {
-            return RestRequest.request(xContentRegistry, httpRequestWithoutContentType, httpChannel, shouldGenerateRequestId);
-        } catch (final RestRequest.BadParameterException e) {
-            badRequestCause.addSuppressed(e);
-            return RestRequest.requestWithoutParameters(
-                xContentRegistry,
-                httpRequestWithoutContentType,
-                httpChannel,
-                shouldGenerateRequestId
-            );
+            return RestRequest.requestWithoutParameters(xContentRegistry, httpRequestWithoutContentType, httpChannel);
         }
     }
 

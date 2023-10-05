@@ -64,7 +64,6 @@ import org.junit.Before;
 
 import java.net.InetSocketAddress;
 import java.net.UnknownHostException;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -148,21 +147,6 @@ public class AbstractHttpServerTransportTests extends OpenSearchTestCase {
             );
             assertThat("Publish port should be derived from matching wildcard address", publishPort, equalTo(boundPort));
         }
-    }
-
-    public void testCreateRestRequestDoesNotGenerateRequestID() {
-        FakeRestRequest fakeRestRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withContent(
-            new BytesArray("bar".getBytes(StandardCharsets.UTF_8)),
-            null
-        ).withPath("/foo").withHeaders(Collections.singletonMap("Content-Type", Collections.singletonList("text/plain"))).build();
-
-        RestRequest request = AbstractHttpServerTransport.createRestRequest(
-            xContentRegistry(),
-            fakeRestRequest.getHttpRequest(),
-            fakeRestRequest.getHttpChannel()
-        );
-
-        assertEquals("request should not generate id", -1, request.getRequestId());
     }
 
     public void testDispatchDoesNotModifyThreadContext() {

@@ -76,6 +76,7 @@ public class RestRequest implements ToXContent.Params {
 
     // tchar pattern as defined by RFC7230 section 3.2.6
     private static final Pattern TCHAR_PATTERN = Pattern.compile("[a-zA-z0-9!#$%&'*+\\-.\\^_`|~]+");
+
     private static final AtomicLong requestIdGenerator = new AtomicLong();
 
     private final NamedXContentRegistry xContentRegistry;
@@ -151,7 +152,7 @@ public class RestRequest implements ToXContent.Params {
      * with an unpooled copy. This is supposed to be used before passing requests to {@link RestHandler} instances that can not safely
      * handle http requests that use pooled buffers as determined by {@link RestHandler#allowsUnsafeBuffers()}.
      */
-    protected void ensureSafeBuffers() {
+    void ensureSafeBuffers() {
         httpRequest = httpRequest.releaseAndCopy();
     }
 
@@ -176,36 +177,6 @@ public class RestRequest implements ToXContent.Params {
             httpRequest,
             httpChannel,
             requestIdGenerator.incrementAndGet()
-        );
-    }
-
-    /**
-     * Creates a new REST request. This method will throw {@link BadParameterException} if the path cannot be
-     * decoded
-     *
-     * @param xContentRegistry the content registry
-     * @param httpRequest      the http request
-     * @param httpChannel      the http channel
-     * @param shouldGenerateRequestId should generate a new request id
-     * @throws BadParameterException      if the parameters can not be decoded
-     * @throws ContentTypeHeaderException if the Content-Type header can not be parsed
-     */
-    public static RestRequest request(
-        NamedXContentRegistry xContentRegistry,
-        HttpRequest httpRequest,
-        HttpChannel httpChannel,
-        boolean shouldGenerateRequestId
-    ) {
-        Map<String, String> params = params(httpRequest.uri());
-        String path = path(httpRequest.uri());
-        return new RestRequest(
-            xContentRegistry,
-            params,
-            path,
-            httpRequest.getHeaders(),
-            httpRequest,
-            httpChannel,
-            shouldGenerateRequestId ? requestIdGenerator.incrementAndGet() : -1
         );
     }
 
@@ -254,34 +225,6 @@ public class RestRequest implements ToXContent.Params {
             httpRequest,
             httpChannel,
             requestIdGenerator.incrementAndGet()
-        );
-    }
-
-    /**
-     * Creates a new REST request. The path is not decoded so this constructor will not throw a
-     * {@link BadParameterException}.
-     *
-     * @param xContentRegistry the content registry
-     * @param httpRequest      the http request
-     * @param httpChannel      the http channel
-     * @param shouldGenerateRequestId should generate new request id
-     * @throws ContentTypeHeaderException if the Content-Type header can not be parsed
-     */
-    public static RestRequest requestWithoutParameters(
-        NamedXContentRegistry xContentRegistry,
-        HttpRequest httpRequest,
-        HttpChannel httpChannel,
-        boolean shouldGenerateRequestId
-    ) {
-        Map<String, String> params = Collections.emptyMap();
-        return new RestRequest(
-            xContentRegistry,
-            params,
-            httpRequest.uri(),
-            httpRequest.getHeaders(),
-            httpRequest,
-            httpChannel,
-            shouldGenerateRequestId ? requestIdGenerator.incrementAndGet() : -1
         );
     }
 
