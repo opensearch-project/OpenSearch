@@ -533,11 +533,19 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
         }
     }
 
+    /**
+     * Extension point that allows a NetworkPlugin to extend the netty pipeline and inspect headers after request decoding
+     */
     protected ChannelInboundHandlerAdapter createHeaderVerifier() {
         // pass-through
         return new ChannelInboundHandlerAdapter();
     }
 
+    /**
+     * Extension point that allows a NetworkPlugin to override the default netty HttpContentDecompressor and supply a custom decompressor.
+     *
+     * Used in instances to conditionally decompress depending on the outcome from header verification
+     */
     protected ChannelInboundHandlerAdapter createDecompressor() {
         return new HttpContentDecompressor();
     }
