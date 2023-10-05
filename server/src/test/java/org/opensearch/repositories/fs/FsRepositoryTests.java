@@ -58,6 +58,7 @@ import org.opensearch.cluster.routing.ShardRoutingHelper;
 import org.opensearch.cluster.routing.UnassignedInfo;
 import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.settings.ClusterSettings;
+import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.core.index.shard.ShardId;
@@ -70,6 +71,7 @@ import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.indices.replication.common.ReplicationLuceneIndex;
 import org.opensearch.repositories.IndexId;
+import org.opensearch.repositories.blobstore.BlobStoreRepository;
 import org.opensearch.repositories.blobstore.BlobStoreTestUtil;
 import org.opensearch.snapshots.Snapshot;
 import org.opensearch.snapshots.SnapshotId;
@@ -90,6 +92,7 @@ import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
+import static org.hamcrest.Matchers.is;
 
 public class FsRepositoryTests extends OpenSearchTestCase {
 
@@ -216,6 +219,31 @@ public class FsRepositoryTests extends OpenSearchTestCase {
         } finally {
             terminate(threadPool);
         }
+    }
+
+    public void testRestrictedSettingsDefault() {
+        Path repo = createTempDir();
+        Settings settings = Settings.builder()
+            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toAbsolutePath())
+            .put(Environment.PATH_REPO_SETTING.getKey(), repo.toAbsolutePath())
+            .put("location", repo)
+            .put(FsRepository.BASE_PATH_SETTING.getKey(), "my_base_path")
+            .build();
+        RepositoryMetadata metadata = new RepositoryMetadata("test", "fs", settings);
+        FsRepository repository = new FsRepository(
+            metadata,
+            new Environment(settings, null),
+            NamedXContentRegistry.EMPTY,
+            BlobStoreTestUtil.mockClusterService(),
+            new RecoverySettings(settings, new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS))
+        );
+
+        List<Setting<?>> restrictedSettings = repository.getRestrictedSystemRepositorySettings();
+        assertThat(restrictedSettings.size(), is(4));
+        assertTrue(restrictedSettings.contains(BlobStoreRepository.SYSTEM_REPOSITORY_SETTING));
+        assertTrue(restrictedSettings.contains(BlobStoreRepository.READONLY_SETTING));
+        assertTrue(restrictedSettings.contains(BlobStoreRepository.REMOTE_STORE_INDEX_SHALLOW_COPY));
+        assertTrue(restrictedSettings.contains(FsRepository.LOCATION_SETTING));
     }
 
     private void runGeneric(ThreadPool threadPool, Runnable runnable) throws InterruptedException {

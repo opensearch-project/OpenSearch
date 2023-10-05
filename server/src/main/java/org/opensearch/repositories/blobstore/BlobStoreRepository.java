@@ -149,6 +149,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.NoSuchFileException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -1125,7 +1126,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                                     // see https://github.com/opensearch-project/OpenSearch/issues/8469
                                     new RemoteSegmentStoreDirectoryFactory(
                                         remoteStoreLockManagerFactory.getRepositoriesService(),
-                                        threadPool
+                                        threadPool,
+                                        recoverySettings
                                     ).newDirectory(
                                         remoteStoreRepoForIndex,
                                         indexUUID,
@@ -1595,7 +1597,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                                             // see https://github.com/opensearch-project/OpenSearch/issues/8469
                                             new RemoteSegmentStoreDirectoryFactory(
                                                 remoteStoreLockManagerFactory.getRepositoriesService(),
-                                                threadPool
+                                                threadPool,
+                                                recoverySettings
                                             ).newDirectory(
                                                 remoteStoreRepoForIndex,
                                                 indexUUID,
@@ -3136,6 +3139,11 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     public InputStream maybeRateLimitSnapshots(InputStream stream) {
         return maybeRateLimit(stream, () -> snapshotRateLimiter, snapshotRateLimitingTimeInNanos, BlobStoreTransferContext.SNAPSHOT);
+    }
+
+    @Override
+    public List<Setting<?>> getRestrictedSystemRepositorySettings() {
+        return Arrays.asList(SYSTEM_REPOSITORY_SETTING, READONLY_SETTING, REMOTE_STORE_INDEX_SHALLOW_COPY);
     }
 
     @Override

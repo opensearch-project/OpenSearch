@@ -56,7 +56,7 @@ public class RemoteStoreRefreshListenerIT extends AbstractRemoteStoreMockReposit
             logger.info("Local files = {}, Repo files = {}", sortedFilesInLocal, sortedFilesInRepo);
             assertTrue(filesInRepo.containsAll(filesInLocal));
         }, 90, TimeUnit.SECONDS);
-        deleteRepo();
+        cleanupRepo();
     }
 
     public void testRemoteRefreshSegmentPressureSettingChanged() {

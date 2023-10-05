@@ -527,7 +527,7 @@ public abstract class EngineTestCase extends OpenSearchTestCase {
     }
 
     protected Translog createTranslog(Path translogPath, LongSupplier primaryTermSupplier) throws IOException {
-        TranslogConfig translogConfig = new TranslogConfig(shardId, translogPath, INDEX_SETTINGS, BigArrays.NON_RECYCLING_INSTANCE);
+        TranslogConfig translogConfig = new TranslogConfig(shardId, translogPath, INDEX_SETTINGS, BigArrays.NON_RECYCLING_INSTANCE, "");
         String translogUUID = Translog.createEmptyTranslog(
             translogPath,
             SequenceNumbers.NO_OPS_PERFORMED,
@@ -872,7 +872,13 @@ public abstract class EngineTestCase extends OpenSearchTestCase {
         final Engine.EventListener eventListener
     ) {
         final IndexWriterConfig iwc = newIndexWriterConfig();
-        final TranslogConfig translogConfig = new TranslogConfig(shardId, translogPath, indexSettings, BigArrays.NON_RECYCLING_INSTANCE);
+        final TranslogConfig translogConfig = new TranslogConfig(
+            shardId,
+            translogPath,
+            indexSettings,
+            BigArrays.NON_RECYCLING_INSTANCE,
+            ""
+        );
         final List<ReferenceManager.RefreshListener> extRefreshListenerList = externalRefreshListener == null
             ? emptyList()
             : Collections.singletonList(externalRefreshListener);
@@ -939,7 +945,7 @@ public abstract class EngineTestCase extends OpenSearchTestCase {
                 .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
                 .build()
         );
-        TranslogConfig translogConfig = new TranslogConfig(shardId, translogPath, indexSettings, BigArrays.NON_RECYCLING_INSTANCE);
+        TranslogConfig translogConfig = new TranslogConfig(shardId, translogPath, indexSettings, BigArrays.NON_RECYCLING_INSTANCE, "");
         return new EngineConfig.Builder().shardId(config.getShardId())
             .threadPool(config.getThreadPool())
             .indexSettings(indexSettings)

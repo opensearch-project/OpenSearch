@@ -108,8 +108,15 @@ public class RemoteStoreMultipartIT extends RemoteStoreIT {
     }
 
     public void testRateLimitedRemoteUploads() throws Exception {
+        clusterSettingsSuppliedByTest = true;
         overrideBuildRepositoryMetadata = true;
-        internalCluster().startNode();
+        Settings.Builder clusterSettings = Settings.builder()
+            .put(remoteStoreClusterSettings(REPOSITORY_NAME, repositoryLocation, REPOSITORY_2_NAME, repositoryLocation));
+        clusterSettings.put(
+            String.format(Locale.getDefault(), "node.attr." + REMOTE_STORE_REPOSITORY_TYPE_ATTRIBUTE_KEY_FORMAT, REPOSITORY_NAME),
+            MockFsRepositoryPlugin.TYPE
+        );
+        internalCluster().startNode(clusterSettings.build());
         Client client = client();
         logger.info("-->  updating repository");
         assertAcked(
@@ -119,7 +126,6 @@ public class RemoteStoreMultipartIT extends RemoteStoreIT {
                 .setType(MockFsRepositoryPlugin.TYPE)
                 .setSettings(
                     Settings.builder()
-                        .put(BlobStoreRepository.SYSTEM_REPOSITORY_SETTING.getKey(), true)
                         .put("location", repositoryLocation)
                         .put("compress", compress)
                         .put("max_remote_upload_bytes_per_sec", "1kb")
