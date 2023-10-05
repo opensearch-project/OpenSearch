@@ -241,23 +241,27 @@ class S3BlobContainer extends AbstractBlobContainer implements AsyncMultiStreamB
                     return;
                 }
 
-                final List<ReadContext.StreamPartCreator> blobPartInputStreamFutures = new ArrayList<>();
-                final long blobSize = blobMetadata.objectSize();
-                final Integer numberOfParts = blobMetadata.objectParts() == null ? null : blobMetadata.objectParts().totalPartsCount();
-                final String blobChecksum = blobMetadata.checksum().checksumCRC32();
+                try {
+                    final List<ReadContext.StreamPartCreator> blobPartInputStreamFutures = new ArrayList<>();
+                    final long blobSize = blobMetadata.objectSize();
+                    final Integer numberOfParts = blobMetadata.objectParts() == null ? null : blobMetadata.objectParts().totalPartsCount();
+                    final String blobChecksum = blobMetadata.checksum() == null ? null : blobMetadata.checksum().checksumCRC32();
 
-                if (numberOfParts == null) {
-                    blobPartInputStreamFutures.add(() -> getBlobPartInputStreamContainer(s3AsyncClient, bucketName, blobKey, null));
-                } else {
-                    // S3 multipart files use 1 to n indexing
-                    for (int partNumber = 1; partNumber <= numberOfParts; partNumber++) {
-                        final int innerPartNumber = partNumber;
-                        blobPartInputStreamFutures.add(
-                            () -> getBlobPartInputStreamContainer(s3AsyncClient, bucketName, blobKey, innerPartNumber)
-                        );
+                    if (numberOfParts == null) {
+                        blobPartInputStreamFutures.add(() -> getBlobPartInputStreamContainer(s3AsyncClient, bucketName, blobKey, null));
+                    } else {
+                        // S3 multipart files use 1 to n indexing
+                        for (int partNumber = 1; partNumber <= numberOfParts; partNumber++) {
+                            final int innerPartNumber = partNumber;
+                            blobPartInputStreamFutures.add(
+                                () -> getBlobPartInputStreamContainer(s3AsyncClient, bucketName, blobKey, innerPartNumber)
+                            );
+                        }
                     }
+                    listener.onResponse(new ReadContext(blobSize, blobPartInputStreamFutures, blobChecksum));
+                } catch (Exception ex) {
+                    listener.onFailure(ex);
                 }
-                listener.onResponse(new ReadContext(blobSize, blobPartInputStreamFutures, blobChecksum));
             });
         } catch (Exception ex) {
             listener.onFailure(SdkException.create("Error occurred while fetching blob parts from the repository", ex));
