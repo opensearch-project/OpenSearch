@@ -124,7 +124,7 @@ public class DateHistogramIT extends ParameterizedOpenSearchIntegTestCase {
     }
 
     private ZonedDateTime date(String date) {
-        return DateFormatters.from(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parse(date));
+        return DateFormatters.from(DateFieldMapper.getDefaultDateTimeFormatter().parse(date));
     }
 
     private static String format(ZonedDateTime date, String pattern) {
@@ -1624,8 +1624,8 @@ public class DateHistogramIT extends ParameterizedOpenSearchIntegTestCase {
                 .setSettings(Settings.builder().put("requests.cache.enable", true).put("number_of_shards", 1).put("number_of_replicas", 1))
                 .get()
         );
-        String date = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.format(date(1, 1));
-        String date2 = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.format(date(2, 1));
+        String date = DateFieldMapper.getDefaultDateTimeFormatter().format(date(1, 1));
+        String date2 = DateFieldMapper.getDefaultDateTimeFormatter().format(date(2, 1));
         indexRandom(
             true,
             client().prepareIndex("cache_test_idx").setId("1").setSource("d", date),

@@ -92,7 +92,7 @@ public class DateHistogramOffsetIT extends ParameterizedOpenSearchIntegTestCase 
     }
 
     private ZonedDateTime date(String date) {
-        return DateFormatters.from(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parse(date));
+        return DateFormatters.from(DateFieldMapper.getDefaultDateTimeFormatter().parse(date));
     }
 
     @Before

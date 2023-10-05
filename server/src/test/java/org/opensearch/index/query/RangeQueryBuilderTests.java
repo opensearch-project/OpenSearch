@@ -87,8 +87,8 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
                 ZonedDateTime start = now.minusMillis(randomIntBetween(0, 1000000)).atZone(ZoneOffset.UTC);
                 ZonedDateTime end = now.plusMillis(randomIntBetween(0, 1000000)).atZone(ZoneOffset.UTC);
                 query = new RangeQueryBuilder(randomFrom(DATE_FIELD_NAME, DATE_RANGE_FIELD_NAME, DATE_ALIAS_FIELD_NAME));
-                query.from(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.format(start));
-                query.to(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.format(end));
+                query.from(DateFieldMapper.getDefaultDateTimeFormatter().format(start));
+                query.to(DateFieldMapper.getDefaultDateTimeFormatter().format(end));
                 // Create timestamp option only then we have a date mapper,
                 // otherwise we could trigger exception.
                 if (createShardContext().getMapperService().fieldType(DATE_FIELD_NAME) != null) {

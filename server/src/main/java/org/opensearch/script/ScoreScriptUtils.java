@@ -343,11 +343,14 @@ public final class ScoreScriptUtils {
     /**
      * Limitations: since script functions don't have access to DateFieldMapper,
      * decay functions on dates are limited to dates in the default format and default time zone,
+     * Further, since script module gets initialized before the featureflags are loaded,
+     * we cannot use the feature flag to gate the usage of the new default date format.
      * Also, using calculations with <code>now</code> are not allowed.
      *
      */
     private static final ZoneId defaultZoneId = ZoneId.of("UTC");
-    private static final DateMathParser dateParser = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.toDateMathParser();
+    // ToDo: use new default date formatter once feature flag is removed
+    private static final DateMathParser dateParser = DateFieldMapper.LEGACY_DEFAULT_DATE_TIME_FORMATTER.toDateMathParser();
 
     /**
      * Linear date decay

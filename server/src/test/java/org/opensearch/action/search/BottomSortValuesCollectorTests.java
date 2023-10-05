@@ -46,7 +46,6 @@ import org.opensearch.test.OpenSearchTestCase;
 import java.time.ZoneId;
 import java.util.Arrays;
 
-import static org.opensearch.index.mapper.DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.apache.lucene.search.TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO;
@@ -136,7 +135,11 @@ public class BottomSortValuesCollectorTests extends OpenSearchTestCase {
         for (boolean reverse : new boolean[] { true, false }) {
             SortField[] sortFields = new SortField[] { new SortField("foo", SortField.Type.LONG, reverse) };
             DocValueFormat[] sortFormats = new DocValueFormat[] {
-                new DocValueFormat.DateTime(DEFAULT_DATE_TIME_FORMATTER, ZoneId.of("UTC"), DateFieldMapper.Resolution.MILLISECONDS) };
+                new DocValueFormat.DateTime(
+                    DateFieldMapper.getDefaultDateTimeFormatter(),
+                    ZoneId.of("UTC"),
+                    DateFieldMapper.Resolution.MILLISECONDS
+                ) };
             BottomSortValuesCollector collector = new BottomSortValuesCollector(3, sortFields);
             collector.consumeTopDocs(
                 createTopDocs(sortFields[0], 100, newDateArray("2017-06-01T12:18:20Z", "2018-04-03T15:10:27Z", "2013-06-01T13:10:20Z")),
@@ -170,7 +173,11 @@ public class BottomSortValuesCollectorTests extends OpenSearchTestCase {
         for (boolean reverse : new boolean[] { true, false }) {
             SortField[] sortFields = new SortField[] { new SortField("foo", SortField.Type.LONG, reverse) };
             DocValueFormat[] sortFormats = new DocValueFormat[] {
-                new DocValueFormat.DateTime(DEFAULT_DATE_TIME_FORMATTER, ZoneId.of("UTC"), DateFieldMapper.Resolution.NANOSECONDS) };
+                new DocValueFormat.DateTime(
+                    DateFieldMapper.getDefaultDateTimeFormatter(),
+                    ZoneId.of("UTC"),
+                    DateFieldMapper.Resolution.NANOSECONDS
+                ) };
             BottomSortValuesCollector collector = new BottomSortValuesCollector(3, sortFields);
             collector.consumeTopDocs(
                 createTopDocs(sortFields[0], 100, newDateNanoArray("2017-06-01T12:18:20Z", "2018-04-03T15:10:27Z", "2013-06-01T13:10:20Z")),
@@ -242,7 +249,7 @@ public class BottomSortValuesCollectorTests extends OpenSearchTestCase {
     private Object[] newDateArray(String... values) {
         Long[] longs = new Long[values.length];
         for (int i = 0; i < values.length; i++) {
-            longs[i] = DEFAULT_DATE_TIME_FORMATTER.parseMillis(values[i]);
+            longs[i] = DateFieldMapper.getDefaultDateTimeFormatter().parseMillis(values[i]);
         }
         return longs;
     }
@@ -250,7 +257,7 @@ public class BottomSortValuesCollectorTests extends OpenSearchTestCase {
     private Object[] newDateNanoArray(String... values) {
         Long[] longs = new Long[values.length];
         for (int i = 0; i < values.length; i++) {
-            longs[i] = DateUtils.toNanoSeconds(DEFAULT_DATE_TIME_FORMATTER.parseMillis(values[i]));
+            longs[i] = DateUtils.toNanoSeconds(DateFieldMapper.getDefaultDateTimeFormatter().parseMillis(values[i]));
         }
         return longs;
     }
