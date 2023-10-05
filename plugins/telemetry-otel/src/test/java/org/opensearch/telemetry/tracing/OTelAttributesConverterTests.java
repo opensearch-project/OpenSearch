@@ -8,6 +8,8 @@
 
 package org.opensearch.telemetry.tracing;
 
+import org.opensearch.telemetry.OTelAttributesConverter;
+import org.opensearch.telemetry.metrics.tags.Tags;
 import org.opensearch.telemetry.tracing.attributes.Attributes;
 import org.opensearch.test.OpenSearchTestCase;
 
@@ -19,13 +21,13 @@ import io.opentelemetry.api.internal.InternalAttributeKeyImpl;
 public class OTelAttributesConverterTests extends OpenSearchTestCase {
 
     public void testConverterNullAttributes() {
-        io.opentelemetry.api.common.Attributes otelAttributes = OTelAttributesConverter.convert(null);
+        io.opentelemetry.api.common.Attributes otelAttributes = OTelAttributesConverter.convert((Attributes) null);
         assertEquals(0, otelAttributes.size());
     }
 
     public void testConverterEmptyAttributes() {
         Attributes attributes = Attributes.EMPTY;
-        io.opentelemetry.api.common.Attributes otelAttributes = OTelAttributesConverter.convert(null);
+        io.opentelemetry.api.common.Attributes otelAttributes = OTelAttributesConverter.convert(attributes);
         assertEquals(0, otelAttributes.size());
     }
 
@@ -46,5 +48,13 @@ public class OTelAttributesConverterTests extends OpenSearchTestCase {
         io.opentelemetry.api.common.Attributes otelAttributes = OTelAttributesConverter.convert(attributes);
         assertEquals(4, otelAttributes.size());
         otelAttributes.asMap().forEach((x, y) -> assertEquals(attributeMap.get(x.getKey()), y));
+    }
+
+    public void testConverterMultipleTags() {
+        Tags tags = Tags.create().addTag("key1", 1l).addTag("key2", 1.0).addTag("key3", true).addTag("key4", "value4");
+        Map<String, ?> tagsMap = tags.getTagsMap();
+        io.opentelemetry.api.common.Attributes otelAttributes = OTelAttributesConverter.convert(tags);
+        assertEquals(4, otelAttributes.size());
+        otelAttributes.asMap().forEach((x, y) -> assertEquals(tagsMap.get(x.getKey()), y));
     }
 }
