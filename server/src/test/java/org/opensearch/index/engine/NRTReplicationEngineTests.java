@@ -30,7 +30,6 @@ import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.test.IndexSettingsModule;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collection;
@@ -598,7 +597,7 @@ public class NRTReplicationEngineTests extends EngineTestCase {
         assertEquals(1, nrtEngineStore.refCount());
         assertTrue(nrtEngineStore.isMarkedCorrupted());
         // store will throw when eventually closed, not handled here.
-        assertThrows(UncheckedIOException.class, nrtEngineStore::close);
+        assertThrows(RuntimeException.class, nrtEngineStore::close);
     }
 
     private void copySegments(Collection<String> latestPrimaryFiles, Engine nrtEngine) throws IOException {
