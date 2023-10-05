@@ -313,7 +313,7 @@ public enum RangeType {
         ) {
             ZoneId zone = (timeZone == null) ? ZoneOffset.UTC : timeZone;
 
-            DateMathParser dateMathParser = (parser == null) ? DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.toDateMathParser() : parser;
+            DateMathParser dateMathParser = (parser == null) ? DateFieldMapper.getDefaultDateTimeFormatter().toDateMathParser() : parser;
             boolean roundUp = includeLower == false; // using "gt" should round lower bound up
             Long low = lowerTerm == null
                 ? minValue()

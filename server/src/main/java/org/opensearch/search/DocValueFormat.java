@@ -247,6 +247,9 @@ public interface DocValueFormat extends NamedWriteable {
 
         public DateTime(StreamInput in) throws IOException {
             String datePattern = in.readString();
+            String printPattern = null;
+            if (in.getVersion().onOrAfter(Version.V_2_1_1)) {
+                printPattern = in.readOptionalString();
 
             String zoneId = in.readString();
             if (in.getVersion().before(LegacyESVersion.V_7_0_0)) {
@@ -271,7 +274,7 @@ public interface DocValueFormat extends NamedWriteable {
                  */
                 isJoda = Joda.isJodaPattern(in.getVersion(), datePattern);
             }
-            this.formatter = isJoda ? Joda.forPattern(datePattern) : DateFormatter.forPattern(datePattern);
+            this.formatter = isJoda ? Joda.forPattern(datePattern) : DateFormatter.forPattern(datePattern, printPattern);
 
             this.parser = formatter.toDateMathParser();
 
@@ -284,7 +287,14 @@ public interface DocValueFormat extends NamedWriteable {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeString(formatter.pattern());
+            if(out.getVersion().before(Version.V_2_1_1) && formatter.equals(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER)) {
+                out.writeString(DateFieldMapper.LEGACY_DEFAULT_DATE_TIME_FORMATTER.pattern()); // required for backwards compatibility
+            } else {
+                out.writeString(formatter.pattern());
+            }
+            if (out.getVersion().onOrAfter(Version.V_2_1_1)) {
+                out.writeOptionalString(formatter.printPattern());
+            }
             if (out.getVersion().before(LegacyESVersion.V_7_0_0)) {
                 out.writeString(DateUtils.zoneIdToDateTimeZone(timeZone).getID());
             } else {
