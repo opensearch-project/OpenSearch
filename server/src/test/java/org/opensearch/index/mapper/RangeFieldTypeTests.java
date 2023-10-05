@@ -265,7 +265,9 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
         );
         assertThat(
             ex.getMessage(),
-            containsString("failed to parse date field [2016-15-06T15:29:50+08:00] with format [strict_date_optional_time||epoch_millis]")
+            containsString(
+                "failed to parse date field [2016-15-06T15:29:50+08:00] with format [strict_date_time_no_millis||strict_date_optional_time||epoch_millis]"
+            )
         );
 
         // setting mapping format which is compatible with those dates

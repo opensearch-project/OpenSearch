@@ -149,6 +149,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.NoSuchFileException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -296,21 +297,21 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         Setting.Property.NodeScope
     );
 
-    protected final boolean supportURLRepo;
+    protected volatile boolean supportURLRepo;
 
-    private final int maxShardBlobDeleteBatch;
+    private volatile int maxShardBlobDeleteBatch;
 
-    private final Compressor compressor;
+    private volatile Compressor compressor;
 
-    private final boolean cacheRepositoryData;
+    private volatile boolean cacheRepositoryData;
 
-    private final RateLimiter snapshotRateLimiter;
+    private volatile RateLimiter snapshotRateLimiter;
 
-    private final RateLimiter restoreRateLimiter;
+    private volatile RateLimiter restoreRateLimiter;
 
-    private final RateLimiter remoteUploadRateLimiter;
+    private volatile RateLimiter remoteUploadRateLimiter;
 
-    private final RateLimiter remoteDownloadRateLimiter;
+    private volatile RateLimiter remoteDownloadRateLimiter;
 
     private final CounterMetric snapshotRateLimitingTimeInNanos = new CounterMetric();
 
@@ -355,7 +356,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         BlobStoreIndexShardSnapshots::fromXContent
     );
 
-    private final boolean readOnly;
+    private volatile boolean readOnly;
 
     private final boolean isSystemRepository;
 
@@ -365,7 +366,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     private final SetOnce<BlobStore> blobStore = new SetOnce<>();
 
-    private final ClusterService clusterService;
+    protected final ClusterService clusterService;
 
     private final RecoverySettings recoverySettings;
 
@@ -399,36 +400,54 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     /**
      * IO buffer size hint for reading and writing to the underlying blob store.
      */
-    protected final int bufferSize;
+    protected volatile int bufferSize;
 
     /**
      * Constructs new BlobStoreRepository
-     * @param metadata   The metadata for this repository including name and settings
+     * @param repositoryMetadata   The metadata for this repository including name and settings
      * @param clusterService ClusterService
      */
     protected BlobStoreRepository(
-        final RepositoryMetadata metadata,
-        final boolean compress,
+        final RepositoryMetadata repositoryMetadata,
         final NamedXContentRegistry namedXContentRegistry,
         final ClusterService clusterService,
         final RecoverySettings recoverySettings
     ) {
-        this.metadata = metadata;
+        // Read RepositoryMetadata as the first step
+        readRepositoryMetadata(repositoryMetadata);
+
+        isSystemRepository = SYSTEM_REPOSITORY_SETTING.get(metadata.settings());
         this.namedXContentRegistry = namedXContentRegistry;
         this.threadPool = clusterService.getClusterApplierService().threadPool();
         this.clusterService = clusterService;
         this.recoverySettings = recoverySettings;
-        this.supportURLRepo = SUPPORT_URL_REPO.get(metadata.settings());
+    }
+
+    @Override
+    public void reload(RepositoryMetadata repositoryMetadata) {
+        readRepositoryMetadata(repositoryMetadata);
+    }
+
+    /**
+     * Reloads the values derived from the Repository Metadata
+     *
+     * @param repositoryMetadata RepositoryMetadata instance to derive the values from
+     */
+    private void readRepositoryMetadata(RepositoryMetadata repositoryMetadata) {
+        this.metadata = repositoryMetadata;
+
+        supportURLRepo = SUPPORT_URL_REPO.get(metadata.settings());
         snapshotRateLimiter = getRateLimiter(metadata.settings(), "max_snapshot_bytes_per_sec", new ByteSizeValue(40, ByteSizeUnit.MB));
         restoreRateLimiter = getRateLimiter(metadata.settings(), "max_restore_bytes_per_sec", ByteSizeValue.ZERO);
         remoteUploadRateLimiter = getRateLimiter(metadata.settings(), "max_remote_upload_bytes_per_sec", ByteSizeValue.ZERO);
         remoteDownloadRateLimiter = getRateLimiter(metadata.settings(), "max_remote_download_bytes_per_sec", ByteSizeValue.ZERO);
         readOnly = READONLY_SETTING.get(metadata.settings());
-        isSystemRepository = SYSTEM_REPOSITORY_SETTING.get(metadata.settings());
         cacheRepositoryData = CACHE_REPOSITORY_DATA.get(metadata.settings());
         bufferSize = Math.toIntExact(BUFFER_SIZE_SETTING.get(metadata.settings()).getBytes());
         maxShardBlobDeleteBatch = MAX_SNAPSHOT_SHARD_BLOB_DELETE_BATCH_SIZE.get(metadata.settings());
-        this.compressor = compress ? COMPRESSION_TYPE_SETTING.get(metadata.settings()) : CompressorRegistry.none();
+        compressor = COMPRESS_SETTING.get(metadata.settings())
+            ? COMPRESSION_TYPE_SETTING.get(metadata.settings())
+            : CompressorRegistry.none();
     }
 
     @Override
@@ -1125,7 +1144,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                                     // see https://github.com/opensearch-project/OpenSearch/issues/8469
                                     new RemoteSegmentStoreDirectoryFactory(
                                         remoteStoreLockManagerFactory.getRepositoriesService(),
-                                        threadPool
+                                        threadPool,
+                                        recoverySettings
                                     ).newDirectory(
                                         remoteStoreRepoForIndex,
                                         indexUUID,
@@ -1595,7 +1615,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                                             // see https://github.com/opensearch-project/OpenSearch/issues/8469
                                             new RemoteSegmentStoreDirectoryFactory(
                                                 remoteStoreLockManagerFactory.getRepositoriesService(),
-                                                threadPool
+                                                threadPool,
+                                                recoverySettings
                                             ).newDirectory(
                                                 remoteStoreRepoForIndex,
                                                 indexUUID,
@@ -3136,6 +3157,11 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     public InputStream maybeRateLimitSnapshots(InputStream stream) {
         return maybeRateLimit(stream, () -> snapshotRateLimiter, snapshotRateLimitingTimeInNanos, BlobStoreTransferContext.SNAPSHOT);
+    }
+
+    @Override
+    public List<Setting<?>> getRestrictedSystemRepositorySettings() {
+        return Arrays.asList(SYSTEM_REPOSITORY_SETTING, READONLY_SETTING, REMOTE_STORE_INDEX_SHALLOW_COPY);
     }
 
     @Override

@@ -8,9 +8,84 @@
 
 package org.opensearch.index.remote;
 
+import org.opensearch.common.blobstore.BlobMetadata;
+import org.opensearch.common.blobstore.support.PlainBlobMetadata;
+import org.opensearch.index.store.RemoteSegmentStoreDirectory;
+import org.opensearch.index.translog.transfer.TranslogTransferMetadata;
 import org.opensearch.test.OpenSearchTestCase;
 
+import java.util.ArrayList;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.stream.Collectors;
+
+import static org.opensearch.index.remote.RemoteStoreUtils.verifyNoMultipleWriters;
+import static org.opensearch.index.store.RemoteSegmentStoreDirectory.MetadataFilenameUtils.METADATA_PREFIX;
+import static org.opensearch.index.store.RemoteSegmentStoreDirectory.MetadataFilenameUtils.SEPARATOR;
+import static org.opensearch.index.translog.transfer.TranslogTransferMetadata.METADATA_SEPARATOR;
+
 public class RemoteStoreUtilsTests extends OpenSearchTestCase {
+
+    private final String metadataFilename = RemoteSegmentStoreDirectory.MetadataFilenameUtils.getMetadataFilename(
+        12,
+        23,
+        34,
+        1,
+        1,
+        "node-1"
+    );
+
+    private final String metadataFilenameDup = RemoteSegmentStoreDirectory.MetadataFilenameUtils.getMetadataFilename(
+        12,
+        23,
+        34,
+        2,
+        1,
+        "node-2"
+    );
+    private final String metadataFilename2 = RemoteSegmentStoreDirectory.MetadataFilenameUtils.getMetadataFilename(
+        12,
+        13,
+        34,
+        1,
+        1,
+        "node-1"
+    );
+
+    private final String oldMetadataFilename = getOldSegmentMetadataFilename(12, 23, 34, 1, 1);
+
+    /*
+    Gives segment metadata filename for <2.11 version
+     */
+    public static String getOldSegmentMetadataFilename(
+        long primaryTerm,
+        long generation,
+        long translogGeneration,
+        long uploadCounter,
+        int metadataVersion
+    ) {
+        return String.join(
+            SEPARATOR,
+            METADATA_PREFIX,
+            RemoteStoreUtils.invertLong(primaryTerm),
+            RemoteStoreUtils.invertLong(generation),
+            RemoteStoreUtils.invertLong(translogGeneration),
+            RemoteStoreUtils.invertLong(uploadCounter),
+            RemoteStoreUtils.invertLong(System.currentTimeMillis()),
+            String.valueOf(metadataVersion)
+        );
+    }
+
+    public static String getOldTranslogMetadataFilename(long primaryTerm, long generation, int metadataVersion) {
+        return String.join(
+            METADATA_SEPARATOR,
+            METADATA_PREFIX,
+            RemoteStoreUtils.invertLong(primaryTerm),
+            RemoteStoreUtils.invertLong(generation),
+            RemoteStoreUtils.invertLong(System.currentTimeMillis()),
+            String.valueOf(metadataVersion)
+        );
+    }
 
     public void testInvertToStrInvalid() {
         assertThrows(IllegalArgumentException.class, () -> RemoteStoreUtils.invertLong(-1));
@@ -60,4 +135,48 @@ public class RemoteStoreUtilsTests extends OpenSearchTestCase {
     public void testGetSegmentNameException() {
         assertThrows(IllegalArgumentException.class, () -> RemoteStoreUtils.getSegmentName("dvd"));
     }
+
+    public void testVerifyMultipleWriters_Segment() {
+        List<String> mdFiles = new ArrayList<>();
+        mdFiles.add(metadataFilename);
+        mdFiles.add(metadataFilename2);
+        mdFiles.add(oldMetadataFilename);
+        verifyNoMultipleWriters(mdFiles, RemoteSegmentStoreDirectory.MetadataFilenameUtils::getNodeIdByPrimaryTermAndGen);
+
+        mdFiles.add(metadataFilenameDup);
+        assertThrows(
+            IllegalStateException.class,
+            () -> verifyNoMultipleWriters(mdFiles, RemoteSegmentStoreDirectory.MetadataFilenameUtils::getNodeIdByPrimaryTermAndGen)
+        );
+    }
+
+    public void testVerifyMultipleWriters_Translog() throws InterruptedException {
+        TranslogTransferMetadata tm = new TranslogTransferMetadata(1, 1, 1, 2, "node-1");
+        String mdFilename = tm.getFileName();
+        Thread.sleep(1);
+        TranslogTransferMetadata tm2 = new TranslogTransferMetadata(1, 1, 1, 2, "node-1");
+        String mdFilename2 = tm2.getFileName();
+        List<BlobMetadata> bmList = new LinkedList<>();
+        bmList.add(new PlainBlobMetadata(mdFilename, 1));
+        bmList.add(new PlainBlobMetadata(mdFilename2, 1));
+        bmList.add(new PlainBlobMetadata(getOldTranslogMetadataFilename(1, 1, 1), 1));
+        RemoteStoreUtils.verifyNoMultipleWriters(
+            bmList.stream().map(BlobMetadata::name).collect(Collectors.toList()),
+            TranslogTransferMetadata::getNodeIdByPrimaryTermAndGen
+        );
+
+        bmList = new LinkedList<>();
+        bmList.add(new PlainBlobMetadata(mdFilename, 1));
+        TranslogTransferMetadata tm3 = new TranslogTransferMetadata(1, 1, 1, 2, "node-2");
+        bmList.add(new PlainBlobMetadata(tm3.getFileName(), 1));
+        List<BlobMetadata> finalBmList = bmList;
+        assertThrows(
+            IllegalStateException.class,
+            () -> RemoteStoreUtils.verifyNoMultipleWriters(
+                finalBmList.stream().map(BlobMetadata::name).collect(Collectors.toList()),
+                TranslogTransferMetadata::getNodeIdByPrimaryTermAndGen
+            )
+        );
+    }
+
 }

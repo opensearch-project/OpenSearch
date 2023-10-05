@@ -42,10 +42,12 @@ import org.opensearch.action.support.master.AcknowledgedResponse;
 import org.opensearch.client.Client;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.IndexTemplateMetadata;
+import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.indices.IndexTemplateMissingException;
 import org.opensearch.repositories.RepositoryMissingException;
+import org.opensearch.repositories.blobstore.BlobStoreRepository;
 import org.opensearch.test.hamcrest.OpenSearchAssertions;
 
 import java.io.Closeable;
@@ -253,7 +255,18 @@ public abstract class TestCluster implements Closeable {
             }
             for (String repository : repositories) {
                 try {
-                    client().admin().cluster().prepareDeleteRepository(repository).execute().actionGet();
+                    List<RepositoryMetadata> repositoryMetadata = client().admin()
+                        .cluster()
+                        .prepareGetRepositories(repository)
+                        .execute()
+                        .actionGet()
+                        .repositories();
+                    if (repositoryMetadata.isEmpty() == false
+                        && BlobStoreRepository.SYSTEM_REPOSITORY_SETTING.get(repositoryMetadata.get(0).settings()) == true) {
+                        client().admin().cluster().prepareCleanupRepository(repository).execute().actionGet();
+                    } else {
+                        client().admin().cluster().prepareDeleteRepository(repository).execute().actionGet();
+                    }
                 } catch (RepositoryMissingException ex) {
                     // ignore
                 }

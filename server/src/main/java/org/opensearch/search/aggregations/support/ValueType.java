@@ -61,7 +61,7 @@ public enum ValueType implements Writeable {
         "date",
         "date",
         CoreValuesSourceType.DATE,
-        new DocValueFormat.DateTime(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER, ZoneOffset.UTC, DateFieldMapper.Resolution.MILLISECONDS)
+        new DocValueFormat.DateTime(DateFieldMapper.getDefaultDateTimeFormatter(), ZoneOffset.UTC, DateFieldMapper.Resolution.MILLISECONDS)
     ),
     IP((byte) 6, "ip", "ip", CoreValuesSourceType.IP, DocValueFormat.IP),
     // TODO: what is the difference between "number" and "numeric"?
