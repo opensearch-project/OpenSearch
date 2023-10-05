@@ -249,7 +249,7 @@ public class SegmentReplicationTargetTests extends IndexShardTestCase {
         });
     }
 
-    public void testFailure_finalizeReplication_IOException() throws IOException {
+    public void testFailure_finalizeReplication_NonCorruptionException() throws IOException {
 
         IOException exception = new IOException("dummy failure");
         SegmentReplicationSource segrepSource = new TestReplicationSource() {
@@ -288,6 +288,7 @@ public class SegmentReplicationTargetTests extends IndexShardTestCase {
 
             @Override
             public void onFailure(Exception e) {
+                assertEquals(ReplicationFailedException.class, e.getClass());
                 assertEquals(exception, e.getCause());
                 segrepTarget.fail(new ReplicationFailedException(e), false);
             }
