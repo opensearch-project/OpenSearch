@@ -1074,6 +1074,51 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
         assertEquals(1, readContextActionListener.getFailureCount());
     }
 
+    public void testReadBlobAsyncOnCompleteFailureMissingData() throws Exception {
+        final String bucketName = randomAlphaOfLengthBetween(1, 10);
+        final String blobName = randomAlphaOfLengthBetween(1, 10);
+        final String checksum = randomAlphaOfLength(10);
+
+        final long objectSize = 100L;
+        final int objectPartCount = 10;
+
+        final S3AsyncClient s3AsyncClient = mock(S3AsyncClient.class);
+        final AmazonAsyncS3Reference amazonAsyncS3Reference = new AmazonAsyncS3Reference(
+            AmazonAsyncS3WithCredentials.create(s3AsyncClient, s3AsyncClient, null)
+        );
+
+        final S3BlobStore blobStore = mock(S3BlobStore.class);
+        final BlobPath blobPath = new BlobPath();
+
+        when(blobStore.bucket()).thenReturn(bucketName);
+        when(blobStore.getStatsMetricPublisher()).thenReturn(new StatsMetricPublisher());
+        when(blobStore.serverSideEncryption()).thenReturn(false);
+        when(blobStore.asyncClientReference()).thenReturn(amazonAsyncS3Reference);
+
+        CompletableFuture<GetObjectAttributesResponse> getObjectAttributesResponseCompletableFuture = new CompletableFuture<>();
+        getObjectAttributesResponseCompletableFuture.complete(
+            GetObjectAttributesResponse.builder()
+                .checksum(Checksum.builder().build())
+                .objectSize(null)
+                .objectParts(GetObjectAttributesParts.builder().totalPartsCount(objectPartCount).build())
+                .build()
+        );
+        when(s3AsyncClient.getObjectAttributes(any(GetObjectAttributesRequest.class))).thenReturn(
+            getObjectAttributesResponseCompletableFuture
+        );
+
+        CountDownLatch countDownLatch = new CountDownLatch(1);
+        CountingCompletionListener<ReadContext> readContextActionListener = new CountingCompletionListener<>();
+        LatchedActionListener<ReadContext> listener = new LatchedActionListener<>(readContextActionListener, countDownLatch);
+
+        final S3BlobContainer blobContainer = new S3BlobContainer(blobPath, blobStore);
+        blobContainer.readBlobAsync(blobName, listener);
+        countDownLatch.await();
+
+        assertEquals(0, readContextActionListener.getResponseCount());
+        assertEquals(1, readContextActionListener.getFailureCount());
+    }
+
     public void testGetBlobMetadata() throws Exception {
         final String checksum = randomAlphaOfLengthBetween(1, 10);
         final long objectSize = 100L;
