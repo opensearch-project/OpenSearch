@@ -10,7 +10,10 @@ package org.opensearch.common.blobstore.stream.read.listener;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.util.IOUtils;
 import org.opensearch.action.support.GroupedActionListener;
+import org.opensearch.common.SuppressForbidden;
+import org.opensearch.common.UUIDs;
 import org.opensearch.common.annotation.InternalApi;
 import org.opensearch.common.blobstore.stream.read.ReadContext;
 import org.opensearch.core.action.ActionListener;
@@ -20,6 +23,8 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
+import java.util.Collection;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.Executor;
@@ -33,9 +38,11 @@ import java.util.function.UnaryOperator;
 @InternalApi
 public class ReadContextListener implements ActionListener<ReadContext> {
     private static final Logger logger = LogManager.getLogger(ReadContextListener.class);
-
+    private static final String DOWNLOAD_PREFIX = "download.";
     private final String blobName;
     private final Path fileLocation;
+    private final String tmpFileName;
+    private final Path tmpFileLocation;
     private final ActionListener<String> completionListener;
     private final ThreadPool threadPool;
     private final UnaryOperator<InputStream> rateLimiter;
@@ -55,6 +62,8 @@ public class ReadContextListener implements ActionListener<ReadContext> {
         this.threadPool = threadPool;
         this.rateLimiter = rateLimiter;
         this.maxConcurrentStreams = maxConcurrentStreams;
+        this.tmpFileName = DOWNLOAD_PREFIX + UUIDs.randomBase64UUID() + "." + blobName;
+        this.tmpFileLocation = fileLocation.getParent().resolve(tmpFileName);
     }
 
     @Override
@@ -62,15 +71,12 @@ public class ReadContextListener implements ActionListener<ReadContext> {
         logger.debug("Received {} parts for blob {}", readContext.getNumberOfParts(), blobName);
         final int numParts = readContext.getNumberOfParts();
         final AtomicBoolean anyPartStreamFailed = new AtomicBoolean(false);
-        final GroupedActionListener<String> groupedListener = new GroupedActionListener<>(
-            ActionListener.wrap(r -> completionListener.onResponse(blobName), completionListener::onFailure),
-            numParts
-        );
+        final GroupedActionListener<String> groupedListener = new GroupedActionListener<>(getFileCompletionListener(), numParts);
         final Queue<ReadContext.StreamPartCreator> queue = new ConcurrentLinkedQueue<>(readContext.getPartStreams());
         final StreamPartProcessor processor = new StreamPartProcessor(
             queue,
             anyPartStreamFailed,
-            fileLocation,
+            tmpFileLocation,
             groupedListener,
             threadPool.executor(ThreadPool.Names.REMOTE_RECOVERY),
             rateLimiter
@@ -78,6 +84,37 @@ public class ReadContextListener implements ActionListener<ReadContext> {
         for (int i = 0; i < Math.min(maxConcurrentStreams, queue.size()); i++) {
             processor.process(queue.poll());
         }
+    }
+
+    @SuppressForbidden(reason = "need to fsync once all parts received")
+    private ActionListener<Collection<String>> getFileCompletionListener() {
+        return ActionListener.wrap(response -> {
+            logger.trace("renaming temp file [{}] to [{}]", tmpFileLocation, fileLocation);
+            try {
+                IOUtils.fsync(tmpFileLocation, false);
+                Files.move(tmpFileLocation, fileLocation, StandardCopyOption.ATOMIC_MOVE);
+                // sync parent dir metadata
+                IOUtils.fsync(fileLocation.getParent(), true);
+                completionListener.onResponse(blobName);
+            } catch (IOException e) {
+                logger.error("Unable to rename temp file + " + tmpFileLocation, e);
+                completionListener.onFailure(e);
+            }
+        }, e -> {
+            try {
+                Files.deleteIfExists(tmpFileLocation);
+            } catch (IOException ex) {
+                logger.warn("Unable to clean temp file {}", tmpFileLocation);
+            }
+            completionListener.onFailure(e);
+        });
+    }
+
+    /*
+     * For Tests
+     */
+    Path getTmpFileLocation() {
+        return tmpFileLocation;
     }
 
     @Override
