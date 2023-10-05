@@ -589,7 +589,7 @@ public class NRTReplicationEngineTests extends EngineTestCase {
             randomBoolean(),
             randomBoolean()
         );
-        indexOperations(nrtEngine, operations.subList(0, 2));
+        indexOperations(nrtEngine, operations);
         // wipe the nrt directory initially so we can sync with primary.
         cleanAndCopySegmentsFromPrimary(nrtEngine);
         nrtEngineStore.directory().deleteFile("_0.si");
