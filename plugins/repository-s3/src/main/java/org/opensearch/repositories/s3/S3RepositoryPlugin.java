@@ -182,7 +182,8 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
             priorityExecutorBuilder,
             normalExecutorBuilder,
             s3AsyncService,
-            S3Repository.PARALLEL_MULTIPART_UPLOAD_ENABLED_SETTING.get(clusterService.getSettings())
+            S3Repository.PARALLEL_MULTIPART_UPLOAD_ENABLED_SETTING.get(clusterService.getSettings()),
+            configPath
         );
     }
 
