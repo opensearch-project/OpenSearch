@@ -525,27 +525,32 @@ public class SegmentReplicationTargetService implements IndexEventListener {
             @Override
             public void onFailure(Exception e) {
                 logger.debug("Replication failed {}", target.description());
-                if (isStoreCorrupt(target.indexShard())
-                    || e instanceof OpenSearchCorruptionException
-                    || e instanceof CorruptIndexException) {
-                    onGoingReplications.fail(replicationId, new ReplicationFailedException("Store corruption during replication", e), true);
-                    return;
-                }
+                    if (isStoreCorrupt(target)
+                        || e instanceof CorruptIndexException
+                        || e instanceof OpenSearchCorruptionException) {
+                        onGoingReplications.fail(replicationId, new ReplicationFailedException("Store corruption during replication", e), true);
+                        return;
+                    }
                 onGoingReplications.fail(replicationId, new ReplicationFailedException("Segment Replication failed", e), false);
             }
         });
     }
 
-    private static boolean isStoreCorrupt(IndexShard indexShard) {
-        final Store store = indexShard.store();
-        if (store.tryIncRef()) {
-            try {
-                return store.isMarkedCorrupted();
-            } catch (IOException ex) {
-                logger.warn("Unable to determine if store is corrupt", ex);
-                return false;
-            } finally {
-                store.decRef();
+    private boolean isStoreCorrupt(SegmentReplicationTarget target) {
+        // ensure target is not already closed. In that case
+        // we can assume the store is not corrupt and that the replication
+        // event completed successfully.
+        if (target.refCount() > 0) {
+            final Store store = target.store();
+            if (store.tryIncRef()) {
+                try {
+                    return store.isMarkedCorrupted();
+                } catch (IOException ex) {
+                    logger.warn("Unable to determine if store is corrupt", ex);
+                    return false;
+                } finally {
+                    store.decRef();
+                }
             }
         }
         // store already closed.
