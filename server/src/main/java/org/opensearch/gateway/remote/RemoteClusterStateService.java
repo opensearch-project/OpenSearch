@@ -15,6 +15,7 @@ import org.opensearch.Version;
 import org.opensearch.action.LatchedActionListener;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.blobstore.BlobMetadata;
@@ -509,6 +510,10 @@ public class RemoteClusterStateService implements Closeable {
 
     private BlobPath getManifestFolderPath(String clusterName, String clusterUUID) {
         return getCusterMetadataBasePath(clusterName, clusterUUID).add(MANIFEST_PATH_TOKEN);
+    }
+
+    public Metadata getLatestClusterMetadata(String clusterName, String clusterUUID) {
+        return Metadata.builder().build();
     }
 
     /**
