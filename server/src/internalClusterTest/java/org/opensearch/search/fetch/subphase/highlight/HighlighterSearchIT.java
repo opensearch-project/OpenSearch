@@ -3343,6 +3343,10 @@ public class HighlighterSearchIT extends ParameterizedOpenSearchIntegTestCase {
     }
 
     public void testHighlightQueryRewriteDatesWithNow() throws Exception {
+        assumeFalse(
+            "Concurrent search case muted pending fix: https://github.com/opensearch-project/OpenSearch/issues/10434",
+            internalCluster().clusterService().getClusterSettings().get(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING)
+        );
         assertAcked(
             client().admin()
                 .indices()
