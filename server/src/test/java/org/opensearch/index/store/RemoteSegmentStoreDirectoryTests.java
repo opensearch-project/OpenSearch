@@ -66,13 +66,13 @@ import java.util.function.UnaryOperator;
 
 import org.mockito.Mockito;
 
-import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.ArgumentMatchers.contains;
-import static org.mockito.ArgumentMatchers.anyLong;
 import static org.opensearch.index.store.RemoteSegmentStoreDirectory.METADATA_FILES_TO_FETCH;
 import static org.opensearch.test.RemoteStoreTestUtils.createMetadataFileBytes;
 import static org.opensearch.test.RemoteStoreTestUtils.getDummyMetadata;
 import static org.hamcrest.CoreMatchers.is;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.contains;
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.doThrow;
