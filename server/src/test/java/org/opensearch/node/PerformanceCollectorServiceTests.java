@@ -35,12 +35,13 @@ import static org.opensearch.test.ClusterServiceUtils.createClusterService;
 import static org.hamcrest.Matchers.greaterThan;
 
 /**
- * Tests for PerfStatsCollectorService where we test collect, get and schedulers are working as expected
+ * Tests for PerformanceCollectorService where we test collect method, get method and whether schedulers
+ * are working as expected
  */
-public class PerfStatsCollectorServiceTests extends OpenSearchTestCase {
+public class PerformanceCollectorServiceTests extends OpenSearchTestCase {
 
     private ClusterService clusterService;
-    private PerfStatsCollectorService collector;
+    private PerformanceCollectorService collector;
     private ThreadPool threadpool;
     NodePerformanceTracker tracker;
 
@@ -60,7 +61,7 @@ public class PerfStatsCollectorServiceTests extends OpenSearchTestCase {
             settings,
             new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
         );
-        collector = new PerfStatsCollectorService(tracker, clusterService, threadpool);
+        collector = new PerformanceCollectorService(tracker, clusterService, threadpool);
         tracker.start();
         collector.start();
     }
@@ -77,13 +78,13 @@ public class PerfStatsCollectorServiceTests extends OpenSearchTestCase {
     }
 
     public void testNodePerformanceStats() {
-        collector.collectNodePerfStatistics("node1", 99, 97, System.currentTimeMillis());
-        Map<String, NodePerformanceStatistics> nodeStats = collector.getAllNodeStatistics();
+        collector.collectNodePerfStatistics("node1", System.currentTimeMillis(), 97, 99);
+        Map<String, NodePerformanceStats> nodeStats = collector.getAllNodeStatistics();
         assertTrue(nodeStats.containsKey("node1"));
         assertEquals(99.0, nodeStats.get("node1").cpuUtilizationPercent, 0.0);
         assertEquals(97.0, nodeStats.get("node1").memoryUtilizationPercent, 0.0);
 
-        Optional<NodePerformanceStatistics> nodePerformanceStatistics = collector.getNodeStatistics("node1");
+        Optional<NodePerformanceStats> nodePerformanceStatistics = collector.getNodeStatistics("node1");
 
         assertNotNull(nodePerformanceStatistics.get());
         assertEquals(99.0, nodePerformanceStatistics.get().cpuUtilizationPercent, 0.0);
@@ -134,9 +135,9 @@ public class PerfStatsCollectorServiceTests extends OpenSearchTestCase {
                 }
                 collector.collectNodePerfStatistics(
                     randomFrom(nodes),
+                    System.currentTimeMillis(),
                     randomIntBetween(1, 100),
-                    randomIntBetween(1, 100),
-                    System.currentTimeMillis()
+                    randomIntBetween(1, 100)
                 );
             }
         };
@@ -156,7 +157,7 @@ public class PerfStatsCollectorServiceTests extends OpenSearchTestCase {
         t3.join();
         t4.join();
 
-        final Map<String, NodePerformanceStatistics> nodeStats = collector.getAllNodeStatistics();
+        final Map<String, NodePerformanceStats> nodeStats = collector.getAllNodeStatistics();
         logger.info("--> got stats: {}", nodeStats);
         for (String nodeId : nodes) {
             if (nodeStats.containsKey(nodeId)) {
@@ -167,8 +168,8 @@ public class PerfStatsCollectorServiceTests extends OpenSearchTestCase {
     }
 
     public void testNodeRemoval() {
-        collector.collectNodePerfStatistics("node1", randomIntBetween(1, 100), randomIntBetween(1, 100), System.currentTimeMillis());
-        collector.collectNodePerfStatistics("node2", randomIntBetween(1, 100), randomIntBetween(1, 100), System.currentTimeMillis());
+        collector.collectNodePerfStatistics("node1", System.currentTimeMillis(), randomIntBetween(1, 100), randomIntBetween(1, 100));
+        collector.collectNodePerfStatistics("node2", System.currentTimeMillis(), randomIntBetween(1, 100), randomIntBetween(1, 100));
 
         ClusterState previousState = ClusterState.builder(new ClusterName("cluster"))
             .nodes(
@@ -183,7 +184,7 @@ public class PerfStatsCollectorServiceTests extends OpenSearchTestCase {
         ClusterChangedEvent event = new ClusterChangedEvent("test", newState, previousState);
 
         collector.clusterChanged(event);
-        final Map<String, NodePerformanceStatistics> nodeStats = collector.getAllNodeStatistics();
+        final Map<String, NodePerformanceStats> nodeStats = collector.getAllNodeStatistics();
         assertTrue(nodeStats.containsKey("node1"));
         assertFalse(nodeStats.containsKey("node2"));
     }

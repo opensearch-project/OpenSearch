@@ -214,7 +214,7 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
         FILE_CACHE_STATS("file_cache"),
         TASK_CANCELLATION("task_cancellation"),
         SEARCH_PIPELINE("search_pipeline"),
-        GLOBAL_PERFORMANCE_STATS("performance_stats");
+        PERFORMANCE_STATS("performance_stats");
 
         private String metricName;
 

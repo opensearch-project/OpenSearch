@@ -16,7 +16,6 @@ import org.opensearch.common.util.MovingAverage;
 import org.opensearch.threadpool.Scheduler;
 import org.opensearch.threadpool.ThreadPool;
 
-import java.io.IOException;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
@@ -91,5 +90,5 @@ public abstract class AbstractAverageUsageTracker extends AbstractLifecycleCompo
     }
 
     @Override
-    protected void doClose() throws IOException {}
+    protected void doClose() {}
 }

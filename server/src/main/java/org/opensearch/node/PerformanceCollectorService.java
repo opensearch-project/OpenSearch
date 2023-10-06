@@ -21,7 +21,6 @@ import org.opensearch.ratelimiting.tracker.NodePerformanceTracker;
 import org.opensearch.threadpool.Scheduler;
 import org.opensearch.threadpool.ThreadPool;
 
-import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
@@ -31,16 +30,16 @@ import java.util.concurrent.ConcurrentMap;
  * This collects node level performance statistics such as cpu, memory, IO of each node and makes it available for
  * coordinator node to aid in throttling, ranking etc
  */
-public class PerfStatsCollectorService extends AbstractLifecycleComponent implements ClusterStateListener {
+public class PerformanceCollectorService extends AbstractLifecycleComponent implements ClusterStateListener {
 
     /**
-     * This refresh interval denotes the polling interval of PerfStatsCollectorService to refresh the performance stats
+     * This refresh interval denotes the polling interval of PerformanceCollectorService to refresh the performance stats
      * from local node
      */
     private static long REFRESH_INTERVAL_IN_MILLIS = 1000;
 
-    private static final Logger logger = LogManager.getLogger(PerfStatsCollectorService.class);
-    private final ConcurrentMap<String, NodePerformanceStatistics> nodeIdToPerfStats = ConcurrentCollections.newConcurrentMap();
+    private static final Logger logger = LogManager.getLogger(PerformanceCollectorService.class);
+    private final ConcurrentMap<String, NodePerformanceStats> nodeIdToPerfStats = ConcurrentCollections.newConcurrentMap();
 
     private ThreadPool threadPool;
     private volatile Scheduler.Cancellable scheduledFuture;
@@ -48,7 +47,11 @@ public class PerfStatsCollectorService extends AbstractLifecycleComponent implem
     private NodePerformanceTracker nodePerformanceTracker;
     private ClusterService clusterService;
 
-    public PerfStatsCollectorService(NodePerformanceTracker nodePerformanceTracker, ClusterService clusterService, ThreadPool threadPool) {
+    public PerformanceCollectorService(
+        NodePerformanceTracker nodePerformanceTracker,
+        ClusterService clusterService,
+        ThreadPool threadPool
+    ) {
         this.threadPool = threadPool;
         this.nodePerformanceTracker = nodePerformanceTracker;
         this.clusterService = clusterService;
@@ -71,10 +74,10 @@ public class PerfStatsCollectorService extends AbstractLifecycleComponent implem
     /**
      * Collect node performance statistics along with the timestamp
      */
-    public void collectNodePerfStatistics(String nodeId, double cpuUtilizationPercent, double memoryUtilizationPercent, long timestamp) {
+    public void collectNodePerfStatistics(String nodeId, long timestamp, double memoryUtilizationPercent, double cpuUtilizationPercent) {
         nodeIdToPerfStats.compute(nodeId, (id, nodePerfStats) -> {
             if (nodePerfStats == null) {
-                return new NodePerformanceStatistics(nodeId, cpuUtilizationPercent, memoryUtilizationPercent, timestamp);
+                return new NodePerformanceStats(nodeId, timestamp, memoryUtilizationPercent, cpuUtilizationPercent);
             } else {
                 nodePerfStats.cpuUtilizationPercent = cpuUtilizationPercent;
                 nodePerfStats.memoryUtilizationPercent = memoryUtilizationPercent;
@@ -87,9 +90,9 @@ public class PerfStatsCollectorService extends AbstractLifecycleComponent implem
     /**
      * Get all node statistics which will be used for node stats
      */
-    public Map<String, NodePerformanceStatistics> getAllNodeStatistics() {
-        Map<String, NodePerformanceStatistics> nodeStats = new HashMap<>(nodeIdToPerfStats.size());
-        nodeIdToPerfStats.forEach((nodeId, nodePerfStats) -> { nodeStats.put(nodeId, new NodePerformanceStatistics(nodePerfStats)); });
+    public Map<String, NodePerformanceStats> getAllNodeStatistics() {
+        Map<String, NodePerformanceStats> nodeStats = new HashMap<>(nodeIdToPerfStats.size());
+        nodeIdToPerfStats.forEach((nodeId, nodePerfStats) -> { nodeStats.put(nodeId, new NodePerformanceStats(nodePerfStats)); });
         return nodeStats;
     }
 
@@ -98,27 +101,27 @@ public class PerfStatsCollectorService extends AbstractLifecycleComponent implem
      * performance stats information exists for the given node. Returns an empty
      * {@code Optional} if the node was not found.
      */
-    public Optional<NodePerformanceStatistics> getNodeStatistics(final String nodeId) {
-        return Optional.ofNullable(nodeIdToPerfStats.get(nodeId)).map(perfStats -> new NodePerformanceStatistics(perfStats));
+    public Optional<NodePerformanceStats> getNodeStatistics(final String nodeId) {
+        return Optional.ofNullable(nodeIdToPerfStats.get(nodeId)).map(perfStats -> new NodePerformanceStats(perfStats));
     }
 
     /**
      * Returns collected performance statistics of all nodes
      */
-    public GlobalPerformanceStats stats() {
-        return new GlobalPerformanceStats(getAllNodeStatistics());
+    public NodesPerformanceStats stats() {
+        return new NodesPerformanceStats(getAllNodeStatistics());
     }
 
     /**
      * Fetch local node performance statistics and add it to store along with the current timestamp
      */
-    private void getLocalNodePerformanceStats() {
+    private void collectLocalNodePerformanceStats() {
         if (nodePerformanceTracker.isReady() && clusterService.state() != null) {
             collectNodePerfStatistics(
                 clusterService.state().nodes().getLocalNodeId(),
-                nodePerformanceTracker.getCpuUtilizationPercent(),
+                System.currentTimeMillis(),
                 nodePerformanceTracker.getMemoryUtilizationPercent(),
-                System.currentTimeMillis()
+                nodePerformanceTracker.getCpuUtilizationPercent()
             );
         }
     }
@@ -130,9 +133,9 @@ public class PerfStatsCollectorService extends AbstractLifecycleComponent implem
          */
         scheduledFuture = threadPool.scheduleWithFixedDelay(() -> {
             try {
-                getLocalNodePerformanceStats();
+                collectLocalNodePerformanceStats();
             } catch (Exception e) {
-                logger.warn("failure in PerfStatsCollectorService", e);
+                logger.warn("failure in PerformanceCollectorService", e);
             }
         }, new TimeValue(REFRESH_INTERVAL_IN_MILLIS), ThreadPool.Names.GENERIC);
     }
@@ -145,5 +148,5 @@ public class PerfStatsCollectorService extends AbstractLifecycleComponent implem
     }
 
     @Override
-    protected void doClose() throws IOException {}
+    protected void doClose() {}
 }

@@ -1075,7 +1075,7 @@ public class Node implements Closeable {
                 settings,
                 clusterService.getClusterSettings()
             );
-            final PerfStatsCollectorService perfStatsCollectorService = new PerfStatsCollectorService(
+            final PerformanceCollectorService performanceCollectorService = new PerformanceCollectorService(
                 nodePerformanceTracker,
                 clusterService,
                 threadPool
@@ -1102,7 +1102,7 @@ public class Node implements Closeable {
                 searchPipelineService,
                 fileCache,
                 taskCancellationMonitoringService,
-                perfStatsCollectorService
+                performanceCollectorService
             );
 
             final SearchService searchService = newSearchService(
@@ -1223,8 +1223,8 @@ public class Node implements Closeable {
                 b.bind(RerouteService.class).toInstance(rerouteService);
                 b.bind(ShardLimitValidator.class).toInstance(shardLimitValidator);
                 b.bind(FsHealthService.class).toInstance(fsHealthService);
-                b.bind(PerfStatsCollectorService.class).toInstance(perfStatsCollectorService);
                 b.bind(NodePerformanceTracker.class).toInstance(nodePerformanceTracker);
+                b.bind(PerformanceCollectorService.class).toInstance(performanceCollectorService);
                 b.bind(SystemIndices.class).toInstance(systemIndices);
                 b.bind(IdentityService.class).toInstance(identityService);
                 b.bind(Tracer.class).toInstance(tracer);
@@ -1342,7 +1342,7 @@ public class Node implements Closeable {
         injector.getInstance(SearchService.class).start();
         injector.getInstance(FsHealthService.class).start();
         injector.getInstance(NodePerformanceTracker.class).start();
-        injector.getInstance(PerfStatsCollectorService.class).start();
+        injector.getInstance(PerformanceCollectorService.class).start();
         nodeService.getMonitorService().start();
         nodeService.getSearchBackpressureService().start();
         nodeService.getTaskCancellationMonitoringService().start();
@@ -1506,7 +1506,7 @@ public class Node implements Closeable {
         injector.getInstance(NodeConnectionsService.class).stop();
         injector.getInstance(FsHealthService.class).stop();
         injector.getInstance(NodePerformanceTracker.class).stop();
-        injector.getInstance(PerfStatsCollectorService.class).stop();
+        injector.getInstance(PerformanceCollectorService.class).stop();
         nodeService.getMonitorService().stop();
         nodeService.getSearchBackpressureService().stop();
         injector.getInstance(GatewayService.class).stop();
@@ -1572,8 +1572,8 @@ public class Node implements Closeable {
         toClose.add(injector.getInstance(FsHealthService.class));
         toClose.add(() -> stopWatch.stop().start("node_performance_tracker"));
         toClose.add(injector.getInstance(NodePerformanceTracker.class));
-        toClose.add(() -> stopWatch.stop().start("perf_stats_collector"));
-        toClose.add(injector.getInstance(PerfStatsCollectorService.class));
+        toClose.add(() -> stopWatch.stop().start("performance_collector"));
+        toClose.add(injector.getInstance(PerformanceCollectorService.class));
         toClose.add(() -> stopWatch.stop().start("gateway"));
         toClose.add(injector.getInstance(GatewayService.class));
         toClose.add(() -> stopWatch.stop().start("search"));

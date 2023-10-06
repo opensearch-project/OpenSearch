@@ -24,17 +24,17 @@ import java.util.concurrent.TimeUnit;
  * This class represents performance stats such as CPU, Memory and IO resource usage of each node along with the time
  * elapsed from when the stats were recorded.
  */
-public class GlobalPerformanceStats implements Writeable, ToXContentFragment {
+public class NodesPerformanceStats implements Writeable, ToXContentFragment {
 
     // Map of node id to perf stats of the corresponding node.
-    private final Map<String, NodePerformanceStatistics> nodeIdToPerfStatsMap;
+    private final Map<String, NodePerformanceStats> nodeIdToPerfStatsMap;
 
-    public GlobalPerformanceStats(Map<String, NodePerformanceStatistics> nodeIdToPerfStatsMap) {
+    public NodesPerformanceStats(Map<String, NodePerformanceStats> nodeIdToPerfStatsMap) {
         this.nodeIdToPerfStatsMap = nodeIdToPerfStatsMap;
     }
 
-    public GlobalPerformanceStats(StreamInput in) throws IOException {
-        this.nodeIdToPerfStatsMap = in.readMap(StreamInput::readString, NodePerformanceStatistics::new);
+    public NodesPerformanceStats(StreamInput in) throws IOException {
+        this.nodeIdToPerfStatsMap = in.readMap(StreamInput::readString, NodePerformanceStats::new);
     }
 
     @Override
@@ -45,7 +45,7 @@ public class GlobalPerformanceStats implements Writeable, ToXContentFragment {
     /**
      * Returns map of node id to perf stats of the corresponding node.
      */
-    public Map<String, NodePerformanceStatistics> getNodeIdToNodePerfStatsMap() {
+    public Map<String, NodePerformanceStats> getNodeIdToNodePerfStatsMap() {
         return nodeIdToPerfStatsMap;
     }
 
@@ -54,7 +54,7 @@ public class GlobalPerformanceStats implements Writeable, ToXContentFragment {
         builder.startObject("performance_stats");
         for (String nodeId : nodeIdToPerfStatsMap.keySet()) {
             builder.startObject(nodeId);
-            NodePerformanceStatistics perfStats = nodeIdToPerfStatsMap.get(nodeId);
+            NodePerformanceStats perfStats = nodeIdToPerfStatsMap.get(nodeId);
             if (perfStats != null) {
                 builder.field(
                     "elapsed_time",

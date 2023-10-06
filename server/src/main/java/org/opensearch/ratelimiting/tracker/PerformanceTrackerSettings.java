@@ -8,7 +8,6 @@
 
 package org.opensearch.ratelimiting.tracker;
 
-import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
@@ -58,14 +57,11 @@ public class PerformanceTrackerSettings {
     private volatile TimeValue memoryWindowDuration;
     private volatile TimeValue memoryPollingInterval;
 
-    public PerformanceTrackerSettings(Settings settings, ClusterSettings clusterSettings) {
+    public PerformanceTrackerSettings(Settings settings) {
         this.cpuPollingInterval = GLOBAL_CPU_USAGE_AC_POLLING_INTERVAL_SETTING.get(settings);
         this.cpuWindowDuration = GLOBAL_CPU_USAGE_AC_WINDOW_DURATION_SETTING.get(settings);
         this.memoryPollingInterval = GLOBAL_JVM_USAGE_AC_POLLING_INTERVAL_SETTING.get(settings);
         this.memoryWindowDuration = GLOBAL_JVM_USAGE_AC_WINDOW_DURATION_SETTING.get(settings);
-
-        clusterSettings.addSettingsUpdateConsumer(GLOBAL_CPU_USAGE_AC_WINDOW_DURATION_SETTING, this::setCpuWindowDuration);
-        clusterSettings.addSettingsUpdateConsumer(GLOBAL_JVM_USAGE_AC_WINDOW_DURATION_SETTING, this::setMemoryWindowDuration);
     }
 
     public TimeValue getCpuWindowDuration() {

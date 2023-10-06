@@ -19,20 +19,20 @@ import java.util.Locale;
  * This represents the performance stats of a node along with the timestamp at which the stats object was created
  * in the respective node
  */
-public class NodePerformanceStatistics implements Writeable {
+public class NodePerformanceStats implements Writeable {
     final String nodeId;
     long timestamp;
     double cpuUtilizationPercent;
     double memoryUtilizationPercent;
 
-    public NodePerformanceStatistics(String nodeId, double cpuUtilizationPercent, double memoryUtilizationPercent, long timestamp) {
+    public NodePerformanceStats(String nodeId, long timestamp, double memoryUtilizationPercent, double cpuUtilizationPercent) {
         this.nodeId = nodeId;
         this.cpuUtilizationPercent = cpuUtilizationPercent;
         this.memoryUtilizationPercent = memoryUtilizationPercent;
         this.timestamp = timestamp;
     }
 
-    public NodePerformanceStatistics(StreamInput in) throws IOException {
+    public NodePerformanceStats(StreamInput in) throws IOException {
         this.nodeId = in.readString();
         this.timestamp = in.readLong();
         this.cpuUtilizationPercent = in.readDouble();
@@ -58,12 +58,12 @@ public class NodePerformanceStatistics implements Writeable {
         return sb.toString();
     }
 
-    NodePerformanceStatistics(NodePerformanceStatistics nodePerformanceStatistics) {
+    NodePerformanceStats(NodePerformanceStats nodePerformanceStats) {
         this(
-            nodePerformanceStatistics.nodeId,
-            nodePerformanceStatistics.cpuUtilizationPercent,
-            nodePerformanceStatistics.memoryUtilizationPercent,
-            nodePerformanceStatistics.timestamp
+            nodePerformanceStats.nodeId,
+            nodePerformanceStats.timestamp,
+            nodePerformanceStats.memoryUtilizationPercent,
+            nodePerformanceStats.cpuUtilizationPercent
         );
     }
 

@@ -125,7 +125,7 @@ public class TransportNodesStatsAction extends TransportNodesAction<
             NodesStatsRequest.Metric.FILE_CACHE_STATS.containedIn(metrics),
             NodesStatsRequest.Metric.TASK_CANCELLATION.containedIn(metrics),
             NodesStatsRequest.Metric.SEARCH_PIPELINE.containedIn(metrics),
-            NodesStatsRequest.Metric.GLOBAL_PERFORMANCE_STATS.containedIn(metrics)
+            NodesStatsRequest.Metric.PERFORMANCE_STATS.containedIn(metrics)
         );
     }
 

@@ -8,10 +8,11 @@
 
 package org.opensearch.ratelimiting.tracker;
 
+import org.opensearch.action.admin.cluster.settings.ClusterUpdateSettingsResponse;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.test.OpenSearchSingleNodeTestCase;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
 import org.junit.After;
@@ -19,12 +20,13 @@ import org.junit.Before;
 
 import java.util.concurrent.TimeUnit;
 
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.greaterThan;
 
 /**
  * Tests to assert node performance trackers retrieving resource utilization averages
  */
-public class NodePerformanceTrackerTests extends OpenSearchTestCase {
+public class NodePerformanceTrackerTests extends OpenSearchSingleNodeTestCase {
     ThreadPool threadPool;
 
     @Before
@@ -35,6 +37,13 @@ public class NodePerformanceTrackerTests extends OpenSearchTestCase {
     @After
     public void cleanup() {
         ThreadPool.terminate(threadPool, 5, TimeUnit.SECONDS);
+        assertAcked(
+            client().admin()
+                .cluster()
+                .prepareUpdateSettings()
+                .setPersistentSettings(Settings.builder().putNull("*"))
+                .setTransientSettings(Settings.builder().putNull("*"))
+        );
     }
 
     public void testStats() throws Exception {
@@ -54,5 +63,34 @@ public class NodePerformanceTrackerTests extends OpenSearchTestCase {
         assertBusy(() -> assertThat(tracker.getMemoryUtilizationPercent(), greaterThan(0.0)), 5, TimeUnit.SECONDS);
         tracker.stop();
         tracker.close();
+    }
+
+    public void testUpdateSettings() {
+        NodePerformanceTracker tracker = new NodePerformanceTracker(
+            threadPool,
+            Settings.EMPTY,
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+        );
+
+        assertEquals(tracker.getPerformanceTrackerSettings().getCpuWindowDuration().getSeconds(), 30);
+        assertEquals(tracker.getPerformanceTrackerSettings().getMemoryWindowDuration().getSeconds(), 30);
+
+        Settings settings = Settings.builder()
+            .put(PerformanceTrackerSettings.GLOBAL_CPU_USAGE_AC_WINDOW_DURATION_SETTING.getKey(), "10s")
+            .build();
+        ClusterUpdateSettingsResponse response = client().admin().cluster().prepareUpdateSettings().setPersistentSettings(settings).get();
+        assertEquals(
+            "10s",
+            response.getPersistentSettings().get(PerformanceTrackerSettings.GLOBAL_CPU_USAGE_AC_WINDOW_DURATION_SETTING.getKey())
+        );
+
+        Settings jvmsettings = Settings.builder()
+            .put(PerformanceTrackerSettings.GLOBAL_JVM_USAGE_AC_WINDOW_DURATION_SETTING.getKey(), "5s")
+            .build();
+        response = client().admin().cluster().prepareUpdateSettings().setPersistentSettings(jvmsettings).get();
+        assertEquals(
+            "5s",
+            response.getPersistentSettings().get(PerformanceTrackerSettings.GLOBAL_JVM_USAGE_AC_WINDOW_DURATION_SETTING.getKey())
+        );
     }
 }

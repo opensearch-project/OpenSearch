@@ -83,7 +83,7 @@ public class NodeService implements Closeable {
     private final ScriptService scriptService;
     private final HttpServerTransport httpServerTransport;
     private final ResponseCollectorService responseCollectorService;
-    private final PerfStatsCollectorService perfStatsCollectorService;
+    private final PerformanceCollectorService performanceCollectorService;
     private final SearchTransportService searchTransportService;
     private final IndexingPressureService indexingPressureService;
     private final AggregationUsageService aggregationUsageService;
@@ -116,7 +116,7 @@ public class NodeService implements Closeable {
         SearchPipelineService searchPipelineService,
         FileCache fileCache,
         TaskCancellationMonitoringService taskCancellationMonitoringService,
-        PerfStatsCollectorService perfStatsCollectorService
+        PerformanceCollectorService performanceCollectorService
     ) {
         this.settings = settings;
         this.threadPool = threadPool;
@@ -139,7 +139,7 @@ public class NodeService implements Closeable {
         this.clusterService = clusterService;
         this.fileCache = fileCache;
         this.taskCancellationMonitoringService = taskCancellationMonitoringService;
-        this.perfStatsCollectorService = perfStatsCollectorService;
+        this.performanceCollectorService = performanceCollectorService;
         clusterService.addStateApplier(ingestService);
         clusterService.addStateApplier(searchPipelineService);
     }
@@ -241,7 +241,7 @@ public class NodeService implements Closeable {
             discoveryStats ? discovery.stats() : null,
             ingest ? ingestService.stats() : null,
             adaptiveSelection ? responseCollectorService.getAdaptiveStats(searchTransportService.getPendingSearchRequests()) : null,
-            nodesPerfStats ? perfStatsCollectorService.stats() : null,
+            nodesPerfStats ? performanceCollectorService.stats() : null,
             scriptCache ? scriptService.cacheStats() : null,
             indexingPressure ? this.indexingPressureService.nodeStats() : null,
             shardIndexingPressure ? this.indexingPressureService.shardStats(indices) : null,

@@ -11,9 +11,8 @@ package org.opensearch.ratelimiting.tracker;
 import org.opensearch.common.lifecycle.AbstractLifecycleComponent;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.threadpool.ThreadPool;
-
-import java.io.IOException;
 
 /**
  * This tracks the performance of node resources such as CPU, IO and memory
@@ -29,7 +28,7 @@ public class NodePerformanceTracker extends AbstractLifecycleComponent {
     public NodePerformanceTracker(ThreadPool threadPool, Settings settings, ClusterSettings clusterSettings) {
         this.threadPool = threadPool;
         this.clusterSettings = clusterSettings;
-        this.performanceTrackerSettings = new PerformanceTrackerSettings(settings, clusterSettings);
+        this.performanceTrackerSettings = new PerformanceTrackerSettings(settings);
         initialize();
     }
 
@@ -68,7 +67,7 @@ public class NodePerformanceTracker extends AbstractLifecycleComponent {
         );
         clusterSettings.addSettingsUpdateConsumer(
             PerformanceTrackerSettings.GLOBAL_CPU_USAGE_AC_WINDOW_DURATION_SETTING,
-            cpuUsageTracker::setWindowSize
+            this::setCpuWindowDuration
         );
 
         memoryUsageTracker = new AverageMemoryUsageTracker(
@@ -78,8 +77,25 @@ public class NodePerformanceTracker extends AbstractLifecycleComponent {
         );
         clusterSettings.addSettingsUpdateConsumer(
             PerformanceTrackerSettings.GLOBAL_JVM_USAGE_AC_WINDOW_DURATION_SETTING,
-            memoryUsageTracker::setWindowSize
+            this::setMemoryWindowDuration
         );
+    }
+
+    private void setMemoryWindowDuration(TimeValue windowDuration) {
+        memoryUsageTracker.setWindowSize(windowDuration);
+        performanceTrackerSettings.setMemoryWindowDuration(windowDuration);
+    }
+
+    private void setCpuWindowDuration(TimeValue windowDuration) {
+        cpuUsageTracker.setWindowSize(windowDuration);
+        performanceTrackerSettings.setCpuWindowDuration(windowDuration);
+    }
+
+    /**
+     * Visible for testing
+     */
+    public PerformanceTrackerSettings getPerformanceTrackerSettings() {
+        return performanceTrackerSettings;
     }
 
     @Override
@@ -95,7 +111,7 @@ public class NodePerformanceTracker extends AbstractLifecycleComponent {
     }
 
     @Override
-    protected void doClose() throws IOException {
+    protected void doClose() {
         cpuUsageTracker.doClose();
         memoryUsageTracker.doClose();
     }
