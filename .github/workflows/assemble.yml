@@ -1,8 +1,8 @@
-name: Gradle Precommit
+name: Gradle Assemble
 on: [pull_request]
 
 jobs:
-  precommit:
+  assemble:
     if: github.repository == 'opensearch-project/OpenSearch'
     runs-on: ${{ matrix.os }}
     strategy:
@@ -15,7 +15,12 @@ jobs:
         with:
           java-version: 11
           distribution: temurin
-          cache: gradle
-      - name: Run Gradle (precommit)
+      - name: Setup docker (missing on MacOS)
+        if: runner.os == 'macos'
         run: |
-          ./gradlew javadoc precommit --parallel
+          brew install docker
+          colima start
+          sudo ln -sf $HOME/.colima/default/docker.sock /var/run/docker.sock
+      - name: Run Gradle (assemble)
+        run: |
+          ./gradlew assemble --parallel --no-build-cache -PDISABLE_BUILD_CACHE
