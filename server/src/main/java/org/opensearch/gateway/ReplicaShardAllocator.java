@@ -472,14 +472,11 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
 
     private Map<DiscoveryNode, StoreFilesMetadata> adaptToNodeShardStores(AsyncShardFetch.FetchResult<NodeStoreFilesMetadata> data) {
         assert data.hasData();
-        return new HashMap<>(
-            data.getData().entrySet().stream()
-                .collect(
-                    Collectors.toMap(
-                        Map.Entry::getKey,
-                        entry -> entry.getValue().storeFilesMetadata()
-                    )
-                )
+        return data.getData().entrySet().stream().collect(
+            Collectors.toMap(
+                Map.Entry::getKey,
+                entry -> entry.getValue().storeFilesMetadata()
+            )
         );
     }
 
