@@ -103,11 +103,7 @@ public class SearchShardTaskStats implements ToXContentObject, Writeable {
         SearchShardTaskStats that = (SearchShardTaskStats) o;
         return cancellationCount == that.cancellationCount
             && limitReachedCount == that.limitReachedCount
-<<<<<<< HEAD
-            && completionCount == completionCount
-=======
             && completionCount == that.completionCount
->>>>>>> 3324fa1aaea (add taskCompletionCount in search_backpressure)
             && resourceUsageTrackerStats.equals(that.resourceUsageTrackerStats);
     }
 
