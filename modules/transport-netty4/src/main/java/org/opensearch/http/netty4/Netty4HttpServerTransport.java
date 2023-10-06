@@ -353,7 +353,7 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
             );
             decoder.setCumulator(ByteToMessageDecoder.COMPOSITE_CUMULATOR);
             ch.pipeline().addLast("decoder", decoder);
-            ch.pipeline().addLast("header_verifier", transport.createHeaderVerifier);
+            ch.pipeline().addLast("header_verifier", transport.createHeaderVerifier());
             ch.pipeline().addLast("decoder_compress", transport.createDecompressor());
             ch.pipeline().addLast("encoder", new HttpResponseEncoder());
             final HttpObjectAggregator aggregator = new HttpObjectAggregator(handlingSettings.getMaxContentLength());
