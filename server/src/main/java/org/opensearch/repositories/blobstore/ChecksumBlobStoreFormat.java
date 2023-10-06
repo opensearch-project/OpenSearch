@@ -83,7 +83,7 @@ import static org.opensearch.common.blobstore.transfer.RemoteTransferContainer.c
 public final class ChecksumBlobStoreFormat<T extends ToXContent> {
 
     // Serialization parameters to specify correct context for metadata serialization
-    private static final ToXContent.Params SNAPSHOT_ONLY_FORMAT_PARAMS;
+    public static final ToXContent.Params SNAPSHOT_ONLY_FORMAT_PARAMS;
 
     static {
         Map<String, String> snapshotOnlyParams = new HashMap<>();
@@ -171,7 +171,7 @@ public final class ChecksumBlobStoreFormat<T extends ToXContent> {
      */
     public void write(final T obj, final BlobContainer blobContainer, final String name, final Compressor compressor) throws IOException {
         final String blobName = blobName(name);
-        final BytesReference bytes = serialize(obj, blobName, compressor);
+        final BytesReference bytes = serialize(obj, blobName, compressor, SNAPSHOT_ONLY_FORMAT_PARAMS);
         blobContainer.writeBlob(blobName, bytes.streamInput(), bytes.length(), false);
     }
 
@@ -184,13 +184,15 @@ public final class ChecksumBlobStoreFormat<T extends ToXContent> {
      * @param name                blob name
      * @param compressor          whether to use compression
      * @param listener            listener to listen to write result
+     * @param params              ToXContent params
      */
     public void writeAsync(
         final T obj,
         final BlobContainer blobContainer,
         final String name,
         final Compressor compressor,
-        ActionListener<Void> listener
+        ActionListener<Void> listener,
+        final ToXContent.Params params
     ) throws IOException {
         if (blobContainer instanceof AsyncMultiStreamBlobContainer == false) {
             write(obj, blobContainer, name, compressor);
@@ -198,7 +200,7 @@ public final class ChecksumBlobStoreFormat<T extends ToXContent> {
             return;
         }
         final String blobName = blobName(name);
-        final BytesReference bytes = serialize(obj, blobName, compressor);
+        final BytesReference bytes = serialize(obj, blobName, compressor, params);
         final String resourceDescription = "ChecksumBlobStoreFormat.writeAsync(blob=\"" + blobName + "\")";
         try (IndexInput input = new ByteArrayIndexInput(resourceDescription, BytesReference.toBytes(bytes))) {
             long expectedChecksum;
@@ -230,7 +232,7 @@ public final class ChecksumBlobStoreFormat<T extends ToXContent> {
         }
     }
 
-    public BytesReference serialize(final T obj, final String blobName, final Compressor compressor) throws IOException {
+    public BytesReference serialize(final T obj, final String blobName, final Compressor compressor, final ToXContent.Params params) throws IOException {
         try (BytesStreamOutput outputStream = new BytesStreamOutput()) {
             try (
                 OutputStreamIndexOutput indexOutput = new OutputStreamIndexOutput(
@@ -254,7 +256,7 @@ public final class ChecksumBlobStoreFormat<T extends ToXContent> {
                     )
                 ) {
                     builder.startObject();
-                    obj.toXContent(builder, SNAPSHOT_ONLY_FORMAT_PARAMS);
+                    obj.toXContent(builder, params);
                     builder.endObject();
                 }
                 CodecUtil.writeFooter(indexOutput);

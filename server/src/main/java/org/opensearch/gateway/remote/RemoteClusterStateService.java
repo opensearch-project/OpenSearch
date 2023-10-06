@@ -14,15 +14,12 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.Version;
 import org.opensearch.action.LatchedActionListener;
 import org.opensearch.cluster.ClusterState;
-import org.opensearch.cluster.metadata.ComposableIndexTemplate;
-import org.opensearch.cluster.metadata.ComposableIndexTemplateMetadata;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.blobstore.BlobMetadata;
 import org.opensearch.common.blobstore.BlobPath;
-import org.opensearch.common.blobstore.BlobStore;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
@@ -32,7 +29,6 @@ import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.xcontent.ToXContent;
-import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.gateway.remote.ClusterMetadataManifest.UploadedIndexMetadata;
 import org.opensearch.index.remote.RemoteStoreUtils;
 import org.opensearch.index.translog.transfer.BlobStoreTransferService;
@@ -88,6 +84,7 @@ public class RemoteClusterStateService implements Closeable {
     private static final Logger logger = LogManager.getLogger(RemoteClusterStateService.class);
 
     public static final int INDEX_METADATA_UPLOAD_WAIT_MILLIS = 20000;
+    public static final int GLOBAL_METADATA_UPLOAD_WAIT_MILLIS = 20000;
 
     public static final ChecksumBlobStoreFormat<IndexMetadata> INDEX_METADATA_FORMAT = new ChecksumBlobStoreFormat<>(
         "index-metadata",
@@ -128,6 +125,18 @@ public class RemoteClusterStateService implements Closeable {
     private volatile TimeValue slowWriteLoggingThreshold;
 
     private final AtomicBoolean deleteStaleMetadataRunning = new AtomicBoolean(false);
+
+    private static final int CURRENT_GLOBAL_METADATA_VERSION = 1;
+
+     // ToXContent Params with gateway mode.
+     // We are using gateway context mode to persist all custom metadata.
+    private static final ToXContent.Params FORMAT_PARAMS;
+    static {
+        Map<String, String> params = new HashMap<>(1);
+        params.put(Metadata.CONTEXT_MODE_PARAM, Metadata.CONTEXT_MODE_GATEWAY);
+        FORMAT_PARAMS = new ToXContent.MapParams(params);
+    }
+
 
     public RemoteClusterStateService(
         String nodeId,
@@ -313,14 +322,22 @@ public class RemoteClusterStateService implements Closeable {
 
         // latch to wait until upload is not finished
         CountDownLatch latch = new CountDownLatch(1);
-        ActionListener<Void> completionListener = ActionListener.wrap(
-            resp -> {
-                result.set(globalMetadataContainer.path().buildAsString() + globalMetadataFilename);
-                latch.countDown();
-            }, ex -> {
-                // TODO change the exception for Global Metadata
-                throw new IndexMetadataTransferException(ex.getMessage(), ex);
-            }
+
+        LatchedActionListener completionListener = new LatchedActionListener<>(
+            ActionListener.wrap(
+                resp -> {
+                    logger.trace(
+                        String.format(Locale.ROOT, "GlobalMetadata uploaded successfully.")
+                    );
+                    result.set(globalMetadataContainer.path().buildAsString() + globalMetadataFilename);
+                }, ex -> {
+                    logger.error(
+                        () -> new ParameterizedMessage("Exception during transfer of GlobalMetadata to Remote {}", ex.getMessage()),
+                        ex
+                    );
+                    throw new GlobalMetadataTransferException(ex.getMessage(), ex);
+                }),
+            latch
         );
 
         BlobStoreRepository.GLOBAL_METADATA_FORMAT.writeAsync(
@@ -328,15 +345,32 @@ public class RemoteClusterStateService implements Closeable {
             globalMetadataContainer,
             globalMetadataFilename,
             blobStoreRepository.getCompressor(),
-            completionListener
+            completionListener,
+            FORMAT_PARAMS
         );
 
-        // TODO Add proper exception handling.
         try {
-            latch.await();
-        } catch (InterruptedException e) {
-            throw new RuntimeException(e);
+            if (latch.await(GLOBAL_METADATA_UPLOAD_WAIT_MILLIS, TimeUnit.MILLISECONDS) == false) {
+                GlobalMetadataTransferException ex = new GlobalMetadataTransferException(
+                    String.format(
+                        Locale.ROOT,
+                        "Timed out waiting for transfer of global metadata to complete"
+                    )
+                );
+                throw ex;
+            }
+        } catch (InterruptedException ex) {
+            GlobalMetadataTransferException exception = new GlobalMetadataTransferException(
+                String.format(
+                    Locale.ROOT,
+                    "Timed out waiting for transfer of index metadata to complete - %s"
+                ),
+                ex
+            );
+            Thread.currentThread().interrupt();
+            throw exception;
         }
+
         return result.get();
     }
 
@@ -448,7 +482,8 @@ public class RemoteClusterStateService implements Closeable {
             indexMetadataContainer,
             indexMetadataFilename,
             blobStoreRepository.getCompressor(),
-            completionListener
+            completionListener,
+            FORMAT_PARAMS
         );
     }
 
@@ -485,8 +520,8 @@ public class RemoteClusterStateService implements Closeable {
     private ClusterMetadataManifest uploadManifest(
         ClusterState clusterState,
         List<UploadedIndexMetadata> uploadedIndexMetadata,
-        String globalClusterMetadataFileName,
         String previousClusterUUID,
+        String globalClusterMetadataFileName,
         boolean committed
     ) throws IOException {
         synchronized (this) {
@@ -582,7 +617,7 @@ public class RemoteClusterStateService implements Closeable {
         return String.join(
             DELIMITER,
             GLOBAL_METADATA_FILE_PREFIX,
-            String.valueOf(metadata.version()),
+            String.valueOf(CURRENT_GLOBAL_METADATA_VERSION),
             String.valueOf(System.currentTimeMillis())
         );
     }
@@ -868,6 +903,20 @@ public class RemoteClusterStateService implements Closeable {
         }
 
         public IndexMetadataTransferException(String errorDesc, Throwable cause) {
+            super(errorDesc, cause);
+        }
+    }
+
+    /**
+     * Exception for GlobalMetadata transfer failures to remote
+     */
+    static class GlobalMetadataTransferException extends RuntimeException {
+
+        public GlobalMetadataTransferException(String errorDesc) {
+            super(errorDesc);
+        }
+
+        public GlobalMetadataTransferException(String errorDesc, Throwable cause) {
             super(errorDesc, cause);
         }
     }
