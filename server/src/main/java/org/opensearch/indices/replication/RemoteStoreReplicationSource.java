@@ -14,12 +14,13 @@ import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.util.Version;
-import org.opensearch.action.support.GroupedActionListener;
+import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexShardState;
 import org.opensearch.index.shard.ShardPath;
+import org.opensearch.index.store.DirectoryFileTransferTracker;
 import org.opensearch.index.store.RemoteSegmentStoreDirectory;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.store.StoreFileMetadata;
@@ -121,7 +122,8 @@ public class RemoteStoreReplicationSource implements SegmentReplicationSource {
                         assert directoryFiles.contains(file) == false : "Local store already contains the file " + file;
                         toDownloadSegments.add(fileMetadata);
                     }
-                    downloadSegments(storeDirectory, remoteDirectory, toDownloadSegments, shardPath, listener);
+                    final DirectoryFileTransferTracker fileTransferTracker = indexShard.store().getDirectoryFileTransferTracker();
+                    downloadSegments(storeDirectory, remoteDirectory, toDownloadSegments, shardPath, fileTransferTracker, listener);
                     logger.debug("Downloaded segment files from remote store {}", toDownloadSegments);
                 } finally {
                     indexShard.store().decRef();
@@ -138,17 +140,16 @@ public class RemoteStoreReplicationSource implements SegmentReplicationSource {
         RemoteSegmentStoreDirectory remoteStoreDirectory,
         List<StoreFileMetadata> toDownloadSegments,
         ShardPath shardPath,
+        DirectoryFileTransferTracker fileTransferTracker,
         ActionListener<GetSegmentFilesResponse> completionListener
     ) {
         final Path indexPath = shardPath == null ? null : shardPath.resolveIndex();
-        final GroupedActionListener<Void> batchDownloadListener = new GroupedActionListener<>(
-            ActionListener.map(completionListener, v -> new GetSegmentFilesResponse(toDownloadSegments)),
-            toDownloadSegments.size()
-        );
-        ActionListener<String> segmentsDownloadListener = ActionListener.map(batchDownloadListener, result -> null);
-        toDownloadSegments.forEach(
-            fileMetadata -> remoteStoreDirectory.copyTo(fileMetadata.name(), storeDirectory, indexPath, segmentsDownloadListener)
-        );
+        for (StoreFileMetadata storeFileMetadata : toDownloadSegments) {
+            final PlainActionFuture<String> segmentListener = PlainActionFuture.newFuture();
+            remoteStoreDirectory.copyTo(storeFileMetadata.name(), storeDirectory, indexPath, fileTransferTracker, segmentListener);
+            segmentListener.actionGet();
+        }
+        completionListener.onResponse(new GetSegmentFilesResponse(toDownloadSegments));
     }
 
     @Override
