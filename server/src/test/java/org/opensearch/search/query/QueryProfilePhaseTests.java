@@ -1018,6 +1018,10 @@ public class QueryProfilePhaseTests extends IndexShardTestCase {
     }
 
     public void testDisableTopScoreCollection() throws Exception {
+        assumeFalse(
+            "Concurrent search case muted pending fix: https://github.com/opensearch-project/OpenSearch/issues/10469",
+            executor != null
+        );
         Directory dir = newDirectory();
         IndexWriterConfig iwc = newIndexWriterConfig(new StandardAnalyzer());
         RandomIndexWriter w = new RandomIndexWriter(random(), dir, iwc);
@@ -1173,6 +1177,10 @@ public class QueryProfilePhaseTests extends IndexShardTestCase {
     }
 
     public void testMaxScore() throws Exception {
+        assumeFalse(
+            "Concurrent search case muted pending fix: https://github.com/opensearch-project/OpenSearch/issues/9932",
+            executor != null
+        );
         Directory dir = newDirectory();
         final Sort sort = new Sort(new SortField("filter", SortField.Type.STRING));
         IndexWriterConfig iwc = newIndexWriterConfig().setIndexSort(sort);
@@ -1276,6 +1284,10 @@ public class QueryProfilePhaseTests extends IndexShardTestCase {
     }
 
     public void testCollapseQuerySearchResults() throws Exception {
+        assumeFalse(
+            "Concurrent search case muted pending fix: https://github.com/opensearch-project/OpenSearch/issues/10139",
+            executor != null
+        );
         Directory dir = newDirectory();
         final Sort sort = new Sort(new SortField("user", SortField.Type.INT));
         IndexWriterConfig iwc = newIndexWriterConfig().setIndexSort(sort);
