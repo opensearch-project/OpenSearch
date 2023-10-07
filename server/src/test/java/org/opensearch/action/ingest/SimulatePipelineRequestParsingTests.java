@@ -188,9 +188,9 @@ public class SimulatePipelineRequestParsingTests extends OpenSearchTestCase {
                         doc.put(field.getFieldName(), value);
                         expectedDoc.put(field.getFieldName(), value);
                     } else {
-                        Integer value = randomIntBetween(1, 1000000);
+                        int value = randomIntBetween(1, 1000000);
                         doc.put(field.getFieldName(), value);
-                        expectedDoc.put(field.getFieldName(), value);
+                        expectedDoc.put(field.getFieldName(), (long) value);
                     }
                 } else if (field == VERSION_TYPE) {
                     String value = VersionType.toString(randomFrom(VersionType.INTERNAL, VersionType.EXTERNAL, VersionType.EXTERNAL_GTE));
@@ -202,9 +202,9 @@ public class SimulatePipelineRequestParsingTests extends OpenSearchTestCase {
                         doc.put(field.getFieldName(), value);
                         expectedDoc.put(field.getFieldName(), value);
                     } else {
-                        Integer value = randomIntBetween(1, 1000000);
+                        int value = randomIntBetween(1, 1000000);
                         doc.put(field.getFieldName(), value);
-                        expectedDoc.put(field.getFieldName(), value);
+                        expectedDoc.put(field.getFieldName(), (long) value);
                     }
                 } else if (field == TYPE) {
                     if (useExplicitType) {
