@@ -39,7 +39,9 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import org.mockito.Mockito;
@@ -504,8 +506,12 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
     }
 
     public void testGetPrimaryTermAndGeneration() {
-        String tm = new TranslogTransferMetadata(1, 2, 1, 2, "node-1").getFileName();
-        assertEquals(new Tuple<>(new Tuple<>(1L, 2L), "node-1"), TranslogTransferMetadata.getNodeIdByPrimaryTermAndGeneration(tm));
+        String nodeId = UUID.randomUUID().toString();
+        String tm = new TranslogTransferMetadata(1, 2, 1, 2, nodeId).getFileName();
+        Tuple<Tuple<Long, Long>, String> actualOutput = TranslogTransferMetadata.getNodeIdByPrimaryTermAndGeneration(tm);
+        assertEquals(1L, (long) (actualOutput.v1().v1()));
+        assertEquals(2L, (long) (actualOutput.v1().v2()));
+        assertEquals(String.valueOf(Objects.hash(nodeId)), actualOutput.v2());
     }
 
     public void testMetadataConflict() throws InterruptedException {
