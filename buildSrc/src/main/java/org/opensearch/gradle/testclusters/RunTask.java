@@ -41,6 +41,8 @@ import org.gradle.api.tasks.options.Option;
 
 import java.io.BufferedReader;
 import java.io.Closeable;
+import java.io.File;
+import java.io.FileInputStream;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -48,6 +50,7 @@ import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Properties;
 import java.util.function.BooleanSupplier;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -77,7 +80,8 @@ public class RunTask extends DefaultTestClustersTask {
     @Option(option = "debug-jvm", description = "Run OpenSearch as a debug client, where it will try to connect to a debugging server at startup.")
     public void setDebug(boolean enabled) {
         if (debugServer != null && debugServer == true) {
-            throw new IllegalStateException("Either --debug-jvm or --debug-server-jvm option should be specified (but not both)");
+            throw new IllegalStateException(
+                    "Either --debug-jvm or --debug-server-jvm option should be specified (but not both)");
         }
         this.debug = enabled;
     }
@@ -85,7 +89,8 @@ public class RunTask extends DefaultTestClustersTask {
     @Option(option = "debug-server-jvm", description = "Run OpenSearch as a debug server that will accept connections from a debugging client.")
     public void setDebugServer(boolean enabled) {
         if (debug != null && debug == true) {
-            throw new IllegalStateException("Either --debug-jvm or --debug-server-jvm option should be specified (but not both)");
+            throw new IllegalStateException(
+                    "Either --debug-jvm or --debug-server-jvm option should be specified (but not both)");
         }
         this.debugServer = enabled;
     }
@@ -135,21 +140,56 @@ public class RunTask extends DefaultTestClustersTask {
         return dataDir.toString();
     }
 
+    private File locateEnvFile() {
+        return new File(getProject().getProjectDir(), ".env");
+    }
+
+    private Properties readPropertiesFromFile(File file) {
+        Properties properties = new Properties();
+        try (FileInputStream fis = new FileInputStream(file)) {
+            properties.load(fis);
+        } catch (IOException e) {
+            throw new GradleException("Failed to load properties from file: " + file.getAbsolutePath(), e);
+        }
+        return properties;
+    }
+
+    private String normalizeKeyForGradle(String key) {
+        String normalized = key.toLowerCase();
+        normalized = normalized.replace('_', '.');
+        return normalized;
+    }
+
+    private void setPropertiesAsSystemProperties(Properties properties) {
+        for (String key : properties.stringPropertyNames()) {
+            String normalizedKey = normalizeKeyForGradle(key);
+            String value = properties.getProperty(key);
+            System.setProperty(normalizedKey, value);
+        }
+    }
+
+    private void loadEnvProperties() {
+        File envFile = locateEnvFile();
+        if (envFile != null && envFile.exists()) {
+            Properties envProps = readPropertiesFromFile(envFile);
+            setPropertiesAsSystemProperties(envProps);
+        }
+    }
+
     @Override
     public void beforeStart() {
         int debugPort = DEFAULT_DEBUG_PORT;
         int httpPort = DEFAULT_HTTP_PORT;
         int transportPort = DEFAULT_TRANSPORT_PORT;
+        loadEnvProperties();
         Map<String, String> additionalSettings = System.getProperties()
-            .entrySet()
-            .stream()
-            .filter(entry -> entry.getKey().toString().startsWith(CUSTOM_SETTINGS_PREFIX))
-            .collect(
-                Collectors.toMap(
-                    entry -> entry.getKey().toString().substring(CUSTOM_SETTINGS_PREFIX.length()),
-                    entry -> entry.getValue().toString()
-                )
-            );
+                .entrySet()
+                .stream()
+                .filter(entry -> entry.getKey().toString().startsWith(CUSTOM_SETTINGS_PREFIX))
+                .collect(
+                        Collectors.toMap(
+                                entry -> entry.getKey().toString().substring(CUSTOM_SETTINGS_PREFIX.length()),
+                                entry -> entry.getValue().toString()));
         boolean singleNode = getClusters().stream().flatMap(c -> c.getNodes().stream()).count() == 1;
         final Function<OpenSearchNode, Path> getDataPath;
         if (singleNode) {
@@ -181,14 +221,14 @@ public class RunTask extends DefaultTestClustersTask {
                 }
                 if (debug) {
                     logger.lifecycle(
-                        "Running opensearch in debug mode (client), {} expecting running debug server on port {}",
-                        node,
-                        debugPort
-                    );
+                            "Running opensearch in debug mode (client), {} expecting running debug server on port {}",
+                            node,
+                            debugPort);
                     node.jvmArgs("-agentlib:jdwp=transport=dt_socket,server=n,suspend=y,address=" + debugPort);
                     debugPort += 1;
                 } else if (debugServer) {
-                    logger.lifecycle("Running opensearch in debug mode (server), {} running server with debug port {}", node, debugPort);
+                    logger.lifecycle("Running opensearch in debug mode (server), {} running server with debug port {}",
+                            node, debugPort);
                     node.jvmArgs("-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=" + debugPort);
                     debugPort += 1;
                 }
@@ -228,7 +268,8 @@ public class RunTask extends DefaultTestClustersTask {
                 if (readData == false) {
                     // no data was ready to be consumed and rather than continuously spinning, pause
                     // for some time to avoid excessive CPU usage. Ideally we would use the JDK
-                    // WatchService to receive change notifications but the WatchService does not have
+                    // WatchService to receive change notifications but the WatchService does not
+                    // have
                     // a native MacOS implementation and instead relies upon polling with possible
                     // delays up to 10s before a notification is received. See JDK-7133447.
                     try {
