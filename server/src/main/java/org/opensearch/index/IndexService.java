@@ -1286,7 +1286,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         return fsyncTask;
     }
 
-    AsyncTrimTranslogTask getTrimTranslogTask() { // for tests
+    public AsyncTrimTranslogTask getTrimTranslogTask() { // for tests
         return trimTranslogTask;
     }
 
