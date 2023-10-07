@@ -205,6 +205,7 @@ public class SimulatePipelineRequestParsingTests extends OpenSearchTestCase {
                         Integer value = randomIntBetween(1, 1000000);
                         doc.put(field.getFieldName(), value);
                         expectedDoc.put(field.getFieldName(), value);
+                    }
                 } else if (field == TYPE) {
                     if (useExplicitType) {
                         String value = randomAlphaOfLengthBetween(1, 10);
