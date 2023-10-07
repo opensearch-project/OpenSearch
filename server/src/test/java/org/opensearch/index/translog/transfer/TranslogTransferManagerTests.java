@@ -44,6 +44,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import org.mockito.Mockito;
 
+import static org.opensearch.index.translog.transfer.TranslogTransferMetadata.METADATA_SEPARATOR;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.anySet;
@@ -515,10 +516,13 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
             null,
             remoteTranslogTransferTracker
         );
-        TranslogTransferMetadata tm = new TranslogTransferMetadata(1, 1, 1, 2, "node-1");
+        TranslogTransferMetadata tm = new TranslogTransferMetadata(1, 1, 1, 2, "node--1");
         String mdFilename = tm.getFileName();
+        long count = mdFilename.chars().filter(ch -> ch == METADATA_SEPARATOR.charAt(0)).count();
+        // There should not be any `_` in mdFile name as it is used a separator .
+        assertEquals(10, count);
         Thread.sleep(1);
-        TranslogTransferMetadata tm2 = new TranslogTransferMetadata(1, 1, 1, 2, "node-2");
+        TranslogTransferMetadata tm2 = new TranslogTransferMetadata(1, 1, 1, 2, "node--2");
         String mdFilename2 = tm2.getFileName();
 
         doAnswer(invocation -> {

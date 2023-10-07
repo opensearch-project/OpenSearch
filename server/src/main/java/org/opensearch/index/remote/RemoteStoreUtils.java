@@ -82,7 +82,7 @@ public class RemoteStoreUtils {
      * @param fn Function to extract PrimaryTerm_Generation and Node Id from metadata file name .
      *          fn returns null if node id is not part of the file name
      */
-    static public void verifyNoMultipleWriters(List<String> mdFiles, Function<String, Tuple<String, String>> fn) {
+    public static void verifyNoMultipleWriters(List<String> mdFiles, Function<String, Tuple<String, String>> fn) {
         Map<String, String> nodesByPrimaryTermAndGen = new HashMap<>();
         mdFiles.forEach(mdFile -> {
             Tuple<String, String> nodeIdByPrimaryTermAndGen = fn.apply(mdFile);
@@ -91,10 +91,9 @@ public class RemoteStoreUtils {
                     && (!nodesByPrimaryTermAndGen.get(nodeIdByPrimaryTermAndGen.v1()).equals(nodeIdByPrimaryTermAndGen.v2()))) {
                     throw new IllegalStateException(
                         "Multiple metadata files from different nodes"
+                            + "having same primary term and generations "
                             + nodeIdByPrimaryTermAndGen.v1()
-                            + " and "
-                            + nodeIdByPrimaryTermAndGen.v2()
-                            + "having same primary term and generations detected"
+                            + " detected "
                     );
                 }
                 nodesByPrimaryTermAndGen.put(nodeIdByPrimaryTermAndGen.v1(), nodeIdByPrimaryTermAndGen.v2());
