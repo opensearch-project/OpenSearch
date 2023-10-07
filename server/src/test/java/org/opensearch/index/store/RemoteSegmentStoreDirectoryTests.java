@@ -67,6 +67,7 @@ import java.util.function.UnaryOperator;
 import org.mockito.Mockito;
 
 import static org.opensearch.index.store.RemoteSegmentStoreDirectory.METADATA_FILES_TO_FETCH;
+import static org.opensearch.index.store.RemoteSegmentStoreDirectory.MetadataFilenameUtils.SEPARATOR;
 import static org.opensearch.test.RemoteStoreTestUtils.createMetadataFileBytes;
 import static org.opensearch.test.RemoteStoreTestUtils.getDummyMetadata;
 import static org.hamcrest.CoreMatchers.is;
@@ -213,9 +214,7 @@ public class RemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
     }
 
     public void testGetPrimaryTermGenerationUuid() {
-        String[] filenameTokens = "abc__9223372036854775795__9223372036854775784__uuid_xyz".split(
-            RemoteSegmentStoreDirectory.MetadataFilenameUtils.SEPARATOR
-        );
+        String[] filenameTokens = "abc__9223372036854775795__9223372036854775784__uuid_xyz".split(SEPARATOR);
         assertEquals(12, RemoteSegmentStoreDirectory.MetadataFilenameUtils.getPrimaryTerm(filenameTokens));
         assertEquals(23, RemoteSegmentStoreDirectory.MetadataFilenameUtils.getGeneration(filenameTokens));
     }
@@ -1178,6 +1177,10 @@ public class RemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
         actualList.sort(String::compareTo);
 
         assertEquals(List.of(file3, file2, file4, file6, file5, file1), actualList);
+
+        long count = file1.chars().filter(ch -> ch == SEPARATOR.charAt(0)).count();
+        // There should not be any `_` in mdFile name as it is used a separator .
+        assertEquals(14, count);
     }
 
     private static class WrapperIndexOutput extends IndexOutput {
