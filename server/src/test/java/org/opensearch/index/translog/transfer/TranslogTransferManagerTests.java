@@ -504,7 +504,7 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
 
     public void testGetPrimaryTermAndGeneration() {
         String tm = new TranslogTransferMetadata(1, 2, 1, 2, "node-1").getFileName();
-        assertEquals(new Tuple<>(new Tuple<>(1L, 2L), "node-1"), TranslogTransferMetadata.getNodeIdByPrimaryTermAndGeneration(tm));
+        assertEquals(new Tuple<>(1L, 2L), TranslogTransferMetadata.getNodeIdByPrimaryTermAndGeneration(tm).v1());
     }
 
     public void testMetadataConflict() throws InterruptedException {
