@@ -54,6 +54,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -332,7 +333,7 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
                 RemoteStoreUtils.invertLong(generation),
                 RemoteStoreUtils.invertLong(translogGeneration),
                 RemoteStoreUtils.invertLong(uploadCounter),
-                nodeId,
+                String.valueOf(Objects.hash(nodeId)),
                 RemoteStoreUtils.invertLong(System.currentTimeMillis()),
                 String.valueOf(metadataVersion)
             );
@@ -487,17 +488,40 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
      * @param source The source file name
      * @param destinationDirectory The destination directory (if multipart is not supported)
      * @param destinationPath The destination path (if multipart is supported)
+     * @param fileTransferTracker Tracker used for file transfer stats
      * @param fileCompletionListener The listener to notify of completion
      */
-    public void copyTo(String source, Directory destinationDirectory, Path destinationPath, ActionListener<String> fileCompletionListener) {
+    public void copyTo(
+        String source,
+        Directory destinationDirectory,
+        Path destinationPath,
+        DirectoryFileTransferTracker fileTransferTracker,
+        ActionListener<String> fileCompletionListener
+    ) {
         final String blobName = getExistingRemoteFilename(source);
         if (destinationPath != null && remoteDataDirectory.getBlobContainer() instanceof AsyncMultiStreamBlobContainer) {
+            long length = 0L;
+            try {
+                length = fileLength(source);
+            } catch (IOException ex) {
+                logger.error("Unable to fetch segment length for stats tracking", ex);
+            }
+            final long fileLength = length;
+            final long startTime = System.currentTimeMillis();
+            fileTransferTracker.addTransferredBytesStarted(fileLength);
             final AsyncMultiStreamBlobContainer blobContainer = (AsyncMultiStreamBlobContainer) remoteDataDirectory.getBlobContainer();
             final Path destinationFilePath = destinationPath.resolve(source);
+            final ActionListener<String> completionListener = ActionListener.wrap(response -> {
+                fileTransferTracker.addTransferredBytesSucceeded(fileLength, startTime);
+                fileCompletionListener.onResponse(response);
+            }, e -> {
+                fileTransferTracker.addTransferredBytesFailed(fileLength, startTime);
+                fileCompletionListener.onFailure(e);
+            });
             final ReadContextListener readContextListener = new ReadContextListener(
                 blobName,
                 destinationFilePath,
-                fileCompletionListener,
+                completionListener,
                 threadPool,
                 remoteDataDirectory.getDownloadRateLimiter(),
                 recoverySettings.getMaxConcurrentRemoteStoreStreams()
@@ -505,12 +529,10 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
             blobContainer.readBlobAsync(blobName, readContextListener);
         } else {
             // Fallback to older mechanism of downloading the file
-            try {
+            ActionListener.completeWith(fileCompletionListener, () -> {
                 destinationDirectory.copyFrom(this, source, source, IOContext.DEFAULT);
-                fileCompletionListener.onResponse(source);
-            } catch (IOException e) {
-                fileCompletionListener.onFailure(e);
-            }
+                return source;
+            });
         }
     }
 

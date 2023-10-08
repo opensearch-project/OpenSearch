@@ -160,6 +160,7 @@ import org.opensearch.index.seqno.SeqNoStats;
 import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.shard.PrimaryReplicaSyncer.ResyncTask;
 import org.opensearch.index.similarity.SimilarityService;
+import org.opensearch.index.store.DirectoryFileTransferTracker;
 import org.opensearch.index.store.RemoteSegmentStoreDirectory;
 import org.opensearch.index.store.RemoteSegmentStoreDirectoryFactory;
 import org.opensearch.index.store.Store;
@@ -1464,6 +1465,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * {@link org.opensearch.index.translog.TranslogDeletionPolicy} for details
      */
     public void trimTranslog() {
+        if (isRemoteTranslogEnabled()) {
+            return;
+        }
         verifyNotClosed();
         final Engine engine = getEngine();
         engine.translogManager().trimUnreferencedTranslogFiles();
@@ -2313,7 +2317,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         };
 
         // Do not load the global checkpoint if this is a remote snapshot index
-        if (indexSettings.isRemoteSnapshot() == false) {
+        if (indexSettings.isRemoteSnapshot() == false && indexSettings.isRemoteTranslogStoreEnabled() == false) {
             loadGlobalCheckpointToReplicationTracker();
         }
 
@@ -4929,9 +4933,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         final Runnable onFileSync
     ) throws IOException {
         final Path indexPath = store.shardPath() == null ? null : store.shardPath().resolveIndex();
+        final DirectoryFileTransferTracker fileTransferTracker = store.getDirectoryFileTransferTracker();
         for (String segment : toDownloadSegments) {
             final PlainActionFuture<String> segmentListener = PlainActionFuture.newFuture();
-            sourceRemoteDirectory.copyTo(segment, storeDirectory, indexPath, segmentListener);
+            sourceRemoteDirectory.copyTo(segment, storeDirectory, indexPath, fileTransferTracker, segmentListener);
             segmentListener.actionGet();
             onFileSync.run();
             if (targetRemoteDirectory != null) {
