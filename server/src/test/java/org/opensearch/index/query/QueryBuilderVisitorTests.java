@@ -21,7 +21,7 @@ public class QueryBuilderVisitorTests extends AbstractBuilderTestCase {
 
         List<QueryBuilder> visitedQueries = new ArrayList<>();
         QueryBuilderVisitor qbv = createTestVisitor(visitedQueries);
-        boolQueryBuilder.visit(qbv);
+        boolQueryBuilder.visit(qbv, 0);
         QueryBuilderVisitor subQbv = qbv.getChildVisitor(BooleanClause.Occur.MUST_NOT);
         assertEquals(0, visitedQueries.size());
         assertEquals(qbv, subQbv);
