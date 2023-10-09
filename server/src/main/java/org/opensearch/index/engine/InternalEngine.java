@@ -112,6 +112,7 @@ import org.opensearch.index.translog.TranslogException;
 import org.opensearch.index.translog.TranslogManager;
 import org.opensearch.index.translog.listener.CompositeTranslogEventListener;
 import org.opensearch.index.translog.listener.TranslogEventListener;
+import org.opensearch.index.translog.transfer.TranslogUploadFailedException;
 import org.opensearch.search.suggest.completion.CompletionStats;
 import org.opensearch.threadpool.ThreadPool;
 
@@ -1888,6 +1889,9 @@ public class InternalEngine extends Engine {
                         }
 
                         translogManager.trimUnreferencedReaders();
+                    } catch (TranslogUploadFailedException e) {
+                        // Do not fail engine as this is due to translog upload failure
+                        throw new FlushFailedEngineException(shardId, e);
                     } catch (AlreadyClosedException e) {
                         failOnTragicEvent(e);
                         throw e;

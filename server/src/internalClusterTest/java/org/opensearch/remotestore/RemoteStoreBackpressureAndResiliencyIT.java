@@ -11,10 +11,10 @@ package org.opensearch.remotestore;
 import org.opensearch.action.admin.cluster.remotestore.stats.RemoteStoreStats;
 import org.opensearch.action.admin.cluster.remotestore.stats.RemoteStoreStatsResponse;
 import org.opensearch.action.admin.cluster.settings.ClusterUpdateSettingsResponse;
+import org.opensearch.action.admin.indices.flush.FlushResponse;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.AbstractAsyncTask;
-import org.opensearch.common.util.concurrent.UncategorizedExecutionException;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.unit.ByteSizeUnit;
@@ -23,6 +23,7 @@ import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.remote.RemoteSegmentTransferTracker;
 import org.opensearch.index.shard.IndexShard;
+import org.opensearch.index.translog.transfer.TranslogUploadFailedException;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.snapshots.mockstore.MockRepository;
@@ -184,8 +185,8 @@ public class RemoteStoreBackpressureAndResiliencyIT extends AbstractRemoteStoreM
         translogRepo.setRandomControlIOExceptionRate(1d);
 
         for (int i = 0; i < randomIntBetween(5, 10); i++) {
-            UncategorizedExecutionException exception = assertThrows(UncategorizedExecutionException.class, this::indexSingleDoc);
-            assertEquals("Failed execution", exception.getMessage());
+            TranslogUploadFailedException exception = assertThrows(TranslogUploadFailedException.class, this::indexSingleDoc);
+            assertTrue(exception.getMessage().contains("Failed to upload") && exception.getMessage().contains("files during transfer"));
         }
 
         translogRepo.setRandomControlIOExceptionRate(0d);
@@ -227,5 +228,33 @@ public class RemoteStoreBackpressureAndResiliencyIT extends AbstractRemoteStoreM
         translogRepo.setRandomControlIOExceptionRate(0d);
         client().admin().cluster().prepareReroute().setRetryFailed(true).get();
         ensureGreen(INDEX_NAME);
+    }
+
+    public void testFlushDuringRemoteUploadFailures() {
+        Path location = randomRepoPath().toAbsolutePath();
+        String dataNodeName = setup(location, 0d, "metadata", Long.MAX_VALUE);
+
+        logger.info("--> Indexing data");
+        indexData(randomIntBetween(1, 2), true);
+        logger.info("--> Indexing succeeded");
+        ensureGreen(INDEX_NAME);
+
+        MockRepository translogRepo = (MockRepository) internalCluster().getInstance(RepositoriesService.class, dataNodeName)
+            .repository(TRANSLOG_REPOSITORY_NAME);
+        logger.info("--> Failing all remote store interaction");
+        translogRepo.setRandomControlIOExceptionRate(1d);
+
+        Exception ex = assertThrows(TranslogUploadFailedException.class, () -> indexSingleDoc());
+        assertEquals("Failed to upload 2 files during transfer", ex.getMessage());
+
+        FlushResponse flushResponse = client().admin().indices().prepareFlush(INDEX_NAME).setForce(true).execute().actionGet();
+        assertEquals(1, flushResponse.getFailedShards());
+        ensureGreen(INDEX_NAME);
+
+        logger.info("--> Stop failing all remote store interactions");
+        translogRepo.setRandomControlIOExceptionRate(0d);
+        flushResponse = client().admin().indices().prepareFlush(INDEX_NAME).setForce(true).execute().actionGet();
+        assertEquals(1, flushResponse.getSuccessfulShards());
+        assertEquals(0, flushResponse.getFailedShards());
     }
 }

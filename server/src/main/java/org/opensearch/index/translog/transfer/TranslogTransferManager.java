@@ -176,7 +176,7 @@ public class TranslogTransferManager {
                     remoteTranslogTransferTracker.addUploadTimeInMillis((System.nanoTime() - metadataUploadStartTime) / 1_000_000L);
                     remoteTranslogTransferTracker.addUploadBytesFailed(metadataBytesToUpload);
                     // outer catch handles capturing stats on upload failure
-                    throw exception;
+                    throw new TranslogUploadFailedException(shardId, "Failed to upload " + tlogMetadata.getName(), exception);
                 }
 
                 remoteTranslogTransferTracker.addUploadTimeInMillis((System.nanoTime() - metadataUploadStartTime) / 1_000_000L);
@@ -185,7 +185,10 @@ public class TranslogTransferManager {
                 translogTransferListener.onUploadComplete(transferSnapshot);
                 return true;
             } else {
-                Exception ex = new IOException("Failed to upload " + exceptionList.size() + " files during transfer");
+                Exception ex = new TranslogUploadFailedException(
+                    shardId,
+                    "Failed to upload " + exceptionList.size() + " files during transfer"
+                );
                 exceptionList.forEach(ex::addSuppressed);
                 throw ex;
             }

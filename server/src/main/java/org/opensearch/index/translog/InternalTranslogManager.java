@@ -18,6 +18,7 @@ import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.engine.LifecycleAware;
 import org.opensearch.index.seqno.LocalCheckpointTracker;
 import org.opensearch.index.translog.listener.TranslogEventListener;
+import org.opensearch.index.translog.transfer.TranslogUploadFailedException;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -88,6 +89,9 @@ public class InternalTranslogManager implements TranslogManager, Closeable {
             engineLifeCycleAware.ensureOpen();
             translog.rollGeneration();
             translog.trimUnreferencedReaders();
+        } catch (TranslogUploadFailedException e) {
+            // Do not trigger the translogEventListener as it fails the Engine while this is only an issue with remote upload
+            throw e;
         } catch (AlreadyClosedException e) {
             translogEventListener.onFailure("translog roll generation failed", e);
             throw e;

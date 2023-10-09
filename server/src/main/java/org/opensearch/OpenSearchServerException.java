@@ -15,6 +15,7 @@ import static org.opensearch.OpenSearchException.OpenSearchExceptionHandle;
 import static org.opensearch.OpenSearchException.OpenSearchExceptionHandleRegistry.registerExceptionHandle;
 import static org.opensearch.OpenSearchException.UNKNOWN_VERSION_ADDED;
 import static org.opensearch.Version.V_2_10_0;
+import static org.opensearch.Version.V_2_11_0;
 import static org.opensearch.Version.V_2_1_0;
 import static org.opensearch.Version.V_2_4_0;
 import static org.opensearch.Version.V_2_5_0;
@@ -1175,6 +1176,14 @@ public final class OpenSearchServerException {
             )
         );
         registerExceptionHandle(new OpenSearchExceptionHandle(CryptoRegistryException.class, CryptoRegistryException::new, 171, V_2_10_0));
+        registerExceptionHandle(
+            new OpenSearchExceptionHandle(
+                org.opensearch.index.translog.transfer.TranslogUploadFailedException.class,
+                org.opensearch.index.translog.transfer.TranslogUploadFailedException::new,
+                172,
+                V_2_11_0
+            )
+        );
         registerExceptionHandle(
             new OpenSearchExceptionHandle(
                 org.opensearch.cluster.block.IndexCreateBlockException.class,
