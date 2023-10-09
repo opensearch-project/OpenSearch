@@ -28,9 +28,13 @@ import static org.opensearch.index.remote.RemoteStorePressureSettings.REMOTE_REF
 public class RemoteStoreRefreshListenerIT extends AbstractRemoteStoreMockRepositoryIntegTestCase {
 
     public void testRemoteRefreshRetryOnFailure() throws Exception {
-
         Path location = randomRepoPath().toAbsolutePath();
         setup(location, randomDoubleBetween(0.1, 0.15, true), "metadata", 10L);
+        client().admin()
+            .cluster()
+            .prepareUpdateSettings()
+            .setPersistentSettings(Settings.builder().put(REMOTE_REFRESH_SEGMENT_PRESSURE_ENABLED.getKey(), false))
+            .get();
 
         // Here we are having flush/refresh after each iteration of indexing. However, the refresh will not always succeed
         // due to IOExceptions that are thrown while doing uploadBlobs.

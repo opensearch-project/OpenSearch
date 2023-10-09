@@ -67,6 +67,7 @@ import java.util.function.UnaryOperator;
 import org.mockito.Mockito;
 
 import static org.opensearch.index.store.RemoteSegmentStoreDirectory.METADATA_FILES_TO_FETCH;
+import static org.opensearch.index.store.RemoteSegmentStoreDirectory.MetadataFilenameUtils.SEPARATOR;
 import static org.opensearch.test.RemoteStoreTestUtils.createMetadataFileBytes;
 import static org.opensearch.test.RemoteStoreTestUtils.getDummyMetadata;
 import static org.hamcrest.CoreMatchers.is;
@@ -213,9 +214,7 @@ public class RemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
     }
 
     public void testGetPrimaryTermGenerationUuid() {
-        String[] filenameTokens = "abc__9223372036854775795__9223372036854775784__uuid_xyz".split(
-            RemoteSegmentStoreDirectory.MetadataFilenameUtils.SEPARATOR
-        );
+        String[] filenameTokens = "abc__9223372036854775795__9223372036854775784__uuid_xyz".split(SEPARATOR);
         assertEquals(12, RemoteSegmentStoreDirectory.MetadataFilenameUtils.getPrimaryTerm(filenameTokens));
         assertEquals(23, RemoteSegmentStoreDirectory.MetadataFilenameUtils.getGeneration(filenameTokens));
     }
@@ -596,10 +595,15 @@ public class RemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
             public void onFailure(Exception e) {}
         };
         Path path = createTempDir();
-        remoteSegmentStoreDirectory.copyTo(filename, storeDirectory, path, completionListener);
+        DirectoryFileTransferTracker directoryFileTransferTracker = new DirectoryFileTransferTracker();
+        long sourceFileLengthInBytes = remoteSegmentStoreDirectory.fileLength(filename);
+        remoteSegmentStoreDirectory.copyTo(filename, storeDirectory, path, directoryFileTransferTracker, completionListener);
         assertTrue(downloadLatch.await(5000, TimeUnit.SECONDS));
         verify(blobContainer, times(1)).readBlobAsync(contains(filename), any());
         verify(storeDirectory, times(0)).copyFrom(any(), any(), any(), any());
+
+        // Verify stats are updated to DirectoryFileTransferTracker
+        assertEquals(sourceFileLengthInBytes, directoryFileTransferTracker.getTransferredBytesSucceeded());
     }
 
     public void testCopyFilesTo() throws Exception {
@@ -619,7 +623,7 @@ public class RemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
             public void onFailure(Exception e) {}
         };
         Path path = createTempDir();
-        remoteSegmentStoreDirectory.copyTo(filename, storeDirectory, path, completionListener);
+        remoteSegmentStoreDirectory.copyTo(filename, storeDirectory, path, new DirectoryFileTransferTracker(), completionListener);
         assertTrue(downloadLatch.await(5000, TimeUnit.MILLISECONDS));
         verify(storeDirectory, times(1)).copyFrom(any(), eq(filename), eq(filename), eq(IOContext.DEFAULT));
     }
@@ -643,7 +647,7 @@ public class RemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
             @Override
             public void onFailure(Exception e) {}
         };
-        remoteSegmentStoreDirectory.copyTo(filename, storeDirectory, null, completionListener);
+        remoteSegmentStoreDirectory.copyTo(filename, storeDirectory, null, new DirectoryFileTransferTracker(), completionListener);
         assertTrue(downloadLatch.await(5000, TimeUnit.MILLISECONDS));
         verify(storeDirectory, times(1)).copyFrom(any(), eq(filename), eq(filename), eq(IOContext.DEFAULT));
     }
@@ -670,7 +674,7 @@ public class RemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
             }
         };
         Path path = createTempDir();
-        remoteSegmentStoreDirectory.copyTo(filename, storeDirectory, path, completionListener);
+        remoteSegmentStoreDirectory.copyTo(filename, storeDirectory, path, new DirectoryFileTransferTracker(), completionListener);
         assertTrue(downloadLatch.await(5000, TimeUnit.MILLISECONDS));
         verify(storeDirectory, times(1)).copyFrom(any(), eq(filename), eq(filename), eq(IOContext.DEFAULT));
     }
@@ -1173,6 +1177,10 @@ public class RemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
         actualList.sort(String::compareTo);
 
         assertEquals(List.of(file3, file2, file4, file6, file5, file1), actualList);
+
+        long count = file1.chars().filter(ch -> ch == SEPARATOR.charAt(0)).count();
+        // There should not be any `_` in mdFile name as it is used a separator .
+        assertEquals(14, count);
     }
 
     private static class WrapperIndexOutput extends IndexOutput {

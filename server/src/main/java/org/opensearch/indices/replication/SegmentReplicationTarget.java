@@ -18,7 +18,6 @@ import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.opensearch.OpenSearchCorruptionException;
-import org.opensearch.OpenSearchException;
 import org.opensearch.action.StepListener;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.lucene.Lucene;
@@ -261,9 +260,7 @@ public class SegmentReplicationTarget extends ReplicationTarget {
         } catch (CorruptIndexException | IndexFormatTooNewException | IndexFormatTooOldException ex) {
             // this is a fatal exception at this stage.
             // this means we transferred files from the remote that have not be checksummed and they are
-            // broken. We have to clean up this shard entirely, remove all files and bubble it up to the
-            // source shard since this index might be broken there as well? The Source can handle this and checks
-            // its content on disk if possible.
+            // broken. We have to clean up this shard entirely, remove all files and bubble it up.
             try {
                 try {
                     store.removeCorruptionMarker();
@@ -279,14 +276,14 @@ public class SegmentReplicationTarget extends ReplicationTarget {
             // In this case the shard is closed at some point while updating the reader.
             // This can happen when the engine is closed in a separate thread.
             logger.warn("Shard is already closed, closing replication");
-        } catch (OpenSearchException ex) {
+        } catch (CancellableThreads.ExecutionCancelledException ex) {
             /*
              Ignore closed replication target as it can happen due to index shard closed event in a separate thread.
              In such scenario, ignore the exception
              */
-            assert cancellableThreads.isCancelled() : "Replication target closed but segment replication not cancelled";
+            assert cancellableThreads.isCancelled() : "Replication target cancelled but cancellable threads not cancelled";
         } catch (Exception ex) {
-            throw new OpenSearchCorruptionException(ex);
+            throw new ReplicationFailedException(ex);
         } finally {
             if (store != null) {
                 store.decRef();
