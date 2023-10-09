@@ -97,6 +97,7 @@ import org.opensearch.transport.RemoteClusterService;
 import org.opensearch.transport.RemoteTransportException;
 import org.opensearch.transport.Transport;
 import org.opensearch.transport.TransportService;
+import org.opensearch.telemetry.metrics.MetricsRegistry;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -173,6 +174,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
 
     private final SearchRequestStats searchRequestStats;
 
+    private final MetricsRegistry metricsRegistry;
+
     @Inject
     public TransportSearchAction(
         NodeClient client,
@@ -187,7 +190,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         IndexNameExpressionResolver indexNameExpressionResolver,
         NamedWriteableRegistry namedWriteableRegistry,
         SearchPipelineService searchPipelineService,
-        SearchRequestStats searchRequestStats
+        SearchRequestStats searchRequestStats,
+        MetricsRegistry metricsRegistry
     ) {
         super(SearchAction.NAME, transportService, actionFilters, (Writeable.Reader<SearchRequest>) SearchRequest::new);
         this.client = client;
@@ -205,6 +209,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         this.isRequestStatsEnabled = clusterService.getClusterSettings().get(SEARCH_REQUEST_STATS_ENABLED);
         clusterService.getClusterSettings().addSettingsUpdateConsumer(SEARCH_REQUEST_STATS_ENABLED, this::setIsRequestStatsEnabled);
         this.searchRequestStats = searchRequestStats;
+        this.metricsRegistry = metricsRegistry;
     }
 
     private void setIsRequestStatsEnabled(boolean isRequestStatsEnabled) {
@@ -435,7 +440,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             return;
         }
 
-        SearchQueryCategorizor.categorize(searchRequest.source());
+        SearchQueryCategorizor searchQueryCategorizor = new SearchQueryCategorizor(metricsRegistry);
+        searchQueryCategorizor.categorize(searchRequest.source());
 
         ActionListener<SearchSourceBuilder> rewriteListener = ActionListener.wrap(source -> {
             if (source != searchRequest.source()) {
