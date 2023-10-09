@@ -85,9 +85,14 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
+import org.opensearch.action.OriginalIndices;
+import org.opensearch.action.search.SearchRequest;
 import org.opensearch.action.search.SearchShardTask;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.core.common.Strings;
+import org.opensearch.core.index.Index;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.tasks.TaskCancelledException;
 import org.opensearch.index.mapper.DateFieldMapper;
 import org.opensearch.index.mapper.MappedFieldType;
@@ -103,9 +108,11 @@ import org.opensearch.index.shard.IndexShardTestCase;
 import org.opensearch.lucene.queries.MinDocQuery;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.collapse.CollapseBuilder;
+import org.opensearch.search.internal.AliasFilter;
 import org.opensearch.search.internal.ContextIndexSearcher;
 import org.opensearch.search.internal.ScrollContext;
 import org.opensearch.search.internal.SearchContext;
+import org.opensearch.search.internal.ShardSearchRequest;
 import org.opensearch.search.sort.SortAndFormats;
 import org.opensearch.test.TestSearchContext;
 import org.opensearch.threadpool.ThreadPool;
@@ -115,6 +122,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -1143,6 +1151,114 @@ public class QueryPhaseTests extends IndexShardTestCase {
         // should not throw time exceed exception after timeout < timeCacheLifespan when cached time didn't change
         createTimeoutCheckerThenWaitThenRun(timeCacheLifespan / 2, timeCacheLifespan / 2 + timeTolerance, false, true);
         createTimeoutCheckerThenWaitThenRun(timeCacheLifespan / 4, timeCacheLifespan / 2 + timeTolerance, false, true);
+    }
+
+    public void testQuerySearchResultTookTime() throws IOException {
+        int sleepMillis = randomIntBetween(500, 4000); // between 0.5 and 4 sec
+        DelayedQueryPhaseSearcher delayedQueryPhaseSearcher = new DelayedQueryPhaseSearcher(sleepMillis);
+
+        // we need to test queryPhase.execute(), not executeInternal(), since that's what the timer wraps around
+        // for that we must set up a searchContext with more functionality than the TestSearchContext,
+        // which requires a bit of complexity with test classes
+
+        Directory dir = newDirectory();
+        final Sort sort = new Sort(new SortField("rank", SortField.Type.INT));
+        IndexWriterConfig iwc = newIndexWriterConfig().setIndexSort(sort);
+        RandomIndexWriter w = new RandomIndexWriter(random(), dir, iwc);
+        Document doc = new Document();
+        for (int i = 0; i < 10; i++) {
+            doc.add(new StringField("foo", Integer.toString(i), Store.NO));
+        }
+        w.addDocument(doc);
+        w.close();
+        IndexReader reader = DirectoryReader.open(dir);
+
+        QueryShardContext queryShardContext = mock(QueryShardContext.class);
+        when(queryShardContext.fieldMapper("user")).thenReturn(
+            new NumberFieldType("user", NumberType.INTEGER, true, false, true, false, null, Collections.emptyMap())
+        );
+
+        Index index = new Index("IndexName", "UUID");
+        ShardId shardId = new ShardId(index, 0);
+        long nowInMillis = System.currentTimeMillis();
+        String clusterAlias = randomBoolean() ? null : randomAlphaOfLengthBetween(3, 10);
+        SearchRequest searchRequest = new SearchRequest();
+        searchRequest.allowPartialSearchResults(randomBoolean());
+        ShardSearchRequest request = new ShardSearchRequest(
+            OriginalIndices.NONE,
+            searchRequest,
+            shardId,
+            1,
+            AliasFilter.EMPTY,
+            1f,
+            nowInMillis,
+            clusterAlias,
+            Strings.EMPTY_ARRAY
+        );
+        TestSearchContextWithRequest searchContext = new TestSearchContextWithRequest(
+            queryShardContext,
+            indexShard,
+            newEarlyTerminationContextSearcher(reader, 0, executor),
+            request
+        );
+
+        QueryPhase queryPhase = new QueryPhase(delayedQueryPhaseSearcher);
+        queryPhase.execute(searchContext);
+        long tookTime = searchContext.queryResult().getTookTimeNanos();
+        assertTrue(tookTime >= (long) sleepMillis * 1000000);
+        reader.close();
+        dir.close();
+    }
+
+    private class TestSearchContextWithRequest extends TestSearchContext {
+        ShardSearchRequest request;
+        Query query;
+
+        public TestSearchContextWithRequest(
+            QueryShardContext queryShardContext,
+            IndexShard indexShard,
+            ContextIndexSearcher searcher,
+            ShardSearchRequest request
+        ) {
+            super(queryShardContext, indexShard, searcher);
+            this.request = request;
+            this.query = new TermQuery(new Term("foo", "bar"));
+        }
+
+        @Override
+        public ShardSearchRequest request() {
+            return request;
+        }
+
+        @Override
+        public Query query() {
+            return this.query;
+        }
+    }
+
+    private class DelayedQueryPhaseSearcher extends QueryPhase.DefaultQueryPhaseSearcher implements QueryPhaseSearcher {
+        // add delay into searchWith
+        private final int sleepMillis;
+
+        public DelayedQueryPhaseSearcher(int sleepMillis) {
+            super();
+            this.sleepMillis = sleepMillis;
+        }
+
+        @Override
+        public boolean searchWith(
+            SearchContext searchContext,
+            ContextIndexSearcher searcher,
+            Query query,
+            LinkedList<QueryCollectorContext> collectors,
+            boolean hasFilterCollector,
+            boolean hasTimeout
+        ) throws IOException {
+            try {
+                Thread.sleep(sleepMillis);
+            } catch (Exception ignored) {}
+            return super.searchWith(searchContext, searcher, query, collectors, hasFilterCollector, hasTimeout);
+        }
     }
 
     private void createTimeoutCheckerThenWaitThenRun(

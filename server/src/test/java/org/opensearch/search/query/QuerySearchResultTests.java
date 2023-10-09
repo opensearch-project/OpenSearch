@@ -99,6 +99,7 @@ public class QuerySearchResultTests extends OpenSearchTestCase {
         if (randomBoolean()) {
             result.aggregations(InternalAggregationsTests.createTestInstance());
         }
+        assertEquals(0, result.getTookTimeNanos());
         return result;
     }
 
@@ -118,6 +119,7 @@ public class QuerySearchResultTests extends OpenSearchTestCase {
             assertEquals(aggs.asList(), deserializedAggs.asList());
         }
         assertEquals(querySearchResult.terminatedEarly(), deserialized.terminatedEarly());
+        assertEquals(querySearchResult.getTookTimeNanos(), deserialized.getTookTimeNanos());
     }
 
     public void testNullResponse() throws Exception {

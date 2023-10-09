@@ -131,6 +131,7 @@ public class QueryPhase {
     }
 
     public void execute(SearchContext searchContext) throws QueryPhaseExecutionException {
+        long startTime = System.nanoTime();
         if (searchContext.hasOnlySuggest()) {
             suggestProcessor.process(searchContext);
             searchContext.queryResult()
@@ -138,6 +139,7 @@ public class QueryPhase {
                     new TopDocsAndMaxScore(new TopDocs(new TotalHits(0, TotalHits.Relation.EQUAL_TO), Lucene.EMPTY_SCORE_DOCS), Float.NaN),
                     new DocValueFormat[0]
                 );
+            searchContext.queryResult().setTookTimeNanos(System.nanoTime() - startTime);
             return;
         }
 
@@ -165,6 +167,7 @@ public class QueryPhase {
             );
             searchContext.queryResult().profileResults(shardResults);
         }
+        searchContext.queryResult().setTookTimeNanos(System.nanoTime() - startTime);
     }
 
     // making public for testing
@@ -292,7 +295,6 @@ public class QueryPhase {
                     queryResult.nodeQueueSize(rExecutor.getCurrentQueueSize());
                     queryResult.serviceTimeEWMA((long) rExecutor.getTaskExecutionEWMA());
                 }
-
                 return shouldRescore;
             } finally {
                 // Search phase has finished, no longer need to check for timeout
