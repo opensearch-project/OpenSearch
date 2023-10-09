@@ -328,7 +328,7 @@ public class IndicesServiceCloseTests extends OpenSearchTestCase {
             }
 
             @Override
-            public void onCached(Key key, BytesReference value) {}
+            public void onCached(Key key, BytesReference value, TierType tierType) {}
 
             @Override
             public boolean isOpen() {
@@ -341,10 +341,10 @@ public class IndicesServiceCloseTests extends OpenSearchTestCase {
             }
 
             @Override
-            public void onHit() {}
+            public void onHit(TierType tierType) {}
 
             @Override
-            public void onMiss() {}
+            public void onMiss(TierType tierType) {}
 
             @Override
             public void onRemoval(RemovalNotification<Key, BytesReference> notification) {}
