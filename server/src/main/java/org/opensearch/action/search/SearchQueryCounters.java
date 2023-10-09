@@ -8,6 +8,9 @@
 
 package org.opensearch.action.search;
 
+import org.opensearch.telemetry.metrics.Counter;
+import org.opensearch.telemetry.metrics.MetricsRegistry;
+
 public class SearchQueryCounters {
     private final MetricsRegistry metricsRegistry;
 
