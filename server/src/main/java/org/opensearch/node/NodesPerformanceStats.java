@@ -8,7 +8,6 @@
 
 package org.opensearch.node;
 
-import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
@@ -18,7 +17,6 @@ import org.opensearch.core.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.Locale;
 import java.util.Map;
-import java.util.concurrent.TimeUnit;
 
 /**
  * This class represents performance stats such as CPU, Memory and IO resource usage of each node along with the time
@@ -56,10 +54,7 @@ public class NodesPerformanceStats implements Writeable, ToXContentFragment {
             builder.startObject(nodeId);
             NodePerformanceStats perfStats = nodeIdToPerfStatsMap.get(nodeId);
             if (perfStats != null) {
-                builder.field(
-                    "elapsed_time",
-                    new TimeValue(System.currentTimeMillis() - perfStats.timestamp, TimeUnit.MILLISECONDS).toString()
-                );
+                builder.field("timestamp", perfStats.timestamp);
                 builder.field("cpu_utilization_percent", String.format(Locale.ROOT, "%.1f", perfStats.cpuUtilizationPercent));
                 builder.field("memory_utilization_percent", String.format(Locale.ROOT, "%.1f", perfStats.memoryUtilizationPercent));
             }
