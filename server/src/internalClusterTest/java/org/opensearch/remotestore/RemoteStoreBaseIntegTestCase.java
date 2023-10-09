@@ -311,6 +311,9 @@ public class RemoteStoreBaseIntegTestCase extends OpenSearchIntegTestCase {
     @After
     public void teardown() {
         clusterSettingsSuppliedByTest = false;
+        if (internalCluster().getNodeNames().length == 0) {
+            return;
+        }
         assertRemoteStoreRepositoryOnAllNodes(REPOSITORY_NAME);
         assertRemoteStoreRepositoryOnAllNodes(REPOSITORY_2_NAME);
         clusterAdmin().prepareCleanupRepository(REPOSITORY_NAME).get();
