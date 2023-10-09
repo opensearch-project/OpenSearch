@@ -1470,6 +1470,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * {@link org.opensearch.index.translog.TranslogDeletionPolicy} for details
      */
     public void trimTranslog() {
+        if (isRemoteTranslogEnabled()) {
+            return;
+        }
         verifyNotClosed();
         final Engine engine = getEngine();
         engine.trimUnreferencedTranslogFiles();
@@ -2320,7 +2323,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         };
 
         // Do not load the global checkpoint if this is a remote snapshot index
-        if (indexSettings.isRemoteSnapshot() == false) {
+        if (indexSettings.isRemoteSnapshot() == false && indexSettings.isRemoteTranslogStoreEnabled() == false) {
             loadGlobalCheckpointToReplicationTracker();
         }
 
