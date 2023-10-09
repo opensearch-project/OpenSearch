@@ -702,7 +702,7 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
                 remoteStoreStatsTrackerFactory,
                 () -> IndexSettings.DEFAULT_REMOTE_TRANSLOG_BUFFER_INTERVAL,
                 "dummy-node",
-                null
+                DefaultRecoverySettings.INSTANCE
             );
             indexShard.addShardFailureCallback(DEFAULT_SHARD_FAILURE_HANDLER);
             if (remoteStoreStatsTrackerFactory != null) {
@@ -789,14 +789,7 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
         RemoteStoreLockManager remoteStoreLockManager = new RemoteStoreMetadataLockManager(
             new RemoteBufferedOutputDirectory(getBlobContainer(remoteShardPath.resolveIndex()))
         );
-        return new RemoteSegmentStoreDirectory(
-            dataDirectory,
-            metadataDirectory,
-            remoteStoreLockManager,
-            threadPool,
-            shardId,
-            DefaultRecoverySettings.INSTANCE
-        );
+        return new RemoteSegmentStoreDirectory(dataDirectory, metadataDirectory, remoteStoreLockManager, threadPool, shardId);
     }
 
     private RemoteDirectory newRemoteDirectory(Path f) throws IOException {
