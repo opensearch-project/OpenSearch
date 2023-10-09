@@ -41,6 +41,7 @@ import org.junit.Before;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
@@ -79,16 +80,6 @@ public class RemoveProcessorFactoryTests extends OpenSearchTestCase {
         );
     }
 
-    public void testCreateMissingField() throws Exception {
-        Map<String, Object> config = new HashMap<>();
-        try {
-            factory.create(null, null, null, config);
-            fail("factory create should have failed");
-        } catch (OpenSearchParseException e) {
-            assertThat(e.getMessage(), equalTo("[field] required property is missing"));
-        }
-    }
-
     public void testInvalidMustacheTemplate() throws Exception {
         RemoveProcessor.Factory factory = new RemoveProcessor.Factory(TestTemplateService.instance(true));
         Map<String, Object> config = new HashMap<>();
@@ -97,5 +88,83 @@ public class RemoveProcessorFactoryTests extends OpenSearchTestCase {
         OpenSearchException exception = expectThrows(OpenSearchException.class, () -> factory.create(null, processorTag, null, config));
         assertThat(exception.getMessage(), equalTo("java.lang.RuntimeException: could not compile script"));
         assertThat(exception.getMetadata("opensearch.processor_tag").get(0), equalTo(processorTag));
+    }
+
+    public void testCreateWithFieldPatterns() throws Exception {
+        Map<String, Object> config = new HashMap<>();
+        List<String> patterns = List.of("foo*");
+        config.put("field_pattern", patterns);
+        config.put("exclude_field", "field");
+        String processorTag = randomAlphaOfLength(10);
+        OpenSearchException exception = expectThrows(
+            OpenSearchParseException.class,
+            () -> factory.create(null, processorTag, null, config)
+        );
+        assertThat(
+            exception.getMessage(),
+            equalTo("[field] ether (field,field_pattern) or (exclude_field,exclude_field_pattern) can be set")
+        );
+
+        Map<String, Object> config2 = new HashMap<>();
+        patterns = Arrays.asList("foo*", "*", " ", ",", "#", ":", "_");
+        config2.put("field_pattern", patterns);
+        exception = expectThrows(OpenSearchParseException.class, () -> factory.create(null, processorTag, null, config2));
+        assertThat(
+            exception.getMessage(),
+            equalTo(
+                "[field_pattern] Validation Failed: 1: field_pattern [ ] must not contain a space;"
+                    + "2: field_pattern [ ] must not contain the following characters [ , \", *, \\, <, |, ,, >, /, ?];"
+                    + "3: field_pattern [,] must not contain a ',';"
+                    + "4: field_pattern [,] must not contain the following characters [ , \", *, \\, <, |, ,, >, /, ?];"
+                    + "5: field_pattern [#] must not contain a '#';"
+                    + "6: field_pattern [:] must not contain a ':';"
+                    + "7: field_pattern [_] must not start with '_';"
+            )
+        );
+
+        Map<String, Object> config3 = new HashMap<>();
+        patterns = Arrays.asList("foo*", "*", " ", ",", "#", ":", "_");
+        config3.put("exclude_field_pattern", patterns);
+        exception = expectThrows(OpenSearchParseException.class, () -> factory.create(null, processorTag, null, config3));
+        assertThat(
+            exception.getMessage(),
+            equalTo(
+                "[exclude_field_pattern] Validation Failed: 1: exclude_field_pattern [ ] must not contain a space;"
+                    + "2: exclude_field_pattern [ ] must not contain the following characters [ , \", *, \\, <, |, ,, >, /, ?];"
+                    + "3: exclude_field_pattern [,] must not contain a ',';"
+                    + "4: exclude_field_pattern [,] must not contain the following characters [ , \", *, \\, <, |, ,, >, /, ?];"
+                    + "5: exclude_field_pattern [#] must not contain a '#';"
+                    + "6: exclude_field_pattern [:] must not contain a ':';"
+                    + "7: exclude_field_pattern [_] must not start with '_';"
+            )
+        );
+
+        Map<String, Object> config4 = new HashMap<>();
+        exception = expectThrows(OpenSearchParseException.class, () -> factory.create(null, processorTag, null, config4));
+        assertThat(
+            exception.getMessage(),
+            equalTo("[field] at least one of the parameters field, field_pattern, exclude_field and exclude_field_pattern need to be set")
+        );
+
+        Map<String, Object> config5 = new HashMap<>();
+        config5.put("field_pattern", "field*");
+        RemoveProcessor removeProcessor = factory.create(null, processorTag, null, config5);
+        assertThat(removeProcessor.getFieldPatterns(), equalTo(List.of("field*")));
+
+        Map<String, Object> config6 = new HashMap<>();
+        config6.put("exclude_field", "exclude_field");
+        removeProcessor = factory.create(null, processorTag, null, config6);
+        assertThat(
+            removeProcessor.getExcludeFields()
+                .stream()
+                .map(template -> template.newInstance(Collections.emptyMap()).execute())
+                .collect(Collectors.toList()),
+            equalTo(List.of("exclude_field"))
+        );
+
+        Map<String, Object> config7 = new HashMap<>();
+        config7.put("exclude_field_pattern", "exclude_field*");
+        removeProcessor = factory.create(null, processorTag, null, config7);
+        assertThat(removeProcessor.getExcludeFieldPatterns(), equalTo(List.of("exclude_field*")));
     }
 }

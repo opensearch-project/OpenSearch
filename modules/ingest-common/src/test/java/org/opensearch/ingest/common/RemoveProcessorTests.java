@@ -36,10 +36,13 @@ import org.opensearch.ingest.IngestDocument;
 import org.opensearch.ingest.Processor;
 import org.opensearch.ingest.RandomDocumentPicks;
 import org.opensearch.ingest.TestTemplateService;
+import org.opensearch.script.TemplateScript;
 import org.opensearch.test.OpenSearchTestCase;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -53,10 +56,97 @@ public class RemoveProcessorTests extends OpenSearchTestCase {
             randomAlphaOfLength(10),
             null,
             Collections.singletonList(new TestTemplateService.MockTemplateScript.Factory(field)),
+            Collections.emptyList(),
+            Collections.emptyList(),
+            Collections.emptyList(),
             false
         );
         processor.execute(ingestDocument);
         assertThat(ingestDocument.hasField(field), equalTo(false));
+    }
+
+    public void testRemoveWithFieldPatterns() throws Exception {
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
+        ingestDocument.setFieldValue("foo_1", "value");
+        ingestDocument.setFieldValue("foo_2", "value");
+        List<String> fieldPatterns = new ArrayList<>();
+        fieldPatterns.add("foo*");
+        Processor processor = new RemoveProcessor(
+            randomAlphaOfLength(10),
+            null,
+            Collections.emptyList(),
+            fieldPatterns,
+            Collections.emptyList(),
+            Collections.emptyList(),
+            false
+        );
+        processor.execute(ingestDocument);
+        assertThat(ingestDocument.hasField("foo_1"), equalTo(false));
+        assertThat(ingestDocument.hasField("foo_2"), equalTo(false));
+
+        ingestDocument.setFieldValue("foo_1", "value");
+        ingestDocument.setFieldValue("foo_2", "value");
+        ingestDocument.setFieldValue("bar_1", "value");
+        ingestDocument.setFieldValue("bar_2", "value");
+        List<TemplateScript.Factory> fields = new ArrayList<>();
+        fields.add(new TestTemplateService.MockTemplateScript.Factory("bar_1"));
+        fields.add(new TestTemplateService.MockTemplateScript.Factory("bar_2"));
+        Processor processorWithFieldsAndPatterns = new RemoveProcessor(
+            randomAlphaOfLength(10),
+            null,
+            fields,
+            fieldPatterns,
+            Collections.emptyList(),
+            Collections.emptyList(),
+            false
+        );
+        processorWithFieldsAndPatterns.execute(ingestDocument);
+        assertThat(ingestDocument.hasField("foo_1"), equalTo(false));
+        assertThat(ingestDocument.hasField("foo_2"), equalTo(false));
+        assertThat(ingestDocument.hasField("bar_1"), equalTo(false));
+        assertThat(ingestDocument.hasField("bar_2"), equalTo(false));
+    }
+
+    public void testRemoveWithExcludeFields() throws Exception {
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
+        ingestDocument.setFieldValue("foo_1", "value");
+        ingestDocument.setFieldValue("foo_2", "value");
+        ingestDocument.setFieldValue("foo_3", "value");
+        List<TemplateScript.Factory> excludeFields = new ArrayList<>();
+        excludeFields.add(new TestTemplateService.MockTemplateScript.Factory("foo_1"));
+        excludeFields.add(new TestTemplateService.MockTemplateScript.Factory("foo_2"));
+        Processor processor = new RemoveProcessor(
+            randomAlphaOfLength(10),
+            null,
+            Collections.emptyList(),
+            Collections.emptyList(),
+            excludeFields,
+            Collections.emptyList(),
+            false
+        );
+        processor.execute(ingestDocument);
+        assertThat(ingestDocument.hasField("foo_1"), equalTo(true));
+        assertThat(ingestDocument.hasField("foo_2"), equalTo(true));
+        assertThat(ingestDocument.hasField("foo_3"), equalTo(false));
+
+        ingestDocument.setFieldValue("foo_1", "value");
+        ingestDocument.setFieldValue("foo_2", "value");
+        ingestDocument.setFieldValue("foo_3", "value");
+        List<String> excludeFieldPatterns = new ArrayList<>();
+        excludeFieldPatterns.add("foo_3*");
+        Processor processorWithExcludeFieldsAndPatterns = new RemoveProcessor(
+            randomAlphaOfLength(10),
+            null,
+            Collections.emptyList(),
+            Collections.emptyList(),
+            excludeFields,
+            excludeFieldPatterns,
+            false
+        );
+        processorWithExcludeFieldsAndPatterns.execute(ingestDocument);
+        assertThat(ingestDocument.hasField("foo_1"), equalTo(true));
+        assertThat(ingestDocument.hasField("foo_2"), equalTo(true));
+        assertThat(ingestDocument.hasField("foo_3"), equalTo(true));
     }
 
     public void testRemoveNonExistingField() throws Exception {

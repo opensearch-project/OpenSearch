@@ -91,3 +91,184 @@ teardown:
         index: test
         id: 1
   - match: { _source.message: "foo bar baz" }
+
+---
+"Test remove processor with field_pattern":
+  - do:
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        body:  >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "remove" : {
+                  "field_pattern" : "foo*"
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      index:
+        index: test
+        id: 1
+        pipeline: "my_pipeline"
+        body: {
+          foo1: "bar",
+          foo2: "bar",
+          zoo: "bar"
+        }
+
+  - do:
+      get:
+        index: test
+        id: 1
+  - match: { _source:  {zoo: "bar" }}
+
+---
+"Test remove processor with both field and field_pattern":
+  - do:
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        body:  >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "remove" : {
+                  "field": "bar",
+                  "field_pattern" : ["foo*"]
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      index:
+        index: test
+        id: 1
+        pipeline: "my_pipeline"
+        body: {
+          foo1: "bar",
+          foo2: "bar",
+          bar: "zoo",
+          zoo: "bar"
+        }
+
+  - do:
+      get:
+        index: test
+        id: 1
+  - match: { _source:  {zoo: "bar" }}
+
+---
+"Test remove processor with exclude_field":
+  - do:
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        body:  >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "remove" : {
+                  "exclude_field": "bar"
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      index:
+        index: test
+        id: 1
+        pipeline: "my_pipeline"
+        body: {
+          foo1: "bar",
+          foo2: "bar",
+          bar: "zoo",
+          zoo: "bar"
+        }
+
+  - do:
+      get:
+        index: test
+        id: 1
+  - match: { _source:  { bar: "zoo"}}
+
+---
+"Test remove processor with exclude_field_pattern":
+  - do:
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        body:  >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "remove" : {
+                  "exclude_field_pattern": "foo*"
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      index:
+        index: test
+        id: 1
+        pipeline: "my_pipeline"
+        body: {
+          foo1: "bar",
+          foo2: "bar",
+          bar: "zoo",
+          zoo: "bar"
+        }
+
+  - do:
+      get:
+        index: test
+        id: 1
+  - match: { _source:  { bar: "zoo", zoo: "bar"}}
+
+---
+"Test remove processor with both exclude_field and exclude_field_pattern":
+  - do:
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        body:  >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "remove" : {
+                  "exclude_field": "bar",
+                  "exclude_field_pattern" : ["foo*"]
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      index:
+        index: test
+        id: 1
+        pipeline: "my_pipeline"
+        body: {
+          foo1: "bar",
+          foo2: "bar",
+          bar: "zoo",
+          zoo: "bar"
+        }
+
+  - do:
+      get:
+        index: test
+        id: 1
+  - match: { _source:  {foo1: "bar", foo2: "bar", bar: "zoo"}}
