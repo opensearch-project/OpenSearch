@@ -31,6 +31,7 @@ import org.opensearch.common.io.InputStreamContainer;
 import org.opensearch.common.io.VersionedCodecStreamWrapper;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.lucene.store.ByteArrayIndexInput;
+import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.OpenSearchExecutors;
 import org.opensearch.core.action.ActionListener;
@@ -43,6 +44,7 @@ import org.opensearch.index.store.lockmanager.RemoteStoreMetadataLockManager;
 import org.opensearch.index.store.remote.metadata.RemoteSegmentMetadata;
 import org.opensearch.index.store.remote.metadata.RemoteSegmentMetadataHandler;
 import org.opensearch.indices.recovery.DefaultRecoverySettings;
+import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.threadpool.ThreadPool;
 import org.junit.After;
@@ -145,13 +147,18 @@ public class RemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
         ExecutorService executorService = OpenSearchExecutors.newDirectExecutorService();
 
         indexShard = newStartedShard(false, indexSettings, new NRTReplicationEngineFactory());
+
+        RecoverySettings multistreamDownloadRecoverySettings = new RecoverySettings(
+            Settings.builder().put(RecoverySettings.INDICES_RECOVERY_USE_MULTISTREAM_DOWNLOAD_SETTING.getKey(), true).build(),
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+        );
         remoteSegmentStoreDirectory = new RemoteSegmentStoreDirectory(
             remoteDataDirectory,
             remoteMetadataDirectory,
             mdLockManager,
             threadPool,
             indexShard.shardId(),
-            DefaultRecoverySettings.INSTANCE
+            multistreamDownloadRecoverySettings
         );
         try (Store store = indexShard.store()) {
             segmentInfos = store.readLastCommittedSegmentsInfo();

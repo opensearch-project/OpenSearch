@@ -499,7 +499,10 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
         ActionListener<String> fileCompletionListener
     ) {
         final String blobName = getExistingRemoteFilename(source);
-        if (destinationPath != null && remoteDataDirectory.getBlobContainer() instanceof AsyncMultiStreamBlobContainer) {
+
+        if (recoverySettings.isMultistreamDownloadRecoveryEnabled()
+            && destinationPath != null
+            && remoteDataDirectory.getBlobContainer() instanceof AsyncMultiStreamBlobContainer) {
             long length = 0L;
             try {
                 length = fileLength(source);

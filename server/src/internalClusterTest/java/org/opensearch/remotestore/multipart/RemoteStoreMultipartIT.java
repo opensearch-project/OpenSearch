@@ -14,6 +14,7 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.common.unit.ByteSizeUnit;
+import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.remotestore.RemoteStoreIT;
 import org.opensearch.remotestore.multipart.mocks.MockFsRepositoryPlugin;
@@ -50,6 +51,7 @@ public class RemoteStoreMultipartIT extends RemoteStoreIT {
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder()
             .put(super.nodeSettings(nodeOrdinal))
+            .put(RecoverySettings.INDICES_RECOVERY_USE_MULTISTREAM_DOWNLOAD_SETTING.getKey(), true)
             .put(
                 remoteStoreClusterSettings(
                     REPOSITORY_NAME,

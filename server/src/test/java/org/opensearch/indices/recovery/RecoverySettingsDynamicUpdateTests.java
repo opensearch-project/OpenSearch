@@ -96,4 +96,16 @@ public class RecoverySettingsDynamicUpdateTests extends OpenSearchTestCase {
         );
         assertEquals(new TimeValue(duration, timeUnit), recoverySettings.internalActionLongTimeout());
     }
+
+    public void testUseMultistreamDownload() {
+        clusterSettings.applySettings(
+            Settings.builder().put(RecoverySettings.INDICES_RECOVERY_USE_MULTISTREAM_DOWNLOAD_SETTING.getKey(), true).build()
+        );
+        assertTrue(recoverySettings.isMultistreamDownloadRecoveryEnabled());
+
+        clusterSettings.applySettings(
+            Settings.builder().put(RecoverySettings.INDICES_RECOVERY_USE_MULTISTREAM_DOWNLOAD_SETTING.getKey(), false).build()
+        );
+        assertFalse(recoverySettings.isMultistreamDownloadRecoveryEnabled());
+    }
 }

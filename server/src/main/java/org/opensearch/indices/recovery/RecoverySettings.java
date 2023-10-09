@@ -85,6 +85,17 @@ public class RecoverySettings {
     );
 
     /**
+     * Controls the download mechanism for recovering files for an index. Multistream downloads will be utilized if
+     * the flag is set and the recovery mechanism has a multistream implementation.
+     */
+    public static final Setting<Boolean> INDICES_RECOVERY_USE_MULTISTREAM_DOWNLOAD_SETTING = Setting.boolSetting(
+        "indices.recovery.use_multistream_downloads",
+        false,
+        Property.Dynamic,
+        Property.NodeScope
+    );
+
+    /**
      * Controls the maximum number of streams that can be started concurrently when downloading from the remote store.
      */
     public static final Setting<Integer> INDICES_RECOVERY_MAX_CONCURRENT_REMOTE_STORE_STREAMS_SETTING = Setting.intSetting(
@@ -160,6 +171,7 @@ public class RecoverySettings {
     private volatile ByteSizeValue maxBytesPerSec;
     private volatile int maxConcurrentFileChunks;
     private volatile int maxConcurrentOperations;
+    private volatile boolean multistreamDownloadRecoveryEnabled;
     private volatile int maxConcurrentRemoteStoreStreams;
     private volatile SimpleRateLimiter rateLimiter;
     private volatile TimeValue retryDelayStateSync;
@@ -175,6 +187,7 @@ public class RecoverySettings {
         this.retryDelayStateSync = INDICES_RECOVERY_RETRY_DELAY_STATE_SYNC_SETTING.get(settings);
         this.maxConcurrentFileChunks = INDICES_RECOVERY_MAX_CONCURRENT_FILE_CHUNKS_SETTING.get(settings);
         this.maxConcurrentOperations = INDICES_RECOVERY_MAX_CONCURRENT_OPERATIONS_SETTING.get(settings);
+        this.multistreamDownloadRecoveryEnabled = INDICES_RECOVERY_USE_MULTISTREAM_DOWNLOAD_SETTING.get(settings);
         this.maxConcurrentRemoteStoreStreams = INDICES_RECOVERY_MAX_CONCURRENT_REMOTE_STORE_STREAMS_SETTING.get(settings);
         // doesn't have to be fast as nodes are reconnected every 10s by default (see InternalClusterService.ReconnectToNodes)
         // and we want to give the cluster-manager time to remove a faulty node
@@ -197,6 +210,10 @@ public class RecoverySettings {
         clusterSettings.addSettingsUpdateConsumer(INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING, this::setMaxBytesPerSec);
         clusterSettings.addSettingsUpdateConsumer(INDICES_RECOVERY_MAX_CONCURRENT_FILE_CHUNKS_SETTING, this::setMaxConcurrentFileChunks);
         clusterSettings.addSettingsUpdateConsumer(INDICES_RECOVERY_MAX_CONCURRENT_OPERATIONS_SETTING, this::setMaxConcurrentOperations);
+        clusterSettings.addSettingsUpdateConsumer(
+            INDICES_RECOVERY_USE_MULTISTREAM_DOWNLOAD_SETTING,
+            this::setMultistreamDownloadRecoveryEnabled
+        );
         clusterSettings.addSettingsUpdateConsumer(
             INDICES_RECOVERY_MAX_CONCURRENT_REMOTE_STORE_STREAMS_SETTING,
             this::setMaxConcurrentRemoteStoreStreams
@@ -295,6 +312,14 @@ public class RecoverySettings {
 
     private void setMaxConcurrentOperations(int maxConcurrentOperations) {
         this.maxConcurrentOperations = maxConcurrentOperations;
+    }
+
+    public boolean isMultistreamDownloadRecoveryEnabled() {
+        return this.multistreamDownloadRecoveryEnabled;
+    }
+
+    private void setMultistreamDownloadRecoveryEnabled(boolean multistreamDownloadRecoveryEnabled) {
+        this.multistreamDownloadRecoveryEnabled = multistreamDownloadRecoveryEnabled;
     }
 
     public int getMaxConcurrentRemoteStoreStreams() {
