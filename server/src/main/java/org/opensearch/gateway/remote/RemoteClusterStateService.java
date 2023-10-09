@@ -128,15 +128,15 @@ public class RemoteClusterStateService implements Closeable {
 
     private static final int CURRENT_GLOBAL_METADATA_VERSION = 1;
 
-     // ToXContent Params with gateway mode.
-     // We are using gateway context mode to persist all custom metadata.
-    private static final ToXContent.Params FORMAT_PARAMS;
+    // TODO: For now using Gateway context, check if how we can cover all type of custom by default.
+    // ToXContent Params with gateway mode.
+    // We are using gateway context mode to persist all custom metadata.
+    public static final ToXContent.Params FORMAT_PARAMS;
     static {
         Map<String, String> params = new HashMap<>(1);
         params.put(Metadata.CONTEXT_MODE_PARAM, Metadata.CONTEXT_MODE_GATEWAY);
         FORMAT_PARAMS = new ToXContent.MapParams(params);
     }
-
 
     public RemoteClusterStateService(
         String nodeId,
@@ -185,7 +185,13 @@ public class RemoteClusterStateService implements Closeable {
             clusterState,
             new ArrayList<>(clusterState.metadata().indices().values())
         );
-        final ClusterMetadataManifest manifest = uploadManifest(clusterState, allUploadedIndexMetadata, previousClusterUUID, globalMetadataFile, false);
+        final ClusterMetadataManifest manifest = uploadManifest(
+            clusterState,
+            allUploadedIndexMetadata,
+            previousClusterUUID,
+            globalMetadataFile,
+            false
+        );
         final long durationMillis = TimeValue.nsecToMSec(relativeTimeNanosSupplier.getAsLong() - startTimeNanos);
         if (durationMillis >= slowWriteLoggingThreshold.getMillis()) {
             logger.warn(
@@ -228,7 +234,7 @@ public class RemoteClusterStateService implements Closeable {
         // Write Global Metadata
         final boolean updateGlobalMeta = Metadata.isGlobalStateEquals(previousClusterState.metadata(), clusterState.metadata()) == false;
         String globalMetadataFile;
-        if(updateGlobalMeta) {
+        if (updateGlobalMeta) {
             globalMetadataFile = writeGlobalMetadata(clusterState);
         } else {
             globalMetadataFile = previousManifest.getGlobalMetadataFileName();
@@ -310,8 +316,7 @@ public class RemoteClusterStateService implements Closeable {
      * @param clusterState current ClusterState
      * @return String file name where globalMetadata file is stored.
      */
-    private String writeGlobalMetadata(ClusterState clusterState)
-        throws IOException {
+    private String writeGlobalMetadata(ClusterState clusterState) throws IOException {
 
         AtomicReference<String> result = new AtomicReference<String>();
         final BlobContainer globalMetadataContainer = globalMetadataContainer(
@@ -323,22 +328,13 @@ public class RemoteClusterStateService implements Closeable {
         // latch to wait until upload is not finished
         CountDownLatch latch = new CountDownLatch(1);
 
-        LatchedActionListener completionListener = new LatchedActionListener<>(
-            ActionListener.wrap(
-                resp -> {
-                    logger.trace(
-                        String.format(Locale.ROOT, "GlobalMetadata uploaded successfully.")
-                    );
-                    result.set(globalMetadataContainer.path().buildAsString() + globalMetadataFilename);
-                }, ex -> {
-                    logger.error(
-                        () -> new ParameterizedMessage("Exception during transfer of GlobalMetadata to Remote {}", ex.getMessage()),
-                        ex
-                    );
-                    throw new GlobalMetadataTransferException(ex.getMessage(), ex);
-                }),
-            latch
-        );
+        LatchedActionListener completionListener = new LatchedActionListener<>(ActionListener.wrap(resp -> {
+            logger.trace(String.format(Locale.ROOT, "GlobalMetadata uploaded successfully."));
+            result.set(globalMetadataContainer.path().buildAsString() + globalMetadataFilename);
+        }, ex -> {
+            logger.error(() -> new ParameterizedMessage("Exception during transfer of GlobalMetadata to Remote {}", ex.getMessage()), ex);
+            throw new GlobalMetadataTransferException(ex.getMessage(), ex);
+        }), latch);
 
         BlobStoreRepository.GLOBAL_METADATA_FORMAT.writeAsync(
             clusterState.metadata(),
@@ -352,19 +348,13 @@ public class RemoteClusterStateService implements Closeable {
         try {
             if (latch.await(GLOBAL_METADATA_UPLOAD_WAIT_MILLIS, TimeUnit.MILLISECONDS) == false) {
                 GlobalMetadataTransferException ex = new GlobalMetadataTransferException(
-                    String.format(
-                        Locale.ROOT,
-                        "Timed out waiting for transfer of global metadata to complete"
-                    )
+                    String.format(Locale.ROOT, "Timed out waiting for transfer of global metadata to complete")
                 );
                 throw ex;
             }
         } catch (InterruptedException ex) {
             GlobalMetadataTransferException exception = new GlobalMetadataTransferException(
-                String.format(
-                    Locale.ROOT,
-                    "Timed out waiting for transfer of index metadata to complete - %s"
-                ),
+                String.format(Locale.ROOT, "Timed out waiting for transfer of index metadata to complete - %s"),
                 ex
             );
             Thread.currentThread().interrupt();

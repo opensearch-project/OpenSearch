@@ -232,7 +232,8 @@ public final class ChecksumBlobStoreFormat<T extends ToXContent> {
         }
     }
 
-    public BytesReference serialize(final T obj, final String blobName, final Compressor compressor, final ToXContent.Params params) throws IOException {
+    public BytesReference serialize(final T obj, final String blobName, final Compressor compressor, final ToXContent.Params params)
+        throws IOException {
         try (BytesStreamOutput outputStream = new BytesStreamOutput()) {
             try (
                 OutputStreamIndexOutput indexOutput = new OutputStreamIndexOutput(

@@ -36,6 +36,7 @@ public class ClusterMetadataManifestTests extends OpenSearchTestCase {
             Version.CURRENT,
             "test-node-id",
             false,
+            "test-global-metadata-file",
             Collections.singletonList(uploadedIndexMetadata),
             "prev-cluster-uuid",
             true
@@ -60,6 +61,7 @@ public class ClusterMetadataManifestTests extends OpenSearchTestCase {
             Version.CURRENT,
             "B10RX1f5RJenMQvYccCgSQ",
             true,
+            "test-global-metadata-file",
             randomUploadedIndexMetadataList(),
             "yfObdx8KSMKKrXf8UyHhM",
             true
