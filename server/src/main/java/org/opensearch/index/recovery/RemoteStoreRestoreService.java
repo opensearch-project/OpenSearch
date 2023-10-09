@@ -270,10 +270,7 @@ public class RemoteStoreRestoreService {
         }
         if (clusterMetadata.customs() != null) {
             for (final Map.Entry<String, Metadata.Custom> cursor : clusterMetadata.customs().entrySet()) {
-                if (RepositoriesMetadata.TYPE.equals(cursor.getKey()) == false) {
-                    // TODO: we should be restoring repositories as well after validating no conflict with remote repo
-                    mdBuilder.putCustom(cursor.getKey(), cursor.getValue());
-                }
+                mdBuilder.putCustom(cursor.getKey(), cursor.getValue());
             }
         }
         return ClusterState.builder(restoredClusterState).metadata(mdBuilder).build();
