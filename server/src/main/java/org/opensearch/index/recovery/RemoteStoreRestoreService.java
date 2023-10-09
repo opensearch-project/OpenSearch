@@ -50,6 +50,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_STORE_ENABLED;
+import static org.opensearch.repositories.blobstore.BlobStoreRepository.SYSTEM_REPOSITORY_SETTING;
 
 /**
  * Service responsible for restoring index data from remote store
@@ -270,7 +271,17 @@ public class RemoteStoreRestoreService {
         }
         if (clusterMetadata.customs() != null) {
             for (final Map.Entry<String, Metadata.Custom> cursor : clusterMetadata.customs().entrySet()) {
-                mdBuilder.putCustom(cursor.getKey(), cursor.getValue());
+                Metadata.Custom cursorValue = cursor.getValue();
+                if (RepositoriesMetadata.TYPE.equals(cursor.getKey())) {
+                    RepositoriesMetadata repositoriesMetadata = (RepositoriesMetadata) cursorValue;
+                    cursorValue = new RepositoriesMetadata(
+                        repositoriesMetadata.repositories()
+                            .stream()
+                            .filter(repository -> SYSTEM_REPOSITORY_SETTING.get(repository.settings()) == false)
+                            .collect(Collectors.toList())
+                    );
+                }
+                mdBuilder.putCustom(cursor.getKey(), cursorValue);
             }
         }
         return ClusterState.builder(restoredClusterState).metadata(mdBuilder).build();
