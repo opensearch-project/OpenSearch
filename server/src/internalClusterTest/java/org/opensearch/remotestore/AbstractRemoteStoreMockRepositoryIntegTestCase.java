@@ -160,7 +160,7 @@ public abstract class AbstractRemoteStoreMockRepositoryIntegTestCase extends Abs
         return remoteFilename.split(RemoteSegmentStoreDirectory.SEGMENT_NAME_UUID_SEPARATOR)[0];
     }
 
-    private IndexResponse indexSingleDoc() {
+    protected IndexResponse indexSingleDoc() {
         return client().prepareIndex(INDEX_NAME)
             .setId(UUIDs.randomBase64UUID())
             .setSource(randomAlphaOfLength(5), randomAlphaOfLength(5))
