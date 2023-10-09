@@ -17,6 +17,9 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
+/**
+ * Class to traverse the QueryBuilder tree and capture the query shape
+ */
 public class QueryShapeVisitor implements QueryBuilderVisitor {
     private final SetOnce<String> queryType = new SetOnce<>();
     private final Map<BooleanClause.Occur, List<QueryShapeVisitor>> childVisitors = new EnumMap<>(BooleanClause.Occur.class);

@@ -28,6 +28,10 @@ import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.telemetry.metrics.MetricsRegistry;
 import org.opensearch.telemetry.metrics.tags.Tags;
 
+/**
+ * Class to categorize the search queries based on the type and increment the relevant counters.
+ * Class also logs the query shape.
+ */
 public class SearchQueryCategorizor {
 
     private static final Logger log = LogManager.getLogger(SearchQueryCategorizor.class);

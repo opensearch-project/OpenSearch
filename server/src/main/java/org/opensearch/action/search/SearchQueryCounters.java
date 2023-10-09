@@ -11,6 +11,9 @@ package org.opensearch.action.search;
 import org.opensearch.telemetry.metrics.Counter;
 import org.opensearch.telemetry.metrics.MetricsRegistry;
 
+/**
+ * Class contains all the Counters related to search query types.
+ */
 public class SearchQueryCounters {
     private final MetricsRegistry metricsRegistry;
 
