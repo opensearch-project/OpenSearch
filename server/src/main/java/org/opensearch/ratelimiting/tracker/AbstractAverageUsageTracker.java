@@ -40,6 +40,9 @@ public abstract class AbstractAverageUsageTracker extends AbstractLifecycleCompo
 
     public abstract long getUsage();
 
+    /**
+     * Returns the moving average of the datapoints
+     */
     public double getAverage() {
         return observations.get().getAverage();
     }
@@ -51,6 +54,9 @@ public abstract class AbstractAverageUsageTracker extends AbstractLifecycleCompo
         return observations.get().isReady();
     }
 
+    /**
+     * Creates a new instance of MovingAverage with a new window size based on WindowDuration
+     */
     public void setWindowSize(TimeValue windowDuration) {
         this.windowDuration = windowDuration;
         int windowSize = (int) (windowDuration.nanos() / pollingInterval.nanos());

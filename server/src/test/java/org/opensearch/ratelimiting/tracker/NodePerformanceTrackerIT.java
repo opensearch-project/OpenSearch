@@ -26,7 +26,7 @@ import static org.hamcrest.Matchers.greaterThan;
 /**
  * Tests to assert node performance trackers retrieving resource utilization averages
  */
-public class NodePerformanceTrackerTests extends OpenSearchSingleNodeTestCase {
+public class NodePerformanceTrackerIT extends OpenSearchSingleNodeTestCase {
     ThreadPool threadPool;
 
     @Before

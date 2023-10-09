@@ -27,9 +27,9 @@ public class NodePerformanceStats implements Writeable {
 
     public NodePerformanceStats(String nodeId, long timestamp, double memoryUtilizationPercent, double cpuUtilizationPercent) {
         this.nodeId = nodeId;
+        this.timestamp = timestamp;
         this.cpuUtilizationPercent = cpuUtilizationPercent;
         this.memoryUtilizationPercent = memoryUtilizationPercent;
-        this.timestamp = timestamp;
     }
 
     public NodePerformanceStats(StreamInput in) throws IOException {

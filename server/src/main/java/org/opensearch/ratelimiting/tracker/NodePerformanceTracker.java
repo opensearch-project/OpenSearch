@@ -53,10 +53,10 @@ public class NodePerformanceTracker extends AbstractLifecycleComponent {
     }
 
     /**
-     * Return if any of the resource usage trackers are ready
+     * Checks if all of the resource usage trackers are ready
      */
     public boolean isReady() {
-        return memoryUsageTracker.isReady() || cpuUsageTracker.isReady();
+        return memoryUsageTracker.isReady() && cpuUsageTracker.isReady();
     }
 
     void initialize() {
@@ -94,7 +94,7 @@ public class NodePerformanceTracker extends AbstractLifecycleComponent {
     /**
      * Visible for testing
      */
-    public PerformanceTrackerSettings getPerformanceTrackerSettings() {
+    PerformanceTrackerSettings getPerformanceTrackerSettings() {
         return performanceTrackerSettings;
     }
 

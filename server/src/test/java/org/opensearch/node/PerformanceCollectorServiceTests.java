@@ -98,7 +98,7 @@ public class PerformanceCollectorServiceTests extends OpenSearchTestCase {
         /**
          * Wait for cluster state to be ready so that localNode().getId() is ready and we add the values to the map
          */
-        assertBusy(() -> assertTrue(collector.getNodeStatistics(clusterService.localNode().getId()).isPresent()), 5, TimeUnit.SECONDS);
+        assertBusy(() -> assertTrue(collector.getNodeStatistics(clusterService.localNode().getId()).isPresent()));
         assertTrue(collector.getNodeStatistics(clusterService.localNode().getId()).isPresent());
         /**
          * Wait for memory utilization to be reported greater than 0
@@ -158,7 +158,6 @@ public class PerformanceCollectorServiceTests extends OpenSearchTestCase {
         t4.join();
 
         final Map<String, NodePerformanceStats> nodeStats = collector.getAllNodeStatistics();
-        logger.info("--> got stats: {}", nodeStats);
         for (String nodeId : nodes) {
             if (nodeStats.containsKey(nodeId)) {
                 assertThat(nodeStats.get(nodeId).memoryUtilizationPercent, greaterThan(0.0));

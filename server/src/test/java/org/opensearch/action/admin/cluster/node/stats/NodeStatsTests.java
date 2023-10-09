@@ -402,7 +402,7 @@ public class NodeStatsTests extends OpenSearchTestCase {
                 } else {
                     nodesPerformanceStats.getNodeIdToNodePerfStatsMap().forEach((k, v) -> {
                         NodePerformanceStats aPerfStats = nodesPerformanceStats.getNodeIdToNodePerfStatsMap().get(k);
-                        NodePerformanceStats bPerfStats = nodesPerformanceStats.getNodeIdToNodePerfStatsMap().get(k);
+                        NodePerformanceStats bPerfStats = deserializedNodePerfStats.getNodeIdToNodePerfStatsMap().get(k);
                         assertEquals(aPerfStats.getMemoryUtilizationPercent(), bPerfStats.getMemoryUtilizationPercent(), 0.0);
                         assertEquals(aPerfStats.getCpuUtilizationPercent(), bPerfStats.getCpuUtilizationPercent(), 0.0);
                         assertEquals(aPerfStats.getTimestamp(), bPerfStats.getTimestamp());
