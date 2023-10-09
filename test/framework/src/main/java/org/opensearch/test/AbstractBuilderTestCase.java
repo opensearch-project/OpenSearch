@@ -322,7 +322,7 @@ public abstract class AbstractBuilderTestCase extends OpenSearchTestCase {
     protected static QueryBuilderVisitor createTestVisitor(List<QueryBuilder> visitedQueries) {
         return new QueryBuilderVisitor() {
             @Override
-            public void accept(QueryBuilder qb) {
+            public void accept(QueryBuilder qb, int level) {
                 visitedQueries.add(qb);
             }
 
