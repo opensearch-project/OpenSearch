@@ -283,10 +283,9 @@ public class SimpleSearchIT extends ParameterizedOpenSearchIntegTestCase {
         assertHitCount(searchResponse, 2L);
     }
 
-    public void testSimpleTerminateAfterCount() throws Exception {
+    public void dotestSimpleTerminateAfterCountWithSize(int size, int max) throws Exception {
         prepareCreate("test").setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 0)).get();
         ensureGreen();
-        int max = randomIntBetween(3, 29);
         List<IndexRequestBuilder> docbuilders = new ArrayList<>(max);
 
         for (int i = 1; i <= max; i++) {
@@ -299,9 +298,7 @@ public class SimpleSearchIT extends ParameterizedOpenSearchIntegTestCase {
         refresh();
 
         SearchResponse searchResponse;
-        int size;
         for (int i = 1; i < max; i++) {
-            size = randomIntBetween(0, max);
             searchResponse = client().prepareSearch("test")
                 .setQuery(QueryBuilders.rangeQuery("field").gte(1).lte(max))
                 .setTerminateAfter(i)
@@ -322,7 +319,18 @@ public class SimpleSearchIT extends ParameterizedOpenSearchIntegTestCase {
         assertFalse(searchResponse.isTerminatedEarly());
     }
 
-    public void testSimpleTerminateAfterTrackTotalHitsUpTo() throws Exception {
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/10435")
+    public void testSimpleTerminateAfterCountSize0() throws Exception {
+        int max = randomIntBetween(3, 29);
+        dotestSimpleTerminateAfterCountWithSize(0, max);
+    }
+
+    public void testSimpleTerminateAfterCountRandomSize() throws Exception {
+        int max = randomIntBetween(3, 29);
+        dotestSimpleTerminateAfterCountWithSize(randomIntBetween(1, max), max);
+    }
+
+    public void doTestSimpleTerminateAfterTrackTotalHitsUpTo(int size) throws Exception {
         prepareCreate("test").setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 0)).get();
         ensureGreen();
         int numDocs = 29;
@@ -337,8 +345,6 @@ public class SimpleSearchIT extends ParameterizedOpenSearchIntegTestCase {
         ensureGreen();
         refresh();
 
-        // size=0 is a special case where topDocsCollector is not added
-        int size = randomIntBetween(0, 1);
         SearchResponse searchResponse;
         searchResponse = client().prepareSearch("test")
             .setQuery(QueryBuilders.rangeQuery("field").gte(1).lte(numDocs))
@@ -397,6 +403,15 @@ public class SimpleSearchIT extends ParameterizedOpenSearchIntegTestCase {
             .get();
         assertEquals(5, searchResponse.getHits().getTotalHits().value);
         assertEquals(GREATER_THAN_OR_EQUAL_TO, searchResponse.getHits().getTotalHits().relation);
+    }
+
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/10435")
+    public void testSimpleTerminateAfterTrackTotalHitsUpToRandomSize() throws Exception {
+        doTestSimpleTerminateAfterTrackTotalHitsUpTo(0);
+    }
+
+    public void testSimpleTerminateAfterTrackTotalHitsUpToSize0() throws Exception {
+        doTestSimpleTerminateAfterTrackTotalHitsUpTo(randomIntBetween(1, 29));
     }
 
     public void testSimpleIndexSortEarlyTerminate() throws Exception {
