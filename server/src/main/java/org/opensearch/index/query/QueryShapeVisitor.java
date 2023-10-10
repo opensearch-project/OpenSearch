@@ -38,11 +38,12 @@ public class QueryShapeVisitor implements QueryBuilderVisitor {
         final List<QueryShapeVisitor> childVisitorList = new ArrayList<>();
         QueryBuilderVisitor childVisitorWrapper = new QueryBuilderVisitor() {
             QueryShapeVisitor currentChild;
+
             @Override
             public void accept(QueryBuilder qb, int level) {
                 currentChild = new QueryShapeVisitor();
                 childVisitorList.add(currentChild);
-                currentChild.accept(qb, level+1);
+                currentChild.accept(qb, level + 1);
             }
 
             @Override

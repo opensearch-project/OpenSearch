@@ -231,7 +231,7 @@ public class ScriptScoreQueryBuilder extends AbstractQueryBuilder<ScriptScoreQue
         visitor.accept(this, level);
         if (query != null) {
             QueryBuilderVisitor subVisitor = visitor.getChildVisitor(BooleanClause.Occur.MUST);
-            subVisitor.accept(query, level+1);
+            subVisitor.accept(query, level + 1);
         }
     }
 }
