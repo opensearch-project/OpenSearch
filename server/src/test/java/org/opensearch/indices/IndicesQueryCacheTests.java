@@ -388,6 +388,7 @@ public class IndicesQueryCacheTests extends OpenSearchTestCase {
     private static class DummyWeight extends Weight {
 
         private final Weight weight;
+        private final int randCount = randomIntBetween(0, Integer.MAX_VALUE);
         private boolean scorerCalled;
         private boolean scorerSupplierCalled;
 
@@ -412,6 +413,9 @@ public class IndicesQueryCacheTests extends OpenSearchTestCase {
             scorerSupplierCalled = true;
             return weight.scorerSupplier(context);
         }
+
+        @Override
+        public int count(LeafReaderContext context) throws IOException { return randCount; }
 
         @Override
         public boolean isCacheable(LeafReaderContext ctx) {
@@ -454,6 +458,8 @@ public class IndicesQueryCacheTests extends OpenSearchTestCase {
         cached.scorerSupplier(s.getIndexReader().leaves().get(0));
         assertFalse(weight.scorerCalled);
         assertTrue(weight.scorerSupplierCalled);
+        // verifying CachingWeightWrapper#count delegates to DummyWeight#count
+        assertEquals(weight.count(null), cached.count(null));
         IOUtils.close(r, dir);
         cache.onClose(shard);
         cache.close();

@@ -187,6 +187,11 @@ public class IndicesQueryCache implements QueryCache, Closeable {
         }
 
         @Override
+        public int count(LeafReaderContext context) throws IOException {
+            return in.count(context);
+        }
+
+        @Override
         public boolean isCacheable(LeafReaderContext ctx) {
             return in.isCacheable(ctx);
         }
