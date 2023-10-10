@@ -263,6 +263,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         this.leaderChecker = new LeaderChecker(settings, clusterSettings, transportService, this::onLeaderFailure, nodeHealthService);
         this.followersChecker = new FollowersChecker(
             settings,
+            clusterSettings,
             transportService,
             this::onFollowerCheckRequest,
             this::removeNode,
