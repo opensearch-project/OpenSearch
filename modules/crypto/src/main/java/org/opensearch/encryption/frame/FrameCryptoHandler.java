@@ -28,7 +28,7 @@ public class FrameCryptoHandler implements CryptoHandler<EncryptionMetadata, Par
     private final ExecutorService decryptionExecutor;
 
     // package private for tests
-    private final int FRAME_SIZE = 8 * 1024;
+    private final int FRAME_SIZE = 4 * 1024;
 
     public FrameCryptoHandler(
         AwsCrypto awsCrypto,
