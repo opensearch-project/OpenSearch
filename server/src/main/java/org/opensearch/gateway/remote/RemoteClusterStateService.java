@@ -128,7 +128,6 @@ public class RemoteClusterStateService implements Closeable {
 
     private static final int CURRENT_GLOBAL_METADATA_VERSION = 1;
 
-    // TODO: For now using Gateway context, check if how we can cover all type of custom by default.
     // ToXContent Params with gateway mode.
     // We are using gateway context mode to persist all custom metadata.
     public static final ToXContent.Params FORMAT_PARAMS;
@@ -615,8 +614,9 @@ public class RemoteClusterStateService implements Closeable {
         return String.join(
             DELIMITER,
             GLOBAL_METADATA_FILE_PREFIX,
-            String.valueOf(CURRENT_GLOBAL_METADATA_VERSION),
-            String.valueOf(System.currentTimeMillis())
+            String.valueOf(metadata.version()),
+            String.valueOf(System.currentTimeMillis()),
+            String.valueOf(CURRENT_GLOBAL_METADATA_VERSION)
         );
     }
 
@@ -1022,6 +1022,7 @@ public class RemoteClusterStateService implements Closeable {
             Set<String> filesToKeep = new HashSet<>();
             Set<String> staleManifestPaths = new HashSet<>();
             Set<String> staleIndexMetadataPaths = new HashSet<>();
+            Set<String> staleGlobalMetadataPaths = new HashSet<>();
             activeManifestBlobMetadata.forEach(blobMetadata -> {
                 ClusterMetadataManifest clusterMetadataManifest = fetchRemoteClusterMetadataManifest(
                     clusterName,
@@ -1030,6 +1031,7 @@ public class RemoteClusterStateService implements Closeable {
                 );
                 clusterMetadataManifest.getIndices()
                     .forEach(uploadedIndexMetadata -> filesToKeep.add(uploadedIndexMetadata.getUploadedFilename()));
+                filesToKeep.add(clusterMetadataManifest.getGlobalMetadataFileName());
             });
             staleManifestBlobMetadata.forEach(blobMetadata -> {
                 ClusterMetadataManifest clusterMetadataManifest = fetchRemoteClusterMetadataManifest(
@@ -1038,6 +1040,10 @@ public class RemoteClusterStateService implements Closeable {
                     blobMetadata.name()
                 );
                 staleManifestPaths.add(new BlobPath().add(MANIFEST_PATH_TOKEN).buildAsString() + blobMetadata.name());
+                String[] globalMetadataSplitPath = clusterMetadataManifest.getGlobalMetadataFileName().split("/");
+                staleGlobalMetadataPaths.add(
+                    new BlobPath().add(GLOBAL_METADATA_PATH_TOKEN).buildAsString() +
+                        BlobStoreRepository.GLOBAL_METADATA_FORMAT.blobName(globalMetadataSplitPath[globalMetadataSplitPath.length -1]));
                 clusterMetadataManifest.getIndices().forEach(uploadedIndexMetadata -> {
                     if (filesToKeep.contains(uploadedIndexMetadata.getUploadedFilename()) == false) {
                         staleIndexMetadataPaths.add(
@@ -1054,6 +1060,7 @@ public class RemoteClusterStateService implements Closeable {
                 return;
             }
 
+            deleteStalePaths(clusterName, clusterUUID, new ArrayList<>(staleGlobalMetadataPaths));
             deleteStalePaths(clusterName, clusterUUID, new ArrayList<>(staleIndexMetadataPaths));
             deleteStalePaths(clusterName, clusterUUID, new ArrayList<>(staleManifestPaths));
         } catch (IllegalStateException e) {
