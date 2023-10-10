@@ -67,7 +67,14 @@ public class TelemetrySettings {
     private volatile boolean tracingEnabled;
     private volatile double samplingProbability;
 
-    public TelemetrySettings(Settings settings, ClusterSettings clusterSettings) {
+    private static Settings settingz;
+
+    public static TelemetrySettings create(Settings settings, ClusterSettings clusterSettings) {
+        settingz = settings;
+        return new TelemetrySettings(settings, clusterSettings);
+    }
+
+    private TelemetrySettings(Settings settings, ClusterSettings clusterSettings) {
         this.tracingEnabled = TRACER_ENABLED_SETTING.get(settings);
         this.samplingProbability = TRACER_SAMPLER_PROBABILITY.get(settings);
 
@@ -96,5 +103,13 @@ public class TelemetrySettings {
      */
     public double getSamplingProbability() {
         return samplingProbability;
+    }
+
+    public static boolean isTracerFeatureEnabled() {
+        if (settingz != null) {
+            return TRACER_FEATURE_ENABLED_SETTING.get(settingz);
+        } else {
+            return false;
+        }
     }
 }

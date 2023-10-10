@@ -31,7 +31,7 @@ public class WrappedTracerTests extends OpenSearchTestCase {
 
     public void testStartSpanWithTracingDisabledInvokesNoopTracer() throws Exception {
         Settings settings = Settings.builder().put(TelemetrySettings.TRACER_ENABLED_SETTING.getKey(), false).build();
-        TelemetrySettings telemetrySettings = new TelemetrySettings(settings, new ClusterSettings(settings, getClusterSettings()));
+        TelemetrySettings telemetrySettings = TelemetrySettings.create(settings, new ClusterSettings(settings, getClusterSettings()));
         DefaultTracer mockDefaultTracer = mock(DefaultTracer.class);
 
         try (WrappedTracer wrappedTracer = new WrappedTracer(telemetrySettings, mockDefaultTracer)) {
@@ -44,7 +44,7 @@ public class WrappedTracerTests extends OpenSearchTestCase {
 
     public void testStartSpanWithTracingEnabledInvokesDefaultTracer() throws Exception {
         Settings settings = Settings.builder().put(TelemetrySettings.TRACER_ENABLED_SETTING.getKey(), true).build();
-        TelemetrySettings telemetrySettings = new TelemetrySettings(settings, new ClusterSettings(settings, getClusterSettings()));
+        TelemetrySettings telemetrySettings = TelemetrySettings.create(settings, new ClusterSettings(settings, getClusterSettings()));
         DefaultTracer mockDefaultTracer = mock(DefaultTracer.class);
 
         try (WrappedTracer wrappedTracer = new WrappedTracer(telemetrySettings, mockDefaultTracer)) {
@@ -58,7 +58,7 @@ public class WrappedTracerTests extends OpenSearchTestCase {
 
     public void testStartSpanWithTracingEnabledInvokesDefaultTracerWithAttr() throws Exception {
         Settings settings = Settings.builder().put(TelemetrySettings.TRACER_ENABLED_SETTING.getKey(), true).build();
-        TelemetrySettings telemetrySettings = new TelemetrySettings(settings, new ClusterSettings(settings, getClusterSettings()));
+        TelemetrySettings telemetrySettings = TelemetrySettings.create(settings, new ClusterSettings(settings, getClusterSettings()));
         DefaultTracer mockDefaultTracer = mock(DefaultTracer.class);
         Attributes attributes = Attributes.create().addAttribute("key", "value");
         try (WrappedTracer wrappedTracer = new WrappedTracer(telemetrySettings, mockDefaultTracer)) {

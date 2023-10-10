@@ -57,7 +57,10 @@ public class OTelTelemetryPluginTests extends OpenSearchTestCase {
             .build();
         oTelTelemetryPlugin = new OTelTelemetryPlugin(settings);
         telemetry = oTelTelemetryPlugin.getTelemetry(
-            new TelemetrySettings(Settings.EMPTY, new ClusterSettings(settings, Set.of(TRACER_ENABLED_SETTING, TRACER_SAMPLER_PROBABILITY)))
+            TelemetrySettings.create(
+                Settings.EMPTY,
+                new ClusterSettings(settings, Set.of(TRACER_ENABLED_SETTING, TRACER_SAMPLER_PROBABILITY))
+            )
         );
         tracingTelemetry = telemetry.map(a -> a.getTracingTelemetry()).orElse(null);
         metricsTelemetry = telemetry.map(a -> a.getMetricsTelemetry()).orElse(null);

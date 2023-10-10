@@ -15,6 +15,7 @@ import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.rest.RestChannel;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.RestResponse;
+import org.opensearch.telemetry.TelemetrySettings;
 import org.opensearch.telemetry.tracing.Span;
 import org.opensearch.telemetry.tracing.SpanScope;
 import org.opensearch.telemetry.tracing.Tracer;
@@ -53,7 +54,7 @@ public class TraceableRestChannel implements RestChannel {
      * @return rest channel
      */
     public static RestChannel create(RestChannel delegate, Span span, Tracer tracer) {
-        if (FeatureFlags.isEnabled(FeatureFlags.TELEMETRY) == true) {
+        if (FeatureFlags.isEnabled(FeatureFlags.TELEMETRY) == true && TelemetrySettings.isTracerFeatureEnabled()) {
             return new TraceableRestChannel(delegate, span, tracer);
         } else {
             return delegate;
