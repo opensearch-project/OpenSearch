@@ -191,6 +191,6 @@ public class SpanFirstQueryBuilder extends AbstractQueryBuilder<SpanFirstQueryBu
     @Override
     public void visit(QueryBuilderVisitor visitor, int level) {
         visitor.accept(this, level);
-        visitor.getChildVisitor(BooleanClause.Occur.MUST).accept(matchBuilder, level+1);
+        visitor.getChildVisitor(BooleanClause.Occur.MUST).accept(matchBuilder, level + 1);
     }
 }
