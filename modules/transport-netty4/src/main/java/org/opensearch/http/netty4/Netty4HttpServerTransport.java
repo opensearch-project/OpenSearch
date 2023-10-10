@@ -317,8 +317,10 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
         return new HttpChannelHandler(this, handlingSettings);
     }
 
-    static final AttributeKey<Netty4HttpChannel> HTTP_CHANNEL_KEY = AttributeKey.newInstance("opensearch-http-channel");
-    static final AttributeKey<Netty4HttpServerChannel> HTTP_SERVER_CHANNEL_KEY = AttributeKey.newInstance("opensearch-http-server-channel");
+    public static final AttributeKey<Netty4HttpChannel> HTTP_CHANNEL_KEY = AttributeKey.newInstance("opensearch-http-channel");
+    protected static final AttributeKey<Netty4HttpServerChannel> HTTP_SERVER_CHANNEL_KEY = AttributeKey.newInstance(
+        "opensearch-http-server-channel"
+    );
 
     protected static class HttpChannelHandler extends ChannelInitializer<Channel> {
 
@@ -351,7 +353,8 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
             );
             decoder.setCumulator(ByteToMessageDecoder.COMPOSITE_CUMULATOR);
             ch.pipeline().addLast("decoder", decoder);
-            ch.pipeline().addLast("decoder_compress", new HttpContentDecompressor());
+            ch.pipeline().addLast("header_verifier", transport.createHeaderVerifier());
+            ch.pipeline().addLast("decoder_compress", transport.createDecompressor());
             ch.pipeline().addLast("encoder", new HttpResponseEncoder());
             final HttpObjectAggregator aggregator = new HttpObjectAggregator(handlingSettings.getMaxContentLength());
             aggregator.setMaxCumulationBufferComponents(transport.maxCompositeBufferComponents);
@@ -392,5 +395,22 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
                 transport.onServerException(httpServerChannel, (Exception) cause);
             }
         }
+    }
+
+    /**
+     * Extension point that allows a NetworkPlugin to extend the netty pipeline and inspect headers after request decoding
+     */
+    protected ChannelInboundHandlerAdapter createHeaderVerifier() {
+        // pass-through
+        return new ChannelInboundHandlerAdapter();
+    }
+
+    /**
+     * Extension point that allows a NetworkPlugin to override the default netty HttpContentDecompressor and supply a custom decompressor.
+     *
+     * Used in instances to conditionally decompress depending on the outcome from header verification
+     */
+    protected ChannelInboundHandlerAdapter createDecompressor() {
+        return new HttpContentDecompressor();
     }
 }
