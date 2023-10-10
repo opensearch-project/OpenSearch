@@ -44,6 +44,8 @@ import java.util.stream.Collectors;
 /**
  * Handler for REST requests
  *
+ * If new methods are added to this interface they must also be added to {@link DelegatingRestHandler}
+ *
  * @opensearch.api
  */
 @FunctionalInterface
@@ -113,68 +115,6 @@ public interface RestHandler {
      */
     default boolean allowSystemIndexAccessByDefault() {
         return false;
-    }
-
-    static RestHandler wrapper(RestHandler delegate) {
-        return new Wrapper(delegate);
-    }
-
-    /**
-     * Wrapper for a handler.
-     *
-     * @opensearch.internal
-     */
-    class Wrapper implements RestHandler {
-        private final RestHandler delegate;
-
-        public Wrapper(RestHandler delegate) {
-            this.delegate = Objects.requireNonNull(delegate, "RestHandler delegate can not be null");
-        }
-
-        @Override
-        public String toString() {
-            return delegate.toString();
-        }
-
-        @Override
-        public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
-            delegate.handleRequest(request, channel, client);
-        }
-
-        @Override
-        public boolean canTripCircuitBreaker() {
-            return delegate.canTripCircuitBreaker();
-        }
-
-        @Override
-        public boolean supportsContentStream() {
-            return delegate.supportsContentStream();
-        }
-
-        @Override
-        public boolean allowsUnsafeBuffers() {
-            return delegate.allowsUnsafeBuffers();
-        }
-
-        @Override
-        public List<Route> routes() {
-            return delegate.routes();
-        }
-
-        @Override
-        public List<DeprecatedRoute> deprecatedRoutes() {
-            return delegate.deprecatedRoutes();
-        }
-
-        @Override
-        public List<ReplacedRoute> replacedRoutes() {
-            return delegate.replacedRoutes();
-        }
-
-        @Override
-        public boolean allowSystemIndexAccessByDefault() {
-            return delegate.allowSystemIndexAccessByDefault();
-        }
     }
 
     /**
