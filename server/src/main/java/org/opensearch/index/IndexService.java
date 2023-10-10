@@ -452,7 +452,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         final Consumer<ShardId> globalCheckpointSyncer,
         final RetentionLeaseSyncer retentionLeaseSyncer,
         final SegmentReplicationCheckpointPublisher checkpointPublisher,
-        final RemoteStoreStatsTrackerFactory remoteStoreStatsTrackerFactory
+        final RemoteStoreStatsTrackerFactory remoteStoreStatsTrackerFactory,
+        final SegmentReplicationPressureService segmentReplicationPressureService
     ) throws IOException {
         Objects.requireNonNull(retentionLeaseSyncer);
         /*
@@ -525,7 +526,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 remoteStoreStatsTrackerFactory,
                 clusterRemoteTranslogBufferIntervalSupplier,
                 nodeEnv.nodeId(),
-                recoverySettings
+                recoverySettings,
+                segmentReplicationPressureService
             );
             eventListener.indexShardStateChanged(indexShard, null, indexShard.state(), "shard created");
             eventListener.afterIndexShardCreated(indexShard);

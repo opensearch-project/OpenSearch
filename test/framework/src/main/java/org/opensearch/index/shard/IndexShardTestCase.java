@@ -702,7 +702,8 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
                 remoteStoreStatsTrackerFactory,
                 () -> IndexSettings.DEFAULT_REMOTE_TRANSLOG_BUFFER_INTERVAL,
                 "dummy-node",
-                DefaultRecoverySettings.INSTANCE
+                DefaultRecoverySettings.INSTANCE,
+                null
             );
             indexShard.addShardFailureCallback(DEFAULT_SHARD_FAILURE_HANDLER);
             if (remoteStoreStatsTrackerFactory != null) {

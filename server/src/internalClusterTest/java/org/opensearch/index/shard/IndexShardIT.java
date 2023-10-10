@@ -713,7 +713,9 @@ public class IndexShardIT extends OpenSearchSingleNodeTestCase {
             null,
             () -> IndexSettings.DEFAULT_REMOTE_TRANSLOG_BUFFER_INTERVAL,
             nodeId,
+            null,
             null
+
         );
     }
 

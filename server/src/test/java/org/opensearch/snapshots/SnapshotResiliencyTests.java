@@ -2137,7 +2137,8 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                     ),
                     RetentionLeaseSyncer.EMPTY,
                     SegmentReplicationCheckpointPublisher.EMPTY,
-                    mock(RemoteStoreStatsTrackerFactory.class)
+                    mock(RemoteStoreStatsTrackerFactory.class),
+                    mock(SegmentReplicationPressureService.class)
                 );
 
                 final SystemIndices systemIndices = new SystemIndices(emptyMap());
