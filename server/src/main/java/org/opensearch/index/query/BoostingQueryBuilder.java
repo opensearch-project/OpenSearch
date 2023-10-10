@@ -258,10 +258,10 @@ public class BoostingQueryBuilder extends AbstractQueryBuilder<BoostingQueryBuil
     public void visit(QueryBuilderVisitor visitor, int level) {
         visitor.accept(this, level);
         if (positiveQuery != null) {
-            visitor.getChildVisitor(BooleanClause.Occur.MUST).accept(positiveQuery, level+1);
+            visitor.getChildVisitor(BooleanClause.Occur.MUST).accept(positiveQuery, level + 1);
         }
         if (negativeQuery != null) {
-            visitor.getChildVisitor(BooleanClause.Occur.SHOULD).accept(negativeQuery, level+1);
+            visitor.getChildVisitor(BooleanClause.Occur.SHOULD).accept(negativeQuery, level + 1);
         }
     }
 }
