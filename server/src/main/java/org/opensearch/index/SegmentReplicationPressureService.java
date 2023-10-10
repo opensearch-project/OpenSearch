@@ -179,6 +179,10 @@ public class SegmentReplicationPressureService implements Closeable {
         return tracker.getStats();
     }
 
+    public SegmentReplicationPressureStats pressureStats() {
+        return new SegmentReplicationPressureStats(tracker.getStatsForShard());
+    }
+
     public SegmentReplicationPerGroupStats getStatsForShard(IndexShard indexShard) {
         return tracker.getStatsForShard(indexShard);
     }

@@ -83,6 +83,12 @@ public class RemoteStorePressureService {
         }
     }
 
+    RemoteStorePressureStats pressureStats() {
+        return new RemoteStorePressureStats(
+            remoteStoreStatsTrackerFactory.getRemoteSegmentTransferTracker(shardId).getRejectionCount()
+        );
+    }
+
     /**
      * Abstract class for validating if lag is acceptable or not.
      *
