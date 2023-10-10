@@ -300,6 +300,16 @@ public class IndicesService extends AbstractLifecycleComponent
     );
 
     /**
+     * This setting is used to append binary string (of size 10) prefix to index uuid.
+     */
+    public static final Setting<Boolean> CLUSTER_INDICES_BINARY_PREFIX_INDEX_UUID_SETTING = Setting.boolSetting(
+        "cluster.indices.binary-prefix-index-uuid.enable",
+        false,
+        Property.NodeScope,
+        Property.Dynamic
+    );
+
+    /**
      * The node's settings.
      */
     private final Settings settings;

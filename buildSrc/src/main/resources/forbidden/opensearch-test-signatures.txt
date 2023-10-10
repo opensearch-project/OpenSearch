@@ -26,3 +26,6 @@ com.carrotsearch.randomizedtesting.annotations.Nightly @ We don't run nightly te
 org.junit.Test @defaultMessage Just name your test method testFooBar
 
 java.lang.Math#random() @ Use one of the various randomization methods from LuceneTestCase or OpenSearchTestCase for reproducibility
+
+@defaultMessage Use org.opensearch.common.Randomness#get for reproducible sources of randomness
+java.util.Random#<init>()

@@ -111,6 +111,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
@@ -889,7 +890,16 @@ public class MetadataCreateIndexService {
             indexSettingsBuilder.put(SETTING_CREATION_DATE, Instant.now().toEpochMilli());
         }
         indexSettingsBuilder.put(IndexMetadata.SETTING_INDEX_PROVIDED_NAME, request.getProvidedName());
-        indexSettingsBuilder.put(SETTING_INDEX_UUID, UUIDs.randomBase64UUID());
+
+        String binaryPrefix = "";
+        if (clusterSettings.get(IndicesService.CLUSTER_INDICES_BINARY_PREFIX_INDEX_UUID_SETTING)) {
+            // We generate random binary string of size 10.
+            binaryPrefix = Integer.toBinaryString(new Random().nextInt(1024));
+            if (binaryPrefix.length() < 10) {
+                binaryPrefix = "0".repeat(10 - binaryPrefix.length()) + binaryPrefix;
+            }
+        }
+        indexSettingsBuilder.put(SETTING_INDEX_UUID, binaryPrefix + UUIDs.randomBase64UUID());
 
         updateReplicationStrategy(indexSettingsBuilder, request.settings(), settings);
         updateRemoteStoreSettings(indexSettingsBuilder, settings);
