@@ -46,8 +46,6 @@ import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.discovery.DiscoveryStats;
 import org.opensearch.http.HttpStats;
-import org.opensearch.index.SegmentReplicationPressureStats;
-import org.opensearch.index.remote.RemoteStorePressureStats;
 import org.opensearch.index.stats.IndexingPressureStats;
 import org.opensearch.index.stats.ShardIndexingPressureStats;
 import org.opensearch.index.store.remote.filecache.FileCacheStats;
@@ -144,12 +142,6 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
     @Nullable
     private SearchPipelineStats searchPipelineStats;
 
-    @Nullable
-    private RemoteStorePressureStats remoteStorePressureStats;
-
-    @Nullable
-    private SegmentReplicationPressureStats segmentReplicationPressureStats;
-
     public NodeStats(StreamInput in) throws IOException {
         super(in);
         timestamp = in.readVLong();
@@ -206,11 +198,6 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         } else {
             searchPipelineStats = null;
         }
-        // TODO: change to V_2_11_0 on main after backport to 2.x
-        if (in.getVersion().onOrAfter(Version.CURRENT)) {
-            remoteStorePressureStats = in.readOptionalWriteable(RemoteStorePressureStats::new);
-            segmentReplicationPressureStats = in.readOptionalWriteable(SegmentReplicationPressureStats::new);
-        }
     }
 
     public NodeStats(
@@ -237,9 +224,7 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         @Nullable WeightedRoutingStats weightedRoutingStats,
         @Nullable FileCacheStats fileCacheStats,
         @Nullable TaskCancellationStats taskCancellationStats,
-        @Nullable SearchPipelineStats searchPipelineStats,
-        @Nullable RemoteStorePressureStats remoteStorePressureStats,
-        @Nullable SegmentReplicationPressureStats segmentReplicationPressureStats
+        @Nullable SearchPipelineStats searchPipelineStats
     ) {
         super(node);
         this.timestamp = timestamp;
@@ -265,8 +250,6 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         this.fileCacheStats = fileCacheStats;
         this.taskCancellationStats = taskCancellationStats;
         this.searchPipelineStats = searchPipelineStats;
-        this.remoteStorePressureStats = remoteStorePressureStats;
-        this.segmentReplicationPressureStats = segmentReplicationPressureStats;
     }
 
     public long getTimestamp() {
@@ -404,16 +387,6 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         return searchPipelineStats;
     }
 
-    @Nullable
-    public RemoteStorePressureStats getRemoteStorePressureStats() {
-        return remoteStorePressureStats;
-    }
-
-    @Nullable
-    public SegmentReplicationPressureStats getSegmentReplicationPressureStats() {
-        return segmentReplicationPressureStats;
-    }
-
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
@@ -456,11 +429,6 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         }
         if (out.getVersion().onOrAfter(Version.V_2_9_0)) {
             out.writeOptionalWriteable(searchPipelineStats);
-        }
-        // TODO: change to V_2_11_0 on main after backport to 2.x
-        if (out.getVersion().onOrAfter(Version.CURRENT)) {
-            out.writeOptionalWriteable(remoteStorePressureStats);
-            out.writeOptionalWriteable(segmentReplicationPressureStats);
         }
     }
 
@@ -551,12 +519,6 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         }
         if (getSearchPipelineStats() != null) {
             getSearchPipelineStats().toXContent(builder, params);
-        }
-        if (getRemoteStorePressureStats() != null) {
-            getRemoteStorePressureStats().toXContent(builder, params);
-        }
-        if (getSegmentReplicationPressureStats() != null) {
-            getSegmentReplicationPressureStats().toXContent(builder, params);
         }
 
         return builder;
