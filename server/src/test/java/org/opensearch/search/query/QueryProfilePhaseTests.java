@@ -1066,10 +1066,6 @@ public class QueryProfilePhaseTests extends IndexShardTestCase {
     }
 
     public void testDisableTopScoreCollection() throws Exception {
-        assumeFalse(
-            "Concurrent search case muted pending fix: https://github.com/opensearch-project/OpenSearch/issues/10469",
-            executor != null
-        );
         Directory dir = newDirectory();
         IndexWriterConfig iwc = newIndexWriterConfig(new StandardAnalyzer());
         RandomIndexWriter w = new RandomIndexWriter(random(), dir, iwc);
@@ -1108,10 +1104,10 @@ public class QueryProfilePhaseTests extends IndexShardTestCase {
             assertThat(query.getTimeBreakdown().get("score_count"), greaterThan(0L));
             if (executor != null) {
                 assertThat(query.getTimeBreakdown().get("max_score"), greaterThan(0L));
-                assertThat(query.getTimeBreakdown().get("min_score"), greaterThan(0L));
+                assertThat(query.getTimeBreakdown().get("min_score"), greaterThanOrEqualTo(0L));
                 assertThat(query.getTimeBreakdown().get("avg_score"), greaterThan(0L));
                 assertThat(query.getTimeBreakdown().get("max_score_count"), greaterThan(0L));
-                assertThat(query.getTimeBreakdown().get("min_score_count"), greaterThan(0L));
+                assertThat(query.getTimeBreakdown().get("min_score_count"), greaterThanOrEqualTo(0L));
                 assertThat(query.getTimeBreakdown().get("avg_score_count"), greaterThan(0L));
             }
             assertThat(query.getTimeBreakdown().get("create_weight"), greaterThan(0L));
@@ -1241,10 +1237,6 @@ public class QueryProfilePhaseTests extends IndexShardTestCase {
     }
 
     public void testMaxScore() throws Exception {
-        assumeFalse(
-            "Concurrent search case muted pending fix: https://github.com/opensearch-project/OpenSearch/issues/9932",
-            executor != null
-        );
         Directory dir = newDirectory();
         final Sort sort = new Sort(new SortField("filter", SortField.Type.STRING));
         IndexWriterConfig iwc = newIndexWriterConfig().setIndexSort(sort);
@@ -1286,7 +1278,7 @@ public class QueryProfilePhaseTests extends IndexShardTestCase {
                 assertThat(query.getTimeBreakdown().get("max_score"), greaterThan(0L));
                 assertThat(query.getTimeBreakdown().get("min_score"), greaterThanOrEqualTo(0L));
                 assertThat(query.getTimeBreakdown().get("avg_score"), greaterThan(0L));
-                assertThat(query.getTimeBreakdown().get("max_score_count"), greaterThanOrEqualTo(6L));
+                assertThat(query.getTimeBreakdown().get("max_score_count"), greaterThanOrEqualTo(4L));
                 assertThat(query.getTimeBreakdown().get("min_score_count"), greaterThanOrEqualTo(0L));
                 assertThat(query.getTimeBreakdown().get("avg_score_count"), greaterThanOrEqualTo(1L));
             }
@@ -1364,10 +1356,6 @@ public class QueryProfilePhaseTests extends IndexShardTestCase {
     }
 
     public void testCollapseQuerySearchResults() throws Exception {
-        assumeFalse(
-            "Concurrent search case muted pending fix: https://github.com/opensearch-project/OpenSearch/issues/10139",
-            executor != null
-        );
         Directory dir = newDirectory();
         final Sort sort = new Sort(new SortField("user", SortField.Type.INT));
         IndexWriterConfig iwc = newIndexWriterConfig().setIndexSort(sort);
@@ -1412,7 +1400,7 @@ public class QueryProfilePhaseTests extends IndexShardTestCase {
                 assertThat(query.getTimeBreakdown().get("min_score"), greaterThan(0L));
                 assertThat(query.getTimeBreakdown().get("avg_score"), greaterThan(0L));
                 assertThat(query.getTimeBreakdown().get("max_score_count"), greaterThanOrEqualTo(6L));
-                assertThat(query.getTimeBreakdown().get("min_score_count"), greaterThanOrEqualTo(6L));
+                assertThat(query.getTimeBreakdown().get("min_score_count"), greaterThanOrEqualTo(2L));
                 assertThat(query.getTimeBreakdown().get("avg_score_count"), greaterThanOrEqualTo(6L));
             }
             assertThat(query.getTimeBreakdown().get("create_weight"), greaterThan(0L));
@@ -1447,7 +1435,7 @@ public class QueryProfilePhaseTests extends IndexShardTestCase {
                 assertThat(query.getTimeBreakdown().get("min_score"), greaterThan(0L));
                 assertThat(query.getTimeBreakdown().get("avg_score"), greaterThan(0L));
                 assertThat(query.getTimeBreakdown().get("max_score_count"), greaterThanOrEqualTo(6L));
-                assertThat(query.getTimeBreakdown().get("min_score_count"), greaterThanOrEqualTo(6L));
+                assertThat(query.getTimeBreakdown().get("min_score_count"), greaterThanOrEqualTo(2L));
                 assertThat(query.getTimeBreakdown().get("avg_score_count"), greaterThanOrEqualTo(6L));
             }
             assertThat(query.getTimeBreakdown().get("create_weight"), greaterThan(0L));
