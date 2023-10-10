@@ -434,8 +434,9 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
     @Override
     public IndexInput openInput(String name, IOContext context) throws IOException {
         String remoteFilename = getExistingRemoteFilename(name);
+        long fileLength = fileLength(name);
         if (remoteFilename != null) {
-            return remoteDataDirectory.openInput(remoteFilename, context);
+            return remoteDataDirectory.openInput(remoteFilename, fileLength, context);
         } else {
             throw new NoSuchFileException(name);
         }
