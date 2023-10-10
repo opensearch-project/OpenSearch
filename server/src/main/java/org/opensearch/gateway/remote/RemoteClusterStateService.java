@@ -15,6 +15,7 @@ import org.opensearch.Version;
 import org.opensearch.action.LatchedActionListener;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.blobstore.BlobMetadata;
@@ -549,6 +550,41 @@ public class RemoteClusterStateService implements Closeable {
                 e
             );
         }
+    }
+
+    /**
+     * Fetch global metadata from remote cluster state
+     *
+     * @param clusterUUID uuid of cluster state to refer to in remote
+     * @param clusterName name of the cluster
+     * @return {@link IndexMetadata}
+     */
+    public Metadata getGlobalMetadata(String clusterName, String clusterUUID) {
+        start();
+        Optional<ClusterMetadataManifest> clusterMetadataManifest = getLatestClusterMetadataManifest(clusterName, clusterUUID);
+        if (!clusterMetadataManifest.isPresent()) {
+            throw new IllegalStateException("Latest index metadata is not present for the provided clusterUUID");
+        }
+        String globalMetadataFileName = clusterMetadataManifest.get().getGlobalMetadataFileName();
+        try {
+            String[] splitPath = globalMetadataFileName.split("/");
+            return BlobStoreRepository.GLOBAL_METADATA_FORMAT.read(
+                globalMetadataContainer(clusterName, clusterUUID),
+                splitPath[splitPath.length - 1],
+                blobStoreRepository.getNamedXContentRegistry()
+            );
+        } catch (IOException e) {
+            throw new IllegalStateException(
+                String.format(Locale.ROOT, "Error while downloading Global Metadata - %s", globalMetadataFileName),
+                e
+            );
+        }
+    }
+
+    // TODO: Remove this once Upload PR is merged
+    private BlobContainer globalMetadataContainer(String clusterName, String clusterUUID) {
+        // 123456789012_test-cluster/cluster-state/dsgYj10Nkso7/global-metadata/
+        return blobStoreRepository.blobStore().blobContainer(getCusterMetadataBasePath(clusterName, clusterUUID).add("global-metadata"));
     }
 
     /**

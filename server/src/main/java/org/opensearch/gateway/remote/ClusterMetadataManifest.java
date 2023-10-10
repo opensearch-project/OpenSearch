@@ -132,6 +132,11 @@ public class ClusterMetadataManifest implements Writeable, ToXContentFragment {
         return indices;
     }
 
+    // TODO: Remove this once upload PR is merged.
+    public String getGlobalMetadataFileName() {
+        return "global-metadata-file";
+    }
+
     public long getClusterTerm() {
         return clusterTerm;
     }
@@ -363,6 +368,11 @@ public class ClusterMetadataManifest implements Writeable, ToXContentFragment {
 
         public Builder clusterUUIDCommitted(boolean clusterUUIDCommitted) {
             this.clusterUUIDCommitted = clusterUUIDCommitted;
+            return this;
+        }
+
+        // TODO: remove once upload PR is merged.
+        public Builder globalMetadataFileName(String globalMetadatFileName) {
             return this;
         }
 
