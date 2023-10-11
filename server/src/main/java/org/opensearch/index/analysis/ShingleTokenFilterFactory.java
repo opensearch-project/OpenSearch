@@ -178,11 +178,11 @@ public class ShingleTokenFilterFactory extends AbstractTokenFilterFactory {
             filter.setTokenSeparator(tokenSeparator);
             filter.setFillerToken(fillerToken);
             if (outputUnigrams || (minShingleSize != maxShingleSize)) {
-                /**
-                 * We disable the graph analysis on this token stream
-                 * because it produces shingles of different size.
-                 * Graph analysis on such token stream is useless and dangerous as it may create too many paths
-                 * since shingles of different size are not aligned in terms of positions.
+                /*
+                  We disable the graph analysis on this token stream
+                  because it produces shingles of different size.
+                  Graph analysis on such token stream is useless and dangerous as it may create too many paths
+                  since shingles of different size are not aligned in terms of positions.
                  */
                 filter.addAttribute(DisableGraphAttribute.class);
             }

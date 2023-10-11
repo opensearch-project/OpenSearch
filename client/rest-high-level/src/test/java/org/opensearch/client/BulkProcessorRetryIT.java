@@ -180,7 +180,7 @@ public class BulkProcessorRetryIT extends OpenSearchRestHighLevelClientTestCase 
     /**
      * Internal helper class to correlate backoff states with bulk responses. This is needed to check whether we maxed out the number
      * of retries but still got rejected (which is perfectly fine and can also happen from time to time under heavy load).
-     *
+     * <p>
      * This implementation relies on an implementation detail in Retry, namely that the bulk listener is notified on the same thread
      * as the last call to the backoff policy's iterator. The advantage is that this is non-invasive to the rest of the production code.
      */

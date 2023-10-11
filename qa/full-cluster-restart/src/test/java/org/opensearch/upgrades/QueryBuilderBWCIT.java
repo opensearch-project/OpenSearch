@@ -77,7 +77,7 @@ import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
  * PercolatorFieldMapper#createQueryBuilderField(...) method). Using the query builders writable contract. This test
  * does best effort verifying that we don't break bwc for query builders between the first previous major version and
  * the latest current major release.
- *
+ * <p>
  * The queries to test are specified in json format, which turns out to work because we tend break here rarely. If the
  * json format of a query being tested here then feel free to change this.
  */

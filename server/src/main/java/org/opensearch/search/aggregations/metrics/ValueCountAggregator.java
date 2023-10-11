@@ -52,7 +52,7 @@ import java.util.Map;
 
 /**
  * A field data based aggregator that counts the number of values a specific field has within the aggregation context.
- *
+ * <p>
  * This aggregator works in a multi-bucket mode, that is, when serves as a sub-aggregator, a single aggregator instance aggregates the
  * counts for all buckets owned by the parent aggregator)
  *

@@ -69,7 +69,7 @@ import java.util.Collections;
 
 /**
  * Repository cleanup action for repository implementations based on {@link BlobStoreRepository}.
- *
+ * <p>
  * The steps taken by the repository cleanup operation are as follows:
  * <ol>
  *     <li>Check that there are no running repository cleanup, snapshot create, or snapshot delete actions

@@ -551,7 +551,7 @@ public final class IndexSettings {
 
     /**
      * This setting controls if unreferenced files will be cleaned up in case segment merge fails due to disk full.
-     *
+     * <p>
      * Defaults to true which means unreferenced files will be cleaned up in case segment merge fails.
      */
     public static final Setting<Boolean> INDEX_UNREFERENCED_FILE_CLEANUP = Setting.boolSetting(
@@ -567,7 +567,7 @@ public final class IndexSettings {
      * documents) on the grounds that a file-based peer recovery may copy all of the documents in the shard over to the new peer, but is
      * significantly faster than replaying the missing operations on the peer, so once a peer falls far enough behind the primary it makes
      * more sense to copy all the data over again instead of replaying history.
-     *
+     * <p>
      * Defaults to retaining history for up to 10% of the documents in the shard. This can only be changed in tests, since this setting is
      * intentionally unregistered.
      */

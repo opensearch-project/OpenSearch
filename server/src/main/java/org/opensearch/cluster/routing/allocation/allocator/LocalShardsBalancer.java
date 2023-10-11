@@ -530,7 +530,7 @@ public class LocalShardsBalancer extends ShardsBalancer {
 
     /**
      * Move started shards that can not be allocated to a node anymore
-     *
+     * <p>
      * For each shard to be moved this function executes a move operation
      * to the minimal eligible node with respect to the
      * weight function. If a shard is moved the shard will be set to

@@ -222,7 +222,7 @@ public class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSuggestionB
      * misspellings in order to form a correction. This method accepts a float
      * value in the range [0..1) as a fraction of the actual query terms a
      * number {@code &gt;=1} as an absolute number of query terms.
-     *
+     * <p>
      * The default is set to {@code 1.0} which corresponds to that only
      * corrections with at most 1 misspelled term are returned.
      */

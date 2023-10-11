@@ -55,7 +55,7 @@ import java.util.function.UnaryOperator;
 /**
  * Script level doc values, the assumption is that any implementation will
  * implement a {@link Longs#getValue getValue} method.
- *
+ * <p>
  * Implementations should not internally re-use objects for the values that they
  * return as a single {@link ScriptDocValues} instance can be reused to return
  * values form multiple documents.
@@ -589,11 +589,11 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
                         + "Use doc[<field>].size()==0 to check if a document is missing a field!"
                 );
             }
-            /**
-             * We need to make a copy here because {@link BinaryScriptDocValues} might reuse the
-             * returned value and the same instance might be used to
-             * return values from multiple documents.
-             **/
+            /*
+              We need to make a copy here because {@link BinaryScriptDocValues} might reuse the
+              returned value and the same instance might be used to
+              return values from multiple documents.
+             */
             return values[index].toBytesRef();
         }
 

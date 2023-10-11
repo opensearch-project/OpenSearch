@@ -54,13 +54,13 @@ import java.util.Objects;
 
 /**
  * A class that handles all the parsing, bwc and deprecations surrounding date histogram intervals.
- *
+ * <p>
  * - Provides parser helpers for the deprecated interval/dateHistogramInterval parameters.
  * - Provides parser helpers for the new calendar/fixed interval parameters
  * - Can read old intervals from a stream and convert to new intervals
  * - Can write new intervals to old format when streaming out
  * - Provides a variety of helper methods to interpret the intervals as different types, depending on caller's need
- *
+ * <p>
  * After the deprecated parameters are removed, this class can be simplified greatly.  The legacy options
  * will be removed, and the mutual-exclusion checks can be done in the setters directly removing the need
  * for the enum and the complicated "state machine" logic
@@ -234,7 +234,7 @@ public class DateIntervalWrapper implements ToXContentFragment, Writeable {
     /**
      * Sets the interval of the DateHistogram using calendar units (`1d`, `1w`, `1M`, etc).  These units
      * are calendar-aware, meaning they respect leap additions, variable days per month, etc.
-     *
+     * <p>
      * This is mutually exclusive with {@link DateIntervalWrapper#fixedInterval(DateHistogramInterval)}
      *
      * @param interval The fixed interval to use
@@ -264,7 +264,7 @@ public class DateIntervalWrapper implements ToXContentFragment, Writeable {
     /**
      * Sets the interval of the DateHistogram using fixed units (`1ms`, `1s`, `10m`, `4h`, etc).  These are
      * not calendar aware and are simply multiples of fixed, SI units.
-     *
+     * <p>
      * This is mutually exclusive with {@link DateIntervalWrapper#calendarInterval(DateHistogramInterval)}
      *
      * @param interval The fixed interval to use

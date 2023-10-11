@@ -154,7 +154,7 @@ public class AzureBlobStoreRepositoryTests extends OpenSearchMockAPIBasedReposit
 
     /**
      * HTTP handler that injects random Azure service errors
-     *
+     * <p>
      * Note: it is not a good idea to allow this handler to simulate too many errors as it would
      * slow down the test suite.
      */

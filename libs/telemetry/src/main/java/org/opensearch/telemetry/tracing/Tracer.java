@@ -16,7 +16,7 @@ import java.io.Closeable;
 /**
  * Tracer is the interface used to create a {@link Span}
  * It automatically handles the context propagation between threads, tasks, nodes etc.
- *
+ * <p>
  * All methods on the Tracer object are multi-thread safe.
  *
  * @opensearch.experimental

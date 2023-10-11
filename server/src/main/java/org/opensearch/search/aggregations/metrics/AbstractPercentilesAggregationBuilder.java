@@ -74,7 +74,7 @@ public abstract class AbstractPercentilesAggregationBuilder<T extends AbstractPe
         ParseField valuesField
     ) {
 
-        /**
+        /*
          * This is a non-ideal ConstructingObjectParser, because it is a compromise between Percentiles and Ranks.
          * Ranks requires an array of values because there is no sane default, and we want to keep that in the ctor.
          * Percentiles has defaults, which means the API allows the user to either use the default or configure
@@ -87,6 +87,7 @@ public abstract class AbstractPercentilesAggregationBuilder<T extends AbstractPe
          * out the behavior from there
          *
          * `args` are provided from the ConstructingObjectParser in-order they are defined in the parser.  So:
+         *
          *  - args[0]: values
          *  - args[1]: tdigest config options
          *  - args[2]: hdr config options
@@ -221,7 +222,7 @@ public abstract class AbstractPercentilesAggregationBuilder<T extends AbstractPe
     /**
      * Expert: set the number of significant digits in the values. Only relevant
      * when using {@link PercentilesMethod#HDR}.
-     *
+     * <p>
      * Deprecated: set numberOfSignificantValueDigits by configuring a {@link PercentilesConfig.Hdr} instead
      * and set via {@link PercentilesAggregationBuilder#percentilesConfig(PercentilesConfig)}
      */
@@ -241,7 +242,7 @@ public abstract class AbstractPercentilesAggregationBuilder<T extends AbstractPe
     /**
      * Expert: get the number of significant digits in the values. Only relevant
      * when using {@link PercentilesMethod#HDR}.
-     *
+     * <p>
      * Deprecated: get numberOfSignificantValueDigits by inspecting the {@link PercentilesConfig} returned from
      * {@link PercentilesAggregationBuilder#percentilesConfig()} instead
      */
@@ -256,7 +257,7 @@ public abstract class AbstractPercentilesAggregationBuilder<T extends AbstractPe
     /**
      * Expert: set the compression. Higher values improve accuracy but also
      * memory usage. Only relevant when using {@link PercentilesMethod#TDIGEST}.
-     *
+     * <p>
      * Deprecated: set compression by configuring a {@link PercentilesConfig.TDigest} instead
      * and set via {@link PercentilesAggregationBuilder#percentilesConfig(PercentilesConfig)}
      */
@@ -273,7 +274,7 @@ public abstract class AbstractPercentilesAggregationBuilder<T extends AbstractPe
     /**
      * Expert: get the compression. Higher values improve accuracy but also
      * memory usage. Only relevant when using {@link PercentilesMethod#TDIGEST}.
-     *
+     * <p>
      * Deprecated: get compression by inspecting the {@link PercentilesConfig} returned from
      * {@link PercentilesAggregationBuilder#percentilesConfig()} instead
      */
@@ -341,15 +342,15 @@ public abstract class AbstractPercentilesAggregationBuilder<T extends AbstractPe
 
     /**
      * Return the current algo configuration, or a default (Tdigest) otherwise
-     *
+     * <p>
      * This is needed because builders don't have a "build" or "finalize" method, but
      * the old API did bake in defaults.  Certain operations like xcontent, equals, hashcode
      * will use the values in the builder at any time and need to be aware of defaults.
-     *
+     * <p>
      * But to maintain BWC behavior as much as possible, we allow the user to set
      * algo settings independent of method.  To keep life simple we use a null to track
      * if any method has been selected yet.
-     *
+     * <p>
      * However, this means we need a way to fetch the default if the user hasn't
      * selected any method and uses a builder-side feature like xcontent
      */

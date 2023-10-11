@@ -301,7 +301,7 @@ public class RestClient implements Closeable {
      * they will be retried). In case of failures all of the alive nodes (or
      * dead nodes that deserve a retry) are retried until one responds or none
      * of them does, in which case an {@link IOException} will be thrown.
-     *
+     * <p>
      * This method works by performing an asynchronous call and waiting
      * for the result. If the asynchronous call throws an exception we wrap
      * it and rethrow it so that the stack trace attached to the exception

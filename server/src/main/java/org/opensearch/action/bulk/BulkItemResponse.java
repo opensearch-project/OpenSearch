@@ -210,7 +210,7 @@ public class BulkItemResponse implements Writeable, StatusToXContentObject {
 
         /**
          * For write failures before operation was assigned a sequence number.
-         *
+         * <p>
          * use @{link {@link #Failure(String, String, Exception, long, long)}}
          * to record operation sequence no with failure
          */

@@ -82,7 +82,7 @@ import static org.opensearch.index.mapper.TextFieldMapper.TextFieldType.hasGaps;
 /**
  * Mapper for a text field that optimizes itself for as-you-type completion by indexing its content into subfields. Each subfield
  * modifies the analysis chain of the root field to index terms the user would create as they type out the value in the root field
- *
+ * <p>
  * The structure of these fields is
  *
  * <pre>

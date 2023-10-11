@@ -494,7 +494,7 @@ public class XContentHelper {
 
     /**
      * Returns the contents of an object as an unparsed BytesReference
-     *
+     * <p>
      * This is useful for things like mappings where we're copying bytes around but don't
      * actually need to parse their contents, and so avoids building large maps of maps
      * unnecessarily

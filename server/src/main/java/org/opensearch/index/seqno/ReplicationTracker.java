@@ -88,7 +88,7 @@ import java.util.stream.StreamSupport;
 
 /**
  * This class is responsible for tracking the replication group with its progress and safety markers (local and global checkpoints).
- *
+ * <p>
  * The global checkpoint is the highest sequence number for which all lower (or equal) sequence number have been processed
  * on all shards that are currently active. Since shards count as "active" when the cluster-manager starts
  * them, and before this primary shard has been notified of this fact, we also include shards that have completed recovery. These shards
@@ -112,10 +112,10 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
      *            checkpoint based on the local checkpoints of all in-sync shard copies.
      * - replica: this shard receives global checkpoint information from the primary (see
      *   {@link #updateGlobalCheckpointOnReplica(long, String)}).
-     *
+     * <p>
      * When a shard is initialized (be it a primary or replica), it initially operates in replica mode. The global checkpoint tracker is
      * then switched to primary mode in the following three scenarios:
-     *
+     * <p>
      * - An initializing primary shard that is not a relocation target is moved to primary mode (using {@link #activatePrimaryMode}) once
      *   the shard becomes active.
      * - An active replica shard is moved to primary mode (using {@link #activatePrimaryMode}) once it is promoted to primary.
@@ -140,7 +140,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
      * in-sync shard copies cannot grow, otherwise the relocation target might miss this information and increase the global checkpoint
      * to eagerly. As consequence, some of the methods in this class are not allowed to be called while a handoff is in progress,
      * in particular {@link #markAllocationIdAsInSync}.
-     *
+     * <p>
      * A notable exception to this is the method {@link #updateFromClusterManager}, which is still allowed to be called during a relocation handoff.
      * The reason for this is that the handoff might fail and can be aborted (using {@link #abortRelocationHandoff}), in which case
      * it is important that the global checkpoint tracker does not miss any state updates that might happened during the handoff attempt.
@@ -1165,7 +1165,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
 
     /**
      * Update the local knowledge of the visible checkpoint for the specified allocation ID.
-     *
+     * <p>
      * This method will also stop timers for each shard and compute replication lag metrics.
      *
      * @param allocationId     the allocation ID to update the global checkpoint for

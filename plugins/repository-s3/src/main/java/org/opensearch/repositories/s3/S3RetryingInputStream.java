@@ -40,7 +40,6 @@ import software.amazon.awssdk.services.s3.model.S3Exception;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.opensearch.LegacyESVersion;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.repositories.s3.utils.HttpRangeUtils;
 
@@ -54,8 +53,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 /**
  * Wrapper around an S3 object that will retry the {@link GetObjectRequest} if the download fails part-way through, resuming from where
  * the failure occurred. This should be handled by the SDK but it isn't today. This should be revisited in the future (e.g. before removing
- * the {@link LegacyESVersion#V_7_0_0} version constant) and removed when the SDK handles retries itself.
- *
+ * the {@code LegacyESVersion#V_7_0_0} version constant) and removed when the SDK handles retries itself.
+ * <p>
  * See https://github.com/aws/aws-sdk-java/issues/856 for the related SDK issue
  */
 class S3RetryingInputStream extends InputStream {

@@ -781,7 +781,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     /**
      * The term of the current selected primary. This is a non-negative number incremented when
      * a primary shard is assigned after a full cluster restart or a replica shard is promoted to a primary.
-     *
+     * <p>
      * Note: since we increment the term every time a shard is assigned, the term for any operational shard (i.e., a shard
      * that can be indexed into) is larger than 0. See {@link IndexMetadataUpdater#applyChanges}.
      **/
@@ -1905,7 +1905,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
     /**
      * Return the version the index was created from the provided index settings
-     *
+     * <p>
      * This looks for the presence of the {@link Version} object with key {@link IndexMetadata#SETTING_VERSION_CREATED}
      */
     public static Version indexCreated(final Settings indexSettings) {

@@ -286,7 +286,7 @@ public abstract class SearchContext implements Releasable {
 
     /**
      * Indicates if the current index should perform frequent low level search cancellation check.
-     *
+     * <p>
      * Enabling low-level checks will make long running searches to react to the cancellation request faster. However,
      * since it will produce more cancellation checks it might slow the search performance down.
      */
