@@ -1816,7 +1816,7 @@ public final class InternalTestCluster extends TestCluster {
     /**
      * Stops any of the current nodes but not the cluster-manager node.
      */
-    public synchronized void stopRandomNonClusterManagerNode() throws IOException {
+    public synchronized void stopRandomNodeNotCurrentClusterManager() throws IOException {
         NodeAndClient nodeAndClient = getRandomNodeAndClient(new NodeNamePredicate(getClusterManagerName()).negate());
         if (nodeAndClient != null) {
             logger.info(
@@ -1841,11 +1841,11 @@ public final class InternalTestCluster extends TestCluster {
     /**
      * Stops any of the current nodes but not the cluster-manager node.
      *
-     * @deprecated As of 2.2, because supporting inclusive language, replaced by {@link #stopRandomNonClusterManagerNode()}
+     * @deprecated As of 2.2, because supporting inclusive language, replaced by {@link #stopRandomNodeNotCurrentClusterManager()}
      */
     @Deprecated
-    public synchronized void stopRandomNonMasterNode() throws IOException {
-        stopRandomNonClusterManagerNode();
+    public synchronized void stopRandomNodeNotCurrentMaster() throws IOException {
+        stopRandomNodeNotCurrentClusterManager();
     }
 
     /**
@@ -1860,7 +1860,7 @@ public final class InternalTestCluster extends TestCluster {
             }
             int totalClusterManagerNodes = numClusterManagerNodes();
             while (totalClusterManagerNodes > 1) {
-                stopRandomNonClusterManagerNode();
+                stopRandomNodeNotCurrentClusterManager();
                 totalClusterManagerNodes -= 1;
             }
             stopCurrentClusterManagerNode();

@@ -40,7 +40,7 @@ import org.opensearch.transport.TransportService;
 
 /**
  * Performs the delete operation.
- *
+ * <p>
  * Deprecated use TransportBulkAction with a single item instead
  *
  * @opensearch.internal

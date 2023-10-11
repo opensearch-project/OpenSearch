@@ -49,7 +49,7 @@ import java.util.Set;
  * Tracks information within a scope required for compilation during the
  * semantic phase in the user tree. There are three types of scopes -
  * {@link FunctionScope}, {@link LambdaScope}, and {@link BlockScope}.
- *
+ * <p>
  * Scopes are stacked as they are created during the user tree's semantic
  * phase with each scope beyond the top-level containing a reference to
  * its parent. As a scope is no longer necessary, it's dropped automatically

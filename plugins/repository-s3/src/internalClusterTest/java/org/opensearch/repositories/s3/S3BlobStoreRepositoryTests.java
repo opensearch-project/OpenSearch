@@ -225,7 +225,7 @@ public class S3BlobStoreRepositoryTests extends OpenSearchMockAPIBasedRepository
 
     /**
      * HTTP handler that injects random S3 service errors
-     *
+     * <p>
      * Note: it is not a good idea to allow this handler to simulate too many errors as it would
      * slow down the test suite.
      */

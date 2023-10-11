@@ -54,7 +54,7 @@ public class LoggingDeprecationHandler implements DeprecationHandler {
     public static final LoggingDeprecationHandler INSTANCE = new LoggingDeprecationHandler();
     /**
      * The logger to which to send deprecation messages.
-     *
+     * <p>
      * This uses ParseField's logger because that is the logger that
      * we have been using for many releases for deprecated fields.
      * Changing that will require some research to make super duper

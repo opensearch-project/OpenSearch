@@ -36,7 +36,7 @@ import org.apache.lucene.analysis.TokenStream;
 
 /**
  * A TokenFilterFactory that may be used for normalization
- *
+ * <p>
  * The default implementation delegates {@link #normalize(TokenStream)} to
  * {@link #create(TokenStream)}}.
  *

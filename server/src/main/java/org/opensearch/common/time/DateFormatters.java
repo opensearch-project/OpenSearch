@@ -2172,10 +2172,10 @@ public class DateFormatters {
      * or Instant.from(accessor). This results in a huge performance penalty and should be prevented
      * This method prevents exceptions by querying the accessor for certain capabilities
      * and then act on it accordingly
-     *
+     * <p>
      * This action assumes that we can reliably fall back to some defaults if not all parts of a
      * zoned date time are set
-     *
+     * <p>
      * - If a zoned date time is passed, it is returned
      * - If no timezone is found, ZoneOffset.UTC is used
      * - If we find a time and a date, converting to a ZonedDateTime is straight forward,

@@ -298,7 +298,7 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends OpenSearchMockAP
 
     /**
      * HTTP handler that injects random  Google Cloud Storage service errors
-     *
+     * <p>
      * Note: it is not a good idea to allow this handler to simulate too many errors as it would
      * slow down the test suite.
      */
