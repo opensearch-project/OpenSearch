@@ -39,6 +39,7 @@ public class SearchQueryCategorizingVisitor implements QueryBuilderVisitor {
         this.searchQueryCounters = counters;
         this.level = level;
     }
+
     public void accept(QueryBuilder qb) {
         if (qb instanceof BoolQueryBuilder) {
             searchQueryCounters.boolCounter.add(1, Tags.create().addTag("level", level));
