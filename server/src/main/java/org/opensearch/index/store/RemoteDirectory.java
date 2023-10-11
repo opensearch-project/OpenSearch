@@ -333,10 +333,6 @@ public class RemoteDirectory extends Directory {
         return false;
     }
 
-    protected UnaryOperator<InputStream> getDownloadRateLimiter() {
-        return downloadRateLimiter;
-    }
-
     private void uploadBlob(
         Directory from,
         String src,

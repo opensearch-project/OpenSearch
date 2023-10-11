@@ -146,6 +146,7 @@ import org.opensearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.opensearch.indices.mapper.MapperRegistry;
 import org.opensearch.indices.recovery.PeerRecoveryTargetService;
 import org.opensearch.indices.recovery.RecoveryListener;
+import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpointPublisher;
 import org.opensearch.indices.replication.common.ReplicationType;
@@ -337,6 +338,7 @@ public class IndicesService extends AbstractLifecycleComponent
     private final CountDownLatch closeLatch = new CountDownLatch(1);
     private volatile boolean idFieldDataEnabled;
     private volatile boolean allowExpensiveQueries;
+    private final RecoverySettings recoverySettings;
 
     @Nullable
     private final OpenSearchThreadPoolExecutor danglingIndicesThreadPoolExecutor;
@@ -382,7 +384,8 @@ public class IndicesService extends AbstractLifecycleComponent
         Supplier<RepositoriesService> repositoriesServiceSupplier,
         FileCacheCleaner fileCacheCleaner,
         SearchRequestStats searchRequestStats,
-        @Nullable RemoteStoreStatsTrackerFactory remoteStoreStatsTrackerFactory
+        @Nullable RemoteStoreStatsTrackerFactory remoteStoreStatsTrackerFactory,
+        RecoverySettings recoverySettings
     ) {
         this.settings = settings;
         this.threadPool = threadPool;
@@ -479,6 +482,7 @@ public class IndicesService extends AbstractLifecycleComponent
         this.clusterRemoteTranslogBufferInterval = CLUSTER_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING.get(clusterService.getSettings());
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(CLUSTER_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING, this::setClusterRemoteTranslogBufferInterval);
+        this.recoverySettings = recoverySettings;
     }
 
     /**
@@ -877,7 +881,8 @@ public class IndicesService extends AbstractLifecycleComponent
             remoteDirectoryFactory,
             translogFactorySupplier,
             this::getClusterDefaultRefreshInterval,
-            this::getClusterRemoteTranslogBufferInterval
+            this::getClusterRemoteTranslogBufferInterval,
+            this.recoverySettings
         );
     }
 
