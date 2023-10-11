@@ -1091,7 +1091,8 @@ public class Node implements Closeable {
                 searchBackpressureService,
                 searchPipelineService,
                 fileCache,
-                taskCancellationMonitoringService
+                taskCancellationMonitoringService,
+                repositoryService
             );
 
             final SearchService searchService = newSearchService(
