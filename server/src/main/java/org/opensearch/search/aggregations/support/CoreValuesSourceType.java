@@ -274,7 +274,7 @@ public enum CoreValuesSourceType implements ValuesSourceType {
          * MappedFieldType, it prefers to get the formatter from there. Only when a field can't be
          * resolved (which is to say script cases and unmapped field cases), it will fall back to calling this method on whatever
          * ValuesSourceType it was able to resolve to.
-         *
+         * <p>
          * For geoshape field we may never hit this function till we have aggregations which are only geo_shape
          * specific and not present on geo_points, as we use default CoreValueSource types for Geo based aggregations
          * as GEOPOINT

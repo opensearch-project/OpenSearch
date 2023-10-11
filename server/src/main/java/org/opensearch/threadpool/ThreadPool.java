@@ -320,7 +320,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
 
     /**
      * Returns a value of milliseconds that may be used for relative time calculations.
-     *
+     * <p>
      * This method should only be used for calculating time deltas. For an epoch based
      * timestamp, see {@link #absoluteTimeInMillis()}.
      */
@@ -330,7 +330,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
 
     /**
      * Returns a value of nanoseconds that may be used for relative time calculations.
-     *
+     * <p>
      * This method should only be used for calculating time deltas. For an epoch based
      * timestamp, see {@link #absoluteTimeInMillis()}.
      */
@@ -343,7 +343,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
      * that require the highest precision possible. Performance critical code must use
      * either {@link #relativeTimeInNanos()} or {@link #relativeTimeInMillis()} which
      * give better performance at the cost of lower precision.
-     *
+     * <p>
      * This method should only be used for calculating time deltas. For an epoch based
      * timestamp, see {@link #absoluteTimeInMillis()}.
      */
@@ -353,7 +353,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
 
     /**
      * Returns the value of milliseconds since UNIX epoch.
-     *
+     * <p>
      * This method should only be used for exact date/time formatting. For calculating
      * time deltas that should not suffer from negative deltas, which are possible with
      * this method, see {@link #relativeTimeInMillis()}.
@@ -649,7 +649,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
     /**
      * A thread to cache millisecond time values from
      * {@link System#nanoTime()} and {@link System#currentTimeMillis()}.
-     *
+     * <p>
      * The values are updated at a specified interval.
      */
     static class CachedTimeThread extends Thread {

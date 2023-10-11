@@ -39,7 +39,6 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
@@ -193,10 +192,14 @@ public class RemoteDirectory extends Directory {
      */
     @Override
     public IndexInput openInput(String name, IOContext context) throws IOException {
+        return openInput(name, fileLength(name), context);
+    }
+
+    public IndexInput openInput(String name, long fileLength, IOContext context) throws IOException {
         InputStream inputStream = null;
         try {
             inputStream = blobContainer.readBlob(name);
-            return new RemoteIndexInput(name, downloadRateLimiter.apply(inputStream), fileLength(name));
+            return new RemoteIndexInput(name, downloadRateLimiter.apply(inputStream), fileLength);
         } catch (Exception e) {
             // Incase the RemoteIndexInput creation fails, close the input stream to avoid file handler leak.
             if (inputStream != null) {
@@ -230,9 +233,9 @@ public class RemoteDirectory extends Directory {
     @Override
     public long fileLength(String name) throws IOException {
         // ToDo: Instead of calling remote store each time, keep a cache with segment metadata
-        Map<String, BlobMetadata> metadata = blobContainer.listBlobsByPrefix(name);
-        if (metadata.containsKey(name)) {
-            return metadata.get(name).length();
+        List<BlobMetadata> metadata = blobContainer.listBlobsByPrefixInSortedOrder(name, 1, BlobContainer.BlobNameSortOrder.LEXICOGRAPHIC);
+        if (metadata.size() == 1 && metadata.get(0).name().equals(name)) {
+            return metadata.get(0).length();
         }
         throw new NoSuchFileException(name);
     }
@@ -331,10 +334,6 @@ public class RemoteDirectory extends Directory {
             return true;
         }
         return false;
-    }
-
-    protected UnaryOperator<InputStream> getDownloadRateLimiter() {
-        return downloadRateLimiter;
     }
 
     private void uploadBlob(

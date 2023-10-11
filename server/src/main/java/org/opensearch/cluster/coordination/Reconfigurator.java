@@ -63,7 +63,7 @@ public class Reconfigurator {
      * and still the cluster would be unavailable. However not reducing the voting configuration size can also hamper resilience: in a
      * five-node cluster we could lose two nodes and by reducing the voting configuration to the remaining three nodes we could tolerate the
      * loss of a further node before failing.
-     *
+     * <p>
      * We offer two options: either we auto-shrink the voting configuration as long as it contains more than three nodes, or we don't and we
      * require the user to control the voting configuration manually using the retirement API. The former, default, option, guarantees that
      * as long as there have been at least three cluster-manager-eligible nodes in the cluster and no more than one of them is currently unavailable,

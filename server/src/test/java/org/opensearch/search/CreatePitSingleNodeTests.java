@@ -321,9 +321,9 @@ public class CreatePitSingleNodeTests extends OpenSearchSingleNodeTestCase {
         // deleteall
         DeletePitRequest deletePITRequest = new DeletePitRequest(pitIds.toArray(new String[0]));
 
-        /**
-         * When we invoke delete again, returns success after clearing the remaining readers. Asserting reader context
-         * not found exceptions don't result in failures ( as deletion in one node is successful )
+        /*
+          When we invoke delete again, returns success after clearing the remaining readers. Asserting reader context
+          not found exceptions don't result in failures ( as deletion in one node is successful )
          */
         ActionFuture<DeletePitResponse> execute = client().execute(DeletePitAction.INSTANCE, deletePITRequest);
         DeletePitResponse deletePITResponse = execute.get();
@@ -489,8 +489,8 @@ public class CreatePitSingleNodeTests extends OpenSearchSingleNodeTestCase {
                 client().prepareSearch().setSize(0).setQuery(matchAllQuery()).get().getHits().getTotalHits().value,
                 Matchers.equalTo(50L)
             );
-            /**
-             * assert without point in time
+            /*
+              assert without point in time
              */
 
             assertThat(
@@ -509,8 +509,8 @@ public class CreatePitSingleNodeTests extends OpenSearchSingleNodeTestCase {
                 client().prepareSearch().setSize(0).setQuery(termQuery("message", "update")).get().getHits().getTotalHits().value,
                 Matchers.equalTo(50L)
             );
-            /**
-             * using point in time id will have the same search results as ones before update
+            /*
+              using point in time id will have the same search results as ones before update
              */
             assertThat(
                 client().prepareSearch()

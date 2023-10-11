@@ -125,7 +125,7 @@ public final class InternalAggregations extends Aggregations implements Writeabl
      * Begin the reduction process.  This should be the entry point for the "first" reduction, e.g. called by
      * SearchPhaseController or anywhere else that wants to initiate a reduction.  It _should not_ be called
      * as an intermediate reduction step (e.g. in the middle of an aggregation tree).
-     *
+     * <p>
      * This method first reduces the aggregations, and if it is the final reduce, then reduce the pipeline
      * aggregations (both embedded parent/sibling as well as top-level sibling pipelines)
      */

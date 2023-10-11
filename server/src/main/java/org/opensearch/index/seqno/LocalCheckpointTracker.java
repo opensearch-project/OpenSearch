@@ -147,7 +147,7 @@ public class LocalCheckpointTracker {
 
     /**
      * Updates the processed sequence checkpoint to the given value.
-     *
+     * <p>
      * This method is only used for segment replication since indexing doesn't
      * take place on the replica allowing us to avoid the check that all sequence numbers
      * are consecutively processed.
@@ -208,7 +208,7 @@ public class LocalCheckpointTracker {
 
     /**
      * constructs a {@link SeqNoStats} object, using local state and the supplied global checkpoint
-     *
+     * <p>
      * This is needed to make sure the persisted local checkpoint and max seq no are consistent
      */
     public synchronized SeqNoStats getStats(final long globalCheckpoint) {

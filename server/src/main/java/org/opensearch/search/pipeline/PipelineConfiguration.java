@@ -31,7 +31,7 @@ import java.util.Objects;
 
 /**
  * TODO: Copied verbatim from {@link org.opensearch.ingest.PipelineConfiguration}.
- *
+ * <p>
  * See if we can refactor into a common class. I suspect not, just because this one will hold
  */
 public class PipelineConfiguration extends AbstractDiffable<PipelineConfiguration> implements ToXContentObject {
