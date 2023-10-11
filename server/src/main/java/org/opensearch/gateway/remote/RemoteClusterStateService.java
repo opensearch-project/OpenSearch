@@ -92,6 +92,12 @@ public class RemoteClusterStateService implements Closeable {
         IndexMetadata::fromXContent
     );
 
+    public static final ChecksumBlobStoreFormat<Metadata> GLOBAL_METADATA_FORMAT = new ChecksumBlobStoreFormat<>(
+        "metadata",
+        METADATA_NAME_FORMAT,
+        Metadata::fromXContent
+    );
+
     public static final ChecksumBlobStoreFormat<ClusterMetadataManifest> CLUSTER_METADATA_MANIFEST_FORMAT = new ChecksumBlobStoreFormat<>(
         "cluster-metadata-manifest",
         METADATA_MANIFEST_NAME_FORMAT,
@@ -112,8 +118,7 @@ public class RemoteClusterStateService implements Closeable {
     public static final String GLOBAL_METADATA_PATH_TOKEN = "global-metadata";
     public static final String MANIFEST_PATH_TOKEN = "manifest";
     public static final String MANIFEST_FILE_PREFIX = "manifest";
-    public static final String INDEX_METADATA_FILE_PREFIX = "metadata";
-    public static final String GLOBAL_METADATA_FILE_PREFIX = "global-metadata";
+    public static final String METADATA_FILE_PREFIX = "metadata";
 
     private final String nodeId;
     private final Supplier<RepositoriesService> repositoriesService;
@@ -126,7 +131,7 @@ public class RemoteClusterStateService implements Closeable {
 
     private final AtomicBoolean deleteStaleMetadataRunning = new AtomicBoolean(false);
 
-    private static final int CURRENT_GLOBAL_METADATA_VERSION = 1;
+    private static final int GLOBAL_METADATA_CODEC_VERSION = 1;
 
     // ToXContent Params with gateway mode.
     // We are using gateway context mode to persist all custom metadata.
@@ -335,7 +340,7 @@ public class RemoteClusterStateService implements Closeable {
             throw new GlobalMetadataTransferException(ex.getMessage(), ex);
         }), latch);
 
-        BlobStoreRepository.GLOBAL_METADATA_FORMAT.writeAsync(
+        GLOBAL_METADATA_FORMAT.writeAsync(
             clusterState.metadata(),
             globalMetadataContainer,
             globalMetadataFilename,
@@ -604,7 +609,7 @@ public class RemoteClusterStateService implements Closeable {
     private static String indexMetadataFileName(IndexMetadata indexMetadata) {
         return String.join(
             DELIMITER,
-            INDEX_METADATA_FILE_PREFIX,
+            METADATA_FILE_PREFIX,
             String.valueOf(indexMetadata.getVersion()),
             String.valueOf(System.currentTimeMillis())
         );
@@ -613,10 +618,10 @@ public class RemoteClusterStateService implements Closeable {
     private static String globalMetadataFileName(Metadata metadata) {
         return String.join(
             DELIMITER,
-            GLOBAL_METADATA_FILE_PREFIX,
-            String.valueOf(metadata.version()),
-            String.valueOf(System.currentTimeMillis()),
-            String.valueOf(CURRENT_GLOBAL_METADATA_VERSION)
+            METADATA_FILE_PREFIX,
+            RemoteStoreUtils.invertLong(metadata.version()),
+            RemoteStoreUtils.invertLong(GLOBAL_METADATA_CODEC_VERSION),
+            String.valueOf(System.currentTimeMillis())
         );
     }
 
@@ -1043,7 +1048,7 @@ public class RemoteClusterStateService implements Closeable {
                 staleManifestPaths.add(new BlobPath().add(MANIFEST_PATH_TOKEN).buildAsString() + blobMetadata.name());
                 String[] globalMetadataSplitPath = clusterMetadataManifest.getGlobalMetadataFileName().split("/");
                 staleGlobalMetadataPaths.add(
-                    new BlobPath().add(GLOBAL_METADATA_PATH_TOKEN).buildAsString() + BlobStoreRepository.GLOBAL_METADATA_FORMAT.blobName(
+                    new BlobPath().add(GLOBAL_METADATA_PATH_TOKEN).buildAsString() + GLOBAL_METADATA_FORMAT.blobName(
                         globalMetadataSplitPath[globalMetadataSplitPath.length - 1]
                     )
                 );
