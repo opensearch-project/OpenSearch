@@ -373,7 +373,7 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
      * A query that rewrites into another query using
      * {@link JoinUtil#createJoinQuery(String, Query, Query, IndexSearcher, ScoreMode, OrdinalMap, int, int)}
      * that executes the actual join.
-     *
+     * <p>
      * This query is exclusively used by the {@link HasChildQueryBuilder} and {@link HasParentQueryBuilder} to get access
      * to the {@link DirectoryReader} used by the current search in order to retrieve the {@link OrdinalMap}.
      * The {@link OrdinalMap} is required by {@link JoinUtil} to execute the join.

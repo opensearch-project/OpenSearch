@@ -212,7 +212,7 @@ public class TimeZoneRoundingTests extends OpenSearchTestCase {
      * {@link DateTimeUnit} and {@link DateTimeZone} and often (50% of the time)
      * chooses test dates that are exactly on or close to offset changes (e.g.
      * DST) in the chosen time zone.
-     *
+     * <p>
      * It rounds the test date down and up and performs various checks on the
      * rounding unit interval that is defined by this. Assumptions tested are
      * described in

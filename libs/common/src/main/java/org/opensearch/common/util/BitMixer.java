@@ -25,9 +25,9 @@ package org.opensearch.common.util;
 
 /**
  * Bit mixing utilities from carrotsearch.hppc.
- *
+ * <p>
  * Licensed under ALv2. This is pulled in directly to avoid a full hppc dependency.
- *
+ * <p>
  * The purpose of these methods is to evenly distribute key space over int32
  * range.
  */
@@ -111,7 +111,7 @@ public final class BitMixer {
     /**
      * Computes David Stafford variant 9 of 64bit mix function (MH3 finalization step,
      * with different shifts and constants).
-     *
+     * <p>
      * Variant 9 is picked because it contains two 32-bit shifts which could be possibly
      * optimized into better machine code.
      *

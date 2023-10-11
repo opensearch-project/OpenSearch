@@ -41,7 +41,7 @@ import java.io.IOException;
 /**
  * A query rescorer interface used to re-rank the Top-K results of a previously
  * executed search.
- *
+ * <p>
  * Subclasses should borrow heavily from {@link QueryRescorer} because it is
  * fairly well behaved and documents that tradeoffs that it is making. There
  * is also an {@code ExampleRescorer} that is worth looking at.

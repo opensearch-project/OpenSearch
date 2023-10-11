@@ -38,7 +38,7 @@ import org.apache.lucene.search.Query;
 /**
  * This class is just a workaround to make {@link QueryParser#handleBareFuzzy(String, Token, String)} accessible by sub-classes.
  * It is needed for {@link QueryParser}s that need to override the parsing of the slop in a fuzzy query (e.g. word<b>~2</b>, word<b>~</b>).
- *
+ * <p>
  * TODO: We should maybe rewrite this with the flexible query parser which matches the same syntax with more freedom.
  */
 public class XQueryParser extends QueryParser {
