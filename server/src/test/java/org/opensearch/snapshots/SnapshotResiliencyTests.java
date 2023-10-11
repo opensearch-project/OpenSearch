@@ -2302,6 +2302,7 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                             List.of(),
                             client
                         ),
+                        null,
                         null
                     )
                 );
