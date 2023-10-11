@@ -15,6 +15,7 @@ import org.opensearch.action.admin.indices.flush.FlushResponse;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.AbstractAsyncTask;
+import org.opensearch.common.util.concurrent.UncategorizedExecutionException;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.unit.ByteSizeUnit;
@@ -23,7 +24,6 @@ import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.remote.RemoteSegmentTransferTracker;
 import org.opensearch.index.shard.IndexShard;
-import org.opensearch.index.translog.transfer.TranslogUploadFailedException;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.snapshots.mockstore.MockRepository;
@@ -185,8 +185,8 @@ public class RemoteStoreBackpressureAndResiliencyIT extends AbstractRemoteStoreM
         translogRepo.setRandomControlIOExceptionRate(1d);
 
         for (int i = 0; i < randomIntBetween(5, 10); i++) {
-            TranslogUploadFailedException exception = assertThrows(TranslogUploadFailedException.class, this::indexSingleDoc);
-            assertTrue(exception.getMessage().contains("Failed to upload") && exception.getMessage().contains("files during transfer"));
+            UncategorizedExecutionException exception = assertThrows(UncategorizedExecutionException.class, this::indexSingleDoc);
+            assertEquals("Failed execution", exception.getMessage());
         }
 
         translogRepo.setRandomControlIOExceptionRate(0d);
@@ -244,8 +244,8 @@ public class RemoteStoreBackpressureAndResiliencyIT extends AbstractRemoteStoreM
         logger.info("--> Failing all remote store interaction");
         translogRepo.setRandomControlIOExceptionRate(1d);
 
-        Exception ex = assertThrows(TranslogUploadFailedException.class, () -> indexSingleDoc());
-        assertEquals("Failed to upload 2 files during transfer", ex.getMessage());
+        Exception ex = assertThrows(UncategorizedExecutionException.class, () -> indexSingleDoc());
+        assertEquals("Failed execution", ex.getMessage());
 
         FlushResponse flushResponse = client().admin().indices().prepareFlush(INDEX_NAME).setForce(true).execute().actionGet();
         assertEquals(1, flushResponse.getFailedShards());

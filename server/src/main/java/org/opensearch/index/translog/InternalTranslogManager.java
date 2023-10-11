@@ -84,7 +84,7 @@ public class InternalTranslogManager implements TranslogManager, Closeable {
      * Rolls the translog generation and cleans unneeded.
      */
     @Override
-    public void rollTranslogGeneration() throws TranslogException {
+    public void rollTranslogGeneration() throws TranslogException, IOException {
         try (ReleasableLock ignored = readLock.acquire()) {
             engineLifeCycleAware.ensureOpen();
             translog.rollGeneration();

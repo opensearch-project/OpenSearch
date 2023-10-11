@@ -96,7 +96,6 @@ import org.opensearch.index.shard.IllegalIndexShardStateException;
 import org.opensearch.index.shard.IndexShardState;
 import org.opensearch.index.shard.PrimaryShardClosedException;
 import org.opensearch.index.shard.ShardNotInPrimaryModeException;
-import org.opensearch.index.translog.transfer.TranslogUploadFailedException;
 import org.opensearch.indices.IndexTemplateMissingException;
 import org.opensearch.indices.InvalidIndexTemplateException;
 import org.opensearch.indices.recovery.PeerRecoveryNotFound;
@@ -893,7 +892,6 @@ public class ExceptionSerializationTests extends OpenSearchTestCase {
         ids.put(169, NodeWeighedAwayException.class);
         ids.put(170, SearchPipelineProcessingException.class);
         ids.put(171, CryptoRegistryException.class);
-        ids.put(172, TranslogUploadFailedException.class);
         ids.put(10001, IndexCreateBlockException.class);
 
         Map<Class<? extends OpenSearchException>, Integer> reverse = new HashMap<>();
