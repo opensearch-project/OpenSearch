@@ -415,7 +415,9 @@ public class IndicesQueryCacheTests extends OpenSearchTestCase {
         }
 
         @Override
-        public int count(LeafReaderContext context) throws IOException { return randCount; }
+        public int count(LeafReaderContext context) throws IOException {
+            return randCount;
+        }
 
         @Override
         public boolean isCacheable(LeafReaderContext ctx) {
