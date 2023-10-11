@@ -46,7 +46,7 @@ import java.util.Objects;
 /**
  * Descriptive stats gathered per shard. Coordinating node computes final correlation and covariance stats
  * based on these descriptive stats. This single pass, parallel approach is based on:
- *
+ * <p>
  * http://prod.sandia.gov/techlib/access-control.cgi/2008/086212.pdf
  */
 public class RunningStats implements Writeable, Cloneable {
@@ -222,7 +222,7 @@ public class RunningStats implements Writeable, Cloneable {
 
     /**
      * Merges the descriptive statistics of a second data set (e.g., per shard)
-     *
+     * <p>
      * running computations taken from: http://prod.sandia.gov/techlib/access-control.cgi/2008/086212.pdf
      **/
     public void merge(final RunningStats other) {

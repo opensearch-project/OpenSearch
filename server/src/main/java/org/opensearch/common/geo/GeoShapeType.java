@@ -221,11 +221,11 @@ public enum GeoShapeType {
 
         @Override
         CoordinateNode validate(CoordinateNode coordinates, boolean coerce) {
-            /**
-             * Per GeoJSON spec (http://geojson.org/geojson-spec.html#linestring)
-             * A LinearRing is closed LineString with 4 or more positions. The first and last positions
-             * are equivalent (they represent equivalent points). Though a LinearRing is not explicitly
-             * represented as a GeoJSON geometry type, it is referred to in the Polygon geometry type definition.
+            /*
+              Per GeoJSON spec (http://geojson.org/geojson-spec.html#linestring)
+              A LinearRing is closed LineString with 4 or more positions. The first and last positions
+              are equivalent (they represent equivalent points). Though a LinearRing is not explicitly
+              represented as a GeoJSON geometry type, it is referred to in the Polygon geometry type definition.
              */
             if (coordinates.children == null || coordinates.children.isEmpty()) {
                 throw new OpenSearchParseException(

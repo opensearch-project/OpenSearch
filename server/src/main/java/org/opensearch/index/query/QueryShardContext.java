@@ -115,6 +115,7 @@ public class QueryShardContext extends QueryRewriteContext {
     private boolean mapUnmappedFieldAsString;
     private NestedScope nestedScope;
     private final ValuesSourceRegistry valuesSourceRegistry;
+    private BitSetProducer parentFilter;
 
     public QueryShardContext(
         int shardId,
@@ -509,7 +510,7 @@ public class QueryShardContext extends QueryRewriteContext {
     /**
      * This method fails if {@link #freezeContext()} is called before on this
      * context. This is used to <i>seal</i>.
-     *
+     * <p>
      * This methods and all methods that call it should be final to ensure that
      * setting the request as not cacheable and the freezing behaviour of this
      * class cannot be bypassed. This is important so we can trust when this
@@ -621,5 +622,13 @@ public class QueryShardContext extends QueryRewriteContext {
 
     public AggregationUsageService getUsageService() {
         return valuesSourceRegistry.getUsageService();
+    }
+
+    public BitSetProducer getParentFilter() {
+        return parentFilter;
+    }
+
+    public void setParentFilter(BitSetProducer parentFilter) {
+        this.parentFilter = parentFilter;
     }
 }

@@ -130,9 +130,9 @@ import org.opensearch.env.TestEnvironment;
 import org.opensearch.http.HttpInfo;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexSettings;
-import org.opensearch.index.MergePolicyConfig;
 import org.opensearch.index.MergeSchedulerConfig;
 import org.opensearch.index.MockEngineFactoryPlugin;
+import org.opensearch.index.TieredMergePolicyProvider;
 import org.opensearch.index.codec.CodecService;
 import org.opensearch.index.engine.Segment;
 import org.opensearch.index.mapper.CompletionFieldMapper;
@@ -500,7 +500,7 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
     private static Settings.Builder setRandomIndexMergeSettings(Random random, Settings.Builder builder) {
         if (random.nextBoolean()) {
             builder.put(
-                MergePolicyConfig.INDEX_COMPOUND_FORMAT_SETTING.getKey(),
+                TieredMergePolicyProvider.INDEX_COMPOUND_FORMAT_SETTING.getKey(),
                 (random.nextBoolean() ? random.nextDouble() : random.nextBoolean()).toString()
             );
         }
@@ -1343,7 +1343,7 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
 
     /**
      * Ensures that all nodes in the cluster are connected to each other.
-     *
+     * <p>
      * Some network disruptions may leave nodes that are not the cluster-manager disconnected from each other.
      * {@link org.opensearch.cluster.NodeConnectionsService} will eventually reconnect but it's
      * handy to be able to ensure this happens faster
@@ -2311,11 +2311,11 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
 
     private static void initializeSuiteScope() throws Exception {
         Class<?> targetClass = getTestClass();
-        /**
-         * Note we create these test class instance via reflection
-         * since JUnit creates a new instance per test and that is also
-         * the reason why INSTANCE is static since this entire method
-         * must be executed in a static context.
+        /*
+          Note we create these test class instance via reflection
+          since JUnit creates a new instance per test and that is also
+          the reason why INSTANCE is static since this entire method
+          must be executed in a static context.
          */
         assert INSTANCE == null;
         if (isSuiteScopedTest(targetClass)) {

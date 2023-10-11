@@ -143,7 +143,7 @@ public class ShardId implements Comparable<ShardId>, ToXContentFragment, Writeab
 
     /**
      * Parse the string representation of this shardId back to an object.
-     *
+     * <p>
      * We lose index uuid information here, but since we use toString in
      * rest responses, this is the best we can do to reconstruct the object
      * on the client side.

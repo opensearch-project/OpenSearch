@@ -90,7 +90,7 @@ public class MockEventuallyConsistentRepository extends BlobStoreRepository {
         final Context context,
         final Random random
     ) {
-        super(metadata, false, namedXContentRegistry, clusterService, recoverySettings);
+        super(metadata, namedXContentRegistry, clusterService, recoverySettings);
         this.context = context;
         this.namedXContentRegistry = namedXContentRegistry;
         this.random = random;

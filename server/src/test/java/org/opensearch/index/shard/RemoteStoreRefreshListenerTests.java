@@ -46,6 +46,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REPLICATION_TYPE;
+import static org.opensearch.index.store.RemoteSegmentStoreDirectory.METADATA_FILES_TO_FETCH;
 import static org.opensearch.test.RemoteStoreTestUtils.createMetadataFileBytes;
 import static org.opensearch.test.RemoteStoreTestUtils.getDummyMetadata;
 import static org.mockito.ArgumentMatchers.any;
@@ -138,7 +139,8 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
                 return Collections.singletonList("dummy string");
             }
             throw new IOException();
-        }).when(remoteMetadataDirectory).listFilesByPrefixInLexicographicOrder(MetadataFilenameUtils.METADATA_PREFIX, 1);
+        }).when(remoteMetadataDirectory)
+            .listFilesByPrefixInLexicographicOrder(MetadataFilenameUtils.METADATA_PREFIX, METADATA_FILES_TO_FETCH);
 
         SegmentInfos segmentInfos;
         try (Store indexShardStore = indexShard.store()) {
@@ -152,7 +154,8 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
             mock(RemoteDirectory.class),
             remoteMetadataDirectory,
             mock(RemoteStoreLockManager.class),
-            mock(ThreadPool.class)
+            mock(ThreadPool.class),
+            shardId
         );
         FilterDirectory remoteStoreFilterDirectory = new RemoteStoreRefreshListenerTests.TestFilterDirectory(
             new RemoteStoreRefreshListenerTests.TestFilterDirectory(remoteSegmentStoreDirectory)
@@ -165,7 +168,10 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
         // Validate that the stream of metadata file of remoteMetadataDirectory has been opened only once and the
         // listFilesByPrefixInLexicographicOrder has been called twice.
         verify(remoteMetadataDirectory, times(1)).getBlobStream(any());
-        verify(remoteMetadataDirectory, times(2)).listFilesByPrefixInLexicographicOrder(MetadataFilenameUtils.METADATA_PREFIX, 1);
+        verify(remoteMetadataDirectory, times(2)).listFilesByPrefixInLexicographicOrder(
+            MetadataFilenameUtils.METADATA_PREFIX,
+            METADATA_FILES_TO_FETCH
+        );
     }
 
     public void testAfterRefresh() throws IOException {
@@ -578,4 +584,5 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
             }
         }
     }
+
 }

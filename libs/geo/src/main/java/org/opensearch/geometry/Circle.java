@@ -180,6 +180,7 @@ public class Circle implements Geometry {
 
     /**
      * Visit this circle with a {@link GeometryVisitor}.
+     *
      * @param visitor The visitor
      * @param <T> The return type of the visitor
      * @param <E> The exception type of the visitor

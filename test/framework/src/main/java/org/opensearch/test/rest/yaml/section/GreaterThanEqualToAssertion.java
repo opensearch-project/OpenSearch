@@ -47,7 +47,7 @@ import static org.junit.Assert.fail;
 
 /**
  * Represents a gte assert section:
- *
+ * <p>
  *   - gte:     { fields._ttl: 0 }
  */
 public class GreaterThanEqualToAssertion extends Assertion {

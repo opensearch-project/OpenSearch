@@ -57,6 +57,13 @@ public class TraceableHttpChannel implements HttpChannel {
     }
 
     @Override
+    public void handleException(Exception ex) {
+        span.addEvent("The HttpChannel was closed without sending the response");
+        span.setError(ex);
+        span.endSpan();
+    }
+
+    @Override
     public void close() {
         delegate.close();
     }

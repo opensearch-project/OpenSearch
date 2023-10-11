@@ -153,7 +153,7 @@ public final class UnassignedInfo implements ToXContentFragment, Writeable {
     /**
      * Captures the status of an unsuccessful allocation attempt for the shard,
      * causing it to remain in the unassigned state.
-     *
+     * <p>
      * Note, ordering of the enum is important, make sure to add new values
      * at the end and handle version serialization properly.
      *

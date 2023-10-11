@@ -287,6 +287,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 RecoverySettings.INDICES_RECOVERY_INTERNAL_LONG_ACTION_TIMEOUT_SETTING,
                 RecoverySettings.INDICES_RECOVERY_MAX_CONCURRENT_FILE_CHUNKS_SETTING,
                 RecoverySettings.INDICES_RECOVERY_MAX_CONCURRENT_OPERATIONS_SETTING,
+                RecoverySettings.INDICES_RECOVERY_MAX_CONCURRENT_REMOTE_STORE_STREAMS_SETTING,
                 ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_INITIAL_PRIMARIES_RECOVERIES_SETTING,
                 ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_INITIAL_REPLICAS_RECOVERIES_SETTING,
                 ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_INCOMING_RECOVERIES_SETTING,
@@ -457,6 +458,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 NetworkService.TCP_CONNECT_TIMEOUT,
                 IndexSettings.QUERY_STRING_ANALYZE_WILDCARD,
                 IndexSettings.QUERY_STRING_ALLOW_LEADING_WILDCARD,
+                IndexSettings.TIME_SERIES_INDEX_MERGE_POLICY,
                 ScriptService.SCRIPT_GENERAL_CACHE_SIZE_SETTING,
                 ScriptService.SCRIPT_GENERAL_CACHE_EXPIRE_SETTING,
                 ScriptService.SCRIPT_GENERAL_MAX_COMPILATIONS_RATE_SETTING,
@@ -672,7 +674,8 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 // Remote cluster state settings
                 RemoteClusterStateService.REMOTE_CLUSTER_STATE_ENABLED_SETTING,
                 RemoteStoreNodeService.REMOTE_STORE_COMPATIBILITY_MODE_SETTING,
-                IndicesService.CLUSTER_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING
+                IndicesService.CLUSTER_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING,
+                IndicesService.CLUSTER_REMOTE_INDEX_RESTRICT_ASYNC_DURABILITY_SETTING
             )
         )
     );

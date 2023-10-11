@@ -72,7 +72,7 @@ public class RootObjectMapper extends ObjectMapper {
      */
     public static class Defaults {
         public static final DateFormatter[] DYNAMIC_DATE_TIME_FORMATTERS = new DateFormatter[] {
-            DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER,
+            DateFieldMapper.getDefaultDateTimeFormatter(),
             DateFormatter.forPattern("yyyy/MM/dd HH:mm:ss||yyyy/MM/dd||epoch_millis") };
         public static final boolean DATE_DETECTION = true;
         public static final boolean NUMERIC_DETECTION = false;

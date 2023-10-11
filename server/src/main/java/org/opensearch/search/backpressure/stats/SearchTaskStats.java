@@ -8,6 +8,7 @@
 
 package org.opensearch.search.backpressure.stats;
 
+import org.opensearch.Version;
 import org.opensearch.common.collect.MapBuilder;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
@@ -31,21 +32,29 @@ import java.util.Objects;
 public class SearchTaskStats implements ToXContentObject, Writeable {
     private final long cancellationCount;
     private final long limitReachedCount;
+    private final long completionCount;
     private final Map<TaskResourceUsageTrackerType, TaskResourceUsageTracker.Stats> resourceUsageTrackerStats;
 
     public SearchTaskStats(
         long cancellationCount,
         long limitReachedCount,
+        long completionCount,
         Map<TaskResourceUsageTrackerType, TaskResourceUsageTracker.Stats> resourceUsageTrackerStats
     ) {
         this.cancellationCount = cancellationCount;
         this.limitReachedCount = limitReachedCount;
+        this.completionCount = completionCount;
         this.resourceUsageTrackerStats = resourceUsageTrackerStats;
     }
 
     public SearchTaskStats(StreamInput in) throws IOException {
         this.cancellationCount = in.readVLong();
         this.limitReachedCount = in.readVLong();
+        if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
+            this.completionCount = in.readVLong();
+        } else {
+            this.completionCount = -1;
+        }
 
         MapBuilder<TaskResourceUsageTrackerType, TaskResourceUsageTracker.Stats> builder = new MapBuilder<>();
         builder.put(TaskResourceUsageTrackerType.CPU_USAGE_TRACKER, in.readOptionalWriteable(CpuUsageTracker.Stats::new));
@@ -63,6 +72,9 @@ public class SearchTaskStats implements ToXContentObject, Writeable {
             builder.field(entry.getKey().getName(), entry.getValue());
         }
         builder.endObject();
+        if (completionCount != -1) {
+            builder.field("completion_count", completionCount);
+        }
 
         builder.startObject("cancellation_stats")
             .field("cancellation_count", cancellationCount)
@@ -76,6 +88,9 @@ public class SearchTaskStats implements ToXContentObject, Writeable {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVLong(cancellationCount);
         out.writeVLong(limitReachedCount);
+        if (out.getVersion().onOrAfter(Version.V_3_0_0)) {
+            out.writeVLong(completionCount);
+        }
 
         out.writeOptionalWriteable(resourceUsageTrackerStats.get(TaskResourceUsageTrackerType.CPU_USAGE_TRACKER));
         out.writeOptionalWriteable(resourceUsageTrackerStats.get(TaskResourceUsageTrackerType.HEAP_USAGE_TRACKER));
@@ -89,11 +104,12 @@ public class SearchTaskStats implements ToXContentObject, Writeable {
         SearchTaskStats that = (SearchTaskStats) o;
         return cancellationCount == that.cancellationCount
             && limitReachedCount == that.limitReachedCount
+            && completionCount == that.completionCount
             && resourceUsageTrackerStats.equals(that.resourceUsageTrackerStats);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(cancellationCount, limitReachedCount, resourceUsageTrackerStats);
+        return Objects.hash(cancellationCount, limitReachedCount, resourceUsageTrackerStats, completionCount);
     }
 }

@@ -195,6 +195,7 @@ import org.opensearch.indices.SystemIndices;
 import org.opensearch.indices.analysis.AnalysisModule;
 import org.opensearch.indices.cluster.IndicesClusterStateService;
 import org.opensearch.indices.mapper.MapperRegistry;
+import org.opensearch.indices.recovery.DefaultRecoverySettings;
 import org.opensearch.indices.recovery.PeerRecoverySourceService;
 import org.opensearch.indices.recovery.PeerRecoveryTargetService;
 import org.opensearch.indices.recovery.RecoverySettings;
@@ -2070,7 +2071,8 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                     repositoriesServiceReference::get,
                     fileCacheCleaner,
                     null,
-                    new RemoteStoreStatsTrackerFactory(clusterService, settings)
+                    new RemoteStoreStatsTrackerFactory(clusterService, settings),
+                    DefaultRecoverySettings.INSTANCE
                 );
                 final RecoverySettings recoverySettings = new RecoverySettings(settings, clusterSettings);
                 snapshotShardsService = new SnapshotShardsService(
@@ -2210,6 +2212,7 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                         indexNameExpressionResolver,
                         new AutoCreateIndex(settings, clusterSettings, indexNameExpressionResolver, new SystemIndices(emptyMap())),
                         new IndexingPressureService(settings, clusterService),
+                        mock(IndicesService.class),
                         new SystemIndices(emptyMap())
                     )
                 );
