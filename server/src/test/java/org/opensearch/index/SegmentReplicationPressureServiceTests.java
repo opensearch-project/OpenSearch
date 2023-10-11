@@ -218,6 +218,7 @@ public class SegmentReplicationPressureServiceTests extends OpenSearchIndexLevel
 
             // call the background task
             assertTrue(service.getFailStaleReplicaTask().mustReschedule());
+            assertTrue(service.getFailStaleReplicaTask().isScheduled());
             service.getFailStaleReplicaTask().runInternal();
 
             // verify that remote shard failed method is called which fails the replica shards falling behind.
@@ -281,14 +282,15 @@ public class SegmentReplicationPressureServiceTests extends OpenSearchIndexLevel
             assertEquals(5, shardStats.getCheckpointsBehindCount());
 
             assertTrue(service.getFailStaleReplicaTask().mustReschedule());
-
+            assertTrue(service.getFailStaleReplicaTask().isScheduled());
             replicateSegments(primaryShard, shards.getReplicas());
 
             service.setReplicationTimeLimitFailReplica(TimeValue.ZERO);
             assertFalse(service.getFailStaleReplicaTask().mustReschedule());
-
+            assertFalse(service.getFailStaleReplicaTask().isScheduled());
             service.setReplicationTimeLimitFailReplica(TimeValue.timeValueMillis(1));
             assertTrue(service.getFailStaleReplicaTask().mustReschedule());
+            assertTrue(service.getFailStaleReplicaTask().isScheduled());
         }
     }
 
