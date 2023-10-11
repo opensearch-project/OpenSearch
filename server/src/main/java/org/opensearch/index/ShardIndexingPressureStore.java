@@ -22,24 +22,24 @@ import static java.util.Objects.isNull;
  * Shard indexing pressure store acts as a central repository for all the shard-level tracker objects currently being
  * used at the Node level, for tracking indexing pressure requests.
  * Store manages the tracker lifecycle, from creation, access, until it is evicted to be collected.
- *
+ * <p>
  * Trackers are maintained at two levels for access simplicity and better memory management:
- *
+ * <p>
  * 1. shardIndexingPressureHotStore : As the name suggests, it is hot store for tracker objects which are currently live i.e. being used
  * to track an ongoing request.
- *
+ * <p>
  * 2. shardIndexingPressureColdStore : This acts as the store for all the shard tracking objects which are currently being used
  * by the framework. In addition to hot trackers, the recently used trackers which are although not currently live, but again can be used
  * in near future, are also part of this store. To limit any memory implications, this store has an upper limit on the maximum number of
  * trackers its can hold at any given time, which is a configurable dynamic setting.
- *
+ * <p>
  * Tracking objects when created are part of both the hot store as well as cold store. However, once the object
  * is no more live it is removed from the hot store. Objects in the cold store are evicted once the cold store
  * reaches its maximum limit. Think of it like a periodic purge when upper limit is hit.
  * During get if tracking object is not present in the hot store, a lookup is made into the cache store. If found,
  * object is brought into the hot store again, until it remains active. If not present in the either store, a fresh
  * object is instantiated and registered in both the stores for concurrent accesses.
- *
+ * <p>
  * Note: The implementation of shardIndexingPressureColdStore methods is such that get,
  * update and evict operations can be abstracted out to support any other strategy such as LRU, if
  * discovered a need later.

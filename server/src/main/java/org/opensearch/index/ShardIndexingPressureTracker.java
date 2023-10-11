@@ -14,19 +14,19 @@ import java.util.concurrent.atomic.AtomicLong;
  * This class is responsible for all the tracking that needs to be performed at every Shard Level for Indexing Operations on the node.
  * Info is maintained at the granularity of three kinds of write operation (tasks) on the node i.e. coordinating, primary and replica.
  * This is useful in evaluating the shard indexing back-pressure on the node, to throttle requests and also to publish runtime stats.
- *
+ * <p>
  * There can be four kinds of operation tracking on a node which needs to performed for a shard:
  * 1. Coordinating Operation : To track all the individual shard bulk request on the coordinator node.
  * 2. Primary Operation : To track all the individual shard bulk request on the primary node.
  * 3. Replica Operation : To track all the individual shard bulk request on the replica node.
  * 4. Common Operation : To track values applicable across the specific shard role.
- *
+ * <p>
  * ShardIndexingPressureTracker therefore provides the construct to track all the write requests targeted for a ShardId on the node,
  * across all possible transport-write-actions i.e. Coordinator, Primary and Replica.
  * Tracker is uniquely identified against a Shard-Id on the node. Currently the knowledge of shard roles (such as primary vs replica)
  * is not explicit to the tracker, and it is able to track different values simultaneously based on the interaction hooks of the
  * operation type i.e. write-action layers.
- *
+ * <p>
  * There is room for introducing more unique identity to the trackers based on Shard-Role or Shard-Allocation-Id, but that will also
  * increase the complexity of handling shard-lister events and handling other race scenarios such as request-draining etc.
  * To prefer simplicity we have modelled by keeping explicit fields for different operation tracking, while tracker by itself is

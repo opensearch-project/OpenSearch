@@ -70,7 +70,7 @@ public interface ClusterStateTaskExecutor<T> {
     /**
      * Callback invoked after new cluster state is published. Note that
      * this method is not invoked if the cluster state was not updated.
-     *
+     * <p>
      * Note that this method will be executed using system context.
      *
      * @param clusterChangedEvent the change event for this cluster state change, containing
@@ -80,7 +80,7 @@ public interface ClusterStateTaskExecutor<T> {
 
     /**
      * Builds a concise description of a list of tasks (to be used in logging etc.).
-     *
+     * <p>
      * Note that the tasks given are not necessarily the same as those that will be passed to {@link #execute(ClusterState, List)}.
      * but are guaranteed to be a subset of them. This method can be called multiple times with different lists before execution.
      * This allows groupd task description but the submitting source.

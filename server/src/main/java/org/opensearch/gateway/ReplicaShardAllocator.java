@@ -295,7 +295,7 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
 
     /**
      * Determines if the shard can be allocated on at least one node based on the allocation deciders.
-     *
+     * <p>
      * Returns the best allocation decision for allocating the shard on any node (i.e. YES if at least one
      * node decided YES, THROTTLE if at least one node decided THROTTLE, and NO if none of the nodes decided
      * YES or THROTTLE).  If in explain mode, also returns the node-level explanations as the second element

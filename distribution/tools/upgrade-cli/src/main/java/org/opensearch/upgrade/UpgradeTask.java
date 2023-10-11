@@ -17,7 +17,7 @@ import java.util.function.Consumer;
  * An interface for an upgrade task, which in this instance is an unit of
  * operation that is part of the overall upgrade process. This extends the
  * {@link java.util.function.Consumer} interface.
- *
+ * <p>
  * The implementing tasks consume and instance of a tuple of {@link TaskInput}
  * and {@link Terminal} and operate via side effects.
  *

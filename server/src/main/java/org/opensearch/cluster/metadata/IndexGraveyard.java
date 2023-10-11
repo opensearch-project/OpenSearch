@@ -61,7 +61,7 @@ import java.util.Objects;
 
 /**
  * A collection of tombstones for explicitly marking indices as deleted in the cluster state.
- *
+ * <p>
  * The cluster state contains a list of index tombstones for indices that have been
  * deleted in the cluster.  Because cluster states are processed asynchronously by
  * nodes and a node could be removed from the cluster for a period of time, the
@@ -250,7 +250,7 @@ public final class IndexGraveyard implements Metadata.Custom {
 
         /**
          * Purge tombstone entries.  Returns the number of entries that were purged.
-         *
+         * <p>
          * Tombstones are purged if the number of tombstones in the list
          * is greater than the input parameter of maximum allowed tombstones.
          * Tombstones are purged until the list is equal to the maximum allowed.

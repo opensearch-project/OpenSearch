@@ -691,7 +691,7 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
 
         /**
          * Constructor
-         *
+         * <p>
          * {@code flags} is Lucene's <a href="https://github.com/apache/lucene/blob/main/lucene/core/src/java/org/apache/lucene/util/automaton/RegExp.java#L391-L411">syntax flags</a>
          * and {@code caseInsensitive} enables Lucene's only <a href="https://github.com/apache/lucene/blob/main/lucene/core/src/java/org/apache/lucene/util/automaton/RegExp.java#L416">matching flag</a>.
          */
