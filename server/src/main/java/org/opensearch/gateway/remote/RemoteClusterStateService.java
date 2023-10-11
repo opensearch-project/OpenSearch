@@ -353,7 +353,7 @@ public class RemoteClusterStateService implements Closeable {
             }
         } catch (InterruptedException ex) {
             GlobalMetadataTransferException exception = new GlobalMetadataTransferException(
-                String.format(Locale.ROOT, "Timed out waiting for transfer of index metadata to complete - %s"),
+                String.format(Locale.ROOT, "Timed out waiting for transfer of global metadata to complete - %s"),
                 ex
             );
             Thread.currentThread().interrupt();
@@ -1043,8 +1043,10 @@ public class RemoteClusterStateService implements Closeable {
                 staleManifestPaths.add(new BlobPath().add(MANIFEST_PATH_TOKEN).buildAsString() + blobMetadata.name());
                 String[] globalMetadataSplitPath = clusterMetadataManifest.getGlobalMetadataFileName().split("/");
                 staleGlobalMetadataPaths.add(
-                    new BlobPath().add(GLOBAL_METADATA_PATH_TOKEN).buildAsString() +
-                        BlobStoreRepository.GLOBAL_METADATA_FORMAT.blobName(globalMetadataSplitPath[globalMetadataSplitPath.length -1]));
+                    new BlobPath().add(GLOBAL_METADATA_PATH_TOKEN).buildAsString() + BlobStoreRepository.GLOBAL_METADATA_FORMAT.blobName(
+                        globalMetadataSplitPath[globalMetadataSplitPath.length - 1]
+                    )
+                );
                 clusterMetadataManifest.getIndices().forEach(uploadedIndexMetadata -> {
                     if (filesToKeep.contains(uploadedIndexMetadata.getUploadedFilename()) == false) {
                         staleIndexMetadataPaths.add(
