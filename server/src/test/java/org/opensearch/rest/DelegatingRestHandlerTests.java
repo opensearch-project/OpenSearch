@@ -35,7 +35,7 @@ public class DelegatingRestHandlerTests extends OpenSearchTestCase {
         RestHandler handlerSpy = spy(rh);
         DelegatingRestHandler drh = new DelegatingRestHandler(handlerSpy);
 
-        List<Method> overridableMethods = Arrays.stream(RestHandler.class.getDeclaredMethods())
+        List<Method> overridableMethods = Arrays.stream(RestHandler.class.getMethods())
             .filter(
                 m -> !(Modifier.isPrivate(m.getModifiers()) || Modifier.isStatic(m.getModifiers()) || Modifier.isFinal(m.getModifiers()))
             )
