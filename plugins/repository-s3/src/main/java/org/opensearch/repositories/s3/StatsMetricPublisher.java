@@ -202,7 +202,7 @@ public class StatsMetricPublisher {
             results.put("GetObject", getMetrics.get());
             results.put("ListObjects", listMetrics.get());
             results.put("PutObject", putMetrics.get());
-            results.put("DeleteObject", deleteMetrics.get());
+            results.put("DeleteObjects", deleteMetrics.get());
             results.put("PutMultipartObject", multiPartPutMetrics.get());
             return results;
         }
