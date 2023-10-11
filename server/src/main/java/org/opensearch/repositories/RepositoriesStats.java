@@ -8,6 +8,7 @@
 
 package org.opensearch.repositories;
 
+import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.core.common.util.CollectionUtils;
@@ -24,8 +25,12 @@ public class RepositoriesStats implements Writeable, ToXContentObject {
 
     List<RepositoryStatsSnapshot> repositoryStatsSnapshots;
 
-    RepositoriesStats(List<RepositoryStatsSnapshot> repositoryStatsSnapshots) {
+    public RepositoriesStats(List<RepositoryStatsSnapshot> repositoryStatsSnapshots) {
         this.repositoryStatsSnapshots = repositoryStatsSnapshots;
+    }
+
+    public RepositoriesStats(StreamInput in) throws IOException {
+        this.repositoryStatsSnapshots = in.readList(RepositoryStatsSnapshot::new);
     }
 
     @Override

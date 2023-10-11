@@ -202,6 +202,11 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         } else {
             searchPipelineStats = null;
         }
+        if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
+            repositoriesStats = in.readOptionalWriteable(RepositoriesStats::new);
+        } else {
+            repositoriesStats = null;
+        }
     }
 
     public NodeStats(
