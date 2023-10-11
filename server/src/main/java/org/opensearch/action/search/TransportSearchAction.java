@@ -60,6 +60,7 @@ import org.opensearch.common.inject.Inject;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.util.concurrent.AtomicArray;
 import org.opensearch.common.util.concurrent.CountDown;
 import org.opensearch.core.action.ActionListener;
@@ -173,6 +174,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
 
     private final MetricsRegistry metricsRegistry;
 
+    private final SearchQueryCategorizor searchQueryCategorizor;
+
     @Inject
     public TransportSearchAction(
         NodeClient client,
@@ -207,6 +210,11 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         clusterService.getClusterSettings().addSettingsUpdateConsumer(SEARCH_REQUEST_STATS_ENABLED, this::setIsRequestStatsEnabled);
         this.searchRequestStats = searchRequestStats;
         this.metricsRegistry = metricsRegistry;
+        if (FeatureFlags.isEnabled(FeatureFlags.QUERY_CATEOGORIZATION)) {
+            this.searchQueryCategorizor = new SearchQueryCategorizor(metricsRegistry);
+        } else {
+            this.searchQueryCategorizor = null;
+        }
     }
 
     private void setIsRequestStatsEnabled(boolean isRequestStatsEnabled) {
@@ -437,8 +445,9 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             return;
         }
 
-        SearchQueryCategorizor searchQueryCategorizor = new SearchQueryCategorizor(metricsRegistry);
-        searchQueryCategorizor.categorize(searchRequest.source());
+        if (FeatureFlags.isEnabled(FeatureFlags.QUERY_CATEOGORIZATION)) {
+            searchQueryCategorizor.categorize(searchRequest.source());
+        }
 
         ActionListener<SearchSourceBuilder> rewriteListener = ActionListener.wrap(source -> {
             if (source != searchRequest.source()) {
