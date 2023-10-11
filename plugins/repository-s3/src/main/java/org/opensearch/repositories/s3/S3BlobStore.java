@@ -32,6 +32,7 @@
 
 package org.opensearch.repositories.s3;
 
+import org.opensearch.core.common.util.CollectionUtils;
 import software.amazon.awssdk.services.s3.model.ObjectCannedACL;
 import software.amazon.awssdk.services.s3.model.StorageClass;
 
@@ -47,6 +48,8 @@ import org.opensearch.repositories.s3.async.AsyncExecutorContainer;
 import org.opensearch.repositories.s3.async.AsyncTransferManager;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 
@@ -178,6 +181,16 @@ class S3BlobStore implements BlobStore {
     @Override
     public Map<String, Long> stats() {
         return statsMetricPublisher.getStats().toMap();
+    }
+
+    @Override
+    public Map<Metric, Map<String, Long>> extendedStats() {
+        if (statsMetricPublisher.getExtendedStats() == null || statsMetricPublisher.getExtendedStats().isEmpty()) {
+            return Collections.emptyMap();
+        }
+        Map<Metric, Map<String, Long>> extendedStats = new HashMap<>();
+        statsMetricPublisher.getExtendedStats().forEach((k, v) -> extendedStats.put(k, v.toMap()));
+        return extendedStats;
     }
 
     public ObjectCannedACL getCannedACL() {

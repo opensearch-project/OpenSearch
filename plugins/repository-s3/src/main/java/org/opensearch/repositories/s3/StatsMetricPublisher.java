@@ -8,10 +8,14 @@
 
 package org.opensearch.repositories.s3;
 
-import software.amazon.awssdk.http.HttpMetric;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.opensearch.common.blobstore.BlobStore;
 import software.amazon.awssdk.metrics.MetricCollection;
 import software.amazon.awssdk.metrics.MetricPublisher;
+import software.amazon.awssdk.metrics.MetricRecord;
 
+import java.time.Duration;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
@@ -20,18 +24,36 @@ public class StatsMetricPublisher {
 
     private final Stats stats = new Stats();
 
+    private final Map<BlobStore.Metric, Stats> extendedStats = new HashMap<>() {{
+        put(BlobStore.Metric.REQUEST_LATENCY, new Stats());
+        put(BlobStore.Metric.REQUEST_SUCCESS, new Stats());
+        put(BlobStore.Metric.REQUEST_FAILURE, new Stats());
+        put(BlobStore.Metric.RETRY_COUNT, new Stats());
+    }};
+
+    private static final Logger LOG = LogManager.getLogger(StatsMetricPublisher.class);
+
     public MetricPublisher listObjectsMetricPublisher = new MetricPublisher() {
         @Override
         public void publish(MetricCollection metricCollection) {
-            stats.listCount.addAndGet(
-                metricCollection.children()
-                    .stream()
-                    .filter(
-                        metricRecords -> metricRecords.name().equals("ApiCallAttempt")
-                            && !metricRecords.metricValues(HttpMetric.HTTP_STATUS_CODE).isEmpty()
-                    )
-                    .count()
-            );
+            for (MetricRecord<?> metricRecord : metricCollection) {
+                switch (metricRecord.metric().name()) {
+                    case "ApiCallDuration":
+                        extendedStats.get(BlobStore.Metric.REQUEST_LATENCY).listMetrics.addAndGet(((Duration) metricRecord.value()).toMillis());
+                        break;
+                    case "RetryCount":
+                        extendedStats.get(BlobStore.Metric.RETRY_COUNT).listMetrics.addAndGet(((Integer) metricRecord.value()));
+                        break;
+                    case "ApiCallSuccessful":
+                        if((Boolean) metricRecord.value()) {
+                            extendedStats.get(BlobStore.Metric.REQUEST_SUCCESS).listMetrics.addAndGet(1);
+                        } else {
+                            extendedStats.get(BlobStore.Metric.REQUEST_FAILURE).listMetrics.addAndGet(1);
+                        }
+                        stats.listMetrics.addAndGet(1);
+                        break;
+                }
+            }
         }
 
         @Override
@@ -41,15 +63,24 @@ public class StatsMetricPublisher {
     public MetricPublisher getObjectMetricPublisher = new MetricPublisher() {
         @Override
         public void publish(MetricCollection metricCollection) {
-            stats.getCount.addAndGet(
-                metricCollection.children()
-                    .stream()
-                    .filter(
-                        metricRecords -> metricRecords.name().equals("ApiCallAttempt")
-                            && !metricRecords.metricValues(HttpMetric.HTTP_STATUS_CODE).isEmpty()
-                    )
-                    .count()
-            );
+            for (MetricRecord<?> metricRecord : metricCollection) {
+                switch (metricRecord.metric().name()) {
+                    case "ApiCallDuration":
+                        extendedStats.get(BlobStore.Metric.REQUEST_LATENCY).getMetrics.addAndGet(((Duration) metricRecord.value()).toMillis());
+                        break;
+                    case "RetryCount":
+                        extendedStats.get(BlobStore.Metric.RETRY_COUNT).getMetrics.addAndGet(((Integer) metricRecord.value()));
+                        break;
+                    case "ApiCallSuccessful":
+                        if((Boolean) metricRecord.value()) {
+                            extendedStats.get(BlobStore.Metric.REQUEST_SUCCESS).getMetrics.addAndGet(1);
+                        } else {
+                            extendedStats.get(BlobStore.Metric.REQUEST_FAILURE).getMetrics.addAndGet(1);
+                        }
+                        stats.getMetrics.addAndGet(1);
+                        break;
+                }
+            }
         }
 
         @Override
@@ -59,15 +90,24 @@ public class StatsMetricPublisher {
     public MetricPublisher putObjectMetricPublisher = new MetricPublisher() {
         @Override
         public void publish(MetricCollection metricCollection) {
-            stats.putCount.addAndGet(
-                metricCollection.children()
-                    .stream()
-                    .filter(
-                        metricRecords -> metricRecords.name().equals("ApiCallAttempt")
-                            && !metricRecords.metricValues(HttpMetric.HTTP_STATUS_CODE).isEmpty()
-                    )
-                    .count()
-            );
+            for (MetricRecord<?> metricRecord : metricCollection) {
+                switch (metricRecord.metric().name()) {
+                    case "ApiCallDuration":
+                        extendedStats.get(BlobStore.Metric.REQUEST_LATENCY).putMetrics.addAndGet(((Duration) metricRecord.value()).toMillis());
+                        break;
+                    case "RetryCount":
+                        extendedStats.get(BlobStore.Metric.RETRY_COUNT).putMetrics.addAndGet(((Integer) metricRecord.value()));
+                        break;
+                    case "ApiCallSuccessful":
+                        if((Boolean) metricRecord.value()) {
+                            extendedStats.get(BlobStore.Metric.REQUEST_SUCCESS).putMetrics.addAndGet(1);
+                        } else {
+                            extendedStats.get(BlobStore.Metric.REQUEST_FAILURE).putMetrics.addAndGet(1);
+                        }
+                        stats.putMetrics.addAndGet(1);
+                        break;
+                }
+            }
         }
 
         @Override
@@ -77,15 +117,24 @@ public class StatsMetricPublisher {
     public MetricPublisher multipartUploadMetricCollector = new MetricPublisher() {
         @Override
         public void publish(MetricCollection metricCollection) {
-            stats.postCount.addAndGet(
-                metricCollection.children()
-                    .stream()
-                    .filter(
-                        metricRecords -> metricRecords.name().equals("ApiCallAttempt")
-                            && !metricRecords.metricValues(HttpMetric.HTTP_STATUS_CODE).isEmpty()
-                    )
-                    .count()
-            );
+            for (MetricRecord<?> metricRecord : metricCollection) {
+                switch (metricRecord.metric().name()) {
+                    case "ApiCallDuration":
+                        extendedStats.get(BlobStore.Metric.REQUEST_LATENCY).multiPartPutMetrics.addAndGet(((Duration) metricRecord.value()).toMillis());
+                        break;
+                    case "RetryCount":
+                        extendedStats.get(BlobStore.Metric.RETRY_COUNT).multiPartPutMetrics.addAndGet(((Integer) metricRecord.value()));
+                        break;
+                    case "ApiCallSuccessful":
+                        if((Boolean) metricRecord.value()) {
+                            extendedStats.get(BlobStore.Metric.REQUEST_SUCCESS).multiPartPutMetrics.addAndGet(1);
+                        } else {
+                            extendedStats.get(BlobStore.Metric.REQUEST_FAILURE).multiPartPutMetrics.addAndGet(1);
+                        }
+                        stats.multiPartPutMetrics.addAndGet(1);
+                        break;
+                }
+            }
         }
 
         @Override
@@ -96,22 +145,27 @@ public class StatsMetricPublisher {
         return stats;
     }
 
+    public Map<BlobStore.Metric, Stats> getExtendedStats() {
+        return extendedStats;
+    }
+
     static class Stats {
 
-        final AtomicLong listCount = new AtomicLong();
+        final AtomicLong listMetrics = new AtomicLong();
 
-        final AtomicLong getCount = new AtomicLong();
+        final AtomicLong getMetrics = new AtomicLong();
 
-        final AtomicLong putCount = new AtomicLong();
+        final AtomicLong putMetrics = new AtomicLong();
 
-        final AtomicLong postCount = new AtomicLong();
+        final AtomicLong multiPartPutMetrics = new AtomicLong();
+
 
         Map<String, Long> toMap() {
             final Map<String, Long> results = new HashMap<>();
-            results.put("GetObject", getCount.get());
-            results.put("ListObjects", listCount.get());
-            results.put("PutObject", putCount.get());
-            results.put("PutMultipartObject", postCount.get());
+            results.put("GetObject", getMetrics.get());
+            results.put("ListObjects", listMetrics.get());
+            results.put("PutObject", putMetrics.get());
+            results.put("PutMultipartObject", multiPartPutMetrics.get());
             return results;
         }
     }
