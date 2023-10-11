@@ -44,7 +44,7 @@ public class RandomCreateIndexGenerator {
 
     /**
      * Returns a random {@link CreateIndexRequest}.
-     *
+     * <p>
      * Randomizes the index name, the aliases, mappings and settings associated with the
      * index. When present, the mappings make no mention of types.
      */

@@ -73,9 +73,9 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /** A {@link FieldMapper} for full-text fields with annotation markup e.g.
- *
+ * <p>
  *    "New mayor is [John Smith](type=person&amp;value=John%20Smith) "
- *
+ * <p>
  * A special Analyzer wraps the default choice of analyzer in order
  * to strip the text field of annotation markup and inject the related
  * entity annotation tokens as supplementary tokens at the relevant points

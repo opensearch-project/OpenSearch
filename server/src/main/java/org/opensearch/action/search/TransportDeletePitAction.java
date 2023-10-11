@@ -76,7 +76,7 @@ public class TransportDeletePitAction extends HandledTransportAction<DeletePitRe
 
     /**
      * Delete all active PIT reader contexts leveraging list all PITs
-     *
+     * <p>
      * For Cross cluster PITs :
      * - mixed cluster PITs ( PIT comprising local and remote ) will be fully deleted. Since there will atleast be
      * one reader context with PIT ID present in local cluster, 'Get all PITs' will retrieve the PIT ID with which

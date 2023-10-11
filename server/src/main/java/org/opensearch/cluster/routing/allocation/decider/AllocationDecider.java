@@ -109,7 +109,7 @@ public abstract class AllocationDecider {
      * Returns a {@link Decision} whether the given primary shard can be
      * forcibly allocated on the given node. This method should only be called
      * for unassigned primary shards where the node has a shard copy on disk.
-     *
+     * <p>
      * Note: all implementations that override this behavior should take into account
      * the results of {@link #canAllocate(ShardRouting, RoutingNode, RoutingAllocation)}
      * before making a decision on force allocation, because force allocation should only

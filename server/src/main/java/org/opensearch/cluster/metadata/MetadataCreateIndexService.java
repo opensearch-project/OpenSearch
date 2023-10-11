@@ -754,7 +754,7 @@ public class MetadataCreateIndexService {
     /**
      * Parses the provided mappings json and the inheritable mappings from the templates (if any)
      * into a map.
-     *
+     * <p>
      * The template mappings are applied in the order they are encountered in the list (clients
      * should make sure the lower index, closer to the head of the list, templates have the highest
      * {@link IndexTemplateMetadata#order()}). This merging makes no distinction between field
@@ -792,7 +792,7 @@ public class MetadataCreateIndexService {
      * Validates and creates the settings for the new index based on the explicitly configured settings via the
      * {@link CreateIndexClusterStateUpdateRequest}, inherited from templates and, if recovering from another index (ie. split, shrink,
      * clone), the resize settings.
-     *
+     * <p>
      * The template mappings are applied in the order they are encountered in the list (clients should make sure the lower index, closer
      * to the head of the list, templates have the highest {@link IndexTemplateMetadata#order()})
      *
@@ -1009,7 +1009,7 @@ public class MetadataCreateIndexService {
     /**
      * Validate and resolve the aliases explicitly set for the index, together with the ones inherited from the specified
      * templates.
-     *
+     * <p>
      * The template mappings are applied in the order they are encountered in the list (clients should make sure the lower index, closer
      * to the head of the list, templates have the highest {@link IndexTemplateMetadata#order()})
      *

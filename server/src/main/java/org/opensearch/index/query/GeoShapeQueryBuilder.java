@@ -55,7 +55,7 @@ import java.util.function.Supplier;
 /**
  * Derived {@link AbstractGeometryQueryBuilder} that builds a lat, lon GeoShape Query. It
  * can be applied to any {@link MappedFieldType} that implements {@link GeoShapeQueryable}.
- *
+ * <p>
  * GeoJson and WKT shape definitions are supported
  *
  * @opensearch.internal

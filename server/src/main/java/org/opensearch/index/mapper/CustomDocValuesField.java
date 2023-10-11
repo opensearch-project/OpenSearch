@@ -42,8 +42,7 @@ import org.apache.lucene.index.IndexableFieldType;
 import java.io.Reader;
 
 /**
- * Base class for constructing a custom docvalues type
- *
+ * Base class for constructing a custom docvalues type.
  * used for binary, geo, and range fields
  *
  * @opensearch.api
