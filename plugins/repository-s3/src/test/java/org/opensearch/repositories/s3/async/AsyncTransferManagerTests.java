@@ -80,7 +80,8 @@ public class AsyncTransferManagerTests extends OpenSearchTestCase {
                 ByteSizeUnit.MB.toBytes(1),
                 ByteSizeUnit.MB.toBytes(1),
                 1
-            )
+            ),
+            null
         );
 
         try {
@@ -118,7 +119,8 @@ public class AsyncTransferManagerTests extends OpenSearchTestCase {
                 ByteSizeUnit.MB.toBytes(1),
                 ByteSizeUnit.MB.toBytes(1),
                 1
-            )
+            ),
+            null
         );
 
         try {
@@ -169,7 +171,8 @@ public class AsyncTransferManagerTests extends OpenSearchTestCase {
                 ByteSizeUnit.MB.toBytes(1),
                 ByteSizeUnit.MB.toBytes(1),
                 5
-            )
+            ),
+            null
         );
 
         try {
@@ -219,7 +222,8 @@ public class AsyncTransferManagerTests extends OpenSearchTestCase {
                 ByteSizeUnit.MB.toBytes(1),
                 ByteSizeUnit.MB.toBytes(1),
                 5
-            )
+            ),
+            null
         );
 
         try {

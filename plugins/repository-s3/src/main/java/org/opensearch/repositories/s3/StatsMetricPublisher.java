@@ -12,8 +12,6 @@ import software.amazon.awssdk.metrics.MetricCollection;
 import software.amazon.awssdk.metrics.MetricPublisher;
 import software.amazon.awssdk.metrics.MetricRecord;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.opensearch.common.blobstore.BlobStore;
 
 import java.time.Duration;
@@ -33,8 +31,6 @@ public class StatsMetricPublisher {
             put(BlobStore.Metric.RETRY_COUNT, new Stats());
         }
     };
-
-    private static final Logger LOG = LogManager.getLogger(StatsMetricPublisher.class);
 
     public MetricPublisher listObjectsMetricPublisher = new MetricPublisher() {
         @Override
@@ -56,6 +52,35 @@ public class StatsMetricPublisher {
                             extendedStats.get(BlobStore.Metric.REQUEST_FAILURE).listMetrics.addAndGet(1);
                         }
                         stats.listMetrics.addAndGet(1);
+                        break;
+                }
+            }
+        }
+
+        @Override
+        public void close() {}
+    };
+
+    public MetricPublisher deleteObjectsMetricPublisher = new MetricPublisher() {
+        @Override
+        public void publish(MetricCollection metricCollection) {
+            for (MetricRecord<?> metricRecord : metricCollection) {
+                switch (metricRecord.metric().name()) {
+                    case "ApiCallDuration":
+                        extendedStats.get(BlobStore.Metric.REQUEST_LATENCY).deleteMetrics.addAndGet(
+                            ((Duration) metricRecord.value()).toMillis()
+                        );
+                        break;
+                    case "RetryCount":
+                        extendedStats.get(BlobStore.Metric.RETRY_COUNT).deleteMetrics.addAndGet(((Integer) metricRecord.value()));
+                        break;
+                    case "ApiCallSuccessful":
+                        if ((Boolean) metricRecord.value()) {
+                            extendedStats.get(BlobStore.Metric.REQUEST_SUCCESS).deleteMetrics.addAndGet(1);
+                        } else {
+                            extendedStats.get(BlobStore.Metric.REQUEST_FAILURE).deleteMetrics.addAndGet(1);
+                        }
+                        stats.deleteMetrics.addAndGet(1);
                         break;
                 }
             }
@@ -168,6 +193,8 @@ public class StatsMetricPublisher {
 
         final AtomicLong putMetrics = new AtomicLong();
 
+        final AtomicLong deleteMetrics = new AtomicLong();
+
         final AtomicLong multiPartPutMetrics = new AtomicLong();
 
         Map<String, Long> toMap() {
@@ -175,6 +202,7 @@ public class StatsMetricPublisher {
             results.put("GetObject", getMetrics.get());
             results.put("ListObjects", listMetrics.get());
             results.put("PutObject", putMetrics.get());
+            results.put("DeleteObject", deleteMetrics.get());
             results.put("PutMultipartObject", multiPartPutMetrics.get());
             return results;
         }
