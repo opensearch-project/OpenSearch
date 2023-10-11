@@ -54,7 +54,7 @@ public class TieredCacheSpilloverStrategyHandler<K, V> implements TieredCacheHan
             tieredCacheEventListener.onCached(key, value, TierType.ON_HEAP);
             return value;
         } else {
-            tieredCacheEventListener.onHit(key, cacheValue.value, cacheValue.source);
+            //tieredCacheEventListener.onHit(key, cacheValue.value, cacheValue.source); // this double counts, see line 122
         }
         return cacheValue.value;
     }
