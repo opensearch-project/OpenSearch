@@ -36,6 +36,7 @@ import org.opensearch.common.network.CloseableChannel;
 import org.opensearch.core.action.ActionListener;
 
 import java.net.InetSocketAddress;
+import java.util.Optional;
 
 /**
  * Represents an HTTP comms channel
@@ -80,10 +81,9 @@ public interface HttpChannel extends CloseableChannel {
      * @param name the name of the property
      * @param clazz the expected type of the property
      *
-     * @return the value of the property.
-     *         {@code null} if there's no such property or the expected type is not compatible.
+     * @return the value of the property
      */
-    default <T> T get(String name, Class<T> clazz) {
-        return null;
+    default <T> Optional<T> get(String name, Class<T> clazz) {
+        return Optional.empty();
     }
 }

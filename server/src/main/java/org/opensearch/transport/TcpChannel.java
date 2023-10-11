@@ -38,6 +38,7 @@ import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.bytes.BytesReference;
 
 import java.net.InetSocketAddress;
+import java.util.Optional;
 
 /**
  * This is a tcp channel representing a single channel connection to another node. It is the base channel
@@ -104,11 +105,10 @@ public interface TcpChannel extends CloseableChannel {
      * @param name the name of the property
      * @param clazz the expected type of the property
      *
-     * @return the value of the property.
-     *         {@code null} if there's no such property or the expected type is not compatible.
+     * @return the value of the property
      */
-    default <T> T get(String name, Class<T> clazz) {
-        return null;
+    default <T> Optional<T> get(String name, Class<T> clazz) {
+        return Optional.empty();
     }
 
     /**

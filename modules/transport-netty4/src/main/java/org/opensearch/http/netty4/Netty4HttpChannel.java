@@ -40,6 +40,7 @@ import org.opensearch.http.HttpResponse;
 import org.opensearch.transport.netty4.Netty4TcpChannel;
 
 import java.net.InetSocketAddress;
+import java.util.Optional;
 
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelPipeline;
@@ -100,7 +101,7 @@ public class Netty4HttpChannel implements HttpChannel {
 
     @SuppressWarnings("unchecked")
     @Override
-    public <T> T get(String name, Class<T> clazz) {
+    public <T> Optional<T> get(String name, Class<T> clazz) {
         Object handler = getNettyChannel().pipeline().get(name);
 
         if (handler == null && inboundPipeline() != null) {
@@ -108,10 +109,10 @@ public class Netty4HttpChannel implements HttpChannel {
         }
 
         if (handler != null && clazz.isInstance(handler) == true) {
-            return (T) handler;
+            return Optional.of((T) handler);
         }
 
-        return null;
+        return Optional.empty();
     }
 
     @Override
