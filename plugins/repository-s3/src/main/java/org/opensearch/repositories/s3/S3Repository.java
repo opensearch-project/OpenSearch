@@ -197,6 +197,13 @@ class S3Repository extends MeteredBlobStoreRepository {
     );
 
     /**
+     * Maximum number of deletes in a DeleteObjectsRequest.
+     *
+     * @see <a href="https://docs.aws.amazon.com/AmazonS3/latest/API/multiobjectdeleteapi.html">S3 Documentation</a>.
+     */
+    static final Setting<Integer> BULK_DELETE_SIZE = Setting.intSetting("bulk_delete_size", 1000, 1, 1000);
+
+    /**
      * Sets the S3 storage class type for the backup files. Values may be standard, reduced_redundancy,
      * standard_ia, onezone_ia and intelligent_tiering. Defaults to standard.
      */
@@ -261,6 +268,8 @@ class S3Repository extends MeteredBlobStoreRepository {
     private final AsyncExecutorContainer priorityExecutorBuilder;
     private final AsyncExecutorContainer normalExecutorBuilder;
     private final Path pluginConfigPath;
+
+    private volatile int bulkDeletesSize;
 
     // Used by test classes
     S3Repository(
@@ -426,6 +435,7 @@ class S3Repository extends MeteredBlobStoreRepository {
             bufferSize,
             cannedACL,
             storageClass,
+            bulkDeletesSize,
             metadata,
             asyncUploadUtils,
             priorityExecutorBuilder,
@@ -485,6 +495,7 @@ class S3Repository extends MeteredBlobStoreRepository {
         this.serverSideEncryption = SERVER_SIDE_ENCRYPTION_SETTING.get(metadata.settings());
         this.storageClass = STORAGE_CLASS_SETTING.get(metadata.settings());
         this.cannedACL = CANNED_ACL_SETTING.get(metadata.settings());
+        this.bulkDeletesSize = BULK_DELETE_SIZE.get(metadata.settings());
         if (S3ClientSettings.checkDeprecatedCredentials(metadata.settings())) {
             // provided repository settings
             deprecationLogger.deprecate(
