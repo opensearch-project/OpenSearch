@@ -208,6 +208,11 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
             resourceUsageStats = in.readOptionalWriteable(NodesResourceUsageStats::new);
         } else {
             resourceUsageStats = null;
+            if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
+                repositoriesStats = in.readOptionalWriteable(RepositoriesStats::new);
+            } else {
+                repositoriesStats = null;
+            }
         }
     }
 
