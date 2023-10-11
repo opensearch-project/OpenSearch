@@ -8,20 +8,30 @@
 
 package org.opensearch.remotestore;
 
+import org.opensearch.action.admin.cluster.repositories.get.GetRepositoriesAction;
+import org.opensearch.action.admin.cluster.repositories.get.GetRepositoriesRequest;
+import org.opensearch.action.admin.cluster.repositories.get.GetRepositoriesResponse;
 import org.opensearch.client.Client;
 import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.common.unit.ByteSizeValue;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
+import org.opensearch.core.xcontent.ToXContent;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.disruption.NetworkDisruption;
 import org.opensearch.test.transport.MockTransportService;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.stream.Collectors;
+
+import static org.opensearch.repositories.blobstore.BlobStoreRepository.SYSTEM_REPOSITORY_SETTING;
 
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class RemoteStoreRepositoryRegistrationIT extends RemoteStoreBaseIntegTestCase {
@@ -161,5 +171,14 @@ public class RemoteStoreRepositoryRegistrationIT extends RemoteStoreBaseIntegTes
         internalCluster().restartRandomDataNode();
 
         ensureStableCluster(4);
+    }
+
+    public void testSystemRepositorySettingIsHidden() throws IOException {
+        GetRepositoriesRequest request = new GetRepositoriesRequest(new String[] { REPOSITORY_NAME });
+        GetRepositoriesResponse repositoriesResponse = client().execute(GetRepositoriesAction.INSTANCE, request).actionGet();
+        XContentBuilder builder = MediaTypeRegistry.contentBuilder(randomFrom(XContentType.JSON));
+        XContentBuilder xContentBuilder = repositoriesResponse.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        repositoriesResponse = GetRepositoriesResponse.fromXContent(createParser(xContentBuilder));
+        assertEquals(false, SYSTEM_REPOSITORY_SETTING.get(repositoriesResponse.repositories().get(0).settings()));
     }
 }
