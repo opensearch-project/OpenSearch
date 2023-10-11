@@ -96,7 +96,7 @@ public class RemoteSegmentStats implements Writeable, ToXContentFragment {
         totalUploadTime = in.readLong();
         totalDownloadTime = in.readLong();
         // TODO: change to V_2_11_0 on main after backport to 2.x
-        if (in.getVersion().onOrAfter(Version.CURRENT)) {
+        if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
             totalRejections = in.readVLong();
         }
     }
@@ -261,7 +261,7 @@ public class RemoteSegmentStats implements Writeable, ToXContentFragment {
         out.writeLong(totalUploadTime);
         out.writeLong(totalDownloadTime);
         // TODO: change to V_2_11_0 on main after backport to 2.x
-        if (out.getVersion().onOrAfter(Version.CURRENT)) {
+        if (out.getVersion().onOrAfter(Version.V_3_0_0)) {
             out.writeVLong(totalRejections);
         }
     }

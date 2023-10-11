@@ -47,7 +47,7 @@ public class ReplicationStats implements ToXContentFragment, Writeable {
         this.totalBytesBehind = in.readVLong();
         this.maxReplicationLag = in.readVLong();
         // TODO: change to V_2_11_0 on main after backport to 2.x
-        if (in.getVersion().onOrAfter(Version.CURRENT)) {
+        if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
             this.totalRejections = in.readVLong();
             this.shardId = in.readOptionalWriteable(ShardId::new);
         }
@@ -62,7 +62,6 @@ public class ReplicationStats implements ToXContentFragment, Writeable {
             maxBytesBehind = Math.max(other.maxBytesBehind, maxBytesBehind);
             totalBytesBehind += other.totalBytesBehind;
             maxReplicationLag = Math.max(other.maxReplicationLag, maxReplicationLag);
-            // TODO
             if (this.shardId != other.shardId) {
                 totalRejections += other.totalRejections;
             }
@@ -91,7 +90,7 @@ public class ReplicationStats implements ToXContentFragment, Writeable {
         out.writeVLong(totalBytesBehind);
         out.writeVLong(maxReplicationLag);
         // TODO: change to V_2_11_0 on main after backport to 2.x
-        if (out.getVersion().onOrAfter(Version.CURRENT)) {
+        if (out.getVersion().onOrAfter(Version.V_3_0_0)) {
             out.writeVLong(totalRejections);
             out.writeOptionalWriteable(shardId);
         }
