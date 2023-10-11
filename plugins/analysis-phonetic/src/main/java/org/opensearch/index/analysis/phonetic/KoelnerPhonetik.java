@@ -46,13 +46,13 @@ import java.util.regex.Pattern;
 
 /**
  * K&ouml;lner Phonetik
- *
+ * <p>
  * H.J. Postel, Die K&ouml;lner Phonetik. Ein Verfahren zu Identifizierung
  * von Personennamen auf der Grundlage der Gestaltanalyse. IBM-Nachrichten 19 (1969), 925-931
- *
+ * <p>
  * Algorithmus aus der Matching Toolbox von Rainer Schnell
  * Java-Programmierung von J&ouml;rg Reiher
- *
+ * <p>
  * mit &Auml;nderungen von Jörg Prante
  *
  */

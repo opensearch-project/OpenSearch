@@ -221,6 +221,10 @@ public class DiversifiedSamplerIT extends ParameterizedOpenSearchIntegTestCase {
     }
 
     public void testNestedSamples() throws Exception {
+        assumeFalse(
+            "Concurrent search case muted pending fix: https://github.com/opensearch-project/OpenSearch/issues/10046",
+            internalCluster().clusterService().getClusterSettings().get(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING)
+        );
         // Test samples nested under samples
         int MAX_DOCS_PER_AUTHOR = 1;
         int MAX_DOCS_PER_GENRE = 2;

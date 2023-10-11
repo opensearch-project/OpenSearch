@@ -24,7 +24,7 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.Version;
 import org.opensearch.common.UUIDs;
-import org.opensearch.common.blobstore.AsyncMultiStreamBlobContainer;
+import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.io.VersionedCodecStreamWrapper;
 import org.opensearch.common.logging.Loggers;
 import org.opensearch.common.lucene.store.ByteArrayIndexInput;
@@ -43,7 +43,6 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.NoSuchFileException;
-import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -51,6 +50,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -113,6 +113,8 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
     protected final AtomicBoolean canDeleteStaleCommits = new AtomicBoolean(true);
 
     private final AtomicLong metadataUploadCounter = new AtomicLong(0);
+
+    public static final int METADATA_FILES_TO_FETCH = 10;
 
     public RemoteSegmentStoreDirectory(
         RemoteDirectory remoteDataDirectory,
@@ -187,8 +189,10 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
 
         List<String> metadataFiles = remoteMetadataDirectory.listFilesByPrefixInLexicographicOrder(
             MetadataFilenameUtils.METADATA_PREFIX,
-            1
+            METADATA_FILES_TO_FETCH
         );
+
+        RemoteStoreUtils.verifyNoMultipleWriters(metadataFiles, MetadataFilenameUtils::getNodeIdByPrimaryTermAndGen);
 
         if (metadataFiles.isEmpty() == false) {
             String latestMetadataFile = metadataFiles.get(0);
@@ -306,12 +310,13 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
         }
 
         // Visible for testing
-        static String getMetadataFilename(
+        public static String getMetadataFilename(
             long primaryTerm,
             long generation,
             long translogGeneration,
             long uploadCounter,
-            int metadataVersion
+            int metadataVersion,
+            String nodeId
         ) {
             return String.join(
                 SEPARATOR,
@@ -320,6 +325,7 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
                 RemoteStoreUtils.invertLong(generation),
                 RemoteStoreUtils.invertLong(translogGeneration),
                 RemoteStoreUtils.invertLong(uploadCounter),
+                String.valueOf(Objects.hash(nodeId)),
                 RemoteStoreUtils.invertLong(System.currentTimeMillis()),
                 String.valueOf(metadataVersion)
             );
@@ -334,6 +340,19 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
         static long getGeneration(String[] filenameTokens) {
             return RemoteStoreUtils.invertLong(filenameTokens[2]);
         }
+
+        public static Tuple<String, String> getNodeIdByPrimaryTermAndGen(String filename) {
+            String[] tokens = filename.split(SEPARATOR);
+            if (tokens.length < 8) {
+                // For versions < 2.11, we don't have node id.
+                return null;
+            }
+            String primaryTermAndGen = String.join(SEPARATOR, tokens[1], tokens[2], tokens[3]);
+
+            String nodeId = tokens[5];
+            return new Tuple<>(primaryTermAndGen, nodeId);
+        }
+
     }
 
     /**
@@ -407,8 +426,9 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
     @Override
     public IndexInput openInput(String name, IOContext context) throws IOException {
         String remoteFilename = getExistingRemoteFilename(name);
+        long fileLength = fileLength(name);
         if (remoteFilename != null) {
-            return remoteDataDirectory.openInput(remoteFilename, context);
+            return remoteDataDirectory.openInput(remoteFilename, fileLength, context);
         } else {
             throw new NoSuchFileException(name);
         }
@@ -442,41 +462,6 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
         } catch (Exception e) {
             logger.warn(() -> new ParameterizedMessage("Exception while uploading file {} to the remote segment store", src), e);
             listener.onFailure(e);
-        }
-    }
-
-    /**
-     * Copies an existing {@code source} file from this directory to a non-existent file (also
-     * named {@code source}) in either {@code destinationDirectory} or {@code destinationPath}.
-     * If the blob container backing this directory supports multipart downloads, the {@code source}
-     * file will be downloaded (potentially in multiple concurrent parts) directly to
-     * {@code destinationPath}. This method will return immediately and {@code fileCompletionListener}
-     * will be notified upon completion.
-     * <p>
-     * If multipart downloads are not supported, then {@code source} file will be copied to a file named
-     * {@code source} in a single part to {@code destinationDirectory}. The download will happen on the
-     * calling thread and {@code fileCompletionListener} will be notified synchronously before this
-     * method returns.
-     *
-     * @param source The source file name
-     * @param destinationDirectory The destination directory (if multipart is not supported)
-     * @param destinationPath The destination path (if multipart is supported)
-     * @param fileCompletionListener The listener to notify of completion
-     */
-    public void copyTo(String source, Directory destinationDirectory, Path destinationPath, ActionListener<String> fileCompletionListener) {
-        final String blobName = getExistingRemoteFilename(source);
-        if (destinationPath != null && remoteDataDirectory.getBlobContainer() instanceof AsyncMultiStreamBlobContainer) {
-            final AsyncMultiStreamBlobContainer blobContainer = (AsyncMultiStreamBlobContainer) remoteDataDirectory.getBlobContainer();
-            final Path destinationFilePath = destinationPath.resolve(source);
-            blobContainer.asyncBlobDownload(blobName, destinationFilePath, threadPool, fileCompletionListener);
-        } else {
-            // Fallback to older mechanism of downloading the file
-            try {
-                destinationDirectory.copyFrom(this, source, source, IOContext.DEFAULT);
-                fileCompletionListener.onResponse(source);
-            } catch (IOException e) {
-                fileCompletionListener.onFailure(e);
-            }
         }
     }
 
@@ -593,6 +578,7 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
      * @param storeDirectory instance of local directory to temporarily create metadata file before upload
      * @param translogGeneration translog generation
      * @param replicationCheckpoint ReplicationCheckpoint of primary shard
+     * @param nodeId node id
      * @throws IOException in case of I/O error while uploading the metadata file
      */
     public void uploadMetadata(
@@ -600,7 +586,8 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
         SegmentInfos segmentInfosSnapshot,
         Directory storeDirectory,
         long translogGeneration,
-        ReplicationCheckpoint replicationCheckpoint
+        ReplicationCheckpoint replicationCheckpoint,
+        String nodeId
     ) throws IOException {
         synchronized (this) {
             String metadataFilename = MetadataFilenameUtils.getMetadataFilename(
@@ -608,7 +595,8 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
                 segmentInfosSnapshot.getGeneration(),
                 translogGeneration,
                 metadataUploadCounter.incrementAndGet(),
-                RemoteSegmentMetadata.CURRENT_VERSION
+                RemoteSegmentMetadata.CURRENT_VERSION,
+                nodeId
             );
             try {
                 try (IndexOutput indexOutput = storeDirectory.createOutput(metadataFilename, IOContext.DEFAULT)) {

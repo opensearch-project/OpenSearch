@@ -26,9 +26,9 @@ public class SmbNIOFSDirectoryTests extends OpenSearchBaseDirectoryTestCase {
 
     @Override
     public void testCreateOutputForExistingFile() throws IOException {
-        /**
-         * This test is disabled because {@link SmbDirectoryWrapper} opens existing file
-         * with an explicit StandardOpenOption.TRUNCATE_EXISTING option.
+        /*
+          This test is disabled because {@link SmbDirectoryWrapper} opens existing file
+          with an explicit StandardOpenOption.TRUNCATE_EXISTING option.
          */
     }
 }

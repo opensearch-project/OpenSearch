@@ -30,7 +30,7 @@ public class RemoteStorePressureSettings {
 
     public static final Setting<Boolean> REMOTE_REFRESH_SEGMENT_PRESSURE_ENABLED = Setting.boolSetting(
         "remote_store.segment.pressure.enabled",
-        false,
+        true,
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );

@@ -10,12 +10,14 @@ package org.opensearch.telemetry.metrics;
 
 import org.opensearch.common.annotation.ExperimentalApi;
 
+import java.io.Closeable;
+
 /**
  * Interface for metrics telemetry providers
   *
  * @opensearch.experimental
  */
 @ExperimentalApi
-public interface MetricsTelemetry {
+public interface MetricsTelemetry extends MetricsRegistry, Closeable {
 
 }

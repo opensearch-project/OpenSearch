@@ -56,6 +56,11 @@ public class FeatureFlags {
     public static final String TELEMETRY = "opensearch.experimental.feature.telemetry.enabled";
 
     /**
+     * Gates the optimization of datetime formatters caching along with change in default datetime formatter.
+     */
+    public static final String DATETIME_FORMATTER_CACHING = "opensearch.experimental.optimization.datetime_formatter_caching.enabled";
+
+    /**
      * Should store the settings from opensearch.yml.
      */
     private static Settings settings;
@@ -83,6 +88,17 @@ public class FeatureFlags {
         return settings != null && settings.getAsBoolean(featureFlagName, false);
     }
 
+    public static boolean isEnabled(Setting<Boolean> featureFlag) {
+        if ("true".equalsIgnoreCase(System.getProperty(featureFlag.getKey()))) {
+            // TODO: Remove the if condition once FeatureFlags are only supported via opensearch.yml
+            return true;
+        } else if (settings != null) {
+            return featureFlag.get(settings);
+        } else {
+            return featureFlag.getDefault(Settings.EMPTY);
+        }
+    }
+
     public static final Setting<Boolean> SEGMENT_REPLICATION_EXPERIMENTAL_SETTING = Setting.boolSetting(
         SEGMENT_REPLICATION_EXPERIMENTAL,
         false,
@@ -98,6 +114,12 @@ public class FeatureFlags {
     public static final Setting<Boolean> CONCURRENT_SEGMENT_SEARCH_SETTING = Setting.boolSetting(
         CONCURRENT_SEGMENT_SEARCH,
         false,
+        Property.NodeScope
+    );
+
+    public static final Setting<Boolean> DATETIME_FORMATTER_CACHING_SETTING = Setting.boolSetting(
+        DATETIME_FORMATTER_CACHING,
+        true,
         Property.NodeScope
     );
 }

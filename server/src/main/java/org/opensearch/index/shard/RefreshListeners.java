@@ -54,7 +54,7 @@ import static java.util.Objects.requireNonNull;
 /**
  * Allows for the registration of listeners that are called when a change becomes visible for search. This functionality is exposed from
  * {@link IndexShard} but kept here so it can be tested without standing up the entire thing.
- *
+ * <p>
  * When {@link Closeable#close()}d it will no longer accept listeners and flush any existing listeners.
  *
  * @opensearch.internal
@@ -86,7 +86,7 @@ public final class RefreshListeners implements ReferenceManager.RefreshListener,
      * List of refresh listeners. Defaults to null and built on demand because most refresh cycles won't need it. Entries are never removed
      * from it, rather, it is nulled and rebuilt when needed again. The (hopefully) rare entries that didn't make the current refresh cycle
      * are just added back to the new list. Both the reference and the contents are always modified while synchronized on {@code this}.
-     *
+     * <p>
      * We never set this to non-null while closed it {@code true}.
      */
     private volatile List<Tuple<Translog.Location, Consumer<Boolean>>> refreshListeners = null;

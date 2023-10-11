@@ -57,7 +57,7 @@ public interface TransportResponseHandler<T extends TransportResponse> extends W
      * It should be used to clear up the resources held by the {@link TransportResponseHandler}.
      * @param exp exception
      */
-    default void handleRejection(Exception exp) {};
+    default void handleRejection(Exception exp) {}
 
     default <Q extends TransportResponse> TransportResponseHandler<Q> wrap(Function<Q, T> converter, Writeable.Reader<Q> reader) {
         final TransportResponseHandler<T> self = this;

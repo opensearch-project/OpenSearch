@@ -241,37 +241,27 @@ class S3BlobContainer extends AbstractBlobContainer implements AsyncMultiStreamB
                     return;
                 }
 
-                final List<CompletableFuture<InputStreamContainer>> blobPartInputStreamFutures = new ArrayList<>();
-                final long blobSize = blobMetadata.objectSize();
-                final Integer numberOfParts = blobMetadata.objectParts() == null ? null : blobMetadata.objectParts().totalPartsCount();
-                final String blobChecksum = blobMetadata.checksum().checksumCRC32();
+                try {
+                    final List<ReadContext.StreamPartCreator> blobPartInputStreamFutures = new ArrayList<>();
+                    final long blobSize = blobMetadata.objectSize();
+                    final Integer numberOfParts = blobMetadata.objectParts() == null ? null : blobMetadata.objectParts().totalPartsCount();
+                    final String blobChecksum = blobMetadata.checksum() == null ? null : blobMetadata.checksum().checksumCRC32();
 
-                if (numberOfParts == null) {
-                    blobPartInputStreamFutures.add(getBlobPartInputStreamContainer(s3AsyncClient, bucketName, blobKey, null));
-                } else {
-                    // S3 multipart files use 1 to n indexing
-                    for (int partNumber = 1; partNumber <= numberOfParts; partNumber++) {
-                        blobPartInputStreamFutures.add(getBlobPartInputStreamContainer(s3AsyncClient, bucketName, blobKey, partNumber));
-                    }
-                }
-
-                CompletableFuture.allOf(blobPartInputStreamFutures.toArray(CompletableFuture[]::new))
-                    .whenComplete((unused, partThrowable) -> {
-                        if (partThrowable == null) {
-                            listener.onResponse(
-                                new ReadContext(
-                                    blobSize,
-                                    blobPartInputStreamFutures.stream().map(CompletableFuture::join).collect(Collectors.toList()),
-                                    blobChecksum
-                                )
+                    if (numberOfParts == null) {
+                        blobPartInputStreamFutures.add(() -> getBlobPartInputStreamContainer(s3AsyncClient, bucketName, blobKey, null));
+                    } else {
+                        // S3 multipart files use 1 to n indexing
+                        for (int partNumber = 1; partNumber <= numberOfParts; partNumber++) {
+                            final int innerPartNumber = partNumber;
+                            blobPartInputStreamFutures.add(
+                                () -> getBlobPartInputStreamContainer(s3AsyncClient, bucketName, blobKey, innerPartNumber)
                             );
-                        } else {
-                            Exception ex = partThrowable.getCause() instanceof Exception
-                                ? (Exception) partThrowable.getCause()
-                                : new Exception(partThrowable.getCause());
-                            listener.onFailure(ex);
                         }
-                    });
+                    }
+                    listener.onResponse(new ReadContext(blobSize, blobPartInputStreamFutures, blobChecksum));
+                } catch (Exception ex) {
+                    listener.onFailure(ex);
+                }
             });
         } catch (Exception ex) {
             listener.onFailure(SdkException.create("Error occurred while fetching blob parts from the repository", ex));

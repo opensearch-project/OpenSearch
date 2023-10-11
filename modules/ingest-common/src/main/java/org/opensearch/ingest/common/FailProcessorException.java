@@ -37,7 +37,7 @@ import org.opensearch.ingest.IngestDocument;
 
 /**
  * Exception class thrown by {@link FailProcessor}.
- *
+ * <p>
  * This exception is caught in the {@link CompoundProcessor} and
  * then changes the state of {@link IngestDocument}. This
  * exception should get serialized.

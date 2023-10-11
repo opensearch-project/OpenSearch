@@ -206,7 +206,7 @@ public abstract class AbstractAsyncBulkByScrollAction<
 
     /**
      * Build the {@link BiFunction} to apply to all {@link RequestWrapper}.
-     *
+     * <p>
      * Public for testings....
      */
     public BiFunction<RequestWrapper<?>, ScrollableHitSource.Hit, RequestWrapper<?>> buildScriptApplier() {

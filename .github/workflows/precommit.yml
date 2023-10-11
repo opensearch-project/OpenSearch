@@ -1,4 +1,4 @@
-name: Gradle Precommit and Assemble
+name: Gradle Precommit
 on: [pull_request]
 
 jobs:
@@ -19,12 +19,3 @@ jobs:
       - name: Run Gradle (precommit)
         run: |
           ./gradlew javadoc precommit --parallel
-      - name: Setup docker (missing on MacOS)
-        if: runner.os == 'macos'
-        run: |
-          brew install docker
-          colima start
-          sudo ln -sf $HOME/.colima/default/docker.sock /var/run/docker.sock
-      - name: Run Gradle (assemble)
-        run: |
-          ./gradlew assemble --parallel

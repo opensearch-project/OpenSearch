@@ -124,7 +124,7 @@ public class DateHistogramIT extends ParameterizedOpenSearchIntegTestCase {
     }
 
     private ZonedDateTime date(String date) {
-        return DateFormatters.from(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parse(date));
+        return DateFormatters.from(DateFieldMapper.getDefaultDateTimeFormatter().parse(date));
     }
 
     private static String format(ZonedDateTime date, String pattern) {
@@ -1481,7 +1481,7 @@ public class DateHistogramIT extends ParameterizedOpenSearchIntegTestCase {
     /**
      * https://github.com/elastic/elasticsearch/issues/31760 shows an edge case where an unmapped "date" field in two indices
      * that are queried simultaneously can lead to the "format" parameter in the aggregation not being preserved correctly.
-     *
+     * <p>
      * The error happens when the bucket from the "unmapped" index is received first in the reduce phase, however the case can
      * be recreated when aggregating about a single index with an unmapped date field and also getting "empty" buckets.
      */
@@ -1624,8 +1624,8 @@ public class DateHistogramIT extends ParameterizedOpenSearchIntegTestCase {
                 .setSettings(Settings.builder().put("requests.cache.enable", true).put("number_of_shards", 1).put("number_of_replicas", 1))
                 .get()
         );
-        String date = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.format(date(1, 1));
-        String date2 = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.format(date(2, 1));
+        String date = DateFieldMapper.getDefaultDateTimeFormatter().format(date(1, 1));
+        String date2 = DateFieldMapper.getDefaultDateTimeFormatter().format(date(2, 1));
         indexRandom(
             true,
             client().prepareIndex("cache_test_idx").setId("1").setSource("d", date),

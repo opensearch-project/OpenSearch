@@ -361,7 +361,12 @@ public class RangeFieldMapperTests extends AbstractNumericFieldMapperTestCase {
 
             // if type is date_range we check that the mapper contains the default format and locale
             // otherwise it should not contain a locale or format
-            assertTrue(got, got.contains("\"format\":\"strict_date_optional_time||epoch_millis\"") == type.equals("date_range"));
+            assertTrue(
+                got,
+                got.contains("\"format\":\"strict_date_time_no_millis||strict_date_optional_time||epoch_millis\"") == type.equals(
+                    "date_range"
+                )
+            );
             assertTrue(got, got.contains("\"locale\":" + "\"" + Locale.ROOT + "\"") == type.equals("date_range"));
         }
     }

@@ -101,6 +101,7 @@ public class TraceableTransportResponseHandler<T extends TransportResponse> impl
         try (SpanScope scope = tracer.withSpanInScope(span)) {
             delegate.handleRejection(exp);
         } finally {
+            span.setError(exp);
             span.endSpan();
         }
     }

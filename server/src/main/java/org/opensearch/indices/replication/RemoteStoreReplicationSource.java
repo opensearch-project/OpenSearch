@@ -14,19 +14,16 @@ import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.util.Version;
-import org.opensearch.action.support.GroupedActionListener;
 import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexShardState;
-import org.opensearch.index.shard.ShardPath;
 import org.opensearch.index.store.RemoteSegmentStoreDirectory;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.store.StoreFileMetadata;
 import org.opensearch.index.store.remote.metadata.RemoteSegmentMetadata;
 import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
 
-import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -108,47 +105,29 @@ public class RemoteStoreReplicationSource implements SegmentReplicationSource {
             logger.debug("Downloading segment files from remote store {}", filesToFetch);
 
             RemoteSegmentMetadata remoteSegmentMetadata = remoteDirectory.readLatestMetadataFile();
-            List<StoreFileMetadata> toDownloadSegments = new ArrayList<>();
             Collection<String> directoryFiles = List.of(indexShard.store().directory().listAll());
             if (remoteSegmentMetadata != null) {
                 try {
                     indexShard.store().incRef();
                     indexShard.remoteStore().incRef();
                     final Directory storeDirectory = indexShard.store().directory();
-                    final ShardPath shardPath = indexShard.shardPath();
+                    final List<String> toDownloadSegmentNames = new ArrayList<>();
                     for (StoreFileMetadata fileMetadata : filesToFetch) {
                         String file = fileMetadata.name();
                         assert directoryFiles.contains(file) == false : "Local store already contains the file " + file;
-                        toDownloadSegments.add(fileMetadata);
+                        toDownloadSegmentNames.add(file);
                     }
-                    downloadSegments(storeDirectory, remoteDirectory, toDownloadSegments, shardPath, listener);
-                    logger.debug("Downloaded segment files from remote store {}", toDownloadSegments);
+                    indexShard.getFileDownloader().download(remoteDirectory, storeDirectory, toDownloadSegmentNames);
+                    logger.debug("Downloaded segment files from remote store {}", filesToFetch);
                 } finally {
                     indexShard.store().decRef();
                     indexShard.remoteStore().decRef();
                 }
             }
+            listener.onResponse(new GetSegmentFilesResponse(filesToFetch));
         } catch (Exception e) {
             listener.onFailure(e);
         }
-    }
-
-    private void downloadSegments(
-        Directory storeDirectory,
-        RemoteSegmentStoreDirectory remoteStoreDirectory,
-        List<StoreFileMetadata> toDownloadSegments,
-        ShardPath shardPath,
-        ActionListener<GetSegmentFilesResponse> completionListener
-    ) {
-        final Path indexPath = shardPath == null ? null : shardPath.resolveIndex();
-        final GroupedActionListener<Void> batchDownloadListener = new GroupedActionListener<>(
-            ActionListener.map(completionListener, v -> new GetSegmentFilesResponse(toDownloadSegments)),
-            toDownloadSegments.size()
-        );
-        ActionListener<String> segmentsDownloadListener = ActionListener.map(batchDownloadListener, result -> null);
-        toDownloadSegments.forEach(
-            fileMetadata -> remoteStoreDirectory.copyTo(fileMetadata.name(), storeDirectory, indexPath, segmentsDownloadListener)
-        );
     }
 
     @Override
