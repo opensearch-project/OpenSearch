@@ -32,7 +32,6 @@
 
 package org.opensearch.repositories.s3;
 
-import org.opensearch.core.common.util.CollectionUtils;
 import software.amazon.awssdk.services.s3.model.ObjectCannedACL;
 import software.amazon.awssdk.services.s3.model.StorageClass;
 
