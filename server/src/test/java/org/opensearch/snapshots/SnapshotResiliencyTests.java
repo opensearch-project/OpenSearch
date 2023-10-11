@@ -2067,11 +2067,12 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                     emptyMap(),
                     null,
                     emptyMap(),
-                    new RemoteSegmentStoreDirectoryFactory(() -> repositoriesService, threadPool, DefaultRecoverySettings.INSTANCE),
+                    new RemoteSegmentStoreDirectoryFactory(() -> repositoriesService, threadPool),
                     repositoriesServiceReference::get,
                     fileCacheCleaner,
                     null,
-                    new RemoteStoreStatsTrackerFactory(clusterService, settings)
+                    new RemoteStoreStatsTrackerFactory(clusterService, settings),
+                    DefaultRecoverySettings.INSTANCE
                 );
                 final RecoverySettings recoverySettings = new RecoverySettings(settings, clusterSettings);
                 snapshotShardsService = new SnapshotShardsService(
