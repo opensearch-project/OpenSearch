@@ -236,11 +236,11 @@ public class ScriptScoreQueryBuilder extends AbstractQueryBuilder<ScriptScoreQue
     }
 
     @Override
-    public void visit(QueryBuilderVisitor visitor, int level) {
-        visitor.accept(this, level);
+    public void visit(QueryBuilderVisitor visitor) {
+        visitor.accept(this);
         if (query != null) {
             QueryBuilderVisitor subVisitor = visitor.getChildVisitor(BooleanClause.Occur.MUST);
-            subVisitor.accept(query, level + 1);
+            subVisitor.accept(query);
         }
     }
 }

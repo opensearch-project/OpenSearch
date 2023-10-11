@@ -210,8 +210,8 @@ public class FieldMaskingSpanQueryBuilder extends AbstractQueryBuilder<FieldMask
     }
 
     @Override
-    public void visit(QueryBuilderVisitor visitor, int level) {
-        visitor.accept(this, level);
-        visitor.getChildVisitor(BooleanClause.Occur.MUST).accept(queryBuilder, level + 1);
+    public void visit(QueryBuilderVisitor visitor) {
+        visitor.accept(this);
+        visitor.getChildVisitor(BooleanClause.Occur.MUST).accept(queryBuilder);
     }
 }
