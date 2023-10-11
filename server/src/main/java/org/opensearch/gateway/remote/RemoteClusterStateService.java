@@ -120,6 +120,8 @@ public class RemoteClusterStateService implements Closeable {
 
     private final AtomicBoolean deleteStaleMetadataRunning = new AtomicBoolean(false);
 
+    private static final int INDEX_METADATA_CODEC_VERSION = 1;
+    private static final int MANIFEST_CODEC_VERSION = 1;
     public RemoteClusterStateService(
         String nodeId,
         Supplier<RepositoriesService> repositoriesService,
@@ -490,7 +492,9 @@ public class RemoteClusterStateService implements Closeable {
 
     private static String getManifestFileName(long term, long version) {
         // 123456789012_test-cluster/cluster-state/dsgYj10Nkso7/manifest/manifest_2147483642_2147483637_456536447
-        return String.join(DELIMITER, getManifestFileNamePrefix(term, version), RemoteStoreUtils.invertLong(System.currentTimeMillis()));
+        return String.join(DELIMITER, getManifestFileNamePrefix(term, version),
+            RemoteStoreUtils.invertLong(MANIFEST_CODEC_VERSION),
+            RemoteStoreUtils.invertLong(System.currentTimeMillis()));
     }
 
     private static String getManifestFileNamePrefix(long term, long version) {
@@ -502,7 +506,8 @@ public class RemoteClusterStateService implements Closeable {
         return String.join(
             DELIMITER,
             INDEX_METADATA_FILE_PREFIX,
-            String.valueOf(indexMetadata.getVersion()),
+            RemoteStoreUtils.invertLong(indexMetadata.getVersion()),
+            RemoteStoreUtils.invertLong(INDEX_METADATA_CODEC_VERSION),
             String.valueOf(System.currentTimeMillis())
         );
     }
@@ -916,8 +921,7 @@ public class RemoteClusterStateService implements Closeable {
                     if (filesToKeep.contains(uploadedIndexMetadata.getUploadedFilename()) == false) {
                         staleIndexMetadataPaths.add(
                             new BlobPath().add(INDEX_PATH_TOKEN).add(uploadedIndexMetadata.getIndexUUID()).buildAsString()
-                                + uploadedIndexMetadata.getUploadedFilename()
-                                + ".dat"
+                                + INDEX_METADATA_FORMAT.blobName(uploadedIndexMetadata.getUploadedFilename())
                         );
                     }
                 });
