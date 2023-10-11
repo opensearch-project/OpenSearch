@@ -155,7 +155,7 @@ public interface IndexEventListener {
 
     /**
      * Called after the index shard has been deleted from disk.
-     *
+     * <p>
      * Note: this method is only called if the deletion of the shard did finish without an exception
      *
      * @param shardId The shard id

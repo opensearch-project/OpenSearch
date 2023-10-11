@@ -726,7 +726,7 @@ public final class XContentBuilder implements Closeable, Flushable {
 
     /**
      * Writes the binary content of the given byte array as UTF-8 bytes.
-     *
+     * <p>
      * Use {@link XContentParser#charBuffer()} to read the value back
      */
     public XContentBuilder utf8Value(byte[] bytes, int offset, int length) throws IOException {

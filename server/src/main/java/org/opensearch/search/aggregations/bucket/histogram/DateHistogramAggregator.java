@@ -216,9 +216,7 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
     }
 
     /**
-     * Returns the size of the bucket in specified units.
-     *
-     * If unitSize is null, returns 1.0
+     * @return the size of the bucket in specified units, or 1.0 if unitSize is null
      */
     @Override
     public double bucketSize(long bucket, Rounding.DateTimeUnit unitSize) {

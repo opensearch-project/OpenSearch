@@ -70,7 +70,7 @@ public abstract class MetadataFieldMapper extends ParametrizedFieldMapper {
 
     /**
      * Declares an updateable boolean parameter for a metadata field
-     *
+     * <p>
      * We need to distinguish between explicit configuration and default value for metadata
      * fields, because mapping updates will carry over the previous metadata values if a
      * metadata field is not explicitly declared in the update.  A standard boolean

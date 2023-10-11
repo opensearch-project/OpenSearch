@@ -48,7 +48,7 @@ import java.util.function.LongSupplier;
 /**
  * A processor implementation may modify the data belonging to a document.
  * Whether changes are made and what exactly is modified is up to the implementation.
- *
+ * <p>
  * Processors may get called concurrently and thus need to be thread-safe.
  *
  * @opensearch.internal
@@ -57,7 +57,7 @@ public interface Processor {
 
     /**
      * Introspect and potentially modify the incoming data.
-     *
+     * <p>
      * Expert method: only override this method if a processor implementation needs to make an asynchronous call,
      * otherwise just overwrite {@link #execute(IngestDocument)}.
      */

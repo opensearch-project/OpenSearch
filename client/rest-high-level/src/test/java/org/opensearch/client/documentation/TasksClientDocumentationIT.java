@@ -66,15 +66,15 @@ import static org.hamcrest.Matchers.notNullValue;
  * You need to wrap your code between two tags like:
  * // tag::example
  * // end::example
- *
+ * <p>
  * Where example is your tag name.
- *
+ * <p>
  * Then in the documentation, you can extract what is between tag and end tags with
  * ["source","java",subs="attributes,callouts,macros"]
  * --------------------------------------------------
  * include-tagged::{doc-tests}/{@link TasksClientDocumentationIT}.java[example]
  * --------------------------------------------------
- *
+ * <p>
  * The column width of the code block is 84. If the code contains a line longer
  * than 84, the line will be cut and a horizontal scroll bar will be displayed.
  * (the code indentation of the tag is not included in the width)

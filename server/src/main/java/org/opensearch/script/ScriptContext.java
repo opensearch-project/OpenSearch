@@ -40,7 +40,7 @@ import java.lang.reflect.Method;
 
 /**
  * The information necessary to compile and run a script.
- *
+ * <p>
  * A {@link ScriptContext} contains the information related to a single use case and the interfaces
  * and methods necessary for a {@link ScriptEngine} to implement.
  * <p>

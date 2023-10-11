@@ -848,10 +848,11 @@ public class RemoteClusterStateService implements Closeable {
      */
     private List<BlobMetadata> getManifestFileNames(String clusterName, String clusterUUID, int limit) throws IllegalStateException {
         try {
-            /**
-             * {@link BlobContainer#listBlobsByPrefixInSortedOrder} will list the latest manifest file first
-             * as the manifest file name generated via {@link RemoteClusterStateService#getManifestFileName} ensures
-             * when sorted in LEXICOGRAPHIC order the latest uploaded manifest file comes on top.
+
+            /*
+              {@link BlobContainer#listBlobsByPrefixInSortedOrder} will list the latest manifest file first
+              as the manifest file name generated via {@link RemoteClusterStateService#getManifestFileName} ensures
+              when sorted in LEXICOGRAPHIC order the latest uploaded manifest file comes on top.
              */
             return manifestContainer(clusterName, clusterUUID).listBlobsByPrefixInSortedOrder(
                 MANIFEST_FILE_PREFIX + DELIMITER,

@@ -54,7 +54,7 @@ import java.util.function.Function;
 /**
  * A {@link ContextMapping} defines criteria that can be used to
  * filter and/or boost suggestions at query time for {@link CompletionFieldMapper}.
- *
+ * <p>
  * Implementations have to define how contexts are parsed at query/index time
  *
  * @opensearch.internal
