@@ -28,6 +28,8 @@ public class SearchQueryCounters {
     public final Counter queryStringQueryCounter;
     public final Counter rangeCounter;
     public final Counter regexCounter;
+
+    public final Counter sortCounter;
     public final Counter termCounter;
     public final Counter totalCounter;
     public final Counter wildcardCounter;
@@ -36,7 +38,7 @@ public class SearchQueryCounters {
         this.metricsRegistry = metricsRegistry;
         this.aggCounter = metricsRegistry.createCounter(
             "aggSearchQueryCounter",
-            "Counter for the number of top level and nested agg search queries",
+            "Counter for the number of top level agg search queries",
             "0"
         );
         this.boolCounter = metricsRegistry.createCounter(
@@ -82,6 +84,11 @@ public class SearchQueryCounters {
         this.regexCounter = metricsRegistry.createCounter(
             "regexSearchQueryCounter",
             "Counter for the number of top level and nested regex search queries",
+            "0"
+        );
+        this.sortCounter = metricsRegistry.createCounter(
+            "sortSearchQueryCounter",
+            "Counter for the number of top level sort search queries",
             "0"
         );
         this.termCounter = metricsRegistry.createCounter(

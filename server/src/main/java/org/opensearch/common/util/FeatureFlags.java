@@ -61,6 +61,11 @@ public class FeatureFlags {
     public static final String DATETIME_FORMATTER_CACHING = "opensearch.experimental.optimization.datetime_formatter_caching.enabled";
 
     /**
+     * Gates the query categorization by type feature.
+     */
+    public static final String QUERY_CATEOGORIZATION = "opensearch.experimental.feature.query_categorization.enabled";
+
+    /**
      * Should store the settings from opensearch.yml.
      */
     private static Settings settings;
@@ -120,6 +125,12 @@ public class FeatureFlags {
     public static final Setting<Boolean> DATETIME_FORMATTER_CACHING_SETTING = Setting.boolSetting(
         DATETIME_FORMATTER_CACHING,
         true,
+        Property.NodeScope
+    );
+
+    public static final Setting<Boolean> QUERY_CATEGORIZATION_SETTING = Setting.boolSetting(
+        QUERY_CATEOGORIZATION,
+        false,
         Property.NodeScope
     );
 }

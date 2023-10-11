@@ -18,9 +18,8 @@ public interface QueryBuilderVisitor {
     /**
      * Accept method is called when the visitor accepts the queryBuilder object to be traversed in the query tree.
      * @param qb is a queryBuilder object which is accepeted by the visitor.
-     * @param level level of the current query builder based on the QueryBuilder tree. 0 is top/root level.
      */
-    void accept(QueryBuilder qb, int level);
+    void accept(QueryBuilder qb);
 
     /**
      * Fetches the child sub visitor from the main QueryBuilderVisitor Object.
@@ -36,7 +35,7 @@ public interface QueryBuilderVisitor {
      */
     QueryBuilderVisitor NO_OP_VISITOR = new QueryBuilderVisitor() {
         @Override
-        public void accept(QueryBuilder qb, int level) {
+        public void accept(QueryBuilder qb) {
             // Do nothing
         }
 

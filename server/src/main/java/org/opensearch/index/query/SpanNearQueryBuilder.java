@@ -301,12 +301,12 @@ public class SpanNearQueryBuilder extends AbstractQueryBuilder<SpanNearQueryBuil
     }
 
     @Override
-    public void visit(QueryBuilderVisitor visitor, int level) {
-        visitor.accept(this, level);
+    public void visit(QueryBuilderVisitor visitor) {
+        visitor.accept(this);
         if (this.clauses.isEmpty() == false) {
             QueryBuilderVisitor subVisitor = visitor.getChildVisitor(BooleanClause.Occur.MUST);
             for (QueryBuilder subQb : this.clauses) {
-                subVisitor.accept(subQb, level + 1);
+                subVisitor.accept(subQb);
             }
         }
     }
