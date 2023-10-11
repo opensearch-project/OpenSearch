@@ -719,16 +719,9 @@ public class FollowersCheckerTests extends OpenSearchTestCase {
             emptySet(),
             NoopTracer.INSTANCE
         );
-        final FollowersChecker followersChecker = new FollowersChecker(
-            Settings.EMPTY,
-            clusterSettings,
-            transportService,
-            fcr -> { assert false : fcr; },
-            (node, reason) -> {
-                assert false : node;
-            },
-            () -> new StatusInfo(HEALTHY, "healthy-info")
-        );
+        final FollowersChecker followersChecker = new FollowersChecker(Settings.EMPTY, clusterSettings, transportService, fcr -> {
+            assert false : fcr;
+        }, (node, reason) -> { assert false : node; }, () -> new StatusInfo(HEALTHY, "healthy-info"));
         followersChecker.setCurrentNodes(discoveryNodes);
         List<DiscoveryNode> followerTargets = Stream.of(capturingTransport.getCapturedRequestsAndClear())
             .map(cr -> cr.node)
