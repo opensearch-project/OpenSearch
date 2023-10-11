@@ -39,7 +39,7 @@ import java.io.IOException;
 
 /**
  * A float encapsulation that dynamically accesses the score of a document.
- *
+ * <p>
  * The provided {@link DocLookup} is used to retrieve the score
  * for the current document.
  */

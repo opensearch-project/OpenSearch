@@ -36,7 +36,7 @@ import com.carrotsearch.randomizedtesting.ThreadFilter;
 
 /**
  * Filter out threads controlled by gradle that may be created during unit tests.
- *
+ * <p>
  * Currently this includes pooled threads for Exec as well as file system event watcher threads.
  */
 public class GradleThreadsFilter implements ThreadFilter {

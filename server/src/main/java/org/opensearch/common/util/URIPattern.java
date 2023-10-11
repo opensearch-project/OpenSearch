@@ -39,9 +39,9 @@ import java.net.URISyntaxException;
 
 /**
  * URI Pattern matcher
- *
+ * <p>
  * The pattern is URI in which authority, path, query and fragment can be replace with simple pattern.
- *
+ * <p>
  * For example: foobar://*.local/some_path/*?*#* will match all uris with schema foobar in local domain
  * with any port, with path that starts some_path and with any query and fragment.
  *

@@ -1086,7 +1086,7 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
     /**
      * Recovers a replica from the give primary, allow the user to supply a custom recovery target. A typical usage of a custom recovery
      * target is to assert things in the various stages of recovery.
-     *
+     * <p>
      * Note: this method keeps the shard in {@link IndexShardState#POST_RECOVERY} and doesn't start it.
      *
      * @param replica                the recovery target shard

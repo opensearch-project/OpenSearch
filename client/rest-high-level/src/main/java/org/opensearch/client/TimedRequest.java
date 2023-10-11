@@ -37,7 +37,7 @@ import static org.opensearch.common.unit.TimeValue.timeValueSeconds;
 
 /**
  * A base request for any requests that supply timeouts.
- *
+ * <p>
  * Please note, any requests that use a ackTimeout should set timeout as they
  * represent the same backing field on the server.
  */

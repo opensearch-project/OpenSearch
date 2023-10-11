@@ -50,7 +50,7 @@ import static org.opensearch.core.xcontent.ConstructingObjectParser.constructorA
 
 /**
  * Information about task operation failures
- *
+ * <p>
  * The class is final due to serialization limitations
  *
  * @opensearch.internal

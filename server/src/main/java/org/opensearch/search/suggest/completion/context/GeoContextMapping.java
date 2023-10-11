@@ -71,7 +71,7 @@ import static org.opensearch.geometry.utils.Geohash.stringEncode;
  * The suggestions can be boosted and/or filtered depending on
  * whether it falls within an area, represented by a query geo hash
  * with a specified precision
- *
+ * <p>
  * {@link GeoQueryContext} defines the options for constructing
  * a unit of query context for this context type
  *

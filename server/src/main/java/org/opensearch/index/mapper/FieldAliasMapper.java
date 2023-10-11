@@ -43,7 +43,7 @@ import java.util.Objects;
 
 /**
  * A mapper for field aliases.
- *
+ * <p>
  * A field alias has no concrete field mappings of its own, but instead points to another field by
  * its path. Once defined, an alias can be used in place of the concrete field name in search requests.
  *

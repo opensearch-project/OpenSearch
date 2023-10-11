@@ -27,7 +27,7 @@ import java.util.Objects;
  * <br>
  * This class delegate the responsibility of actually fetching the block when demanded to its subclasses using
  * {@link OnDemandBlockIndexInput#fetchBlock(int)}.
- *
+ * <p>
  * Like {@link IndexInput}, this class may only be used from one thread as it is not thread safe.
  * However, a cleaning action may run from another thread triggered by the {@link Cleaner}, but
  * this is okay because at that point the {@link OnDemandBlockIndexInput} instance is phantom
@@ -428,10 +428,10 @@ abstract class OnDemandBlockIndexInput extends IndexInput implements RandomAcces
      * instance to hold the current underlying IndexInput, while allowing it to
      * be changed out with different instances as {@link OnDemandBlockIndexInput}
      * reads through the data.
-     *
+     * <p>
      * This class implements {@link Runnable} so that it can be passed directly
      * to the cleaner to run its close action.
-     *
+     * <p>
      * [1]: https://github.com/apache/lucene/blob/8340b01c3cc229f33584ce2178b07b8984daa6a9/lucene/core/src/java/org/apache/lucene/store/IndexInput.java#L32-L33
      */
     private static class BlockHolder implements Closeable, Runnable {

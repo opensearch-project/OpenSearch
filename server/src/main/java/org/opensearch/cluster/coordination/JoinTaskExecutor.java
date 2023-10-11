@@ -483,10 +483,10 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
      * 2. The joining node has to be a non-remote store backed if it is joining a non-remote store backed cluster.
      * Validates no remote store attributes are present in joining node as existing nodes in the cluster doesn't have
      * remote store attributes.
-     *
+     * <p>
      * A remote store backed node is the one which holds all the remote store attributes and a remote store backed
      * cluster is the one which has only homogeneous remote store backed nodes with same node attributes
-     *
+     * <p>
      * TODO: When we support moving from remote store cluster to non remote store and vice versa the this logic will
      *       needs to be modified.
      */

@@ -130,7 +130,7 @@ public class ListDanglingIndicesResponse extends BaseNodesResponse<NodeListDangl
 
     /**
      * Aggregates dangling index information
-     *
+     * <p>
      * NOTE: visible for testing
      *
      * @opensearch.internal

@@ -69,7 +69,7 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  * The purpose of this test is to verify that when a processor executes an operation asynchronously that
  * the expected result is the same as if the same operation happens synchronously.
- *
+ * <p>
  * In this test two test processor are defined that basically do the same operation, but a single processor
  * executes asynchronously. The result of the operation should be the same and also the order in which the
  * bulk responses are returned should be the same as how the corresponding index requests were defined.

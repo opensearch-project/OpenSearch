@@ -1618,7 +1618,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     /**
      * Compute and return the latest ReplicationCheckpoint for a shard and a GatedCloseable containing the corresponding SegmentInfos.
      * The segments referenced by the SegmentInfos will remain on disk until the GatedCloseable is closed.
-     *
+     * <p>
      * Primary shards compute the seqNo used in the replication checkpoint from the fetched SegmentInfos.
      * Replica shards compute the seqNo from its latest processed checkpoint, which only increases when refreshing on new segments.
      *
@@ -3774,9 +3774,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             );
         }
 
-        /**
-         * With segment replication enabled for primary relocation, recover replica shard initially as read only and
-         * change to a writeable engine during relocation handoff after a round of segment replication.
+        /*
+          With segment replication enabled for primary relocation, recover replica shard initially as read only and
+          change to a writeable engine during relocation handoff after a round of segment replication.
          */
         boolean isReadOnlyReplica = indexSettings.isSegRepEnabled()
             && (shardRouting.primary() == false
@@ -4414,7 +4414,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     /**
      *
      * Returns true if this shard supports search idle.
-     *
+     * <p>
      * Indices using Segment Replication will ignore search idle unless there are no replicas.
      * Primary shards push out new segments only
      * after a refresh, so we don't want to wait for a search to trigger that cycle. Replicas will only refresh after receiving

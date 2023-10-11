@@ -142,7 +142,7 @@ public class FuzzyOptions implements ToXContentFragment, Writeable {
 
     /**
      * Returns if transpositions option is set
-     *
+     * <p>
      * if transpositions is set, then swapping one character for another counts as one edit instead of two.
      */
     public boolean isTranspositions() {
