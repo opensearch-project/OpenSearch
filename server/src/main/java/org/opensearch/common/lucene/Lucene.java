@@ -77,6 +77,7 @@ import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.KnnCollector;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.ScoreMode;
@@ -1152,14 +1153,10 @@ public class Lucene {
             }
 
             @Override
-            public TopDocs searchNearestVectors(String field, byte[] target, int k, Bits acceptDocs, int visitedLimit) throws IOException {
-                return null;
-            }
+            public void searchNearestVectors(String field, byte[] target, KnnCollector k, Bits acceptDocs) throws IOException {}
 
             @Override
-            public TopDocs searchNearestVectors(String field, float[] target, int k, Bits acceptDocs, int visitedLimit) throws IOException {
-                return null;
-            }
+            public void searchNearestVectors(String field, float[] target, KnnCollector k, Bits acceptDocs) throws IOException {}
         };
     }
 }
