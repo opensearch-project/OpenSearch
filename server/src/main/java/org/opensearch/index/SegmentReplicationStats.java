@@ -28,8 +28,11 @@ public class SegmentReplicationStats implements Writeable, ToXContentFragment {
 
     private final Map<ShardId, SegmentReplicationPerGroupStats> shardStats;
 
-    public SegmentReplicationStats(final Map<ShardId, SegmentReplicationPerGroupStats> shardStats) {
+    private final long totalRejectionCount;
+
+    public SegmentReplicationStats(final Map<ShardId, SegmentReplicationPerGroupStats> shardStats, final long totalRejectionCount) {
         this.shardStats = shardStats;
+        this.totalRejectionCount = totalRejectionCount;
     }
 
     public SegmentReplicationStats(StreamInput in) throws IOException {
@@ -40,10 +43,15 @@ public class SegmentReplicationStats implements Writeable, ToXContentFragment {
             SegmentReplicationPerGroupStats groupStats = new SegmentReplicationPerGroupStats(in);
             shardStats.put(shardId, groupStats);
         }
+        this.totalRejectionCount = in.readVLong();
     }
 
     public Map<ShardId, SegmentReplicationPerGroupStats> getShardStats() {
         return shardStats;
+    }
+
+    public long getTotalRejectionCount() {
+        return totalRejectionCount;
     }
 
     @Override
@@ -54,6 +62,7 @@ public class SegmentReplicationStats implements Writeable, ToXContentFragment {
             entry.getValue().toXContent(builder, params);
             builder.endObject();
         }
+        builder.field("total_rejected_requests", totalRejectionCount);
         return builder.endObject();
     }
 
@@ -64,10 +73,11 @@ public class SegmentReplicationStats implements Writeable, ToXContentFragment {
             entry.getKey().writeTo(out);
             entry.getValue().writeTo(out);
         }
+        out.writeVLong(totalRejectionCount);
     }
 
     @Override
     public String toString() {
-        return "SegmentReplicationStats{" + "shardStats=" + shardStats + '}';
+        return "SegmentReplicationStats{" + "shardStats=" + shardStats + ", totalRejectedRequestCount=" + totalRejectionCount + '}';
     }
 }

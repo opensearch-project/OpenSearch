@@ -42,7 +42,10 @@ public class SegmentReplicationStatsTracker {
                 }
             }
         }
-        return new SegmentReplicationStats(stats);
+        return new SegmentReplicationStats(
+            stats,
+            stats.values().stream().mapToLong(shardGroup -> shardGroup.getRejectedRequestCount()).sum()
+        );
     }
 
     public void incrementRejectionCount(ShardId shardId) {
