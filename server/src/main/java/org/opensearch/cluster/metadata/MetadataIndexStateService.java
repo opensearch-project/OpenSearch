@@ -167,7 +167,7 @@ public class MetadataIndexStateService {
 
     /**
      * Closes one or more indices.
-     *
+     * <p>
      * Closing indices is a 3 steps process: it first adds a write block to every indices to close, then waits for the operations on shards
      * to be terminated and finally closes the indices by moving their state to CLOSE.
      */
@@ -303,7 +303,7 @@ public class MetadataIndexStateService {
 
     /**
      * Step 1 - Start closing indices by adding a write block
-     *
+     * <p>
      * This step builds the list of indices to close (the ones explicitly requested that are not in CLOSE state) and adds a unique cluster
      * block (or reuses an existing one) to every index to close in the cluster state. After the cluster state is published, the shards
      * should start to reject writing operations and we can proceed with step 2.

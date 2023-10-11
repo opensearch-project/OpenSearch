@@ -275,7 +275,7 @@ public abstract class ValuesSourceAggregationBuilder<AB extends ValuesSourceAggr
 
     /**
      * DO NOT OVERRIDE THIS!
-     *
+     * <p>
      * This method only exists for legacy support.  No new aggregations need this, nor should they override it.
      *
      * @param version For backwards compatibility, subclasses can change behavior based on the version

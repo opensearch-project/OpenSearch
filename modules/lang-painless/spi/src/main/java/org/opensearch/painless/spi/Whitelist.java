@@ -42,7 +42,7 @@ import java.util.Objects;
  * Allowlist contains data structures designed to be used to generate an allowlist of Java classes,
  * constructors, methods, and fields that can be used within a Painless script at both compile-time
  * and run-time.
- *
+ * <p>
  * A Allowlist consists of several pieces with {@link WhitelistClass}s as the top level. Each
  * {@link WhitelistClass} will contain zero-to-many {@link WhitelistConstructor}s, {@link WhitelistMethod}s, and
  * {@link WhitelistField}s which are what will be available with a Painless script.  See each individual

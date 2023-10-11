@@ -147,9 +147,9 @@ public final class DirectCandidateGenerator extends CandidateGenerator {
         if (termsEnum.seekExact(term)) {
             return new TermStats(
                 termsEnum.docFreq(),
-                /**
-                 * We use the {@link TermsEnum#docFreq()} for fields that don't
-                 * record the {@link TermsEnum#totalTermFreq()}.
+                /*
+                  We use the {@link TermsEnum#docFreq()} for fields that don't
+                  record the {@link TermsEnum#totalTermFreq()}.
                  */
                 termsEnum.totalTermFreq() == -1 ? termsEnum.docFreq() : termsEnum.totalTermFreq()
             );
@@ -168,10 +168,10 @@ public final class DirectCandidateGenerator extends CandidateGenerator {
         float origThreshold = spellchecker.getThresholdFrequency();
         try {
             if (suggestMode != SuggestMode.SUGGEST_ALWAYS) {
-                /**
-                 * We use the {@link TermStats#docFreq} to compute the frequency threshold
-                 * because that's what {@link DirectSpellChecker#suggestSimilar} expects
-                 * when filtering terms.
+                /*
+                  We use the {@link TermStats#docFreq} to compute the frequency threshold
+                  because that's what {@link DirectSpellChecker#suggestSimilar} expects
+                  when filtering terms.
                  */
                 int threshold = thresholdTermFrequency(original.termStats.docFreq);
                 if (threshold == Integer.MAX_VALUE) {

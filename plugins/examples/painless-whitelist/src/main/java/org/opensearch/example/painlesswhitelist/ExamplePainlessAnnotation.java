@@ -32,6 +32,12 @@
 
 package org.opensearch.example.painlesswhitelist;
 
+/**
+ * An example of an annotation to be allowlisted for use by painless scripts
+ * <p>
+ * The annotation below is allowlisted for use in search scripts.
+ * See <a href="file:example_allowlist.txt">example_allowlist.txt</a>.
+ */
 public class ExamplePainlessAnnotation {
 
     public static final String NAME = "example_annotation";

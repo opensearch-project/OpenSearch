@@ -181,7 +181,7 @@ public class NRTReplicationEngine extends Engine implements LifecycleAware {
 
     /**
      * Persist the latest live SegmentInfos.
-     *
+     * <p>
      * This method creates a commit point from the latest SegmentInfos.
      *
      * @throws IOException - When there is an IO error committing the SegmentInfos.

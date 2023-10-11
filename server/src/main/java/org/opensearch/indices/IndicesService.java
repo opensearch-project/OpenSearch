@@ -929,7 +929,7 @@ public class IndicesService extends AbstractLifecycleComponent
     /**
      * creates a new mapper service for the given index, in order to do administrative work like mapping updates.
      * This *should not* be used for document parsing. Doing so will result in an exception.
-     *
+     * <p>
      * Note: the returned {@link MapperService} should be closed when unneeded.
      */
     public synchronized MapperService createIndexMapperService(IndexMetadata indexMetadata) throws IOException {
@@ -1141,7 +1141,7 @@ public class IndicesService extends AbstractLifecycleComponent
     /**
      * Deletes the index store trying to acquire all shards locks for this index.
      * This method will delete the metadata for the index even if the actual shards can't be locked.
-     *
+     * <p>
      * Package private for testing
      */
     void deleteIndexStore(String reason, IndexMetadata metadata) throws IOException {
@@ -1222,7 +1222,7 @@ public class IndicesService extends AbstractLifecycleComponent
      * This method deletes the shard contents on disk for the given shard ID. This method will fail if the shard deleting
      * is prevented by {@link #canDeleteShardContent(ShardId, IndexSettings)}
      * of if the shards lock can not be acquired.
-     *
+     * <p>
      * On data nodes, if the deleted shard is the last shard folder in its index, the method will attempt to remove
      * the index folder as well.
      *

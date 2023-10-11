@@ -44,11 +44,12 @@ import java.util.List;
 
 /**
  * This class wraps a Lucene Collector and times the execution of:
- * - setScorer()
- * - collect()
- * - doSetNextReader()
- * - needsScores()
- *
+ * <ul>
+ * <li> setScorer()</li>
+ * <li> collect()</li>
+ * <li> doSetNextReader()</li>
+ * <li> needsScores()</li>
+ * </ul>
  * InternalProfiler facilitates the linking of the Collector graph
  *
  * @opensearch.internal
@@ -117,7 +118,7 @@ public class InternalProfileCollector implements Collector, InternalProfileCompo
 
     /**
      * Creates a human-friendly representation of the Collector name.
-     *
+     * <p>
      * InternalBucket Collectors use the aggregation name in their toString() method,
      * which makes the profiled output a bit nicer.
      *

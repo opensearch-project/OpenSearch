@@ -609,7 +609,7 @@ public class XContentParserTests extends OpenSearchTestCase {
 
     /**
      * Generates a random object {"first_field": "foo", "marked_field": {...random...}, "last_field": "bar}
-     *
+     * <p>
      * Returns the number of tokens in the marked field
      */
     private static int generateRandomObjectForMarking(XContentBuilder builder) throws IOException {

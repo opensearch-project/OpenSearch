@@ -92,7 +92,7 @@ import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.isRemoteS
 
 /**
  * Loads (and maybe upgrades) cluster metadata at startup, and persistently stores cluster metadata for future restarts.
- *
+ * <p>
  * When started, ensures that this version is compatible with the state stored on disk, and performs a state upgrade if necessary. Note that the state being
  * loaded when constructing the instance of this class is not necessarily the state that will be used as {@link ClusterState#metadata()} because it might be
  * stale or incomplete. Cluster-manager-eligible nodes must perform an election to find a complete and non-stale state, and cluster-manager-ineligible nodes

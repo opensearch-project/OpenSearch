@@ -209,7 +209,7 @@ public class DeleteRequest extends ReplicatedWriteRequest<DeleteRequest>
 
     /**
      * If set, only perform this delete request if the document was last modification was assigned this primary term.
-     *
+     * <p>
      * If the document last modification was assigned a different term a
      * {@link org.opensearch.index.engine.VersionConflictEngineException} will be thrown.
      */

@@ -82,7 +82,7 @@ import static org.junit.Assert.fail;
 
 /**
  * Represents a do section:
- *
+ * <p>
  *   - do:
  *      catch:      missing
  *      headers:

@@ -1884,7 +1884,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
      * This test ensures that when a shard is removed from a node (perhaps due to the node
      * leaving the cluster, then returning), all snapshotting of that shard is aborted, so
      * all Store references held onto by the snapshot are released.
-     *
+     * <p>
      * See https://github.com/elastic/elasticsearch/issues/20876
      */
     public void testSnapshotCanceledOnRemovedShard() throws Exception {

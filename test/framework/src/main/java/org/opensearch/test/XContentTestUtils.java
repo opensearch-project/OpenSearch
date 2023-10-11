@@ -164,10 +164,10 @@ public final class XContentTestUtils {
      * This method takes the input xContent data and adds a random field value, inner object or array into each
      * json object. This can e.g. be used to test if parsers that handle the resulting xContent can handle the
      * augmented xContent correctly, for example when testing lenient parsing.
-     *
+     * <p>
      * If the xContent output contains objects that should be skipped of such treatment, an optional filtering
      * {@link Predicate} can be supplied that checks xContent paths that should be excluded from this treatment.
-     *
+     * <p>
      * This predicate should check the xContent path that we want to insert to and return {@code true} if the
      * path should be excluded. Paths are string concatenating field names and array indices, so e.g. in:
      *
@@ -188,7 +188,7 @@ public final class XContentTestUtils {
      * </pre>
      *
      * "foo1.bar.2.baz" would point to the desired insert location.
-     *
+     * <p>
      * To exclude inserting into the "foo1" object we would user a {@link Predicate} like
      * <pre>
      * {@code
@@ -257,12 +257,12 @@ public final class XContentTestUtils {
      * This utility method takes an XContentParser and walks the xContent structure to find all
      * possible paths to where a new object or array starts. This can be used in tests that add random
      * xContent values to test parsing code for errors or to check their robustness against new fields.
-     *
+     * <p>
      * The path uses dot separated fieldnames and numbers for array indices, similar to what we do in
      * {@link ObjectPath}.
-     *
+     * <p>
      * The {@link Stack} passed in should initially be empty, it gets pushed to by recursive calls
-     *
+     * <p>
      * As an example, the following json xContent:
      * <pre>
      *     {

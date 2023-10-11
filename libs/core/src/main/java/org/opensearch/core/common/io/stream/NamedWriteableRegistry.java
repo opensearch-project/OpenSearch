@@ -43,7 +43,7 @@ import java.util.Objects;
 
 /**
  * A registry for {@link Writeable.Reader} readers of {@link NamedWriteable}.
- *
+ * <p>
  * The registration is keyed by the combination of the category class of {@link NamedWriteable}, and a name unique
  * to that category.
  *

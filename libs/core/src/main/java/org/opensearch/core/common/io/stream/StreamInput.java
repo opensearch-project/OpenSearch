@@ -96,7 +96,7 @@ import static org.opensearch.OpenSearchException.readStackTrace;
 
 /**
  * A stream from this node to another node. Technically, it can also be streamed to a byte array but that is mostly for testing.
- *
+ * <p>
  * This class's methods are optimized so you can put the methods that read and write a class next to each other and you can scan them
  * visually for differences. That means that most variables should be read and written in a single line so even large objects fit both
  * reading and writing on the screen. It also means that the methods on this class are named very similarly to {@link StreamOutput}. Finally
@@ -1126,7 +1126,7 @@ public abstract class StreamInput extends InputStream {
      * the corresponding entry in the registry by name, so that the proper object can be read and returned.
      * Default implementation throws {@link UnsupportedOperationException} as StreamInput doesn't hold a registry.
      * Use {@link FilterInputStream} instead which wraps a stream and supports a {@link NamedWriteableRegistry} too.
-     *
+     * <p>
      * Prefer {@link StreamInput#readNamedWriteable(Class)} and {@link StreamOutput#writeNamedWriteable(NamedWriteable)} unless you
      * have a compelling reason to use this method instead.
      */
