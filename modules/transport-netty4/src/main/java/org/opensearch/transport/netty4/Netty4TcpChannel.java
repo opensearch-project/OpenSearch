@@ -164,6 +164,18 @@ public class Netty4TcpChannel implements TcpChannel {
         }
     }
 
+    @SuppressWarnings("unchecked")
+    @Override
+    public <T> T get(String name, Class<T> clazz) {
+        final Object handler = getNettyChannel().pipeline().get(name);
+
+        if (handler != null && clazz.isInstance(handler) == true) {
+            return (T) handler;
+        }
+
+        return null;
+    }
+
     public Channel getNettyChannel() {
         return channel;
     }

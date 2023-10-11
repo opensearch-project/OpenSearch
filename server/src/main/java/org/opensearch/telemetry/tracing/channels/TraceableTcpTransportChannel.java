@@ -109,4 +109,9 @@ public class TraceableTcpTransportChannel extends BaseTcpTransportChannel {
     public Version getVersion() {
         return delegate.getVersion();
     }
+
+    @Override
+    public <T> T get(String name, Class<T> clazz) {
+        return delegate.get(name, clazz);
+    }
 }

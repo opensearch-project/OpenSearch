@@ -98,6 +98,22 @@ public class Netty4HttpChannel implements HttpChannel {
         return channel;
     }
 
+    @SuppressWarnings("unchecked")
+    @Override
+    public <T> T get(String name, Class<T> clazz) {
+        Object handler = getNettyChannel().pipeline().get(name);
+
+        if (handler == null && inboundPipeline() != null) {
+            handler = inboundPipeline().get(name);
+        }
+
+        if (handler != null && clazz.isInstance(handler) == true) {
+            return (T) handler;
+        }
+
+        return null;
+    }
+
     @Override
     public String toString() {
         return "Netty4HttpChannel{" + "localAddress=" + getLocalAddress() + ", remoteAddress=" + getRemoteAddress() + '}';

@@ -92,4 +92,9 @@ public class TraceableHttpChannel implements HttpChannel {
     public InetSocketAddress getRemoteAddress() {
         return delegate.getRemoteAddress();
     }
+
+    @Override
+    public <T> T get(String name, Class<T> clazz) {
+        return delegate.get(name, clazz);
+    }
 }

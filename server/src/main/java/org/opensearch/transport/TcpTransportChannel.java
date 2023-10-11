@@ -130,4 +130,8 @@ public final class TcpTransportChannel extends BaseTcpTransportChannel {
         return version;
     }
 
+    @Override
+    public <T> T get(String name, Class<T> clazz) {
+        return getChannel().get(name, clazz);
+    }
 }

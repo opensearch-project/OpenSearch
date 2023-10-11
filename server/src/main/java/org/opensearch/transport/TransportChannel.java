@@ -78,4 +78,19 @@ public interface TransportChannel {
             );
         }
     }
+
+    /**
+     * Returns the contextual property associated with this specific transport channel (the
+     * implementation of how such properties are managed depends on the the particular
+     * transport engine).
+     *
+     * @param name the name of the property
+     * @param clazz the expected type of the property
+     *
+     * @return the value of the property.
+     *         {@code null} if there's no such property or the expected type is not compatible.
+     */
+    default <T> T get(String name, Class<T> clazz) {
+        return null;
+    }
 }

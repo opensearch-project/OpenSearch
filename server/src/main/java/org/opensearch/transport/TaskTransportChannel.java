@@ -89,4 +89,9 @@ public class TaskTransportChannel implements TransportChannel {
     public TransportChannel getChannel() {
         return channel;
     }
+
+    @Override
+    public <T> T get(String name, Class<T> clazz) {
+        return getChannel().get(name, clazz);
+    }
 }
