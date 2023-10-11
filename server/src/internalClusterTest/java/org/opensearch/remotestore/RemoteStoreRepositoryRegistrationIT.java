@@ -173,7 +173,7 @@ public class RemoteStoreRepositoryRegistrationIT extends RemoteStoreBaseIntegTes
         ensureStableCluster(4);
     }
 
-    public void testSystemRepositorySettingIsHidden() throws IOException {
+    public void testSystemRepositorySettingIsHiddenForGetRepositoriesRequest() throws IOException {
         GetRepositoriesRequest request = new GetRepositoriesRequest(new String[] { REPOSITORY_NAME });
         GetRepositoriesResponse repositoriesResponse = client().execute(GetRepositoriesAction.INSTANCE, request).actionGet();
         XContentBuilder builder = MediaTypeRegistry.contentBuilder(randomFrom(XContentType.JSON));
