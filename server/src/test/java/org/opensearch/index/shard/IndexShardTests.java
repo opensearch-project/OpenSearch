@@ -96,6 +96,8 @@ import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.index.IndexSettings;
+import org.opensearch.index.ReplicationStats;
+import org.opensearch.index.SegmentReplicationStatsTracker;
 import org.opensearch.index.codec.CodecService;
 import org.opensearch.index.engine.CommitStats;
 import org.opensearch.index.engine.DocIdSeqNoAndSource;
@@ -1827,6 +1829,7 @@ public class IndexShardTests extends IndexShardTestCase {
             .getRemoteSegmentTransferTracker(shard.shardId);
         RemoteTranslogTransferTracker remoteTranslogTransferTracker = shard.getRemoteStoreStatsTrackerFactory()
             .getRemoteTranslogTransferTracker(shard.shardId);
+        populateSampleReplicationStats(shard);
         populateSampleRemoteSegmentStats(remoteSegmentTransferTracker);
         populateSampleRemoteTranslogStats(remoteTranslogTransferTracker);
         ShardStats shardStats = new ShardStats(
@@ -1841,7 +1844,26 @@ public class IndexShardTests extends IndexShardTestCase {
         assertRemoteSegmentStats(remoteSegmentTransferTracker, remoteSegmentStats);
         RemoteTranslogStats remoteTranslogStats = shardStats.getStats().getTranslog().getRemoteTranslogStats();
         assertRemoteTranslogStats(remoteTranslogTransferTracker, remoteTranslogStats);
+        ReplicationStats replicationStats = shardStats.getStats().getSegments().getReplicationStats();
+        assertReplicationStats(shard, replicationStats);
         closeShards(shard);
+    }
+
+    private static void assertReplicationStats(IndexShard shard, ReplicationStats replicationStats) {
+        if (shard.isPrimaryMode()) {
+            assertEquals(5, replicationStats.totalRejections);
+        } else {
+            assertEquals(0, replicationStats.totalRejections);
+        }
+    }
+
+    private static void populateSampleReplicationStats(IndexShard shard) {
+        if (shard.isPrimaryMode()) {
+            SegmentReplicationStatsTracker tracker = shard.getSegmentReplicationPressureService().getTracker();
+            for (int i = 0; i < 5; i++) {
+                tracker.incrementRejectionCount(shard.shardId);
+            }
+        }
     }
 
     public void testRefreshMetric() throws IOException {
@@ -4910,6 +4932,8 @@ public class IndexShardTests extends IndexShardTestCase {
         tracker.addUploadBytesStarted(30L);
         tracker.addUploadBytesSucceeded(10L);
         tracker.addUploadBytesFailed(10L);
+        tracker.incrementRejectionCount();
+        tracker.incrementRejectionCount();
     }
 
     private void populateSampleRemoteTranslogStats(RemoteTranslogTransferTracker tracker) {
@@ -4943,5 +4967,7 @@ public class IndexShardTests extends IndexShardTestCase {
         assertEquals(remoteSegmentTransferTracker.getUploadBytesStarted(), remoteSegmentStats.getUploadBytesStarted());
         assertEquals(remoteSegmentTransferTracker.getUploadBytesSucceeded(), remoteSegmentStats.getUploadBytesSucceeded());
         assertEquals(remoteSegmentTransferTracker.getUploadBytesFailed(), remoteSegmentStats.getUploadBytesFailed());
+        assertTrue(remoteSegmentStats.getTotalRejections() > 0);
+        assertEquals(remoteSegmentTransferTracker.getRejectionCount(), remoteSegmentStats.getTotalRejections());
     }
 }

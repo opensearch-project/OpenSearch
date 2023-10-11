@@ -37,12 +37,15 @@ import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
+import org.junit.Assert;
+import org.mockito.Mockito;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.Version;
 import org.opensearch.action.admin.indices.flush.FlushRequest;
 import org.opensearch.action.index.IndexRequest;
 import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.action.support.replication.TransportReplicationAction;
+import org.opensearch.cluster.action.shard.ShardStateAction;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.MappingMetadata;
 import org.opensearch.cluster.metadata.RepositoryMetadata;
@@ -85,6 +88,7 @@ import org.opensearch.env.NodeEnvironment;
 import org.opensearch.env.TestEnvironment;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.MapperTestUtils;
+import org.opensearch.index.SegmentReplicationPressureService;
 import org.opensearch.index.VersionType;
 import org.opensearch.index.cache.IndexCache;
 import org.opensearch.index.cache.query.DisabledQueryCache;
@@ -157,7 +161,6 @@ import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
-import org.junit.Assert;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -179,10 +182,6 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-import org.mockito.Mockito;
-
-import static org.opensearch.cluster.routing.TestShardRouting.newShardRouting;
-import static org.opensearch.test.ClusterServiceUtils.createClusterService;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -191,6 +190,8 @@ import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
+import static org.opensearch.cluster.routing.TestShardRouting.newShardRouting;
+import static org.opensearch.test.ClusterServiceUtils.createClusterService;
 
 /**
  * A base class for unit tests that need to create and shutdown {@link IndexShard} instances easily,
@@ -643,6 +644,13 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
             );
             Store remoteStore;
             RemoteStoreStatsTrackerFactory remoteStoreStatsTrackerFactory = null;
+            SegmentReplicationPressureService segmentReplicationPressureService = new SegmentReplicationPressureService(
+                Settings.EMPTY,
+                clusterService,
+                mock(IndicesService.class),
+                mock(ShardStateAction.class),
+                mock(ThreadPool.class)
+            );
             RepositoriesService mockRepoSvc = mock(RepositoriesService.class);
 
             if (indexSettings.isRemoteStoreEnabled()) {
@@ -703,7 +711,7 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
                 () -> IndexSettings.DEFAULT_REMOTE_TRANSLOG_BUFFER_INTERVAL,
                 "dummy-node",
                 DefaultRecoverySettings.INSTANCE,
-                null
+                segmentReplicationPressureService
             );
             indexShard.addShardFailureCallback(DEFAULT_SHARD_FAILURE_HANDLER);
             if (remoteStoreStatsTrackerFactory != null) {

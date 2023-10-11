@@ -715,7 +715,6 @@ public class IndexShardIT extends OpenSearchSingleNodeTestCase {
             nodeId,
             null,
             null
-
         );
     }
 

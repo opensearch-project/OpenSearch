@@ -563,6 +563,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return remoteStoreStatsTrackerFactory;
     }
 
+    /** Only used for testing **/
+    public SegmentReplicationPressureService getSegmentReplicationPressureService() {
+        return segmentReplicationPressureService;
+    }
+
     public String getNodeId() {
         return translogConfig.getNodeId();
     }
