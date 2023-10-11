@@ -8,12 +8,13 @@
 
 package org.opensearch.repositories.s3;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.opensearch.common.blobstore.BlobStore;
 import software.amazon.awssdk.metrics.MetricCollection;
 import software.amazon.awssdk.metrics.MetricPublisher;
 import software.amazon.awssdk.metrics.MetricRecord;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.opensearch.common.blobstore.BlobStore;
 
 import java.time.Duration;
 import java.util.HashMap;
@@ -24,12 +25,14 @@ public class StatsMetricPublisher {
 
     private final Stats stats = new Stats();
 
-    private final Map<BlobStore.Metric, Stats> extendedStats = new HashMap<>() {{
-        put(BlobStore.Metric.REQUEST_LATENCY, new Stats());
-        put(BlobStore.Metric.REQUEST_SUCCESS, new Stats());
-        put(BlobStore.Metric.REQUEST_FAILURE, new Stats());
-        put(BlobStore.Metric.RETRY_COUNT, new Stats());
-    }};
+    private final Map<BlobStore.Metric, Stats> extendedStats = new HashMap<>() {
+        {
+            put(BlobStore.Metric.REQUEST_LATENCY, new Stats());
+            put(BlobStore.Metric.REQUEST_SUCCESS, new Stats());
+            put(BlobStore.Metric.REQUEST_FAILURE, new Stats());
+            put(BlobStore.Metric.RETRY_COUNT, new Stats());
+        }
+    };
 
     private static final Logger LOG = LogManager.getLogger(StatsMetricPublisher.class);
 
@@ -39,13 +42,15 @@ public class StatsMetricPublisher {
             for (MetricRecord<?> metricRecord : metricCollection) {
                 switch (metricRecord.metric().name()) {
                     case "ApiCallDuration":
-                        extendedStats.get(BlobStore.Metric.REQUEST_LATENCY).listMetrics.addAndGet(((Duration) metricRecord.value()).toMillis());
+                        extendedStats.get(BlobStore.Metric.REQUEST_LATENCY).listMetrics.addAndGet(
+                            ((Duration) metricRecord.value()).toMillis()
+                        );
                         break;
                     case "RetryCount":
                         extendedStats.get(BlobStore.Metric.RETRY_COUNT).listMetrics.addAndGet(((Integer) metricRecord.value()));
                         break;
                     case "ApiCallSuccessful":
-                        if((Boolean) metricRecord.value()) {
+                        if ((Boolean) metricRecord.value()) {
                             extendedStats.get(BlobStore.Metric.REQUEST_SUCCESS).listMetrics.addAndGet(1);
                         } else {
                             extendedStats.get(BlobStore.Metric.REQUEST_FAILURE).listMetrics.addAndGet(1);
@@ -66,13 +71,15 @@ public class StatsMetricPublisher {
             for (MetricRecord<?> metricRecord : metricCollection) {
                 switch (metricRecord.metric().name()) {
                     case "ApiCallDuration":
-                        extendedStats.get(BlobStore.Metric.REQUEST_LATENCY).getMetrics.addAndGet(((Duration) metricRecord.value()).toMillis());
+                        extendedStats.get(BlobStore.Metric.REQUEST_LATENCY).getMetrics.addAndGet(
+                            ((Duration) metricRecord.value()).toMillis()
+                        );
                         break;
                     case "RetryCount":
                         extendedStats.get(BlobStore.Metric.RETRY_COUNT).getMetrics.addAndGet(((Integer) metricRecord.value()));
                         break;
                     case "ApiCallSuccessful":
-                        if((Boolean) metricRecord.value()) {
+                        if ((Boolean) metricRecord.value()) {
                             extendedStats.get(BlobStore.Metric.REQUEST_SUCCESS).getMetrics.addAndGet(1);
                         } else {
                             extendedStats.get(BlobStore.Metric.REQUEST_FAILURE).getMetrics.addAndGet(1);
@@ -93,13 +100,15 @@ public class StatsMetricPublisher {
             for (MetricRecord<?> metricRecord : metricCollection) {
                 switch (metricRecord.metric().name()) {
                     case "ApiCallDuration":
-                        extendedStats.get(BlobStore.Metric.REQUEST_LATENCY).putMetrics.addAndGet(((Duration) metricRecord.value()).toMillis());
+                        extendedStats.get(BlobStore.Metric.REQUEST_LATENCY).putMetrics.addAndGet(
+                            ((Duration) metricRecord.value()).toMillis()
+                        );
                         break;
                     case "RetryCount":
                         extendedStats.get(BlobStore.Metric.RETRY_COUNT).putMetrics.addAndGet(((Integer) metricRecord.value()));
                         break;
                     case "ApiCallSuccessful":
-                        if((Boolean) metricRecord.value()) {
+                        if ((Boolean) metricRecord.value()) {
                             extendedStats.get(BlobStore.Metric.REQUEST_SUCCESS).putMetrics.addAndGet(1);
                         } else {
                             extendedStats.get(BlobStore.Metric.REQUEST_FAILURE).putMetrics.addAndGet(1);
@@ -120,13 +129,15 @@ public class StatsMetricPublisher {
             for (MetricRecord<?> metricRecord : metricCollection) {
                 switch (metricRecord.metric().name()) {
                     case "ApiCallDuration":
-                        extendedStats.get(BlobStore.Metric.REQUEST_LATENCY).multiPartPutMetrics.addAndGet(((Duration) metricRecord.value()).toMillis());
+                        extendedStats.get(BlobStore.Metric.REQUEST_LATENCY).multiPartPutMetrics.addAndGet(
+                            ((Duration) metricRecord.value()).toMillis()
+                        );
                         break;
                     case "RetryCount":
                         extendedStats.get(BlobStore.Metric.RETRY_COUNT).multiPartPutMetrics.addAndGet(((Integer) metricRecord.value()));
                         break;
                     case "ApiCallSuccessful":
-                        if((Boolean) metricRecord.value()) {
+                        if ((Boolean) metricRecord.value()) {
                             extendedStats.get(BlobStore.Metric.REQUEST_SUCCESS).multiPartPutMetrics.addAndGet(1);
                         } else {
                             extendedStats.get(BlobStore.Metric.REQUEST_FAILURE).multiPartPutMetrics.addAndGet(1);
@@ -158,7 +169,6 @@ public class StatsMetricPublisher {
         final AtomicLong putMetrics = new AtomicLong();
 
         final AtomicLong multiPartPutMetrics = new AtomicLong();
-
 
         Map<String, Long> toMap() {
             final Map<String, Long> results = new HashMap<>();
