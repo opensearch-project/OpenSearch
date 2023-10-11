@@ -32,6 +32,8 @@ import java.util.Comparator;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import static org.opensearch.index.SegmentReplicationPressureService.AsyncFailStaleReplicaTask.INTERVAL;
+
 /**
  * Service responsible for applying backpressure for lagging behind replicas when Segment Replication is enabled.
  *
@@ -98,7 +100,7 @@ public class SegmentReplicationPressureService implements Closeable {
     private final SegmentReplicationStatsTracker tracker;
     private final ShardStateAction shardStateAction;
 
-    private volatile AsyncFailStaleReplicaTask failStaleReplicaTask;
+    private final AsyncFailStaleReplicaTask failStaleReplicaTask;
 
     @Inject
     public SegmentReplicationPressureService(
@@ -202,14 +204,10 @@ public class SegmentReplicationPressureService implements Closeable {
 
     public void setReplicationTimeLimitFailReplica(TimeValue replicationTimeLimitFailReplica) {
         this.replicationTimeLimitFailReplica = replicationTimeLimitFailReplica;
-        updateAsyncFailReplicaTask();
-    }
-
-    private synchronized void updateAsyncFailReplicaTask() {
-        try {
-            failStaleReplicaTask.close();
-        } finally {
-            failStaleReplicaTask = new AsyncFailStaleReplicaTask(this);
+        if (TimeValue.ZERO.equals(replicationTimeLimitFailReplica)) {
+            failStaleReplicaTask.setInterval(TimeValue.ZERO);
+        } else {
+            failStaleReplicaTask.setInterval(INTERVAL);
         }
     }
 
