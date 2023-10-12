@@ -141,7 +141,7 @@ public class RemoteStoreRestoreService {
             || restoreClusterUUID.isBlank()) == false;
         if (metadataFromRemoteStore) {
             try {
-                remoteClusterStateService.getLatestIndexMetadata(currentState.getClusterName().value(), restoreClusterUUID)
+                remoteClusterStateService.getLatestMetadata(currentState.getClusterName().value(), restoreClusterUUID).getIndices()
                     .values()
                     .forEach(indexMetadata -> {
                         indexMetadataMap.put(indexMetadata.getIndex().getName(), new Tuple<>(true, indexMetadata));

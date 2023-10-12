@@ -517,18 +517,14 @@ public class RemoteClusterStateService implements Closeable {
      *
      * @param clusterUUID uuid of cluster state to refer to in remote
      * @param clusterName name of the cluster
+     * @param clusterMetadataManifest manifest file of cluster
      * @return {@code Map<String, IndexMetadata>} latest IndexUUID to IndexMetadata map
      */
-    public Map<String, IndexMetadata> getLatestIndexMetadata(String clusterName, String clusterUUID) throws IOException {
-        start();
-        Map<String, IndexMetadata> remoteIndexMetadata = new HashMap<>();
-        Optional<ClusterMetadataManifest> clusterMetadataManifest = getLatestClusterMetadataManifest(clusterName, clusterUUID);
-        if (!clusterMetadataManifest.isPresent()) {
-            throw new IllegalStateException("Latest index metadata is not present for the provided clusterUUID");
-        }
-        assert Objects.equals(clusterUUID, clusterMetadataManifest.get().getClusterUUID())
+    private Map<String, IndexMetadata> getIndexMetadataMap(String clusterName, String clusterUUID, ClusterMetadataManifest clusterMetadataManifest) throws IOException {
+        assert Objects.equals(clusterUUID, clusterMetadataManifest.getClusterUUID())
             : "Corrupt ClusterMetadataManifest found. Cluster UUID mismatch.";
-        for (UploadedIndexMetadata uploadedIndexMetadata : clusterMetadataManifest.get().getIndices()) {
+        Map<String, IndexMetadata> remoteIndexMetadata = new HashMap<>();
+        for (UploadedIndexMetadata uploadedIndexMetadata : clusterMetadataManifest.getIndices()) {
             IndexMetadata indexMetadata = getIndexMetadata(clusterName, clusterUUID, uploadedIndexMetadata);
             remoteIndexMetadata.put(uploadedIndexMetadata.getIndexUUID(), indexMetadata);
         }
@@ -560,26 +556,41 @@ public class RemoteClusterStateService implements Closeable {
     }
 
     /**
-     * Fetch global metadata from remote cluster state
+     * Fetch latest metadata from remote cluster state including global metadata and index metadata
      *
      * @param clusterUUID uuid of cluster state to refer to in remote
      * @param clusterName name of the cluster
      * @return {@link IndexMetadata}
      */
-    public Metadata getGlobalMetadata(String clusterName, String clusterUUID) {
+    public Metadata getLatestMetadata(String clusterName, String clusterUUID) throws IOException{
         start();
         Optional<ClusterMetadataManifest> clusterMetadataManifest = getLatestClusterMetadataManifest(clusterName, clusterUUID);
         if (!clusterMetadataManifest.isPresent()) {
             throw new IllegalStateException("Latest index metadata is not present for the provided clusterUUID");
         }
-        String globalMetadataFileName = clusterMetadataManifest.get().getGlobalMetadataFileName();
+        // Fetch Global Metadata
+        Metadata metadataWithGlobalMetadata = getGlobalMetadata(clusterName, clusterUUID, clusterMetadataManifest.get());
+
+        // Fetch Index Metadata
+        Map<String, IndexMetadata> indices = getIndexMetadataMap(clusterName, clusterUUID, clusterMetadataManifest.get());
+
+        return Metadata.builder(metadataWithGlobalMetadata).indices(indices).build();
+    }
+
+    private Metadata getGlobalMetadata(String clusterName, String clusterUUID, ClusterMetadataManifest clusterMetadataManifest) {
+        String globalMetadataFileName = clusterMetadataManifest.getGlobalMetadataFileName();
         try {
-            String[] splitPath = globalMetadataFileName.split("/");
-            return BlobStoreRepository.GLOBAL_METADATA_FORMAT.read(
-                globalMetadataContainer(clusterName, clusterUUID),
-                splitPath[splitPath.length - 1],
-                blobStoreRepository.getNamedXContentRegistry()
-            );
+            // Fetch Global metadata
+            if(globalMetadataFileName != null) {
+                String[] splitPath = globalMetadataFileName.split("/");
+                return BlobStoreRepository.GLOBAL_METADATA_FORMAT.read(
+                    globalMetadataContainer(clusterName, clusterUUID),
+                    splitPath[splitPath.length - 1],
+                    blobStoreRepository.getNamedXContentRegistry()
+                );
+            } else {
+                return Metadata.EMPTY_METADATA;
+            }
         } catch (IOException e) {
             throw new IllegalStateException(
                 String.format(Locale.ROOT, "Error while downloading Global Metadata - %s", globalMetadataFileName),
