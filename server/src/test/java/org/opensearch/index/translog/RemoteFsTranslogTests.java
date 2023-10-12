@@ -47,6 +47,7 @@ import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.translog.transfer.BlobStoreTransferService;
 import org.opensearch.index.translog.transfer.TranslogTransferManager;
 import org.opensearch.index.translog.transfer.TranslogTransferMetadata;
+import org.opensearch.index.translog.transfer.TranslogUploadFailedException;
 import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.repositories.blobstore.BlobStoreRepository;
@@ -1113,7 +1114,7 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
             try {
                 translog.sync();
                 fail("io exception expected");
-            } catch (IOException e) {
+            } catch (TranslogUploadFailedException e) {
                 assertTrue("at least one operation pending", translog.syncNeeded());
             }
         }
