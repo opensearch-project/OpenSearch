@@ -833,7 +833,7 @@ public class Node implements Closeable {
             AdmissionControlTransportInterceptor admissionControlTransportInterceptor = new AdmissionControlTransportInterceptor(
                 admissionControlService
             );
-            transportInterceptorRegistry.registerTransportInterceptor(admissionControlTransportInterceptor);
+            transportInterceptorRegistry.addTransportInterceptor(admissionControlTransportInterceptor);
 
             final AliasValidator aliasValidator = new AliasValidator();
 

@@ -44,6 +44,8 @@ public class SimpleEnableAdmissionControlIT extends OpenSearchIntegTestCase {
         return Settings.builder().put(super.nodeSettings(nodeOrdinal)).put(settings).build();
     }
 
+    // TODO this integration test currently evaluating is admissionControl Interceptor is triggering as expected
+    // and registered controllers are applying for the requests or not. Will modify this in further PR's.
     public void testAdmissionControlRejectionFlow() {
         assertAcked(
             prepareCreate(

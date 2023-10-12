@@ -16,12 +16,11 @@ import org.opensearch.transport.TransportChannel;
 import org.opensearch.transport.TransportRequest;
 import org.opensearch.transport.TransportRequestHandler;
 
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 public class AdmissionControlTransportHandlerTests extends OpenSearchTestCase {
     AdmissionControlTransportHandler<TransportRequest> admissionControlTransportHandler;
-    private String testAction = "";
 
     public void testHandlerInvoked() throws Exception {
         String action = "TEST";
@@ -39,7 +38,7 @@ public class AdmissionControlTransportHandlerTests extends OpenSearchTestCase {
     public void testHandlerInvokedRejectedException() throws Exception {
         String action = "TEST";
         AdmissionControlService admissionControlService = mock(AdmissionControlService.class);
-        when(admissionControlService.applyTransportAdmissionControl(testAction)).thenThrow(new OpenSearchRejectedExecutionException());
+        doThrow(new OpenSearchRejectedExecutionException()).when(admissionControlService).applyTransportAdmissionControl(action);
         InterceptingRequestHandler<TransportRequest> handler = new InterceptingRequestHandler<>(action);
         admissionControlTransportHandler = new AdmissionControlTransportHandler<TransportRequest>(
             action,
@@ -59,7 +58,7 @@ public class AdmissionControlTransportHandlerTests extends OpenSearchTestCase {
     public void testHandlerInvokedRandomException() throws Exception {
         String action = "TEST";
         AdmissionControlService admissionControlService = mock(AdmissionControlService.class);
-        when(admissionControlService.applyTransportAdmissionControl(testAction)).thenThrow(new NullPointerException());
+        doThrow(new NullPointerException()).when(admissionControlService).applyTransportAdmissionControl(action);
         InterceptingRequestHandler<TransportRequest> handler = new InterceptingRequestHandler<>(action);
         admissionControlTransportHandler = new AdmissionControlTransportHandler<TransportRequest>(
             action,

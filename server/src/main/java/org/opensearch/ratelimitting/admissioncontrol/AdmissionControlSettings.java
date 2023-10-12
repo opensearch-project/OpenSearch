@@ -26,8 +26,6 @@ public final class AdmissionControlSettings {
         public static final String MODE = "disabled";
     }
 
-    public static final String CPU_BASED_ADMISSION_CONTROLLER = "global_cpu_usage";
-
     /**
      * Feature level setting to operate in shadow-mode or in enforced-mode. If enforced field is set
      * rejection will be performed, otherwise only rejection metrics will be populated.

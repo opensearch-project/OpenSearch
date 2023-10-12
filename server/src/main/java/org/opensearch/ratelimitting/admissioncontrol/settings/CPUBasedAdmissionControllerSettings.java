@@ -23,6 +23,7 @@ import java.util.function.Function;
  * @opensearch.internal
  */
 public class CPUBasedAdmissionControllerSettings {
+    public static final String CPU_BASED_ADMISSION_CONTROLLER = "global_cpu_usage";
 
     /**
      * Default parameters for the CPUBasedAdmissionControllerSettings
@@ -42,7 +43,7 @@ public class CPUBasedAdmissionControllerSettings {
      * rejection will be performed, otherwise only rejection metrics will be populated.
      */
     public static final Setting<AdmissionControlMode> CPU_BASED_ADMISSION_CONTROLLER_TRANSPORT_LAYER_MODE = new Setting<>(
-        "admission_control.transport.global_cpu_usage.mode_override",
+        "admission_control.transport.cpu_usage.mode_override",
         AdmissionControlSettings.ADMISSION_CONTROL_TRANSPORT_LAYER_MODE,
         AdmissionControlMode::fromName,
         Setting.Property.Dynamic,
@@ -52,8 +53,8 @@ public class CPUBasedAdmissionControllerSettings {
     /**
      * This setting used to set the CPU Limits for the search requests by default it will use default IO usage limit
      */
-    public static final Setting<Long> GLOBAL_CPU_USAGE_SEARCH_AC_LIMIT = Setting.longSetting(
-        "admission_control.global_cpu_usage.search.limit",
+    public static final Setting<Long> SEARCH_CPU_USAGE_LIMIT = Setting.longSetting(
+        "admission_control.search.cpu_usage.limit",
         Defaults.CPU_USAGE,
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
@@ -62,8 +63,8 @@ public class CPUBasedAdmissionControllerSettings {
     /**
      * This setting used to set the CPU limits for the indexing requests by default it will use default IO usage limit
      */
-    public static final Setting<Long> GLOBAL_CPU_USAGE_INDEXING_AC_LIMIT = Setting.longSetting(
-        "admission_control.global_cpu_usage.indexing.limit",
+    public static final Setting<Long> INDEXING_CPU_USAGE_LIMIT = Setting.longSetting(
+        "admission_control.indexing.cpu_usage.limit",
         Defaults.CPU_USAGE,
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
@@ -80,11 +81,11 @@ public class CPUBasedAdmissionControllerSettings {
     public CPUBasedAdmissionControllerSettings(ClusterSettings clusterSettings, Settings settings) {
         this.transportLayerMode = CPU_BASED_ADMISSION_CONTROLLER_TRANSPORT_LAYER_MODE.get(settings);
         clusterSettings.addSettingsUpdateConsumer(CPU_BASED_ADMISSION_CONTROLLER_TRANSPORT_LAYER_MODE, this::setTransportLayerMode);
-        this.searchCPULimit = GLOBAL_CPU_USAGE_SEARCH_AC_LIMIT.get(settings);
-        this.indexingCPULimit = GLOBAL_CPU_USAGE_INDEXING_AC_LIMIT.get(settings);
+        this.searchCPULimit = SEARCH_CPU_USAGE_LIMIT.get(settings);
+        this.indexingCPULimit = INDEXING_CPU_USAGE_LIMIT.get(settings);
         this.transportActionsList = CPU_BASED_ADMISSION_CONTROLLER_TRANSPORT_URI_LIST.get(settings);
-        clusterSettings.addSettingsUpdateConsumer(GLOBAL_CPU_USAGE_INDEXING_AC_LIMIT, this::setIndexingCPULimit);
-        clusterSettings.addSettingsUpdateConsumer(GLOBAL_CPU_USAGE_SEARCH_AC_LIMIT, this::setSearchCPULimit);
+        clusterSettings.addSettingsUpdateConsumer(INDEXING_CPU_USAGE_LIMIT, this::setIndexingCPULimit);
+        clusterSettings.addSettingsUpdateConsumer(SEARCH_CPU_USAGE_LIMIT, this::setSearchCPULimit);
     }
 
     private void setTransportLayerMode(AdmissionControlMode admissionControlMode) {
@@ -103,12 +104,12 @@ public class CPUBasedAdmissionControllerSettings {
         return indexingCPULimit;
     }
 
-    public void setIndexingCPULimit(Long indexingIOLimit) {
-        this.indexingCPULimit = indexingIOLimit;
+    public void setIndexingCPULimit(Long indexingCPULimit) {
+        this.indexingCPULimit = indexingCPULimit;
     }
 
-    public void setSearchCPULimit(Long searchIOLimit) {
-        this.searchCPULimit = searchIOLimit;
+    public void setSearchCPULimit(Long searchCPULimit) {
+        this.searchCPULimit = searchCPULimit;
     }
 
     public List<String> getTransportActionsList() {

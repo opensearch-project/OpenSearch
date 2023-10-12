@@ -48,8 +48,8 @@ public class CPUBasedAdmissionControlSettingsTests extends OpenSearchTestCase {
             settings.containsAll(
                 Arrays.asList(
                     CPUBasedAdmissionControllerSettings.CPU_BASED_ADMISSION_CONTROLLER_TRANSPORT_LAYER_MODE,
-                    CPUBasedAdmissionControllerSettings.GLOBAL_CPU_USAGE_SEARCH_AC_LIMIT,
-                    CPUBasedAdmissionControllerSettings.GLOBAL_CPU_USAGE_INDEXING_AC_LIMIT
+                    CPUBasedAdmissionControllerSettings.SEARCH_CPU_USAGE_LIMIT,
+                    CPUBasedAdmissionControllerSettings.INDEXING_CPU_USAGE_LIMIT
                 )
             )
         );
@@ -75,7 +75,7 @@ public class CPUBasedAdmissionControlSettingsTests extends OpenSearchTestCase {
                 CPUBasedAdmissionControllerSettings.CPU_BASED_ADMISSION_CONTROLLER_TRANSPORT_LAYER_MODE.getKey(),
                 AdmissionControlMode.ENFORCED.getMode()
             )
-            .put(CPUBasedAdmissionControllerSettings.GLOBAL_CPU_USAGE_INDEXING_AC_LIMIT.getKey(), indexingPercent)
+            .put(CPUBasedAdmissionControllerSettings.INDEXING_CPU_USAGE_LIMIT.getKey(), indexingPercent)
             .build();
 
         CPUBasedAdmissionControllerSettings cpuBasedAdmissionControllerSettings = new CPUBasedAdmissionControllerSettings(
@@ -99,7 +99,7 @@ public class CPUBasedAdmissionControlSettingsTests extends OpenSearchTestCase {
                 CPUBasedAdmissionControllerSettings.CPU_BASED_ADMISSION_CONTROLLER_TRANSPORT_LAYER_MODE.getKey(),
                 AdmissionControlMode.ENFORCED.getMode()
             )
-            .put(CPUBasedAdmissionControllerSettings.GLOBAL_CPU_USAGE_SEARCH_AC_LIMIT.getKey(), searchPercent)
+            .put(CPUBasedAdmissionControllerSettings.SEARCH_CPU_USAGE_LIMIT.getKey(), searchPercent)
             .build();
         clusterService.getClusterSettings().applySettings(settings);
         assertEquals(cpuBasedAdmissionControllerSettings.getTransportLayerAdmissionControllerMode(), AdmissionControlMode.ENFORCED);
@@ -116,7 +116,7 @@ public class CPUBasedAdmissionControlSettingsTests extends OpenSearchTestCase {
                 CPUBasedAdmissionControllerSettings.CPU_BASED_ADMISSION_CONTROLLER_TRANSPORT_LAYER_MODE.getKey(),
                 AdmissionControlMode.ENFORCED.getMode()
             )
-            .put(CPUBasedAdmissionControllerSettings.GLOBAL_CPU_USAGE_SEARCH_AC_LIMIT.getKey(), searchPercent)
+            .put(CPUBasedAdmissionControllerSettings.SEARCH_CPU_USAGE_LIMIT.getKey(), searchPercent)
             .build();
 
         CPUBasedAdmissionControllerSettings cpuBasedAdmissionControllerSettings = new CPUBasedAdmissionControllerSettings(
@@ -132,7 +132,7 @@ public class CPUBasedAdmissionControlSettingsTests extends OpenSearchTestCase {
                 CPUBasedAdmissionControllerSettings.CPU_BASED_ADMISSION_CONTROLLER_TRANSPORT_LAYER_MODE.getKey(),
                 AdmissionControlMode.MONITOR.getMode()
             )
-            .put(CPUBasedAdmissionControllerSettings.GLOBAL_CPU_USAGE_INDEXING_AC_LIMIT.getKey(), indexingPercent)
+            .put(CPUBasedAdmissionControllerSettings.INDEXING_CPU_USAGE_LIMIT.getKey(), indexingPercent)
             .build();
         clusterService.getClusterSettings().applySettings(updatedSettings);
         assertEquals(cpuBasedAdmissionControllerSettings.getTransportLayerAdmissionControllerMode(), AdmissionControlMode.MONITOR);
@@ -143,7 +143,7 @@ public class CPUBasedAdmissionControlSettingsTests extends OpenSearchTestCase {
 
         updatedSettings = Settings.builder()
             .put(updatedSettings)
-            .put(CPUBasedAdmissionControllerSettings.GLOBAL_CPU_USAGE_SEARCH_AC_LIMIT.getKey(), searchPercent)
+            .put(CPUBasedAdmissionControllerSettings.SEARCH_CPU_USAGE_LIMIT.getKey(), searchPercent)
             .build();
         clusterService.getClusterSettings().applySettings(updatedSettings);
 

@@ -337,7 +337,7 @@ public class NetworkModuleTests extends OpenSearchTestCase {
                 return actualHandler;
             }
         };
-        transportInterceptorRegistry.registerTransportInterceptor(interceptor);
+        transportInterceptorRegistry.addTransportInterceptor(interceptor);
         NetworkModule module = newNetworkModule(settings, transportInterceptorRegistry);
 
         TransportInterceptor transportInterceptor = module.getTransportInterceptor();
@@ -351,7 +351,7 @@ public class NetworkModuleTests extends OpenSearchTestCase {
         assertSame(((NetworkModule.CompositeTransportInterceptor) transportInterceptor).transportInterceptors.get(0), interceptor);
 
         TransportInterceptorRegistry finalTransportInterceptorRegistry = new TransportInterceptorRegistry();
-        finalTransportInterceptorRegistry.registerTransportInterceptor(null);
+        finalTransportInterceptorRegistry.addTransportInterceptor(null);
         NullPointerException nullPointerException = expectThrows(NullPointerException.class, () -> {
             newNetworkModule(settings, finalTransportInterceptorRegistry);
         });

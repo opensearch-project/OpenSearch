@@ -21,7 +21,7 @@ import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
-import static org.opensearch.ratelimitting.admissioncontrol.AdmissionControlSettings.CPU_BASED_ADMISSION_CONTROLLER;
+import static org.opensearch.ratelimitting.admissioncontrol.settings.CPUBasedAdmissionControllerSettings.CPU_BASED_ADMISSION_CONTROLLER;
 
 /**
  * Admission control Service that bootstraps and manages all the Admission Controllers in OpenSearch.
@@ -60,9 +60,8 @@ public class AdmissionControlService {
     /**
      * Handler to trigger registered admissionController
      */
-    public boolean applyTransportAdmissionControl(String action) {
-        this.ADMISSION_CONTROLLERS.forEach((name, admissionController) -> { admissionController.accept(action); });
-        return true;
+    public void applyTransportAdmissionControl(String action) {
+        this.ADMISSION_CONTROLLERS.forEach((name, admissionController) -> { admissionController.apply(action); });
     }
 
     /**
@@ -70,14 +69,14 @@ public class AdmissionControlService {
      * @param admissionControllerName admissionControllerName to register into the service.
      */
     public void registerAdmissionController(String admissionControllerName) {
-        AdmissionController admissionController = this.controllerFactory(admissionControllerName);
+        AdmissionController admissionController = this.getControllerImplementation(admissionControllerName);
         this.ADMISSION_CONTROLLERS.put(admissionControllerName, admissionController);
     }
 
     /**
      * @return AdmissionController Instance
      */
-    private AdmissionController controllerFactory(String admissionControllerName) {
+    private AdmissionController getControllerImplementation(String admissionControllerName) {
         switch (admissionControllerName) {
             case CPU_BASED_ADMISSION_CONTROLLER:
                 return new CPUBasedAdmissionController(admissionControllerName, this.settings, this.clusterSettings);
@@ -100,9 +99,6 @@ public class AdmissionControlService {
      * @return instance of the AdmissionController Instance
      */
     public AdmissionController getAdmissionController(String controllerName) {
-        if (this.ADMISSION_CONTROLLERS.containsKey(controllerName)) {
-            return this.ADMISSION_CONTROLLERS.get(controllerName);
-        }
-        return null;
+        return this.ADMISSION_CONTROLLERS.getOrDefault(controllerName, null);
     }
 }

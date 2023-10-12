@@ -35,16 +35,16 @@ public class TransportInterceptorRegistryTests extends OpenSearchTestCase {
     }
 
     public void testRegisterInterceptor() {
-        transportInterceptorRegistry.registerTransportInterceptor(mock(TransportInterceptor.class));
+        transportInterceptorRegistry.addTransportInterceptor(mock(TransportInterceptor.class));
         assertEquals(transportInterceptorRegistry.getTransportInterceptors().size(), 1);
-        transportInterceptorRegistry.registerTransportInterceptor(mock(TransportInterceptor.class));
+        transportInterceptorRegistry.addTransportInterceptor(mock(TransportInterceptor.class));
         assertEquals(transportInterceptorRegistry.getTransportInterceptors().size(), 2);
     }
 
     public void testGetAllInterceptor() {
-        transportInterceptorRegistry.registerTransportInterceptor(mock(TransportInterceptor.class));
+        transportInterceptorRegistry.addTransportInterceptor(mock(TransportInterceptor.class));
         assertEquals(transportInterceptorRegistry.getTransportInterceptors().size(), 1);
-        transportInterceptorRegistry.registerTransportInterceptor(mock(TransportInterceptor.class));
+        transportInterceptorRegistry.addTransportInterceptor(mock(TransportInterceptor.class));
         assertEquals(transportInterceptorRegistry.getTransportInterceptors().size(), 2);
         transportInterceptorRegistry.getTransportInterceptors().forEach(transportInterceptor -> {
             assertEquals(transportInterceptor.getClass(), mock(TransportInterceptor.class).getClass());

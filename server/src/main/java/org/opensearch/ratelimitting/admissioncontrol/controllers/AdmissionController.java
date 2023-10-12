@@ -23,10 +23,9 @@ public interface AdmissionController {
 
     /**
      * Increment the tracking-objects and apply the admission control if threshold is breached.
-     * Mostly applicable while acquiring the quota.
-     * @return true if admission controller is successfully acquired on the request else false
+     * Mostly applicable while applying admission controller
      */
-    boolean accept(String action);
+    void apply(String action);
 
     /**
      * @return name of the admission-controller

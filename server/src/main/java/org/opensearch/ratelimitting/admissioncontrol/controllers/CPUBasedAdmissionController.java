@@ -12,7 +12,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.ratelimitting.admissioncontrol.AdmissionControlActionsMap;
 import org.opensearch.ratelimitting.admissioncontrol.enums.AdmissionControlMode;
 import org.opensearch.ratelimitting.admissioncontrol.settings.CPUBasedAdmissionControllerSettings;
 
@@ -50,33 +49,19 @@ public class CPUBasedAdmissionController implements AdmissionController {
     /**
      * This function will take of applying admission controller based on CPU usage
      * @param action is the transport action
-     * @return true if admission controller is successfully acquired on the request else false
      */
     @Override
-    public boolean accept(String action) {
+    public void apply(String action) {
         // TODO Will extend this logic further currently just incrementing rejectionCount
         if (this.isEnabledForTransportLayer()) {
             this.applyForTransportLayer(action);
         }
-        return true;
     }
 
     private void applyForTransportLayer(String actionName) {
-        if (AdmissionControlActionsMap.containsActionType(actionName)) {
-            String actionType = AdmissionControlActionsMap.getTransportActionType(actionName);
-            if (isLimitsBreached()) {
-                this.addRejectionCount(1);
-            }
-        }
-    }
-
-    /**
-     *
-     * @return true if the limits breached else false
-     */
-    private boolean isLimitsBreached() {
-        // Will Extend this further next PR's currently making it true for testing complete flow
-        return true;
+        // currently incrementing counts to evaluate the controller triggering as expected and using in testing
+        // TODO will update rejection logic further in next PR's
+        this.addRejectionCount(1);
     }
 
     /**

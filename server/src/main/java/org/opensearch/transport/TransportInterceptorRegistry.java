@@ -29,7 +29,7 @@ public class TransportInterceptorRegistry {
      *
      * @param transportInterceptor new transport interceptor object
      */
-    public void registerTransportInterceptor(TransportInterceptor transportInterceptor) {
+    public void addTransportInterceptor(TransportInterceptor transportInterceptor) {
         this.transportInterceptors.add(transportInterceptor);
     }
 
