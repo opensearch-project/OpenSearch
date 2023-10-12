@@ -235,14 +235,14 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContentFragm
         final long previousWritesCompleted;
         final long currentSectorsWritten;
         final long previousSectorsWritten;
-        long currentReadTime;
-        long previousReadTime;
-        long currentWriteTime;
-        long previousWriteTime;
-        long currentQueueSize;
-        long previousQueueSize;
-        long currentIOTime;
-        long previousIOTime;
+        final long currentReadTime;
+        final long previousReadTime;
+        final long currentWriteTime;
+        final long previousWriteTime;
+        final long currentQueueSize;
+        final long previousQueueSize;
+        final long currentIOTime;
+        final long previousIOTime;
 
         public DeviceStats(
             final int majorDeviceNumber,
@@ -344,6 +344,15 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContentFragm
                 previousQueueSize = in.readLong();
                 currentIOTime = in.readLong();
                 previousIOTime = in.readLong();
+            } else {
+                currentReadTime = 0;
+                previousReadTime = 0;
+                currentWriteTime = 0;
+                previousWriteTime = 0;
+                currentQueueSize = 0;
+                previousQueueSize = 0;
+                currentIOTime = 0;
+                previousIOTime = 0;
             }
         }
 
@@ -474,10 +483,10 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContentFragm
         final long totalWriteOperations;
         final long totalReadKilobytes;
         final long totalWriteKilobytes;
-        long totalReadTime;
-        long totalWriteTime;
-        long totalQueueSize;
-        long totalIOTimeInMillis;
+        final long totalReadTime;
+        final long totalWriteTime;
+        final long totalQueueSize;
+        final long totalIOTimeInMillis;
 
         public IoStats(final DeviceStats[] devicesStats) {
             this.devicesStats = devicesStats;
@@ -529,6 +538,11 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContentFragm
                 this.totalWriteTime = in.readLong();
                 this.totalQueueSize = in.readLong();
                 this.totalIOTimeInMillis = in.readLong();
+            } else {
+                this.totalReadTime = 0;
+                this.totalWriteTime = 0;
+                this.totalQueueSize = 0;
+                this.totalIOTimeInMillis = 0;
             }
         }
 
