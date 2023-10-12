@@ -60,7 +60,6 @@ import org.opensearch.common.inject.Inject;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.util.concurrent.AtomicArray;
 import org.opensearch.common.util.concurrent.CountDown;
 import org.opensearch.core.action.ActionListener;
@@ -138,6 +137,13 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         Property.NodeScope
     );
 
+    public static final Setting<Boolean> SEARCH_QUERY_CATEGORIZATION_ENABLED_SETTING = Setting.boolSetting(
+        "search.query.categorization.enabled",
+        false,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
     // cluster level setting for timeout based search cancellation. If search request level parameter is present then that will take
     // precedence over the cluster setting value
     public static final String SEARCH_CANCEL_AFTER_TIME_INTERVAL_SETTING_KEY = "search.cancel_after_time_interval";
@@ -169,6 +175,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
     private final SearchPipelineService searchPipelineService;
 
     private volatile boolean isRequestStatsEnabled;
+
+    private volatile boolean isSearchQueryCategorizationEnabled;
 
     private final SearchRequestStats searchRequestStats;
 
@@ -210,11 +218,18 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         clusterService.getClusterSettings().addSettingsUpdateConsumer(SEARCH_REQUEST_STATS_ENABLED, this::setIsRequestStatsEnabled);
         this.searchRequestStats = searchRequestStats;
         this.metricsRegistry = metricsRegistry;
-        if (FeatureFlags.isEnabled(FeatureFlags.QUERY_CATEOGORIZATION)) {
+        this.isSearchQueryCategorizationEnabled = clusterService.getClusterSettings().get(SEARCH_QUERY_CATEGORIZATION_ENABLED_SETTING);
+        clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(SEARCH_QUERY_CATEGORIZATION_ENABLED_SETTING, this::setIsSearchQueryCategorizationEnabled);
+        if (isSearchQueryCategorizationEnabled) {
             this.searchQueryCategorizor = new SearchQueryCategorizor(metricsRegistry);
         } else {
             this.searchQueryCategorizor = null;
         }
+    }
+
+    private void setIsSearchQueryCategorizationEnabled(boolean isSearchQueryCategorizationEnabled) {
+        this.isSearchQueryCategorizationEnabled = isSearchQueryCategorizationEnabled;
     }
 
     private void setIsRequestStatsEnabled(boolean isRequestStatsEnabled) {
@@ -445,7 +460,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             return;
         }
 
-        if (FeatureFlags.isEnabled(FeatureFlags.QUERY_CATEOGORIZATION)) {
+        if (isSearchQueryCategorizationEnabled) {
             searchQueryCategorizor.categorize(searchRequest.source());
         }
 
