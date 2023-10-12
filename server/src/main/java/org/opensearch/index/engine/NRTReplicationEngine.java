@@ -435,7 +435,7 @@ public class NRTReplicationEngine extends Engine implements LifecycleAware {
     }
 
     @Override
-    public void rollTranslogGeneration() throws EngineException {
+    public void rollTranslogGeneration() throws EngineException, IOException {
         translogManager.rollTranslogGeneration();
     }
 

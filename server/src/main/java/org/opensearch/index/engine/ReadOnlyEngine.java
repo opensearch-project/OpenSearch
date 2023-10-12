@@ -522,7 +522,7 @@ public class ReadOnlyEngine extends Engine {
     }
 
     @Override
-    public void rollTranslogGeneration() {
+    public void rollTranslogGeneration() throws IOException {
         translogManager.rollTranslogGeneration();
     }
 
