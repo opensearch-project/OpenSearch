@@ -527,7 +527,7 @@ public class RemoteClusterStateService implements Closeable {
         start();
         Map<String, IndexMetadata> remoteIndexMetadata = new HashMap<>();
         Optional<ClusterMetadataManifest> clusterMetadataManifest = getLatestClusterMetadataManifest(clusterName, clusterUUID);
-        if (!clusterMetadataManifest.isPresent()) {
+        if (clusterMetadataManifest.isEmpty()) {
             throw new IllegalStateException("Latest index metadata is not present for the provided clusterUUID");
         }
         assert Objects.equals(clusterUUID, clusterMetadataManifest.get().getClusterUUID())
@@ -572,10 +572,7 @@ public class RemoteClusterStateService implements Closeable {
      */
     public Optional<ClusterMetadataManifest> getLatestClusterMetadataManifest(String clusterName, String clusterUUID) {
         Optional<String> latestManifestFileName = getLatestManifestFileName(clusterName, clusterUUID);
-        if (latestManifestFileName.isPresent()) {
-            return Optional.of(fetchRemoteClusterMetadataManifest(clusterName, clusterUUID, latestManifestFileName.get()));
-        }
-        return Optional.empty();
+        return latestManifestFileName.map(s -> fetchRemoteClusterMetadataManifest(clusterName, clusterUUID, s));
     }
 
     /**

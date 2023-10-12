@@ -16,7 +16,6 @@ import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateUpdateTask;
 import org.opensearch.cluster.block.ClusterBlocks;
 import org.opensearch.cluster.metadata.IndexMetadata;
-import org.opensearch.cluster.metadata.IndexTemplateMetadata;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.metadata.MetadataCreateIndexService;
 import org.opensearch.cluster.metadata.MetadataIndexUpgradeService;
@@ -258,32 +257,23 @@ public class RemoteStoreRestoreService {
     }
 
     private ClusterState restoreClusterMetadata(ClusterState restoredClusterState, Metadata clusterMetadata) {
-        Metadata.Builder mdBuilder = new Metadata.Builder();
+        Metadata.Builder mdBuilder = new Metadata.Builder(clusterMetadata);
+        mdBuilder.clusterUUID(null);
+        mdBuilder.clusterUUIDCommitted(false);
+        mdBuilder.coordinationMetadata(null);
         if (clusterMetadata.persistentSettings() != null) {
             Settings settings = clusterMetadata.persistentSettings();
             clusterService.getClusterSettings().validateUpdate(settings);
             mdBuilder.persistentSettings(settings);
         }
-        if (clusterMetadata.templates() != null) {
-            for (final IndexTemplateMetadata cursor : clusterMetadata.templates().values()) {
-                mdBuilder.put(cursor);
-            }
-        }
-        if (clusterMetadata.customs() != null) {
-            for (final Map.Entry<String, Metadata.Custom> cursor : clusterMetadata.customs().entrySet()) {
-                Metadata.Custom cursorValue = cursor.getValue();
-                if (RepositoriesMetadata.TYPE.equals(cursor.getKey())) {
-                    RepositoriesMetadata repositoriesMetadata = (RepositoriesMetadata) cursorValue;
-                    cursorValue = new RepositoriesMetadata(
-                        repositoriesMetadata.repositories()
-                            .stream()
-                            .filter(repository -> SYSTEM_REPOSITORY_SETTING.get(repository.settings()) == false)
-                            .collect(Collectors.toList())
-                    );
-                }
-                mdBuilder.putCustom(cursor.getKey(), cursorValue);
-            }
-        }
+        RepositoriesMetadata repositoriesMetadata = clusterMetadata.custom(RepositoriesMetadata.TYPE);
+        repositoriesMetadata = new RepositoriesMetadata(
+            repositoriesMetadata.repositories()
+                .stream()
+                .filter(repository -> SYSTEM_REPOSITORY_SETTING.get(repository.settings()) == false)
+                .collect(Collectors.toList())
+        );
+        mdBuilder.putCustom(RepositoriesMetadata.TYPE, repositoriesMetadata);
         return ClusterState.builder(restoredClusterState).metadata(mdBuilder).build();
     }
 
