@@ -1046,12 +1046,14 @@ public class RemoteClusterStateService implements Closeable {
                     blobMetadata.name()
                 );
                 staleManifestPaths.add(new BlobPath().add(MANIFEST_PATH_TOKEN).buildAsString() + blobMetadata.name());
-                String[] globalMetadataSplitPath = clusterMetadataManifest.getGlobalMetadataFileName().split("/");
-                staleGlobalMetadataPaths.add(
-                    new BlobPath().add(GLOBAL_METADATA_PATH_TOKEN).buildAsString() + GLOBAL_METADATA_FORMAT.blobName(
-                        globalMetadataSplitPath[globalMetadataSplitPath.length - 1]
-                    )
-                );
+                if (filesToKeep.contains(clusterMetadataManifest.getGlobalMetadataFileName()) == false) {
+                    String[] globalMetadataSplitPath = clusterMetadataManifest.getGlobalMetadataFileName().split("/");
+                    staleGlobalMetadataPaths.add(
+                        new BlobPath().add(GLOBAL_METADATA_PATH_TOKEN).buildAsString() + GLOBAL_METADATA_FORMAT.blobName(
+                            globalMetadataSplitPath[globalMetadataSplitPath.length - 1]
+                        )
+                    );
+                }
                 clusterMetadataManifest.getIndices().forEach(uploadedIndexMetadata -> {
                     if (filesToKeep.contains(uploadedIndexMetadata.getUploadedFilename()) == false) {
                         staleIndexMetadataPaths.add(
