@@ -7286,7 +7286,11 @@ public class InternalEngineTests extends EngineTestCase {
             engine.ensureOpen();
             while (running.get()
                 && assertAndGetInternalTranslogManager(engine.translogManager()).getTranslog().currentFileGeneration() < 500) {
-                engine.translogManager().rollTranslogGeneration(); // make adding operations to translog slower
+                try {
+                    engine.translogManager().rollTranslogGeneration(); // make adding operations to translog slower
+                } catch (IOException e) {
+                    fail("io exception not expected");
+                }
             }
         });
         rollTranslog.start();
