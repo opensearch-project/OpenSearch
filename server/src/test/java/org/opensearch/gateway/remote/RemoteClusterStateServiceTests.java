@@ -34,6 +34,7 @@ import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.gateway.remote.ClusterMetadataManifest.UploadedIndexMetadata;
+import org.opensearch.index.remote.RemoteStoreUtils;
 import org.opensearch.repositories.FilterRepository;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.RepositoryMissingException;
@@ -65,6 +66,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.ArgumentMatchers;
 
 import static org.opensearch.gateway.remote.RemoteClusterStateService.DELIMITER;
+import static org.opensearch.gateway.remote.RemoteClusterStateService.INDEX_METADATA_FILE_PREFIX;
 import static org.opensearch.gateway.remote.RemoteClusterStateService.MANIFEST_FILE_PREFIX;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEY;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_REPOSITORY_SETTINGS_ATTRIBUTE_KEY_PREFIX;
@@ -671,6 +673,31 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
+    }
+
+    public void testFileNames() {
+        final Index index = new Index("test-index", "index-uuid");
+        final Settings idxSettings = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_INDEX_UUID, index.getUUID())
+            .build();
+        final IndexMetadata indexMetadata = new IndexMetadata.Builder(index.getName()).settings(idxSettings)
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .build();
+
+        String indexMetadataFileName = RemoteClusterStateService.indexMetadataFileName(indexMetadata);
+        assertThat(indexMetadataFileName.split(DELIMITER).length, is(4));
+        assertTrue(indexMetadataFileName.contains(INDEX_METADATA_FILE_PREFIX));
+        assertTrue(indexMetadataFileName.contains(RemoteStoreUtils.invertLong(indexMetadata.getVersion())));
+
+        int term = randomInt(10);
+        int version = randomInt(10);
+        String manifestFileName = RemoteClusterStateService.getManifestFileName(term, version);
+        assertThat(manifestFileName.split(DELIMITER).length, is(5));
+        assertTrue(manifestFileName.contains(MANIFEST_FILE_PREFIX));
+        assertTrue(manifestFileName.contains(RemoteStoreUtils.invertLong(term)));
+        assertTrue(manifestFileName.contains(RemoteStoreUtils.invertLong(version)));
     }
 
     private void mockObjectsForGettingPreviousClusterUUID(Map<String, String> clusterUUIDsPointers) throws IOException {

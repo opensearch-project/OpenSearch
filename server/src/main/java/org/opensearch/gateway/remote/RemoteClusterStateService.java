@@ -122,6 +122,7 @@ public class RemoteClusterStateService implements Closeable {
 
     private static final int INDEX_METADATA_CODEC_VERSION = 1;
     private static final int MANIFEST_CODEC_VERSION = 1;
+
     public RemoteClusterStateService(
         String nodeId,
         Supplier<RepositoriesService> repositoriesService,
@@ -490,11 +491,14 @@ public class RemoteClusterStateService implements Closeable {
         this.slowWriteLoggingThreshold = slowWriteLoggingThreshold;
     }
 
-    private static String getManifestFileName(long term, long version) {
+    static String getManifestFileName(long term, long version) {
         // 123456789012_test-cluster/cluster-state/dsgYj10Nkso7/manifest/manifest_2147483642_2147483637_456536447
-        return String.join(DELIMITER, getManifestFileNamePrefix(term, version),
+        return String.join(
+            DELIMITER,
+            getManifestFileNamePrefix(term, version),
             RemoteStoreUtils.invertLong(MANIFEST_CODEC_VERSION),
-            RemoteStoreUtils.invertLong(System.currentTimeMillis()));
+            RemoteStoreUtils.invertLong(System.currentTimeMillis())
+        );
     }
 
     private static String getManifestFileNamePrefix(long term, long version) {
@@ -502,7 +506,7 @@ public class RemoteClusterStateService implements Closeable {
         return String.join(DELIMITER, MANIFEST_PATH_TOKEN, RemoteStoreUtils.invertLong(term), RemoteStoreUtils.invertLong(version));
     }
 
-    private static String indexMetadataFileName(IndexMetadata indexMetadata) {
+    static String indexMetadataFileName(IndexMetadata indexMetadata) {
         return String.join(
             DELIMITER,
             INDEX_METADATA_FILE_PREFIX,
