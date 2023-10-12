@@ -44,7 +44,7 @@ public class SearchQueryCategorizor {
     }
 
     private void incrementQuerySortCounters(List<SortBuilder<?>> sorts) {
-        if (sorts.size() > 0) {
+        if (sorts != null && sorts.size() > 0) {
             searchQueryCounters.sortCounter.add(1);
         }
     }
