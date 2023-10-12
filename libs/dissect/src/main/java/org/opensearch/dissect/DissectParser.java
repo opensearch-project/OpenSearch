@@ -194,26 +194,25 @@ public final class DissectParser {
      * @throws DissectException if unable to dissect a pair into it's parts.
      */
     public Map<String, String> parse(String inputString) {
-        /**
-         *
-         * This implements a naive string matching algorithm. The string is walked left to right, comparing each byte against
-         * another string's bytes looking for matches. If the bytes match, then a second cursor looks ahead to see if all the bytes
-         * of the other string matches. If they all match, record it and advances the primary cursor to the match point. If it can not match
-         * all of the bytes then progress the main cursor. Repeat till the end of the input string. Since the string being searching for
-         * (the delimiter) is generally small and rare the naive approach is efficient.
-         *
-         * In this case the string that is walked is the input string, and the string being searched for is the current delimiter.
-         * For example for a dissect pattern of {@code %{a},%{b}:%{c}} the delimiters (comma then colon) are searched for in the
-         * input string. At class construction the list of keys+delimiters are found (dissectPairs), which allows the use of that ordered
-         * list to know which delimiter to use for the search. The delimiters is progressed once the current delimiter is matched.
-         *
-         * There are two special cases that requires additional parsing beyond the standard naive algorithm. Consecutive delimiters should
-         * results in a empty matches unless the {@code ->} is provided. For example given the dissect pattern of
-         * {@code %{a},%{b},%{c},%{d}} and input string of {@code foo,,,} the match should be successful with empty values for b,c and d.
-         * However, if the key modifier {@code ->}, is present it will simply skip over any delimiters just to the right of the key
-         * without assigning any values. For example {@code %{a->},{%b}} will match the input string of {@code foo,,,,,,bar} with a=foo and
-         * b=bar.
-         *
+        /*
+
+          This implements a naive string matching algorithm. The string is walked left to right, comparing each byte against
+          another string's bytes looking for matches. If the bytes match, then a second cursor looks ahead to see if all the bytes
+          of the other string matches. If they all match, record it and advances the primary cursor to the match point. If it can not match
+          all of the bytes then progress the main cursor. Repeat till the end of the input string. Since the string being searching for
+          (the delimiter) is generally small and rare the naive approach is efficient.
+
+          In this case the string that is walked is the input string, and the string being searched for is the current delimiter.
+          For example for a dissect pattern of {@code %{a},%{b}:%{c}} the delimiters (comma then colon) are searched for in the
+          input string. At class construction the list of keys+delimiters are found (dissectPairs), which allows the use of that ordered
+          list to know which delimiter to use for the search. The delimiters is progressed once the current delimiter is matched.
+
+          There are two special cases that requires additional parsing beyond the standard naive algorithm. Consecutive delimiters should
+          results in a empty matches unless the {@code ->} is provided. For example given the dissect pattern of
+          {@code %{a},%{b},%{c},%{d}} and input string of {@code foo,,,} the match should be successful with empty values for b,c and d.
+          However, if the key modifier {@code ->}, is present it will simply skip over any delimiters just to the right of the key
+          without assigning any values. For example {@code %{a->},{%b}} will match the input string of {@code foo,,,,,,bar} with a=foo and
+          b=bar.
          */
         DissectMatch dissectMatch = new DissectMatch(appendSeparator, maxMatches, maxResults, appendCount, referenceCount);
         Iterator<DissectPair> it = matchPairs.iterator();

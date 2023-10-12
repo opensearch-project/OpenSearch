@@ -40,7 +40,7 @@ public final class Streamables {
      * Registers writers by class type
      */
     private static void registerWriters() {
-        /** {@link GeoPoint} */
+        /* {@link GeoPoint} */
         WriteableRegistry.registerWriter(GeoPoint.class, (o, v) -> {
             o.writeByte((byte) 22);
             ((GeoPoint) v).writeTo(o);
@@ -53,7 +53,7 @@ public final class Streamables {
      * NOTE: see {@code StreamOutput#WRITERS} for all registered ordinals
      */
     private static void registerReaders() {
-        /** {@link GeoPoint} */
+        /* {@link GeoPoint} */
         WriteableRegistry.registerReader(Byte.valueOf((byte) 22), GeoPoint::new);
     }
 }

@@ -82,7 +82,7 @@ import java.util.stream.Collectors;
  * to 30 seconds). The InternalClusterInfoService only runs on the cluster-manager node.
  * Listens for changes in the number of data nodes and immediately submits a
  * ClusterInfoUpdateJob if a node has been added.
- *
+ * <p>
  * Every time the timer runs, gathers information about the disk usage and
  * shard sizes across the cluster.
  *

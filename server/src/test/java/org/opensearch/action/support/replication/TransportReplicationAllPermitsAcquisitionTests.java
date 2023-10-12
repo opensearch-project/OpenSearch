@@ -114,7 +114,7 @@ import static org.mockito.Mockito.when;
  * This test tests the concurrent execution of several transport replication actions. All of these actions (except one) acquire a single
  * permit during their execution on shards and are expected to fail if a global level or index level block is present in the cluster state.
  * These actions are all started at the same time, but some are delayed until one last action.
- *
+ * <p>
  * This last action is special because it acquires all the permits on shards, adds the block to the cluster state and then "releases" the
  * previously delayed single permit actions. This way, there is a clear transition between the single permit actions executed before the
  * all permit action that sets the block and those executed afterwards that are doomed to fail because of the block.
