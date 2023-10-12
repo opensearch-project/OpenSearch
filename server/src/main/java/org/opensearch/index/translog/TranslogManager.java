@@ -21,7 +21,7 @@ public interface TranslogManager {
     /**
      * Rolls the translog generation and cleans unneeded.
      */
-    void rollTranslogGeneration() throws TranslogException;
+    void rollTranslogGeneration() throws TranslogException, IOException;
 
     /**
      * Performs recovery from the transaction log up to {@code recoverUpToSeqNo} (inclusive).
