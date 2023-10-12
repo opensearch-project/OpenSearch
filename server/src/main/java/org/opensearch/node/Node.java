@@ -62,7 +62,6 @@ import org.opensearch.cluster.ClusterStateObserver;
 import org.opensearch.cluster.InternalClusterInfoService;
 import org.opensearch.cluster.NodeConnectionsService;
 import org.opensearch.cluster.action.index.MappingUpdatedAction;
-import org.opensearch.cluster.action.shard.ShardStateAction;
 import org.opensearch.cluster.coordination.PersistedStateRegistry;
 import org.opensearch.cluster.metadata.AliasValidator;
 import org.opensearch.cluster.metadata.IndexTemplateMetadata;
@@ -137,7 +136,7 @@ import org.opensearch.identity.IdentityService;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.IndexingPressureService;
-import org.opensearch.index.SegmentReplicationPressureService;
+import org.opensearch.index.SegmentReplicationStatsTracker;
 import org.opensearch.index.analysis.AnalysisRegistry;
 import org.opensearch.index.engine.EngineFactory;
 import org.opensearch.index.recovery.RemoteStoreRestoreService;
@@ -966,8 +965,7 @@ public class Node implements Closeable {
                 transportService.getTaskManager()
             );
 
-            ShardStateAction shardStateAction = new ShardStateAction(clusterService, transportService, clusterModule.getAllocationService(), rerouteService, threadPool);
-            final SegmentReplicationPressureService segmentReplicationPressureService =new SegmentReplicationPressureService(settings, clusterService, indicesService, shardStateAction, threadPool);
+            final SegmentReplicationStatsTracker segmentReplicationStatsTracker = new SegmentReplicationStatsTracker(indicesService);
             RepositoriesModule repositoriesModule = new RepositoriesModule(
                 this.environment,
                 pluginsService.filterPlugins(RepositoryPlugin.class),
@@ -1107,7 +1105,7 @@ public class Node implements Closeable {
                 fileCache,
                 taskCancellationMonitoringService,
                 resourceUsageCollectorService,
-                segmentReplicationPressureService
+                segmentReplicationStatsTracker
             );
 
             final SearchService searchService = newSearchService(

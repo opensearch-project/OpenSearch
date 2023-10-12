@@ -8,6 +8,7 @@
 
 package org.opensearch.index;
 
+import org.opensearch.common.inject.Inject;
 import org.opensearch.common.util.concurrent.ConcurrentCollections;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.shard.IndexShard;
@@ -28,6 +29,7 @@ public class SegmentReplicationStatsTracker {
     private final IndicesService indicesService;
     private final Map<ShardId, AtomicInteger> rejectionCount;
 
+    @Inject
     public SegmentReplicationStatsTracker(IndicesService indicesService) {
         this.indicesService = indicesService;
         rejectionCount = ConcurrentCollections.newConcurrentMap();
