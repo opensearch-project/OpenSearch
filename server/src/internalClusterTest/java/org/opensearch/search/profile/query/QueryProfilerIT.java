@@ -460,6 +460,89 @@ public class QueryProfilerIT extends ParameterizedOpenSearchIntegTestCase {
         }
     }
 
+    public void testSearchLeafForItsLeavesAndRewriteQuery() throws Exception {
+        createIndex("test");
+        ensureGreen();
+
+        int numDocs = 122;
+        IndexRequestBuilder[] docs = new IndexRequestBuilder[numDocs];
+        for (int i = 0; i < numDocs; i++) {
+            docs[i] = client().prepareIndex("test").setId(String.valueOf(i)).setSource("field1", English.intToEnglish(i), "field2", i);
+        }
+
+        List<String> terms = Arrays.asList("zero", "zero", "one");
+
+        indexRandom(true, docs);
+
+        refresh();
+
+        QueryBuilder q = QueryBuilders.boostingQuery(
+            QueryBuilders.idsQuery().addIds(String.valueOf(randomInt()), String.valueOf(randomInt())),
+            QueryBuilders.termsQuery("field1", terms)
+        ).boost(randomFloat()).negativeBoost(randomFloat());
+        logger.info("Query: {}", q);
+
+        SearchResponse resp = client().prepareSearch()
+            .setQuery(q)
+            .setTrackTotalHits(true)
+            .setProfile(true)
+            .setSearchType(SearchType.QUERY_THEN_FETCH)
+            .get();
+
+        assertNotNull("Profile response element should not be null", resp.getProfileResults());
+        assertThat("Profile response should not be an empty array", resp.getProfileResults().size(), not(0));
+
+        for (Map.Entry<String, ProfileShardResult> shardResult : resp.getProfileResults().entrySet()) {
+            assertThat(shardResult.getValue().getNetworkTime().getInboundNetworkTime(), greaterThanOrEqualTo(0L));
+            assertThat(shardResult.getValue().getNetworkTime().getOutboundNetworkTime(), greaterThanOrEqualTo(0L));
+            for (QueryProfileShardResult searchProfiles : shardResult.getValue().getQueryProfileResults()) {
+                List<ProfileResult> results = searchProfiles.getQueryResults();
+                for (ProfileResult result : results) {
+                    assertNotNull(result.getQueryName());
+                    assertNotNull(result.getLuceneDescription());
+                    assertThat(result.getTime(), greaterThan(0L));
+                    Map<String, Long> breakdown = result.getTimeBreakdown();
+                    Long maxSliceTime = result.getMaxSliceTime();
+                    Long minSliceTime = result.getMinSliceTime();
+                    Long avgSliceTime = result.getAvgSliceTime();
+                    if (concurrentSearchEnabled && results.get(0).equals(result)) {
+                        assertNotNull(maxSliceTime);
+                        assertNotNull(minSliceTime);
+                        assertNotNull(avgSliceTime);
+                        assertThat(breakdown.size(), equalTo(66));
+                        for (QueryTimingType queryTimingType : QueryTimingType.values()) {
+                            if (queryTimingType != QueryTimingType.CREATE_WEIGHT) {
+                                String maxTimingType = MAX_PREFIX + queryTimingType;
+                                String minTimingType = MIN_PREFIX + queryTimingType;
+                                String avgTimingType = AVG_PREFIX + queryTimingType;
+                                assertNotNull(breakdown.get(maxTimingType));
+                                assertNotNull(breakdown.get(minTimingType));
+                                assertNotNull(breakdown.get(avgTimingType));
+                                assertNotNull(breakdown.get(maxTimingType + TIMING_TYPE_COUNT_SUFFIX));
+                                assertNotNull(breakdown.get(minTimingType + TIMING_TYPE_COUNT_SUFFIX));
+                                assertNotNull(breakdown.get(avgTimingType + TIMING_TYPE_COUNT_SUFFIX));
+                            }
+                        }
+                    } else if (concurrentSearchEnabled) {
+                        assertThat(maxSliceTime, equalTo(0L));
+                        assertThat(minSliceTime, equalTo(0L));
+                        assertThat(avgSliceTime, equalTo(0L));
+                        assertThat(breakdown.size(), equalTo(27));
+                    } else {
+                        assertThat(maxSliceTime, is(nullValue()));
+                        assertThat(minSliceTime, is(nullValue()));
+                        assertThat(avgSliceTime, is(nullValue()));
+                        assertThat(breakdown.size(), equalTo(27));
+                    }
+                }
+
+                CollectorResult result = searchProfiles.getCollectorResult();
+                assertThat(result.getName(), is(not(emptyOrNullString())));
+                assertThat(result.getTime(), greaterThan(0L));
+            }
+        }
+    }
+
     public void testDisMaxRange() throws Exception {
         createIndex("test");
         ensureGreen();

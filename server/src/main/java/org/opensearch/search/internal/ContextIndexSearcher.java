@@ -71,7 +71,6 @@ import org.opensearch.search.SearchService;
 import org.opensearch.search.dfs.AggregatedDfs;
 import org.opensearch.search.profile.ContextualProfileBreakdown;
 import org.opensearch.search.profile.Timer;
-import org.opensearch.search.profile.query.ConcurrentQueryProfileTree;
 import org.opensearch.search.profile.query.ProfileWeight;
 import org.opensearch.search.profile.query.QueryProfiler;
 import org.opensearch.search.profile.query.QueryTimingType;
@@ -107,7 +106,6 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
     private QueryProfiler profiler;
     private MutableQueryTimeout cancellable;
     private SearchContext searchContext;
-    private boolean fromConcurrentPath = false;
 
     public ContextIndexSearcher(
         IndexReader reader,
@@ -187,26 +185,15 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
 
     @Override
     public Query rewrite(Query original) throws IOException {
-        Timer concurrentPathRewriteTimer = null;
         if (profiler != null) {
-            if (fromConcurrentPath) {
-                concurrentPathRewriteTimer = new Timer();
-                profiler.getConcurrentPathRewriteTimers().add(concurrentPathRewriteTimer);
-                concurrentPathRewriteTimer.start();
-            } else {
-                profiler.startRewriteTime();
-            }
+            profiler.startRewriteTime();
         }
 
         try {
             return super.rewrite(original);
         } finally {
             if (profiler != null) {
-                if (fromConcurrentPath) {
-                    concurrentPathRewriteTimer.stop();
-                } else {
-                    profiler.stopAndAddRewriteTime();
-                }
+                profiler.stopAndAddRewriteTime();
             }
         }
     }
@@ -217,15 +204,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
             // createWeight() is called for each query in the tree, so we tell the queryProfiler
             // each invocation so that it can build an internal representation of the query
             // tree
-            ContextualProfileBreakdown<QueryTimingType> profile;
-            if (searchContext.shouldUseConcurrentSearch()) {
-                long threadId = Thread.currentThread().getId();
-                ConcurrentQueryProfileTree profileTree = profiler.getThreadToProfileTree()
-                    .computeIfAbsent(threadId, k -> new ConcurrentQueryProfileTree());
-                profile = profileTree.getProfileBreakdown(query);
-            } else {
-                profile = profiler.getQueryBreakdown(query);
-            }
+            ContextualProfileBreakdown<QueryTimingType> profile = profiler.getQueryBreakdown(query);
             Timer timer = profile.getTimer(QueryTimingType.CREATE_WEIGHT);
             timer.start();
             final Weight weight;
@@ -288,9 +267,6 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
 
     @Override
     protected void search(List<LeafReaderContext> leaves, Weight weight, Collector collector) throws IOException {
-        if (searchContext.shouldUseConcurrentSearch()) {
-            fromConcurrentPath = true;
-        }
         // Time series based workload by default traverses segments in desc order i.e. latest to the oldest order.
         // This is actually beneficial for search queries to start search on latest segments first for time series workload.
         // That can slow down ASC order queries on timestamp workload. So to avoid that slowdown, we will reverse leaf
