@@ -1144,8 +1144,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                                     // see https://github.com/opensearch-project/OpenSearch/issues/8469
                                     new RemoteSegmentStoreDirectoryFactory(
                                         remoteStoreLockManagerFactory.getRepositoriesService(),
-                                        threadPool,
-                                        recoverySettings
+                                        threadPool
                                     ).newDirectory(
                                         remoteStoreRepoForIndex,
                                         indexUUID,
@@ -1615,8 +1614,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                                             // see https://github.com/opensearch-project/OpenSearch/issues/8469
                                             new RemoteSegmentStoreDirectoryFactory(
                                                 remoteStoreLockManagerFactory.getRepositoriesService(),
-                                                threadPool,
-                                                recoverySettings
+                                                threadPool
                                             ).newDirectory(
                                                 remoteStoreRepoForIndex,
                                                 indexUUID,
@@ -2549,7 +2547,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      * the next version number from when the index blob was written.  Each individual index-N blob is
      * only written once and never overwritten.  The highest numbered index-N blob is the latest one
      * that contains the current snapshots in the repository.
-     *
+     * <p>
      * Package private for testing
      */
     long latestIndexBlobId() throws IOException {

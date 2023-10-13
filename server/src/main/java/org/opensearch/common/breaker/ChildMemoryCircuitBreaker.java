@@ -204,7 +204,7 @@ public class ChildMemoryCircuitBreaker implements CircuitBreaker {
     /**
      * Add an <b>exact</b> number of bytes, not checking for tripping the
      * circuit breaker. This bypasses the overheadConstant multiplication.
-     *
+     * <p>
      * Also does not check with the parent breaker to see if the parent limit
      * has been exceeded.
      *

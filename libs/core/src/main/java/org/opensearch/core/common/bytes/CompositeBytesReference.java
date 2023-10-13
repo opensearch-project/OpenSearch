@@ -45,7 +45,7 @@ import java.util.Objects;
 /**
  * A composite {@link BytesReference} that allows joining multiple bytes references
  * into one without copying.
- *
+ * <p>
  * Note, {@link #toBytesRef()} will materialize all pages in this BytesReference.
  *
  * @opensearch.internal

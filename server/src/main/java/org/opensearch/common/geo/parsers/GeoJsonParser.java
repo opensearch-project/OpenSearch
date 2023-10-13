@@ -52,7 +52,7 @@ import org.locationtech.jts.geom.Coordinate;
 
 /**
  * Parses shape geometry represented in geojson
- *
+ * <p>
  * complies with geojson specification: https://tools.ietf.org/html/rfc7946
  *
  * @opensearch.internal

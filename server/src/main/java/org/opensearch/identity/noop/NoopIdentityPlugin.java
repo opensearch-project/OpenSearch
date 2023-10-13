@@ -14,7 +14,7 @@ import org.opensearch.plugins.IdentityPlugin;
 
 /**
  * Implementation of identity plugin that does not enforce authentication or authorization
- *
+ * <p>
  * This class and related classes in this package will not return nulls or fail access checks
  *
  * @opensearch.internal

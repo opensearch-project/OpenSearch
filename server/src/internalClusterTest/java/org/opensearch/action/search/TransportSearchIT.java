@@ -109,8 +109,8 @@ public class TransportSearchIT extends OpenSearchIntegTestCase {
 
         @Override
         public List<FetchSubPhase> getFetchSubPhases(FetchPhaseConstructionContext context) {
-            /**
-             * Set up a fetch sub phase that throws an exception on indices whose name that start with "boom".
+            /*
+              Set up a fetch sub phase that throws an exception on indices whose name that start with "boom".
              */
             return Collections.singletonList(fetchContext -> new FetchSubPhaseProcessor() {
                 @Override

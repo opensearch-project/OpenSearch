@@ -66,7 +66,6 @@ import static org.hamcrest.Matchers.not;
  * compute/v1/projects/[project-id]/zones/[zone]
  *
  * By default, project-id is the test method name, lowercase and missing the "test" prefix.
- *
  * For example, if you create a test `myNewAwesomeTest` with following settings:
  *
  * Settings nodeSettings = Settings.builder()
@@ -75,7 +74,6 @@ import static org.hamcrest.Matchers.not;
  *  .build();
  *
  *  You need to create a file under `src/test/resources/org/opensearch/discovery/gce/` named:
- *
  *  compute/v1/projects/mynewawesometest/zones/europe-west1-b/instances.json
  *
  */

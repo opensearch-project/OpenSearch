@@ -46,33 +46,33 @@ import java.util.Random;
 
 /**
  * An approximate set membership datastructure
- *
+ * <p>
  * CuckooFilters are similar to Bloom Filters in usage; values are inserted, and the Cuckoo
  * can be asked if it has seen a particular value before.  Because the structure is approximate,
  * it can return false positives (says it has seen an item when it has not).  False negatives
  * are not possible though; if the structure says it _has not_ seen an item, that can be
  * trusted.
- *
+ * <p>
  * The filter can "saturate" at which point the map has hit it's configured load factor (or near enough
  * that a large number of evictions are not able to find a free slot) and will refuse to accept
  * any new insertions.
- *
+ * <p>
  * NOTE: this version does not support deletions, and as such does not save duplicate
  * fingerprints (e.g. when inserting, if the fingerprint is already present in the
  * candidate buckets, it is not inserted).  By not saving duplicates, the CuckooFilter
  * loses the ability to delete values.  But not by allowing deletions, we can save space
  * (do not need to waste slots on duplicate fingerprints), and we do not need to worry
  * about inserts "overflowing" a bucket because the same item has been repeated repeatedly
- *
+ * <p>
  * NOTE: this CuckooFilter exposes a number of Expert APIs which assume the caller has
  * intimate knowledge about how the algorithm works.  It is recommended to use
  * {@link SetBackedScalingCuckooFilter} instead.
- *
+ * <p>
  * Based on the paper:
- *
+ * <p>
  * Fan, Bin, et al. "Cuckoo filter: Practically better than bloom."
  * Proceedings of the 10th ACM International on Conference on emerging Networking Experiments and Technologies. ACM, 2014.
- *
+ * <p>
  * https://www.cs.cmu.edu/~dga/papers/cuckoo-conext2014.pdf
  *
  * @opensearch.internal
@@ -200,7 +200,7 @@ public class CuckooFilter implements Writeable {
     /**
      * Returns the number of buckets that has been chosen based
      * on the initial configuration
-     *
+     * <p>
      * Expert-level API
      */
     int getNumBuckets() {
@@ -209,7 +209,7 @@ public class CuckooFilter implements Writeable {
 
     /**
      * Returns the number of bits used per entry
-     *
+     * <p>
      * Expert-level API
      */
     int getBitsPerEntry() {
@@ -220,7 +220,7 @@ public class CuckooFilter implements Writeable {
      * Returns the cached fingerprint mask.  This is simply a mask for the
      * first bitsPerEntry bits, used by {@link CuckooFilter#fingerprint(int, int, int)}
      * to generate the fingerprint of a hash
-     *
+     * <p>
      * Expert-level API
      */
     int getFingerprintMask() {
@@ -230,7 +230,7 @@ public class CuckooFilter implements Writeable {
     /**
      * Returns an iterator that returns the long[] representation of each bucket.  The value
      * inside each long will be a fingerprint (or 0L, representing empty).
-     *
+     * <p>
      * Expert-level API
      */
     Iterator<long[]> getBuckets() {
@@ -267,7 +267,7 @@ public class CuckooFilter implements Writeable {
 
     /**
      * Returns true if the bucket or it's alternate bucket contains the fingerprint.
-     *
+     * <p>
      * Expert-level API, use {@link CuckooFilter#mightContain(long)} to check if
      * a value is in the filter.
      */
@@ -307,7 +307,7 @@ public class CuckooFilter implements Writeable {
     /**
      * Attempts to merge the fingerprint into the specified bucket or it's alternate bucket.
      * Returns true if the insertion was successful, false if the filter is saturated.
-     *
+     * <p>
      * Expert-level API, use {@link CuckooFilter#add(long)} to insert
      * values into the filter
      */
@@ -351,7 +351,7 @@ public class CuckooFilter implements Writeable {
      * Low-level insert method. Attempts to write the fingerprint into an empty entry
      * at this bucket's position.  Returns true if that was sucessful, false if all entries
      * were occupied.
-     *
+     * <p>
      * If the fingerprint already exists in one of the entries, it will not duplicate the
      * fingerprint like the original paper.  This means the filter _cannot_ support deletes,
      * but is not sensitive to "overflowing" buckets with repeated inserts
@@ -376,10 +376,10 @@ public class CuckooFilter implements Writeable {
 
     /**
      * Converts a hash into a bucket index (primary or alternate).
-     *
+     * <p>
      * If the hash is negative, this flips the bits.  The hash is then modulo numBuckets
      * to get the final index.
-     *
+     * <p>
      * Expert-level API
      */
     static int hashToIndex(int hash, int numBuckets) {
@@ -388,16 +388,16 @@ public class CuckooFilter implements Writeable {
 
     /**
      * Calculates the alternate bucket for a given bucket:fingerprint tuple
-     *
+     * <p>
      * The alternate bucket is the fingerprint multiplied by a mixing constant,
      * then xor'd against the bucket.  This new value is modulo'd against
      * the buckets via {@link CuckooFilter#hashToIndex(int, int)} to get the final
      * index.
-     *
+     * <p>
      * Note that the xor makes this operation reversible as long as we have the
      * fingerprint and current bucket (regardless of if that bucket was the primary
      * or alternate).
-     *
+     * <p>
      * Expert-level API
      */
     static int alternateIndex(int bucket, int fingerprint, int numBuckets) {
@@ -424,10 +424,10 @@ public class CuckooFilter implements Writeable {
 
     /**
      * Calculates the fingerprint for a given hash.
-     *
+     * <p>
      * The fingerprint is simply the first `bitsPerEntry` number of bits that are non-zero.
      * If the entire hash is zero, `(int) 1` is used
-     *
+     * <p>
      * Expert-level API
      */
     static int fingerprint(int hash, int bitsPerEntry, int fingerprintMask) {
@@ -501,7 +501,7 @@ public class CuckooFilter implements Writeable {
      * Calculates the optimal number of buckets for this filter.  The xor used in the bucketing
      * algorithm requires this to be a power of two, so the optimal number of buckets will
      * be rounded to the next largest power of two where applicable.
-     *
+     * <p>
      * TODO: there are schemes to avoid powers of two, might want to investigate those
      */
     private int getNumBuckets(long capacity, double loadFactor, int b) {

@@ -59,9 +59,9 @@ import java.util.stream.Collectors;
 /**
  * Observer that tracks changes made to RoutingNodes in order to update the primary terms and in-sync allocation ids in
  * {@link IndexMetadata} once the allocation round has completed.
- *
+ * <p>
  * Primary terms are updated on primary initialization or when an active primary fails.
- *
+ * <p>
  * Allocation ids are added for shards that become active and removed for shards that stop being active.
  *
  * @opensearch.internal
