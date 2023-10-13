@@ -221,8 +221,8 @@ public class RemoteSegmentStats implements Writeable, ToXContentFragment {
         return totalRejections;
     }
 
-    public long addTotalRejections(long totalRejections) {
-        return this.totalRejections += totalRejections;
+    public void addTotalRejections(long totalRejections) {
+        this.totalRejections += totalRejections;
     }
 
     /**

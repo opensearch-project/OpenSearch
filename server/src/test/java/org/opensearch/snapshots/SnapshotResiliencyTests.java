@@ -34,9 +34,6 @@ package org.opensearch.snapshots;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.junit.After;
-import org.junit.Before;
-import org.mockito.Mockito;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.Version;
 import org.opensearch.action.ActionModule.DynamicActionRegistry;
@@ -235,6 +232,8 @@ import org.opensearch.transport.TransportInterceptor;
 import org.opensearch.transport.TransportRequest;
 import org.opensearch.transport.TransportRequestHandler;
 import org.opensearch.transport.TransportService;
+import org.junit.After;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -258,8 +257,15 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
+import org.mockito.Mockito;
+
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
+import static org.opensearch.action.support.ActionTestUtils.assertNoFailureListener;
+import static org.opensearch.env.Environment.PATH_HOME_SETTING;
+import static org.opensearch.monitor.StatusInfo.Status.HEALTHY;
+import static org.opensearch.node.Node.NODE_NAME_SETTING;
+import static org.opensearch.node.Node.NODE_SEARCH_CACHE_SIZE_SETTING;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.either;
@@ -272,11 +278,6 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
-import static org.opensearch.action.support.ActionTestUtils.assertNoFailureListener;
-import static org.opensearch.env.Environment.PATH_HOME_SETTING;
-import static org.opensearch.monitor.StatusInfo.Status.HEALTHY;
-import static org.opensearch.node.Node.NODE_NAME_SETTING;
-import static org.opensearch.node.Node.NODE_SEARCH_CACHE_SIZE_SETTING;
 
 public class SnapshotResiliencyTests extends OpenSearchTestCase {
 
