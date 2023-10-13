@@ -23,6 +23,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 
 public class DelegatingRestHandlerTests extends OpenSearchTestCase {
     public void testDelegatingRestHandlerShouldActAsOriginal() throws Exception {
@@ -53,6 +54,7 @@ public class DelegatingRestHandlerTests extends OpenSearchTestCase {
                 method.invoke(drh);
             }
             method.invoke(verify(handlerSpy, times(1)), args);
+            verifyNoInteractions(handlerSpy);
         }
     }
 }
