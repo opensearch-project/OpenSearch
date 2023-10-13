@@ -83,6 +83,13 @@ public class RemoteClusterStateService implements Closeable {
 
     public static final int INDEX_METADATA_UPLOAD_WAIT_MILLIS = 20000;
 
+    // TODO : remove once upload PR is merged
+    public static final ChecksumBlobStoreFormat<Metadata> GLOBAL_METADATA_FORMAT = new ChecksumBlobStoreFormat<>(
+        "metadata",
+        METADATA_NAME_FORMAT,
+        Metadata::fromXContent
+    );
+
     public static final ChecksumBlobStoreFormat<IndexMetadata> INDEX_METADATA_FORMAT = new ChecksumBlobStoreFormat<>(
         "index-metadata",
         METADATA_NAME_FORMAT,
@@ -520,7 +527,11 @@ public class RemoteClusterStateService implements Closeable {
      * @param clusterMetadataManifest manifest file of cluster
      * @return {@code Map<String, IndexMetadata>} latest IndexUUID to IndexMetadata map
      */
-    private Map<String, IndexMetadata> getIndexMetadataMap(String clusterName, String clusterUUID, ClusterMetadataManifest clusterMetadataManifest) throws IOException {
+    private Map<String, IndexMetadata> getIndexMetadataMap(
+        String clusterName,
+        String clusterUUID,
+        ClusterMetadataManifest clusterMetadataManifest
+    ) {
         assert Objects.equals(clusterUUID, clusterMetadataManifest.getClusterUUID())
             : "Corrupt ClusterMetadataManifest found. Cluster UUID mismatch.";
         Map<String, IndexMetadata> remoteIndexMetadata = new HashMap<>();
@@ -562,11 +573,11 @@ public class RemoteClusterStateService implements Closeable {
      * @param clusterName name of the cluster
      * @return {@link IndexMetadata}
      */
-    public Metadata getLatestMetadata(String clusterName, String clusterUUID) throws IOException{
+    public Metadata getLatestMetadata(String clusterName, String clusterUUID) throws IOException {
         start();
         Optional<ClusterMetadataManifest> clusterMetadataManifest = getLatestClusterMetadataManifest(clusterName, clusterUUID);
         if (!clusterMetadataManifest.isPresent()) {
-            throw new IllegalStateException("Latest index metadata is not present for the provided clusterUUID");
+            throw new IllegalStateException("Latest cluster metadata manifest is not present for the provided clusterUUID");
         }
         // Fetch Global Metadata
         Metadata metadataWithGlobalMetadata = getGlobalMetadata(clusterName, clusterUUID, clusterMetadataManifest.get());
@@ -581,9 +592,9 @@ public class RemoteClusterStateService implements Closeable {
         String globalMetadataFileName = clusterMetadataManifest.getGlobalMetadataFileName();
         try {
             // Fetch Global metadata
-            if(globalMetadataFileName != null) {
+            if (globalMetadataFileName != null) {
                 String[] splitPath = globalMetadataFileName.split("/");
-                return BlobStoreRepository.GLOBAL_METADATA_FORMAT.read(
+                return GLOBAL_METADATA_FORMAT.read(
                     globalMetadataContainer(clusterName, clusterUUID),
                     splitPath[splitPath.length - 1],
                     blobStoreRepository.getNamedXContentRegistry()
