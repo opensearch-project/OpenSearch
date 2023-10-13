@@ -202,7 +202,6 @@ import org.opensearch.script.ScriptContext;
 import org.opensearch.script.ScriptEngine;
 import org.opensearch.script.ScriptModule;
 import org.opensearch.script.ScriptService;
-import org.opensearch.search.SearchBootstrapSettings;
 import org.opensearch.search.SearchModule;
 import org.opensearch.search.SearchService;
 import org.opensearch.search.aggregations.support.AggregationUsageService;
@@ -485,7 +484,6 @@ public class Node implements Closeable {
 
             // Ensure to initialize Feature Flags via the settings from opensearch.yml
             FeatureFlags.initializeFeatureFlags(settings);
-            SearchBootstrapSettings.initialize(settings);
 
             final List<IdentityPlugin> identityPlugins = new ArrayList<>();
             if (FeatureFlags.isEnabled(FeatureFlags.IDENTITY)) {

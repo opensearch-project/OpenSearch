@@ -569,4 +569,9 @@ public abstract class FilteredSearchContext extends SearchContext {
     public boolean shouldUseTimeSeriesDescSortOptimization() {
         return in.shouldUseTimeSeriesDescSortOptimization();
     }
+
+    @Override
+    public int getTargetMaxSliceCount() {
+        return in.getTargetMaxSliceCount();
+    }
 }
