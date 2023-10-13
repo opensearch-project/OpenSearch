@@ -83,6 +83,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.opensearch.test.OpenSearchTestCase.randomIntBetween;
+
 public class TestSearchContext extends SearchContext {
     public static final SearchShardTarget SHARD_TARGET = new SearchShardTarget(
         "test",
@@ -118,12 +120,21 @@ public class TestSearchContext extends SearchContext {
     private CollapseContext collapse;
     protected boolean concurrentSegmentSearchEnabled;
     private BucketCollectorProcessor bucketCollectorProcessor = NO_OP_BUCKET_COLLECTOR_PROCESSOR;
+    private int maxSliceCount;
 
     /**
      * Sets the concurrent segment search enabled field
      */
     public void setConcurrentSegmentSearchEnabled(boolean concurrentSegmentSearchEnabled) {
         this.concurrentSegmentSearchEnabled = concurrentSegmentSearchEnabled;
+    }
+
+    /**
+     * Sets the maxSliceCount for concurrent search
+     * @param sliceCount maxSliceCount
+     */
+    public void setMaxSliceCount(int sliceCount) {
+        this.maxSliceCount = sliceCount;
     }
 
     private final Map<String, SearchExtBuilder> searchExtBuilders = new HashMap<>();
@@ -163,6 +174,7 @@ public class TestSearchContext extends SearchContext {
         this.queryShardContext = queryShardContext;
         this.searcher = searcher;
         this.concurrentSegmentSearchEnabled = searcher != null && (searcher.getExecutor() != null);
+        this.maxSliceCount = randomIntBetween(0, 2);
         this.scrollContext = scrollContext;
     }
 
@@ -687,6 +699,12 @@ public class TestSearchContext extends SearchContext {
             && sort != null
             && sort.isSortOnTimeSeriesField()
             && sort.sort.getSort()[0].getReverse() == false;
+    }
+
+    @Override
+    public int getTargetMaxSliceCount() {
+        assert concurrentSegmentSearchEnabled == true : "Please use concurrent search before fetching maxSliceCount";
+        return maxSliceCount;
     }
 
     /**
