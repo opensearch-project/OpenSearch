@@ -99,7 +99,11 @@ import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.SystemIndices;
 import org.opensearch.node.NodeClosedException;
 import org.opensearch.tasks.Task;
+import org.opensearch.telemetry.tracing.Span;
+import org.opensearch.telemetry.tracing.SpanBuilder;
+import org.opensearch.telemetry.tracing.SpanScope;
 import org.opensearch.telemetry.tracing.Tracer;
+import org.opensearch.telemetry.tracing.listener.TraceableActionListener;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.threadpool.ThreadPool.Names;
 import org.opensearch.transport.TransportChannel;
@@ -416,27 +420,30 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         IndexShard primary,
         ActionListener<PrimaryResult<BulkShardRequest, BulkShardResponse>> listener
     ) {
+        Span span = getTracer().startSpan(SpanBuilder.from("shardPrimaryAction", clusterService.localNode().getId(), request));
         ClusterStateObserver observer = new ClusterStateObserver(clusterService, request.timeout(), logger, threadPool.getThreadContext());
-        performOnPrimary(request, primary, updateHelper, threadPool::absoluteTimeInMillis, (update, shardId, mappingListener) -> {
-            assert update != null;
-            assert shardId != null;
-            mappingUpdatedAction.updateMappingOnClusterManager(shardId.getIndex(), update, mappingListener);
-        }, mappingUpdateListener -> observer.waitForNextChange(new ClusterStateObserver.Listener() {
-            @Override
-            public void onNewClusterState(ClusterState state) {
-                mappingUpdateListener.onResponse(null);
-            }
+        try (SpanScope spanScope = getTracer().withSpanInScope(span)) {
+            performOnPrimary(request, primary, updateHelper, threadPool::absoluteTimeInMillis, (update, shardId, mappingListener) -> {
+                assert update != null;
+                assert shardId != null;
+                mappingUpdatedAction.updateMappingOnClusterManager(shardId.getIndex(), update, mappingListener);
+            }, mappingUpdateListener -> observer.waitForNextChange(new ClusterStateObserver.Listener() {
+                @Override
+                public void onNewClusterState(ClusterState state) {
+                    mappingUpdateListener.onResponse(null);
+                }
 
-            @Override
-            public void onClusterServiceClose() {
-                mappingUpdateListener.onFailure(new NodeClosedException(clusterService.localNode()));
-            }
+                @Override
+                public void onClusterServiceClose() {
+                    mappingUpdateListener.onFailure(new NodeClosedException(clusterService.localNode()));
+                }
 
-            @Override
-            public void onTimeout(TimeValue timeout) {
-                mappingUpdateListener.onFailure(new MapperException("timed out while waiting for a dynamic mapping update"));
-            }
-        }), listener, threadPool, executor(primary));
+                @Override
+                public void onTimeout(TimeValue timeout) {
+                    mappingUpdateListener.onFailure(new MapperException("timed out while waiting for a dynamic mapping update"));
+                }
+            }), TraceableActionListener.create(listener, span, getTracer()), threadPool, executor(primary));
+        }
     }
 
     @Override
@@ -811,10 +818,13 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
 
     @Override
     protected void dispatchedShardOperationOnReplica(BulkShardRequest request, IndexShard replica, ActionListener<ReplicaResult> listener) {
-        ActionListener.completeWith(listener, () -> {
-            final Translog.Location location = performOnReplica(request, replica);
-            return new WriteReplicaResult<>(request, location, null, replica, logger);
-        });
+        Span span = getTracer().startSpan(SpanBuilder.from("shardReplicaAction", clusterService.localNode().getId(), request));
+        try (SpanScope spanScope = getTracer().withSpanInScope(span)) {
+            ActionListener.completeWith(TraceableActionListener.create(listener, span, getTracer()), () -> {
+                final Translog.Location location = performOnReplica(request, replica);
+                return new WriteReplicaResult<>(request, location, null, replica, logger);
+            });
+        }
     }
 
     @Override
