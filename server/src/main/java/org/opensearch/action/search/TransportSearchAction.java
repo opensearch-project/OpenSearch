@@ -191,7 +191,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
 
     private final MetricsRegistry metricsRegistry;
 
-    private final SearchQueryCategorizor searchQueryCategorizor;
+    private SearchQueryCategorizor searchQueryCategorizor;
 
     @Inject
     public TransportSearchAction(
@@ -230,15 +230,13 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         this.isSearchQueryCategorizationEnabled = clusterService.getClusterSettings().get(SEARCH_QUERY_CATEGORIZATION_ENABLED_SETTING);
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(SEARCH_QUERY_CATEGORIZATION_ENABLED_SETTING, this::setIsSearchQueryCategorizationEnabled);
-        if (isSearchQueryCategorizationEnabled) {
-            this.searchQueryCategorizor = new SearchQueryCategorizor(metricsRegistry);
-        } else {
-            this.searchQueryCategorizor = null;
-        }
     }
 
     private void setIsSearchQueryCategorizationEnabled(boolean isSearchQueryCategorizationEnabled) {
         this.isSearchQueryCategorizationEnabled = isSearchQueryCategorizationEnabled;
+        if (this.isSearchQueryCategorizationEnabled && this.searchQueryCategorizor == null) {
+            this.searchQueryCategorizor = new SearchQueryCategorizor(metricsRegistry);
+        }
     }
 
     private void setIsRequestStatsEnabled(boolean isRequestStatsEnabled) {
