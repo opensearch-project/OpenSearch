@@ -1109,8 +1109,9 @@ public class RemoteClusterStateService implements Closeable {
                     }
                 }
             );
-        } finally {
+        } catch (Exception e) {
             deleteStaleMetadataRunning.set(false);
+            throw e;
         }
     }
 
@@ -1190,7 +1191,7 @@ public class RemoteClusterStateService implements Closeable {
     public void deleteStaleClusterUUIDs(ClusterState clusterState, ClusterMetadataManifest committedManifest) {
         threadpool.executor(ThreadPool.Names.REMOTE_PURGE).execute(() -> {
             String clusterName = clusterState.getClusterName().value();
-            logger.info("Deleting stale cluster UUIDs data from remote [{}]", clusterName);
+            logger.debug("Deleting stale cluster UUIDs data from remote [{}]", clusterName);
             Set<String> allClustersUUIDsInRemote;
             try {
                 allClustersUUIDsInRemote = new HashSet<>(getAllClusterUUIDs(clusterState.getClusterName().value()));
