@@ -391,6 +391,7 @@ public class IndicesQueryCacheTests extends OpenSearchTestCase {
         private final int randCount = randomIntBetween(0, Integer.MAX_VALUE);
         private boolean scorerCalled;
         private boolean scorerSupplierCalled;
+        private boolean countCalled;
 
         DummyWeight(Weight weight) {
             super(weight.getQuery());
@@ -416,6 +417,7 @@ public class IndicesQueryCacheTests extends OpenSearchTestCase {
 
         @Override
         public int count(LeafReaderContext context) throws IOException {
+            countCalled = true;
             return randCount;
         }
 
@@ -460,6 +462,28 @@ public class IndicesQueryCacheTests extends OpenSearchTestCase {
         cached.scorerSupplier(s.getIndexReader().leaves().get(0));
         assertFalse(weight.scorerCalled);
         assertTrue(weight.scorerSupplierCalled);
+        IOUtils.close(r, dir);
+        cache.onClose(shard);
+        cache.close();
+    }
+
+    public void testDelegatesCount() throws Exception {
+        Directory dir = newDirectory();
+        IndexWriter w = new IndexWriter(dir, newIndexWriterConfig());
+        w.addDocument(new Document());
+        DirectoryReader r = DirectoryReader.open(w);
+        w.close();
+        ShardId shard = new ShardId("index", "_na_", 0);
+        r = OpenSearchDirectoryReader.wrap(r, shard);
+        IndexSearcher s = new IndexSearcher(r);
+        IndicesQueryCache cache = new IndicesQueryCache(Settings.EMPTY);
+        s.setQueryCache(cache);
+        Query query = new MatchAllDocsQuery();
+        final DummyWeight weight = new DummyWeight(s.createWeight(s.rewrite(query), ScoreMode.COMPLETE_NO_SCORES, 1f));
+        final Weight cached = cache.doCache(weight, s.getQueryCachingPolicy());
+        assertFalse(weight.countCalled);
+        assertEquals(weight.randCount, cached.count(s.getIndexReader().leaves().get(0)));
+        assertTrue(weight.countCalled);
         IOUtils.close(r, dir);
         cache.onClose(shard);
         cache.close();
