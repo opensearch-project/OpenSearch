@@ -88,20 +88,6 @@ class ShiroTokenManager implements TokenManager {
         return token;
     }
 
-    @Override
-    public Subject authenticateToken(AuthToken authToken) {
-        return new NoopSubject();
-    }
-
-    public boolean validateToken(AuthToken token) {
-        if (token instanceof BasicAuthToken) {
-            final BasicAuthToken basicAuthToken = (BasicAuthToken) token;
-            return basicAuthToken.getUser().equals(SecurityUtils.getSubject().toString())
-                && basicAuthToken.getPassword().equals(shiroTokenPasswordMap.get(basicAuthToken));
-        }
-        return false;
-    }
-
     public String getTokenInfo(AuthToken token) {
         if (token instanceof BasicAuthToken) {
             final BasicAuthToken basicAuthToken = (BasicAuthToken) token;
