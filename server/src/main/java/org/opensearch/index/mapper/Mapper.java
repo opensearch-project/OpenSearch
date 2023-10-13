@@ -190,7 +190,7 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
 
             /**
              * Gets an optional default date format for date fields that do not have an explicit format set
-             *
+             * <p>
              * If {@code null}, then date fields will default to {@link DateFieldMapper#DEFAULT_DATE_TIME_FORMATTER}.
              */
             public DateFormatter getDateFormatter() {

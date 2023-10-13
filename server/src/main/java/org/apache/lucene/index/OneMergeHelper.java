@@ -59,8 +59,8 @@ public class OneMergeHelper {
      * Returns total bytes written by this merge.
      **/
     public static long getTotalBytesWritten(Thread thread, MergePolicy.OneMerge merge) throws IOException {
-        /**
-         * TODO: The number of bytes written during the merge should be accessible in OneMerge.
+        /*
+          TODO: The number of bytes written during the merge should be accessible in OneMerge.
          */
         if (thread instanceof ConcurrentMergeScheduler.MergeThread) {
             return ((ConcurrentMergeScheduler.MergeThread) thread).rateLimiter.getTotalBytesWritten();

@@ -73,7 +73,7 @@ import java.util.function.Function;
 
 /**
  * Provides the infrastructure for Lucene expressions as a scripting language for OpenSearch.
- *
+ * <p>
  * Only contexts returning numeric types or {@link Object} are supported.
  */
 public class ExpressionScriptEngine implements ScriptEngine {

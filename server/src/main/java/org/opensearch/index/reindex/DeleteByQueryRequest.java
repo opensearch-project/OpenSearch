@@ -49,7 +49,7 @@ import static org.opensearch.action.ValidateActions.addValidationError;
 /**
  * Creates a new {@link DeleteByQueryRequest} that uses scrolling and bulk requests to delete all documents matching
  * the query. This can have performance as well as visibility implications.
- *
+ * <p>
  * Delete-by-query now has the following semantics:
  * <ul>
  *     <li>it's {@code non-atomic}, a delete-by-query may fail at any time while some documents matching the query have already been

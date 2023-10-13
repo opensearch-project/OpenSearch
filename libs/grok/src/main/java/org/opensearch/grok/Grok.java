@@ -151,7 +151,7 @@ public final class Grok {
     /**
      * Checks whether patterns reference each other in a circular manner and, if so, fail with an exception.
      * Also checks for malformed pattern definitions and fails with an exception.
-     *
+     * <p>
      * In a pattern, anything between <code>%{</code> and <code>}</code> or <code>:</code> is considered
      * a reference to another named pattern. This method will navigate to all these named patterns and
      * check for a circular reference.

@@ -51,7 +51,7 @@ import static org.opensearch.core.xcontent.ConstructingObjectParser.constructorA
 
 /**
  * Response object for {@link RolloverRequest} API
- *
+ * <p>
  * Note: there is a new class with the same name for the Java HLRC that uses a typeless format.
  * Any changes done to this class should also go to that client class.
  *

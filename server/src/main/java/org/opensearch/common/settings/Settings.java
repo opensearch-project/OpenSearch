@@ -1222,7 +1222,7 @@ public final class Settings implements ToXContentFragment {
 
         /**
          * Checks that all settings(except archived settings and wildcards) in the builder start with the specified prefix.
-         *
+         * <p>
          * If a setting doesn't start with the prefix, the builder appends the prefix to such setting.
          */
         public Builder normalizePrefix(String prefix) {

@@ -771,8 +771,7 @@ public class Node implements Closeable {
 
             final IndexStorePlugin.DirectoryFactory remoteDirectoryFactory = new RemoteSegmentStoreDirectoryFactory(
                 repositoriesServiceReference::get,
-                threadPool,
-                recoverySettings
+                threadPool
             );
 
             final SearchRequestStats searchRequestStats = new SearchRequestStats();
@@ -803,7 +802,8 @@ public class Node implements Closeable {
                 repositoriesServiceReference::get,
                 fileCacheCleaner,
                 searchRequestStats,
-                remoteStoreStatsTrackerFactory
+                remoteStoreStatsTrackerFactory,
+                recoverySettings
             );
 
             final AliasValidator aliasValidator = new AliasValidator();

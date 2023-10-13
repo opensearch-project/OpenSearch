@@ -50,7 +50,7 @@ import static org.junit.Assert.assertThat;
 
 /**
  * Represents a match assert section:
- *
+ * <p>
  *   - match:   { get.fields._routing: "5" }
  *
  */

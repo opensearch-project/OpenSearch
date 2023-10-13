@@ -38,6 +38,7 @@ import org.opensearch.core.transport.TransportResponse;
 import org.opensearch.search.query.QuerySearchResult;
 
 import java.io.IOException;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -130,4 +131,8 @@ public final class TcpTransportChannel extends BaseTcpTransportChannel {
         return version;
     }
 
+    @Override
+    public <T> Optional<T> get(String name, Class<T> clazz) {
+        return getChannel().get(name, clazz);
+    }
 }
