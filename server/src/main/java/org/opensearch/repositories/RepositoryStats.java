@@ -83,12 +83,24 @@ public class RepositoryStats implements Writeable, ToXContentFragment {
     }
 
     public RepositoryStats merge(RepositoryStats otherStats) {
-        final Map<String, Long> result = new HashMap<>();
-        result.putAll(requestCounts);
-        for (Map.Entry<String, Long> entry : otherStats.requestCounts.entrySet()) {
-            result.merge(entry.getKey(), entry.getValue(), Math::addExact);
+        assert this.detailed == otherStats.detailed;
+        if (detailed) {
+            final Map<BlobStore.Metric, Map<String, Long>> result = new HashMap<>();
+            result.putAll(extendedStats);
+            for (Map.Entry<BlobStore.Metric, Map<String, Long>> entry : otherStats.extendedStats.entrySet()) {
+                for (Map.Entry<String, Long> nested : entry.getValue().entrySet()) {
+                    result.get(entry.getKey()).merge(nested.getKey(), nested.getValue(), Math::addExact);
+                }
+            }
+            return new RepositoryStats(result, true);
+        } else {
+            final Map<String, Long> result = new HashMap<>();
+            result.putAll(requestCounts);
+            for (Map.Entry<String, Long> entry : otherStats.requestCounts.entrySet()) {
+                result.merge(entry.getKey(), entry.getValue(), Math::addExact);
+            }
+            return new RepositoryStats(result);
         }
-        return new RepositoryStats(result);
     }
 
     @Override
