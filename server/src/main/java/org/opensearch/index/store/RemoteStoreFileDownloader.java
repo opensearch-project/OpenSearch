@@ -16,7 +16,7 @@ import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.annotation.InternalApi;
 import org.opensearch.common.logging.Loggers;
-import org.opensearch.common.util.concurrent.UncategorizedExecutionException;
+import org.opensearch.common.util.CancellableThreads;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.indices.recovery.RecoverySettings;
@@ -51,9 +51,16 @@ public final class RemoteStoreFileDownloader {
      * @param source The remote directory to copy segment files from
      * @param destination The local directory to copy segment files to
      * @param toDownloadSegments The list of segment files to download
+     * @param listener Callback listener to be notified upon completion
      */
-    public void download(Directory source, Directory destination, Collection<String> toDownloadSegments) throws IOException {
-        downloadInternal(source, destination, null, toDownloadSegments, () -> {});
+    public void downloadAsync(
+        CancellableThreads cancellableThreads,
+        Directory source,
+        Directory destination,
+        Collection<String> toDownloadSegments,
+        ActionListener<Void> listener
+    ) {
+        downloadInternal(cancellableThreads, source, destination, null, toDownloadSegments, () -> {}, listener);
     }
 
     /**
@@ -74,17 +81,37 @@ public final class RemoteStoreFileDownloader {
         Directory secondDestination,
         Collection<String> toDownloadSegments,
         Runnable onFileCompletion
-    ) throws IOException {
-        downloadInternal(source, destination, secondDestination, toDownloadSegments, onFileCompletion);
+    ) throws InterruptedException, IOException {
+        final CancellableThreads cancellableThreads = new CancellableThreads();
+        final PlainActionFuture<Void> listener = PlainActionFuture.newFuture();
+        downloadInternal(cancellableThreads, source, destination, secondDestination, toDownloadSegments, onFileCompletion, listener);
+        try {
+            listener.get();
+        } catch (ExecutionException e) {
+            if (e.getCause() instanceof RuntimeException) {
+                throw (RuntimeException) e.getCause();
+            } else if (e.getCause() instanceof IOException) {
+                throw (IOException) e.getCause();
+            }
+            throw new RuntimeException(e);
+        } catch (InterruptedException e) {
+            // If the blocking call on the PlainActionFuture itself is interrupted, then we must
+            // cancel the asynchronous work we were waiting on
+            cancellableThreads.cancel(e.getMessage());
+            Thread.currentThread().interrupt();
+            throw e;
+        }
     }
 
     private void downloadInternal(
+        CancellableThreads cancellableThreads,
         Directory source,
         Directory destination,
         @Nullable Directory secondDestination,
         Collection<String> toDownloadSegments,
-        Runnable onFileCompletion
-    ) throws IOException {
+        Runnable onFileCompletion,
+        ActionListener<Void> listener
+    ) {
         final Queue<String> queue = new ConcurrentLinkedQueue<>(toDownloadSegments);
         // Choose the minimum of:
         // - number of files to download
@@ -95,25 +122,14 @@ public final class RemoteStoreFileDownloader {
             Math.min(threadPool.info(ThreadPool.Names.REMOTE_RECOVERY).getMax(), recoverySettings.getMaxConcurrentRemoteStoreStreams())
         );
         logger.trace("Starting download of {} files with {} threads", queue.size(), threads);
-        final PlainActionFuture<Collection<Void>> listener = PlainActionFuture.newFuture();
-        final ActionListener<Void> allFilesListener = new GroupedActionListener<>(listener, threads);
+        final ActionListener<Void> allFilesListener = new GroupedActionListener<>(ActionListener.map(listener, r -> null), threads);
         for (int i = 0; i < threads; i++) {
-            copyOneFile(source, destination, secondDestination, queue, onFileCompletion, allFilesListener);
-        }
-        try {
-            listener.actionGet();
-        } catch (UncategorizedExecutionException e) {
-            // Any IOException will be double-wrapped so dig it out and throw it
-            if (e.getCause() instanceof ExecutionException) {
-                if (e.getCause().getCause() instanceof IOException) {
-                    throw (IOException) e.getCause().getCause();
-                }
-            }
-            throw e;
+            copyOneFile(cancellableThreads, source, destination, secondDestination, queue, onFileCompletion, allFilesListener);
         }
     }
 
     private void copyOneFile(
+        CancellableThreads cancellableThreads,
         Directory source,
         Directory destination,
         @Nullable Directory secondDestination,
@@ -129,18 +145,20 @@ public final class RemoteStoreFileDownloader {
             threadPool.executor(ThreadPool.Names.REMOTE_RECOVERY).submit(() -> {
                 logger.trace("Downloading file {}", file);
                 try {
-                    destination.copyFrom(source, file, file, IOContext.DEFAULT);
-                    onFileCompletion.run();
-                    if (secondDestination != null) {
-                        secondDestination.copyFrom(destination, file, file, IOContext.DEFAULT);
-                    }
+                    cancellableThreads.executeIO(() -> {
+                        destination.copyFrom(source, file, file, IOContext.DEFAULT);
+                        onFileCompletion.run();
+                        if (secondDestination != null) {
+                            secondDestination.copyFrom(destination, file, file, IOContext.DEFAULT);
+                        }
+                    });
                 } catch (Exception e) {
                     // Clear the queue to stop any future processing, report the failure, then return
                     queue.clear();
                     listener.onFailure(e);
                     return;
                 }
-                copyOneFile(source, destination, secondDestination, queue, onFileCompletion, listener);
+                copyOneFile(cancellableThreads, source, destination, secondDestination, queue, onFileCompletion, listener);
             });
         }
     }
