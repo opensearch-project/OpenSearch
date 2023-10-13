@@ -135,11 +135,6 @@ public class SegmentReplicationPressureService implements Closeable {
         this.failStaleReplicaTask = new AsyncFailStaleReplicaTask(this);
     }
 
-    /** Only used for testing **/
-    public SegmentReplicationStatsTracker getTracker() {
-        return tracker;
-    }
-
     // visible for testing
     AsyncFailStaleReplicaTask getFailStaleReplicaTask() {
         return failStaleReplicaTask;

@@ -8,13 +8,11 @@
 
 package org.opensearch.index;
 
-import org.opensearch.Version;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.core.common.unit.ByteSizeValue;
-import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
 
@@ -31,26 +29,17 @@ public class ReplicationStats implements ToXContentFragment, Writeable {
     public long maxBytesBehind;
     public long maxReplicationLag;
     public long totalBytesBehind;
-    public long totalRejections;
-    public ShardId shardId;
 
-    public ReplicationStats(ShardId shardId, long maxBytesBehind, long totalBytesBehind, long maxReplicationLag, long totalRejections) {
-        this.shardId = shardId;
+    public ReplicationStats(long maxBytesBehind, long totalBytesBehind, long maxReplicationLag) {
         this.maxBytesBehind = maxBytesBehind;
         this.totalBytesBehind = totalBytesBehind;
         this.maxReplicationLag = maxReplicationLag;
-        this.totalRejections = totalRejections;
     }
 
     public ReplicationStats(StreamInput in) throws IOException {
         this.maxBytesBehind = in.readVLong();
         this.totalBytesBehind = in.readVLong();
         this.maxReplicationLag = in.readVLong();
-        // TODO: change to V_2_11_0 on main after backport to 2.x
-        if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
-            this.totalRejections = in.readVLong();
-            this.shardId = in.readOptionalWriteable(ShardId::new);
-        }
     }
 
     public ReplicationStats() {
@@ -62,9 +51,6 @@ public class ReplicationStats implements ToXContentFragment, Writeable {
             maxBytesBehind = Math.max(other.maxBytesBehind, maxBytesBehind);
             totalBytesBehind += other.totalBytesBehind;
             maxReplicationLag = Math.max(other.maxReplicationLag, maxReplicationLag);
-            if (this.shardId != other.shardId) {
-                totalRejections += other.totalRejections;
-            }
         }
     }
 
@@ -80,20 +66,11 @@ public class ReplicationStats implements ToXContentFragment, Writeable {
         return this.maxReplicationLag;
     }
 
-    public long getTotalRejections() {
-        return totalRejections;
-    }
-
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVLong(maxBytesBehind);
         out.writeVLong(totalBytesBehind);
         out.writeVLong(maxReplicationLag);
-        // TODO: change to V_2_11_0 on main after backport to 2.x
-        if (out.getVersion().onOrAfter(Version.V_3_0_0)) {
-            out.writeVLong(totalRejections);
-            out.writeOptionalWriteable(shardId);
-        }
     }
 
     @Override
@@ -102,11 +79,6 @@ public class ReplicationStats implements ToXContentFragment, Writeable {
         builder.field(Fields.MAX_BYTES_BEHIND, new ByteSizeValue(maxBytesBehind).toString());
         builder.field(Fields.TOTAL_BYTES_BEHIND, new ByteSizeValue(totalBytesBehind).toString());
         builder.field(Fields.MAX_REPLICATION_LAG, new TimeValue(maxReplicationLag));
-
-        builder.startObject("pressure");
-        builder.field("total_rejections", totalRejections);
-        builder.endObject();
-
         builder.endObject();
         return builder;
     }

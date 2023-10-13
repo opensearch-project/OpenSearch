@@ -110,7 +110,6 @@ import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.ReplicationStats;
-import org.opensearch.index.SegmentReplicationPressureService;
 import org.opensearch.index.SegmentReplicationShardStats;
 import org.opensearch.index.VersionType;
 import org.opensearch.index.cache.IndexCache;
@@ -342,7 +341,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     private final List<ReferenceManager.RefreshListener> internalRefreshListener = new ArrayList<>();
     private final RemoteStoreFileDownloader fileDownloader;
-    private final SegmentReplicationPressureService segmentReplicationPressureService;
 
     public IndexShard(
         final ShardRouting shardRouting,
@@ -371,8 +369,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         final RemoteStoreStatsTrackerFactory remoteStoreStatsTrackerFactory,
         final Supplier<TimeValue> clusterRemoteTranslogBufferIntervalSupplier,
         final String nodeId,
-        final RecoverySettings recoverySettings,
-        final SegmentReplicationPressureService segmentReplicationPressureService
+        final RecoverySettings recoverySettings
     ) throws IOException {
         super(shardRouting.shardId(), indexSettings);
         assert shardRouting.initializing();
@@ -469,7 +466,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             : mapperService.documentMapper().mappers().containsTimeStampField();
         this.remoteStoreStatsTrackerFactory = remoteStoreStatsTrackerFactory;
         this.fileDownloader = new RemoteStoreFileDownloader(shardRouting.shardId(), threadPool, recoverySettings);
-        this.segmentReplicationPressureService = segmentReplicationPressureService;
     }
 
     public ThreadPool getThreadPool() {
@@ -561,11 +557,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     /** Only used for testing **/
     protected RemoteStoreStatsTrackerFactory getRemoteStoreStatsTrackerFactory() {
         return remoteStoreStatsTrackerFactory;
-    }
-
-    /** Only used for testing **/
-    public SegmentReplicationPressureService getSegmentReplicationPressureService() {
-        return segmentReplicationPressureService;
     }
 
     public String getNodeId() {
@@ -3009,8 +3000,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 .mapToLong(SegmentReplicationShardStats::getCurrentReplicationTimeMillis)
                 .max()
                 .orElse(0L);
-            long totalRejections = segmentReplicationPressureService.getStatsForShard(this).getRejectedRequestCount();
-            return new ReplicationStats(shardId, maxBytesBehind, totalBytesBehind, maxReplicationLag, totalRejections);
+            return new ReplicationStats(maxBytesBehind, totalBytesBehind, maxReplicationLag);
         }
         return new ReplicationStats();
     }

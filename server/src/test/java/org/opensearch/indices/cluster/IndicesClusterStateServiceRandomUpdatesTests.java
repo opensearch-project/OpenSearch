@@ -584,7 +584,6 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
             primaryReplicaSyncer,
             s -> {},
             RetentionLeaseSyncer.EMPTY,
-            null,
             null
         );
     }
