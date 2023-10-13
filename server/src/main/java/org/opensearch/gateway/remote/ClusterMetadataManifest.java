@@ -121,7 +121,7 @@ public class ClusterMetadataManifest implements Writeable, ToXContentFragment {
         );
         PARSER.declareString(ConstructingObjectParser.constructorArg(), PREVIOUS_CLUSTER_UUID);
         PARSER.declareBoolean(ConstructingObjectParser.constructorArg(), CLUSTER_UUID_COMMITTED);
-        PARSER.declareString(ConstructingObjectParser.constructorArg(), GLOBAL_METADATA_FIELD);
+        PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), GLOBAL_METADATA_FIELD);
     }
 
     private final String globalMetadataFileName;
