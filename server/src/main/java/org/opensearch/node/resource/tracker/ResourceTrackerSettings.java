@@ -6,16 +6,16 @@
  * compatible open source license.
  */
 
-package org.opensearch.ratelimiting.tracker;
+package org.opensearch.node.resource.tracker;
 
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 
 /**
- * Settings related to node performance trackers such as polling interval, window duration etc
+ * Settings related to resource usage trackers such as polling interval, window duration etc
  */
-public class PerformanceTrackerSettings {
+public class ResourceTrackerSettings {
 
     private static class Defaults {
         /**
@@ -29,25 +29,25 @@ public class PerformanceTrackerSettings {
     }
 
     public static final Setting<TimeValue> GLOBAL_CPU_USAGE_AC_POLLING_INTERVAL_SETTING = Setting.positiveTimeSetting(
-        "node.perf_tracker.global_cpu_usage.polling_interval",
+        "node.resource.tracker.global_cpu_usage.polling_interval",
         TimeValue.timeValueMillis(Defaults.POLLING_INTERVAL_IN_MILLIS),
         Setting.Property.NodeScope
     );
     public static final Setting<TimeValue> GLOBAL_CPU_USAGE_AC_WINDOW_DURATION_SETTING = Setting.positiveTimeSetting(
-        "node.perf_tracker.global_cpu_usage.window_duration",
+        "node.resource.tracker.global_cpu_usage.window_duration",
         TimeValue.timeValueSeconds(Defaults.WINDOW_DURATION_IN_SECONDS),
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
 
     public static final Setting<TimeValue> GLOBAL_JVM_USAGE_AC_POLLING_INTERVAL_SETTING = Setting.positiveTimeSetting(
-        "node.perf_tracker.global_jvmmp.polling_interval",
+        "node.resource.tracker.global_jvmmp.polling_interval",
         TimeValue.timeValueMillis(Defaults.POLLING_INTERVAL_IN_MILLIS),
         Setting.Property.NodeScope
     );
 
     public static final Setting<TimeValue> GLOBAL_JVM_USAGE_AC_WINDOW_DURATION_SETTING = Setting.positiveTimeSetting(
-        "node.perf_tracker.global_jvmmp.window_duration",
+        "node.resource.tracker.global_jvmmp.window_duration",
         TimeValue.timeValueSeconds(Defaults.WINDOW_DURATION_IN_SECONDS),
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
@@ -57,7 +57,7 @@ public class PerformanceTrackerSettings {
     private volatile TimeValue memoryWindowDuration;
     private volatile TimeValue memoryPollingInterval;
 
-    public PerformanceTrackerSettings(Settings settings) {
+    public ResourceTrackerSettings(Settings settings) {
         this.cpuPollingInterval = GLOBAL_CPU_USAGE_AC_POLLING_INTERVAL_SETTING.get(settings);
         this.cpuWindowDuration = GLOBAL_CPU_USAGE_AC_WINDOW_DURATION_SETTING.get(settings);
         this.memoryPollingInterval = GLOBAL_JVM_USAGE_AC_POLLING_INTERVAL_SETTING.get(settings);

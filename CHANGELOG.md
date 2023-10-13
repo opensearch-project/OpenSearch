@@ -11,7 +11,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Add events correlation engine plugin ([#6854](https://github.com/opensearch-project/OpenSearch/issues/6854))
 - Introduce new dynamic cluster setting to control slice computation for concurrent segment search ([#9107](https://github.com/opensearch-project/OpenSearch/pull/9107))
 - Implement on behalf of token passing for extensions ([#8679](https://github.com/opensearch-project/OpenSearch/pull/8679))
-- [Admission control] Add Performance collector service and node performance stats tracker  ([#9890](https://github.com/opensearch-project/OpenSearch/pull/9890))
+- [Admission control] Add Resource usage collector service and resource usage tracker  ([#9890](https://github.com/opensearch-project/OpenSearch/pull/9890))
 - Implement Visitor Design pattern in QueryBuilder to enable the capability to traverse through the complex QueryBuilder tree. ([#10110](https://github.com/opensearch-project/OpenSearch/pull/10110))
 - Provide service accounts tokens to extensions ([#9618](https://github.com/opensearch-project/OpenSearch/pull/9618))
 - Configurable merge policy for index with an option to choose from LogByteSize and Tiered merge policy ([#9992](https://github.com/opensearch-project/OpenSearch/pull/9992))

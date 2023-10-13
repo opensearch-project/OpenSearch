@@ -7,6 +7,6 @@
  */
 
 /**
- * Node level performance stats tracker package
+ * Node level resource usage stats tracker package
  */
-package org.opensearch.ratelimiting.tracker;
+package org.opensearch.node.resource.tracker;

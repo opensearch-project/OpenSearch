@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.ratelimiting.tracker;
+package org.opensearch.node.resource.tracker;
 
 import org.opensearch.common.lifecycle.AbstractLifecycleComponent;
 import org.opensearch.common.settings.ClusterSettings;
@@ -15,20 +15,20 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.threadpool.ThreadPool;
 
 /**
- * This tracks the performance of node resources such as CPU, IO and memory
+ * This tracks the usage of node resources such as CPU, IO and memory
  */
-public class NodePerformanceTracker extends AbstractLifecycleComponent {
+public class NodeResourceUsageTracker extends AbstractLifecycleComponent {
     private ThreadPool threadPool;
     private final ClusterSettings clusterSettings;
     private AverageCpuUsageTracker cpuUsageTracker;
     private AverageMemoryUsageTracker memoryUsageTracker;
 
-    private PerformanceTrackerSettings performanceTrackerSettings;
+    private ResourceTrackerSettings resourceTrackerSettings;
 
-    public NodePerformanceTracker(ThreadPool threadPool, Settings settings, ClusterSettings clusterSettings) {
+    public NodeResourceUsageTracker(ThreadPool threadPool, Settings settings, ClusterSettings clusterSettings) {
         this.threadPool = threadPool;
         this.clusterSettings = clusterSettings;
-        this.performanceTrackerSettings = new PerformanceTrackerSettings(settings);
+        this.resourceTrackerSettings = new ResourceTrackerSettings(settings);
         initialize();
     }
 
@@ -62,40 +62,40 @@ public class NodePerformanceTracker extends AbstractLifecycleComponent {
     void initialize() {
         cpuUsageTracker = new AverageCpuUsageTracker(
             threadPool,
-            performanceTrackerSettings.getCpuPollingInterval(),
-            performanceTrackerSettings.getCpuWindowDuration()
+            resourceTrackerSettings.getCpuPollingInterval(),
+            resourceTrackerSettings.getCpuWindowDuration()
         );
         clusterSettings.addSettingsUpdateConsumer(
-            PerformanceTrackerSettings.GLOBAL_CPU_USAGE_AC_WINDOW_DURATION_SETTING,
+            ResourceTrackerSettings.GLOBAL_CPU_USAGE_AC_WINDOW_DURATION_SETTING,
             this::setCpuWindowDuration
         );
 
         memoryUsageTracker = new AverageMemoryUsageTracker(
             threadPool,
-            performanceTrackerSettings.getMemoryPollingInterval(),
-            performanceTrackerSettings.getMemoryWindowDuration()
+            resourceTrackerSettings.getMemoryPollingInterval(),
+            resourceTrackerSettings.getMemoryWindowDuration()
         );
         clusterSettings.addSettingsUpdateConsumer(
-            PerformanceTrackerSettings.GLOBAL_JVM_USAGE_AC_WINDOW_DURATION_SETTING,
+            ResourceTrackerSettings.GLOBAL_JVM_USAGE_AC_WINDOW_DURATION_SETTING,
             this::setMemoryWindowDuration
         );
     }
 
     private void setMemoryWindowDuration(TimeValue windowDuration) {
         memoryUsageTracker.setWindowSize(windowDuration);
-        performanceTrackerSettings.setMemoryWindowDuration(windowDuration);
+        resourceTrackerSettings.setMemoryWindowDuration(windowDuration);
     }
 
     private void setCpuWindowDuration(TimeValue windowDuration) {
         cpuUsageTracker.setWindowSize(windowDuration);
-        performanceTrackerSettings.setCpuWindowDuration(windowDuration);
+        resourceTrackerSettings.setCpuWindowDuration(windowDuration);
     }
 
     /**
      * Visible for testing
      */
-    PerformanceTrackerSettings getPerformanceTrackerSettings() {
-        return performanceTrackerSettings;
+    ResourceTrackerSettings getResourceTrackerSettings() {
+        return resourceTrackerSettings;
     }
 
     @Override

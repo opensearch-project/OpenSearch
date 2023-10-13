@@ -83,7 +83,7 @@ public class NodeService implements Closeable {
     private final ScriptService scriptService;
     private final HttpServerTransport httpServerTransport;
     private final ResponseCollectorService responseCollectorService;
-    private final PerformanceCollectorService performanceCollectorService;
+    private final ResourceUsageCollectorService resourceUsageCollectorService;
     private final SearchTransportService searchTransportService;
     private final IndexingPressureService indexingPressureService;
     private final AggregationUsageService aggregationUsageService;
@@ -116,7 +116,7 @@ public class NodeService implements Closeable {
         SearchPipelineService searchPipelineService,
         FileCache fileCache,
         TaskCancellationMonitoringService taskCancellationMonitoringService,
-        PerformanceCollectorService performanceCollectorService
+        ResourceUsageCollectorService resourceUsageCollectorService
     ) {
         this.settings = settings;
         this.threadPool = threadPool;
@@ -139,7 +139,7 @@ public class NodeService implements Closeable {
         this.clusterService = clusterService;
         this.fileCache = fileCache;
         this.taskCancellationMonitoringService = taskCancellationMonitoringService;
-        this.performanceCollectorService = performanceCollectorService;
+        this.resourceUsageCollectorService = resourceUsageCollectorService;
         clusterService.addStateApplier(ingestService);
         clusterService.addStateApplier(searchPipelineService);
     }
@@ -221,7 +221,7 @@ public class NodeService implements Closeable {
         boolean fileCacheStats,
         boolean taskCancellation,
         boolean searchPipelineStats,
-        boolean nodesPerfStats
+        boolean resourceUsageStats
     ) {
         // for indices stats we want to include previous allocated shards stats as well (it will
         // only be applied to the sensible ones to use, like refresh/merge/flush/indexing stats)
@@ -241,7 +241,7 @@ public class NodeService implements Closeable {
             discoveryStats ? discovery.stats() : null,
             ingest ? ingestService.stats() : null,
             adaptiveSelection ? responseCollectorService.getAdaptiveStats(searchTransportService.getPendingSearchRequests()) : null,
-            nodesPerfStats ? performanceCollectorService.stats() : null,
+            resourceUsageStats ? resourceUsageCollectorService.stats() : null,
             scriptCache ? scriptService.cacheStats() : null,
             indexingPressure ? this.indexingPressureService.nodeStats() : null,
             shardIndexingPressure ? this.indexingPressureService.shardStats(indices) : null,

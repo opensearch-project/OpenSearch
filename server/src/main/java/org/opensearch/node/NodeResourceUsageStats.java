@@ -16,23 +16,23 @@ import java.io.IOException;
 import java.util.Locale;
 
 /**
- * This represents the performance stats of a node along with the timestamp at which the stats object was created
+ * This represents the resource usage stats of a node along with the timestamp at which the stats object was created
  * in the respective node
  */
-public class NodePerformanceStats implements Writeable {
+public class NodeResourceUsageStats implements Writeable {
     final String nodeId;
     long timestamp;
     double cpuUtilizationPercent;
     double memoryUtilizationPercent;
 
-    public NodePerformanceStats(String nodeId, long timestamp, double memoryUtilizationPercent, double cpuUtilizationPercent) {
+    public NodeResourceUsageStats(String nodeId, long timestamp, double memoryUtilizationPercent, double cpuUtilizationPercent) {
         this.nodeId = nodeId;
         this.timestamp = timestamp;
         this.cpuUtilizationPercent = cpuUtilizationPercent;
         this.memoryUtilizationPercent = memoryUtilizationPercent;
     }
 
-    public NodePerformanceStats(StreamInput in) throws IOException {
+    public NodeResourceUsageStats(StreamInput in) throws IOException {
         this.nodeId = in.readString();
         this.timestamp = in.readLong();
         this.cpuUtilizationPercent = in.readDouble();
@@ -49,7 +49,7 @@ public class NodePerformanceStats implements Writeable {
 
     @Override
     public String toString() {
-        StringBuilder sb = new StringBuilder("NodePerformanceStatistics[");
+        StringBuilder sb = new StringBuilder("NodeResourceUsageStats[");
         sb.append(nodeId).append("](");
         sb.append("Timestamp: ").append(timestamp);
         sb.append(", CPU utilization percent: ").append(String.format(Locale.ROOT, "%.1f", cpuUtilizationPercent));
@@ -58,12 +58,12 @@ public class NodePerformanceStats implements Writeable {
         return sb.toString();
     }
 
-    NodePerformanceStats(NodePerformanceStats nodePerformanceStats) {
+    NodeResourceUsageStats(NodeResourceUsageStats nodeResourceUsageStats) {
         this(
-            nodePerformanceStats.nodeId,
-            nodePerformanceStats.timestamp,
-            nodePerformanceStats.memoryUtilizationPercent,
-            nodePerformanceStats.cpuUtilizationPercent
+            nodeResourceUsageStats.nodeId,
+            nodeResourceUsageStats.timestamp,
+            nodeResourceUsageStats.memoryUtilizationPercent,
+            nodeResourceUsageStats.cpuUtilizationPercent
         );
     }
 
