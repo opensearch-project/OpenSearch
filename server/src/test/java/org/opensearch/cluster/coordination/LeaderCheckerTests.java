@@ -34,19 +34,24 @@ package org.opensearch.cluster.coordination;
 
 import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
+import org.opensearch.action.admin.cluster.settings.ClusterUpdateSettingsResponse;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.coordination.LeaderChecker.LeaderCheckRequest;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.common.settings.ClusterSettings;
+import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.core.transport.TransportResponse;
 import org.opensearch.core.transport.TransportResponse.Empty;
 import org.opensearch.monitor.StatusInfo;
 import org.opensearch.telemetry.tracing.noop.NoopTracer;
 import org.opensearch.test.EqualsHashCodeTestUtils;
 import org.opensearch.test.EqualsHashCodeTestUtils.CopyFunction;
+import org.opensearch.test.OpenSearchSingleNodeTestCase;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.transport.CapturingTransport;
 import org.opensearch.test.transport.MockTransport;
@@ -66,9 +71,11 @@ import static org.opensearch.cluster.coordination.LeaderChecker.LEADER_CHECK_ACT
 import static org.opensearch.cluster.coordination.LeaderChecker.LEADER_CHECK_INTERVAL_SETTING;
 import static org.opensearch.cluster.coordination.LeaderChecker.LEADER_CHECK_RETRY_COUNT_SETTING;
 import static org.opensearch.cluster.coordination.LeaderChecker.LEADER_CHECK_TIMEOUT_SETTING;
+import static org.opensearch.common.unit.TimeValue.timeValueSeconds;
 import static org.opensearch.monitor.StatusInfo.Status.HEALTHY;
 import static org.opensearch.monitor.StatusInfo.Status.UNHEALTHY;
 import static org.opensearch.node.Node.NODE_NAME_SETTING;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.opensearch.transport.TransportService.HANDSHAKE_ACTION_NAME;
 import static org.opensearch.transport.TransportService.NOOP_TRANSPORT_INTERCEPTOR;
 import static org.hamcrest.Matchers.anyOf;
@@ -79,7 +86,7 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.matchesRegex;
 import static org.hamcrest.Matchers.nullValue;
 
-public class LeaderCheckerTests extends OpenSearchTestCase {
+public class LeaderCheckerTests extends OpenSearchSingleNodeTestCase {
 
     public void testFollowerBehaviour() {
         final DiscoveryNode leader1 = new DiscoveryNode("leader-1", buildNewFakeTransportAddress(), Version.CURRENT);
@@ -561,5 +568,29 @@ public class LeaderCheckerTests extends OpenSearchTestCase {
             (CopyFunction<LeaderCheckRequest>) rq -> copyWriteable(rq, writableRegistry(), LeaderCheckRequest::new),
             rq -> new LeaderCheckRequest(new DiscoveryNode(randomAlphaOfLength(10), buildNewFakeTransportAddress(), Version.CURRENT))
         );
+    }
+
+    public void testLeaderCheckTimeoutValue() {
+        Setting<TimeValue> setting1 = LEADER_CHECK_TIMEOUT_SETTING;
+        Settings timeSettings1 = Settings.builder().put(setting1.getKey(), "20s").build();
+
+        ClusterUpdateSettingsResponse response = client().admin()
+            .cluster()
+            .prepareUpdateSettings()
+            .setPersistentSettings(timeSettings1)
+            .execute()
+            .actionGet();
+
+        assertAcked(response);
+        assertEquals(timeValueSeconds(20), setting1.get(response.getPersistentSettings()));
+
+        // cleanup
+        timeSettings1 = Settings.builder().putNull(setting1.getKey()).build();
+        response = client().admin()
+            .cluster()
+            .prepareUpdateSettings()
+            .setPersistentSettings(timeSettings1)
+            .execute()
+            .actionGet();
     }
 }
