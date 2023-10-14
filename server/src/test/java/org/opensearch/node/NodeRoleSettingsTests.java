@@ -72,4 +72,10 @@ public class NodeRoleSettingsTests extends OpenSearchTestCase {
         assertEquals(testRole, nodeRoles.get(0).roleName());
         assertEquals(testRole, nodeRoles.get(0).roleNameAbbreviation());
     }
+
+    public void testNodeRoleOfEmptyArrayNameShouldBeIgnored() {
+        String testRole = "[ ]";
+        Settings roleSettings = Settings.builder().put(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), testRole).build();
+        assertEquals(Collections.emptyList(), NodeRoleSettings.NODE_ROLES_SETTING.get(roleSettings));
+    }
 }
