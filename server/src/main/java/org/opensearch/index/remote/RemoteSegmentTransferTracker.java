@@ -267,7 +267,8 @@ public class RemoteSegmentTransferTracker extends RemoteTransferTracker {
         return rejectionCount.get();
     }
 
-    void incrementRejectionCount() {
+    /** public only for testing **/
+    public void incrementRejectionCount() {
         rejectionCount.incrementAndGet();
     }
 

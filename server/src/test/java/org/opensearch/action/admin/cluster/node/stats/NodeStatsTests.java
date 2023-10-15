@@ -860,6 +860,7 @@ public class NodeStatsTests extends OpenSearchTestCase {
             remoteSegmentStats.setMaxRefreshTimeLag(2L);
             remoteSegmentStats.addTotalUploadTime(20L);
             remoteSegmentStats.addTotalDownloadTime(20L);
+            remoteSegmentStats.addTotalRejections(5L);
 
             RemoteTranslogStats remoteTranslogStats = indicesStats.getTranslog().getRemoteTranslogStats();
             RemoteTranslogStats otherRemoteTranslogStats = new RemoteTranslogStats(getRandomRemoteTranslogTransferTrackerStats());
