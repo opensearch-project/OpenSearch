@@ -98,6 +98,7 @@ public class LeaderChecker {
         "cluster.fault_detection.leader_check.timeout",
         TimeValue.timeValueMillis(10000),
         TimeValue.timeValueMillis(1),
+        TimeValue.timeValueMillis(60000),
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );

@@ -99,6 +99,7 @@ public class FollowersChecker {
         "cluster.fault_detection.follower_check.timeout",
         TimeValue.timeValueMillis(10000),
         TimeValue.timeValueMillis(1),
+        TimeValue.timeValueMillis(60000),
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
