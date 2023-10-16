@@ -228,7 +228,7 @@ public class GoogleCloudStorageService {
             }
             storageOptionsBuilder.setCredentials(serviceAccountCredentials);
         }
-        return storageOptionsBuilder.build();
+        return SocketAccess.doPrivilegedException(() -> storageOptionsBuilder.build());
     }
 
     /**
