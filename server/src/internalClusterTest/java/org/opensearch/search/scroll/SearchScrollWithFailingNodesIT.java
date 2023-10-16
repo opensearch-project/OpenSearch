@@ -119,7 +119,7 @@ public class SearchScrollWithFailingNodesIT extends ParameterizedOpenSearchInteg
         assertThat(numHits, equalTo(100L));
         clearScroll("_all");
 
-        internalCluster().stopRandomNonClusterManagerNode();
+        internalCluster().stopRandomDataNode();
 
         searchResponse = client().prepareSearch().setQuery(matchAllQuery()).setSize(10).setScroll(TimeValue.timeValueMinutes(1)).get();
         assertThat(searchResponse.getSuccessfulShards(), lessThan(searchResponse.getTotalShards()));
