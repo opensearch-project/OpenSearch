@@ -30,6 +30,7 @@ public class SearchQueryCounters {
     public final Counter regexCounter;
 
     public final Counter sortCounter;
+    public final Counter skippedCounter;
     public final Counter termCounter;
     public final Counter totalCounter;
     public final Counter wildcardCounter;
@@ -84,6 +85,11 @@ public class SearchQueryCounters {
         this.regexCounter = metricsRegistry.createCounter(
             "regexSearchQueryCounter",
             "Counter for the number of top level and nested regex search queries",
+            "0"
+        );
+        this.skippedCounter = metricsRegistry.createCounter(
+            "skippedQueryCounter",
+            "Counter for the number queries skipped due to error",
             "0"
         );
         this.sortCounter = metricsRegistry.createCounter(
