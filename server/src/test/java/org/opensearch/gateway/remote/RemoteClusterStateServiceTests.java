@@ -357,6 +357,51 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
         assertThat(manifest.getStateUUID(), is(expectedManifest.getStateUUID()));
     }
 
+    /*
+     * Here we will verify the migration of manifest file from codec V1 and V2.
+     *
+     * Initially codec version is 1 and global metadata is also null, we will perform index metadata update.
+     * In final manifest codec version should be 2 and
+     * global metadata should be updated, even if it was not changed in this cluster state update
+     */
+    public void testMigrationFromCodecV1ManifestToCodecV2Manifest() throws IOException {
+        mockBlobStoreObjects();
+        final CoordinationMetadata coordinationMetadata = CoordinationMetadata.builder().term(1L).build();
+        final ClusterState previousClusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .metadata(Metadata.builder().coordinationMetadata(coordinationMetadata))
+            .nodes(nodesWithLocalNodeClusterManager())
+            .build();
+
+        // Update only index metadata
+        final IndexMetadata indexMetadata = new IndexMetadata.Builder("test").settings(
+            Settings.builder()
+                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                .put(IndexMetadata.SETTING_INDEX_UUID, "uuid")
+                .build()
+        ).numberOfShards(1).numberOfReplicas(0).build();
+        Metadata newMetadata = Metadata.builder(previousClusterState.metadata()).put(indexMetadata, true).build();
+        ClusterState newClusterState = ClusterState.builder(previousClusterState).metadata(newMetadata).build();
+
+        // previous manifest with codec 1 and null global metadata
+        final ClusterMetadataManifest previousManifest = ClusterMetadataManifest.builder()
+            .codecVersion(1)
+            .globalMetadataFileName(null)
+            .indices(Collections.emptyList())
+            .build();
+
+        remoteClusterStateService.start();
+        final ClusterMetadataManifest manifestAfterUpdate = remoteClusterStateService.writeIncrementalMetadata(
+            previousClusterState,
+            newClusterState,
+            previousManifest
+        );
+
+        // global metadata is updated
+        assertThat(manifestAfterUpdate.getGlobalMetadataFileName(), notNullValue());
+        // Manifest file with codec version with 2 is updated.
+        assertThat(manifestAfterUpdate.getCodecVersion(), is(2));
+    }
+
     public void testWriteIncrementalGlobalMetadataSuccess() throws IOException {
         final ClusterState clusterState = generateClusterStateWithGlobalMetadata().nodes(nodesWithLocalNodeClusterManager()).build();
         mockBlobStoreObjects();
@@ -365,7 +410,11 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
             .metadata(Metadata.builder().coordinationMetadata(coordinationMetadata))
             .build();
 
-        final ClusterMetadataManifest previousManifest = ClusterMetadataManifest.builder().indices(Collections.emptyList()).build();
+        final ClusterMetadataManifest previousManifest = ClusterMetadataManifest.builder()
+            .codecVersion(2)
+            .globalMetadataFileName("global-metadata-file")
+            .indices(Collections.emptyList())
+            .build();
 
         remoteClusterStateService.start();
         final ClusterMetadataManifest manifest = remoteClusterStateService.writeIncrementalMetadata(
@@ -391,6 +440,9 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
         assertThat(manifest.getStateUUID(), is(expectedManifest.getStateUUID()));
     }
 
+    /*
+     * Here we will verify global metadata is not uploaded again if change is only in index metadata
+     */
     public void testGlobalMetadataNotUpdatingIndexMetadata() throws IOException {
         // setup
         mockBlobStoreObjects();
@@ -398,7 +450,11 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
         final ClusterState initialClusterState = ClusterState.builder(ClusterName.DEFAULT)
             .metadata(Metadata.builder().coordinationMetadata(coordinationMetadata))
             .build();
-        final ClusterMetadataManifest initialManifest = ClusterMetadataManifest.builder().indices(Collections.emptyList()).build();
+        final ClusterMetadataManifest initialManifest = ClusterMetadataManifest.builder()
+            .codecVersion(2)
+            .globalMetadataFileName("global-metadata-file")
+            .indices(Collections.emptyList())
+            .build();
         remoteClusterStateService.start();
 
         // Initial cluster state with index.
@@ -447,6 +503,9 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
         );
     }
 
+    /*
+     * Here we will verify index metadata is not uploaded again if change is only in global metadata
+     */
     public void testIndexMetadataNotUpdatingGlobalMetadata() throws IOException {
         // setup
         mockBlobStoreObjects();
@@ -454,7 +513,10 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
         final ClusterState initialClusterState = ClusterState.builder(ClusterName.DEFAULT)
             .metadata(Metadata.builder().coordinationMetadata(coordinationMetadata))
             .build();
-        final ClusterMetadataManifest initialManifest = ClusterMetadataManifest.builder().indices(Collections.emptyList()).build();
+        final ClusterMetadataManifest initialManifest = ClusterMetadataManifest.builder()
+            .codecVersion(2)
+            .indices(Collections.emptyList())
+            .build();
         remoteClusterStateService.start();
 
         // Initial cluster state with global metadata.
@@ -561,6 +623,7 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
             .opensearchVersion(VersionUtils.randomOpenSearchVersion(random()))
             .previousClusterUUID("prev-cluster-uuid")
             .globalMetadataFileName("global-metadata-file")
+            .codecVersion(1)
             .build();
 
         BlobContainer blobContainer = mockBlobStoreObjects();
@@ -587,7 +650,6 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
             .nodeId("nodeA")
             .opensearchVersion(VersionUtils.randomOpenSearchVersion(random()))
             .previousClusterUUID("prev-cluster-uuid")
-            .globalMetadataFileName("global-metadata")
             .build();
 
         BlobContainer blobContainer = mockBlobStoreObjects();
@@ -619,6 +681,7 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
             .nodeId("nodeA")
             .opensearchVersion(VersionUtils.randomOpenSearchVersion(random()))
             .globalMetadataFileName("global-metadata")
+            .codecVersion(1)
             .previousClusterUUID("prev-cluster-uuid")
             .build();
 
@@ -666,6 +729,7 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
             .opensearchVersion(VersionUtils.randomOpenSearchVersion(random()))
             .previousClusterUUID("prev-cluster-uuid")
             .globalMetadataFileName("global-metadata")
+            .codecVersion(1)
             .build();
 
         mockBlobContainer(mockBlobStoreObjects(), expectedManifest, Map.of(index.getUUID(), indexMetadata));

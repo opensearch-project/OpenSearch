@@ -103,6 +103,10 @@ public class RemoteClusterStateService implements Closeable {
         METADATA_MANIFEST_NAME_FORMAT,
         ClusterMetadataManifest::fromXContent
     );
+
+    public static final ChecksumBlobStoreFormat<ClusterMetadataManifest> CLUSTER_METADATA_MANIFEST_FORMAT_V2 =
+        new ChecksumBlobStoreFormat<>("cluster-metadata-manifest", METADATA_MANIFEST_NAME_FORMAT, ClusterMetadataManifest::fromXContentV2);
+
     /**
      * Used to specify if cluster state metadata should be published to remote store
      */
@@ -132,6 +136,7 @@ public class RemoteClusterStateService implements Closeable {
     private final AtomicBoolean deleteStaleMetadataRunning = new AtomicBoolean(false);
 
     private static final int GLOBAL_METADATA_CODEC_VERSION = 1;
+    private static final int MANIFEST_CODEC_VERSION = 2; // TODO remove this once file name change PR is merged
 
     // ToXContent Params with gateway mode.
     // We are using gateway context mode to persist all custom metadata.
@@ -181,6 +186,7 @@ public class RemoteClusterStateService implements Closeable {
             return null;
         }
 
+        // TODO: we can upload global metadata and index metadata in parallel. [issue: #10645]
         // Write globalMetadata
         String globalMetadataFile = writeGlobalMetadata(clusterState);
 
@@ -238,7 +244,9 @@ public class RemoteClusterStateService implements Closeable {
         // Write Global Metadata
         final boolean updateGlobalMeta = Metadata.isGlobalStateEquals(previousClusterState.metadata(), clusterState.metadata()) == false;
         String globalMetadataFile;
-        if (updateGlobalMeta) {
+        // For migration case from codec V1 to V2, we have added null check on global metadata file,
+        // If file is empty and codec is 1 then write global metadata.
+        if (updateGlobalMeta || previousManifest.getGlobalMetadataFileName() == null) {
             globalMetadataFile = writeGlobalMetadata(clusterState);
         } else {
             globalMetadataFile = previousManifest.getGlobalMetadataFileName();
@@ -335,10 +343,7 @@ public class RemoteClusterStateService implements Closeable {
         LatchedActionListener completionListener = new LatchedActionListener<>(ActionListener.wrap(resp -> {
             logger.trace(String.format(Locale.ROOT, "GlobalMetadata uploaded successfully."));
             result.set(globalMetadataContainer.path().buildAsString() + globalMetadataFilename);
-        }, ex -> {
-            logger.error(() -> new ParameterizedMessage("Exception during transfer of GlobalMetadata to Remote {}", ex.getMessage()), ex);
-            throw new GlobalMetadataTransferException(ex.getMessage(), ex);
-        }), latch);
+        }, ex -> { throw new GlobalMetadataTransferException(ex.getMessage(), ex); }), latch);
 
         GLOBAL_METADATA_FORMAT.writeAsync(
             clusterState.metadata(),
@@ -351,6 +356,7 @@ public class RemoteClusterStateService implements Closeable {
 
         try {
             if (latch.await(GLOBAL_METADATA_UPLOAD_WAIT_MILLIS, TimeUnit.MILLISECONDS) == false) {
+                // TODO: We should add metrics where transfer is timing out.
                 GlobalMetadataTransferException ex = new GlobalMetadataTransferException(
                     String.format(Locale.ROOT, "Timed out waiting for transfer of global metadata to complete")
                 );
@@ -536,6 +542,7 @@ public class RemoteClusterStateService implements Closeable {
                 Version.CURRENT,
                 nodeId,
                 committed,
+                MANIFEST_CODEC_VERSION,
                 globalClusterMetadataFileName,
                 uploadedIndexMetadata,
                 previousClusterUUID,
@@ -549,7 +556,7 @@ public class RemoteClusterStateService implements Closeable {
     private void writeMetadataManifest(String clusterName, String clusterUUID, ClusterMetadataManifest uploadManifest, String fileName)
         throws IOException {
         final BlobContainer metadataManifestContainer = manifestContainer(clusterName, clusterUUID);
-        CLUSTER_METADATA_MANIFEST_FORMAT.write(uploadManifest, metadataManifestContainer, fileName, blobStoreRepository.getCompressor());
+        CLUSTER_METADATA_MANIFEST_FORMAT_V2.write(uploadManifest, metadataManifestContainer, fileName, blobStoreRepository.getCompressor());
     }
 
     private String fetchPreviousClusterUUID(String clusterName, String clusterUUID) {
@@ -603,7 +610,14 @@ public class RemoteClusterStateService implements Closeable {
 
     private static String getManifestFileNamePrefix(long term, long version) {
         // 123456789012_test-cluster/cluster-state/dsgYj10Nkso7/manifest/manifest_2147483642_2147483637
-        return String.join(DELIMITER, MANIFEST_PATH_TOKEN, RemoteStoreUtils.invertLong(term), RemoteStoreUtils.invertLong(version));
+        return String.join(
+            DELIMITER,
+            MANIFEST_PATH_TOKEN,
+            RemoteStoreUtils.invertLong(term),
+            RemoteStoreUtils.invertLong(version),
+            "1",
+            RemoteStoreUtils.invertLong(1)
+        );
     }
 
     private static String indexMetadataFileName(IndexMetadata indexMetadata) {
@@ -621,7 +635,7 @@ public class RemoteClusterStateService implements Closeable {
             METADATA_FILE_PREFIX,
             RemoteStoreUtils.invertLong(metadata.version()),
             RemoteStoreUtils.invertLong(GLOBAL_METADATA_CODEC_VERSION),
-            String.valueOf(System.currentTimeMillis())
+            RemoteStoreUtils.invertLong(System.currentTimeMillis())
         );
     }
 
@@ -708,7 +722,8 @@ public class RemoteClusterStateService implements Closeable {
             return validChain.get(0);
         } catch (IOException e) {
             throw new IllegalStateException(
-                String.format(Locale.ROOT, "Error while fetching previous UUIDs from remote store for cluster name: %s", clusterName)
+                String.format(Locale.ROOT, "Error while fetching previous UUIDs from remote store for cluster name: %s", clusterName),
+                e
             );
         }
     }
@@ -729,7 +744,8 @@ public class RemoteClusterStateService implements Closeable {
                 manifest.ifPresent(clusterMetadataManifest -> manifestsByClusterUUID.put(clusterUUID, clusterMetadataManifest));
             } catch (Exception e) {
                 throw new IllegalStateException(
-                    String.format(Locale.ROOT, "Exception in fetching manifest for clusterUUID: %s", clusterUUID)
+                    String.format(Locale.ROOT, "Exception in fetching manifest for clusterUUID: %s", clusterUUID),
+                    e
                 );
             }
         }
@@ -895,7 +911,7 @@ public class RemoteClusterStateService implements Closeable {
     private ClusterMetadataManifest fetchRemoteClusterMetadataManifest(String clusterName, String clusterUUID, String filename)
         throws IllegalStateException {
         try {
-            return RemoteClusterStateService.CLUSTER_METADATA_MANIFEST_FORMAT.read(
+            return getClusterMetadataManifestBlobStoreFormat(filename).read(
                 manifestContainer(clusterName, clusterUUID),
                 filename,
                 blobStoreRepository.getNamedXContentRegistry()
@@ -903,6 +919,18 @@ public class RemoteClusterStateService implements Closeable {
         } catch (IOException e) {
             throw new IllegalStateException(String.format(Locale.ROOT, "Error while downloading cluster metadata - %s", filename), e);
         }
+    }
+
+    private ChecksumBlobStoreFormat<ClusterMetadataManifest> getClusterMetadataManifestBlobStoreFormat(String fileName) {
+        if (fileName.split(DELIMITER).length < 6) { // Where codec is not part of file name, i.e. codec version 1 is used.
+            return CLUSTER_METADATA_MANIFEST_FORMAT;
+        } else {
+            long codecVersion = RemoteStoreUtils.invertLong(fileName.split(DELIMITER)[4]);
+            if (codecVersion == MANIFEST_CODEC_VERSION) {
+                return CLUSTER_METADATA_MANIFEST_FORMAT_V2;
+            }
+        }
+        throw new IllegalArgumentException("Cluster metadata manifest file is corrupted, don't have valid codec version");
     }
 
     public static String encodeString(String content) {

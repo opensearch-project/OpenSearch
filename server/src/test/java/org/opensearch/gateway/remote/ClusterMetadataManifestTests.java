@@ -36,7 +36,8 @@ public class ClusterMetadataManifestTests extends OpenSearchTestCase {
             Version.CURRENT,
             "test-node-id",
             false,
-            "test-global-metadata-file",
+            1,
+            null,
             Collections.singletonList(uploadedIndexMetadata),
             "prev-cluster-uuid",
             true
@@ -52,6 +53,33 @@ public class ClusterMetadataManifestTests extends OpenSearchTestCase {
         }
     }
 
+    public void testClusterMetadataManifestXContentCodecV2() throws IOException {
+        UploadedIndexMetadata uploadedIndexMetadata = new UploadedIndexMetadata("test-index", "test-uuid", "/test/upload/path");
+        ClusterMetadataManifest originalManifest = new ClusterMetadataManifest(
+            1L,
+            1L,
+            "test-cluster-uuid",
+            "test-state-uuid",
+            Version.CURRENT,
+            "test-node-id",
+            false,
+            2,
+            "test-global-metadata-file",
+            Collections.singletonList(uploadedIndexMetadata),
+            "prev-cluster-uuid",
+            true
+        );
+        final XContentBuilder builder = JsonXContent.contentBuilder();
+        builder.startObject();
+        originalManifest.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        builder.endObject();
+
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder))) {
+            final ClusterMetadataManifest fromXContentManifest = ClusterMetadataManifest.fromXContentV2(parser);
+            assertEquals(originalManifest, fromXContentManifest);
+        }
+    }
+
     public void testClusterMetadataManifestSerializationEqualsHashCode() {
         ClusterMetadataManifest initialManifest = new ClusterMetadataManifest(
             1337L,
@@ -61,6 +89,7 @@ public class ClusterMetadataManifestTests extends OpenSearchTestCase {
             Version.CURRENT,
             "B10RX1f5RJenMQvYccCgSQ",
             true,
+            1,
             "test-global-metadata-file",
             randomUploadedIndexMetadataList(),
             "yfObdx8KSMKKrXf8UyHhM",
