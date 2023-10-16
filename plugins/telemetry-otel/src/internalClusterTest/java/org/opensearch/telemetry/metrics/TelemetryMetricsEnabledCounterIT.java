@@ -15,6 +15,7 @@ import org.opensearch.telemetry.IntegrationTestOTelTelemetryPlugin;
 import org.opensearch.telemetry.OTelTelemetrySettings;
 import org.opensearch.telemetry.TelemetrySettings;
 import org.opensearch.test.OpenSearchSingleNodeTestCase;
+import org.junit.After;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -59,5 +60,26 @@ public class TelemetryMetricsEnabledCounterIT extends OpenSearchSingleNodeTestCa
         double value = ((DoublePointData) ((ArrayList) exporter.getFinishedMetricItems().get(0).getDoubleSumData().getPoints()).get(0))
             .getValue();
         assertEquals(1.0, value, 0.0);
+    }
+
+    public void testUpDownCounter() throws Exception {
+
+        MetricsRegistry metricsRegistry = node().injector().getInstance(MetricsRegistry.class);
+
+        Counter counter = metricsRegistry.createUpDownCounter("test-up-down-counter", "test", "1");
+        counter.add(1.0);
+        counter.add(-2.0);
+        // Sleep for about 2s to wait for metrics to be published.
+        Thread.sleep(2000);
+
+        InMemorySingletonMetricsExporter exporter = InMemorySingletonMetricsExporter.INSTANCE;
+        double value = ((DoublePointData) ((ArrayList) exporter.getFinishedMetricItems().get(0).getDoubleSumData().getPoints()).get(0))
+            .getValue();
+        assertEquals(-1.0, value, 0.0);
+    }
+
+    @After
+    public void reset() {
+        InMemorySingletonMetricsExporter.INSTANCE.reset();
     }
 }

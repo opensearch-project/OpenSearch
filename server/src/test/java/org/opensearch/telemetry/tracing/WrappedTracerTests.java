@@ -26,39 +26,42 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 public class WrappedTracerTests extends OpenSearchTestCase {
 
     public void testStartSpanWithTracingDisabledInvokesNoopTracer() throws Exception {
         Settings settings = Settings.builder().put(TelemetrySettings.TRACER_ENABLED_SETTING.getKey(), false).build();
-        TelemetrySettings telemetrySettings = TelemetrySettings.create(settings, new ClusterSettings(settings, getClusterSettings()));
+        TelemetrySettings telemetrySettings = new TelemetrySettings(settings, new ClusterSettings(settings, getClusterSettings()));
         DefaultTracer mockDefaultTracer = mock(DefaultTracer.class);
 
         try (WrappedTracer wrappedTracer = new WrappedTracer(telemetrySettings, mockDefaultTracer)) {
             SpanCreationContext spanCreationContext = SpanCreationContext.internal().name("foo");
             wrappedTracer.startSpan(spanCreationContext);
             assertTrue(wrappedTracer.getDelegateTracer() instanceof NoopTracer);
+            assertFalse(wrappedTracer.isRecording());
             verify(mockDefaultTracer, never()).startSpan(SpanCreationContext.internal().name("foo"));
         }
     }
 
     public void testStartSpanWithTracingEnabledInvokesDefaultTracer() throws Exception {
         Settings settings = Settings.builder().put(TelemetrySettings.TRACER_ENABLED_SETTING.getKey(), true).build();
-        TelemetrySettings telemetrySettings = TelemetrySettings.create(settings, new ClusterSettings(settings, getClusterSettings()));
+        TelemetrySettings telemetrySettings = new TelemetrySettings(settings, new ClusterSettings(settings, getClusterSettings()));
         DefaultTracer mockDefaultTracer = mock(DefaultTracer.class);
-
+        when(mockDefaultTracer.isRecording()).thenReturn(true);
         try (WrappedTracer wrappedTracer = new WrappedTracer(telemetrySettings, mockDefaultTracer)) {
             SpanCreationContext spanCreationContext = SpanCreationContext.internal().name("foo");
             wrappedTracer.startSpan(spanCreationContext);
 
             assertTrue(wrappedTracer.getDelegateTracer() instanceof DefaultTracer);
+            assertTrue(wrappedTracer.isRecording());
             verify(mockDefaultTracer).startSpan(eq(spanCreationContext));
         }
     }
 
     public void testStartSpanWithTracingEnabledInvokesDefaultTracerWithAttr() throws Exception {
         Settings settings = Settings.builder().put(TelemetrySettings.TRACER_ENABLED_SETTING.getKey(), true).build();
-        TelemetrySettings telemetrySettings = TelemetrySettings.create(settings, new ClusterSettings(settings, getClusterSettings()));
+        TelemetrySettings telemetrySettings = new TelemetrySettings(settings, new ClusterSettings(settings, getClusterSettings()));
         DefaultTracer mockDefaultTracer = mock(DefaultTracer.class);
         Attributes attributes = Attributes.create().addAttribute("key", "value");
         try (WrappedTracer wrappedTracer = new WrappedTracer(telemetrySettings, mockDefaultTracer)) {

@@ -53,4 +53,10 @@ public interface Tracer extends HttpTracer, Closeable {
      */
     SpanScope withSpanInScope(Span span);
 
+    /**
+     * Tells if the traces are being recorded or not
+     * @return boolean
+     */
+    boolean isRecording();
+
 }

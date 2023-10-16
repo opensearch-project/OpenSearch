@@ -31,7 +31,7 @@ public class ProbabilisticSamplerTests extends OpenSearchTestCase {
 
     public void testDefaultGetSampler() {
         Settings settings = Settings.builder().put(TRACER_EXPORTER_DELAY_SETTING.getKey(), "1s").build();
-        TelemetrySettings telemetrySettings = TelemetrySettings.create(
+        TelemetrySettings telemetrySettings = new TelemetrySettings(
             Settings.EMPTY,
             new ClusterSettings(settings, Set.of(TRACER_SAMPLER_PROBABILITY, TRACER_ENABLED_SETTING))
         );
@@ -45,7 +45,7 @@ public class ProbabilisticSamplerTests extends OpenSearchTestCase {
 
     public void testGetSamplerWithUpdatedSamplingRatio() {
         Settings settings = Settings.builder().put(TRACER_EXPORTER_DELAY_SETTING.getKey(), "1s").build();
-        TelemetrySettings telemetrySettings = TelemetrySettings.create(
+        TelemetrySettings telemetrySettings = new TelemetrySettings(
             Settings.EMPTY,
             new ClusterSettings(settings, Set.of(TRACER_SAMPLER_PROBABILITY, TRACER_ENABLED_SETTING))
         );

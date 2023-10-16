@@ -40,7 +40,7 @@ public class TracerFactoryTests extends OpenSearchTestCase {
 
     public void testGetTracerWithUnavailableTracingTelemetryReturnsNoopTracer() {
         Settings settings = Settings.builder().put(TelemetrySettings.TRACER_ENABLED_SETTING.getKey(), false).build();
-        TelemetrySettings telemetrySettings = TelemetrySettings.create(settings, new ClusterSettings(settings, getClusterSettings()));
+        TelemetrySettings telemetrySettings = new TelemetrySettings(settings, new ClusterSettings(settings, getClusterSettings()));
         Telemetry mockTelemetry = mock(Telemetry.class);
         when(mockTelemetry.getTracingTelemetry()).thenReturn(mock(TracingTelemetry.class));
         tracerFactory = new TracerFactory(telemetrySettings, Optional.empty(), new ThreadContext(Settings.EMPTY));
@@ -60,7 +60,7 @@ public class TracerFactoryTests extends OpenSearchTestCase {
 
     public void testGetTracerWithUnavailableTracingTelemetry() {
         Settings settings = Settings.builder().put(TelemetrySettings.TRACER_ENABLED_SETTING.getKey(), false).build();
-        TelemetrySettings telemetrySettings = TelemetrySettings.create(settings, new ClusterSettings(settings, getClusterSettings()));
+        TelemetrySettings telemetrySettings = new TelemetrySettings(settings, new ClusterSettings(settings, getClusterSettings()));
         Telemetry mockTelemetry = mock(Telemetry.class);
         when(mockTelemetry.getTracingTelemetry()).thenReturn(mock(TracingTelemetry.class));
         tracerFactory = new TracerFactory(telemetrySettings, Optional.empty(), new ThreadContext(Settings.EMPTY));
@@ -73,7 +73,7 @@ public class TracerFactoryTests extends OpenSearchTestCase {
 
     public void testGetTracerWithAvailableTracingTelemetryReturnsWrappedTracer() {
         Settings settings = Settings.builder().put(TelemetrySettings.TRACER_ENABLED_SETTING.getKey(), true).build();
-        TelemetrySettings telemetrySettings = TelemetrySettings.create(settings, new ClusterSettings(settings, getClusterSettings()));
+        TelemetrySettings telemetrySettings = new TelemetrySettings(settings, new ClusterSettings(settings, getClusterSettings()));
         Telemetry mockTelemetry = mock(Telemetry.class);
         when(mockTelemetry.getTracingTelemetry()).thenReturn(mock(TracingTelemetry.class));
         tracerFactory = new TracerFactory(telemetrySettings, Optional.of(mockTelemetry), new ThreadContext(Settings.EMPTY));
@@ -85,7 +85,7 @@ public class TracerFactoryTests extends OpenSearchTestCase {
 
     public void testNullTracer() {
         Settings settings = Settings.builder().put(TelemetrySettings.TRACER_FEATURE_ENABLED_SETTING.getKey(), false).build();
-        TelemetrySettings telemetrySettings = TelemetrySettings.create(settings, new ClusterSettings(settings, getClusterSettings()));
+        TelemetrySettings telemetrySettings = new TelemetrySettings(settings, new ClusterSettings(settings, getClusterSettings()));
         Telemetry mockTelemetry = mock(Telemetry.class);
         when(mockTelemetry.getTracingTelemetry()).thenReturn(null);
         tracerFactory = new TracerFactory(telemetrySettings, Optional.of(mockTelemetry), new ThreadContext(Settings.EMPTY));

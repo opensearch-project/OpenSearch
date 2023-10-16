@@ -598,15 +598,15 @@ public class Node implements Closeable {
             TracerFactory tracerFactory;
             MetricsRegistryFactory metricsRegistryFactory;
             if (FeatureFlags.isEnabled(TELEMETRY)) {
-                final TelemetrySettings telemetrySettings = TelemetrySettings.create(settings, clusterService.getClusterSettings());
+                final TelemetrySettings telemetrySettings = new TelemetrySettings(settings, clusterService.getClusterSettings());
                 List<TelemetryPlugin> telemetryPlugins = pluginsService.filterPlugins(TelemetryPlugin.class);
                 TelemetryModule telemetryModule = new TelemetryModule(telemetryPlugins, telemetrySettings);
-                if (TelemetrySettings.isTracerFeatureEnabled()) {
+                if (telemetrySettings.isTracerFeatureEnabled()) {
                     tracerFactory = new TracerFactory(telemetrySettings, telemetryModule.getTelemetry(), threadPool.getThreadContext());
                 } else {
                     tracerFactory = new NoopTracerFactory();
                 }
-                if (TelemetrySettings.isMetricsFeatureEnabled()) {
+                if (telemetrySettings.isMetricsFeatureEnabled()) {
                     metricsRegistryFactory = new MetricsRegistryFactory(telemetrySettings, telemetryModule.getTelemetry());
                 } else {
                     metricsRegistryFactory = new NoopMetricsRegistryFactory();
