@@ -81,6 +81,7 @@ import org.opensearch.index.translog.TranslogFactory;
 import org.opensearch.indices.IndicesQueryCache;
 import org.opensearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.opensearch.indices.mapper.MapperRegistry;
+import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.plugins.IndexStorePlugin;
 import org.opensearch.repositories.RepositoriesService;
@@ -602,7 +603,8 @@ public final class IndexModule {
         IndexStorePlugin.DirectoryFactory remoteDirectoryFactory,
         BiFunction<IndexSettings, ShardRouting, TranslogFactory> translogFactorySupplier,
         Supplier<TimeValue> clusterDefaultRefreshIntervalSupplier,
-        Supplier<TimeValue> clusterRemoteTranslogBufferIntervalSupplier
+        Supplier<TimeValue> clusterRemoteTranslogBufferIntervalSupplier,
+        RecoverySettings recoverySettings
     ) throws IOException {
         final IndexEventListener eventListener = freeze();
         Function<IndexService, CheckedFunction<DirectoryReader, DirectoryReader, IOException>> readerWrapperFactory = indexReaderWrapper
@@ -660,7 +662,8 @@ public final class IndexModule {
                 recoveryStateFactory,
                 translogFactorySupplier,
                 clusterDefaultRefreshIntervalSupplier,
-                clusterRemoteTranslogBufferIntervalSupplier
+                clusterRemoteTranslogBufferIntervalSupplier,
+                recoverySettings
             );
             success = true;
             return indexService;

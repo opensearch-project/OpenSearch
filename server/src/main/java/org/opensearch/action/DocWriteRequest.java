@@ -149,7 +149,7 @@ public interface DocWriteRequest<T> extends IndicesRequest, Accountable {
 
     /**
      * If set, only perform this request if the document was last modification was assigned this primary term.
-     *
+     * <p>
      * If the document last modification was assigned a different term a
      * {@link org.opensearch.index.engine.VersionConflictEngineException} will be thrown.
      */

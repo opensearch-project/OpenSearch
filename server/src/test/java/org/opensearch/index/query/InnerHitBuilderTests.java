@@ -109,7 +109,7 @@ public class InnerHitBuilderTests extends OpenSearchTestCase {
     /**
      * Test that if we serialize and deserialize an object, further
      * serialization leads to identical bytes representation.
-     *
+     * <p>
      * This is necessary to ensure because we use the serialized BytesReference
      * of this builder as part of the cacheKey in
      * {@link ShardSearchRequest} (via

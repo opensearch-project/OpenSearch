@@ -49,7 +49,7 @@ import static java.util.Collections.emptyList;
  * An implementation of {@link SeedHostsProvider} that reads hosts/ports
  * from the "discovery.seed_hosts" node setting. If the port is
  * left off an entry, we default to the first port in the {@code transport.port} range.
- *
+ * <p>
  * An example setting might look as follows:
  * [67.81.244.10, 67.81.244.11:9305, 67.81.244.15:9400]
  *

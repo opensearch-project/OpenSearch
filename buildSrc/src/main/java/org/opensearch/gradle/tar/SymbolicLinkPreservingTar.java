@@ -61,7 +61,7 @@ import java.util.Set;
 
 /**
  * A custom archive task that assembles a tar archive that preserves symbolic links.
- *
+ * <p>
  * This task is necessary because the built-in task {@link org.gradle.api.tasks.bundling.Tar} does not preserve symbolic links.
  */
 public class SymbolicLinkPreservingTar extends Tar {

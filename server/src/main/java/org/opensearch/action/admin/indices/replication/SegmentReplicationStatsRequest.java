@@ -89,7 +89,7 @@ public class SegmentReplicationStatsRequest extends BroadcastRequest<SegmentRepl
     /**
      * Contains list of shard id's if shards are passed, empty otherwise. Array is empty by default.
      *
-     * @return  list of shard id's if shards are passed, empty otherwise
+     * @return  array of shard id's if shards are passed, empty otherwise
      */
     public String[] shards() {
         return shards;

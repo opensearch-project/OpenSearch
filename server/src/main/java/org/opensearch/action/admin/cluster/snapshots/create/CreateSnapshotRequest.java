@@ -261,7 +261,7 @@ public class CreateSnapshotRequest extends ClusterManagerNodeRequest<CreateSnaps
     /**
      * Returns a list of indices that should be included into the snapshot
      *
-     * @return list of indices
+     * @return array of index names
      */
     @Override
     public String[] indices() {
@@ -316,7 +316,7 @@ public class CreateSnapshotRequest extends ClusterManagerNodeRequest<CreateSnaps
 
     /**
      * If set to true the operation should wait for the snapshot completion before returning.
-     *
+     * <p>
      * By default, the operation will return as soon as snapshot is initialized. It can be changed by setting this
      * flag to true.
      *

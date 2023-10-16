@@ -266,7 +266,7 @@ public abstract class TransportWriteAction<
 
     /**
      * Result of taking the action on the primary.
-     *
+     * <p>
      * NOTE: public for testing
      *
      * @opensearch.internal
@@ -496,7 +496,7 @@ public abstract class TransportWriteAction<
      * A proxy for <b>write</b> operations that need to be performed on the
      * replicas, where a failure to execute the operation should fail
      * the replica shard and/or mark the replica as stale.
-     *
+     * <p>
      * This extends {@code TransportReplicationAction.ReplicasProxy} to do the
      * failing and stale-ing.
      *

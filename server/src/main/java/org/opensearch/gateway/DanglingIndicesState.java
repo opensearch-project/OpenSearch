@@ -244,7 +244,7 @@ public class DanglingIndicesState implements ClusterStateListener {
 
     /**
      * Removes all aliases from the supplied index metadata.
-     *
+     * <p>
      * Dangling importing indices with aliases is dangerous, it could for instance result in inability to write to an existing alias if it
      * previously had only one index with any is_write_index indication.
      */

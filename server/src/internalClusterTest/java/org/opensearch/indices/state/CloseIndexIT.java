@@ -509,7 +509,7 @@ public class CloseIndexIT extends OpenSearchIntegTestCase {
     }
 
     /**
-     * Test for https://github.com/elastic/elasticsearch/issues/47276 which checks that the persisted metadata on a data node does not
+     * Test for <a href="https://github.com/elastic/elasticsearch/issues/47276">Elasticsearch issue #47276</a> which checks that the persisted metadata on a data node does not
      * become inconsistent when using replicated closed indices.
      */
     public void testRelocatedClosedIndexIssue() throws Exception {

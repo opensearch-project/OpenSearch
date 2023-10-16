@@ -285,7 +285,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
 
     /**
      * Lower-level search API.
-     *
+     * <p>
      * {@link LeafCollector#collect(int)} is called for every matching document in
      * the provided <code>ctx</code>.
      */

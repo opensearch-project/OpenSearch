@@ -87,7 +87,7 @@ import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
 
 /**
  * A more like this query that finds documents that are "like" the provided set of document(s).
- *
+ * <p>
  * The documents are provided as a set of strings and/or a list of {@link Item}.
  *
  * @opensearch.internal

@@ -189,7 +189,7 @@ public class RestoreInProgress extends AbstractNamedDiffable<Custom> implements 
         /**
          * Returns list of shards that being restore and their status
          *
-         * @return list of shards
+         * @return map of shard id to shard restore status
          */
         public Map<ShardId, ShardRestoreStatus> shards() {
             return this.shards;
