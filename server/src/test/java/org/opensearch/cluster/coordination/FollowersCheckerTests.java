@@ -799,8 +799,8 @@ public class FollowersCheckerTests extends OpenSearchSingleNodeTestCase {
     }
 
     public void testFollowerCheckTimeoutValue() {
-        Setting<TimeValue> setting1 = LEADER_CHECK_TIMEOUT_SETTING;
-        Settings timeSettings1 = Settings.builder().put(setting1.getKey(), "20s").build();
+        Setting<TimeValue> setting1 = FOLLOWER_CHECK_TIMEOUT_SETTING;
+        Settings timeSettings1 = Settings.builder().put(setting1.getKey(), "60s").build();
 
         ClusterUpdateSettingsResponse response = client().admin()
             .cluster()
@@ -810,7 +810,7 @@ public class FollowersCheckerTests extends OpenSearchSingleNodeTestCase {
             .actionGet();
 
         assertAcked(response);
-        assertEquals(timeValueSeconds(20), setting1.get(response.getPersistentSettings()));
+        assertEquals(timeValueSeconds(60), setting1.get(response.getPersistentSettings()));
 
         // cleanup
         timeSettings1 = Settings.builder().putNull(setting1.getKey()).build();
@@ -820,5 +820,38 @@ public class FollowersCheckerTests extends OpenSearchSingleNodeTestCase {
             .setPersistentSettings(timeSettings1)
             .execute()
             .actionGet();
+    }
+
+    public void testMaximumBoundary() {
+        Setting<TimeValue> setting1 = FOLLOWER_CHECK_TIMEOUT_SETTING;
+        Settings timeSettings1 = Settings.builder().put(setting1.getKey(), "61s").build();
+
+        try {
+            client().admin()
+                .cluster()
+                .prepareUpdateSettings()
+                .setPersistentSettings(timeSettings1)
+                .execute()
+                .actionGet();
+        } catch (IllegalArgumentException ex) {
+            assertEquals(ex.getMessage(), "failed to parse value [61s] for setting [" + setting1.getKey() + "], must be <= [60000ms]");
+        }
+
+    }
+
+    public void testMinimumBoundary() {
+        Setting<TimeValue> setting1 = FOLLOWER_CHECK_TIMEOUT_SETTING;
+        Settings timeSettings1 = Settings.builder().put(setting1.getKey(), "0s").build();
+
+        try {
+            client().admin()
+                .cluster()
+                .prepareUpdateSettings()
+                .setPersistentSettings(timeSettings1)
+                .execute()
+                .actionGet();
+        } catch (IllegalArgumentException ex) {
+            assertEquals(ex.getMessage(), "failed to parse value [0s] for setting [" + setting1.getKey() + "], must be >= [1ms]");
+        }
     }
 }
