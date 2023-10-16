@@ -191,7 +191,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
 
     private final MetricsRegistry metricsRegistry;
 
-    private SearchQueryCategorizor searchQueryCategorizor;
+    private SearchQueryCategorizer searchQueryCategorizer;
 
     @Inject
     public TransportSearchAction(
@@ -234,8 +234,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
 
     private void setIsSearchQueryCategorizationEnabled(boolean isSearchQueryCategorizationEnabled) {
         this.isSearchQueryCategorizationEnabled = isSearchQueryCategorizationEnabled;
-        if (this.isSearchQueryCategorizationEnabled && this.searchQueryCategorizor == null) {
-            this.searchQueryCategorizor = new SearchQueryCategorizor(metricsRegistry);
+        if (this.isSearchQueryCategorizationEnabled && this.searchQueryCategorizer == null) {
+            this.searchQueryCategorizer = new SearchQueryCategorizer(metricsRegistry);
         }
     }
 
@@ -517,7 +517,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
 
         if (isSearchQueryCategorizationEnabled) {
             try {
-                searchQueryCategorizor.categorize(searchRequest.source());
+                searchQueryCategorizer.categorize(searchRequest.source());
             } catch (Exception e) {
                 logger.error("Error while trying to categorize the query.");
             }

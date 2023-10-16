@@ -24,13 +24,13 @@ import java.util.List;
  * Class to categorize the search queries based on the type and increment the relevant counters.
  * Class also logs the query shape.
  */
-public class SearchQueryCategorizor {
+public class SearchQueryCategorizer {
 
-    private static final Logger log = LogManager.getLogger(SearchQueryCategorizor.class);
+    private static final Logger log = LogManager.getLogger(SearchQueryCategorizer.class);
 
     public SearchQueryCounters searchQueryCounters;
 
-    public SearchQueryCategorizor(MetricsRegistry metricsRegistry) {
+    public SearchQueryCategorizer(MetricsRegistry metricsRegistry) {
         searchQueryCounters = new SearchQueryCounters(metricsRegistry);
     }
 
@@ -71,8 +71,8 @@ public class SearchQueryCategorizor {
         }
         QueryShapeVisitor shapeVisitor = new QueryShapeVisitor();
         topLevelQueryBuilder.visit(shapeVisitor);
-        String queryShapeJson = shapeVisitor.prettyPrintTree("  ");
-        log.debug("Query shape : " + queryShapeJson);
+        String indentedQueryShape = shapeVisitor.prettyPrintTree("  ");
+        log.debug("Query shape : " + indentedQueryShape);
     }
 
 }
