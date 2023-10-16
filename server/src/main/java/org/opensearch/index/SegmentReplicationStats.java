@@ -8,6 +8,7 @@
 
 package org.opensearch.index;
 
+import org.opensearch.Version;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
@@ -28,7 +29,10 @@ public class SegmentReplicationStats implements Writeable, ToXContentFragment {
 
     private final Map<ShardId, SegmentReplicationPerGroupStats> shardStats;
 
-    private final long totalRejectionCount;
+    /**
+     * Total rejections due to segment replication backpressure
+     */
+    private long totalRejectionCount;
 
     public SegmentReplicationStats(final Map<ShardId, SegmentReplicationPerGroupStats> shardStats, final long totalRejectionCount) {
         this.shardStats = shardStats;
@@ -43,7 +47,10 @@ public class SegmentReplicationStats implements Writeable, ToXContentFragment {
             SegmentReplicationPerGroupStats groupStats = new SegmentReplicationPerGroupStats(in);
             shardStats.put(shardId, groupStats);
         }
-        this.totalRejectionCount = in.readVLong();
+        // TODO: change to V_2_12_0 on main after backport to 2.x
+        if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
+            this.totalRejectionCount = in.readVLong();
+        }
     }
 
     public Map<ShardId, SegmentReplicationPerGroupStats> getShardStats() {
@@ -57,11 +64,6 @@ public class SegmentReplicationStats implements Writeable, ToXContentFragment {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject("segment_replication");
-        for (Map.Entry<ShardId, SegmentReplicationPerGroupStats> entry : shardStats.entrySet()) {
-            builder.startObject(entry.getKey().toString());
-            entry.getValue().toXContent(builder, params);
-            builder.endObject();
-        }
         builder.field("total_rejected_requests", totalRejectionCount);
         return builder.endObject();
     }
@@ -73,7 +75,10 @@ public class SegmentReplicationStats implements Writeable, ToXContentFragment {
             entry.getKey().writeTo(out);
             entry.getValue().writeTo(out);
         }
-        out.writeVLong(totalRejectionCount);
+        // TODO: change to V_2_12_0 on main after backport to 2.x
+        if (out.getVersion().onOrAfter(Version.V_3_0_0)) {
+            out.writeVLong(totalRejectionCount);
+        }
     }
 
     @Override

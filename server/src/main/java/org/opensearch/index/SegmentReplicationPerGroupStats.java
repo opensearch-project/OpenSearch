@@ -55,12 +55,14 @@ public class SegmentReplicationPerGroupStats implements Writeable, ToXContentFra
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject(shardId.toString());
         builder.field("rejected_requests", rejectedRequestCount);
         builder.startArray("replicas");
         for (SegmentReplicationShardStats stats : replicaStats) {
             stats.toXContent(builder, params);
         }
         builder.endArray();
+        builder.endObject();
         return builder;
     }
 

@@ -840,6 +840,7 @@ public class NodeStatsTests extends OpenSearchTestCase {
             weightedRoutingStats,
             null,
             null,
+            null,
             null
         );
     }
