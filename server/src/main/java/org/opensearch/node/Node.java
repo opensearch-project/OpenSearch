@@ -822,7 +822,6 @@ public class Node implements Closeable {
                 remoteStoreStatsTrackerFactory,
                 recoverySettings
             );
-
             final AliasValidator aliasValidator = new AliasValidator();
 
             final ShardLimitValidator shardLimitValidator = new ShardLimitValidator(settings, clusterService, systemIndices);
