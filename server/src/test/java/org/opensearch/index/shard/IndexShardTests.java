@@ -4910,6 +4910,8 @@ public class IndexShardTests extends IndexShardTestCase {
         tracker.addUploadBytesStarted(30L);
         tracker.addUploadBytesSucceeded(10L);
         tracker.addUploadBytesFailed(10L);
+        tracker.incrementRejectionCount();
+        tracker.incrementRejectionCount();
     }
 
     private void populateSampleRemoteTranslogStats(RemoteTranslogTransferTracker tracker) {
@@ -4943,5 +4945,7 @@ public class IndexShardTests extends IndexShardTestCase {
         assertEquals(remoteSegmentTransferTracker.getUploadBytesStarted(), remoteSegmentStats.getUploadBytesStarted());
         assertEquals(remoteSegmentTransferTracker.getUploadBytesSucceeded(), remoteSegmentStats.getUploadBytesSucceeded());
         assertEquals(remoteSegmentTransferTracker.getUploadBytesFailed(), remoteSegmentStats.getUploadBytesFailed());
+        assertTrue(remoteSegmentStats.getTotalRejections() > 0);
+        assertEquals(remoteSegmentTransferTracker.getRejectionCount(), remoteSegmentStats.getTotalRejections());
     }
 }
