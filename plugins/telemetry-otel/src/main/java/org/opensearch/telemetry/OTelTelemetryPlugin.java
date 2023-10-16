@@ -12,12 +12,10 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.plugins.TelemetryPlugin;
-import org.opensearch.telemetry.metrics.MetricsTelemetry;
 import org.opensearch.telemetry.metrics.OTelMetricsTelemetry;
 import org.opensearch.telemetry.tracing.OTelResourceProvider;
 import org.opensearch.telemetry.tracing.OTelTelemetry;
 import org.opensearch.telemetry.tracing.OTelTracingTelemetry;
-import org.opensearch.telemetry.tracing.TracingTelemetry;
 
 import java.util.Arrays;
 import java.util.List;
@@ -60,7 +58,7 @@ public class OTelTelemetryPlugin extends Plugin implements TelemetryPlugin {
 
     @Override
     public Optional<Telemetry> getTelemetry(TelemetrySettings telemetrySettings) {
-        return telemetry(telemetrySettings);
+        return Optional.of(telemetry(telemetrySettings));
     }
 
     @Override
@@ -68,31 +66,12 @@ public class OTelTelemetryPlugin extends Plugin implements TelemetryPlugin {
         return OTEL_TRACER_NAME;
     }
 
-    private Optional<Telemetry> telemetry(TelemetrySettings telemetrySettings) {
-        final Optional<OpenTelemetrySdk> openTelemetry = OTelResourceProvider.get(telemetrySettings, settings);
-        if (openTelemetry.isPresent()) {
-            return Optional.of(
-                new OTelTelemetry(getTracingTelemetry(settings, openTelemetry.get()), getMetricsTelemetry(settings, openTelemetry.get()))
-            );
-        } else {
-            return Optional.empty();
-        }
-    }
-
-    private MetricsTelemetry getMetricsTelemetry(Settings settings, OpenTelemetrySdk openTelemetry) {
-        if (TelemetrySettings.METRICS_FEATURE_ENABLED_SETTING.get(settings) == true) {
-            return new OTelMetricsTelemetry<>(openTelemetry.getSdkMeterProvider());
-        } else {
-            return null;
-        }
-    }
-
-    private TracingTelemetry getTracingTelemetry(Settings settings, OpenTelemetrySdk openTelemetry) {
-        if (TelemetrySettings.TRACER_FEATURE_ENABLED_SETTING.get(settings) == true) {
-            return new OTelTracingTelemetry<>(openTelemetry, openTelemetry.getSdkTracerProvider());
-        } else {
-            return null;
-        }
+    private Telemetry telemetry(TelemetrySettings telemetrySettings) {
+        final OpenTelemetrySdk openTelemetry = OTelResourceProvider.get(telemetrySettings, settings);
+        return new OTelTelemetry(
+            new OTelTracingTelemetry<>(openTelemetry, openTelemetry.getSdkTracerProvider()),
+            new OTelMetricsTelemetry<>(openTelemetry.getSdkMeterProvider())
+        );
     }
 
 }

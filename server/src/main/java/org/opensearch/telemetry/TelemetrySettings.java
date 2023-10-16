@@ -112,4 +112,12 @@ public class TelemetrySettings {
             return false;
         }
     }
+
+    public static boolean isMetricsFeatureEnabled() {
+        if (settingz != null) {
+            return METRICS_FEATURE_ENABLED_SETTING.get(settingz);
+        } else {
+            return false;
+        }
+    }
 }

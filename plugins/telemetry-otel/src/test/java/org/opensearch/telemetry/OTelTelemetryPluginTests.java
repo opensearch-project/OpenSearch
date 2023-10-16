@@ -18,6 +18,7 @@ import org.opensearch.telemetry.tracing.OTelTracingTelemetry;
 import org.opensearch.telemetry.tracing.TracingTelemetry;
 import org.opensearch.test.OpenSearchTestCase;
 import org.junit.After;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -26,17 +27,13 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 
-import io.opentelemetry.api.GlobalOpenTelemetry;
-
 import static org.opensearch.telemetry.OTelTelemetryPlugin.OTEL_TRACER_NAME;
 import static org.opensearch.telemetry.OTelTelemetrySettings.OTEL_METRICS_EXPORTER_CLASS_SETTING;
 import static org.opensearch.telemetry.OTelTelemetrySettings.OTEL_TRACER_SPAN_EXPORTER_CLASS_SETTING;
 import static org.opensearch.telemetry.OTelTelemetrySettings.TRACER_EXPORTER_BATCH_SIZE_SETTING;
 import static org.opensearch.telemetry.OTelTelemetrySettings.TRACER_EXPORTER_DELAY_SETTING;
 import static org.opensearch.telemetry.OTelTelemetrySettings.TRACER_EXPORTER_MAX_QUEUE_SIZE_SETTING;
-import static org.opensearch.telemetry.TelemetrySettings.METRICS_FEATURE_ENABLED_SETTING;
 import static org.opensearch.telemetry.TelemetrySettings.TRACER_ENABLED_SETTING;
-import static org.opensearch.telemetry.TelemetrySettings.TRACER_FEATURE_ENABLED_SETTING;
 import static org.opensearch.telemetry.TelemetrySettings.TRACER_SAMPLER_PROBABILITY;
 
 public class OTelTelemetryPluginTests extends OpenSearchTestCase {
@@ -47,14 +44,11 @@ public class OTelTelemetryPluginTests extends OpenSearchTestCase {
 
     private MetricsTelemetry metricsTelemetry;
 
-    public void setup(boolean enableTracerFeature, boolean enableMetricsFeature) {
+    @Before
+    public void setup() {
         // TRACER_EXPORTER_DELAY_SETTING should always be less than 10 seconds because
         // io.opentelemetry.sdk.OpenTelemetrySdk.close waits only for 10 seconds for shutdown to complete.
-        Settings settings = Settings.builder()
-            .put(TRACER_EXPORTER_DELAY_SETTING.getKey(), "1s")
-            .put(TRACER_FEATURE_ENABLED_SETTING.getKey(), enableTracerFeature)
-            .put(METRICS_FEATURE_ENABLED_SETTING.getKey(), enableMetricsFeature)
-            .build();
+        Settings settings = Settings.builder().put(TRACER_EXPORTER_DELAY_SETTING.getKey(), "1s").build();
         oTelTelemetryPlugin = new OTelTelemetryPlugin(settings);
         telemetry = oTelTelemetryPlugin.getTelemetry(
             TelemetrySettings.create(
@@ -62,12 +56,11 @@ public class OTelTelemetryPluginTests extends OpenSearchTestCase {
                 new ClusterSettings(settings, Set.of(TRACER_ENABLED_SETTING, TRACER_SAMPLER_PROBABILITY))
             )
         );
-        tracingTelemetry = telemetry.map(a -> a.getTracingTelemetry()).orElse(null);
-        metricsTelemetry = telemetry.map(a -> a.getMetricsTelemetry()).orElse(null);
+        tracingTelemetry = telemetry.get().getTracingTelemetry();
+        metricsTelemetry = telemetry.get().getMetricsTelemetry();
     }
 
     public void testGetTelemetry() {
-        setup(true, true);
         Set<Setting<?>> allTracerSettings = new HashSet<>();
         ClusterSettings.FEATURE_FLAGGED_CLUSTER_SETTINGS.get(List.of(FeatureFlags.TELEMETRY)).stream().forEach((allTracerSettings::add));
         assertEquals(OTEL_TRACER_NAME, oTelTelemetryPlugin.getName());
@@ -86,35 +79,9 @@ public class OTelTelemetryPluginTests extends OpenSearchTestCase {
 
     }
 
-    public void testGetTelemetryTracingOnly() {
-        setup(true, false);
-        assertTrue(telemetry.isPresent());
-        assertNotNull(tracingTelemetry);
-        assertNull(metricsTelemetry);
-    }
-
-    public void testGetTelemetryMetricsOnly() {
-        setup(false, true);
-        assertTrue(telemetry.isPresent());
-        assertNull(tracingTelemetry);
-        assertNotNull(metricsTelemetry);
-    }
-
-    public void testGetTelemetryEmpty() {
-        setup(false, false);
-        assertFalse(telemetry.isPresent());
-    }
-
     @After
     public void cleanup() throws IOException {
-        if (tracingTelemetry != null) {
-            tracingTelemetry.close();
-            tracingTelemetry = null;
-        }
-        if (metricsTelemetry != null) {
-            metricsTelemetry.close();
-            metricsTelemetry = null;
-        }
-        GlobalOpenTelemetry.resetForTest();
+        tracingTelemetry.close();
+        metricsTelemetry.close();
     }
 }
