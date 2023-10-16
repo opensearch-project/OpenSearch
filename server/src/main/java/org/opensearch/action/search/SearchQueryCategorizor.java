@@ -55,12 +55,20 @@ public class SearchQueryCategorizor {
         }
     }
 
-    private static void incrementQueryTypeCounters(QueryBuilder topLevelQueryBuilder) {
-        QueryBuilderVisitor searhQueryVisitor = new SearchQueryCategorizingVisitor(searchQueryCounters);
-        topLevelQueryBuilder.visit(searhQueryVisitor);
+    private void incrementQueryTypeCounters(QueryBuilder topLevelQueryBuilder) {
+        if (topLevelQueryBuilder == null) {
+            searchQueryCounters.skippedCounter.add(1);
+            return;
+        }
+        QueryBuilderVisitor searchQueryVisitor = new SearchQueryCategorizingVisitor(searchQueryCounters);
+        topLevelQueryBuilder.visit(searchQueryVisitor);
     }
 
-    private static void logQueryShape(QueryBuilder topLevelQueryBuilder) {
+    private void logQueryShape(QueryBuilder topLevelQueryBuilder) {
+        if (topLevelQueryBuilder == null) {
+            searchQueryCounters.skippedCounter.add(1);
+            return;
+        }
         QueryShapeVisitor shapeVisitor = new QueryShapeVisitor();
         topLevelQueryBuilder.visit(shapeVisitor);
         String queryShapeJson = shapeVisitor.prettyPrintTree("  ");
