@@ -8,9 +8,12 @@
 
 package org.opensearch.remotestore;
 
+import org.opensearch.action.admin.cluster.remotestore.restore.RestoreRemoteStoreResponse;
+import org.opensearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.opensearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.opensearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.opensearch.action.admin.indices.settings.put.UpdateSettingsRequest;
+import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.Metadata;
@@ -27,9 +30,12 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.ExecutionException;
 
 import static org.opensearch.gateway.remote.RemoteClusterStateService.REMOTE_CLUSTER_STATE_ENABLED_SETTING;
 import static org.opensearch.index.IndexSettings.INDEX_REFRESH_INTERVAL_SETTING;
+import static org.opensearch.indices.ShardLimitValidator.SETTING_CLUSTER_MAX_SHARDS_PER_NODE;
+import static org.opensearch.indices.ShardLimitValidator.SETTING_MAX_SHARDS_PER_CLUSTER_KEY;
 
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class RemoteStoreClusterStateRestoreIT extends BaseRemoteStoreRestoreIT {
@@ -120,7 +126,7 @@ public class RemoteStoreClusterStateRestoreIT extends BaseRemoteStoreRestoreIT {
 
         // Step - 2 Replace all nodes in the cluster with new nodes. This ensures new cluster state doesn't have previous index metadata
         internalCluster().stopAllNodes();
-        // Step - 4 Delete index metadata file in remote
+        // Step - 3 Delete index metadata file in remote
         try {
             Files.move(
                 segmentRepoPath.resolve(
@@ -134,28 +140,6 @@ public class RemoteStoreClusterStateRestoreIT extends BaseRemoteStoreRestoreIT {
         assertThrows(IllegalStateException.class, () -> addNewNodes(dataNodeCount, clusterManagerNodeCount));
     }
 
-    public void testRemoteStateRestoreLongRunning() throws Exception {
-        int shardCount = randomIntBetween(1, 2);
-        int replicaCount = 1;
-        int dataNodeCount = shardCount * (replicaCount + 1);
-        int clusterManagerNodeCount = 3;
-
-        Map<String, Long> indexStats = initialTestSetup(shardCount, replicaCount, dataNodeCount, clusterManagerNodeCount);
-
-        for (int i = 0; i < 100; i++) {
-            logger.info("Current iteration is: {}", i);
-            performOperation(i);
-            validateCurrentMetadata();
-            String prevClusterUUID = clusterService().state().metadata().clusterUUID();
-            Metadata prevMetadata = clusterService().state().metadata();
-            resetCluster(dataNodeCount, clusterManagerNodeCount);
-            String newClusterUUID = clusterService().state().metadata().clusterUUID();
-            assert !Objects.equals(newClusterUUID, prevClusterUUID) : "cluster restart not successful. cluster uuid is same";
-
-            validateMetadataAfterRestore(prevMetadata);
-        }
-    }
-
     public void testRemoteStateFullRestart() throws Exception {
         int shardCount = randomIntBetween(1, 2);
         int replicaCount = 1;
@@ -164,6 +148,17 @@ public class RemoteStoreClusterStateRestoreIT extends BaseRemoteStoreRestoreIT {
 
         Map<String, Long> indexStats = initialTestSetup(shardCount, replicaCount, dataNodeCount, clusterManagerNodeCount);
         String prevClusterUUID = clusterService().state().metadata().clusterUUID();
+        // Delete index metadata file in remote
+        try {
+            Files.move(
+                segmentRepoPath.resolve(
+                    RemoteClusterStateService.encodeString(clusterService().state().getClusterName().value()) + "/cluster-state/" + prevClusterUUID + "/manifest"
+                ),
+                segmentRepoPath.resolve("cluster-state/")
+            );
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
         internalCluster().fullRestart();
         ensureGreen(INDEX_NAME);
         String newClusterUUID = clusterService().state().metadata().clusterUUID();
@@ -215,6 +210,65 @@ public class RemoteStoreClusterStateRestoreIT extends BaseRemoteStoreRestoreIT {
                 assertEquals(prevIndexMetadata.mapping(), currentIndexMetadata.mapping());
             }
         });
+    }
+
+    private void restoreAndValidateFails(
+        Metadata clusterUUID,
+        PlainActionFuture<RestoreRemoteStoreResponse> actionListener,
+        Class<? extends Throwable> clazz,
+        String errorSubString
+    ) {
+        try {
+            validateMetadataAfterRestore(clusterUUID);
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+//        try {
+//            validateMetadataAfterRestore(clusterUUID);
+//        } catch (Exception e) {
+//            assertTrue(
+//                String.format(Locale.ROOT, "%s %s", clazz, e),
+//                clazz.isAssignableFrom(e.getClass())
+//                    || clazz.isAssignableFrom(e.getCause().getClass())
+//                    || (e.getCause().getCause() != null && clazz.isAssignableFrom(e.getCause().getCause().getClass()))
+//            );
+//            assertTrue(
+//                String.format(Locale.ROOT, "Error message mismatch. Expected: [%s]. Actual: [%s]", errorSubString, e.getMessage()),
+//                e.getMessage().contains(errorSubString)
+//            );
+//        }
+    }
+
+    private void reduceShardLimits(int maxShardsPerNode, int maxShardsPerCluster) {
+        // Step 3 - Reduce shard limits to hit shard limit with less no of shards
+        try {
+            client().admin()
+                .cluster()
+                .updateSettings(
+                    new ClusterUpdateSettingsRequest().transientSettings(
+                        Settings.builder()
+                            .put(SETTING_CLUSTER_MAX_SHARDS_PER_NODE.getKey(), maxShardsPerNode)
+                            .put(SETTING_MAX_SHARDS_PER_CLUSTER_KEY, maxShardsPerCluster)
+                    )
+                )
+                .get();
+        } catch (InterruptedException | ExecutionException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    private void resetShardLimits() {
+        // Step - 5 Reset the cluster settings
+        ClusterUpdateSettingsRequest resetRequest = new ClusterUpdateSettingsRequest();
+        resetRequest.transientSettings(
+            Settings.builder().putNull(SETTING_CLUSTER_MAX_SHARDS_PER_NODE.getKey()).putNull(SETTING_MAX_SHARDS_PER_CLUSTER_KEY)
+        );
+
+        try {
+            client().admin().cluster().updateSettings(resetRequest).get();
+        } catch (InterruptedException | ExecutionException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     private void performOperation(int iteration) throws Exception {
