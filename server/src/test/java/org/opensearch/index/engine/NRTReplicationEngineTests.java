@@ -35,6 +35,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicLong;
@@ -588,7 +589,9 @@ public class NRTReplicationEngineTests extends EngineTestCase {
         indexOperations(nrtEngine, operations);
         // wipe the nrt directory initially so we can sync with primary.
         cleanAndCopySegmentsFromPrimary(nrtEngine);
-        nrtEngineStore.directory().deleteFile("_0.si");
+        final Optional<String> toDelete = Set.of(nrtEngineStore.directory().listAll()).stream().filter(f -> f.endsWith(".si")).findAny();
+        assertTrue(toDelete.isPresent());
+        nrtEngineStore.directory().deleteFile(toDelete.get());
         assertEquals(2, nrtEngineStore.refCount());
         nrtEngine.close();
         assertEquals(1, nrtEngineStore.refCount());
