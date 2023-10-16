@@ -152,7 +152,10 @@ public class RemoteStoreClusterStateRestoreIT extends BaseRemoteStoreRestoreIT {
         try {
             Files.move(
                 segmentRepoPath.resolve(
-                    RemoteClusterStateService.encodeString(clusterService().state().getClusterName().value()) + "/cluster-state/" + prevClusterUUID + "/manifest"
+                    RemoteClusterStateService.encodeString(clusterService().state().getClusterName().value())
+                        + "/cluster-state/"
+                        + prevClusterUUID
+                        + "/manifest"
                 ),
                 segmentRepoPath.resolve("cluster-state/")
             );
@@ -223,20 +226,20 @@ public class RemoteStoreClusterStateRestoreIT extends BaseRemoteStoreRestoreIT {
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
-//        try {
-//            validateMetadataAfterRestore(clusterUUID);
-//        } catch (Exception e) {
-//            assertTrue(
-//                String.format(Locale.ROOT, "%s %s", clazz, e),
-//                clazz.isAssignableFrom(e.getClass())
-//                    || clazz.isAssignableFrom(e.getCause().getClass())
-//                    || (e.getCause().getCause() != null && clazz.isAssignableFrom(e.getCause().getCause().getClass()))
-//            );
-//            assertTrue(
-//                String.format(Locale.ROOT, "Error message mismatch. Expected: [%s]. Actual: [%s]", errorSubString, e.getMessage()),
-//                e.getMessage().contains(errorSubString)
-//            );
-//        }
+        // try {
+        // validateMetadataAfterRestore(clusterUUID);
+        // } catch (Exception e) {
+        // assertTrue(
+        // String.format(Locale.ROOT, "%s %s", clazz, e),
+        // clazz.isAssignableFrom(e.getClass())
+        // || clazz.isAssignableFrom(e.getCause().getClass())
+        // || (e.getCause().getCause() != null && clazz.isAssignableFrom(e.getCause().getCause().getClass()))
+        // );
+        // assertTrue(
+        // String.format(Locale.ROOT, "Error message mismatch. Expected: [%s]. Actual: [%s]", errorSubString, e.getMessage()),
+        // e.getMessage().contains(errorSubString)
+        // );
+        // }
     }
 
     private void reduceShardLimits(int maxShardsPerNode, int maxShardsPerCluster) {
