@@ -44,7 +44,6 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.common.io.stream.StreamInput;
-import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.core.transport.TransportResponse;
 import org.opensearch.core.transport.TransportResponse.Empty;
 import org.opensearch.monitor.StatusInfo;
@@ -52,7 +51,6 @@ import org.opensearch.telemetry.tracing.noop.NoopTracer;
 import org.opensearch.test.EqualsHashCodeTestUtils;
 import org.opensearch.test.EqualsHashCodeTestUtils.CopyFunction;
 import org.opensearch.test.OpenSearchSingleNodeTestCase;
-import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.transport.CapturingTransport;
 import org.opensearch.test.transport.MockTransport;
 import org.opensearch.threadpool.ThreadPool.Names;
@@ -586,42 +584,27 @@ public class LeaderCheckerTests extends OpenSearchSingleNodeTestCase {
 
         // cleanup
         timeSettings1 = Settings.builder().putNull(setting1.getKey()).build();
-        response = client().admin()
-            .cluster()
-            .prepareUpdateSettings()
-            .setPersistentSettings(timeSettings1)
-            .execute()
-            .actionGet();
+        client().admin().cluster().prepareUpdateSettings().setPersistentSettings(timeSettings1).execute().actionGet();
     }
 
-    public void testMaximumBoundary() {
+    public void testLeaderCheckTimeoutMaxValue() {
         Setting<TimeValue> setting1 = LEADER_CHECK_TIMEOUT_SETTING;
         Settings timeSettings1 = Settings.builder().put(setting1.getKey(), "61s").build();
 
         try {
-            client().admin()
-                .cluster()
-                .prepareUpdateSettings()
-                .setPersistentSettings(timeSettings1)
-                .execute()
-                .actionGet();
+            client().admin().cluster().prepareUpdateSettings().setPersistentSettings(timeSettings1).execute().actionGet();
         } catch (IllegalArgumentException ex) {
             assertEquals(ex.getMessage(), "failed to parse value [61s] for setting [" + setting1.getKey() + "], must be <= [60000ms]");
         }
 
     }
 
-    public void testMinimumBoundary() {
+    public void testLeaderCheckTimeoutMinValue() {
         Setting<TimeValue> setting1 = LEADER_CHECK_TIMEOUT_SETTING;
         Settings timeSettings1 = Settings.builder().put(setting1.getKey(), "0s").build();
 
         try {
-            client().admin()
-                .cluster()
-                .prepareUpdateSettings()
-                .setPersistentSettings(timeSettings1)
-                .execute()
-                .actionGet();
+            client().admin().cluster().prepareUpdateSettings().setPersistentSettings(timeSettings1).execute().actionGet();
         } catch (IllegalArgumentException ex) {
             assertEquals(ex.getMessage(), "failed to parse value [0s] for setting [" + setting1.getKey() + "], must be >= [1ms]");
         }
