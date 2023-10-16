@@ -459,7 +459,11 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         }
 
         if (isSearchQueryCategorizationEnabled) {
-            searchQueryCategorizor.categorize(searchRequest.source());
+            try {
+                searchQueryCategorizor.categorize(searchRequest.source());
+            } catch (Exception e) {
+                logger.error("Error while trying to categorize the query.");
+            }
         }
 
         ActionListener<SearchSourceBuilder> rewriteListener = ActionListener.wrap(source -> {
