@@ -654,7 +654,15 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 }
 
                 if (remoteStore != null && indexShard.isPrimaryMode() && deleted.get()) {
-                    remoteStore.close();
+                    // When an instance of Store is created, a shardlock is created which is released on closing the instance of store.
+                    // Currently, we create 2 instances of store for remote store backed indices: store and remoteStore.
+                    // As there can be only one shardlock acquired for a given shard, the lock is shared between store and remoteStore.
+                    // This creates an issue when we are deleting the index as it results in closing both store and remoteStore. At the time
+                    // of closure of second Store instance, we get the assertion error saying shard is not locked.
+                    // Ideally, we should be closing the remoteStore but until we work on CompositeStore
+                    // (https://github.com/opensearch-project/OpenSearch/issues/3719), we mitigate the test failures by
+                    // closing the remoteDirectory.
+                    indexShard.getRemoteDirectory().close();
                 }
 
             } catch (Exception e) {
