@@ -693,8 +693,8 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
 
         int term = randomInt(10);
         int version = randomInt(10);
-        String manifestFileName = RemoteClusterStateService.getManifestFileName(term, version);
-        assertThat(manifestFileName.split(DELIMITER).length, is(5));
+        String manifestFileName = RemoteClusterStateService.getManifestFileName(term, version, true);
+        assertThat(manifestFileName.split(DELIMITER).length, is(6));
         assertTrue(manifestFileName.contains(MANIFEST_FILE_PREFIX));
         assertTrue(manifestFileName.contains(RemoteStoreUtils.invertLong(term)));
         assertTrue(manifestFileName.contains(RemoteStoreUtils.invertLong(version)));
