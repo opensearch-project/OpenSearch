@@ -57,7 +57,6 @@ public class SearchQueryCategorizer {
 
     private void incrementQueryTypeCounters(QueryBuilder topLevelQueryBuilder) {
         if (topLevelQueryBuilder == null) {
-            searchQueryCounters.skippedCounter.add(1);
             return;
         }
         QueryBuilderVisitor searchQueryVisitor = new SearchQueryCategorizingVisitor(searchQueryCounters);
@@ -66,7 +65,6 @@ public class SearchQueryCategorizer {
 
     private void logQueryShape(QueryBuilder topLevelQueryBuilder) {
         if (topLevelQueryBuilder == null) {
-            searchQueryCounters.skippedCounter.add(1);
             return;
         }
         QueryShapeVisitor shapeVisitor = new QueryShapeVisitor();
