@@ -1608,8 +1608,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     /**
-     * Compute and return the latest ReplicationCheckpoint for a particular shard.
-     * @return EMPTY checkpoint before the engine is opened and null for non-segrep enabled indices
+     * return the most recently computed ReplicationCheckpoint for a particular shard.
+     * The checkpoint is updated inside a refresh listener and may lag behind the SegmentInfos on the reader.
+     * To guarantee the checkpoint is upto date with the latest on-reader infos, use `getLatestSegmentInfosAndCheckpoint` instead.
+     *
+     * @return {@link ReplicationCheckpoint} - The most recently computed ReplicationCheckpoint.
      */
     public ReplicationCheckpoint getLatestReplicationCheckpoint() {
         return replicationTracker.getLatestReplicationCheckpoint();
@@ -1628,34 +1631,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     public Tuple<GatedCloseable<SegmentInfos>, ReplicationCheckpoint> getLatestSegmentInfosAndCheckpoint() {
         assert indexSettings.isSegRepEnabled();
 
-        Tuple<GatedCloseable<SegmentInfos>, ReplicationCheckpoint> nullSegmentInfosEmptyCheckpoint = new Tuple<>(
-            new GatedCloseable<>(null, () -> {}),
-            getLatestReplicationCheckpoint()
-        );
-
-        if (getEngineOrNull() == null) {
-            return nullSegmentInfosEmptyCheckpoint;
-        }
         // do not close the snapshot - caller will close it.
         GatedCloseable<SegmentInfos> snapshot = null;
         try {
             snapshot = getSegmentInfosSnapshot();
-            if (snapshot.get() != null) {
-                SegmentInfos segmentInfos = snapshot.get();
-                final Map<String, StoreFileMetadata> metadataMap = store.getSegmentMetadataMap(segmentInfos);
-                return new Tuple<>(
-                    snapshot,
-                    new ReplicationCheckpoint(
-                        this.shardId,
-                        getOperationPrimaryTerm(),
-                        segmentInfos.getGeneration(),
-                        segmentInfos.getVersion(),
-                        metadataMap.values().stream().mapToLong(StoreFileMetadata::length).sum(),
-                        getEngine().config().getCodec().getName(),
-                        metadataMap
-                    )
-                );
-            }
+            final SegmentInfos segmentInfos = snapshot.get();
+            return new Tuple<>(snapshot, computeReplicationCheckpoint(segmentInfos));
         } catch (IOException | AlreadyClosedException e) {
             logger.error("Error Fetching SegmentInfos and latest checkpoint", e);
             if (snapshot != null) {
@@ -1666,7 +1647,37 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 }
             }
         }
-        return nullSegmentInfosEmptyCheckpoint;
+        return new Tuple<>(new GatedCloseable<>(null, () -> {}), getLatestReplicationCheckpoint());
+    }
+
+    /**
+     * Compute the latest {@link ReplicationCheckpoint} from a SegmentInfos.
+     * This function fetches a metadata snapshot from the store that comes with an IO cost.
+     * We will reuse the existing stored checkpoint if it is at the same SI version.
+     *
+     * @param segmentInfos {@link SegmentInfos} infos to use to compute.
+     * @return {@link ReplicationCheckpoint} Checkpoint computed from the infos.
+     * @throws IOException When there is an error computing segment metadata from the store.
+     */
+    ReplicationCheckpoint computeReplicationCheckpoint(SegmentInfos segmentInfos) throws IOException {
+        if (segmentInfos == null) {
+            return ReplicationCheckpoint.empty(shardId);
+        }
+        final ReplicationCheckpoint latestReplicationCheckpoint = getLatestReplicationCheckpoint();
+        if (latestReplicationCheckpoint.getSegmentInfosVersion() == segmentInfos.getVersion()
+            && latestReplicationCheckpoint.getSegmentsGen() == segmentInfos.getGeneration()) {
+            return latestReplicationCheckpoint;
+        }
+        final Map<String, StoreFileMetadata> metadataMap = store.getSegmentMetadataMap(segmentInfos);
+        return new ReplicationCheckpoint(
+            this.shardId,
+            getOperationPrimaryTerm(),
+            segmentInfos.getGeneration(),
+            segmentInfos.getVersion(),
+            metadataMap.values().stream().mapToLong(StoreFileMetadata::length).sum(),
+            getEngine().config().getCodec().getName(),
+            metadataMap
+        );
     }
 
     /**
