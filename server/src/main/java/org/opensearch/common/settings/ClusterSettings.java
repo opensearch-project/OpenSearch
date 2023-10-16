@@ -682,7 +682,8 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 RemoteStoreNodeService.REMOTE_STORE_COMPATIBILITY_MODE_SETTING,
                 IndicesService.CLUSTER_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING,
                 IndicesService.CLUSTER_REMOTE_INDEX_RESTRICT_ASYNC_DURABILITY_SETTING,
-                IndicesService.CLUSTER_INDICES_BINARY_PREFIX_INDEX_UUID_SETTING
+                IndicesService.CLUSTER_INDICES_BINARY_PREFIX_INDEX_UUID_SETTING,
+                IndicesService.CLUSTER_INDICES_BINARY_PREFIX_INDEX_UUID_LENGTH_SETTING
             )
         )
     );

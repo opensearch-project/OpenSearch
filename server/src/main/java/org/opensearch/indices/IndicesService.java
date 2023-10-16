@@ -310,6 +310,18 @@ public class IndicesService extends AbstractLifecycleComponent
     );
 
     /**
+     * This setting is used to control the length of appended binary string (of size 10) prefix to index uuid if enabled.
+     */
+    public static final Setting<Integer> CLUSTER_INDICES_BINARY_PREFIX_INDEX_UUID_LENGTH_SETTING = Setting.intSetting(
+        "cluster.indices.binary-prefix-index-uuid.length",
+        2,
+        0,
+        10,
+        Property.NodeScope,
+        Property.Dynamic
+    );
+
+    /**
      * The node's settings.
      */
     private final Settings settings;

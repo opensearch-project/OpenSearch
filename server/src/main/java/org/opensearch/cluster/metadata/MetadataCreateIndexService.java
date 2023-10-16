@@ -890,16 +890,7 @@ public class MetadataCreateIndexService {
             indexSettingsBuilder.put(SETTING_CREATION_DATE, Instant.now().toEpochMilli());
         }
         indexSettingsBuilder.put(IndexMetadata.SETTING_INDEX_PROVIDED_NAME, request.getProvidedName());
-
-        String binaryPrefix = "";
-        if (clusterSettings.get(IndicesService.CLUSTER_INDICES_BINARY_PREFIX_INDEX_UUID_SETTING)) {
-            // We generate random binary string of size 10.
-            binaryPrefix = Integer.toBinaryString(new Random().nextInt(1024));
-            if (binaryPrefix.length() < 10) {
-                binaryPrefix = "0".repeat(10 - binaryPrefix.length()) + binaryPrefix;
-            }
-        }
-        indexSettingsBuilder.put(SETTING_INDEX_UUID, binaryPrefix + UUIDs.randomBase64UUID());
+        indexSettingsBuilder.put(SETTING_INDEX_UUID, getIndexUuidWithBinaryPrefix(clusterSettings));
 
         updateReplicationStrategy(indexSettingsBuilder, request.settings(), settings);
         updateRemoteStoreSettings(indexSettingsBuilder, settings);
@@ -936,6 +927,24 @@ public class MetadataCreateIndexService {
         validateTranslogDurabilitySettings(request.settings(), clusterSettings, settings);
 
         return indexSettings;
+    }
+
+    /**
+     * Gets index uuid where the first 10 characters are random binary string.
+     *
+     * @return index uuid with binary prefix.
+     */
+    public static String getIndexUuidWithBinaryPrefix(ClusterSettings clusterSettings) {
+        // We generate random binary string of size 10.
+        String binaryPrefix = "";
+        if (clusterSettings.get(IndicesService.CLUSTER_INDICES_BINARY_PREFIX_INDEX_UUID_SETTING)) {
+            int length = clusterSettings.get(IndicesService.CLUSTER_INDICES_BINARY_PREFIX_INDEX_UUID_LENGTH_SETTING);
+            binaryPrefix = Integer.toBinaryString(new Random().nextInt((int) Math.pow(2, length)));
+            if (binaryPrefix.length() < length) {
+                binaryPrefix = "0".repeat(length - binaryPrefix.length()) + binaryPrefix;
+            }
+        }
+        return binaryPrefix + UUIDs.randomBase64UUID();
     }
 
     /**
