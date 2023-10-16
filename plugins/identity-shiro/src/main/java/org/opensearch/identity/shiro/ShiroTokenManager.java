@@ -10,13 +10,11 @@ package org.opensearch.identity.shiro;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.shiro.SecurityUtils;
 import org.apache.shiro.authc.AuthenticationToken;
 import org.apache.shiro.authc.UsernamePasswordToken;
 import org.opensearch.common.Randomness;
 import org.opensearch.identity.IdentityService;
 import org.opensearch.identity.Subject;
-import org.opensearch.identity.noop.NoopSubject;
 import org.opensearch.identity.tokens.AuthToken;
 import org.opensearch.identity.tokens.BasicAuthToken;
 import org.opensearch.identity.tokens.OnBehalfOfClaims;
