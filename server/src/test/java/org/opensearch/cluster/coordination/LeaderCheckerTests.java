@@ -572,19 +572,21 @@ public class LeaderCheckerTests extends OpenSearchSingleNodeTestCase {
         Setting<TimeValue> setting1 = LEADER_CHECK_TIMEOUT_SETTING;
         Settings timeSettings1 = Settings.builder().put(setting1.getKey(), "60s").build();
 
-        ClusterUpdateSettingsResponse response = client().admin()
-            .cluster()
-            .prepareUpdateSettings()
-            .setPersistentSettings(timeSettings1)
-            .execute()
-            .actionGet();
+        try {
+            ClusterUpdateSettingsResponse response = client().admin()
+                .cluster()
+                .prepareUpdateSettings()
+                .setPersistentSettings(timeSettings1)
+                .execute()
+                .actionGet();
 
-        assertAcked(response);
-        assertEquals(timeValueSeconds(60), setting1.get(response.getPersistentSettings()));
-
-        // cleanup
-        timeSettings1 = Settings.builder().putNull(setting1.getKey()).build();
-        client().admin().cluster().prepareUpdateSettings().setPersistentSettings(timeSettings1).execute().actionGet();
+            assertAcked(response);
+            assertEquals(timeValueSeconds(60), setting1.get(response.getPersistentSettings()));
+        } finally {
+            // cleanup
+            timeSettings1 = Settings.builder().putNull(setting1.getKey()).build();
+            client().admin().cluster().prepareUpdateSettings().setPersistentSettings(timeSettings1).execute().actionGet();
+        }
     }
 
     public void testLeaderCheckTimeoutMaxValue() {
@@ -596,7 +598,6 @@ public class LeaderCheckerTests extends OpenSearchSingleNodeTestCase {
         } catch (IllegalArgumentException ex) {
             assertEquals(ex.getMessage(), "failed to parse value [61s] for setting [" + setting1.getKey() + "], must be <= [60000ms]");
         }
-
     }
 
     public void testLeaderCheckTimeoutMinValue() {

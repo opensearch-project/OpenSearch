@@ -160,8 +160,8 @@ public class LeaderChecker {
         });
     }
 
-    private void setLeaderCheckTimeout(TimeValue newValue) {
-        this.leaderCheckTimeout = newValue;
+    private void setLeaderCheckTimeout(TimeValue leaderCheckTimeout) {
+        this.leaderCheckTimeout = leaderCheckTimeout;
     }
 
     public DiscoveryNode leader() {

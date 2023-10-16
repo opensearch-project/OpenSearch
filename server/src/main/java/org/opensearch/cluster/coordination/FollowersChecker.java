@@ -163,9 +163,7 @@ public class FollowersChecker {
         });
     }
 
-    private void setFollowerCheckTimeout(TimeValue newValue) {
-        this.followerCheckTimeout = newValue;
-    }
+    private void setFollowerCheckTimeout(TimeValue followerCheckTimeout) { this.followerCheckTimeout = followerCheckTimeout; }
 
     /**
      * Update the set of known nodes, starting to check any new ones and stopping checking any previously-known-but-now-unknown ones.
