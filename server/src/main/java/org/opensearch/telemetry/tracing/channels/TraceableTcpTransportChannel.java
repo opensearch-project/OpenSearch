@@ -51,7 +51,7 @@ public class TraceableTcpTransportChannel extends BaseTcpTransportChannel {
      * @return transport channel
      */
     public static TransportChannel create(TcpTransportChannel delegate, final Span span, final Tracer tracer) {
-        if (tracer.isRecording()) {
+        if (tracer.isRecording() == true) {
             delegate.getChannel().addCloseListener(new ActionListener<Void>() {
                 @Override
                 public void onResponse(Void unused) {

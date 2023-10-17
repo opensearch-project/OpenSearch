@@ -54,7 +54,7 @@ public class TraceableTransportResponseHandler<T extends TransportResponse> impl
         Span span,
         Tracer tracer
     ) {
-        if (tracer.isRecording()) {
+        if (tracer.isRecording() == true) {
             return new TraceableTransportResponseHandler<S>(delegate, span, tracer);
         } else {
             return delegate;

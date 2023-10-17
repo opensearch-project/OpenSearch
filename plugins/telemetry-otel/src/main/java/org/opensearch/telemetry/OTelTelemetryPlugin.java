@@ -79,7 +79,9 @@ public class OTelTelemetryPlugin extends Plugin implements TelemetryPlugin {
 
     @Override
     public void close() {
-        refCountedOpenTelemetry.close();
+        if (refCountedOpenTelemetry != null) {
+            refCountedOpenTelemetry.close();
+        }
     }
 
 }

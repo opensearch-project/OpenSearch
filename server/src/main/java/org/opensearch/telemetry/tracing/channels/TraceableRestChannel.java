@@ -52,7 +52,7 @@ public class TraceableRestChannel implements RestChannel {
      * @return rest channel
      */
     public static RestChannel create(RestChannel delegate, Span span, Tracer tracer) {
-        if (tracer.isRecording()) {
+        if (tracer.isRecording() == true) {
             return new TraceableRestChannel(delegate, span, tracer);
         } else {
             return delegate;

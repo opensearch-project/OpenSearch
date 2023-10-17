@@ -37,6 +37,7 @@ public class OTelMetricsTelemetry<T extends MeterProvider & Closeable> implement
      */
     public OTelMetricsTelemetry(RefCountedReleasable<OpenTelemetrySdk> openTelemetry, T meterProvider) {
         this.refCountedOpenTelemetry = openTelemetry;
+        this.refCountedOpenTelemetry.incRef();
         this.meterProvider = meterProvider;
         this.otelMeter = meterProvider.get(OTelTelemetryPlugin.INSTRUMENTATION_SCOPE_NAME);
     }
@@ -67,6 +68,7 @@ public class OTelMetricsTelemetry<T extends MeterProvider & Closeable> implement
 
     @Override
     public void close() throws IOException {
+        meterProvider.close();
         refCountedOpenTelemetry.close();
     }
 }

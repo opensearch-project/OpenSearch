@@ -34,12 +34,14 @@ public class OTelTracingTelemetry<T extends TracerProvider & Closeable> implemen
      */
     public OTelTracingTelemetry(RefCountedReleasable<OpenTelemetrySdk> refCountedOpenTelemetry, T tracerProvider) {
         this.refCountedOpenTelemetry = refCountedOpenTelemetry;
+        this.refCountedOpenTelemetry.incRef();
         this.tracerProvider = tracerProvider;
         this.otelTracer = tracerProvider.get(OTelTelemetryPlugin.INSTRUMENTATION_SCOPE_NAME);
     }
 
     @Override
     public void close() throws IOException {
+        tracerProvider.close();
         refCountedOpenTelemetry.close();
     }
 

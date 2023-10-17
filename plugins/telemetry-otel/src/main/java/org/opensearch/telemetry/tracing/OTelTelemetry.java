@@ -36,13 +36,11 @@ public class OTelTelemetry implements Telemetry {
 
     @Override
     public TracingTelemetry getTracingTelemetry() {
-        refCountedOpenTelemetry.incRef();
         return new OTelTracingTelemetry<>(refCountedOpenTelemetry, refCountedOpenTelemetry.get().getSdkTracerProvider());
     }
 
     @Override
     public MetricsTelemetry getMetricsTelemetry() {
-        refCountedOpenTelemetry.incRef();
         return new OTelMetricsTelemetry<>(refCountedOpenTelemetry, refCountedOpenTelemetry.get().getSdkMeterProvider());
     }
 }

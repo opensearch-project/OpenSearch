@@ -46,7 +46,7 @@ public class TraceableActionListener<Response> implements ActionListener<Respons
      * @return action listener
      */
     public static <Response> ActionListener<Response> create(ActionListener<Response> delegate, Span span, Tracer tracer) {
-        if (tracer.isRecording()) {
+        if (tracer.isRecording() == true) {
             return new TraceableActionListener<Response>(delegate, span, tracer);
         } else {
             return delegate;

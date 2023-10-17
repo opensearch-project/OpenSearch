@@ -48,7 +48,7 @@ public class TraceableHttpChannel implements HttpChannel {
      * @return http channel
      */
     public static HttpChannel create(HttpChannel delegate, Span span, Tracer tracer) {
-        if (tracer.isRecording()) {
+        if (tracer.isRecording() == true) {
             return new TraceableHttpChannel(delegate, span, tracer);
         } else {
             return delegate;
