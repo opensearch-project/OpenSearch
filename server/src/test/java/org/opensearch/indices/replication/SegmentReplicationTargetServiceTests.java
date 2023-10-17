@@ -246,7 +246,7 @@ public class SegmentReplicationTargetServiceTests extends IndexShardTestCase {
         verify(spy, times(0)).startReplication(any(), any(), any());
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/8928")
+
     public void testShardAlreadyReplicating() {
         CountDownLatch blockGetCheckpointMetadata = new CountDownLatch(1);
         SegmentReplicationSource source = new TestReplicationSource() {
