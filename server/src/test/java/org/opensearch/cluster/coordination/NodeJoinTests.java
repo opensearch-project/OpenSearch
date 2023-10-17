@@ -57,6 +57,7 @@ import org.opensearch.common.util.concurrent.BaseFuture;
 import org.opensearch.common.util.concurrent.FutureUtils;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.transport.TransportResponse;
+import org.opensearch.gateway.remote.RemoteClusterStateService;
 import org.opensearch.monitor.NodeHealthService;
 import org.opensearch.monitor.StatusInfo;
 import org.opensearch.node.Node;
@@ -270,7 +271,8 @@ public class NodeJoinTests extends OpenSearchTestCase {
             ElectionStrategy.DEFAULT_INSTANCE,
             nodeHealthService,
             persistedStateRegistry,
-            Mockito.mock(RemoteStoreNodeService.class)
+            Mockito.mock(RemoteStoreNodeService.class),
+            Mockito.mock(RemoteClusterStateService.class)
         );
         transportService.start();
         transportService.acceptIncomingRequests();

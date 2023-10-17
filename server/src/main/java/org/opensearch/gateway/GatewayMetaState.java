@@ -712,7 +712,9 @@ public class GatewayMetaState implements Closeable {
                 // After the above PR is pushed, we can remove this silent failure and throw the exception instead.
                 logger.error("Remote repository is not yet registered");
                 lastAcceptedState = clusterState;
+                remoteClusterStateService.writeMetadataFailed();
             } catch (Exception e) {
+                remoteClusterStateService.writeMetadataFailed();
                 handleExceptionOnWrite(e);
             }
         }

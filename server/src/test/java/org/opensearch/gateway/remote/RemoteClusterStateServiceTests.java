@@ -275,6 +275,7 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
             RemoteClusterStateService.IndexMetadataTransferException.class,
             () -> remoteClusterStateService.writeFullMetadata(clusterState, randomAlphaOfLength(10))
         );
+        assertEquals(0, remoteClusterStateService.getRemoteClusterStateStats().getUploadSuccessCount());
     }
 
     public void testFailWriteIncrementalMetadataNonClusterManagerNode() throws IOException {
@@ -282,6 +283,7 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
         remoteClusterStateService.start();
         final ClusterMetadataManifest manifest = remoteClusterStateService.writeIncrementalMetadata(clusterState, clusterState, null);
         Assert.assertThat(manifest, nullValue());
+        assertEquals(0, remoteClusterStateService.getRemoteClusterStateStats().getUploadSuccessCount());
     }
 
     public void testFailWriteIncrementalMetadataWhenTermChanged() {
@@ -671,6 +673,29 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
+    }
+
+    public void testRemoteStateStats() throws IOException {
+        final ClusterState clusterState = generateClusterStateWithOneIndex().nodes(nodesWithLocalNodeClusterManager()).build();
+        mockBlobStoreObjects();
+        remoteClusterStateService.start();
+        final ClusterMetadataManifest manifest = remoteClusterStateService.writeFullMetadata(clusterState, "prev-cluster-uuid");
+        final UploadedIndexMetadata uploadedIndexMetadata = new UploadedIndexMetadata("test-index", "index-uuid", "metadata-filename");
+        List<UploadedIndexMetadata> indices = List.of(uploadedIndexMetadata);
+
+        final ClusterMetadataManifest expectedManifest = ClusterMetadataManifest.builder()
+            .indices(indices)
+            .clusterTerm(1L)
+            .stateVersion(1L)
+            .stateUUID("state-uuid")
+            .clusterUUID("cluster-uuid")
+            .previousClusterUUID("prev-cluster-uuid")
+            .build();
+
+        assertTrue(remoteClusterStateService.getRemoteClusterStateStats() != null);
+        assertEquals(1, remoteClusterStateService.getRemoteClusterStateStats().getUploadSuccessCount());
+        assertEquals(0, remoteClusterStateService.getRemoteClusterStateStats().getCleanupAttemptFailedCount());
+        assertEquals(0, remoteClusterStateService.getRemoteClusterStateStats().getUploadFailedCount());
     }
 
     private void mockObjectsForGettingPreviousClusterUUID(Map<String, String> clusterUUIDsPointers) throws IOException {

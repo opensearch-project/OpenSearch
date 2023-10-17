@@ -119,6 +119,7 @@ public class RemoteClusterStateService implements Closeable {
     private volatile TimeValue slowWriteLoggingThreshold;
 
     private final AtomicBoolean deleteStaleMetadataRunning = new AtomicBoolean(false);
+    private final RemoteClusterStateStats remoteStateStats;
 
     public RemoteClusterStateService(
         String nodeId,
@@ -136,6 +137,7 @@ public class RemoteClusterStateService implements Closeable {
         this.threadpool = threadPool;
         this.slowWriteLoggingThreshold = clusterSettings.get(SLOW_WRITE_LOGGING_THRESHOLD);
         clusterSettings.addSettingsUpdateConsumer(SLOW_WRITE_LOGGING_THRESHOLD, this::setSlowWriteLoggingThreshold);
+        this.remoteStateStats = new RemoteClusterStateStats();
     }
 
     private BlobStoreTransferService getBlobStoreTransferService() {
@@ -166,6 +168,8 @@ public class RemoteClusterStateService implements Closeable {
         );
         final ClusterMetadataManifest manifest = uploadManifest(clusterState, allUploadedIndexMetadata, previousClusterUUID, false);
         final long durationMillis = TimeValue.nsecToMSec(relativeTimeNanosSupplier.getAsLong() - startTimeNanos);
+        remoteStateStats.stateUploaded();
+        remoteStateStats.stateUploadTook(durationMillis);
         if (durationMillis >= slowWriteLoggingThreshold.getMillis()) {
             logger.warn(
                 "writing cluster state took [{}ms] which is above the warn threshold of [{}]; " + "wrote full state with [{}] indices",
@@ -250,6 +254,8 @@ public class RemoteClusterStateService implements Closeable {
         deleteStaleClusterMetadata(clusterState.getClusterName().value(), clusterState.metadata().clusterUUID(), RETAINED_MANIFESTS);
 
         final long durationMillis = TimeValue.nsecToMSec(relativeTimeNanosSupplier.getAsLong() - startTimeNanos);
+        remoteStateStats.stateUploaded();
+        remoteStateStats.stateUploadTook(durationMillis);
         if (durationMillis >= slowWriteLoggingThreshold.getMillis()) {
             logger.warn(
                 "writing cluster state took [{}ms] which is above the warn threshold of [{}]; "
@@ -791,6 +797,10 @@ public class RemoteClusterStateService implements Closeable {
         return Base64.getUrlEncoder().withoutPadding().encodeToString(content.getBytes(StandardCharsets.UTF_8));
     }
 
+    public void writeMetadataFailed() {
+        remoteStateStats.stateUploadFailed();
+    }
+
     /**
      * Exception for IndexMetadata transfer failures to remote
      */
@@ -831,6 +841,7 @@ public class RemoteClusterStateService implements Closeable {
                             ),
                             e
                         );
+                        remoteStateStats.cleanUpAttemptFailed();
                     }
                 }
             );
@@ -934,8 +945,10 @@ public class RemoteClusterStateService implements Closeable {
             logger.error("Error while fetching Remote Cluster Metadata manifests", e);
         } catch (IOException e) {
             logger.error("Error while deleting stale Remote Cluster Metadata files", e);
+            remoteStateStats.cleanUpAttemptFailed();
         } catch (Exception e) {
             logger.error("Unexpected error while deleting stale Remote Cluster Metadata files", e);
+            remoteStateStats.cleanUpAttemptFailed();
         }
     }
 
@@ -965,5 +978,9 @@ public class RemoteClusterStateService implements Closeable {
             allClustersUUIDsInRemote.remove(committedManifest.getPreviousClusterUUID());
             deleteStaleUUIDsClusterMetadata(clusterName, new ArrayList<>(allClustersUUIDsInRemote));
         });
+    }
+
+    public RemoteClusterStateStats getRemoteClusterStateStats() {
+        return remoteStateStats;
     }
 }

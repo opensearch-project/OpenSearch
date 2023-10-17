@@ -128,7 +128,8 @@ public class DiscoveryModuleTests extends OpenSearchTestCase {
             mock(RerouteService.class),
             null,
             new PersistedStateRegistry(),
-            remoteStoreNodeService
+            remoteStoreNodeService,
+            null
         );
     }
 

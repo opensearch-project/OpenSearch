@@ -56,6 +56,7 @@ import org.opensearch.cluster.routing.allocation.AllocationService;
 import org.opensearch.cluster.service.ClusterApplier;
 import org.opensearch.cluster.service.ClusterApplier.ClusterApplyListener;
 import org.opensearch.cluster.service.ClusterManagerService;
+import org.opensearch.cluster.service.ClusterStateStats;
 import org.opensearch.common.Booleans;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.Priority;
@@ -83,6 +84,7 @@ import org.opensearch.discovery.HandshakingTransportAddressConnector;
 import org.opensearch.discovery.PeerFinder;
 import org.opensearch.discovery.SeedHostsProvider;
 import org.opensearch.discovery.SeedHostsResolver;
+import org.opensearch.gateway.remote.RemoteClusterStateService;
 import org.opensearch.monitor.NodeHealthService;
 import org.opensearch.monitor.StatusInfo;
 import org.opensearch.node.remotestore.RemoteStoreNodeService;
@@ -184,6 +186,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
     private final NodeHealthService nodeHealthService;
     private final PersistedStateRegistry persistedStateRegistry;
     private final RemoteStoreNodeService remoteStoreNodeService;
+    private final RemoteClusterStateService remoteClusterStateService;
 
     /**
      * @param nodeName The name of the node, used to name the {@link java.util.concurrent.ExecutorService} of the {@link SeedHostsResolver}.
@@ -206,7 +209,8 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         ElectionStrategy electionStrategy,
         NodeHealthService nodeHealthService,
         PersistedStateRegistry persistedStateRegistry,
-        RemoteStoreNodeService remoteStoreNodeService
+        RemoteStoreNodeService remoteStoreNodeService,
+        RemoteClusterStateService remoteClusterStateService
     ) {
         this.settings = settings;
         this.transportService = transportService;
@@ -295,6 +299,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         this.persistedStateRegistry = persistedStateRegistry;
         this.localNodeCommissioned = true;
         this.remoteStoreNodeService = remoteStoreNodeService;
+        this.remoteClusterStateService = remoteClusterStateService;
     }
 
     private ClusterFormationState getClusterFormationState() {
@@ -865,7 +870,10 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
 
     @Override
     public DiscoveryStats stats() {
-        return new DiscoveryStats(new PendingClusterStateStats(0, 0, 0), publicationHandler.stats());
+        ClusterStateStats clusterStateStats = remoteClusterStateService != null
+            ? clusterManagerService.getStateStats(this.remoteClusterStateService.getRemoteClusterStateStats())
+            : clusterManagerService.getStateStats();
+        return new DiscoveryStats(new PendingClusterStateStats(0, 0, 0), publicationHandler.stats(), clusterStateStats);
     }
 
     @Override

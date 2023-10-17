@@ -46,6 +46,7 @@ import org.opensearch.common.settings.SettingsFilter;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.core.indices.breaker.CircuitBreakerService;
 import org.opensearch.discovery.Discovery;
+import org.opensearch.gateway.remote.RemoteClusterStateService;
 import org.opensearch.http.HttpServerTransport;
 import org.opensearch.index.IndexingPressureService;
 import org.opensearch.index.store.remote.filecache.FileCache;
@@ -92,6 +93,7 @@ public class NodeService implements Closeable {
     private final Discovery discovery;
     private final FileCache fileCache;
     private final TaskCancellationMonitoringService taskCancellationMonitoringService;
+    private final RemoteClusterStateService remoteClusterStateService;
 
     NodeService(
         Settings settings,
@@ -114,7 +116,8 @@ public class NodeService implements Closeable {
         SearchBackpressureService searchBackpressureService,
         SearchPipelineService searchPipelineService,
         FileCache fileCache,
-        TaskCancellationMonitoringService taskCancellationMonitoringService
+        TaskCancellationMonitoringService taskCancellationMonitoringService,
+        RemoteClusterStateService remoteClusterStateService
     ) {
         this.settings = settings;
         this.threadPool = threadPool;
@@ -137,6 +140,7 @@ public class NodeService implements Closeable {
         this.clusterService = clusterService;
         this.fileCache = fileCache;
         this.taskCancellationMonitoringService = taskCancellationMonitoringService;
+        this.remoteClusterStateService = remoteClusterStateService;
         clusterService.addStateApplier(ingestService);
         clusterService.addStateApplier(searchPipelineService);
     }

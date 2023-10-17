@@ -40,6 +40,7 @@ import org.opensearch.cluster.coordination.PublishClusterStateStats;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.routing.WeightedRoutingStats;
 import org.opensearch.cluster.service.ClusterManagerThrottlingStats;
+import org.opensearch.cluster.service.ClusterStateStats;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.metrics.OperationStats;
 import org.opensearch.core.common.io.stream.StreamInput;
@@ -686,7 +687,8 @@ public class NodeStatsTests extends OpenSearchTestCase {
                 randomBoolean() ? new PendingClusterStateStats(randomInt(), randomInt(), randomInt()) : null,
                 randomBoolean()
                     ? new PublishClusterStateStats(randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong())
-                    : null
+                    : null,
+                randomBoolean() ? new ClusterStateStats() : null
             )
             : null;
         IngestStats ingestStats = null;

@@ -2523,7 +2523,8 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                     ElectionStrategy.DEFAULT_INSTANCE,
                     () -> new StatusInfo(HEALTHY, "healthy-info"),
                     persistedStateRegistry,
-                    remoteStoreNodeService
+                    remoteStoreNodeService,
+                    null
                 );
                 clusterManagerService.setClusterStatePublisher(coordinator);
                 coordinator.start();
