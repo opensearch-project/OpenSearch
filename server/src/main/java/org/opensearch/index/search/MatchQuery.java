@@ -753,9 +753,9 @@ public class MatchQuery {
                 lastState = end;
                 final Query queryPos;
                 boolean usePrefix = isPrefix && end == -1;
-                /**
-                 * check if the GraphTokenStreamFiniteStrings graph is empty
-                 * return empty BooleanQuery result
+                /*
+                  check if the GraphTokenStreamFiniteStrings graph is empty
+                  return empty BooleanQuery result
                  */
                 Iterator<TokenStream> graphIt = graph.getFiniteStrings();
                 if (!graphIt.hasNext()) {

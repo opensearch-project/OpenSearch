@@ -95,7 +95,7 @@ public class ClusterAllocationExplainRequest extends ClusterManagerNodeRequest<C
      * Create a new allocation explain request. If {@code primary} is false, the first unassigned replica
      * will be picked for explanation. If no replicas are unassigned, the first assigned replica will
      * be explained.
-     *
+     * <p>
      * Package private for testing.
      */
     ClusterAllocationExplainRequest(String index, int shard, boolean primary, @Nullable String currentNode) {

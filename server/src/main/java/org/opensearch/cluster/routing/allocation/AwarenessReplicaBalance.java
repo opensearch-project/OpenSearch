@@ -26,7 +26,7 @@ import static org.opensearch.cluster.routing.allocation.decider.AwarenessAllocat
  * This {@link AwarenessReplicaBalance} gives total unique values of awareness attributes
  * It takes in effect only iff cluster.routing.allocation.awareness.attributes and
  * cluster.routing.allocation.awareness.force.zone.values both are specified.
- *
+ * <p>
  * This is used in enforcing total copy of shard is a maximum of unique values of awareness attributes
  * Helps in balancing shards across all awareness attributes and ensuring high availability of data.
  */

@@ -85,11 +85,11 @@ public class RecoverySettings {
     );
 
     /**
-     * Controls the maximum number of streams that can be started concurrently when downloading from the remote store.
+     * Controls the maximum number of streams that can be started concurrently per recovery when downloading from the remote store.
      */
     public static final Setting<Integer> INDICES_RECOVERY_MAX_CONCURRENT_REMOTE_STORE_STREAMS_SETTING = Setting.intSetting(
         "indices.recovery.max_concurrent_remote_store_streams",
-        20,
+        10,
         1,
         Property.Dynamic,
         Property.NodeScope

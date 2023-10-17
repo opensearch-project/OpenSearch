@@ -209,7 +209,7 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
     }
 
     @Deprecated
-    /** Sets the fuzziness used when evaluated to a fuzzy query type. Defaults to "AUTO". */
+    /* Sets the fuzziness used when evaluated to a fuzzy query type. Defaults to "AUTO". */
     public MatchQueryBuilder fuzziness(Object fuzziness) {
         this.fuzziness = Fuzziness.build(fuzziness);
         return this;
