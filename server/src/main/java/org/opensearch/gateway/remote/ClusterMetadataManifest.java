@@ -244,8 +244,6 @@ public class ClusterMetadataManifest implements Writeable, ToXContentFragment {
         this.indices = Collections.unmodifiableList(indices);
         this.previousClusterUUID = previousClusterUUID;
         this.clusterUUIDCommitted = clusterUUIDCommitted;
-
-        System.out.println("Codec version ====  " + this.codecVersion + " global metadata === " + this.globalMetadataFileName);
     }
 
     public ClusterMetadataManifest(StreamInput in) throws IOException {
@@ -366,12 +364,10 @@ public class ClusterMetadataManifest implements Writeable, ToXContentFragment {
     }
 
     public static ClusterMetadataManifest fromXContent(XContentParser parser) throws IOException {
-        System.out.println(" in from x content ==== ");
         return PARSER.parse(parser, null);
     }
 
     public static ClusterMetadataManifest fromXContentV2(XContentParser parser) throws IOException {
-        System.out.println(" in from x content V2 ==== ");
         return PARSER_V2.parse(parser, null);
     }
 
