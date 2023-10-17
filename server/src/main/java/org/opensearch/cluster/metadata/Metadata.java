@@ -922,19 +922,26 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
         if (!metadata1.coordinationMetadata.equals(metadata2.coordinationMetadata)) {
             return false;
         }
-        if (!metadata1.persistentSettings.equals(metadata2.persistentSettings)) {
-            return false;
-        }
         if (!metadata1.hashesOfConsistentSettings.equals(metadata2.hashesOfConsistentSettings)) {
-            return false;
-        }
-        if (!metadata1.templates.equals(metadata2.templates())) {
             return false;
         }
         if (!metadata1.clusterUUID.equals(metadata2.clusterUUID)) {
             return false;
         }
         if (metadata1.clusterUUIDCommitted != metadata2.clusterUUIDCommitted) {
+            return false;
+        }
+        return isRemoteGlobalStateEquals(metadata1, metadata2);
+    }
+
+    /**
+     * Compares Metadata entities persisted in Remote Store.
+     */
+    public static boolean isRemoteGlobalStateEquals(Metadata metadata1, Metadata metadata2) {
+        if (!metadata1.persistentSettings.equals(metadata2.persistentSettings)) {
+            return false;
+        }
+        if (!metadata1.templates.equals(metadata2.templates())) {
             return false;
         }
         // Check if any persistent metadata needs to be saved

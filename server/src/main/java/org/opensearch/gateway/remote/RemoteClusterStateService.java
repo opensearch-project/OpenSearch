@@ -882,7 +882,8 @@ public class RemoteClusterStateService implements Closeable {
                 }
             } else {
                 ClusterMetadataManifest previousManifest = trimmedUUIDs.get(currentManifest.getPreviousClusterUUID());
-                if (isMetadataEqual(currentManifest, previousManifest, clusterName)) {
+                if (isMetadataEqual(currentManifest, previousManifest, clusterName)
+                    && isGlobalMetadataEqual(currentManifest, previousManifest, clusterName)) {
                     trimmedUUIDs.remove(clusterUUID);
                 }
             }
@@ -910,6 +911,16 @@ public class RemoteClusterStateService implements Closeable {
             }
         }
         return true;
+    }
+
+    public Metadata getGlobalMetadata(String c, String b, ClusterMetadataManifest a) {
+        return Metadata.EMPTY_METADATA;
+    }
+
+    private boolean isGlobalMetadataEqual(ClusterMetadataManifest first, ClusterMetadataManifest second, String clusterName) {
+        Metadata firstGlobalMetadata = getGlobalMetadata(clusterName, first.getClusterUUID(), first);
+        Metadata secondGlobalMetadata = getGlobalMetadata(clusterName, second.getClusterUUID(), second);
+        return Metadata.isRemoteGlobalStateEquals(firstGlobalMetadata, secondGlobalMetadata);
     }
 
     private boolean isInvalidClusterUUID(ClusterMetadataManifest manifest) {
