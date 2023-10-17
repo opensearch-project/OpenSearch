@@ -502,13 +502,13 @@ public class RemoteClusterStateService implements Closeable {
     }
 
     private static String getManifestFileNamePrefix(long term, long version, boolean committed) {
-        // 123456789012_test-cluster/cluster-state/dsgYj10Nkso7/manifest/manifest_2147483642_2147483637_1
+        // 123456789012_test-cluster/cluster-state/dsgYj10Nkso7/manifest/manifest_2147483642_2147483637_214748367
         return String.join(
             DELIMITER,
             MANIFEST_PATH_TOKEN,
             RemoteStoreUtils.invertLong(term),
             RemoteStoreUtils.invertLong(version),
-            String.valueOf(committed ? 1 : 0)
+            RemoteStoreUtils.invertLong(committed ? 1 : 0)
         );
     }
 
