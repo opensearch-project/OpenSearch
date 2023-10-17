@@ -956,15 +956,17 @@ public class GatewayMetaStatePersistedStateTests extends OpenSearchTestCase {
                 .numberOfReplicas(1)
                 .build();
 
-            final ClusterState clusterState = createClusterState(
-                randomNonNegativeLong(),
-                Metadata.builder()
-                    .coordinationMetadata(CoordinationMetadata.builder().term(randomLong()).build())
-                    .put(indexMetadata, false)
-                    .clusterUUID(ClusterState.UNKNOWN_UUID)
-                    .persistentSettings(Settings.builder().put(Metadata.SETTING_READ_ONLY_SETTING.getKey(), true).build())
-                    .build()
-            );
+            final ClusterState clusterState = ClusterState.builder(
+                createClusterState(
+                    randomNonNegativeLong(),
+                    Metadata.builder()
+                        .coordinationMetadata(CoordinationMetadata.builder().term(randomLong()).build())
+                        .put(indexMetadata, false)
+                        .clusterUUID(ClusterState.UNKNOWN_UUID)
+                        .persistentSettings(Settings.builder().put(Metadata.SETTING_READ_ONLY_SETTING.getKey(), true).build())
+                        .build()
+                )
+            ).nodes(DiscoveryNodes.EMPTY_NODES).build();
 
             final RemoteStoreRestoreService remoteStoreRestoreService = mock(RemoteStoreRestoreService.class);
             when(remoteStoreRestoreService.restore(any(), any(), anyBoolean(), any())).thenReturn(
@@ -975,7 +977,7 @@ public class GatewayMetaStatePersistedStateTests extends OpenSearchTestCase {
                 remoteClusterStateService,
                 remoteStoreRestoreService,
                 persistedStateRegistry,
-                clusterState,
+                ClusterState.EMPTY_STATE,
                 true
             );
             PersistedState remotePersistedState = persistedStateRegistry.getPersistedState(PersistedStateType.REMOTE);
