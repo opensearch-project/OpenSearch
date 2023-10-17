@@ -69,8 +69,7 @@ public class SearchQueryCategorizer {
         }
         QueryShapeVisitor shapeVisitor = new QueryShapeVisitor();
         topLevelQueryBuilder.visit(shapeVisitor);
-        String indentedQueryShape = shapeVisitor.prettyPrintTree("  ");
-        log.debug("Query shape : " + indentedQueryShape);
+        log.debug("Query shape : {}", shapeVisitor.prettyPrintTree("  "));
     }
 
 }
