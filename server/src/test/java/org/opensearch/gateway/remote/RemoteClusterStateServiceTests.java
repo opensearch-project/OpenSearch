@@ -691,13 +691,15 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
         assertTrue(indexMetadataFileName.contains(INDEX_METADATA_FILE_PREFIX));
         assertTrue(indexMetadataFileName.contains(RemoteStoreUtils.invertLong(indexMetadata.getVersion())));
 
-        int term = randomInt(10);
-        int version = randomInt(10);
+        int term = randomIntBetween(5, 10);
+        int version = randomIntBetween(5, 10);
         String manifestFileName = RemoteClusterStateService.getManifestFileName(term, version, true);
         assertThat(manifestFileName.split(DELIMITER).length, is(6));
         assertTrue(manifestFileName.contains(MANIFEST_FILE_PREFIX));
         assertTrue(manifestFileName.contains(RemoteStoreUtils.invertLong(term)));
         assertTrue(manifestFileName.contains(RemoteStoreUtils.invertLong(version)));
+        assertTrue(manifestFileName.contains(RemoteStoreUtils.invertLong(1))); // assertion for committed
+        assertTrue(manifestFileName.contains(RemoteStoreUtils.invertLong(2))); // assertion for codec version
     }
 
     private void mockObjectsForGettingPreviousClusterUUID(Map<String, String> clusterUUIDsPointers) throws IOException {
