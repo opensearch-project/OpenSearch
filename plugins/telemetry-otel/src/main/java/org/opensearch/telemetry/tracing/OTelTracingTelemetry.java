@@ -8,6 +8,7 @@
 
 package org.opensearch.telemetry.tracing;
 
+import org.opensearch.common.concurrent.RefCountedReleasable;
 import org.opensearch.telemetry.OTelAttributesConverter;
 import org.opensearch.telemetry.OTelTelemetryPlugin;
 
@@ -23,7 +24,7 @@ import io.opentelemetry.context.Context;
  */
 public class OTelTracingTelemetry<T extends TracerProvider & Closeable> implements TracingTelemetry {
     private final OpenTelemetry openTelemetry;
-    private final T tracerProvider;
+    private final RefCountedReleasable<T> refCountedtTracerProvider;
     private final io.opentelemetry.api.trace.Tracer otelTracer;
 
     /**
@@ -31,15 +32,17 @@ public class OTelTracingTelemetry<T extends TracerProvider & Closeable> implemen
      * @param openTelemetry OpenTelemetry instance
      * @param tracerProvider {@link TracerProvider} instance.
      */
-    public OTelTracingTelemetry(OpenTelemetry openTelemetry, T tracerProvider) {
+    public OTelTracingTelemetry(OpenTelemetry openTelemetry, RefCountedReleasable<T> tracerProvider) {
         this.openTelemetry = openTelemetry;
-        this.tracerProvider = tracerProvider;
-        this.otelTracer = tracerProvider.get(OTelTelemetryPlugin.INSTRUMENTATION_SCOPE_NAME);
+        this.refCountedtTracerProvider = tracerProvider;
+        this.otelTracer = tracerProvider.get().get(OTelTelemetryPlugin.INSTRUMENTATION_SCOPE_NAME);
     }
 
     @Override
     public void close() throws IOException {
-        tracerProvider.close();
+        if (refCountedtTracerProvider.tryIncRef()) {
+            refCountedtTracerProvider.close();
+        }
     }
 
     @Override

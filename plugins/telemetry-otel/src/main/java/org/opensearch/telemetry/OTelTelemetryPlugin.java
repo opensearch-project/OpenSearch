@@ -8,6 +8,9 @@
 
 package org.opensearch.telemetry;
 
+import org.opensearch.common.concurrent.RefCountedReleasable;
+import org.opensearch.common.lease.Releasable;
+import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.plugins.Plugin;
@@ -17,11 +20,14 @@ import org.opensearch.telemetry.tracing.OTelResourceProvider;
 import org.opensearch.telemetry.tracing.OTelTelemetry;
 import org.opensearch.telemetry.tracing.OTelTracingTelemetry;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 
 import io.opentelemetry.sdk.OpenTelemetrySdk;
+import io.opentelemetry.sdk.metrics.SdkMeterProvider;
+import io.opentelemetry.sdk.trace.SdkTracerProvider;
 
 /**
  * Telemetry plugin based on Otel
@@ -36,6 +42,10 @@ public class OTelTelemetryPlugin extends Plugin implements TelemetryPlugin {
     static final String OTEL_TRACER_NAME = "otel";
 
     private final Settings settings;
+
+    private RefCountedReleasable<OpenTelemetrySdk> refCountedOpenTelemetry;
+
+    private List<Releasable> resourcesToRelease = new ArrayList<>();
 
     /**
      * Creates Otel plugin
@@ -68,10 +78,31 @@ public class OTelTelemetryPlugin extends Plugin implements TelemetryPlugin {
 
     private Telemetry telemetry(TelemetrySettings telemetrySettings) {
         final OpenTelemetrySdk openTelemetry = OTelResourceProvider.get(telemetrySettings, settings);
-        return new OTelTelemetry(
-            new OTelTracingTelemetry<>(openTelemetry, openTelemetry.getSdkTracerProvider()),
-            new OTelMetricsTelemetry<>(openTelemetry.getSdkMeterProvider())
+        final RefCountedReleasable<SdkTracerProvider> refCountedSdkTracerProvider = new RefCountedReleasable<>(
+            "tracerSdk",
+            openTelemetry.getSdkTracerProvider(),
+            openTelemetry.getSdkTracerProvider()::close
         );
+        final RefCountedReleasable<SdkMeterProvider> refCountedSdkMeterProvider = new RefCountedReleasable<>(
+            "meterSdk",
+            openTelemetry.getSdkMeterProvider(),
+            openTelemetry.getSdkMeterProvider()::close
+        );
+
+        resourcesToRelease.add(refCountedSdkTracerProvider);
+        resourcesToRelease.add(refCountedSdkMeterProvider);
+
+        return new OTelTelemetry(
+            new OTelTracingTelemetry<>(openTelemetry, refCountedSdkTracerProvider),
+            new OTelMetricsTelemetry<>(refCountedSdkMeterProvider)
+        );
+    }
+
+    @Override
+    public void close() {
+        if (resourcesToRelease.isEmpty() == false) {
+            Releasables.close(resourcesToRelease);
+        }
     }
 
 }

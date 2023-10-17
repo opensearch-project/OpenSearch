@@ -16,17 +16,18 @@ import org.opensearch.telemetry.OTelTelemetrySettings;
 import org.opensearch.telemetry.TelemetrySettings;
 import org.opensearch.telemetry.metrics.noop.NoopCounter;
 import org.opensearch.telemetry.metrics.noop.NoopMetricsRegistry;
-import org.opensearch.test.OpenSearchSingleNodeTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.util.Arrays;
 import java.util.Collection;
 
-public class TelemetryMetricsDisabledSanityIT extends OpenSearchSingleNodeTestCase {
+@OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, minNumDataNodes = 1)
+public class TelemetryMetricsDisabledSanityIT extends OpenSearchIntegTestCase {
 
     @Override
-    protected Settings nodeSettings() {
+    protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder()
-            .put(super.nodeSettings())
+            .put(super.nodeSettings(nodeOrdinal))
             .put(TelemetrySettings.METRICS_FEATURE_ENABLED_SETTING.getKey(), false)
             .put(
                 OTelTelemetrySettings.OTEL_METRICS_EXPORTER_CLASS_SETTING.getKey(),
@@ -37,7 +38,7 @@ public class TelemetryMetricsDisabledSanityIT extends OpenSearchSingleNodeTestCa
     }
 
     @Override
-    protected Collection<Class<? extends Plugin>> getPlugins() {
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Arrays.asList(IntegrationTestOTelTelemetryPlugin.class);
     }
 
@@ -46,11 +47,13 @@ public class TelemetryMetricsDisabledSanityIT extends OpenSearchSingleNodeTestCa
         return false;
     }
 
-    public void testSanityChecksWhenMetricsEnabled() throws Exception {
-        MetricsRegistry metricsRegistry = node().injector().getInstance(MetricsRegistry.class);
+    public void testSanityChecksWhenMetricsDisabled() throws Exception {
+        MetricsRegistry metricsRegistry = internalCluster().getInstance(MetricsRegistry.class);
 
         Counter counter = metricsRegistry.createCounter("test-counter", "test", "1");
         counter.add(1.0);
+
+        Thread.sleep(2000);
 
         assertTrue(metricsRegistry instanceof NoopMetricsRegistry);
         assertTrue(counter instanceof NoopCounter);

@@ -8,6 +8,7 @@
 
 package org.opensearch.telemetry.tracing;
 
+import org.opensearch.common.concurrent.RefCountedReleasable;
 import org.opensearch.telemetry.OTelTelemetryPlugin;
 import org.opensearch.telemetry.tracing.attributes.Attributes;
 import org.opensearch.test.OpenSearchTestCase;
@@ -37,7 +38,10 @@ public class OTelTracingTelemetryTests extends OpenSearchTestCase {
         when(mockSpanBuilder.startSpan()).thenReturn(mock(io.opentelemetry.api.trace.Span.class));
         when(mockSpanBuilder.setSpanKind(any(io.opentelemetry.api.trace.SpanKind.class))).thenReturn(mockSpanBuilder);
         Attributes attributes = Attributes.create().addAttribute("name", "value");
-        TracingTelemetry tracingTelemetry = new OTelTracingTelemetry(mockOpenTelemetry, mockTracerProvider);
+        TracingTelemetry tracingTelemetry = new OTelTracingTelemetry(
+            mockOpenTelemetry,
+            new RefCountedReleasable("tracing-provide", mockTracerProvider, () -> {})
+        );
         Span span = tracingTelemetry.createSpan(SpanCreationContext.internal().name("span_name").attributes(attributes), null);
         verify(mockSpanBuilder, never()).setParent(any());
         verify(mockSpanBuilder).setAllAttributes(createAttribute(attributes));
@@ -59,7 +63,10 @@ public class OTelTracingTelemetryTests extends OpenSearchTestCase {
 
         Span parentSpan = new OTelSpan("parent_span", mock(io.opentelemetry.api.trace.Span.class), null);
 
-        TracingTelemetry tracingTelemetry = new OTelTracingTelemetry(mockOpenTelemetry, mockTracerProvider);
+        TracingTelemetry tracingTelemetry = new OTelTracingTelemetry(
+            mockOpenTelemetry,
+            new RefCountedReleasable("tracing-provide", mockTracerProvider, () -> {})
+        );
         Attributes attributes = Attributes.create().addAttribute("name", 1l);
         Span span = tracingTelemetry.createSpan(SpanCreationContext.internal().name("span_name").attributes(attributes), parentSpan);
 
@@ -85,7 +92,10 @@ public class OTelTracingTelemetryTests extends OpenSearchTestCase {
 
         Span parentSpan = new OTelSpan("parent_span", mock(io.opentelemetry.api.trace.Span.class), null);
 
-        TracingTelemetry tracingTelemetry = new OTelTracingTelemetry(mockOpenTelemetry, mockTracerProvider);
+        TracingTelemetry tracingTelemetry = new OTelTracingTelemetry(
+            mockOpenTelemetry,
+            new RefCountedReleasable("tracing-provide", mockTracerProvider, () -> {})
+        );
         Attributes attributes = Attributes.create()
             .addAttribute("key1", 1l)
             .addAttribute("key2", 2.0)
@@ -125,7 +135,10 @@ public class OTelTracingTelemetryTests extends OpenSearchTestCase {
         TracerProvider mockTracerProvider = mock(TracerProvider.class);
         when(mockTracerProvider.get(OTelTelemetryPlugin.INSTRUMENTATION_SCOPE_NAME)).thenReturn(mockTracer);
 
-        TracingTelemetry tracingTelemetry = new OTelTracingTelemetry(mockOpenTelemetry, mockTracerProvider);
+        TracingTelemetry tracingTelemetry = new OTelTracingTelemetry(
+            mockOpenTelemetry,
+            new RefCountedReleasable("tracing-provide", mockTracerProvider, () -> {})
+        );
 
         assertTrue(tracingTelemetry.getContextPropagator() instanceof OTelTracingContextPropagator);
     }

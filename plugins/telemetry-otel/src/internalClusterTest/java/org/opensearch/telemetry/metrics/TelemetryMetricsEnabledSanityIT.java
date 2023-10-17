@@ -14,21 +14,23 @@ import org.opensearch.plugins.Plugin;
 import org.opensearch.telemetry.IntegrationTestOTelTelemetryPlugin;
 import org.opensearch.telemetry.OTelTelemetrySettings;
 import org.opensearch.telemetry.TelemetrySettings;
-import org.opensearch.test.OpenSearchSingleNodeTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase;
 import org.junit.After;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.stream.Collectors;
 
 import io.opentelemetry.sdk.metrics.data.DoublePointData;
 
-public class TelemetryMetricsEnabledCounterIT extends OpenSearchSingleNodeTestCase {
+@OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.SUITE, minNumDataNodes = 1)
+public class TelemetryMetricsEnabledSanityIT extends OpenSearchIntegTestCase {
 
     @Override
-    protected Settings nodeSettings() {
+    protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder()
-            .put(super.nodeSettings())
+            .put(super.nodeSettings(nodeOrdinal))
             .put(TelemetrySettings.METRICS_FEATURE_ENABLED_SETTING.getKey(), true)
             .put(
                 OTelTelemetrySettings.OTEL_METRICS_EXPORTER_CLASS_SETTING.getKey(),
@@ -39,7 +41,7 @@ public class TelemetryMetricsEnabledCounterIT extends OpenSearchSingleNodeTestCa
     }
 
     @Override
-    protected Collection<Class<? extends Plugin>> getPlugins() {
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Arrays.asList(IntegrationTestOTelTelemetryPlugin.class);
     }
 
@@ -49,7 +51,8 @@ public class TelemetryMetricsEnabledCounterIT extends OpenSearchSingleNodeTestCa
     }
 
     public void testCounter() throws Exception {
-        MetricsRegistry metricsRegistry = node().injector().getInstance(MetricsRegistry.class);
+        MetricsRegistry metricsRegistry = internalCluster().getInstance(MetricsRegistry.class);
+        InMemorySingletonMetricsExporter.INSTANCE.reset();
 
         Counter counter = metricsRegistry.createCounter("test-counter", "test", "1");
         counter.add(1.0);
@@ -57,14 +60,20 @@ public class TelemetryMetricsEnabledCounterIT extends OpenSearchSingleNodeTestCa
         Thread.sleep(2000);
 
         InMemorySingletonMetricsExporter exporter = InMemorySingletonMetricsExporter.INSTANCE;
-        double value = ((DoublePointData) ((ArrayList) exporter.getFinishedMetricItems().get(0).getDoubleSumData().getPoints()).get(0))
-            .getValue();
+        double value = ((DoublePointData) ((ArrayList) exporter.getFinishedMetricItems()
+            .stream()
+            .filter(a -> a.getName().equals("test-counter"))
+            .collect(Collectors.toList())
+            .get(0)
+            .getDoubleSumData()
+            .getPoints()).get(0)).getValue();
         assertEquals(1.0, value, 0.0);
     }
 
     public void testUpDownCounter() throws Exception {
 
-        MetricsRegistry metricsRegistry = node().injector().getInstance(MetricsRegistry.class);
+        MetricsRegistry metricsRegistry = internalCluster().getInstance(MetricsRegistry.class);
+        InMemorySingletonMetricsExporter.INSTANCE.reset();
 
         Counter counter = metricsRegistry.createUpDownCounter("test-up-down-counter", "test", "1");
         counter.add(1.0);
@@ -73,8 +82,13 @@ public class TelemetryMetricsEnabledCounterIT extends OpenSearchSingleNodeTestCa
         Thread.sleep(2000);
 
         InMemorySingletonMetricsExporter exporter = InMemorySingletonMetricsExporter.INSTANCE;
-        double value = ((DoublePointData) ((ArrayList) exporter.getFinishedMetricItems().get(0).getDoubleSumData().getPoints()).get(0))
-            .getValue();
+        double value = ((DoublePointData) ((ArrayList) exporter.getFinishedMetricItems()
+            .stream()
+            .filter(a -> a.getName().equals("test-up-down-counter"))
+            .collect(Collectors.toList())
+            .get(0)
+            .getDoubleSumData()
+            .getPoints()).get(0)).getValue();
         assertEquals(-1.0, value, 0.0);
     }
 

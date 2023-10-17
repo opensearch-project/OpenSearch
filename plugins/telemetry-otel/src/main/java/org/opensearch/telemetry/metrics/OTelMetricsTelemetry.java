@@ -8,6 +8,7 @@
 
 package org.opensearch.telemetry.metrics;
 
+import org.opensearch.common.concurrent.RefCountedReleasable;
 import org.opensearch.telemetry.OTelTelemetryPlugin;
 
 import java.io.Closeable;
@@ -25,15 +26,15 @@ import io.opentelemetry.api.metrics.MeterProvider;
  */
 public class OTelMetricsTelemetry<T extends MeterProvider & Closeable> implements MetricsTelemetry {
     private final Meter otelMeter;
-    private final T meterProvider;
+    private final RefCountedReleasable<T> refCountedMeterProvider;
 
     /**
      * Creates OTel based {@link MetricsTelemetry}.
      * @param meterProvider {@link MeterProvider} instance
      */
-    public OTelMetricsTelemetry(T meterProvider) {
-        this.meterProvider = meterProvider;
-        this.otelMeter = meterProvider.get(OTelTelemetryPlugin.INSTRUMENTATION_SCOPE_NAME);
+    public OTelMetricsTelemetry(RefCountedReleasable<T> meterProvider) {
+        this.refCountedMeterProvider = meterProvider;
+        this.otelMeter = meterProvider.get().get(OTelTelemetryPlugin.INSTRUMENTATION_SCOPE_NAME);
     }
 
     @Override
@@ -62,6 +63,8 @@ public class OTelMetricsTelemetry<T extends MeterProvider & Closeable> implement
 
     @Override
     public void close() throws IOException {
-        meterProvider.close();
+        if (refCountedMeterProvider.tryIncRef()) {
+            refCountedMeterProvider.close();
+        }
     }
 }
