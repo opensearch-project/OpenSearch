@@ -76,8 +76,8 @@ public class GatewayAllocator implements ExistingShardsAllocator {
 
     private final RerouteService rerouteService;
 
-    private final PrimaryShardAllocator primaryShardAllocator;
-    private final ReplicaShardAllocator replicaShardAllocator;
+    private PrimaryShardAllocator primaryShardAllocator;
+    private ReplicaShardAllocator replicaShardAllocator;
 
     private final ConcurrentMap<
         ShardId,
@@ -111,6 +111,17 @@ public class GatewayAllocator implements ExistingShardsAllocator {
         this.rerouteService = null;
         this.primaryShardAllocator = null;
         this.replicaShardAllocator = null;
+    }
+
+    // for tests
+    protected void setShardAllocators(PrimaryShardAllocator primaryShardAllocator,
+                                 ReplicaShardAllocator replicaShardAllocator,
+                                 PrimaryShardBatchAllocator primaryShardBatchAllocator,
+                                 ReplicaShardBatchAllocator replicaBatchShardAllocator) {
+        this.primaryShardAllocator = primaryShardAllocator;
+        this.replicaShardAllocator = replicaShardAllocator;
+        this.primaryBatchShardAllocator = primaryShardBatchAllocator;
+        this.replicaBatchShardAllocator = replicaBatchShardAllocator;
     }
 
     @Override
@@ -190,7 +201,6 @@ public class GatewayAllocator implements ExistingShardsAllocator {
         assert routingAllocation.debugDecision();
         boolean batchMode = routingAllocation.nodes().getMinNodeVersion().onOrAfter(Version.CURRENT);
         if (batchMode) {
-            // TODO add integ test for testing this behaviour when shard is unassigned but failed many times and is ultimately removed from batch
             if (getBatchId(unassignedShard, unassignedShard.primary()) == null) {
                 createAndUpdateBatches(routingAllocation, unassignedShard.primary());
             }

@@ -35,6 +35,7 @@ package org.opensearch.test.gateway;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.routing.ShardRouting;
+import org.opensearch.cluster.routing.allocation.AllocateUnassignedDecision;
 import org.opensearch.cluster.routing.allocation.FailedShard;
 import org.opensearch.cluster.routing.allocation.RoutingAllocation;
 import org.opensearch.core.index.shard.ShardId;
@@ -170,5 +171,11 @@ public class TestGatewayAllocator extends GatewayAllocator {
 
     public void addReplicationCheckpoint(ShardId shardId, String nodeName, ReplicationCheckpoint replicationCheckpoint) {
         shardIdNodeToReplicationCheckPointMap.putIfAbsent(getReplicationCheckPointKey(shardId, nodeName), replicationCheckpoint);
+    }
+
+    @Override
+    public AllocateUnassignedDecision explainUnassignedShardAllocation(ShardRouting unassignedShard, RoutingAllocation routingAllocation) {
+        setShardAllocators(primaryShardAllocator, replicaShardAllocator, primaryBatchShardAllocator, replicaBatchShardAllocator);
+        return super.explainUnassignedShardAllocation(unassignedShard, routingAllocation);
     }
 }
