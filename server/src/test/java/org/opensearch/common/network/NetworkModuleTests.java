@@ -54,7 +54,6 @@ import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.Transport;
 import org.opensearch.transport.TransportInterceptor;
-import org.opensearch.transport.TransportInterceptorRegistry;
 import org.opensearch.transport.TransportRequest;
 import org.opensearch.transport.TransportRequestHandler;
 
@@ -111,7 +110,6 @@ public class NetworkModuleTests extends OpenSearchTestCase {
     public void testRegisterTransport() {
         Settings settings = Settings.builder().put(NetworkModule.TRANSPORT_TYPE_KEY, "custom").build();
         Supplier<Transport> custom = () -> null; // content doesn't matter we check reference equality
-        TransportInterceptorRegistry transportInterceptorRegistry = new TransportInterceptorRegistry();
         NetworkPlugin plugin = new NetworkPlugin() {
             @Override
             public Map<String, Supplier<Transport>> getTransports(
@@ -126,7 +124,7 @@ public class NetworkModuleTests extends OpenSearchTestCase {
                 return Collections.singletonMap("custom", custom);
             }
         };
-        NetworkModule module = newNetworkModule(settings, transportInterceptorRegistry, plugin);
+        NetworkModule module = newNetworkModule(settings, plugin);
         assertSame(custom, module.getTransportSupplier());
     }
 
@@ -136,9 +134,8 @@ public class NetworkModuleTests extends OpenSearchTestCase {
             .put(NetworkModule.TRANSPORT_TYPE_KEY, "local")
             .build();
         Supplier<HttpServerTransport> custom = FakeHttpTransport::new;
-        TransportInterceptorRegistry transportInterceptorRegistry = new TransportInterceptorRegistry();
 
-        NetworkModule module = newNetworkModule(settings, transportInterceptorRegistry, new NetworkPlugin() {
+        NetworkModule module = newNetworkModule(settings, new NetworkPlugin() {
             @Override
             public Map<String, Supplier<HttpServerTransport>> getHttpTransports(
                 Settings settings,
@@ -158,7 +155,7 @@ public class NetworkModuleTests extends OpenSearchTestCase {
         assertSame(custom, module.getHttpServerTransportSupplier());
 
         settings = Settings.builder().put(NetworkModule.TRANSPORT_TYPE_KEY, "local").build();
-        NetworkModule newModule = newNetworkModule(settings, transportInterceptorRegistry);
+        NetworkModule newModule = newNetworkModule(settings);
         expectThrows(IllegalStateException.class, () -> newModule.getHttpServerTransportSupplier());
     }
 
@@ -172,8 +169,7 @@ public class NetworkModuleTests extends OpenSearchTestCase {
         Supplier<Transport> customTransport = () -> null;  // content doesn't matter we check reference equality
         Supplier<HttpServerTransport> custom = FakeHttpTransport::new;
         Supplier<HttpServerTransport> def = FakeHttpTransport::new;
-        TransportInterceptorRegistry transportInterceptorRegistry = new TransportInterceptorRegistry();
-        NetworkModule module = newNetworkModule(settings, transportInterceptorRegistry, new NetworkPlugin() {
+        NetworkModule module = newNetworkModule(settings, new NetworkPlugin() {
             @Override
             public Map<String, Supplier<Transport>> getTransports(
                 Settings settings,
@@ -218,8 +214,7 @@ public class NetworkModuleTests extends OpenSearchTestCase {
         Supplier<HttpServerTransport> custom = FakeHttpTransport::new;
         Supplier<HttpServerTransport> def = FakeHttpTransport::new;
         Supplier<Transport> customTransport = () -> null;
-        TransportInterceptorRegistry transportInterceptorRegistry = new TransportInterceptorRegistry();
-        NetworkModule module = newNetworkModule(settings, transportInterceptorRegistry, new NetworkPlugin() {
+        NetworkModule module = newNetworkModule(settings, new NetworkPlugin() {
             @Override
             public Map<String, Supplier<Transport>> getTransports(
                 Settings settings,
@@ -260,7 +255,6 @@ public class NetworkModuleTests extends OpenSearchTestCase {
     public void testRegisterInterceptor() {
         Settings settings = Settings.builder().put(NetworkModule.TRANSPORT_TYPE_KEY, "local").build();
         AtomicInteger called = new AtomicInteger(0);
-        TransportInterceptorRegistry transportInterceptorRegistry = new TransportInterceptorRegistry();
 
         TransportInterceptor interceptor = new TransportInterceptor() {
             @Override
@@ -279,7 +273,7 @@ public class NetworkModuleTests extends OpenSearchTestCase {
                 return actualHandler;
             }
         };
-        NetworkModule module = newNetworkModule(settings, transportInterceptorRegistry, new NetworkPlugin() {
+        NetworkModule module = newNetworkModule(settings, new NetworkPlugin() {
             @Override
             public List<TransportInterceptor> getTransportInterceptors(
                 NamedWriteableRegistry namedWriteableRegistry,
@@ -301,7 +295,7 @@ public class NetworkModuleTests extends OpenSearchTestCase {
         assertSame(((NetworkModule.CompositeTransportInterceptor) transportInterceptor).transportInterceptors.get(0), interceptor);
 
         NullPointerException nullPointerException = expectThrows(NullPointerException.class, () -> {
-            newNetworkModule(settings, transportInterceptorRegistry, new NetworkPlugin() {
+            newNetworkModule(settings, new NetworkPlugin() {
                 @Override
                 public List<TransportInterceptor> getTransportInterceptors(
                     NamedWriteableRegistry namedWriteableRegistry,
@@ -318,7 +312,6 @@ public class NetworkModuleTests extends OpenSearchTestCase {
     public void testRegisterCoreInterceptor() {
         Settings settings = Settings.builder().put(NetworkModule.TRANSPORT_TYPE_KEY, "local").build();
         AtomicInteger called = new AtomicInteger(0);
-        TransportInterceptorRegistry transportInterceptorRegistry = new TransportInterceptorRegistry();
 
         TransportInterceptor interceptor = new TransportInterceptor() {
             @Override
@@ -337,8 +330,9 @@ public class NetworkModuleTests extends OpenSearchTestCase {
                 return actualHandler;
             }
         };
-        transportInterceptorRegistry.addTransportInterceptor(interceptor);
-        NetworkModule module = newNetworkModule(settings, transportInterceptorRegistry);
+
+        NetworkModule module = newNetworkModule(settings);
+        module.registerCoreTransportInterceptor(interceptor);
 
         TransportInterceptor transportInterceptor = module.getTransportInterceptor();
         assertEquals(0, called.get());
@@ -349,20 +343,77 @@ public class NetworkModuleTests extends OpenSearchTestCase {
         assertTrue(transportInterceptor instanceof NetworkModule.CompositeTransportInterceptor);
         assertEquals(((NetworkModule.CompositeTransportInterceptor) transportInterceptor).transportInterceptors.size(), 1);
         assertSame(((NetworkModule.CompositeTransportInterceptor) transportInterceptor).transportInterceptors.get(0), interceptor);
-
-        TransportInterceptorRegistry finalTransportInterceptorRegistry = new TransportInterceptorRegistry();
-        finalTransportInterceptorRegistry.addTransportInterceptor(null);
-        NullPointerException nullPointerException = expectThrows(NullPointerException.class, () -> {
-            newNetworkModule(settings, finalTransportInterceptorRegistry);
-        });
-        assertEquals("interceptor must not be null", nullPointerException.getMessage());
     }
 
-    private NetworkModule newNetworkModule(
-        Settings settings,
-        TransportInterceptorRegistry transportInterceptorRegistry,
-        NetworkPlugin... plugins
-    ) {
+    public void testInterceptorOrder() {
+        Settings settings = Settings.builder().put(NetworkModule.TRANSPORT_TYPE_KEY, "local").build();
+        AtomicInteger called = new AtomicInteger(0);
+
+        TransportInterceptor interceptor = new TransportInterceptor() {
+            @Override
+            public <T extends TransportRequest> TransportRequestHandler<T> interceptHandler(
+                String action,
+                String executor,
+                boolean forceExecution,
+                TransportRequestHandler<T> actualHandler
+            ) {
+                called.incrementAndGet();
+                if ("foo/bar/boom".equals(action)) {
+                    assertTrue(forceExecution);
+                } else {
+                    assertFalse(forceExecution);
+                }
+                return actualHandler;
+            }
+        };
+
+        NetworkModule module = newNetworkModule(settings, new NetworkPlugin() {
+            @Override
+            public List<TransportInterceptor> getTransportInterceptors(
+                NamedWriteableRegistry namedWriteableRegistry,
+                ThreadContext threadContext
+            ) {
+                assertNotNull(threadContext);
+                return Collections.singletonList(interceptor);
+            }
+        });
+
+        AtomicInteger called1 = new AtomicInteger(0);
+
+        TransportInterceptor interceptor1 = new TransportInterceptor() {
+            @Override
+            public <T extends TransportRequest> TransportRequestHandler<T> interceptHandler(
+                String action,
+                String executor,
+                boolean forceExecution,
+                TransportRequestHandler<T> actualHandler
+            ) {
+                called1.incrementAndGet();
+                if ("foo/bar/boom".equals(action)) {
+                    assertTrue(forceExecution);
+                } else {
+                    assertFalse(forceExecution);
+                }
+                return actualHandler;
+            }
+        };
+
+        module.registerCoreTransportInterceptor(interceptor1);
+
+        TransportInterceptor transportInterceptor = module.getTransportInterceptor();
+        assertEquals(((NetworkModule.CompositeTransportInterceptor) transportInterceptor).transportInterceptors.size(), 2);
+
+        assertEquals(0, called.get());
+        assertEquals(0, called1.get());
+        transportInterceptor.interceptHandler("foo/bar/boom", null, true, null);
+        assertEquals(1, called.get());
+        assertEquals(1, called1.get());
+        transportInterceptor.interceptHandler("foo/baz/boom", null, false, null);
+        assertEquals(2, called.get());
+        assertEquals(2, called1.get());
+    }
+
+    private NetworkModule newNetworkModule(Settings settings, NetworkPlugin... plugins) {
         return new NetworkModule(
             settings,
             Arrays.asList(plugins),
@@ -375,8 +426,7 @@ public class NetworkModuleTests extends OpenSearchTestCase {
             null,
             new NullDispatcher(),
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-            NoopTracer.INSTANCE,
-            transportInterceptorRegistry
+            NoopTracer.INSTANCE
         );
     }
 }

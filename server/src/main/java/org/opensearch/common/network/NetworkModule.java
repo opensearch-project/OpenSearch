@@ -61,7 +61,6 @@ import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.Transport;
 import org.opensearch.transport.TransportInterceptor;
-import org.opensearch.transport.TransportInterceptorRegistry;
 import org.opensearch.transport.TransportRequest;
 import org.opensearch.transport.TransportRequestHandler;
 
@@ -150,15 +149,9 @@ public final class NetworkModule {
         NetworkService networkService,
         HttpServerTransport.Dispatcher dispatcher,
         ClusterSettings clusterSettings,
-        Tracer tracer,
-        TransportInterceptorRegistry transportInterceptorRegistry
+        Tracer tracer
     ) {
         this.settings = settings;
-        // Adding core interceptors first and other plugin interceptor will follow
-        List<TransportInterceptor> coreTransportInterceptors = transportInterceptorRegistry.getTransportInterceptors();
-        for (TransportInterceptor interceptor : coreTransportInterceptors) {
-            registerTransportInterceptor(interceptor);
-        }
         for (NetworkPlugin plugin : plugins) {
             Map<String, Supplier<HttpServerTransport>> httpTransportFactory = plugin.getHttpTransports(
                 settings,
@@ -272,6 +265,14 @@ public final class NetworkModule {
      */
     private void registerTransportInterceptor(TransportInterceptor interceptor) {
         this.transportInterceptors.add(Objects.requireNonNull(interceptor, "interceptor must not be null"));
+    }
+
+    /**
+     * Registers a new {@link TransportInterceptor}
+     * This method used to register CoreInterceptors before the plugin interceptors
+     */
+    public void registerCoreTransportInterceptor(TransportInterceptor interceptor) {
+        this.transportInterceptors.add(0, Objects.requireNonNull(interceptor, "interceptor must not be null"));
     }
 
     /**

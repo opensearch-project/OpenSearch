@@ -239,7 +239,6 @@ import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.RemoteClusterService;
 import org.opensearch.transport.Transport;
 import org.opensearch.transport.TransportInterceptor;
-import org.opensearch.transport.TransportInterceptorRegistry;
 import org.opensearch.transport.TransportService;
 import org.opensearch.usage.UsageService;
 import org.opensearch.watcher.ResourceWatcherService;
@@ -822,18 +821,6 @@ public class Node implements Closeable {
                 remoteStoreStatsTrackerFactory,
                 recoverySettings
             );
-            TransportInterceptorRegistry transportInterceptorRegistry = new TransportInterceptorRegistry();
-
-            final AdmissionControlService admissionControlService = new AdmissionControlService(
-                settings,
-                clusterService.getClusterSettings(),
-                threadPool
-            );
-
-            AdmissionControlTransportInterceptor admissionControlTransportInterceptor = new AdmissionControlTransportInterceptor(
-                admissionControlService
-            );
-            transportInterceptorRegistry.addTransportInterceptor(admissionControlTransportInterceptor);
 
             final AliasValidator aliasValidator = new AliasValidator();
 
@@ -906,6 +893,16 @@ public class Node implements Closeable {
 
             final RestController restController = actionModule.getRestController();
 
+            final AdmissionControlService admissionControlService = new AdmissionControlService(
+                settings,
+                clusterService.getClusterSettings(),
+                threadPool
+            );
+
+            AdmissionControlTransportInterceptor admissionControlTransportInterceptor = new AdmissionControlTransportInterceptor(
+                admissionControlService
+            );
+
             final NetworkModule networkModule = new NetworkModule(
                 settings,
                 pluginsService.filterPlugins(NetworkPlugin.class),
@@ -918,9 +915,10 @@ public class Node implements Closeable {
                 networkService,
                 restController,
                 clusterService.getClusterSettings(),
-                tracer,
-                transportInterceptorRegistry
+                tracer
             );
+            networkModule.registerCoreTransportInterceptor(admissionControlTransportInterceptor);
+
             Collection<UnaryOperator<Map<String, IndexTemplateMetadata>>> indexTemplateMetadataUpgraders = pluginsService.filterPlugins(
                 Plugin.class
             ).stream().map(Plugin::getIndexTemplateMetadataUpgrader).collect(Collectors.toList());
