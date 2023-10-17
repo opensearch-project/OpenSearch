@@ -8,17 +8,10 @@
 
 package org.opensearch.remotestore;
 
-import org.opensearch.action.admin.cluster.remotestore.restore.RestoreRemoteStoreResponse;
-import org.opensearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
-import org.opensearch.action.admin.indices.delete.DeleteIndexRequest;
-import org.opensearch.action.admin.indices.mapping.put.PutMappingRequest;
-import org.opensearch.action.admin.indices.settings.put.UpdateSettingsRequest;
-import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.gateway.remote.ClusterMetadataManifest;
 import org.opensearch.gateway.remote.ClusterMetadataManifest.UploadedIndexMetadata;
 import org.opensearch.gateway.remote.RemoteClusterStateService;
@@ -27,15 +20,10 @@ import org.opensearch.test.OpenSearchIntegTestCase;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
-import java.util.concurrent.ExecutionException;
 
 import static org.opensearch.gateway.remote.RemoteClusterStateService.REMOTE_CLUSTER_STATE_ENABLED_SETTING;
-import static org.opensearch.index.IndexSettings.INDEX_REFRESH_INTERVAL_SETTING;
-import static org.opensearch.indices.ShardLimitValidator.SETTING_CLUSTER_MAX_SHARDS_PER_NODE;
-import static org.opensearch.indices.ShardLimitValidator.SETTING_MAX_SHARDS_PER_CLUSTER_KEY;
 
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class RemoteStoreClusterStateRestoreIT extends BaseRemoteStoreRestoreIT {
@@ -204,84 +192,4 @@ public class RemoteStoreClusterStateRestoreIT extends BaseRemoteStoreRestoreIT {
             }
         });
     }
-
-    private void validateMetadataAfterRestore(Metadata prevMetadata) throws Exception {
-        assertBusy(() -> {
-            ClusterState clusterState = getClusterState();
-            Metadata currentMetadata = clusterState.metadata();
-            assertEquals(prevMetadata.indices().size(), currentMetadata.indices().size());
-            for (IndexMetadata currentIndexMetadata : currentMetadata.indices().values()) {
-                IndexMetadata prevIndexMetadata = prevMetadata.index(currentIndexMetadata.getIndex().getName());
-                assertEquals(prevIndexMetadata.getIndex().getName(), currentIndexMetadata.getIndex().getName());
-                assertEquals(prevIndexMetadata.getSettings(), currentIndexMetadata.getSettings());
-                assertEquals(prevIndexMetadata.mapping(), currentIndexMetadata.mapping());
-            }
-        });
-    }
-
-    private void performOperation(int iteration) throws Exception {
-        if (randomBoolean()) {
-            // create index
-            createIndex(INDEX_NAME + iteration, remoteStoreIndexSettings(1, 1));
-        }
-        if (randomBoolean()) {
-            // update settings
-            randomIndexSettings();
-        }
-        if (randomBoolean()) {
-            // add mappings
-            randomIndexMappings();
-        }
-        if (randomIntBetween(1, 5) == 5) { // Deleting index with 20% probability
-            // delete index
-            deleteRandomIndex();
-        }
-        if (randomBoolean()) {
-            internalCluster().stopCurrentClusterManagerNode();
-            internalCluster().startClusterManagerOnlyNode();
-            internalCluster().validateClusterFormed();
-        }
-    }
-
-    private String randomIndex() {
-        if (clusterService().state().metadata().indices().size() == 0) {
-            return null;
-        }
-        return randomFrom(clusterService().state().metadata().indices().keySet());
-    }
-
-    private void randomIndexSettings() {
-        String indexName = randomIndex();
-        if (indexName == null) {
-            return;
-        }
-        Settings.Builder settingsBuilder = Settings.builder();
-        settingsBuilder.put(INDEX_REFRESH_INTERVAL_SETTING.getKey(), randomTimeValue(1, 60, new String[] { "s" }));
-        client().admin().indices().updateSettings(new UpdateSettingsRequest(indexName).settings(settingsBuilder.build())).actionGet();
-    }
-
-    private void randomIndexMappings() {
-        String indexName = randomIndex();
-        if (indexName == null) {
-            return;
-        }
-        String fieldName = "field-" + randomAlphaOfLength(10);
-
-        // The updated index mapping as a JSON string
-        String updatedMapping = String.format(Locale.ROOT, "{\"properties\": {\"%s\": {\"type\": \"text\"}}}", fieldName);
-
-        PutMappingRequest request = new PutMappingRequest(indexName);
-        request.source(updatedMapping, XContentType.JSON);
-
-        client().admin().indices().putMapping(request).actionGet();
-    }
-
-    private void deleteRandomIndex() {
-        String indexName = randomIndex();
-        if (indexName == null) {
-            return;
-        }
-        client().admin().indices().delete(new DeleteIndexRequest(indexName)).actionGet();
-    }
-
 }
