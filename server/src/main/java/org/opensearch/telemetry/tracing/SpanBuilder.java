@@ -11,7 +11,6 @@ package org.opensearch.telemetry.tracing;
 import org.opensearch.action.bulk.BulkShardRequest;
 import org.opensearch.common.annotation.InternalApi;
 import org.opensearch.core.common.Strings;
-import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.http.HttpRequest;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.telemetry.tracing.attributes.Attributes;
