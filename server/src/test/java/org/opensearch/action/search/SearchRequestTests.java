@@ -244,7 +244,9 @@ public class SearchRequestTests extends AbstractSearchTestCase {
         );
         mutators.add(() -> mutation.source(randomValueOtherThan(searchRequest.source(), this::createSearchSourceBuilder)));
         mutators.add(() -> mutation.setCcsMinimizeRoundtrips(searchRequest.isCcsMinimizeRoundtrips() == false));
-        mutators.add(() -> mutation.setPhaseTook(searchRequest.isPhaseTook() == false));
+        mutators.add(
+            () -> mutation.setPhaseTook(searchRequest.isPhaseTook() == null ? randomBoolean() : searchRequest.isPhaseTook() == false)
+        );
         mutators.add(
             () -> mutation.setCancelAfterTimeInterval(
                 searchRequest.getCancelAfterTimeInterval() != null
