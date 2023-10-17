@@ -42,8 +42,8 @@ import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 
 import static org.opensearch.core.xcontent.XContentParserUtils.ensureExpectedToken;
 
@@ -83,7 +83,10 @@ public class GetRepositoriesResponse extends ActionResponse implements ToXConten
         builder.startObject();
         repositories.toXContent(
             builder,
-            new DelegatingMapParams(Collections.singletonMap(RepositoriesMetadata.HIDE_GENERATIONS_PARAM, "true"), params)
+            new DelegatingMapParams(
+                Map.of(RepositoriesMetadata.HIDE_GENERATIONS_PARAM, "true", RepositoriesMetadata.HIDE_SYSTEM_REPOSITORY_SETTING, "true"),
+                params
+            )
         );
         builder.endObject();
         return builder;

@@ -50,7 +50,7 @@ public final class SecureString implements CharSequence, Closeable {
 
     /**
      * Constructs a new SecureString which controls the passed in char array.
-     *
+     * <p>
      * Note: When this instance is closed, the array will be zeroed out.
      */
     public SecureString(char[] chars) {
@@ -59,7 +59,7 @@ public final class SecureString implements CharSequence, Closeable {
 
     /**
      * Constructs a new SecureString from an existing String.
-     *
+     * <p>
      * NOTE: This is not actually secure, since the provided String cannot be deallocated, but
      * this constructor allows for easy compatibility between new and old apis.
      *

@@ -105,6 +105,7 @@ import java.io.PrintStream;
 import java.io.UncheckedIOException;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
+import java.text.ParseException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -120,6 +121,7 @@ import java.util.function.Consumer;
 import java.util.zip.CRC32;
 import java.util.zip.Checksum;
 
+import static java.lang.Character.MAX_RADIX;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;
 import static org.opensearch.index.seqno.SequenceNumbers.LOCAL_CHECKPOINT_KEY;
@@ -299,14 +301,15 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
     /**
      * Returns a new MetadataSnapshot for the given commit. If the given commit is <code>null</code>
      * the latest commit point is used.
-     *
+     * <p>
      * Note that this method requires the caller verify it has the right to access the store and
      * no concurrent file changes are happening. If in doubt, you probably want to use one of the following:
-     *
+     * <p>
      * {@link #readMetadataSnapshot(Path, ShardId, NodeEnvironment.ShardLocker, Logger)} to read a meta data while locking
      * {@link IndexShard#snapshotStoreMetadata()} to safely read from an existing shard
      * {@link IndexShard#acquireLastIndexCommit(boolean)} to get an {@link IndexCommit} which is safe to use but has to be freed
-     * @param commit the index commit to read the snapshot from or <code>null</code> if the latest snapshot should be read from the
+     *
+     * @param commit the index commit to read the snapshot from or {@code null} if the latest snapshot should be read from the
      *               directory
      * @throws CorruptIndexException      if the lucene index is corrupted. This can be caused by a checksum mismatch or an
      *                                    unexpected exception when opening the index reading the segments file.
@@ -330,10 +333,10 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
     /**
      * Returns a new MetadataSnapshot for the given commit. If the given commit is <code>null</code>
      * the latest commit point is used.
-     *
+     * <p>
      * Note that this method requires the caller verify it has the right to access the store and
      * no concurrent file changes are happening. If in doubt, you probably want to use one of the following:
-     *
+     * <p>
      * {@link #readMetadataSnapshot(Path, ShardId, NodeEnvironment.ShardLocker, Logger)} to read a meta data while locking
      * {@link IndexShard#snapshotStoreMetadata()} to safely read from an existing shard
      * {@link IndexShard#acquireLastIndexCommit(boolean)} to get an {@link IndexCommit} which is safe to use but has to be freed
@@ -385,7 +388,13 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
      */
     public Map<String, StoreFileMetadata> getSegmentMetadataMap(SegmentInfos segmentInfos) throws IOException {
         assert indexSettings.isSegRepEnabled();
-        return loadMetadata(segmentInfos, directory, logger, true).fileMetadata;
+        failIfCorrupted();
+        try {
+            return loadMetadata(segmentInfos, directory, logger, true).fileMetadata;
+        } catch (NoSuchFileException | CorruptIndexException | IndexFormatTooOldException | IndexFormatTooNewException ex) {
+            markStoreCorrupted(ex);
+            throw ex;
+        }
     }
 
     /**
@@ -800,7 +809,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
 
     /**
      * Segment replication method
-     *
+     * <p>
      * This method takes the segment info bytes to build SegmentInfos. It inc'refs files pointed by passed in SegmentInfos
      * bytes to ensure they are not deleted.
      *
@@ -875,7 +884,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
      * have the ability to create a writer directly from a SegmentInfos object.  To promote the replica as a primary and avoid reindexing, we must first commit
      * on the replica so that it can be opened with a writeable engine. Further, InternalEngine currently invokes `trimUnsafeCommits` which reverts the engine to a previous safeCommit where the max seqNo is less than or equal
      * to the current global checkpoint. It is likely that the replica has a maxSeqNo that is higher than the global cp and a new commit will be wiped.
-     *
+     * <p>
      * To get around these limitations, this method first creates an IndexCommit directly from SegmentInfos, it then
      * uses an appending IW to create an IndexCommit from the commit created on SegmentInfos.
      * This ensures that 1. All files in the new commit are fsynced and 2. Deletes older commit points so the only commit to start from is our new commit.
@@ -968,12 +977,53 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
             boolean success = false;
             long startTime = System.currentTimeMillis();
             try {
-                super.copyFrom(from, src, dest, context);
+                if (from instanceof RemoteSegmentStoreDirectory) {
+                    copyFileAndValidateChecksum(from, src, dest, context, fileSize);
+                } else {
+                    super.copyFrom(from, src, dest, context);
+                }
                 success = true;
                 afterDownload(fileSize, startTime);
             } finally {
                 if (!success) {
                     downloadFailed(fileSize, startTime);
+                }
+            }
+        }
+
+        private void copyFileAndValidateChecksum(Directory from, String src, String dest, IOContext context, long fileSize)
+            throws IOException {
+            RemoteSegmentStoreDirectory.UploadedSegmentMetadata metadata = ((RemoteSegmentStoreDirectory) from)
+                .getSegmentsUploadedToRemoteStore()
+                .get(dest);
+            boolean success = false;
+            try (IndexInput is = from.openInput(src, context); IndexOutput os = createOutput(dest, context)) {
+                // Here, we don't need the exact version as LuceneVerifyingIndexOutput does not verify version
+                // It is just used to emit logs when the entire metadata object is provided as parameter. Also,
+                // we can't provide null version as StoreFileMetadata has non-null check on writtenBy field.
+                Version luceneMajorVersion = Version.parse(metadata.getWrittenByMajor() + ".0.0");
+                long checksum = Long.parseLong(metadata.getChecksum());
+                StoreFileMetadata storeFileMetadata = new StoreFileMetadata(
+                    dest,
+                    fileSize,
+                    Long.toString(checksum, MAX_RADIX),
+                    luceneMajorVersion
+                );
+                VerifyingIndexOutput verifyingIndexOutput = new LuceneVerifyingIndexOutput(storeFileMetadata, os);
+                verifyingIndexOutput.copyBytes(is, is.length());
+                verifyingIndexOutput.verify();
+                success = true;
+            } catch (ParseException e) {
+                throw new IOException("Exception while reading version info for segment file from remote store: " + dest, e);
+            } finally {
+                if (success == false) {
+                    // If the exception is thrown after file is created, we clean up the file.
+                    // We ignore the exception as the deletion is best-effort basis and can fail if file does not exist.
+                    try {
+                        deleteFile("Quietly deleting", dest);
+                    } catch (Exception e) {
+                        // Ignore
+                    }
                 }
             }
         }
@@ -1469,7 +1519,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
      * Produces a string representation of the given digest value.
      */
     public static String digestToString(long digest) {
-        return Long.toString(digest, Character.MAX_RADIX);
+        return Long.toString(digest, MAX_RADIX);
     }
 
     /**

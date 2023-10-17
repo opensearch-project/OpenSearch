@@ -52,15 +52,15 @@ import static java.util.Collections.unmodifiableList;
 
 /**
  * A container for opensearch supported version information used in BWC testing.
- *
+ * <p>
  * Parse the Java source file containing the versions declarations and use the known rules to figure out which are all
  * the version the current one is wire and index compatible with.
  * On top of this, figure out which of these are unreleased and provide the branch they can be built from.
- *
+ * <p>
  * Note that in this context, currentVersion is the unreleased version this build operates on.
  * At any point in time there will surely be four such unreleased versions being worked on,
  * thus currentVersion will be one of these.
- *
+ * <p>
  * Considering:
  * <dl>
  *     <dt>M, M &gt; 0</dt>
@@ -84,7 +84,7 @@ import static java.util.Collections.unmodifiableList;
  * Each build is only concerned with versions before it, as those are the ones that need to be tested
  * for backwards compatibility. We never look forward, and don't add forward facing version number to branches of previous
  * version.
- *
+ * <p>
  * Each branch has a current version, and expected compatible versions are parsed from the server code's Version` class.
  * We can reliably figure out which the unreleased versions are due to the convention of always adding the next unreleased
  * version number to server in all branches when a version is released.

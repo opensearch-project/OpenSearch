@@ -151,10 +151,10 @@ public class RemoteStoreUtilsTests extends OpenSearchTestCase {
     }
 
     public void testVerifyMultipleWriters_Translog() throws InterruptedException {
-        TranslogTransferMetadata tm = new TranslogTransferMetadata(1, 1, 1, 2, "node-1");
+        TranslogTransferMetadata tm = new TranslogTransferMetadata(1, 1, 1, 2, "node--1");
         String mdFilename = tm.getFileName();
         Thread.sleep(1);
-        TranslogTransferMetadata tm2 = new TranslogTransferMetadata(1, 1, 1, 2, "node-1");
+        TranslogTransferMetadata tm2 = new TranslogTransferMetadata(1, 1, 1, 2, "node--1");
         String mdFilename2 = tm2.getFileName();
         List<BlobMetadata> bmList = new LinkedList<>();
         bmList.add(new PlainBlobMetadata(mdFilename, 1));
@@ -167,7 +167,7 @@ public class RemoteStoreUtilsTests extends OpenSearchTestCase {
 
         bmList = new LinkedList<>();
         bmList.add(new PlainBlobMetadata(mdFilename, 1));
-        TranslogTransferMetadata tm3 = new TranslogTransferMetadata(1, 1, 1, 2, "node-2");
+        TranslogTransferMetadata tm3 = new TranslogTransferMetadata(1, 1, 1, 2, "node--2");
         bmList.add(new PlainBlobMetadata(tm3.getFileName(), 1));
         List<BlobMetadata> finalBmList = bmList;
         assertThrows(

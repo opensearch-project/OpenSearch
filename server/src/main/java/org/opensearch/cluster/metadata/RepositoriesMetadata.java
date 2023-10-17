@@ -70,6 +70,7 @@ public class RepositoriesMetadata extends AbstractNamedDiffable<Custom> implemen
      * in {@link org.opensearch.action.admin.cluster.repositories.get.GetRepositoriesResponse}.
      */
     public static final String HIDE_GENERATIONS_PARAM = "hide_generations";
+    public static final String HIDE_SYSTEM_REPOSITORY_SETTING = "hide_system_repository_setting";
 
     private final List<RepositoryMetadata> repositories;
 
@@ -291,7 +292,7 @@ public class RepositoriesMetadata extends AbstractNamedDiffable<Custom> implemen
             repository.cryptoMetadata().toXContent(repository.cryptoMetadata(), builder, params);
         }
         Settings settings = repository.settings();
-        if (SYSTEM_REPOSITORY_SETTING.get(settings)) {
+        if (SYSTEM_REPOSITORY_SETTING.get(settings) && params.paramAsBoolean(HIDE_SYSTEM_REPOSITORY_SETTING, false)) {
             settings = repository.settings().filter(s -> !s.equals(SYSTEM_REPOSITORY_SETTING.getKey()));
         }
         builder.startObject("settings");

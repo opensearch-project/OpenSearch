@@ -103,11 +103,11 @@ public class RemoteClusterStateService implements Closeable {
         Property.Final
     );
 
-    private static final String CLUSTER_STATE_PATH_TOKEN = "cluster-state";
-    private static final String INDEX_PATH_TOKEN = "index";
-    private static final String MANIFEST_PATH_TOKEN = "manifest";
-    private static final String MANIFEST_FILE_PREFIX = "manifest";
-    private static final String INDEX_METADATA_FILE_PREFIX = "metadata";
+    public static final String CLUSTER_STATE_PATH_TOKEN = "cluster-state";
+    public static final String INDEX_PATH_TOKEN = "index";
+    public static final String MANIFEST_PATH_TOKEN = "manifest";
+    public static final String MANIFEST_FILE_PREFIX = "manifest";
+    public static final String INDEX_METADATA_FILE_PREFIX = "metadata";
 
     private final String nodeId;
     private final Supplier<RepositoriesService> repositoriesService;
@@ -385,13 +385,20 @@ public class RemoteClusterStateService implements Closeable {
     @Nullable
     public ClusterMetadataManifest markLastStateAsCommitted(ClusterState clusterState, ClusterMetadataManifest previousManifest)
         throws IOException {
+        assert clusterState != null : "Last accepted cluster state is not set";
         if (clusterState.nodes().isLocalNodeElectedClusterManager() == false) {
             logger.error("Local node is not elected cluster manager. Exiting");
             return null;
         }
-        assert clusterState != null : "Last accepted cluster state is not set";
         assert previousManifest != null : "Last cluster metadata manifest is not set";
-        return uploadManifest(clusterState, previousManifest.getIndices(), previousManifest.getPreviousClusterUUID(), true);
+        ClusterMetadataManifest committedManifest = uploadManifest(
+            clusterState,
+            previousManifest.getIndices(),
+            previousManifest.getPreviousClusterUUID(),
+            true
+        );
+        deleteStaleClusterUUIDs(clusterState, committedManifest);
+        return committedManifest;
     }
 
     @Override
@@ -719,6 +726,32 @@ public class RemoteClusterStateService implements Closeable {
     }
 
     /**
+     * Fetch ClusterMetadataManifest files from remote state store in order
+     *
+     * @param clusterUUID uuid of cluster state to refer to in remote
+     * @param clusterName name of the cluster
+     * @param limit max no of files to fetch
+     * @return all manifest file names
+     */
+    private List<BlobMetadata> getManifestFileNames(String clusterName, String clusterUUID, int limit) throws IllegalStateException {
+        try {
+
+            /*
+              {@link BlobContainer#listBlobsByPrefixInSortedOrder} will list the latest manifest file first
+              as the manifest file name generated via {@link RemoteClusterStateService#getManifestFileName} ensures
+              when sorted in LEXICOGRAPHIC order the latest uploaded manifest file comes on top.
+             */
+            return manifestContainer(clusterName, clusterUUID).listBlobsByPrefixInSortedOrder(
+                MANIFEST_FILE_PREFIX + DELIMITER,
+                limit,
+                BlobContainer.BlobNameSortOrder.LEXICOGRAPHIC
+            );
+        } catch (IOException e) {
+            throw new IllegalStateException("Error while fetching latest manifest file for remote cluster state", e);
+        }
+    }
+
+    /**
      * Fetch latest ClusterMetadataManifest file from remote state store
      *
      * @param clusterUUID uuid of cluster state to refer to in remote
@@ -726,22 +759,9 @@ public class RemoteClusterStateService implements Closeable {
      * @return latest ClusterMetadataManifest filename
      */
     private Optional<String> getLatestManifestFileName(String clusterName, String clusterUUID) throws IllegalStateException {
-        try {
-            /**
-             * {@link BlobContainer#listBlobsByPrefixInSortedOrder} will get the latest manifest file
-             * as the manifest file name generated via {@link RemoteClusterStateService#getManifestFileName} ensures
-             * when sorted in LEXICOGRAPHIC order the latest uploaded manifest file comes on top.
-             */
-            List<BlobMetadata> manifestFilesMetadata = manifestContainer(clusterName, clusterUUID).listBlobsByPrefixInSortedOrder(
-                MANIFEST_FILE_PREFIX + DELIMITER,
-                1,
-                BlobContainer.BlobNameSortOrder.LEXICOGRAPHIC
-            );
-            if (manifestFilesMetadata != null && !manifestFilesMetadata.isEmpty()) {
-                return Optional.of(manifestFilesMetadata.get(0).name());
-            }
-        } catch (IOException e) {
-            throw new IllegalStateException("Error while fetching latest manifest file for remote cluster state", e);
+        List<BlobMetadata> manifestFilesMetadata = getManifestFileNames(clusterName, clusterUUID, 1);
+        if (manifestFilesMetadata != null && !manifestFilesMetadata.isEmpty()) {
+            return Optional.of(manifestFilesMetadata.get(0).name());
         }
         logger.info("No manifest file present in remote store for cluster name: {}, cluster UUID: {}", clusterName, clusterUUID);
         return Optional.empty();
@@ -791,7 +811,7 @@ public class RemoteClusterStateService implements Closeable {
      * @param clusterName name of the cluster
      * @param clusterUUIDs clusteUUIDs for which the remote state needs to be purged
      */
-    public void deleteStaleClusterMetadata(String clusterName, List<String> clusterUUIDs) {
+    private void deleteStaleUUIDsClusterMetadata(String clusterName, List<String> clusterUUIDs) {
         clusterUUIDs.forEach(clusterUUID -> {
             getBlobStoreTransferService().deleteAsync(
                 ThreadPool.Names.REMOTE_PURGE,
@@ -922,5 +942,28 @@ public class RemoteClusterStateService implements Closeable {
     private void deleteStalePaths(String clusterName, String clusterUUID, List<String> stalePaths) throws IOException {
         logger.debug(String.format(Locale.ROOT, "Deleting stale files from remote - %s", stalePaths));
         getBlobStoreTransferService().deleteBlobs(getCusterMetadataBasePath(clusterName, clusterUUID), stalePaths);
+    }
+
+    /**
+     * Purges all remote cluster state against provided cluster UUIDs
+     * @param clusterState current state of the cluster
+     * @param committedManifest last committed ClusterMetadataManifest
+     */
+    public void deleteStaleClusterUUIDs(ClusterState clusterState, ClusterMetadataManifest committedManifest) {
+        threadpool.executor(ThreadPool.Names.REMOTE_PURGE).execute(() -> {
+            String clusterName = clusterState.getClusterName().value();
+            logger.info("Deleting stale cluster UUIDs data from remote [{}]", clusterName);
+            Set<String> allClustersUUIDsInRemote;
+            try {
+                allClustersUUIDsInRemote = new HashSet<>(getAllClusterUUIDs(clusterState.getClusterName().value()));
+            } catch (IOException e) {
+                logger.info(String.format(Locale.ROOT, "Error while fetching all cluster UUIDs for [%s]", clusterName));
+                return;
+            }
+            // Retain last 2 cluster uuids data
+            allClustersUUIDsInRemote.remove(committedManifest.getClusterUUID());
+            allClustersUUIDsInRemote.remove(committedManifest.getPreviousClusterUUID());
+            deleteStaleUUIDsClusterMetadata(clusterName, new ArrayList<>(allClustersUUIDsInRemote));
+        });
     }
 }

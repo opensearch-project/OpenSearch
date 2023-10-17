@@ -167,6 +167,7 @@ import org.opensearch.monitor.fs.FsInfo;
 import org.opensearch.monitor.fs.FsProbe;
 import org.opensearch.monitor.jvm.JvmInfo;
 import org.opensearch.node.remotestore.RemoteStoreNodeService;
+import org.opensearch.node.resource.tracker.NodeResourceUsageTracker;
 import org.opensearch.persistent.PersistentTasksClusterService;
 import org.opensearch.persistent.PersistentTasksExecutor;
 import org.opensearch.persistent.PersistentTasksExecutorRegistry;
@@ -784,8 +785,7 @@ public class Node implements Closeable {
 
             final IndexStorePlugin.DirectoryFactory remoteDirectoryFactory = new RemoteSegmentStoreDirectoryFactory(
                 repositoriesServiceReference::get,
-                threadPool,
-                recoverySettings
+                threadPool
             );
 
             final SearchRequestStats searchRequestStats = new SearchRequestStats();
@@ -816,9 +816,9 @@ public class Node implements Closeable {
                 repositoriesServiceReference::get,
                 fileCacheCleaner,
                 searchRequestStats,
-                remoteStoreStatsTrackerFactory
+                remoteStoreStatsTrackerFactory,
+                recoverySettings
             );
-
             final AliasValidator aliasValidator = new AliasValidator();
 
             final ShardLimitValidator shardLimitValidator = new ShardLimitValidator(settings, clusterService, systemIndices);
@@ -1083,6 +1083,16 @@ public class Node implements Closeable {
                 transportService.getTaskManager(),
                 taskCancellationMonitoringSettings
             );
+            final NodeResourceUsageTracker nodeResourceUsageTracker = new NodeResourceUsageTracker(
+                threadPool,
+                settings,
+                clusterService.getClusterSettings()
+            );
+            final ResourceUsageCollectorService resourceUsageCollectorService = new ResourceUsageCollectorService(
+                nodeResourceUsageTracker,
+                clusterService,
+                threadPool
+            );
             this.nodeService = new NodeService(
                 settings,
                 threadPool,
@@ -1104,7 +1114,8 @@ public class Node implements Closeable {
                 searchBackpressureService,
                 searchPipelineService,
                 fileCache,
-                taskCancellationMonitoringService
+                taskCancellationMonitoringService,
+                resourceUsageCollectorService
             );
 
             final SearchService searchService = newSearchService(
@@ -1225,6 +1236,8 @@ public class Node implements Closeable {
                 b.bind(RerouteService.class).toInstance(rerouteService);
                 b.bind(ShardLimitValidator.class).toInstance(shardLimitValidator);
                 b.bind(FsHealthService.class).toInstance(fsHealthService);
+                b.bind(NodeResourceUsageTracker.class).toInstance(nodeResourceUsageTracker);
+                b.bind(ResourceUsageCollectorService.class).toInstance(resourceUsageCollectorService);
                 b.bind(SystemIndices.class).toInstance(systemIndices);
                 b.bind(IdentityService.class).toInstance(identityService);
                 b.bind(Tracer.class).toInstance(tracer);
@@ -1341,6 +1354,8 @@ public class Node implements Closeable {
         injector.getInstance(RepositoriesService.class).start();
         injector.getInstance(SearchService.class).start();
         injector.getInstance(FsHealthService.class).start();
+        injector.getInstance(NodeResourceUsageTracker.class).start();
+        injector.getInstance(ResourceUsageCollectorService.class).start();
         nodeService.getMonitorService().start();
         nodeService.getSearchBackpressureService().start();
         nodeService.getTaskCancellationMonitoringService().start();
@@ -1503,6 +1518,8 @@ public class Node implements Closeable {
         injector.getInstance(ClusterService.class).stop();
         injector.getInstance(NodeConnectionsService.class).stop();
         injector.getInstance(FsHealthService.class).stop();
+        injector.getInstance(NodeResourceUsageTracker.class).stop();
+        injector.getInstance(ResourceUsageCollectorService.class).stop();
         nodeService.getMonitorService().stop();
         nodeService.getSearchBackpressureService().stop();
         injector.getInstance(GatewayService.class).stop();
@@ -1566,6 +1583,10 @@ public class Node implements Closeable {
         toClose.add(nodeService.getSearchBackpressureService());
         toClose.add(() -> stopWatch.stop().start("fsHealth"));
         toClose.add(injector.getInstance(FsHealthService.class));
+        toClose.add(() -> stopWatch.stop().start("resource_usage_tracker"));
+        toClose.add(injector.getInstance(NodeResourceUsageTracker.class));
+        toClose.add(() -> stopWatch.stop().start("resource_usage_collector"));
+        toClose.add(injector.getInstance(ResourceUsageCollectorService.class));
         toClose.add(() -> stopWatch.stop().start("gateway"));
         toClose.add(injector.getInstance(GatewayService.class));
         toClose.add(() -> stopWatch.stop().start("search"));

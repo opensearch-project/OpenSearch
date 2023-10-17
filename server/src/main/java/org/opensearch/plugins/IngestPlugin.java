@@ -46,7 +46,7 @@ public interface IngestPlugin {
 
     /**
      * Returns additional ingest processor types added by this plugin.
-     *
+     * <p>
      * The key of the returned {@link Map} is the unique name for the processor which is specified
      * in pipeline configurations, and the value is a {@link org.opensearch.ingest.Processor.Factory}
      * to create the processor from a given pipeline configuration.

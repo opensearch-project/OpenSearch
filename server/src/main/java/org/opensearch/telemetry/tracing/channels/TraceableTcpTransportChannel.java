@@ -19,6 +19,7 @@ import org.opensearch.transport.TcpTransportChannel;
 import org.opensearch.transport.TransportChannel;
 
 import java.io.IOException;
+import java.util.Optional;
 
 /**
  * Tracer wrapped {@link TransportChannel}
@@ -107,5 +108,10 @@ public class TraceableTcpTransportChannel extends BaseTcpTransportChannel {
     @Override
     public Version getVersion() {
         return delegate.getVersion();
+    }
+
+    @Override
+    public <T> Optional<T> get(String name, Class<T> clazz) {
+        return delegate.get(name, clazz);
     }
 }
