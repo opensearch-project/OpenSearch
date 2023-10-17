@@ -138,6 +138,10 @@ public class RemoteStoreClusterStateRestoreIT extends BaseRemoteStoreRestoreIT {
             throw new RuntimeException(e);
         }
         assertThrows(IllegalStateException.class, () -> addNewNodes(dataNodeCount, clusterManagerNodeCount));
+        // Test is complete
+
+        // Starting a node without remote state to ensure test cleanup
+        internalCluster().startNode(Settings.builder().put(REMOTE_CLUSTER_STATE_ENABLED_SETTING.getKey(), false).build());
     }
 
     public void testRemoteStateFullRestart() throws Exception {
