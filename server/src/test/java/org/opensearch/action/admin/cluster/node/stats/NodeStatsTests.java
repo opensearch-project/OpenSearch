@@ -49,6 +49,7 @@ import org.opensearch.core.indices.breaker.CircuitBreakerStats;
 import org.opensearch.discovery.DiscoveryStats;
 import org.opensearch.http.HttpStats;
 import org.opensearch.index.ReplicationStats;
+import org.opensearch.index.SegmentReplicationRejectionStats;
 import org.opensearch.index.remote.RemoteSegmentStats;
 import org.opensearch.index.remote.RemoteTranslogTransferTracker;
 import org.opensearch.index.translog.RemoteTranslogStats;
@@ -412,6 +413,17 @@ public class NodeStatsTests extends OpenSearchTestCase {
                         assertEquals(aResourceUsageStats.getCpuUtilizationPercent(), bResourceUsageStats.getCpuUtilizationPercent(), 0.0);
                         assertEquals(aResourceUsageStats.getTimestamp(), bResourceUsageStats.getTimestamp());
                     });
+                }
+                SegmentReplicationRejectionStats segmentReplicationRejectionStats = nodeStats.getSegmentReplicationRejectionStats();
+                SegmentReplicationRejectionStats deserializedSegmentReplicationRejectionStats = deserializedNodeStats
+                    .getSegmentReplicationRejectionStats();
+                if (segmentReplicationRejectionStats == null) {
+                    assertNull(deserializedSegmentReplicationRejectionStats);
+                } else {
+                    assertEquals(
+                        segmentReplicationRejectionStats.getTotalRejectionCount(),
+                        deserializedSegmentReplicationRejectionStats.getTotalRejectionCount()
+                    );
                 }
                 ScriptCacheStats scriptCacheStats = nodeStats.getScriptCacheStats();
                 ScriptCacheStats deserializedScriptCacheStats = deserializedNodeStats.getScriptCacheStats();
@@ -800,6 +812,11 @@ public class NodeStatsTests extends OpenSearchTestCase {
             }
             nodesResourceUsageStats = new NodesResourceUsageStats(resourceUsageStatsMap);
         }
+        SegmentReplicationRejectionStats segmentReplicationRejectionStats = null;
+        if (frequently()) {
+            segmentReplicationRejectionStats = new SegmentReplicationRejectionStats(randomNonNegativeLong());
+        }
+
         ClusterManagerThrottlingStats clusterManagerThrottlingStats = null;
         if (frequently()) {
             clusterManagerThrottlingStats = new ClusterManagerThrottlingStats();
@@ -841,7 +858,7 @@ public class NodeStatsTests extends OpenSearchTestCase {
             null,
             null,
             null,
-            null
+            segmentReplicationRejectionStats
         );
     }
 

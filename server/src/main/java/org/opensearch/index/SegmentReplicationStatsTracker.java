@@ -35,6 +35,18 @@ public class SegmentReplicationStatsTracker {
         rejectionCount = ConcurrentCollections.newConcurrentMap();
     }
 
+    public SegmentReplicationRejectionStats getRejectionStats() {
+        long rejectionCount = 0;
+        for (IndexService indexService : indicesService) {
+            for (IndexShard indexShard : indexService) {
+                if (indexShard.indexSettings().isSegRepEnabled() && indexShard.routingEntry().primary()) {
+                    rejectionCount += getStatsForShard(indexShard).getRejectedRequestCount();
+                }
+            }
+        }
+        return new SegmentReplicationRejectionStats(rejectionCount);
+    }
+
     public SegmentReplicationStats getStats() {
         Map<ShardId, SegmentReplicationPerGroupStats> stats = new HashMap<>();
         for (IndexService indexService : indicesService) {
@@ -44,10 +56,7 @@ public class SegmentReplicationStatsTracker {
                 }
             }
         }
-        return new SegmentReplicationStats(
-            stats,
-            stats.values().stream().mapToLong(shardGroup -> shardGroup.getRejectedRequestCount()).sum()
-        );
+        return new SegmentReplicationStats(stats);
     }
 
     public void incrementRejectionCount(ShardId shardId) {

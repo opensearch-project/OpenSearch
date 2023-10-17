@@ -46,7 +46,7 @@ import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.discovery.DiscoveryStats;
 import org.opensearch.http.HttpStats;
-import org.opensearch.index.SegmentReplicationStats;
+import org.opensearch.index.SegmentReplicationRejectionStats;
 import org.opensearch.index.stats.IndexingPressureStats;
 import org.opensearch.index.stats.ShardIndexingPressureStats;
 import org.opensearch.index.store.remote.filecache.FileCacheStats;
@@ -130,7 +130,7 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
     private SearchBackpressureStats searchBackpressureStats;
 
     @Nullable
-    private SegmentReplicationStats segmentReplicationStats;
+    private SegmentReplicationRejectionStats segmentReplicationRejectionStats;
 
     @Nullable
     private ClusterManagerThrottlingStats clusterManagerThrottlingStats;
@@ -215,9 +215,9 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
 
         // TODO: change to V_2_12_0 on main after backport to 2.x
         if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
-            segmentReplicationStats = in.readOptionalWriteable(SegmentReplicationStats::new);
+            segmentReplicationRejectionStats = in.readOptionalWriteable(SegmentReplicationRejectionStats::new);
         } else {
-            segmentReplicationStats = null;
+            segmentReplicationRejectionStats = null;
         }
     }
 
@@ -247,7 +247,7 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         @Nullable FileCacheStats fileCacheStats,
         @Nullable TaskCancellationStats taskCancellationStats,
         @Nullable SearchPipelineStats searchPipelineStats,
-        @Nullable SegmentReplicationStats segmentReplicationStats
+        @Nullable SegmentReplicationRejectionStats segmentReplicationRejectionStats
     ) {
         super(node);
         this.timestamp = timestamp;
@@ -274,7 +274,7 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         this.fileCacheStats = fileCacheStats;
         this.taskCancellationStats = taskCancellationStats;
         this.searchPipelineStats = searchPipelineStats;
-        this.segmentReplicationStats = segmentReplicationStats;
+        this.segmentReplicationRejectionStats = segmentReplicationRejectionStats;
     }
 
     public long getTimestamp() {
@@ -418,8 +418,8 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
     }
 
     @Nullable
-    public SegmentReplicationStats getSegmentReplicationStats() {
-        return segmentReplicationStats;
+    public SegmentReplicationRejectionStats getSegmentReplicationRejectionStats() {
+        return segmentReplicationRejectionStats;
     }
 
     @Override
@@ -470,7 +470,7 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         }
         // TODO: change to V_2_12_0 on main after backport to 2.x
         if (out.getVersion().onOrAfter(Version.V_3_0_0)) {
-            out.writeOptionalWriteable(segmentReplicationStats);
+            out.writeOptionalWriteable(segmentReplicationRejectionStats);
         }
     }
 
@@ -565,8 +565,8 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         if (getResourceUsageStats() != null) {
             getResourceUsageStats().toXContent(builder, params);
         }
-        if (getSegmentReplicationStats() != null) {
-            getSegmentReplicationStats().toXContent(builder, params);
+        if (getSegmentReplicationRejectionStats() != null) {
+            getSegmentReplicationRejectionStats().toXContent(builder, params);
         }
 
         return builder;

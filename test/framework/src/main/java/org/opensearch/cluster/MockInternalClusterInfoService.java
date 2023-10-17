@@ -122,7 +122,7 @@ public class MockInternalClusterInfoService extends InternalClusterInfoService {
                 nodeStats.getFileCacheStats(),
                 nodeStats.getTaskCancellationStats(),
                 nodeStats.getSearchPipelineStats(),
-                nodeStats.getSegmentReplicationStats()
+                nodeStats.getSegmentReplicationRejectionStats()
             );
         }).collect(Collectors.toList());
     }
