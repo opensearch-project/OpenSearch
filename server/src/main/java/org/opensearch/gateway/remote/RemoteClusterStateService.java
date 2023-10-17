@@ -136,7 +136,7 @@ public class RemoteClusterStateService implements Closeable {
     private final AtomicBoolean deleteStaleMetadataRunning = new AtomicBoolean(false);
 
     private static final int GLOBAL_METADATA_CODEC_VERSION = 1;
-    private static final int MANIFEST_CODEC_VERSION = 2; // TODO remove this once file name change PR is merged
+    private static final int MANIFEST_CODEC_CURRENT_VERSION = ClusterMetadataManifest.CODEC_V2; // TODO remove this once file name change PR is merged
 
     // ToXContent Params with gateway mode.
     // We are using gateway context mode to persist all custom metadata.
@@ -242,11 +242,11 @@ public class RemoteClusterStateService implements Closeable {
         assert previousClusterState.metadata().coordinationMetadata().term() == clusterState.metadata().coordinationMetadata().term();
 
         // Write Global Metadata
-        final boolean updateGlobalMeta = Metadata.isGlobalStateEquals(previousClusterState.metadata(), clusterState.metadata()) == false;
+        final boolean updateGlobalMetadata = Metadata.isGlobalStateEquals(previousClusterState.metadata(), clusterState.metadata()) == false;
         String globalMetadataFile;
         // For migration case from codec V1 to V2, we have added null check on global metadata file,
         // If file is empty and codec is 1 then write global metadata.
-        if (updateGlobalMeta || previousManifest.getGlobalMetadataFileName() == null) {
+        if (updateGlobalMetadata || previousManifest.getGlobalMetadataFileName() == null) {
             globalMetadataFile = writeGlobalMetadata(clusterState);
         } else {
             globalMetadataFile = previousManifest.getGlobalMetadataFileName();
@@ -542,7 +542,7 @@ public class RemoteClusterStateService implements Closeable {
                 Version.CURRENT,
                 nodeId,
                 committed,
-                MANIFEST_CODEC_VERSION,
+                MANIFEST_CODEC_CURRENT_VERSION,
                 globalClusterMetadataFileName,
                 uploadedIndexMetadata,
                 previousClusterUUID,
@@ -922,15 +922,22 @@ public class RemoteClusterStateService implements Closeable {
     }
 
     private ChecksumBlobStoreFormat<ClusterMetadataManifest> getClusterMetadataManifestBlobStoreFormat(String fileName) {
-        if (fileName.split(DELIMITER).length < 6) { // Where codec is not part of file name, i.e. codec version 1 is used.
+        long codecVersion = getManifestCodecVersion(fileName);
+        if(codecVersion == ClusterMetadataManifest.CODEC_V1) {
             return CLUSTER_METADATA_MANIFEST_FORMAT;
-        } else {
-            long codecVersion = RemoteStoreUtils.invertLong(fileName.split(DELIMITER)[4]);
-            if (codecVersion == MANIFEST_CODEC_VERSION) {
-                return CLUSTER_METADATA_MANIFEST_FORMAT_V2;
-            }
+        } else if (codecVersion == ClusterMetadataManifest.CODEC_V2){
+            return CLUSTER_METADATA_MANIFEST_FORMAT_V2;
         }
+
         throw new IllegalArgumentException("Cluster metadata manifest file is corrupted, don't have valid codec version");
+    }
+
+    private long getManifestCodecVersion(String fileName) {
+        if (fileName.split(DELIMITER).length < 6) { // Where codec is not part of file name, i.e. codec version 1 is used.
+            return ClusterMetadataManifest.CODEC_V1;
+        } else {
+            return RemoteStoreUtils.invertLong(fileName.split(DELIMITER)[4]);
+        }
     }
 
     public static String encodeString(String content) {
