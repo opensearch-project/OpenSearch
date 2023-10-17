@@ -17,6 +17,11 @@ import org.opensearch.core.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
+/**
+ * Segment Replication Rejection Stats.
+ *
+ * @opensearch.internal
+ */
 public class SegmentReplicationRejectionStats implements Writeable, ToXContentFragment {
 
     /**
