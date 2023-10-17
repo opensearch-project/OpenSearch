@@ -43,7 +43,7 @@ public class MockTelemetry implements Telemetry {
 
             @Override
             public Counter createUpDownCounter(String name, String description, String unit) {
-                return null;
+                return NoopCounter.INSTANCE;
             }
 
             @Override
