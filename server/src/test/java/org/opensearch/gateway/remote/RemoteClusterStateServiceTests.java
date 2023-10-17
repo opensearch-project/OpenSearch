@@ -66,7 +66,9 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.ArgumentMatchers;
 
 import static org.opensearch.gateway.remote.RemoteClusterStateService.DELIMITER;
+import static org.opensearch.gateway.remote.RemoteClusterStateService.INDEX_METADATA_CURRENT_CODEC_VERSION;
 import static org.opensearch.gateway.remote.RemoteClusterStateService.INDEX_METADATA_FILE_PREFIX;
+import static org.opensearch.gateway.remote.RemoteClusterStateService.MANIFEST_CURRENT_CODEC_VERSION;
 import static org.opensearch.gateway.remote.RemoteClusterStateService.MANIFEST_FILE_PREFIX;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEY;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_REPOSITORY_SETTINGS_ATTRIBUTE_KEY_PREFIX;
@@ -687,22 +689,26 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
             .build();
 
         String indexMetadataFileName = RemoteClusterStateService.indexMetadataFileName(indexMetadata);
+        String[] splittedIndexMetadataFileName = indexMetadataFileName.split(DELIMITER);
         assertThat(indexMetadataFileName.split(DELIMITER).length, is(4));
-        assertTrue(indexMetadataFileName.contains(INDEX_METADATA_FILE_PREFIX));
-        assertTrue(indexMetadataFileName.contains(RemoteStoreUtils.invertLong(indexMetadata.getVersion())));
+        assertThat(splittedIndexMetadataFileName[0], is(INDEX_METADATA_FILE_PREFIX));
+        assertThat(splittedIndexMetadataFileName[1], is(RemoteStoreUtils.invertLong(indexMetadata.getVersion())));
+        assertThat(splittedIndexMetadataFileName[2], is(RemoteStoreUtils.invertLong(INDEX_METADATA_CURRENT_CODEC_VERSION)));
 
         int term = randomIntBetween(5, 10);
         int version = randomIntBetween(5, 10);
         String manifestFileName = RemoteClusterStateService.getManifestFileName(term, version, true);
         assertThat(manifestFileName.split(DELIMITER).length, is(6));
-        assertTrue(manifestFileName.contains(MANIFEST_FILE_PREFIX));
-        assertTrue(manifestFileName.contains(RemoteStoreUtils.invertLong(term)));
-        assertTrue(manifestFileName.contains(RemoteStoreUtils.invertLong(version)));
-        assertTrue(manifestFileName.contains("C")); // assertion for committed
-        assertTrue(manifestFileName.contains(RemoteStoreUtils.invertLong(2))); // assertion for codec version
+        String[] splittedName = manifestFileName.split(DELIMITER);
+        assertThat(splittedName[0], is(MANIFEST_FILE_PREFIX));
+        assertThat(splittedName[1], is(RemoteStoreUtils.invertLong(term)));
+        assertThat(splittedName[2], is(RemoteStoreUtils.invertLong(version)));
+        assertThat(splittedName[3], is("C"));
+        assertThat(splittedName[4], is(RemoteStoreUtils.invertLong(MANIFEST_CURRENT_CODEC_VERSION)));
 
         manifestFileName = RemoteClusterStateService.getManifestFileName(term, version, false);
-        assertTrue(manifestFileName.contains("P")); // assertion for committed false
+        splittedName = manifestFileName.split(DELIMITER);
+        assertThat(splittedName[3], is("P"));
     }
 
     private void mockObjectsForGettingPreviousClusterUUID(Map<String, String> clusterUUIDsPointers) throws IOException {

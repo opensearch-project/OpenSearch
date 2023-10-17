@@ -120,8 +120,8 @@ public class RemoteClusterStateService implements Closeable {
 
     private final AtomicBoolean deleteStaleMetadataRunning = new AtomicBoolean(false);
 
-    private static final int INDEX_METADATA_CODEC_VERSION = 1;
-    private static final int MANIFEST_CODEC_VERSION = 2;
+    public static final int INDEX_METADATA_CURRENT_CODEC_VERSION = 1;
+    public static final int MANIFEST_CURRENT_CODEC_VERSION = 1;
 
     public RemoteClusterStateService(
         String nodeId,
@@ -492,24 +492,25 @@ public class RemoteClusterStateService implements Closeable {
     }
 
     static String getManifestFileName(long term, long version, boolean committed) {
-        // 123456789012_test-cluster/cluster-state/dsgYj10Nkso7/manifest/manifest_2147483642_2147483637_1_21473637_456536447
+        // 123456789012_test-cluster/cluster-state/dsgYj10Nkso7/manifest/manifest__<inverted_term>__<inverted_version>__C/P__<inverted_codec_version>__<inverted__timestamp>
         return String.join(
             DELIMITER,
             MANIFEST_PATH_TOKEN,
             RemoteStoreUtils.invertLong(term),
             RemoteStoreUtils.invertLong(version),
             (committed ? "C" : "P"), // C for committed and P for published
-            RemoteStoreUtils.invertLong(MANIFEST_CODEC_VERSION),
+            RemoteStoreUtils.invertLong(MANIFEST_CURRENT_CODEC_VERSION),
             RemoteStoreUtils.invertLong(System.currentTimeMillis())
         );
     }
 
     static String indexMetadataFileName(IndexMetadata indexMetadata) {
+        // 123456789012_test-cluster/cluster-state/dsgYj10Nkso7/index/<index_UUID>/metadata__<inverted_index_metadata_version>__<inverted_codec_version>__<inverted__timestamp>.dat
         return String.join(
             DELIMITER,
             INDEX_METADATA_FILE_PREFIX,
             RemoteStoreUtils.invertLong(indexMetadata.getVersion()),
-            RemoteStoreUtils.invertLong(INDEX_METADATA_CODEC_VERSION),
+            RemoteStoreUtils.invertLong(INDEX_METADATA_CURRENT_CODEC_VERSION),
             RemoteStoreUtils.invertLong(System.currentTimeMillis())
         );
     }
