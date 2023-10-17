@@ -83,7 +83,7 @@ public final class AttributeNames {
     /**
      * Number of request items in bulk request
      */
-    public static final String NUM_BULK_ITEMS = "num_bulk_items";
+    public static final String BULK_REQUEST_ITEMS = "bulk_request_items";
 
     /**
      * Node ID

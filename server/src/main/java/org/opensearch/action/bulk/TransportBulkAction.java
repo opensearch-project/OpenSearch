@@ -707,6 +707,10 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                             }
                         }, releasable::close), span, tracer)
                     );
+                } catch (Exception e) {
+                    span.setError(e);
+                    span.endSpan();
+                    throw e;
                 }
             }
             bulkRequest = null; // allow memory for bulk request items to be reclaimed before all items have been completed

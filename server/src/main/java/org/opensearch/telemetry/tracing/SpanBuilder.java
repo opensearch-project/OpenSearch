@@ -74,10 +74,6 @@ public final class SpanBuilder {
         return SpanCreationContext.server().name(spanName).attributes(buildSpanAttributes(nodeId, bulkShardRequest));
     }
 
-    public static SpanCreationContext from(String spanName, String nodeId, ShardId shardId) {
-        return SpanCreationContext.server().name(spanName).attributes(buildSpanAttributes(nodeId, shardId));
-    }
-
     private static String createSpanName(HttpRequest httpRequest) {
         return httpRequest.method().name() + SEPARATOR + httpRequest.uri();
     }
@@ -162,16 +158,13 @@ public final class SpanBuilder {
     }
 
     private static Attributes buildSpanAttributes(String nodeId, BulkShardRequest bulkShardRequest) {
-        Attributes attributes = buildSpanAttributes(nodeId, bulkShardRequest.shardId());
-        attributes.addAttribute(AttributeNames.NUM_BULK_ITEMS, bulkShardRequest.items().length);
-        return attributes;
-    }
-
-    private static Attributes buildSpanAttributes(String nodeId, ShardId shardId) {
         Attributes attributes = Attributes.create()
             .addAttribute(AttributeNames.NODE_ID, nodeId)
-            .addAttribute(AttributeNames.INDEX, (shardId != null) ? shardId.getIndexName() : "NULL")
-            .addAttribute(AttributeNames.SHARD_ID, (shardId != null) ? shardId.getId() : -1);
+            .addAttribute(AttributeNames.BULK_REQUEST_ITEMS, bulkShardRequest.items().length);
+        if (bulkShardRequest.shardId() != null) {
+            attributes.addAttribute(AttributeNames.INDEX, bulkShardRequest.shardId().getIndexName())
+                .addAttribute(AttributeNames.SHARD_ID, bulkShardRequest.shardId().getId());
+        }
         return attributes;
     }
 

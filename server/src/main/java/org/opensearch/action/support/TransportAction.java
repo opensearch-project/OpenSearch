@@ -46,8 +46,6 @@ import org.opensearch.core.tasks.TaskId;
 import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskListener;
 import org.opensearch.tasks.TaskManager;
-import org.opensearch.telemetry.tracing.Tracer;
-import org.opensearch.telemetry.tracing.noop.NoopTracer;
 
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -79,10 +77,6 @@ public abstract class TransportAction<Request extends ActionRequest, Response ex
         } else {
             return () -> {};
         }
-    }
-
-    protected Tracer getTracer() {
-        return NoopTracer.INSTANCE;
     }
 
     /**
