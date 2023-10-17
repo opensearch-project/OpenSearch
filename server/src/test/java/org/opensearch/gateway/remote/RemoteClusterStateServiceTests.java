@@ -693,7 +693,7 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
         assertThat(indexMetadataFileName.split(DELIMITER).length, is(4));
         assertThat(splittedIndexMetadataFileName[0], is(INDEX_METADATA_FILE_PREFIX));
         assertThat(splittedIndexMetadataFileName[1], is(RemoteStoreUtils.invertLong(indexMetadata.getVersion())));
-        assertThat(splittedIndexMetadataFileName[2], is(RemoteStoreUtils.invertLong(INDEX_METADATA_CURRENT_CODEC_VERSION)));
+        assertThat(splittedIndexMetadataFileName[3], is(String.valueOf(INDEX_METADATA_CURRENT_CODEC_VERSION)));
 
         int term = randomIntBetween(5, 10);
         int version = randomIntBetween(5, 10);
@@ -704,7 +704,7 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
         assertThat(splittedName[1], is(RemoteStoreUtils.invertLong(term)));
         assertThat(splittedName[2], is(RemoteStoreUtils.invertLong(version)));
         assertThat(splittedName[3], is("C"));
-        assertThat(splittedName[4], is(RemoteStoreUtils.invertLong(MANIFEST_CURRENT_CODEC_VERSION)));
+        assertThat(splittedName[5], is(String.valueOf(MANIFEST_CURRENT_CODEC_VERSION)));
 
         manifestFileName = RemoteClusterStateService.getManifestFileName(term, version, false);
         splittedName = manifestFileName.split(DELIMITER);
