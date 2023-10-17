@@ -137,8 +137,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         Property.NodeScope
     );
 
-    public static final Setting<Boolean> SEARCH_QUERY_CATEGORIZATION_ENABLED_SETTING = Setting.boolSetting(
-        "search.query.categorization.enabled",
+    public static final Setting<Boolean> SEARCH_QUERY_METRICS_ENABLED_SETTING = Setting.boolSetting(
+        "search.query.metrics.enabled",
         false,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
@@ -176,7 +176,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
 
     private volatile boolean isRequestStatsEnabled;
 
-    private volatile boolean isSearchQueryCategorizationEnabled;
+    private volatile boolean searchQueryCategorizationEnabled;
 
     private final SearchRequestStats searchRequestStats;
 
@@ -218,14 +218,14 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         clusterService.getClusterSettings().addSettingsUpdateConsumer(SEARCH_REQUEST_STATS_ENABLED, this::setIsRequestStatsEnabled);
         this.searchRequestStats = searchRequestStats;
         this.metricsRegistry = metricsRegistry;
-        this.isSearchQueryCategorizationEnabled = clusterService.getClusterSettings().get(SEARCH_QUERY_CATEGORIZATION_ENABLED_SETTING);
+        this.searchQueryCategorizationEnabled = clusterService.getClusterSettings().get(SEARCH_QUERY_METRICS_ENABLED_SETTING);
         clusterService.getClusterSettings()
-            .addSettingsUpdateConsumer(SEARCH_QUERY_CATEGORIZATION_ENABLED_SETTING, this::setIsSearchQueryCategorizationEnabled);
+            .addSettingsUpdateConsumer(SEARCH_QUERY_METRICS_ENABLED_SETTING, this::setIsSearchQueryCategorizationEnabled);
     }
 
     private void setIsSearchQueryCategorizationEnabled(boolean isSearchQueryCategorizationEnabled) {
-        this.isSearchQueryCategorizationEnabled = isSearchQueryCategorizationEnabled;
-        if (this.isSearchQueryCategorizationEnabled && this.searchQueryCategorizer == null) {
+        this.searchQueryCategorizationEnabled = isSearchQueryCategorizationEnabled;
+        if (this.searchQueryCategorizationEnabled && this.searchQueryCategorizer == null) {
             this.searchQueryCategorizer = new SearchQueryCategorizer(metricsRegistry);
         }
     }
@@ -458,11 +458,11 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             return;
         }
 
-        if (isSearchQueryCategorizationEnabled) {
+        if (searchQueryCategorizationEnabled) {
             try {
                 searchQueryCategorizer.categorize(searchRequest.source());
             } catch (Exception e) {
-                logger.error("Error while trying to categorize the query.");
+                logger.error("Error while trying to categorize the query.", e);
             }
         }
 
