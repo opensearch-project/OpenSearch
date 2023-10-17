@@ -64,6 +64,9 @@ public class OTelTelemetryPlugin extends Plugin implements TelemetryPlugin {
     }
 
     private void initializeOpenTelemetrySdk(TelemetrySettings telemetrySettings) {
+        if (refCountedOpenTelemetry != null) {
+            return;
+        }
         OpenTelemetrySdk openTelemetrySdk = OTelResourceProvider.get(telemetrySettings, settings);
         refCountedOpenTelemetry = new RefCountedReleasable<>("openTelemetry", openTelemetrySdk, openTelemetrySdk::close);
     }
