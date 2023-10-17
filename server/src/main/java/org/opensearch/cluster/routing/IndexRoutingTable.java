@@ -457,7 +457,7 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable> imple
             boolean forceRecoverAllPrimaries
         ) {
             final UnassignedInfo unassignedInfo = new UnassignedInfo(
-                UnassignedInfo.Reason.EXISTING_INDEX_RESTORED,
+                UnassignedInfo.Reason.REMOTE_METADATA_RECOVERED,
                 "restore_source[remote_store]"
             );
             assert indexMetadata.getIndex().equals(index);

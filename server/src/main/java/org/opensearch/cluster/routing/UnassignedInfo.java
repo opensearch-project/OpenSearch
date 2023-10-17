@@ -147,7 +147,9 @@ public final class UnassignedInfo implements ToXContentFragment, Writeable {
         /**
          * Unassigned as a result of closing an index.
          */
-        INDEX_CLOSED
+        INDEX_CLOSED,
+
+        REMOTE_METADATA_RECOVERED
     }
 
     /**
