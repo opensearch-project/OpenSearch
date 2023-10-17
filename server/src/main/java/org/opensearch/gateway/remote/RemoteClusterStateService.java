@@ -512,7 +512,8 @@ public class RemoteClusterStateService implements Closeable {
         return getCusterMetadataBasePath(clusterName, clusterUUID).add(MANIFEST_PATH_TOKEN);
     }
 
-    public Metadata getLatestClusterMetadata(String clusterName, String clusterUUID) {
+    // TODO - will be replace by actual implementation after download PR is merged
+    public Metadata getLatestMetadata(String clusterName, String clusterUUID) {
         return Metadata.builder().build();
     }
 

@@ -139,21 +139,19 @@ public class RemoteStoreRestoreService {
         String[] indexNames
     ) {
         Map<String, Tuple<Boolean, IndexMetadata>> indexMetadataMap = new HashMap<>();
-        Metadata remoteClusterMetadata = null;
+        Metadata remoteGlobalMetadata = null;
         boolean metadataFromRemoteStore = (restoreClusterUUID == null
             || restoreClusterUUID.isEmpty()
             || restoreClusterUUID.isBlank()) == false;
         if (metadataFromRemoteStore) {
             try {
-                remoteClusterMetadata = remoteClusterStateService.getLatestClusterMetadata(
+                remoteGlobalMetadata = remoteClusterStateService.getLatestMetadata(
                     currentState.getClusterName().value(),
                     restoreClusterUUID
                 );
-                remoteClusterStateService.getLatestIndexMetadata(currentState.getClusterName().value(), restoreClusterUUID)
-                    .values()
-                    .forEach(indexMetadata -> {
-                        indexMetadataMap.put(indexMetadata.getIndex().getName(), new Tuple<>(true, indexMetadata));
-                    });
+                remoteGlobalMetadata.getIndices().values().forEach(indexMetadata -> {
+                    indexMetadataMap.put(indexMetadata.getIndex().getName(), new Tuple<>(true, indexMetadata));
+                });
             } catch (Exception e) {
                 throw new IllegalStateException("Unable to restore remote index metadata", e);
             }
@@ -168,7 +166,7 @@ public class RemoteStoreRestoreService {
             }
         }
         validate(currentState, indexMetadataMap, restoreClusterUUID, restoreAllShards);
-        return executeRestore(currentState, indexMetadataMap, restoreAllShards, remoteClusterMetadata);
+        return executeRestore(currentState, indexMetadataMap, restoreAllShards, remoteGlobalMetadata);
     }
 
     /**
@@ -182,7 +180,7 @@ public class RemoteStoreRestoreService {
         ClusterState currentState,
         Map<String, Tuple<Boolean, IndexMetadata>> indexMetadataMap,
         boolean restoreAllShards,
-        Metadata remoteClusterMetadata
+        Metadata remoteGlobalMetadata
     ) {
         final String restoreUUID = UUIDs.randomBase64UUID();
         List<String> indicesToBeRestored = new ArrayList<>();
@@ -235,7 +233,7 @@ public class RemoteStoreRestoreService {
             totalShards += updatedIndexMetadata.getNumberOfShards();
         }
 
-        restoreClusterMetadata(mdBuilder, remoteClusterMetadata);
+        restoreGlobalMetadata(mdBuilder, remoteGlobalMetadata);
 
         RestoreInfo restoreInfo = new RestoreInfo("remote_store", indicesToBeRestored, totalShards, totalShards);
 
@@ -244,13 +242,13 @@ public class RemoteStoreRestoreService {
         return RemoteRestoreResult.build(restoreUUID, restoreInfo, allocationService.reroute(updatedState, "restored from remote store"));
     }
 
-    private void restoreClusterMetadata(Metadata.Builder mdBuilder, Metadata remoteClusterMetadata) {
-        if (remoteClusterMetadata.persistentSettings() != null) {
-            Settings settings = remoteClusterMetadata.persistentSettings();
+    private void restoreGlobalMetadata(Metadata.Builder mdBuilder, Metadata remoteGlobalMetadata) {
+        if (remoteGlobalMetadata.persistentSettings() != null) {
+            Settings settings = remoteGlobalMetadata.persistentSettings();
             clusterService.getClusterSettings().validateUpdate(settings);
             mdBuilder.persistentSettings(settings);
         }
-        Optional<RepositoriesMetadata> repositoriesMetadata = Optional.ofNullable(remoteClusterMetadata.custom(RepositoriesMetadata.TYPE));
+        Optional<RepositoriesMetadata> repositoriesMetadata = Optional.ofNullable(remoteGlobalMetadata.custom(RepositoriesMetadata.TYPE));
         repositoriesMetadata = repositoriesMetadata.map(
             repositoriesMetadata1 -> new RepositoriesMetadata(
                 repositoriesMetadata1.repositories()
