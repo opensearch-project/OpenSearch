@@ -40,7 +40,6 @@ public class OnBehalfOfClaims {
         return audience;
     }
 
-
     public Long getExpiration() {
         return expiration_seconds;
     }
