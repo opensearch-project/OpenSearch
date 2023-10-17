@@ -246,7 +246,6 @@ public class SegmentReplicationTargetServiceTests extends IndexShardTestCase {
         verify(spy, times(0)).startReplication(any(), any(), any());
     }
 
-
     public void testShardAlreadyReplicating() {
         CountDownLatch blockGetCheckpointMetadata = new CountDownLatch(1);
         SegmentReplicationSource source = new TestReplicationSource() {
