@@ -20,21 +20,25 @@ import io.opentelemetry.api.metrics.DoubleCounter;
 import io.opentelemetry.api.metrics.DoubleUpDownCounter;
 import io.opentelemetry.api.metrics.Meter;
 import io.opentelemetry.api.metrics.MeterProvider;
+import io.opentelemetry.sdk.OpenTelemetrySdk;
 
 /**
  * OTel implementation for {@link MetricsTelemetry}
  */
 public class OTelMetricsTelemetry<T extends MeterProvider & Closeable> implements MetricsTelemetry {
+    private final RefCountedReleasable<OpenTelemetrySdk> refCountedOpenTelemetry;
     private final Meter otelMeter;
-    private final RefCountedReleasable<T> refCountedMeterProvider;
+    private final T meterProvider;
 
     /**
      * Creates OTel based {@link MetricsTelemetry}.
+     * @param openTelemetry open telemetry.
      * @param meterProvider {@link MeterProvider} instance
      */
-    public OTelMetricsTelemetry(RefCountedReleasable<T> meterProvider) {
-        this.refCountedMeterProvider = meterProvider;
-        this.otelMeter = meterProvider.get().get(OTelTelemetryPlugin.INSTRUMENTATION_SCOPE_NAME);
+    public OTelMetricsTelemetry(RefCountedReleasable<OpenTelemetrySdk> openTelemetry, T meterProvider) {
+        this.refCountedOpenTelemetry = openTelemetry;
+        this.meterProvider = meterProvider;
+        this.otelMeter = meterProvider.get(OTelTelemetryPlugin.INSTRUMENTATION_SCOPE_NAME);
     }
 
     @Override
@@ -63,8 +67,6 @@ public class OTelMetricsTelemetry<T extends MeterProvider & Closeable> implement
 
     @Override
     public void close() throws IOException {
-        if (refCountedMeterProvider.tryIncRef()) {
-            refCountedMeterProvider.close();
-        }
+        refCountedOpenTelemetry.close();
     }
 }

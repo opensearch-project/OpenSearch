@@ -15,34 +15,32 @@ import org.opensearch.telemetry.OTelTelemetryPlugin;
 import java.io.Closeable;
 import java.io.IOException;
 
-import io.opentelemetry.api.OpenTelemetry;
 import io.opentelemetry.api.trace.TracerProvider;
 import io.opentelemetry.context.Context;
+import io.opentelemetry.sdk.OpenTelemetrySdk;
 
 /**
  * OTel based Telemetry provider
  */
 public class OTelTracingTelemetry<T extends TracerProvider & Closeable> implements TracingTelemetry {
-    private final OpenTelemetry openTelemetry;
-    private final RefCountedReleasable<T> refCountedtTracerProvider;
+    private final RefCountedReleasable<OpenTelemetrySdk> refCountedOpenTelemetry;
+    private final T tracerProvider;
     private final io.opentelemetry.api.trace.Tracer otelTracer;
 
     /**
      * Creates OTel based {@link TracingTelemetry}
-     * @param openTelemetry OpenTelemetry instance
+     * @param refCountedOpenTelemetry OpenTelemetry instance
      * @param tracerProvider {@link TracerProvider} instance.
      */
-    public OTelTracingTelemetry(OpenTelemetry openTelemetry, RefCountedReleasable<T> tracerProvider) {
-        this.openTelemetry = openTelemetry;
-        this.refCountedtTracerProvider = tracerProvider;
-        this.otelTracer = tracerProvider.get().get(OTelTelemetryPlugin.INSTRUMENTATION_SCOPE_NAME);
+    public OTelTracingTelemetry(RefCountedReleasable<OpenTelemetrySdk> refCountedOpenTelemetry, T tracerProvider) {
+        this.refCountedOpenTelemetry = refCountedOpenTelemetry;
+        this.tracerProvider = tracerProvider;
+        this.otelTracer = tracerProvider.get(OTelTelemetryPlugin.INSTRUMENTATION_SCOPE_NAME);
     }
 
     @Override
     public void close() throws IOException {
-        if (refCountedtTracerProvider.tryIncRef()) {
-            refCountedtTracerProvider.close();
-        }
+        refCountedOpenTelemetry.close();
     }
 
     @Override
@@ -52,7 +50,7 @@ public class OTelTracingTelemetry<T extends TracerProvider & Closeable> implemen
 
     @Override
     public TracingContextPropagator getContextPropagator() {
-        return new OTelTracingContextPropagator(openTelemetry);
+        return new OTelTracingContextPropagator(refCountedOpenTelemetry.get());
     }
 
     private Span createOtelSpan(SpanCreationContext spanCreationContext, Span parentSpan) {
