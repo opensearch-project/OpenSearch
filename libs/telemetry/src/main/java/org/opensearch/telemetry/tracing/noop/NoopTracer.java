@@ -55,6 +55,11 @@ public class NoopTracer implements Tracer {
     }
 
     @Override
+    public boolean isRecording() {
+        return false;
+    }
+
+    @Override
     public void close() {
 
     }

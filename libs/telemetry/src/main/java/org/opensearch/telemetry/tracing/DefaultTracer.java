@@ -85,6 +85,11 @@ class DefaultTracer implements Tracer {
         return DefaultSpanScope.create(span, tracerContextStorage).attach();
     }
 
+    @Override
+    public boolean isRecording() {
+        return true;
+    }
+
     private Span createSpan(SpanCreationContext spanCreationContext, Span parentSpan) {
         return tracingTelemetry.createSpan(spanCreationContext, parentSpan);
     }
