@@ -358,13 +358,13 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
     }
 
     /*
-     * Here we will verify the migration of manifest file from codec V1 and V2.
+     * Here we will verify the migration of manifest file from codec V0 and V1.
      *
      * Initially codec version is 1 and global metadata is also null, we will perform index metadata update.
      * In final manifest codec version should be 2 and
      * global metadata should be updated, even if it was not changed in this cluster state update
      */
-    public void testMigrationFromCodecV1ManifestToCodecV2Manifest() throws IOException {
+    public void testMigrationFromCodecV0ManifestToCodecV1Manifest() throws IOException {
         mockBlobStoreObjects();
         final CoordinationMetadata coordinationMetadata = CoordinationMetadata.builder().term(1L).build();
         final ClusterState previousClusterState = ClusterState.builder(ClusterName.DEFAULT)
