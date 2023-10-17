@@ -54,6 +54,7 @@ import org.opensearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.opensearch.cluster.routing.allocation.decider.AwarenessAllocationDecider;
 import org.opensearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider;
 import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.UUIDs;
 import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.IndexScopedSettings;
@@ -107,6 +108,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -1808,6 +1811,64 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
         );
         assertTrue(clusterSettings.get(IndicesService.CLUSTER_REMOTE_INDEX_RESTRICT_ASYNC_DURABILITY_SETTING));
         assertEquals(Translog.Durability.REQUEST, INDEX_TRANSLOG_DURABILITY_SETTING.get(indexSettings));
+    }
+
+    public void testGetIndexUuidWithBinaryPrefix() {
+
+        String standardIndexUUIDRegex = "^([a-zA-Z0-9=/_+]|[\\\\\\-]){22}$";
+        String binaryPrefixIndexUUIDRegex = "^([01]{0,10})([a-zA-Z0-9=/_+]|[\\\\\\-]){22}$";
+
+        Pattern standardIndexUUIDPattern = Pattern.compile(standardIndexUUIDRegex);
+        Pattern binaryPrefixIndexUUIDPattern = Pattern.compile(binaryPrefixIndexUUIDRegex);
+
+        Settings binaryPrefixEnabledSettings = Settings.builder()
+            .put(IndicesService.CLUSTER_INDICES_BINARY_PREFIX_INDEX_UUID_SETTING.getKey(), true)
+            .build();
+        Settings standardIndexUUIDSetting = Settings.builder()
+            .put(IndicesService.CLUSTER_INDICES_BINARY_PREFIX_INDEX_UUID_SETTING.getKey(), false)
+            .build();
+
+        // Binary prefix setting disabled, no binary prefix length
+        ClusterSettings clusterSettings = new ClusterSettings(standardIndexUUIDSetting, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        String indexUUID = MetadataCreateIndexService.getIndexUuidWithBinaryPrefix(clusterSettings);
+        Matcher matcher = standardIndexUUIDPattern.matcher(indexUUID);
+        assertTrue(matcher.matches());
+
+        // Binary prefix setting disabled, variable binary prefix length
+        Settings settings = Settings.builder()
+            .put(standardIndexUUIDSetting)
+            .put(IndicesService.CLUSTER_INDICES_BINARY_PREFIX_INDEX_UUID_LENGTH_SETTING.getKey(), randomIntBetween(0, 10))
+            .build();
+        clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        indexUUID = MetadataCreateIndexService.getIndexUuidWithBinaryPrefix(clusterSettings);
+        matcher = standardIndexUUIDPattern.matcher(indexUUID);
+        assertTrue(matcher.matches());
+
+        // Binary prefix setting enabled, default binary prefix length
+        clusterSettings = new ClusterSettings(binaryPrefixEnabledSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        indexUUID = MetadataCreateIndexService.getIndexUuidWithBinaryPrefix(clusterSettings);
+        matcher = binaryPrefixIndexUUIDPattern.matcher(indexUUID);
+        assertTrue(matcher.matches());
+
+        // Binary prefix setting enabled, binary prefix random length between 2 and 10
+        settings = Settings.builder()
+            .put(binaryPrefixEnabledSettings)
+            .put(IndicesService.CLUSTER_INDICES_BINARY_PREFIX_INDEX_UUID_LENGTH_SETTING.getKey(), randomIntBetween(0, 10))
+            .build();
+        clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        indexUUID = MetadataCreateIndexService.getIndexUuidWithBinaryPrefix(clusterSettings);
+        matcher = binaryPrefixIndexUUIDPattern.matcher(indexUUID);
+        assertTrue(matcher.matches());
+
+        // Length 0
+        indexUUID = UUIDs.randomBase64UUID();
+        matcher = binaryPrefixIndexUUIDPattern.matcher(indexUUID);
+        assertTrue(matcher.matches());
+
+        // Length 11
+        indexUUID = randomFrom("0", "1") + "1".repeat(10) + UUIDs.randomBase64UUID();
+        matcher = binaryPrefixIndexUUIDPattern.matcher(indexUUID);
+        assertFalse(matcher.matches());
     }
 
     private IndexTemplateMetadata addMatchingTemplate(Consumer<IndexTemplateMetadata.Builder> configurator) {
