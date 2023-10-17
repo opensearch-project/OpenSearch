@@ -698,8 +698,11 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
         assertTrue(manifestFileName.contains(MANIFEST_FILE_PREFIX));
         assertTrue(manifestFileName.contains(RemoteStoreUtils.invertLong(term)));
         assertTrue(manifestFileName.contains(RemoteStoreUtils.invertLong(version)));
-        assertTrue(manifestFileName.contains(RemoteStoreUtils.invertLong(1))); // assertion for committed
+        assertTrue(manifestFileName.contains("C")); // assertion for committed
         assertTrue(manifestFileName.contains(RemoteStoreUtils.invertLong(2))); // assertion for codec version
+
+        manifestFileName = RemoteClusterStateService.getManifestFileName(term, version, false);
+        assertTrue(manifestFileName.contains("P")); // assertion for committed false
     }
 
     private void mockObjectsForGettingPreviousClusterUUID(Map<String, String> clusterUUIDsPointers) throws IOException {

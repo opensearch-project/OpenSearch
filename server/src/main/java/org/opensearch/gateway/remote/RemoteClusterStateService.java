@@ -498,7 +498,7 @@ public class RemoteClusterStateService implements Closeable {
             MANIFEST_PATH_TOKEN,
             RemoteStoreUtils.invertLong(term),
             RemoteStoreUtils.invertLong(version),
-            RemoteStoreUtils.invertLong(committed ? 1 : 0),
+            (committed ? "C" : "P"), // C for committed and P for published
             RemoteStoreUtils.invertLong(MANIFEST_CODEC_VERSION),
             RemoteStoreUtils.invertLong(System.currentTimeMillis())
         );
