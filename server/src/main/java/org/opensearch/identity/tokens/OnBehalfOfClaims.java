@@ -23,7 +23,7 @@ public class OnBehalfOfClaims {
      * Constructor for OnBehalfOfClaims
      * @param aud the Audience for the token
      * @param subject the subject of the token
-     * @param expiration the expiration time in seconds for the token
+     * @param expiration the length of time in seconds the token is valid
      * @param not_before the not_before time in seconds for the token
      * @param issued_at the issued_at time in seconds for the token
      */
@@ -62,7 +62,7 @@ public class OnBehalfOfClaims {
      * @param subject the subject of the token
      */
     public OnBehalfOfClaims(String aud, String subject) {
-        this(aud, subject, System.currentTimeMillis() / 1000 + 300);
+        this(aud, subject, 300L);
     }
 
     public String getAudience() {
