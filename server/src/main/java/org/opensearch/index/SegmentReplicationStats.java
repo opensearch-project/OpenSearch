@@ -63,7 +63,7 @@ public class SegmentReplicationStats implements Writeable, ToXContentFragment {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject("segment_replication");
+        builder.startObject("segment_replication_backpressure");
         builder.field("total_rejected_requests", totalRejectionCount);
         return builder.endObject();
     }
