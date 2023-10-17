@@ -507,7 +507,7 @@ public class RemoteClusterStateService implements Closeable {
 
     static String indexMetadataFileName(IndexMetadata indexMetadata) {
         // 123456789012_test-cluster/cluster-state/dsgYj10Nkso7/index/<index_UUID>/metadata__<inverted_index_metadata_version>__<inverted__timestamp>__<codec
-        // version>.dat
+        // version>
         return String.join(
             DELIMITER,
             INDEX_METADATA_FILE_PREFIX,
