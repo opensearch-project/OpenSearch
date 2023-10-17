@@ -219,65 +219,6 @@ public class RemoteStoreClusterStateRestoreIT extends BaseRemoteStoreRestoreIT {
         });
     }
 
-    private void restoreAndValidateFails(
-        Metadata clusterUUID,
-        PlainActionFuture<RestoreRemoteStoreResponse> actionListener,
-        Class<? extends Throwable> clazz,
-        String errorSubString
-    ) {
-        try {
-            validateMetadataAfterRestore(clusterUUID);
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
-        // try {
-        // validateMetadataAfterRestore(clusterUUID);
-        // } catch (Exception e) {
-        // assertTrue(
-        // String.format(Locale.ROOT, "%s %s", clazz, e),
-        // clazz.isAssignableFrom(e.getClass())
-        // || clazz.isAssignableFrom(e.getCause().getClass())
-        // || (e.getCause().getCause() != null && clazz.isAssignableFrom(e.getCause().getCause().getClass()))
-        // );
-        // assertTrue(
-        // String.format(Locale.ROOT, "Error message mismatch. Expected: [%s]. Actual: [%s]", errorSubString, e.getMessage()),
-        // e.getMessage().contains(errorSubString)
-        // );
-        // }
-    }
-
-    private void reduceShardLimits(int maxShardsPerNode, int maxShardsPerCluster) {
-        // Step 3 - Reduce shard limits to hit shard limit with less no of shards
-        try {
-            client().admin()
-                .cluster()
-                .updateSettings(
-                    new ClusterUpdateSettingsRequest().transientSettings(
-                        Settings.builder()
-                            .put(SETTING_CLUSTER_MAX_SHARDS_PER_NODE.getKey(), maxShardsPerNode)
-                            .put(SETTING_MAX_SHARDS_PER_CLUSTER_KEY, maxShardsPerCluster)
-                    )
-                )
-                .get();
-        } catch (InterruptedException | ExecutionException e) {
-            throw new RuntimeException(e);
-        }
-    }
-
-    private void resetShardLimits() {
-        // Step - 5 Reset the cluster settings
-        ClusterUpdateSettingsRequest resetRequest = new ClusterUpdateSettingsRequest();
-        resetRequest.transientSettings(
-            Settings.builder().putNull(SETTING_CLUSTER_MAX_SHARDS_PER_NODE.getKey()).putNull(SETTING_MAX_SHARDS_PER_CLUSTER_KEY)
-        );
-
-        try {
-            client().admin().cluster().updateSettings(resetRequest).get();
-        } catch (InterruptedException | ExecutionException e) {
-            throw new RuntimeException(e);
-        }
-    }
-
     private void performOperation(int iteration) throws Exception {
         if (randomBoolean()) {
             // create index
