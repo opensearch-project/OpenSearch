@@ -28,6 +28,7 @@ import org.opensearch.telemetry.metrics.tags.Tags;
  * Increments the counters related to Search Query type.
  */
 public class SearchQueryCategorizingVisitor implements QueryBuilderVisitor {
+    public static final String LEVEL_TAG = "level";
     private final int level;
     private final SearchQueryCounters searchQueryCounters;
 
@@ -42,27 +43,27 @@ public class SearchQueryCategorizingVisitor implements QueryBuilderVisitor {
 
     public void accept(QueryBuilder qb) {
         if (qb instanceof BoolQueryBuilder) {
-            searchQueryCounters.boolCounter.add(1, Tags.create().addTag("level", level));
+            searchQueryCounters.boolCounter.add(1, Tags.create().addTag(LEVEL_TAG, level));
         } else if (qb instanceof FunctionScoreQueryBuilder) {
-            searchQueryCounters.functionScoreCounter.add(1, Tags.create().addTag("level", level));
+            searchQueryCounters.functionScoreCounter.add(1, Tags.create().addTag(LEVEL_TAG, level));
         } else if (qb instanceof MatchQueryBuilder) {
-            searchQueryCounters.matchCounter.add(1, Tags.create().addTag("level", level));
+            searchQueryCounters.matchCounter.add(1, Tags.create().addTag(LEVEL_TAG, level));
         } else if (qb instanceof MatchPhraseQueryBuilder) {
-            searchQueryCounters.matchPhrasePrefixCounter.add(1, Tags.create().addTag("level", level));
+            searchQueryCounters.matchPhrasePrefixCounter.add(1, Tags.create().addTag(LEVEL_TAG, level));
         } else if (qb instanceof MultiMatchQueryBuilder) {
-            searchQueryCounters.multiMatchCounter.add(1, Tags.create().addTag("level", level));
+            searchQueryCounters.multiMatchCounter.add(1, Tags.create().addTag(LEVEL_TAG, level));
         } else if (qb instanceof QueryStringQueryBuilder) {
-            searchQueryCounters.queryStringQueryCounter.add(1, Tags.create().addTag("level", level));
+            searchQueryCounters.queryStringQueryCounter.add(1, Tags.create().addTag(LEVEL_TAG, level));
         } else if (qb instanceof RangeQueryBuilder) {
-            searchQueryCounters.rangeCounter.add(1, Tags.create().addTag("level", level));
+            searchQueryCounters.rangeCounter.add(1, Tags.create().addTag(LEVEL_TAG, level));
         } else if (qb instanceof RegexpQueryBuilder) {
-            searchQueryCounters.regexCounter.add(1, Tags.create().addTag("level", level));
+            searchQueryCounters.regexCounter.add(1, Tags.create().addTag(LEVEL_TAG, level));
         } else if (qb instanceof TermQueryBuilder) {
-            searchQueryCounters.termCounter.add(1, Tags.create().addTag("level", level));
+            searchQueryCounters.termCounter.add(1, Tags.create().addTag(LEVEL_TAG, level));
         } else if (qb instanceof WildcardQueryBuilder) {
-            searchQueryCounters.wildcardCounter.add(1, Tags.create().addTag("level", level));
+            searchQueryCounters.wildcardCounter.add(1, Tags.create().addTag(LEVEL_TAG, level));
         } else {
-            searchQueryCounters.otherQueryCounter.add(1, Tags.create().addTag("level", level));
+            searchQueryCounters.otherQueryCounter.add(1, Tags.create().addTag(LEVEL_TAG, level));
         }
     }
 

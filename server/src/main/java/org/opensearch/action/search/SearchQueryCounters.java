@@ -38,77 +38,77 @@ public class SearchQueryCounters {
     public SearchQueryCounters(MetricsRegistry metricsRegistry) {
         this.metricsRegistry = metricsRegistry;
         this.aggCounter = metricsRegistry.createCounter(
-            "aggSearchQueryCounter",
+            "search.query.type.agg.count",
             "Counter for the number of top level agg search queries",
             "0"
         );
         this.boolCounter = metricsRegistry.createCounter(
-            "boolSearchQueryCounter",
+            "search.query.type.bool.count",
             "Counter for the number of top level and nested bool search queries",
             "0"
         );
         this.functionScoreCounter = metricsRegistry.createCounter(
-            "functionScoreSearchQueryCounter",
+            "search.query.type.functionscore.count",
             "Counter for the number of top level and nested function score search queries",
             "0"
         );
         this.matchCounter = metricsRegistry.createCounter(
-            "matchSearchQueryCounter",
+            "search.query.type.match.count",
             "Counter for the number of top level and nested match search queries",
             "0"
         );
         this.matchPhrasePrefixCounter = metricsRegistry.createCounter(
-            "matchPhrasePrefixSearchQueryCounter",
+            "search.query.type.matchphrase.count",
             "Counter for the number of top level and nested match phrase prefix search queries",
             "0"
         );
         this.multiMatchCounter = metricsRegistry.createCounter(
-            "multiMatchSearchQueryCounter",
+            "search.query.type.multimatch.count",
             "Counter for the number of top level and nested multi match search queries",
             "0"
         );
         this.otherQueryCounter = metricsRegistry.createCounter(
-            "otherSearchQueryCounter",
+            "search.query.type.other.count",
             "Counter for the number of top level and nested search queries that do not match any other categories",
             "0"
         );
         this.queryStringQueryCounter = metricsRegistry.createCounter(
-            "queryStringQuerySearchQueryCounter",
+            "search.query.type.querystringquery.count",
             "Counter for the number of top level and nested queryStringQuery search queries",
             "0"
         );
         this.rangeCounter = metricsRegistry.createCounter(
-            "rangeSearchQueryCounter",
+            "search.query.type.range.count",
             "Counter for the number of top level and nested range search queries",
             "0"
         );
         this.regexCounter = metricsRegistry.createCounter(
-            "regexSearchQueryCounter",
+            "search.query.type.regex.count",
             "Counter for the number of top level and nested regex search queries",
             "0"
         );
         this.skippedCounter = metricsRegistry.createCounter(
-            "skippedQueryCounter",
+            "search.query.type.skipped.count",
             "Counter for the number queries skipped due to error",
             "0"
         );
         this.sortCounter = metricsRegistry.createCounter(
-            "sortSearchQueryCounter",
+            "search.query.type.sort.count",
             "Counter for the number of top level sort search queries",
             "0"
         );
         this.termCounter = metricsRegistry.createCounter(
-            "termSearchQueryCounter",
+            "search.query.type.term.count",
             "Counter for the number of top level and nested term search queries",
             "0"
         );
         this.totalCounter = metricsRegistry.createCounter(
-            "totalSearchQueryCounter",
+            "search.query.type.total.count",
             "Counter for the number of top level and nested search queries",
             "0"
         );
         this.wildcardCounter = metricsRegistry.createCounter(
-            "wildcardSearchQueryCounter",
+            "search.query.type.wildcard.count",
             "Counter for the number of top level and nested wildcard search queries",
             "0"
         );
