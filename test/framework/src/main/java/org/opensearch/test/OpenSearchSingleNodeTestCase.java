@@ -252,6 +252,7 @@ public abstract class OpenSearchSingleNodeTestCase extends OpenSearchTestCase {
             .putList(DISCOVERY_SEED_HOSTS_SETTING.getKey()) // empty list disables a port scan for other nodes
             .putList(INITIAL_CLUSTER_MANAGER_NODES_SETTING.getKey(), nodeName)
             .put(TelemetrySettings.TRACER_ENABLED_SETTING.getKey(), true)
+            .put(TelemetrySettings.TRACER_FEATURE_ENABLED_SETTING.getKey(), true)
             .put(nodeSettings()) // allow test cases to provide their own settings or override these
             .put(featureFlagSettings());
 
@@ -270,6 +271,7 @@ public abstract class OpenSearchSingleNodeTestCase extends OpenSearchTestCase {
             plugins.add(MockHttpTransport.TestPlugin.class);
         }
         plugins.add(MockScriptService.TestPlugin.class);
+
         plugins.add(MockTelemetryPlugin.class);
         Node node = new MockNode(settingsBuilder.build(), plugins, forbidPrivateIndexSettings());
         try {
