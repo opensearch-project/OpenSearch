@@ -186,6 +186,7 @@ public class GatewayMetaState implements Closeable {
                         remotePersistedState = new RemotePersistedState(remoteClusterStateService, lastKnownClusterUUID);
                     }
 
+                    // Recovers ClusterBlocks as well
                     clusterState = prepareInitialClusterState(
                         transportService,
                         clusterService,

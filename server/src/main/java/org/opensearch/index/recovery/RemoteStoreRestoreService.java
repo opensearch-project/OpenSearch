@@ -168,16 +168,7 @@ public class RemoteStoreRestoreService {
             }
         }
         validate(currentState, indexMetadataMap, restoreClusterUUID, restoreAllShards);
-        RemoteRestoreResult remoteRestoreResult = executeRestore(currentState, indexMetadataMap, restoreAllShards);
-        if (metadataFromRemoteStore) {
-            ClusterState restoredClusterState = restoreClusterMetadata(remoteRestoreResult.getClusterState(), remoteClusterMetadata);
-            remoteRestoreResult = RemoteRestoreResult.build(
-                remoteRestoreResult.getRestoreUUID(),
-                remoteRestoreResult.getRestoreInfo(),
-                restoredClusterState
-            );
-        }
-        return remoteRestoreResult;
+        return executeRestore(currentState, indexMetadataMap, restoreAllShards, remoteClusterMetadata);
     }
 
     /**
@@ -190,7 +181,8 @@ public class RemoteStoreRestoreService {
     private RemoteRestoreResult executeRestore(
         ClusterState currentState,
         Map<String, Tuple<Boolean, IndexMetadata>> indexMetadataMap,
-        boolean restoreAllShards
+        boolean restoreAllShards,
+        Metadata remoteClusterMetadata
     ) {
         final String restoreUUID = UUIDs.randomBase64UUID();
         List<String> indicesToBeRestored = new ArrayList<>();
@@ -243,6 +235,8 @@ public class RemoteStoreRestoreService {
             totalShards += updatedIndexMetadata.getNumberOfShards();
         }
 
+        restoreClusterMetadata(mdBuilder, remoteClusterMetadata);
+
         RestoreInfo restoreInfo = new RestoreInfo("remote_store", indicesToBeRestored, totalShards, totalShards);
 
         RoutingTable rt = rtBuilder.build();
@@ -250,17 +244,13 @@ public class RemoteStoreRestoreService {
         return RemoteRestoreResult.build(restoreUUID, restoreInfo, allocationService.reroute(updatedState, "restored from remote store"));
     }
 
-    private ClusterState restoreClusterMetadata(ClusterState restoredClusterState, Metadata clusterMetadata) {
-        Metadata.Builder mdBuilder = new Metadata.Builder(clusterMetadata);
-        mdBuilder.clusterUUID(restoredClusterState.getMetadata().clusterUUID());
-        mdBuilder.clusterUUIDCommitted(restoredClusterState.getMetadata().clusterUUIDCommitted());
-        mdBuilder.coordinationMetadata(restoredClusterState.getMetadata().coordinationMetadata());
-        if (clusterMetadata.persistentSettings() != null) {
-            Settings settings = clusterMetadata.persistentSettings();
+    private void restoreClusterMetadata(Metadata.Builder mdBuilder, Metadata remoteClusterMetadata) {
+        if (remoteClusterMetadata.persistentSettings() != null) {
+            Settings settings = remoteClusterMetadata.persistentSettings();
             clusterService.getClusterSettings().validateUpdate(settings);
             mdBuilder.persistentSettings(settings);
         }
-        Optional<RepositoriesMetadata> repositoriesMetadata = Optional.ofNullable(clusterMetadata.custom(RepositoriesMetadata.TYPE));
+        Optional<RepositoriesMetadata> repositoriesMetadata = Optional.ofNullable(remoteClusterMetadata.custom(RepositoriesMetadata.TYPE));
         repositoriesMetadata = repositoriesMetadata.map(
             repositoriesMetadata1 -> new RepositoriesMetadata(
                 repositoriesMetadata1.repositories()
@@ -270,7 +260,6 @@ public class RemoteStoreRestoreService {
             )
         );
         repositoriesMetadata.ifPresent(metadata -> mdBuilder.putCustom(RepositoriesMetadata.TYPE, metadata));
-        return ClusterState.builder(restoredClusterState).metadata(mdBuilder).build();
     }
 
     /**
