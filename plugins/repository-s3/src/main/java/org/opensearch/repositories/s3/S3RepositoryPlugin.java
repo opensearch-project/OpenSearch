@@ -73,6 +73,9 @@ import java.util.function.Supplier;
  * A plugin to add a repository type that writes to and from the AWS S3.
  */
 public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, ReloadablePlugin {
+
+    private static final String URGENT_FUTURE_COMPLETION = "urgent_future_completion";
+    private static final String URGENT_STREAM_READER = "urgent_stream_reader";
     private static final String PRIORITY_FUTURE_COMPLETION = "priority_future_completion";
     private static final String PRIORITY_STREAM_READER = "priority_stream_reader";
     private static final String FUTURE_COMPLETION = "future_completion";
@@ -83,6 +86,7 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
 
     private final Path configPath;
 
+    private AsyncExecutorContainer urgentExecutorBuilder;
     private AsyncExecutorContainer priorityExecutorBuilder;
     private AsyncExecutorContainer normalExecutorBuilder;
 
@@ -94,11 +98,18 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
     public List<ExecutorBuilder<?>> getExecutorBuilders(Settings settings) {
         List<ExecutorBuilder<?>> executorBuilders = new ArrayList<>();
         executorBuilders.add(
+            new FixedExecutorBuilder(settings, URGENT_FUTURE_COMPLETION, urgentPoolCount(settings), 10_000, URGENT_FUTURE_COMPLETION)
+        );
+        executorBuilders.add(
+            new FixedExecutorBuilder(settings, URGENT_STREAM_READER, urgentPoolCount(settings), 10_000, URGENT_STREAM_READER)
+        );
+        executorBuilders.add(
             new FixedExecutorBuilder(settings, PRIORITY_FUTURE_COMPLETION, priorityPoolCount(settings), 10_000, PRIORITY_FUTURE_COMPLETION)
         );
         executorBuilders.add(
             new FixedExecutorBuilder(settings, PRIORITY_STREAM_READER, priorityPoolCount(settings), 10_000, PRIORITY_STREAM_READER)
         );
+
         executorBuilders.add(new FixedExecutorBuilder(settings, FUTURE_COMPLETION, normalPoolCount(settings), 10_000, FUTURE_COMPLETION));
         executorBuilders.add(new FixedExecutorBuilder(settings, STREAM_READER, normalPoolCount(settings), 10_000, STREAM_READER));
         return executorBuilders;
@@ -120,6 +131,10 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
 
     private static int allocatedProcessors(Settings settings) {
         return OpenSearchExecutors.allocatedProcessors(settings);
+    }
+
+    private static int urgentPoolCount(Settings settings) {
+        return boundedBy((allocatedProcessors(settings) + 7) / 8, 1, 2);
     }
 
     private static int priorityPoolCount(Settings settings) {
@@ -144,8 +159,14 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
         final IndexNameExpressionResolver expressionResolver,
         final Supplier<RepositoriesService> repositoriesServiceSupplier
     ) {
+        int urgentEventLoopThreads = urgentPoolCount(clusterService.getSettings());
         int priorityEventLoopThreads = priorityPoolCount(clusterService.getSettings());
         int normalEventLoopThreads = normalPoolCount(clusterService.getSettings());
+        this.urgentExecutorBuilder = new AsyncExecutorContainer(
+            threadPool.executor(URGENT_FUTURE_COMPLETION),
+            threadPool.executor(URGENT_STREAM_READER),
+            new AsyncTransferEventLoopGroup(urgentEventLoopThreads)
+        );
         this.priorityExecutorBuilder = new AsyncExecutorContainer(
             threadPool.executor(PRIORITY_FUTURE_COMPLETION),
             threadPool.executor(PRIORITY_STREAM_READER),
@@ -170,7 +191,8 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
         AsyncTransferManager asyncUploadUtils = new AsyncTransferManager(
             S3Repository.PARALLEL_MULTIPART_UPLOAD_MINIMUM_PART_SIZE_SETTING.get(clusterService.getSettings()).getBytes(),
             normalExecutorBuilder.getStreamReader(),
-            priorityExecutorBuilder.getStreamReader()
+            priorityExecutorBuilder.getStreamReader(),
+            urgentExecutorBuilder.getStreamReader()
         );
         return new S3Repository(
             metadata,
@@ -179,6 +201,7 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
             clusterService,
             recoverySettings,
             asyncUploadUtils,
+            urgentExecutorBuilder,
             priorityExecutorBuilder,
             normalExecutorBuilder,
             s3AsyncService,

@@ -58,6 +58,7 @@ public final class AsyncTransferManager {
     private static final Logger log = LogManager.getLogger(AsyncTransferManager.class);
     private final ExecutorService executorService;
     private final ExecutorService priorityExecutorService;
+    private final ExecutorService urgentExecutorService;
     private final long minimumPartSize;
 
     /**
@@ -72,10 +73,11 @@ public final class AsyncTransferManager {
      * @param executorService         The stream reader {@link ExecutorService} for normal priority uploads
      * @param priorityExecutorService The stream read {@link ExecutorService} for high priority uploads
      */
-    public AsyncTransferManager(long minimumPartSize, ExecutorService executorService, ExecutorService priorityExecutorService) {
+    public AsyncTransferManager(long minimumPartSize, ExecutorService executorService, ExecutorService priorityExecutorService, ExecutorService urgentExecutorService) {
         this.executorService = executorService;
         this.priorityExecutorService = priorityExecutorService;
         this.minimumPartSize = minimumPartSize;
+        this.urgentExecutorService = urgentExecutorService;
     }
 
     /**
@@ -152,6 +154,7 @@ public final class AsyncTransferManager {
                 s3AsyncClient,
                 executorService,
                 priorityExecutorService,
+                urgentExecutorService,
                 uploadRequest,
                 streamContext,
                 uploadId,
@@ -296,9 +299,14 @@ public final class AsyncTransferManager {
             putObjectRequestBuilder.checksumAlgorithm(ChecksumAlgorithm.CRC32);
             putObjectRequestBuilder.checksumCRC32(base64StringFromLong(uploadRequest.getExpectedChecksum()));
         }
-        ExecutorService streamReadExecutor = uploadRequest.getWritePriority() == WritePriority.HIGH
-            ? priorityExecutorService
-            : executorService;
+        ExecutorService streamReadExecutor;
+        if (uploadRequest.getWritePriority() == WritePriority.URGENT) {
+            streamReadExecutor = urgentExecutorService;
+        } else if (uploadRequest.getWritePriority() == WritePriority.HIGH) {
+            streamReadExecutor = priorityExecutorService;
+        } else {
+            streamReadExecutor = executorService;
+        }
         CompletableFuture<Void> putObjectFuture = SocketAccess.doPrivileged(
             () -> s3AsyncClient.putObject(
                 putObjectRequestBuilder.build(),
