@@ -28,7 +28,7 @@ public class SearchQueryCategorizer {
 
     private static final Logger log = LogManager.getLogger(SearchQueryCategorizer.class);
 
-    public SearchQueryCounters searchQueryCounters;
+    public final SearchQueryCounters searchQueryCounters;
 
     public SearchQueryCategorizer(MetricsRegistry metricsRegistry) {
         searchQueryCounters = new SearchQueryCounters(metricsRegistry);
