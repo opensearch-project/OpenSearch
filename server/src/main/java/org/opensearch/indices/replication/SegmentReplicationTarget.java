@@ -170,7 +170,14 @@ public class SegmentReplicationTarget extends ReplicationTarget {
             final List<StoreFileMetadata> filesToFetch = getFiles(checkpointInfo);
             state.setStage(SegmentReplicationState.Stage.GET_FILES);
             cancellableThreads.checkForCancel();
-            source.getSegmentFiles(getId(), checkpointInfo.getCheckpoint(), filesToFetch, indexShard, getFilesListener);
+            source.getSegmentFiles(
+                getId(),
+                checkpointInfo.getCheckpoint(),
+                filesToFetch,
+                indexShard,
+                this::updateFileRecoveryBytes,
+                getFilesListener
+            );
         }, listener::onFailure);
 
         getFilesListener.whenComplete(response -> {
@@ -238,6 +245,20 @@ public class SegmentReplicationTarget extends ReplicationTarget {
         } catch (IOException e) {
             throw new UncheckedIOException("Error reading " + file, e);
         }
+    }
+
+    /**
+     * Updates the state to reflect recovery progress for the given file and
+     * updates the last access time for the target.
+     * @param fileName Name of the file being downloaded
+     * @param bytesRecovered Number of bytes recovered
+     */
+    private void updateFileRecoveryBytes(String fileName, long bytesRecovered) {
+        ReplicationLuceneIndex index = state.getIndex();
+        if (index != null) {
+            index.addRecoveredBytesToFile(fileName, bytesRecovered);
+        }
+        setLastAccessTime();
     }
 
     private void finalizeReplication(CheckpointInfoResponse checkpointInfoResponse) throws OpenSearchCorruptionException {
