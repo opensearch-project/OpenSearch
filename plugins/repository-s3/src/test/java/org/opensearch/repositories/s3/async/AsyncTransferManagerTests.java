@@ -33,6 +33,7 @@ import org.opensearch.common.blobstore.stream.write.WritePriority;
 import org.opensearch.common.io.InputStreamContainer;
 import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.repositories.blobstore.ZeroInputStream;
+import org.opensearch.repositories.s3.StatsMetricPublisher;
 import org.opensearch.test.OpenSearchTestCase;
 import org.junit.Before;
 
@@ -80,7 +81,8 @@ public class AsyncTransferManagerTests extends OpenSearchTestCase {
                 ByteSizeUnit.MB.toBytes(1),
                 ByteSizeUnit.MB.toBytes(1),
                 1
-            )
+            ),
+            new StatsMetricPublisher()
         );
 
         try {
@@ -118,7 +120,8 @@ public class AsyncTransferManagerTests extends OpenSearchTestCase {
                 ByteSizeUnit.MB.toBytes(1),
                 ByteSizeUnit.MB.toBytes(1),
                 1
-            )
+            ),
+            new StatsMetricPublisher()
         );
 
         try {
@@ -169,7 +172,8 @@ public class AsyncTransferManagerTests extends OpenSearchTestCase {
                 ByteSizeUnit.MB.toBytes(1),
                 ByteSizeUnit.MB.toBytes(1),
                 5
-            )
+            ),
+            new StatsMetricPublisher()
         );
 
         try {
@@ -219,7 +223,8 @@ public class AsyncTransferManagerTests extends OpenSearchTestCase {
                 ByteSizeUnit.MB.toBytes(1),
                 ByteSizeUnit.MB.toBytes(1),
                 5
-            )
+            ),
+            new StatsMetricPublisher()
         );
 
         try {

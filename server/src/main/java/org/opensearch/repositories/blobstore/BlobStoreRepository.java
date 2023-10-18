@@ -855,6 +855,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         final BlobStore store = blobStore.get();
         if (store == null) {
             return RepositoryStats.EMPTY_STATS;
+        } else if (store.extendedStats() != null && store.extendedStats().isEmpty() == false) {
+            return new RepositoryStats(store.extendedStats(), true);
         }
         return new RepositoryStats(store.stats());
     }
