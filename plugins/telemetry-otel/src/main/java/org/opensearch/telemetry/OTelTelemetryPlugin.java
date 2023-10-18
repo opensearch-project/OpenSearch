@@ -8,14 +8,13 @@
 
 package org.opensearch.telemetry;
 
+import org.opensearch.common.concurrent.RefCountedReleasable;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.plugins.TelemetryPlugin;
-import org.opensearch.telemetry.metrics.OTelMetricsTelemetry;
 import org.opensearch.telemetry.tracing.OTelResourceProvider;
 import org.opensearch.telemetry.tracing.OTelTelemetry;
-import org.opensearch.telemetry.tracing.OTelTracingTelemetry;
 
 import java.util.Arrays;
 import java.util.List;
@@ -36,6 +35,8 @@ public class OTelTelemetryPlugin extends Plugin implements TelemetryPlugin {
     static final String OTEL_TRACER_NAME = "otel";
 
     private final Settings settings;
+
+    private RefCountedReleasable<OpenTelemetrySdk> refCountedOpenTelemetry;
 
     /**
      * Creates Otel plugin
@@ -58,7 +59,16 @@ public class OTelTelemetryPlugin extends Plugin implements TelemetryPlugin {
 
     @Override
     public Optional<Telemetry> getTelemetry(TelemetrySettings telemetrySettings) {
+        initializeOpenTelemetrySdk(telemetrySettings);
         return Optional.of(telemetry(telemetrySettings));
+    }
+
+    private void initializeOpenTelemetrySdk(TelemetrySettings telemetrySettings) {
+        if (refCountedOpenTelemetry != null) {
+            return;
+        }
+        OpenTelemetrySdk openTelemetrySdk = OTelResourceProvider.get(telemetrySettings, settings);
+        refCountedOpenTelemetry = new RefCountedReleasable<>("openTelemetry", openTelemetrySdk, openTelemetrySdk::close);
     }
 
     @Override
@@ -67,11 +77,14 @@ public class OTelTelemetryPlugin extends Plugin implements TelemetryPlugin {
     }
 
     private Telemetry telemetry(TelemetrySettings telemetrySettings) {
-        final OpenTelemetrySdk openTelemetry = OTelResourceProvider.get(telemetrySettings, settings);
-        return new OTelTelemetry(
-            new OTelTracingTelemetry<>(openTelemetry, openTelemetry.getSdkTracerProvider()),
-            new OTelMetricsTelemetry<>(openTelemetry.getSdkMeterProvider())
-        );
+        return new OTelTelemetry(refCountedOpenTelemetry);
+    }
+
+    @Override
+    public void close() {
+        if (refCountedOpenTelemetry != null) {
+            refCountedOpenTelemetry.close();
+        }
     }
 
 }

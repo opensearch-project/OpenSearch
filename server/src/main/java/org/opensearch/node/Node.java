@@ -599,10 +599,23 @@ public class Node implements Closeable {
             MetricsRegistryFactory metricsRegistryFactory;
             if (FeatureFlags.isEnabled(TELEMETRY)) {
                 final TelemetrySettings telemetrySettings = new TelemetrySettings(settings, clusterService.getClusterSettings());
-                List<TelemetryPlugin> telemetryPlugins = pluginsService.filterPlugins(TelemetryPlugin.class);
-                TelemetryModule telemetryModule = new TelemetryModule(telemetryPlugins, telemetrySettings);
-                tracerFactory = new TracerFactory(telemetrySettings, telemetryModule.getTelemetry(), threadPool.getThreadContext());
-                metricsRegistryFactory = new MetricsRegistryFactory(telemetrySettings, telemetryModule.getTelemetry());
+                if (telemetrySettings.isTracingFeatureEnabled() || telemetrySettings.isMetricsFeatureEnabled()) {
+                    List<TelemetryPlugin> telemetryPlugins = pluginsService.filterPlugins(TelemetryPlugin.class);
+                    TelemetryModule telemetryModule = new TelemetryModule(telemetryPlugins, telemetrySettings);
+                    if (telemetrySettings.isTracingFeatureEnabled()) {
+                        tracerFactory = new TracerFactory(telemetrySettings, telemetryModule.getTelemetry(), threadPool.getThreadContext());
+                    } else {
+                        tracerFactory = new NoopTracerFactory();
+                    }
+                    if (telemetrySettings.isMetricsFeatureEnabled()) {
+                        metricsRegistryFactory = new MetricsRegistryFactory(telemetrySettings, telemetryModule.getTelemetry());
+                    } else {
+                        metricsRegistryFactory = new NoopMetricsRegistryFactory();
+                    }
+                } else {
+                    tracerFactory = new NoopTracerFactory();
+                    metricsRegistryFactory = new NoopMetricsRegistryFactory();
+                }
             } else {
                 tracerFactory = new NoopTracerFactory();
                 metricsRegistryFactory = new NoopMetricsRegistryFactory();

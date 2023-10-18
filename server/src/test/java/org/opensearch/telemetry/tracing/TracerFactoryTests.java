@@ -83,6 +83,18 @@ public class TracerFactoryTests extends OpenSearchTestCase {
 
     }
 
+    public void testNullTracer() {
+        Settings settings = Settings.builder().put(TelemetrySettings.TRACER_FEATURE_ENABLED_SETTING.getKey(), false).build();
+        TelemetrySettings telemetrySettings = new TelemetrySettings(settings, new ClusterSettings(settings, getClusterSettings()));
+        Telemetry mockTelemetry = mock(Telemetry.class);
+        when(mockTelemetry.getTracingTelemetry()).thenReturn(null);
+        tracerFactory = new TracerFactory(telemetrySettings, Optional.of(mockTelemetry), new ThreadContext(Settings.EMPTY));
+
+        Tracer tracer = tracerFactory.getTracer();
+        assertTrue(tracer instanceof NoopTracer);
+
+    }
+
     private Set<Setting<?>> getClusterSettings() {
         Set<Setting<?>> allTracerSettings = new HashSet<>();
         ClusterSettings.FEATURE_FLAGGED_CLUSTER_SETTINGS.get(List.of(FeatureFlags.TELEMETRY)).stream().forEach((allTracerSettings::add));

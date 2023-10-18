@@ -6,12 +6,9 @@
  * compatible open source license.
  */
 
-package org.opensearch.telemetry.tracing;
+package org.opensearch.telemetry;
 
 import org.opensearch.common.settings.Settings;
-import org.opensearch.telemetry.OTelTelemetryPlugin;
-import org.opensearch.telemetry.Telemetry;
-import org.opensearch.telemetry.TelemetrySettings;
 
 import java.util.Optional;
 

@@ -1972,6 +1972,7 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
         }
         // Enable tracer only when Telemetry Setting is enabled
         if (featureFlagSettings().getAsBoolean(FeatureFlags.TELEMETRY_SETTING.getKey(), false)) {
+            builder.put(TelemetrySettings.TRACER_FEATURE_ENABLED_SETTING.getKey(), true);
             builder.put(TelemetrySettings.TRACER_ENABLED_SETTING.getKey(), true);
         }
         if (FeatureFlags.CONCURRENT_SEGMENT_SEARCH_SETTING.get(featureFlagSettings)) {
