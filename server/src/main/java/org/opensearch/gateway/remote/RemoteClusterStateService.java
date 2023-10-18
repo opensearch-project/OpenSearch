@@ -87,13 +87,6 @@ public class RemoteClusterStateService implements Closeable {
     public static final int INDEX_METADATA_UPLOAD_WAIT_MILLIS = 20000;
     public static final int GLOBAL_METADATA_UPLOAD_WAIT_MILLIS = 20000;
 
-    // TODO : remove once upload PR is merged
-    public static final ChecksumBlobStoreFormat<Metadata> GLOBAL_METADATA_FORMAT = new ChecksumBlobStoreFormat<>(
-        "metadata",
-        METADATA_NAME_FORMAT,
-        Metadata::fromXContent
-    );
-
     public static final ChecksumBlobStoreFormat<IndexMetadata> INDEX_METADATA_FORMAT = new ChecksumBlobStoreFormat<>(
         "index-metadata",
         METADATA_NAME_FORMAT,
@@ -722,15 +715,17 @@ public class RemoteClusterStateService implements Closeable {
         start();
         Optional<ClusterMetadataManifest> clusterMetadataManifest = getLatestClusterMetadataManifest(clusterName, clusterUUID);
         if (!clusterMetadataManifest.isPresent()) {
-            throw new IllegalStateException("Latest cluster metadata manifest is not present for the provided clusterUUID");
+            throw new IllegalStateException(
+                String.format(Locale.ROOT, "Latest cluster metadata manifest is not present for the provided clusterUUID: %s", clusterUUID)
+            );
         }
         // Fetch Global Metadata
-        Metadata metadataWithGlobalMetadata = getGlobalMetadata(clusterName, clusterUUID, clusterMetadataManifest.get());
+        Metadata globalMetadata = getGlobalMetadata(clusterName, clusterUUID, clusterMetadataManifest.get());
 
         // Fetch Index Metadata
         Map<String, IndexMetadata> indices = getIndexMetadataMap(clusterName, clusterUUID, clusterMetadataManifest.get());
 
-        return Metadata.builder(metadataWithGlobalMetadata).indices(indices).build();
+        return Metadata.builder(globalMetadata).indices(indices).build();
     }
 
     private Metadata getGlobalMetadata(String clusterName, String clusterUUID, ClusterMetadataManifest clusterMetadataManifest) {
@@ -753,12 +748,6 @@ public class RemoteClusterStateService implements Closeable {
                 e
             );
         }
-    }
-
-    // TODO: Remove this once Upload PR is merged
-    private BlobContainer globalMetadataContainer(String clusterName, String clusterUUID) {
-        // 123456789012_test-cluster/cluster-state/dsgYj10Nkso7/global-metadata/
-        return blobStoreRepository.blobStore().blobContainer(getCusterMetadataBasePath(clusterName, clusterUUID).add("global-metadata"));
     }
 
     /**
