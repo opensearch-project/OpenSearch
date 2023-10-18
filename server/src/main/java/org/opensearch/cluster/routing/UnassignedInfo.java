@@ -147,11 +147,7 @@ public final class UnassignedInfo implements ToXContentFragment, Writeable {
         /**
          * Unassigned as a result of closing an index.
          */
-        INDEX_CLOSED,
-        /**
-         * Unassigned as restored from Remote Metadata.
-         */
-        REMOTE_METADATA_RECOVERED
+        INDEX_CLOSED
     }
 
     /**
