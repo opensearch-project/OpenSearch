@@ -35,6 +35,7 @@ import org.opensearch.common.io.InputStreamContainer;
 import org.opensearch.common.util.ByteUtils;
 import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.repositories.s3.SocketAccess;
+import org.opensearch.repositories.s3.StatsMetricPublisher;
 import org.opensearch.repositories.s3.io.CheckedContainer;
 
 import java.io.BufferedInputStream;
@@ -87,16 +88,21 @@ public final class AsyncTransferManager {
      * @param streamContext The {@link StreamContext} to supply streams during upload
      * @return A {@link CompletableFuture} to listen for upload completion
      */
-    public CompletableFuture<Void> uploadObject(S3AsyncClient s3AsyncClient, UploadRequest uploadRequest, StreamContext streamContext) {
+    public CompletableFuture<Void> uploadObject(
+        S3AsyncClient s3AsyncClient,
+        UploadRequest uploadRequest,
+        StreamContext streamContext,
+        StatsMetricPublisher statsMetricPublisher
+    ) {
 
         CompletableFuture<Void> returnFuture = new CompletableFuture<>();
         try {
             if (streamContext.getNumberOfParts() == 1) {
                 log.debug(() -> "Starting the upload as a single upload part request");
-                uploadInOneChunk(s3AsyncClient, uploadRequest, streamContext.provideStream(0), returnFuture);
+                uploadInOneChunk(s3AsyncClient, uploadRequest, streamContext.provideStream(0), returnFuture, statsMetricPublisher);
             } else {
                 log.debug(() -> "Starting the upload as multipart upload request");
-                uploadInParts(s3AsyncClient, uploadRequest, streamContext, returnFuture);
+                uploadInParts(s3AsyncClient, uploadRequest, streamContext, returnFuture, statsMetricPublisher);
             }
         } catch (Throwable throwable) {
             returnFuture.completeExceptionally(throwable);
@@ -109,12 +115,14 @@ public final class AsyncTransferManager {
         S3AsyncClient s3AsyncClient,
         UploadRequest uploadRequest,
         StreamContext streamContext,
-        CompletableFuture<Void> returnFuture
+        CompletableFuture<Void> returnFuture,
+        StatsMetricPublisher statsMetricPublisher
     ) {
 
         CreateMultipartUploadRequest.Builder createMultipartUploadRequestBuilder = CreateMultipartUploadRequest.builder()
             .bucket(uploadRequest.getBucket())
-            .key(uploadRequest.getKey());
+            .key(uploadRequest.getKey())
+            .overrideConfiguration(o -> o.addMetricPublisher(statsMetricPublisher.multipartUploadMetricCollector));
         if (uploadRequest.doRemoteDataIntegrityCheck()) {
             createMultipartUploadRequestBuilder.checksumAlgorithm(ChecksumAlgorithm.CRC32);
         }
@@ -287,12 +295,14 @@ public final class AsyncTransferManager {
         S3AsyncClient s3AsyncClient,
         UploadRequest uploadRequest,
         InputStreamContainer inputStreamContainer,
-        CompletableFuture<Void> returnFuture
+        CompletableFuture<Void> returnFuture,
+        StatsMetricPublisher statsMetricPublisher
     ) {
         PutObjectRequest.Builder putObjectRequestBuilder = PutObjectRequest.builder()
             .bucket(uploadRequest.getBucket())
             .key(uploadRequest.getKey())
-            .contentLength(uploadRequest.getContentLength());
+            .contentLength(uploadRequest.getContentLength())
+            .overrideConfiguration(o -> o.addMetricPublisher(statsMetricPublisher.putObjectMetricPublisher));
         if (uploadRequest.doRemoteDataIntegrityCheck()) {
             putObjectRequestBuilder.checksumAlgorithm(ChecksumAlgorithm.CRC32);
             putObjectRequestBuilder.checksumCRC32(base64StringFromLong(uploadRequest.getExpectedChecksum()));
