@@ -249,7 +249,7 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
             new BytesArray(writtenBytes)
         );
 
-        assertEquals(capturedWriteContext.getWritePriority(), WritePriority.HIGH);
+        assertEquals(capturedWriteContext.getWritePriority(), WritePriority.URGENT);
         assertEquals(writtenIndexMetadata.getNumberOfShards(), 1);
         assertEquals(writtenIndexMetadata.getNumberOfReplicas(), 0);
         assertEquals(writtenIndexMetadata.getIndex().getName(), "test-index");
