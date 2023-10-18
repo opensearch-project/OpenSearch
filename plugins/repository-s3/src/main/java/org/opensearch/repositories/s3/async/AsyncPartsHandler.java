@@ -23,9 +23,11 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.common.StreamContext;
 import org.opensearch.common.blobstore.stream.write.WritePriority;
 import org.opensearch.common.io.InputStreamContainer;
+import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.repositories.s3.SocketAccess;
 import org.opensearch.repositories.s3.io.CheckedContainer;
 
+import java.io.BufferedInputStream;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
@@ -142,7 +144,9 @@ public class AsyncPartsHandler {
             () -> s3AsyncClient.uploadPart(
                 uploadPartRequest,
                 AsyncRequestBody.fromInputStream(
-                    inputStreamContainer.getInputStream(),
+                    // Buffered stream is needed to allow mark and reset ops during IO errors so that only buffered
+                    // data can be retried instead of retrying whole file by the application.
+                    new BufferedInputStream(inputStreamContainer.getInputStream(), (int) (ByteSizeUnit.MB.toBytes(1) + 1)),
                     inputStreamContainer.getContentLength(),
                     streamReadExecutor
                 )
