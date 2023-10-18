@@ -42,7 +42,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.when;
 
-final class SearchQueryCategorizerTests extends OpenSearchTestCase {
+public final class SearchQueryCategorizerTests extends OpenSearchTestCase {
 
     private MetricsRegistry metricsRegistry;
 
