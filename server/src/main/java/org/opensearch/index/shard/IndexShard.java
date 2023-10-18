@@ -1669,7 +1669,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             return latestReplicationCheckpoint;
         }
         final Map<String, StoreFileMetadata> metadataMap = store.getSegmentMetadataMap(segmentInfos);
-        return new ReplicationCheckpoint(
+        final ReplicationCheckpoint checkpoint = new ReplicationCheckpoint(
             this.shardId,
             getOperationPrimaryTerm(),
             segmentInfos.getGeneration(),
@@ -1678,6 +1678,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             getEngine().config().getCodec().getName(),
             metadataMap
         );
+        logger.trace("Recomputed ReplicationCheckpoint for shard {}", checkpoint);
+        return checkpoint;
     }
 
     /**
