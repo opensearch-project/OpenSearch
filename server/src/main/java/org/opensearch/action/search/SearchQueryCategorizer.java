@@ -24,7 +24,7 @@ import java.util.List;
  * Class to categorize the search queries based on the type and increment the relevant counters.
  * Class also logs the query shape.
  */
-public class SearchQueryCategorizer {
+public final class SearchQueryCategorizer {
 
     private static final Logger log = LogManager.getLogger(SearchQueryCategorizer.class);
 

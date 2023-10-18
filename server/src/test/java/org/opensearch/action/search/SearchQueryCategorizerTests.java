@@ -20,6 +20,7 @@ import org.opensearch.index.query.RegexpQueryBuilder;
 import org.opensearch.index.query.TermQueryBuilder;
 import org.opensearch.index.query.WildcardQueryBuilder;
 import org.opensearch.index.query.functionscore.FunctionScoreQueryBuilder;
+import org.opensearch.search.aggregations.bucket.range.RangeAggregationBuilder;
 import org.opensearch.search.aggregations.bucket.terms.MultiTermsAggregationBuilder;
 import org.opensearch.search.aggregations.support.MultiTermsValuesSourceConfig;
 import org.opensearch.search.builder.SearchSourceBuilder;
@@ -201,5 +202,26 @@ public class SearchQueryCategorizerTests extends OpenSearchTestCase {
         searchQueryCategorizer.categorize(sourceBuilder);
 
         Mockito.verify(searchQueryCategorizer.searchQueryCounters.wildcardCounter).add(eq(1.0d), any(Tags.class));
+    }
+
+    public void testComplexQuery() {
+        SearchSourceBuilder sourceBuilder = new SearchSourceBuilder();
+        sourceBuilder.size(50);
+
+        TermQueryBuilder termQueryBuilder = QueryBuilders.termQuery("field", "value2");
+        MatchQueryBuilder matchQueryBuilder = QueryBuilders.matchQuery("tags", "php");
+        RegexpQueryBuilder regexpQueryBuilder = new RegexpQueryBuilder("field", "text");
+        BoolQueryBuilder boolQueryBuilder = new BoolQueryBuilder().must(termQueryBuilder).filter(matchQueryBuilder).should(regexpQueryBuilder);
+        sourceBuilder.query(boolQueryBuilder);
+        sourceBuilder.aggregation(new RangeAggregationBuilder("agg1").field("num"));
+
+
+        searchQueryCategorizer.categorize(sourceBuilder);
+
+        Mockito.verify(searchQueryCategorizer.searchQueryCounters.termCounter).add(eq(1.0d), any(Tags.class));
+        Mockito.verify(searchQueryCategorizer.searchQueryCounters.matchCounter).add(eq(1.0d), any(Tags.class));
+        Mockito.verify(searchQueryCategorizer.searchQueryCounters.regexCounter).add(eq(1.0d), any(Tags.class));
+        Mockito.verify(searchQueryCategorizer.searchQueryCounters.boolCounter).add(eq(1.0d), any(Tags.class));
+        Mockito.verify(searchQueryCategorizer.searchQueryCounters.aggCounter).add(eq(1.0d));
     }
 }

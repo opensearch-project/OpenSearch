@@ -185,7 +185,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
 
     private volatile boolean isRequestStatsEnabled;
 
-    private volatile boolean searchQueryCategorizationEnabled;
+    private volatile boolean searchQueryMetricsEnabled;
 
     private final SearchRequestStats searchRequestStats;
 
@@ -227,14 +227,14 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         clusterService.getClusterSettings().addSettingsUpdateConsumer(SEARCH_REQUEST_STATS_ENABLED, this::setIsRequestStatsEnabled);
         this.searchRequestStats = searchRequestStats;
         this.metricsRegistry = metricsRegistry;
-        this.searchQueryCategorizationEnabled = clusterService.getClusterSettings().get(SEARCH_QUERY_METRICS_ENABLED_SETTING);
+        this.searchQueryMetricsEnabled = clusterService.getClusterSettings().get(SEARCH_QUERY_METRICS_ENABLED_SETTING);
         clusterService.getClusterSettings()
-            .addSettingsUpdateConsumer(SEARCH_QUERY_METRICS_ENABLED_SETTING, this::setIsSearchQueryCategorizationEnabled);
+            .addSettingsUpdateConsumer(SEARCH_QUERY_METRICS_ENABLED_SETTING, this::setSearchQueryMetricsEnabled);
     }
 
-    private void setIsSearchQueryCategorizationEnabled(boolean isSearchQueryCategorizationEnabled) {
-        this.searchQueryCategorizationEnabled = isSearchQueryCategorizationEnabled;
-        if (this.searchQueryCategorizationEnabled && this.searchQueryCategorizer == null) {
+    private void setSearchQueryMetricsEnabled(boolean searchQueryMetricsEnabled) {
+        this.searchQueryMetricsEnabled = searchQueryMetricsEnabled;
+        if ((this.searchQueryMetricsEnabled == true ) && this.searchQueryCategorizer == null) {
             this.searchQueryCategorizer = new SearchQueryCategorizer(metricsRegistry);
         }
     }
@@ -515,7 +515,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             return;
         }
 
-        if (searchQueryCategorizationEnabled) {
+        if (searchQueryMetricsEnabled) {
             try {
                 searchQueryCategorizer.categorize(searchRequest.source());
             } catch (Exception e) {
