@@ -181,7 +181,7 @@ public class SearchQueryCategorizerTests extends OpenSearchTestCase {
         searchQueryCategorizer.categorize(sourceBuilder);
 
         Mockito.verify(searchQueryCategorizer.searchQueryCounters.matchCounter).add(eq(1.0d), any(Tags.class));
-        Mockito.verify(searchQueryCategorizer.searchQueryCounters.sortCounter).add(eq(1.0d));
+        Mockito.verify(searchQueryCategorizer.searchQueryCounters.sortCounter, times(2)).add(eq(1.0d), any(Tags.class));
     }
 
     public void testTermQuery() {
