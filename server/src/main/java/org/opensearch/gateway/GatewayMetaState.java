@@ -181,18 +181,17 @@ public class GatewayMetaState implements Closeable {
                                     new String[] {}
                                 );
                                 clusterState = remoteRestoreResult.getClusterState();
-                                metadata = clusterState.getMetadata();
                             }
                         }
                         remotePersistedState = new RemotePersistedState(remoteClusterStateService, lastKnownClusterUUID);
                     }
 
-                    // Recovers ClusterBlocks as well
+                    // Recovers Cluster and Index level blocks
                     clusterState = prepareInitialClusterState(
                         transportService,
                         clusterService,
                         ClusterState.builder(clusterState)
-                            .metadata(upgradeMetadataForNode(metadata, metadataIndexUpgradeService, metadataUpgrader))
+                            .metadata(upgradeMetadataForNode(clusterState.metadata(), metadataIndexUpgradeService, metadataUpgrader))
                             .build()
                     );
 
