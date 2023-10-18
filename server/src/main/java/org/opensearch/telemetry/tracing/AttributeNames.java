@@ -89,4 +89,9 @@ public final class AttributeNames {
      * Node ID
      */
     public static final String NODE_ID = "node_id";
+
+    /**
+     * Refresh Policy
+     */
+    public static final String REFRESH_POLICY = "refresh_policy";
 }

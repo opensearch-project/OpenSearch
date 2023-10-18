@@ -133,7 +133,6 @@ public final class SpanBuilder {
         return attributes;
     }
 
-<<<<<<< HEAD
     /**
      * Creates {@link SpanCreationContext} from Inbound Handler.
      * @param action action.
@@ -159,7 +158,8 @@ public final class SpanBuilder {
     private static Attributes buildSpanAttributes(String nodeId, BulkShardRequest bulkShardRequest) {
         Attributes attributes = Attributes.create()
             .addAttribute(AttributeNames.NODE_ID, nodeId)
-            .addAttribute(AttributeNames.BULK_REQUEST_ITEMS, bulkShardRequest.items().length);
+            .addAttribute(AttributeNames.BULK_REQUEST_ITEMS, bulkShardRequest.items().length)
+            .addAttribute(AttributeNames.REFRESH_POLICY, bulkShardRequest.getRefreshPolicy().getValue());
         if (bulkShardRequest.shardId() != null) {
             attributes.addAttribute(AttributeNames.INDEX, bulkShardRequest.shardId().getIndexName())
                 .addAttribute(AttributeNames.SHARD_ID, bulkShardRequest.shardId().getId());
