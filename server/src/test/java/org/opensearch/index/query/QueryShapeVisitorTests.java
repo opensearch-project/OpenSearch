@@ -23,7 +23,6 @@ final class QueryShapeVisitorTests extends OpenSearchTestCase {
             .must(new TermsQueryBuilder("genre", "action", "drama", "romance"));
         QueryShapeVisitor shapeVisitor = new QueryShapeVisitor();
         builder.visit(shapeVisitor);
-        // {"type":"bool","must"[{"type":"term"},{"type":"terms"}],"filter"[{"type":"constant_score","filter"[{"type":"range"}]}],"should"[{"type":"bool","must"[{"type":"match"}],"must_not"[{"type":"regexp"}]}]}
         assertEquals(
             "{\"type\":\"bool\",\"must\"[{\"type\":\"term\"},{\"type\":\"terms\"}],\"filter\"[{\"type\":\"constant_score\",\"filter\"[{\"type\":\"range\"}]}],\"should\"[{\"type\":\"bool\",\"must\"[{\"type\":\"match\"}],\"must_not\"[{\"type\":\"regexp\"}]}]}",
             shapeVisitor.toJson()
