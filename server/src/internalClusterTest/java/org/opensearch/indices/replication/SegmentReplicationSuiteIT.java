@@ -21,7 +21,6 @@ public class SegmentReplicationSuiteIT extends SegmentReplicationBaseIT {
     @Before
     public void setup() {
         internalCluster().startClusterManagerOnlyNode();
-        createIndex(INDEX_NAME);
     }
 
     @Override
@@ -38,6 +37,7 @@ public class SegmentReplicationSuiteIT extends SegmentReplicationBaseIT {
     }
 
     public void testBasicReplication() throws Exception {
+        createIndex(INDEX_NAME);
         final int docCount = scaledRandomIntBetween(10, 200);
         for (int i = 0; i < docCount; i++) {
             client().prepareIndex(INDEX_NAME).setId(Integer.toString(i)).setSource("field", "value" + i).execute().get();
@@ -50,6 +50,7 @@ public class SegmentReplicationSuiteIT extends SegmentReplicationBaseIT {
     public void testDropRandomNodeDuringReplication() throws Exception {
         internalCluster().ensureAtLeastNumDataNodes(2);
         internalCluster().startClusterManagerOnlyNodes(1);
+        createIndex(INDEX_NAME);
 
         final int docCount = scaledRandomIntBetween(10, 200);
         for (int i = 0; i < docCount; i++) {
@@ -67,6 +68,7 @@ public class SegmentReplicationSuiteIT extends SegmentReplicationBaseIT {
 
     public void testDeleteIndexWhileReplicating() throws Exception {
         internalCluster().startClusterManagerOnlyNode();
+        createIndex(INDEX_NAME);
         final int docCount = scaledRandomIntBetween(10, 200);
         for (int i = 0; i < docCount; i++) {
             client().prepareIndex(INDEX_NAME).setId(Integer.toString(i)).setSource("field", "value" + i).execute().get();
@@ -77,6 +79,7 @@ public class SegmentReplicationSuiteIT extends SegmentReplicationBaseIT {
 
     public void testFullRestartDuringReplication() throws Exception {
         internalCluster().startNode();
+        createIndex(INDEX_NAME);
         final int docCount = scaledRandomIntBetween(10, 200);
         for (int i = 0; i < docCount; i++) {
             client().prepareIndex(INDEX_NAME).setId(Integer.toString(i)).setSource("field", "value" + i).execute().get();
