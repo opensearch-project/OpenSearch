@@ -12,6 +12,7 @@
       - [Generated Code](#generated-code)
     - [Run Tests](#run-tests)
     - [Run OpenSearch](#run-opensearch)
+      - [Environment Configuration](#environment-configuration)
   - [Use an Editor](#use-an-editor)
     - [IntelliJ IDEA](#intellij-idea)
       - [Remote development using JetBrains Gateway](#remote-development-using-jetbrains-gateway)
@@ -41,10 +42,10 @@
       - [Distribution Download Plugin](#distribution-download-plugin)
     - [Creating fat-JAR of a Module](#creating-fat-jar-of-a-module)
   - [Components](#components)
-    - [Build Libraries & Interfaces](#build-libraries--interfaces)
-    - [Clients & Libraries](#clients--libraries)
+    - [Build Libraries \& Interfaces](#build-libraries--interfaces)
+    - [Clients \& Libraries](#clients--libraries)
     - [Plugins](#plugins-1)
-    - [Indexing & Search](#indexing--search)
+    - [Indexing \& Search](#indexing--search)
     - [Aggregations](#aggregations)
     - [Distributed Framework](#distributed-framework)
   - [Misc](#misc)
@@ -218,6 +219,33 @@ Use `-Dtests.opensearch.` to pass additional settings to the running instance. F
 ./gradlew run -Dtests.opensearch.http.host=0.0.0.0
 ```
 
+#### Environment Configuration
+
+Developers now have the ability to set environment configurations using a `.env` file placed in the project's root directory, thanks to the [dotenv-java](https://github.com/cdimascio/dotenv-java) library developed by Carmine DiMascio. This feature provides a convenient way to specify common configurations without the need to pass them as flags with every gradlew command.
+
+This feature is particularly useful for developers working on EC2 instances or other development environments where specific configurations are commonly used. By using the `.env` file, developers can streamline the command-line execution process and ensure consistent configuration across different gradlew tasks.
+
+
+For example, instead of executing:
+
+```bash
+./gradlew run -Dtests.opensearch.http.host=0.0.0.0
+```
+
+You can create a `.env` file at the project root with the following content, or set native operating system variables which will also be picked up:
+
+```bash
+tests.opensearch.http.host=0.0.0.0
+```
+
+The configurations in the `.env` file will be automatically picked up when you run the `gradlew` command. This "set it and forget it" mechanism simplifies command-line executions and reduces the need for repetitive flag specifications.
+
+Here is how you can set it up:
+
+1. Create a new file named `.env` in the project root directory.
+2. Add your configurations to the `.env` file, one per line, in the format `KEY=VALUE`. The key should be the same as the one you would have provided on the command line.
+3. Run your gradlew command. The configurations from the `.env` file will be applied automatically.
+
 ## Use an Editor
 
 ### IntelliJ IDEA
@@ -265,20 +293,21 @@ This repository is split into many top level directories. The most important one
 ### `distribution`
 
 Builds our tar and zip archives and our rpm and deb packages. There are several flavors of the distributions, with the classifier included in the name of the final deliverable (archive or package):
- - default (no classifier), the distribution with bundled JDK
- - `-no-jdk-` - the distribution without bundled JDK/JRE, assumes the JDK/JRE is going to be pre-installed on the target systems
- - `-jre-` - the distribution bundled with JRE (smaller footprint), supported as experimental feature for some platforms
+
+- default (no classifier), the distribution with bundled JDK
+- `-no-jdk-` - the distribution without bundled JDK/JRE, assumes the JDK/JRE is going to be pre-installed on the target systems
+- `-jre-` - the distribution bundled with JRE (smaller footprint), supported as experimental feature for some platforms
 
 ### `libs`
 
 Libraries used to build other parts of the project. These are meant to be internal rather than general purpose. We have no plans to
-[semver](https://semver.org/) their APIs or accept feature requests for them. We publish them to maven central because they are dependencies of our plugin test framework, high level rest client, and jdbc driver but they really aren't general purpose enough to *belong* in maven central. We're still working out what to do here.
+[semver](https://semver.org/) their APIs or accept feature requests for them. We publish them to maven central because they are dependencies of our plugin test framework, high level rest client, and jdbc driver but they really aren't general purpose enough to _belong_ in maven central. We're still working out what to do here.
 
 ### `modules`
 
-Features that are shipped with OpenSearch by default but are not built in to the server. We typically separate features from the server because they require permissions that we don't believe *all* of OpenSearch should have or because they depend on libraries that we don't believe *all* of OpenSearch should depend on.
+Features that are shipped with OpenSearch by default but are not built in to the server. We typically separate features from the server because they require permissions that we don't believe _all_ of OpenSearch should have or because they depend on libraries that we don't believe _all_ of OpenSearch should depend on.
 
-For example, reindex requires the `connect` permission so it can perform reindex-from-remote but we don't believe that the *all* of OpenSearch should have the "connect". For another example, Painless is implemented using antlr4 and asm and we don't believe that *all* of OpenSearch should have access to them.
+For example, reindex requires the `connect` permission so it can perform reindex-from-remote but we don't believe that the _all_ of OpenSearch should have the "connect". For another example, Painless is implemented using antlr4 and asm and we don't believe that _all_ of OpenSearch should have access to them.
 
 ### `plugins`
 
@@ -286,7 +315,7 @@ OpenSearch plugins. We decide that a feature should be a plugin rather than ship
 
 The canonical example of this is the ICU analysis plugin. It is important for folks who want the fairly language neutral ICU analyzer but the library to implement the analyzer is 11MB so we don't ship it with OpenSearch by default.
 
-Another example is the `discovery-gce` plugin. It is *vital* to folks running in [GCP](https://cloud.google.com/) but useless otherwise and it depends on a dozen extra jars.
+Another example is the `discovery-gce` plugin. It is _vital_ to folks running in [GCP](https://cloud.google.com/) but useless otherwise and it depends on a dozen extra jars.
 
 ### `sandbox`
 
@@ -302,13 +331,13 @@ Honestly this is kind of in flux and we're not 100% sure where we'll end up. We 
 
 Right now the directory contains the following.
 
-* Tests that require multiple modules or plugins to work.
-* Tests that form a cluster made up of multiple versions of OpenSearch like full cluster restart, rolling restarts, and mixed version tests.
-* Tests that test the OpenSearch clients in "interesting" places like the `wildfly` project.
-* Tests that test OpenSearch in funny configurations like with ingest disabled.
-* Tests that need to do strange things like install plugins that thrown uncaught `Throwable`s or add a shutdown hook.
+- Tests that require multiple modules or plugins to work.
+- Tests that form a cluster made up of multiple versions of OpenSearch like full cluster restart, rolling restarts, and mixed version tests.
+- Tests that test the OpenSearch clients in "interesting" places like the `wildfly` project.
+- Tests that test OpenSearch in funny configurations like with ingest disabled.
+- Tests that need to do strange things like install plugins that thrown uncaught `Throwable`s or add a shutdown hook.
 
-But we're not convinced that all of these things *belong* in the qa directory. We're fairly sure that tests that require multiple modules or plugins to work should just pick a "home" plugin. We're fairly sure that the multi-version tests *do* belong in qa. Beyond that, we're not sure. If you want to add a new qa project, open a PR and be ready to discuss options.
+But we're not convinced that all of these things _belong_ in the qa directory. We're fairly sure that tests that require multiple modules or plugins to work should just pick a "home" plugin. We're fairly sure that the multi-version tests _do_ belong in qa. Beyond that, we're not sure. If you want to add a new qa project, open a PR and be ready to discuss options.
 
 ### `server`
 
@@ -336,13 +365,13 @@ These tasks can also be run for specific subprojects, e.g.
 
 Please follow these formatting guidelines:
 
-* Java indent is 4 spaces
-* Line width is 140 characters
-* Lines of code surrounded by `// tag::NAME` and `// end::NAME` comments are included in the documentation and should only be 76 characters wide not counting leading indentation. Such regions of code are not formatted automatically as it is not possible to change the line length rule of the formatter for part of a file. Please format such sections sympathetically with the rest of the code, while keeping lines to maximum length of 76 characters.
-* Wildcard imports (`import foo.bar.baz.*`) are forbidden and will cause the build to fail.
-* If *absolutely* necessary, you can disable formatting for regions of code with the `// tag::NAME` and `// end::NAME` directives, but note that these are intended for use in documentation, so please make it clear what you have done, and only do this where the benefit clearly outweighs the decrease in consistency.
-* Note that JavaDoc and block comments i.e. `/* ... */` are not formatted, but line comments i.e `// ...` are.
-* There is an implicit rule that negative boolean expressions should use the form `foo == false` instead of `!foo` for better readability of the code. While this isn't strictly enforced, if might get called out in PR reviews as something to change.
+- Java indent is 4 spaces
+- Line width is 140 characters
+- Lines of code surrounded by `// tag::NAME` and `// end::NAME` comments are included in the documentation and should only be 76 characters wide not counting leading indentation. Such regions of code are not formatted automatically as it is not possible to change the line length rule of the formatter for part of a file. Please format such sections sympathetically with the rest of the code, while keeping lines to maximum length of 76 characters.
+- Wildcard imports (`import foo.bar.baz.*`) are forbidden and will cause the build to fail.
+- If _absolutely_ necessary, you can disable formatting for regions of code with the `// tag::NAME` and `// end::NAME` directives, but note that these are intended for use in documentation, so please make it clear what you have done, and only do this where the benefit clearly outweighs the decrease in consistency.
+- Note that JavaDoc and block comments i.e. `/* ... */` are not formatted, but line comments i.e `// ...` are.
+- There is an implicit rule that negative boolean expressions should use the form `foo == false` instead of `!foo` for better readability of the code. While this isn't strictly enforced, if might get called out in PR reviews as something to change.
 
 ## Adding Dependencies
 
@@ -407,6 +436,7 @@ of this is `junit`.
 #### Distribution Download Plugin
 
 The Distribution Download plugin downloads the latest version of OpenSearch by default, and supports overriding this behavior by setting `customDistributionUrl`.
+
 ```
 ./gradlew integTest -PcustomDistributionUrl="https://ci.opensearch.org/ci/dbc/bundle-build/1.2.0/1127/linux/x64/dist/opensearch-1.2.0-linux-x64.tar.gz"
 ```
@@ -425,6 +455,7 @@ apply plugin: 'com.github.johnrengelman.shadow'
 ```
 
 Run the `shadowJar` command using:
+
 ```
 ./gradlew :client:rest-high-level:shadowJar
 ```
@@ -434,6 +465,7 @@ This will generate a fat-JAR in the `build/distributions` folder of the module, 
 You can further customize your fat-JAR by customising the plugin, More information about shadow plugin can be found [here](https://imperceptiblethoughts.com/shadow/).
 
 To use the generated JAR, install the JAR locally, e.g.
+
 ```
 mvn install:install-file -Dfile=src/main/resources/opensearch-rest-high-level-client-1.4.0-SNAPSHOT.jar -DgroupId=org.opensearch.client -DartifactId=opensearch-rest-high-level-client -Dversion=1.4.0-SNAPSHOT -Dpackaging=jar -DgeneratePom=true
 ```
@@ -450,7 +482,7 @@ Refer the installed JAR as any other maven artifact, e.g.
 
 ## Components
 
-As you work in the OpenSearch repo you may notice issues getting labeled with component labels.  It's a housekeeping task to help group together similar pieces of work.  You can pretty much ignore it, but if you're curious, here's what the different labels mean:
+As you work in the OpenSearch repo you may notice issues getting labeled with component labels. It's a housekeeping task to help group together similar pieces of work. You can pretty much ignore it, but if you're curious, here's what the different labels mean:
 
 ### Build Libraries & Interfaces
 
@@ -467,7 +499,7 @@ Includes:
 
 ### Clients & Libraries
 
-APIs and communication mechanisms for external connections to OpenSearch.  This includes the “library” directory in OpenSearch (a set of common functions).
+APIs and communication mechanisms for external connections to OpenSearch. This includes the “library” directory in OpenSearch (a set of common functions).
 
 Includes:
 
@@ -485,10 +517,9 @@ Includes:
 - SPI
 - Plugin interfaces
 
-
 ### Indexing & Search
 
-The critical path of indexing and search, including:  Measure index and search, performance, Improving the performance of indexing and search, ensure synchronization OpenSearch APIs with upstream Lucene change (e.g. new field types, changing doc values and codex).
+The critical path of indexing and search, including: Measure index and search, performance, Improving the performance of indexing and search, ensure synchronization OpenSearch APIs with upstream Lucene change (e.g. new field types, changing doc values and codex).
 
 Includes:
 
@@ -528,6 +559,7 @@ Security is our top priority. Avoid checking in credentials.
 #### Installation
 
 Install [awslabs/git-secrets](https://github.com/awslabs/git-secrets) by running the following commands.
+
 ```
 git clone https://github.com/awslabs/git-secrets.git
 cd git-secrets
@@ -537,13 +569,16 @@ make install
 #### Configuration
 
 You can configure git secrets per repository, you need to change the directory to the root of the repository and run the following command.
+
 ```
 git secrets --install
 ✓ Installed commit-msg hook to .git/hooks/commit-msg
 ✓ Installed pre-commit hook to .git/hooks/pre-commit
 ✓ Installed prepare-commit-msg hook to .git/hooks/prepare-commit-msg
 ```
+
 Then, you need to apply patterns for git-secrets, you can install the AWS standard patterns by running the following command.
+
 ```
 git secrets --register-aws
 ```
@@ -578,7 +613,7 @@ explicitly marked by an annotation should not be extended by external implementa
 any time. The `@DeprecatedApi` annotation could also be added to any classes annotated with `@PublicApi` (or documented as `@opensearch.api`) or their methods that
 are either changed (with replacement) or planned to be removed across major versions.
 
-The APIs which are designated to be public but have not been stabilized yet should be marked with `@ExperimentalApi` (or documented as `@opensearch.experimental`) 
+The APIs which are designated to be public but have not been stabilized yet should be marked with `@ExperimentalApi` (or documented as `@opensearch.experimental`)
 annotation. The presence of this annotation signals that API may change at any time (major, minor or even patch releases). In general, the classes annotated with
 `@PublicApi` may expose other classes or methods annotated with `@ExperimentalApi`, in such cases the backward compatibility guarantees would not apply to latter
 (see please [Experimental Development](#experimental-development) for more details).
@@ -608,6 +643,7 @@ The Github workflow in [`backport.yml`](.github/workflows/backport.yml) creates 
 ### LineLint
 
 A linter in [`code-hygiene.yml`](.github/workflows/code-hygiene.yml) that validates simple newline and whitespace rules in all sorts of files. It can:
+
 - Recursively check a directory tree for files that do not end in a newline
 - Automatically fix these files by adding a newline or trimming extra newlines.
 
