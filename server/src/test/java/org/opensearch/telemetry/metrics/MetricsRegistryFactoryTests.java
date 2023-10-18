@@ -63,6 +63,18 @@ public class MetricsRegistryFactoryTests extends OpenSearchTestCase {
 
     }
 
+    public void testNullMetricsTelemetry() {
+        Settings settings = Settings.builder().put(TelemetrySettings.METRICS_FEATURE_ENABLED_SETTING.getKey(), false).build();
+        TelemetrySettings telemetrySettings = new TelemetrySettings(settings, new ClusterSettings(settings, getClusterSettings()));
+        Telemetry mockTelemetry = mock(Telemetry.class);
+        when(mockTelemetry.getMetricsTelemetry()).thenReturn(null);
+        metricsRegistryFactory = new MetricsRegistryFactory(telemetrySettings, Optional.of(mockTelemetry));
+
+        MetricsRegistry metricsRegistry = metricsRegistryFactory.getMetricsRegistry();
+        assertTrue(metricsRegistry instanceof NoopMetricsRegistry);
+
+    }
+
     private Set<Setting<?>> getClusterSettings() {
         Set<Setting<?>> allTracerSettings = new HashSet<>();
         ClusterSettings.FEATURE_FLAGGED_CLUSTER_SETTINGS.get(List.of(FeatureFlags.TELEMETRY)).stream().forEach((allTracerSettings::add));

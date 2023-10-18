@@ -28,6 +28,20 @@ public class TelemetrySettings {
         Setting.Property.Dynamic
     );
 
+    public static final Setting<Boolean> TRACER_FEATURE_ENABLED_SETTING = Setting.boolSetting(
+        "telemetry.feature.tracer.enabled",
+        false,
+        Setting.Property.NodeScope,
+        Setting.Property.Final
+    );
+
+    public static final Setting<Boolean> METRICS_FEATURE_ENABLED_SETTING = Setting.boolSetting(
+        "telemetry.feature.metrics.enabled",
+        false,
+        Setting.Property.NodeScope,
+        Setting.Property.Final
+    );
+
     /**
      * Probability of sampler
      */
@@ -53,9 +67,14 @@ public class TelemetrySettings {
     private volatile boolean tracingEnabled;
     private volatile double samplingProbability;
 
+    private final boolean tracingFeatureEnabled;
+    private final boolean metricsFeatureEnabled;
+
     public TelemetrySettings(Settings settings, ClusterSettings clusterSettings) {
         this.tracingEnabled = TRACER_ENABLED_SETTING.get(settings);
         this.samplingProbability = TRACER_SAMPLER_PROBABILITY.get(settings);
+        this.tracingFeatureEnabled = TRACER_FEATURE_ENABLED_SETTING.get(settings);
+        this.metricsFeatureEnabled = METRICS_FEATURE_ENABLED_SETTING.get(settings);
 
         clusterSettings.addSettingsUpdateConsumer(TRACER_ENABLED_SETTING, this::setTracingEnabled);
         clusterSettings.addSettingsUpdateConsumer(TRACER_SAMPLER_PROBABILITY, this::setSamplingProbability);
@@ -82,5 +101,13 @@ public class TelemetrySettings {
      */
     public double getSamplingProbability() {
         return samplingProbability;
+    }
+
+    public boolean isTracingFeatureEnabled() {
+        return tracingFeatureEnabled;
+    }
+
+    public boolean isMetricsFeatureEnabled() {
+        return metricsFeatureEnabled;
     }
 }

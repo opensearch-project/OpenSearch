@@ -95,6 +95,7 @@ import static org.opensearch.repositories.s3.S3ClientSettings.ENDPOINT_SETTING;
 import static org.opensearch.repositories.s3.S3ClientSettings.MAX_RETRIES_SETTING;
 import static org.opensearch.repositories.s3.S3ClientSettings.READ_TIMEOUT_SETTING;
 import static org.opensearch.repositories.s3.S3ClientSettings.REGION;
+import static org.opensearch.repositories.s3.S3Repository.BULK_DELETE_SIZE;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -215,6 +216,7 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
                 bufferSize == null ? S3Repository.BUFFER_SIZE_SETTING.getDefault(Settings.EMPTY) : bufferSize,
                 S3Repository.CANNED_ACL_SETTING.getDefault(Settings.EMPTY),
                 S3Repository.STORAGE_CLASS_SETTING.getDefault(Settings.EMPTY),
+                BULK_DELETE_SIZE.get(Settings.EMPTY),
                 repositoryMetadata,
                 new AsyncTransferManager(
                     S3Repository.PARALLEL_MULTIPART_UPLOAD_MINIMUM_PART_SIZE_SETTING.getDefault(Settings.EMPTY).getBytes(),

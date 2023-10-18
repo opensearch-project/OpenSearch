@@ -1853,10 +1853,12 @@ public final class InternalTestCluster extends TestCluster {
      */
     public void stopAllNodes() {
         try {
-            int totalDataNodes = numDataNodes();
-            while (totalDataNodes > 0) {
-                stopRandomDataNode();
-                totalDataNodes -= 1;
+            if (numDataAndClusterManagerNodes() != numClusterManagerNodes()) {
+                int totalDataNodes = numDataNodes();
+                while (totalDataNodes > 0) {
+                    stopRandomDataNode();
+                    totalDataNodes -= 1;
+                }
             }
             int totalClusterManagerNodes = numClusterManagerNodes();
             while (totalClusterManagerNodes > 1) {
@@ -2698,6 +2700,7 @@ public final class InternalTestCluster extends TestCluster {
                 CommonStatsFlags flags = new CommonStatsFlags(Flag.FieldData, Flag.QueryCache, Flag.Segments);
                 NodeStats stats = nodeService.stats(
                     flags,
+                    false,
                     false,
                     false,
                     false,
