@@ -137,6 +137,7 @@ dependencies {
     exclude group: 'org.eclipse.jgit', module: 'org.eclipse.jgit'
   }
   implementation 'org.eclipse.jgit:org.eclipse.jgit:6.7.0.202309050840-r'
+  implementation 'io.github.cdimascio:dotenv-java:3.0.0'
 }
 
 configurations.all {

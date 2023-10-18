@@ -52,6 +52,9 @@ import java.util.function.BooleanSupplier;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import io.github.cdimascio.dotenv.Dotenv;
+import io.github.cdimascio.dotenv.DotenvException;
+
 /**
  * Implementation of the "run" Gradle task used in run.gradle
  */
@@ -77,7 +80,8 @@ public class RunTask extends DefaultTestClustersTask {
     @Option(option = "debug-jvm", description = "Run OpenSearch as a debug client, where it will try to connect to a debugging server at startup.")
     public void setDebug(boolean enabled) {
         if (debugServer != null && debugServer == true) {
-            throw new IllegalStateException("Either --debug-jvm or --debug-server-jvm option should be specified (but not both)");
+            throw new IllegalStateException(
+                    "Either --debug-jvm or --debug-server-jvm option should be specified (but not both)");
         }
         this.debug = enabled;
     }
@@ -85,7 +89,8 @@ public class RunTask extends DefaultTestClustersTask {
     @Option(option = "debug-server-jvm", description = "Run OpenSearch as a debug server that will accept connections from a debugging client.")
     public void setDebugServer(boolean enabled) {
         if (debug != null && debug == true) {
-            throw new IllegalStateException("Either --debug-jvm or --debug-server-jvm option should be specified (but not both)");
+            throw new IllegalStateException(
+                    "Either --debug-jvm or --debug-server-jvm option should be specified (but not both)");
         }
         this.debugServer = enabled;
     }
@@ -137,19 +142,29 @@ public class RunTask extends DefaultTestClustersTask {
 
     @Override
     public void beforeStart() {
+        // Try to load .env file and set system properties
+        Dotenv dotenv;
+        try {
+            dotenv = Dotenv.load();
+            dotenv.entries().forEach(e -> System.setProperty(e.getKey(), e.getValue()));
+        } catch (DotenvException e) {
+            // .env file not found in the classpath
+            // refer DEVELOPER_GUIDE.md for more details
+            return;
+        }
+
         int debugPort = DEFAULT_DEBUG_PORT;
         int httpPort = DEFAULT_HTTP_PORT;
         int transportPort = DEFAULT_TRANSPORT_PORT;
+
         Map<String, String> additionalSettings = System.getProperties()
-            .entrySet()
-            .stream()
-            .filter(entry -> entry.getKey().toString().startsWith(CUSTOM_SETTINGS_PREFIX))
-            .collect(
-                Collectors.toMap(
-                    entry -> entry.getKey().toString().substring(CUSTOM_SETTINGS_PREFIX.length()),
-                    entry -> entry.getValue().toString()
-                )
-            );
+                .entrySet()
+                .stream()
+                .filter(entry -> entry.getKey().toString().startsWith(CUSTOM_SETTINGS_PREFIX))
+                .collect(
+                        Collectors.toMap(
+                                entry -> entry.getKey().toString().substring(CUSTOM_SETTINGS_PREFIX.length()),
+                                entry -> entry.getValue().toString()));
         boolean singleNode = getClusters().stream().flatMap(c -> c.getNodes().stream()).count() == 1;
         final Function<OpenSearchNode, Path> getDataPath;
         if (singleNode) {
@@ -181,14 +196,14 @@ public class RunTask extends DefaultTestClustersTask {
                 }
                 if (debug) {
                     logger.lifecycle(
-                        "Running opensearch in debug mode (client), {} expecting running debug server on port {}",
-                        node,
-                        debugPort
-                    );
+                            "Running opensearch in debug mode (client), {} expecting running debug server on port {}",
+                            node,
+                            debugPort);
                     node.jvmArgs("-agentlib:jdwp=transport=dt_socket,server=n,suspend=y,address=" + debugPort);
                     debugPort += 1;
                 } else if (debugServer) {
-                    logger.lifecycle("Running opensearch in debug mode (server), {} running server with debug port {}", node, debugPort);
+                    logger.lifecycle("Running opensearch in debug mode (server), {} running server with debug port {}",
+                            node, debugPort);
                     node.jvmArgs("-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=" + debugPort);
                     debugPort += 1;
                 }
