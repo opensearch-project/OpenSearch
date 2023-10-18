@@ -218,7 +218,8 @@ public class RemoteStoreRestoreService {
                 updatedIndexMetadata,
                 recoverySource,
                 indexShardRoutingTableMap,
-                restoreAllShards || metadataFromRemoteStore
+                restoreAllShards,
+                metadataFromRemoteStore
             );
             blocks.updateBlocks(updatedIndexMetadata);
             mdBuilder.put(updatedIndexMetadata, true);

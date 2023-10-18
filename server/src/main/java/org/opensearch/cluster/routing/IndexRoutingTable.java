@@ -454,10 +454,11 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable> imple
             IndexMetadata indexMetadata,
             RemoteStoreRecoverySource recoverySource,
             Map<ShardId, IndexShardRoutingTable> indexShardRoutingTableMap,
-            boolean forceRecoverAllPrimaries
+            boolean forceRecoverAllPrimaries,
+            boolean metadataFromRemoteStore
         ) {
             final UnassignedInfo unassignedInfo = new UnassignedInfo(
-                UnassignedInfo.Reason.REMOTE_METADATA_RECOVERED,
+                metadataFromRemoteStore ? UnassignedInfo.Reason.CLUSTER_RECOVERED : UnassignedInfo.Reason.EXISTING_INDEX_RESTORED,
                 "restore_source[remote_store]"
             );
             assert indexMetadata.getIndex().equals(index);

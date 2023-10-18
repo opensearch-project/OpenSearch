@@ -435,7 +435,7 @@ final class StoreRecovery {
             // got closed on us, just ignore this recovery
             return false;
         }
-        if (indexShard.shardRouting.unassignedInfo().getReason() == UnassignedInfo.Reason.REMOTE_METADATA_RECOVERED) {
+        if (indexShard.shardRouting.unassignedInfo().getReason() == UnassignedInfo.Reason.CLUSTER_RECOVERED) {
             return false;
         }
         if (indexShard.routingEntry().primary() == false) {

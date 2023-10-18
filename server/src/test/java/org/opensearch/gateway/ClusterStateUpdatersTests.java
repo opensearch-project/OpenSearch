@@ -373,6 +373,7 @@ public class ClusterStateUpdatersTests extends OpenSearchTestCase {
                         new IndexId(remoteMetadata.getIndex().getName(), remoteMetadata.getIndexUUID())
                     ),
                     new HashMap<>(),
+                    true,
                     true
                 );
             final Index index = remoteMetadata.getIndex();
@@ -387,13 +388,13 @@ public class ClusterStateUpdatersTests extends OpenSearchTestCase {
             assertEquals(
                 0,
                 newRemoteIndexRoutingTable.shardsMatchingPredicateCount(
-                    shardRouting -> shardRouting.unassignedInfo().getReason().equals(UnassignedInfo.Reason.CLUSTER_RECOVERED)
+                    shardRouting -> shardRouting.unassignedInfo().getReason().equals(UnassignedInfo.Reason.EXISTING_INDEX_RESTORED)
                 )
             );
             assertEquals(
                 numOfShards,
                 newRemoteIndexRoutingTable.shardsMatchingPredicateCount(
-                    shardRouting -> shardRouting.unassignedInfo().getReason().equals(UnassignedInfo.Reason.EXISTING_INDEX_RESTORED)
+                    shardRouting -> shardRouting.unassignedInfo().getReason().equals(UnassignedInfo.Reason.CLUSTER_RECOVERED)
                 )
             );
             assertEquals(
@@ -427,6 +428,7 @@ public class ClusterStateUpdatersTests extends OpenSearchTestCase {
                         new IndexId(remoteMetadata.getIndex().getName(), remoteMetadata.getIndexUUID())
                     ),
                     new HashMap<>(),
+                    true,
                     true
                 );
             IndexRoutingTable.Builder nonRemoteBuilderWithoutRemoteRecovery = new IndexRoutingTable.Builder(nonRemoteMetadata.getIndex())
@@ -450,13 +452,13 @@ public class ClusterStateUpdatersTests extends OpenSearchTestCase {
             assertEquals(
                 0,
                 newRemoteIndexRoutingTable.shardsMatchingPredicateCount(
-                    shardRouting -> shardRouting.unassignedInfo().getReason().equals(UnassignedInfo.Reason.CLUSTER_RECOVERED)
+                    shardRouting -> shardRouting.unassignedInfo().getReason().equals(UnassignedInfo.Reason.EXISTING_INDEX_RESTORED)
                 )
             );
             assertEquals(
                 numOfShards,
                 newRemoteIndexRoutingTable.shardsMatchingPredicateCount(
-                    shardRouting -> shardRouting.unassignedInfo().getReason().equals(UnassignedInfo.Reason.EXISTING_INDEX_RESTORED)
+                    shardRouting -> shardRouting.unassignedInfo().getReason().equals(UnassignedInfo.Reason.CLUSTER_RECOVERED)
                 )
             );
             assertEquals(
@@ -516,6 +518,7 @@ public class ClusterStateUpdatersTests extends OpenSearchTestCase {
                         new IndexId(remoteMetadata.getIndex().getName(), remoteMetadata.getIndexUUID())
                     ),
                     new HashMap<>(),
+                    true,
                     true
                 );
             IndexRoutingTable.Builder remoteBuilderWithoutRemoteRecovery = new IndexRoutingTable.Builder(
@@ -541,13 +544,13 @@ public class ClusterStateUpdatersTests extends OpenSearchTestCase {
             assertEquals(
                 0,
                 newRemoteIndexRoutingTable.shardsMatchingPredicateCount(
-                    shardRouting -> shardRouting.unassignedInfo().getReason().equals(UnassignedInfo.Reason.CLUSTER_RECOVERED)
+                    shardRouting -> shardRouting.unassignedInfo().getReason().equals(UnassignedInfo.Reason.EXISTING_INDEX_RESTORED)
                 )
             );
             assertEquals(
                 numOfShards,
                 newRemoteIndexRoutingTable.shardsMatchingPredicateCount(
-                    shardRouting -> shardRouting.unassignedInfo().getReason().equals(UnassignedInfo.Reason.EXISTING_INDEX_RESTORED)
+                    shardRouting -> shardRouting.unassignedInfo().getReason().equals(UnassignedInfo.Reason.CLUSTER_RECOVERED)
                 )
             );
             assertEquals(

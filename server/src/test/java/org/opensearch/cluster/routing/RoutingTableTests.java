@@ -596,6 +596,7 @@ public class RoutingTableTests extends OpenSearchAllocationTestCase {
             indexMetadata,
             remoteStoreRecoverySource,
             getIndexShardRoutingTableMap(indexMetadata.getIndex(), true, numberOfReplicas),
+            false,
             false
         ).build();
         assertTrue(routingTable.hasIndex(TEST_INDEX_1));
@@ -623,6 +624,7 @@ public class RoutingTableTests extends OpenSearchAllocationTestCase {
             indexMetadata,
             remoteStoreRecoverySource,
             indexShardRoutingTableMap,
+            false,
             false
         ).build();
         assertTrue(routingTable.hasIndex(TEST_INDEX_1));
@@ -665,6 +667,7 @@ public class RoutingTableTests extends OpenSearchAllocationTestCase {
                 indexMetadata,
                 remoteStoreRecoverySource,
                 indexShardRoutingTableMap,
+                false,
                 false
             ).build()
         );
