@@ -17,8 +17,10 @@ import org.opensearch.search.aggregations.AggregatorFactories;
 import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.search.sort.SortBuilder;
 import org.opensearch.telemetry.metrics.MetricsRegistry;
+import org.opensearch.telemetry.metrics.tags.Tags;
 
 import java.util.List;
+import java.util.ListIterator;
 
 /**
  * Class to categorize the search queries based on the type and increment the relevant counters.
@@ -45,7 +47,11 @@ public final class SearchQueryCategorizer {
 
     private void incrementQuerySortCounters(List<SortBuilder<?>> sorts) {
         if (sorts != null && sorts.size() > 0) {
-            searchQueryCounters.sortCounter.add(1);
+            for (ListIterator<SortBuilder<?>> it = sorts.listIterator(); it.hasNext(); ) {
+                SortBuilder sortBuilder = it.next();
+                String sortOrder = sortBuilder.order().toString();
+                searchQueryCounters.sortCounter.add(1, Tags.create().addTag("sort_order", sortOrder));
+            }
         }
     }
 
