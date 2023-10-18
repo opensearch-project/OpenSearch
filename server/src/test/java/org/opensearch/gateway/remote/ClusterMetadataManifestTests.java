@@ -36,7 +36,7 @@ public class ClusterMetadataManifestTests extends OpenSearchTestCase {
             Version.CURRENT,
             "test-node-id",
             false,
-            1,
+            ClusterMetadataManifest.CODEC_V0,
             null,
             Collections.singletonList(uploadedIndexMetadata),
             "prev-cluster-uuid",
@@ -53,7 +53,7 @@ public class ClusterMetadataManifestTests extends OpenSearchTestCase {
         }
     }
 
-    public void testClusterMetadataManifestXContentCodecV2() throws IOException {
+    public void testClusterMetadataManifestXContentCodecV1() throws IOException {
         UploadedIndexMetadata uploadedIndexMetadata = new UploadedIndexMetadata("test-index", "test-uuid", "/test/upload/path");
         ClusterMetadataManifest originalManifest = new ClusterMetadataManifest(
             1L,
@@ -63,7 +63,7 @@ public class ClusterMetadataManifestTests extends OpenSearchTestCase {
             Version.CURRENT,
             "test-node-id",
             false,
-            2,
+            ClusterMetadataManifest.CODEC_V1,
             "test-global-metadata-file",
             Collections.singletonList(uploadedIndexMetadata),
             "prev-cluster-uuid",
@@ -75,7 +75,7 @@ public class ClusterMetadataManifestTests extends OpenSearchTestCase {
         builder.endObject();
 
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder))) {
-            final ClusterMetadataManifest fromXContentManifest = ClusterMetadataManifest.fromXContentV2(parser);
+            final ClusterMetadataManifest fromXContentManifest = ClusterMetadataManifest.fromXContentV1(parser);
             assertEquals(originalManifest, fromXContentManifest);
         }
     }
