@@ -130,6 +130,7 @@ import org.opensearch.node.Node;
 import org.opensearch.node.Node.DiscoverySettings;
 import org.opensearch.node.NodeRoleSettings;
 import org.opensearch.node.remotestore.RemoteStoreNodeService;
+import org.opensearch.node.resource.tracker.ResourceTrackerSettings;
 import org.opensearch.persistent.PersistentTasksClusterService;
 import org.opensearch.persistent.decider.EnableAssignmentDecider;
 import org.opensearch.plugins.PluginsService;
@@ -375,6 +376,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 TransportSearchAction.SHARD_COUNT_LIMIT_SETTING,
                 TransportSearchAction.SEARCH_CANCEL_AFTER_TIME_INTERVAL_SETTING,
                 TransportSearchAction.SEARCH_REQUEST_STATS_ENABLED,
+                TransportSearchAction.SEARCH_PHASE_TOOK_ENABLED,
                 RemoteClusterService.REMOTE_CLUSTER_SKIP_UNAVAILABLE,
                 SniffConnectionStrategy.REMOTE_CONNECTIONS_PER_CLUSTER,
                 RemoteClusterService.REMOTE_INITIAL_CONNECTION_TIMEOUT_SETTING,
@@ -654,6 +656,10 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 SegmentReplicationPressureService.MAX_REPLICATION_LIMIT_STALE_REPLICA_SETTING,
                 SegmentReplicationPressureService.MAX_ALLOWED_STALE_SHARDS,
 
+                // Settings related to resource trackers
+                ResourceTrackerSettings.GLOBAL_CPU_USAGE_AC_WINDOW_DURATION_SETTING,
+                ResourceTrackerSettings.GLOBAL_JVM_USAGE_AC_WINDOW_DURATION_SETTING,
+
                 // Settings related to Searchable Snapshots
                 Node.NODE_SEARCH_CACHE_SIZE_SETTING,
                 FileCache.DATA_TO_FILE_CACHE_SIZE_RATIO_SETTING,
@@ -694,6 +700,12 @@ public final class ClusterSettings extends AbstractScopedSettings {
             SearchService.CONCURRENT_SEGMENT_SEARCH_TARGET_MAX_SLICE_COUNT_SETTING
         ),
         List.of(FeatureFlags.TELEMETRY),
-        List.of(TelemetrySettings.TRACER_ENABLED_SETTING, TelemetrySettings.TRACER_SAMPLER_PROBABILITY)
+        List.of(
+            TelemetrySettings.TRACER_ENABLED_SETTING,
+            TelemetrySettings.TRACER_SAMPLER_PROBABILITY,
+            TelemetrySettings.METRICS_PUBLISH_INTERVAL_SETTING,
+            TelemetrySettings.TRACER_FEATURE_ENABLED_SETTING,
+            TelemetrySettings.METRICS_FEATURE_ENABLED_SETTING
+        )
     );
 }
