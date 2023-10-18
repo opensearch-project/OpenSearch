@@ -141,9 +141,9 @@ public class RemoteClusterStateService implements Closeable {
 
     private final AtomicBoolean deleteStaleMetadataRunning = new AtomicBoolean(false);
 
-    private static final int GLOBAL_METADATA_CODEC_VERSION = 1;
-    private static final int MANIFEST_CODEC_CURRENT_VERSION = ClusterMetadataManifest.CODEC_V1; // TODO remove this once file name change PR
-                                                                                                // is merged
+    public static final int INDEX_METADATA_CURRENT_CODEC_VERSION = 1;
+    public static final int MANIFEST_CURRENT_CODEC_VERSION = ClusterMetadataManifest.CODEC_V1;
+    public static final int GLOBAL_METADATA_CURRENT_CODEC_VERSION = 1;
 
     // ToXContent Params with gateway mode.
     // We are using gateway context mode to persist all custom metadata.
@@ -543,7 +543,7 @@ public class RemoteClusterStateService implements Closeable {
         boolean committed
     ) throws IOException {
         synchronized (this) {
-            final String manifestFileName = getManifestFileName(clusterState.term(), clusterState.version());
+            final String manifestFileName = getManifestFileName(clusterState.term(), clusterState.version(), committed);
             final ClusterMetadataManifest manifest = new ClusterMetadataManifest(
                 clusterState.term(),
                 clusterState.getVersion(),
@@ -552,7 +552,7 @@ public class RemoteClusterStateService implements Closeable {
                 Version.CURRENT,
                 nodeId,
                 committed,
-                MANIFEST_CODEC_CURRENT_VERSION,
+                MANIFEST_CURRENT_CODEC_VERSION,
                 globalClusterMetadataFileName,
                 uploadedIndexMetadata,
                 previousClusterUUID,
@@ -613,39 +613,41 @@ public class RemoteClusterStateService implements Closeable {
         this.slowWriteLoggingThreshold = slowWriteLoggingThreshold;
     }
 
-    private static String getManifestFileName(long term, long version) {
-        // 123456789012_test-cluster/cluster-state/dsgYj10Nkso7/manifest/manifest_2147483642_2147483637_456536447
-        return String.join(DELIMITER, getManifestFileNamePrefix(term, version), RemoteStoreUtils.invertLong(System.currentTimeMillis()));
-    }
-
-    private static String getManifestFileNamePrefix(long term, long version) {
-        // 123456789012_test-cluster/cluster-state/dsgYj10Nkso7/manifest/manifest_2147483642_2147483637
+    static String getManifestFileName(long term, long version, boolean committed) {
+        // 123456789012_test-cluster/cluster-state/dsgYj10Nkso7/manifest/manifest__<inverted_term>__<inverted_version>__C/P__<inverted__timestamp>__<codec_version>
         return String.join(
             DELIMITER,
             MANIFEST_PATH_TOKEN,
             RemoteStoreUtils.invertLong(term),
             RemoteStoreUtils.invertLong(version),
-            "1",
-            RemoteStoreUtils.invertLong(1)
+            (committed ? "C" : "P"), // C for committed and P for published
+            RemoteStoreUtils.invertLong(System.currentTimeMillis()),
+            String.valueOf(MANIFEST_CURRENT_CODEC_VERSION) // Keep the codec version at last place only, during read we reads last place to
+                                                           // determine codec version.
         );
     }
 
-    private static String indexMetadataFileName(IndexMetadata indexMetadata) {
+    static String indexMetadataFileName(IndexMetadata indexMetadata) {
+        // 123456789012_test-cluster/cluster-state/dsgYj10Nkso7/index/<index_UUID>/metadata__<inverted_index_metadata_version>__<inverted__timestamp>__<codec
+        // version>
         return String.join(
             DELIMITER,
             METADATA_FILE_PREFIX,
-            String.valueOf(indexMetadata.getVersion()),
-            String.valueOf(System.currentTimeMillis())
+            RemoteStoreUtils.invertLong(indexMetadata.getVersion()),
+            RemoteStoreUtils.invertLong(System.currentTimeMillis()),
+            String.valueOf(INDEX_METADATA_CURRENT_CODEC_VERSION) // Keep the codec version at last place only, during read we reads last
+                                                                 // place to determine codec version.
         );
     }
 
     private static String globalMetadataFileName(Metadata metadata) {
+        // 123456789012_test-cluster/cluster-state/dsgYj10Nkso7/global-metadata/metadata__<inverted_metadata_version>__<inverted__timestamp>__<codec_version>
         return String.join(
             DELIMITER,
             METADATA_FILE_PREFIX,
             RemoteStoreUtils.invertLong(metadata.version()),
-            RemoteStoreUtils.invertLong(GLOBAL_METADATA_CODEC_VERSION),
-            RemoteStoreUtils.invertLong(System.currentTimeMillis())
+            RemoteStoreUtils.invertLong(System.currentTimeMillis()),
+            String.valueOf(GLOBAL_METADATA_CURRENT_CODEC_VERSION)
         );
     }
 
@@ -1104,8 +1106,7 @@ public class RemoteClusterStateService implements Closeable {
                     if (filesToKeep.contains(uploadedIndexMetadata.getUploadedFilename()) == false) {
                         staleIndexMetadataPaths.add(
                             new BlobPath().add(INDEX_PATH_TOKEN).add(uploadedIndexMetadata.getIndexUUID()).buildAsString()
-                                + uploadedIndexMetadata.getUploadedFilename()
-                                + ".dat"
+                                + INDEX_METADATA_FORMAT.blobName(uploadedIndexMetadata.getUploadedFilename())
                         );
                     }
                 });

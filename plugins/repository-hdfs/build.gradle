@@ -84,7 +84,7 @@ dependencies {
   api 'net.minidev:json-smart:2.5.0'
   api "io.netty:netty-all:${versions.netty}"
   implementation "com.fasterxml.woodstox:woodstox-core:${versions.woodstox}"
-  implementation 'org.codehaus.woodstox:stax2-api:4.2.1'
+  implementation 'org.codehaus.woodstox:stax2-api:4.2.2'
 
   hdfsFixture project(':test:fixtures:hdfs-fixture')
   // Set the keytab files in the classpath so that we can access them from test code without the security manager

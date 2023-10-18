@@ -60,6 +60,11 @@ final class WrappedTracer implements Tracer {
     }
 
     @Override
+    public boolean isRecording() {
+        return getDelegateTracer().isRecording();
+    }
+
+    @Override
     public void close() throws IOException {
         defaultTracer.close();
     }

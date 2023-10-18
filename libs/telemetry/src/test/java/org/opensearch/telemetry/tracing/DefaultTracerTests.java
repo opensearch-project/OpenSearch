@@ -62,6 +62,7 @@ public class DefaultTracerTests extends OpenSearchTestCase {
 
         String spanName = defaultTracer.getCurrentSpan().getSpan().getSpanName();
         assertEquals("span_name", spanName);
+        assertTrue(defaultTracer.isRecording());
     }
 
     @SuppressWarnings("unchecked")
