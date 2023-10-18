@@ -231,7 +231,9 @@ public class RemoteStoreRestoreService {
             totalShards += updatedIndexMetadata.getNumberOfShards();
         }
 
-        restoreGlobalMetadata(mdBuilder, remoteMetadata);
+        if (remoteMetadata != null) {
+            restoreGlobalMetadata(mdBuilder, remoteMetadata);
+        }
 
         RestoreInfo restoreInfo = new RestoreInfo("remote_store", indicesToBeRestored, totalShards, totalShards);
 
