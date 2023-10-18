@@ -8,7 +8,6 @@
 
 package org.opensearch.telemetry.tracing.channels;
 
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.http.HttpChannel;
 import org.opensearch.http.HttpResponse;
@@ -50,7 +49,7 @@ public class TraceableHttpChannel implements HttpChannel {
      * @return http channel
      */
     public static HttpChannel create(HttpChannel delegate, Span span, Tracer tracer) {
-        if (FeatureFlags.isEnabled(FeatureFlags.TELEMETRY) == true) {
+        if (tracer.isRecording() == true) {
             return new TraceableHttpChannel(delegate, span, tracer);
         } else {
             return delegate;

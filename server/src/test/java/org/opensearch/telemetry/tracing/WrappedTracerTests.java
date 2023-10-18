@@ -26,6 +26,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 public class WrappedTracerTests extends OpenSearchTestCase {
 
@@ -38,6 +39,7 @@ public class WrappedTracerTests extends OpenSearchTestCase {
             SpanCreationContext spanCreationContext = SpanCreationContext.internal().name("foo");
             wrappedTracer.startSpan(spanCreationContext);
             assertTrue(wrappedTracer.getDelegateTracer() instanceof NoopTracer);
+            assertFalse(wrappedTracer.isRecording());
             verify(mockDefaultTracer, never()).startSpan(SpanCreationContext.internal().name("foo"));
         }
     }
@@ -46,12 +48,13 @@ public class WrappedTracerTests extends OpenSearchTestCase {
         Settings settings = Settings.builder().put(TelemetrySettings.TRACER_ENABLED_SETTING.getKey(), true).build();
         TelemetrySettings telemetrySettings = new TelemetrySettings(settings, new ClusterSettings(settings, getClusterSettings()));
         DefaultTracer mockDefaultTracer = mock(DefaultTracer.class);
-
+        when(mockDefaultTracer.isRecording()).thenReturn(true);
         try (WrappedTracer wrappedTracer = new WrappedTracer(telemetrySettings, mockDefaultTracer)) {
             SpanCreationContext spanCreationContext = SpanCreationContext.internal().name("foo");
             wrappedTracer.startSpan(spanCreationContext);
 
             assertTrue(wrappedTracer.getDelegateTracer() instanceof DefaultTracer);
+            assertTrue(wrappedTracer.isRecording());
             verify(mockDefaultTracer).startSpan(eq(spanCreationContext));
         }
     }
