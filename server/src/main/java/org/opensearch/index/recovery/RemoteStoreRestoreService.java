@@ -140,17 +140,14 @@ public class RemoteStoreRestoreService {
         String[] indexNames
     ) {
         Map<String, Tuple<Boolean, IndexMetadata>> indexMetadataMap = new HashMap<>();
-        Metadata remoteGlobalMetadata = null;
+        Metadata remoteMetadata = null;
         boolean metadataFromRemoteStore = (restoreClusterUUID == null
             || restoreClusterUUID.isEmpty()
             || restoreClusterUUID.isBlank()) == false;
         if (metadataFromRemoteStore) {
             try {
-                remoteGlobalMetadata = remoteClusterStateService.getLatestMetadata(
-                    currentState.getClusterName().value(),
-                    restoreClusterUUID
-                );
-                remoteGlobalMetadata.getIndices().values().forEach(indexMetadata -> {
+                remoteMetadata = remoteClusterStateService.getLatestMetadata(currentState.getClusterName().value(), restoreClusterUUID);
+                remoteMetadata.getIndices().values().forEach(indexMetadata -> {
                     indexMetadataMap.put(indexMetadata.getIndex().getName(), new Tuple<>(true, indexMetadata));
                 });
             } catch (Exception e) {
@@ -167,7 +164,7 @@ public class RemoteStoreRestoreService {
             }
         }
         validate(currentState, indexMetadataMap, restoreClusterUUID, restoreAllShards);
-        return executeRestore(currentState, indexMetadataMap, restoreAllShards, remoteGlobalMetadata);
+        return executeRestore(currentState, indexMetadataMap, restoreAllShards, remoteMetadata);
     }
 
     /**
@@ -181,7 +178,7 @@ public class RemoteStoreRestoreService {
         ClusterState currentState,
         Map<String, Tuple<Boolean, IndexMetadata>> indexMetadataMap,
         boolean restoreAllShards,
-        Metadata remoteGlobalMetadata
+        Metadata remoteMetadata
     ) {
         final String restoreUUID = UUIDs.randomBase64UUID();
         List<String> indicesToBeRestored = new ArrayList<>();
@@ -234,7 +231,7 @@ public class RemoteStoreRestoreService {
             totalShards += updatedIndexMetadata.getNumberOfShards();
         }
 
-        restoreGlobalMetadata(mdBuilder, remoteGlobalMetadata);
+        restoreGlobalMetadata(mdBuilder, remoteMetadata);
 
         RestoreInfo restoreInfo = new RestoreInfo("remote_store", indicesToBeRestored, totalShards, totalShards);
 
@@ -243,25 +240,25 @@ public class RemoteStoreRestoreService {
         return RemoteRestoreResult.build(restoreUUID, restoreInfo, allocationService.reroute(updatedState, "restored from remote store"));
     }
 
-    private void restoreGlobalMetadata(Metadata.Builder mdBuilder, Metadata remoteGlobalMetadata) {
-        if (remoteGlobalMetadata.persistentSettings() != null) {
-            Settings settings = remoteGlobalMetadata.persistentSettings();
+    private void restoreGlobalMetadata(Metadata.Builder mdBuilder, Metadata remoteMetadata) {
+        if (remoteMetadata.persistentSettings() != null) {
+            Settings settings = remoteMetadata.persistentSettings();
             clusterService.getClusterSettings().validateUpdate(settings);
             mdBuilder.persistentSettings(settings);
         }
-        if (remoteGlobalMetadata.templates() != null) {
-            for (final IndexTemplateMetadata cursor : remoteGlobalMetadata.templates().values()) {
+        if (remoteMetadata.templates() != null) {
+            for (final IndexTemplateMetadata cursor : remoteMetadata.templates().values()) {
                 mdBuilder.put(cursor);
             }
         }
-        if (remoteGlobalMetadata.customs() != null) {
-            for (final Map.Entry<String, Metadata.Custom> cursor : remoteGlobalMetadata.customs().entrySet()) {
+        if (remoteMetadata.customs() != null) {
+            for (final Map.Entry<String, Metadata.Custom> cursor : remoteMetadata.customs().entrySet()) {
                 if (RepositoriesMetadata.TYPE.equals(cursor.getKey()) == false) {
                     mdBuilder.putCustom(cursor.getKey(), cursor.getValue());
                 }
             }
         }
-        Optional<RepositoriesMetadata> repositoriesMetadata = Optional.ofNullable(remoteGlobalMetadata.custom(RepositoriesMetadata.TYPE));
+        Optional<RepositoriesMetadata> repositoriesMetadata = Optional.ofNullable(remoteMetadata.custom(RepositoriesMetadata.TYPE));
         repositoriesMetadata = repositoriesMetadata.map(
             repositoriesMetadata1 -> new RepositoriesMetadata(
                 repositoriesMetadata1.repositories()
