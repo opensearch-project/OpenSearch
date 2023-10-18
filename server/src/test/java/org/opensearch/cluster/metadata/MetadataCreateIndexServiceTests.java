@@ -1816,7 +1816,7 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
     public void testGetIndexUuidWithBinaryPrefix() {
 
         String standardIndexUUIDRegex = "^([a-zA-Z0-9=/_+]|[\\\\\\-]){22}$";
-        String binaryPrefixIndexUUIDRegex = "^([01]{0,10})([a-zA-Z0-9=/_+]|[\\\\\\-]){22}$";
+        String binaryPrefixIndexUUIDRegex = "^([01]{1,10})([a-zA-Z0-9=/_+]|[\\\\\\-]){22}$";
 
         Pattern standardIndexUUIDPattern = Pattern.compile(standardIndexUUIDRegex);
         Pattern binaryPrefixIndexUUIDPattern = Pattern.compile(binaryPrefixIndexUUIDRegex);
@@ -1853,16 +1853,45 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
         // Binary prefix setting enabled, binary prefix random length between 2 and 10
         settings = Settings.builder()
             .put(binaryPrefixEnabledSettings)
-            .put(IndicesService.CLUSTER_INDICES_BINARY_PREFIX_INDEX_UUID_LENGTH_SETTING.getKey(), randomIntBetween(0, 10))
+            .put(IndicesService.CLUSTER_INDICES_BINARY_PREFIX_INDEX_UUID_LENGTH_SETTING.getKey(), randomIntBetween(1, 10))
             .build();
         clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         indexUUID = MetadataCreateIndexService.getIndexUuidWithBinaryPrefix(clusterSettings);
         matcher = binaryPrefixIndexUUIDPattern.matcher(indexUUID);
         assertTrue(matcher.matches());
 
+        // Binary prefix setting enabled, binary prefix random length 0 or 11
+        settings = Settings.builder()
+            .put(binaryPrefixEnabledSettings)
+            .put(IndicesService.CLUSTER_INDICES_BINARY_PREFIX_INDEX_UUID_LENGTH_SETTING.getKey(), 0)
+            .build();
+        ClusterSettings finalClusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        IllegalArgumentException ex = assertThrows(
+            IllegalArgumentException.class,
+            () -> MetadataCreateIndexService.getIndexUuidWithBinaryPrefix(finalClusterSettings)
+        );
+        assertEquals(
+            "Failed to parse value [0] for setting [cluster.indices.binary-prefix-index-uuid.length] must be >= 1",
+            ex.getMessage()
+        );
+
+        settings = Settings.builder()
+            .put(binaryPrefixEnabledSettings)
+            .put(IndicesService.CLUSTER_INDICES_BINARY_PREFIX_INDEX_UUID_LENGTH_SETTING.getKey(), 11)
+            .build();
+        ClusterSettings finalClusterSettings1 = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        ex = assertThrows(
+            IllegalArgumentException.class,
+            () -> MetadataCreateIndexService.getIndexUuidWithBinaryPrefix(finalClusterSettings1)
+        );
+        assertEquals(
+            "Failed to parse value [11] for setting [cluster.indices.binary-prefix-index-uuid.length] must be <= 10",
+            ex.getMessage()
+        );
+
         // Length 0
         indexUUID = UUIDs.randomBase64UUID();
-        matcher = binaryPrefixIndexUUIDPattern.matcher(indexUUID);
+        matcher = standardIndexUUIDPattern.matcher(indexUUID);
         assertTrue(matcher.matches());
 
         // Length 11

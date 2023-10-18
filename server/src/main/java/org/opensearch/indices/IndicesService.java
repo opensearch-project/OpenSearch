@@ -315,7 +315,7 @@ public class IndicesService extends AbstractLifecycleComponent
     public static final Setting<Integer> CLUSTER_INDICES_BINARY_PREFIX_INDEX_UUID_LENGTH_SETTING = Setting.intSetting(
         "cluster.indices.binary-prefix-index-uuid.length",
         2,
-        0,
+        1,
         10,
         Property.NodeScope,
         Property.Dynamic
