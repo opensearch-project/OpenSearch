@@ -429,6 +429,7 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
     @Nullable
     public SegmentReplicationRejectionStats getSegmentReplicationRejectionStats() {
         return segmentReplicationRejectionStats;
+    }
 
     public RepositoriesStats getRepositoriesStats() {
         return repositoriesStats;

@@ -1249,6 +1249,7 @@ public class Node implements Closeable {
                 b.bind(MetricsRegistry.class).toInstance(metricsRegistry);
                 b.bind(RemoteClusterStateService.class).toProvider(() -> remoteClusterStateService);
                 b.bind(PersistedStateRegistry.class).toInstance(persistedStateRegistry);
+                b.bind(SegmentReplicationStatsTracker.class).toInstance(segmentReplicationStatsTracker);
             });
             injector = modules.createInjector();
 
