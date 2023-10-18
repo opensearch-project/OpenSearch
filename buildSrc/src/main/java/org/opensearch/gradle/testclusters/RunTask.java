@@ -41,8 +41,6 @@ import org.gradle.api.tasks.options.Option;
 
 import java.io.BufferedReader;
 import java.io.Closeable;
-import java.io.File;
-import java.io.FileInputStream;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -50,10 +48,12 @@ import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.Properties;
 import java.util.function.BooleanSupplier;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+
+import io.github.cdimascio.dotenv.Dotenv;
+import io.github.cdimascio.dotenv.DotenvException;
 
 /**
  * Implementation of the "run" Gradle task used in run.gradle
@@ -140,48 +140,23 @@ public class RunTask extends DefaultTestClustersTask {
         return dataDir.toString();
     }
 
-    private File locateEnvFile() {
-        return new File(getProject().getProjectDir(), ".env");
-    }
-
-    private Properties readPropertiesFromFile(File file) {
-        Properties properties = new Properties();
-        try (FileInputStream fis = new FileInputStream(file)) {
-            properties.load(fis);
-        } catch (IOException e) {
-            throw new GradleException("Failed to load properties from file: " + file.getAbsolutePath(), e);
-        }
-        return properties;
-    }
-
-    private String normalizeKeyForGradle(String key) {
-        String normalized = key.toLowerCase();
-        normalized = normalized.replace('_', '.');
-        return normalized;
-    }
-
-    private void setPropertiesAsSystemProperties(Properties properties) {
-        for (String key : properties.stringPropertyNames()) {
-            String normalizedKey = normalizeKeyForGradle(key);
-            String value = properties.getProperty(key);
-            System.setProperty(normalizedKey, value);
-        }
-    }
-
-    private void loadEnvProperties() {
-        File envFile = locateEnvFile();
-        if (envFile != null && envFile.exists()) {
-            Properties envProps = readPropertiesFromFile(envFile);
-            setPropertiesAsSystemProperties(envProps);
-        }
-    }
-
     @Override
     public void beforeStart() {
+        // Try to load .env file and set system properties
+        Dotenv dotenv;
+        try {
+            dotenv = Dotenv.load();
+            dotenv.entries().forEach(e -> System.setProperty(e.getKey(), e.getValue()));
+        } catch (DotenvException e) {
+            // .env file not found in the classpath
+            // refer DEVELOPER_GUIDE.md for more details
+            return;
+        }
+
         int debugPort = DEFAULT_DEBUG_PORT;
         int httpPort = DEFAULT_HTTP_PORT;
         int transportPort = DEFAULT_TRANSPORT_PORT;
-        loadEnvProperties();
+
         Map<String, String> additionalSettings = System.getProperties()
                 .entrySet()
                 .stream()
@@ -268,8 +243,7 @@ public class RunTask extends DefaultTestClustersTask {
                 if (readData == false) {
                     // no data was ready to be consumed and rather than continuously spinning, pause
                     // for some time to avoid excessive CPU usage. Ideally we would use the JDK
-                    // WatchService to receive change notifications but the WatchService does not
-                    // have
+                    // WatchService to receive change notifications but the WatchService does not have
                     // a native MacOS implementation and instead relies upon polling with possible
                     // delays up to 10s before a notification is received. See JDK-7133447.
                     try {
