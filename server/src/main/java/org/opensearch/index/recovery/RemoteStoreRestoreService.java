@@ -15,6 +15,7 @@ import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateUpdateTask;
 import org.opensearch.cluster.block.ClusterBlocks;
 import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.cluster.metadata.IndexTemplateMetadata;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.metadata.MetadataCreateIndexService;
 import org.opensearch.cluster.metadata.MetadataIndexUpgradeService;
@@ -247,6 +248,18 @@ public class RemoteStoreRestoreService {
             Settings settings = remoteGlobalMetadata.persistentSettings();
             clusterService.getClusterSettings().validateUpdate(settings);
             mdBuilder.persistentSettings(settings);
+        }
+        if (remoteGlobalMetadata.templates() != null) {
+            for (final IndexTemplateMetadata cursor : remoteGlobalMetadata.templates().values()) {
+                mdBuilder.put(cursor);
+            }
+        }
+        if (remoteGlobalMetadata.customs() != null) {
+            for (final Map.Entry<String, Metadata.Custom> cursor : remoteGlobalMetadata.customs().entrySet()) {
+                if (RepositoriesMetadata.TYPE.equals(cursor.getKey()) == false) {
+                    mdBuilder.putCustom(cursor.getKey(), cursor.getValue());
+                }
+            }
         }
         Optional<RepositoriesMetadata> repositoriesMetadata = Optional.ofNullable(remoteGlobalMetadata.custom(RepositoriesMetadata.TYPE));
         repositoriesMetadata = repositoriesMetadata.map(
