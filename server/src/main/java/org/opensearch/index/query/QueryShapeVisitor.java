@@ -33,7 +33,7 @@ public class QueryShapeVisitor implements QueryBuilderVisitor {
     public QueryBuilderVisitor getChildVisitor(BooleanClause.Occur occur) {
         // Should get called once per Occur value
         if (childVisitors.containsKey(occur)) {
-            throw new IllegalStateException("getChildVisitor already called for " + occur);
+            throw new IllegalStateException("child visitor already called for " + occur);
         }
         final List<QueryShapeVisitor> childVisitorList = new ArrayList<>();
         QueryBuilderVisitor childVisitorWrapper = new QueryBuilderVisitor() {
@@ -55,7 +55,7 @@ public class QueryShapeVisitor implements QueryBuilderVisitor {
         return childVisitorWrapper;
     }
 
-    public String toJson() {
+    String toJson() {
         StringBuilder outputBuilder = new StringBuilder("{\"type\":\"").append(queryType.get()).append("\"");
         for (Map.Entry<BooleanClause.Occur, List<QueryShapeVisitor>> entry : childVisitors.entrySet()) {
             outputBuilder.append(",\"").append(entry.getKey().name().toLowerCase(Locale.ROOT)).append("\"[");

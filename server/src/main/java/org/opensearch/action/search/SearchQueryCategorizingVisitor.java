@@ -28,7 +28,7 @@ import org.opensearch.telemetry.metrics.tags.Tags;
  * Increments the counters related to Search Query type.
  */
 public class SearchQueryCategorizingVisitor implements QueryBuilderVisitor {
-    public static final String LEVEL_TAG = "level";
+    private static final String LEVEL_TAG = "level";
     private final int level;
     private final SearchQueryCounters searchQueryCounters;
 
