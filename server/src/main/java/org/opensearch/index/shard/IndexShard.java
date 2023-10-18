@@ -3533,7 +3533,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 executeRecovery("from store", recoveryState, recoveryListener, this::recoverFromStore);
                 break;
             case REMOTE_STORE:
+                // When remote indices are restored via remote metadata,
+                // the recovery source is REMOTE_STORE and unassigned Reason is CLUSTER_RECOVERED
+                // During remote index restore from local disk metadata, the unassigned Reason is still CLUSTER_RECOVERED
+                // but the RecoverySource is not REMOTE_STORE but EXISTING_STORE
                 if (shardRouting.unassignedInfo().getReason() == UnassignedInfo.Reason.CLUSTER_RECOVERED) {
+                    // At this stage the shard is in INITIALIZING state
                     logger.info("Cannot start recovery yet!");
                 } else {
                     executeRecovery("from remote store", recoveryState, recoveryListener, l -> restoreFromRemoteStore(l));

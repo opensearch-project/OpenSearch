@@ -472,9 +472,9 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable> imple
                 }
                 IndexShardRoutingTable.Builder indexShardRoutingBuilder = new IndexShardRoutingTable.Builder(shardId);
                 IndexShardRoutingTable indexShardRoutingTable = indexShardRoutingTableMap.get(shardId);
-                if (forceRecoverAllPrimaries
-                    || indexShardRoutingTable == null
-                    || indexShardRoutingTable.primaryShard().unassigned()
+                if (forceRecoverAllPrimaries || indexShardRoutingTable == null || indexShardRoutingTable.primaryShard().unassigned()
+                // When remote indices are restored via remote metadata,
+                // the shards are left in INITIALIZING state with unassigned Reason as still CLUSTER_RECOVERED
                     || (indexShardRoutingTable.primaryShard().initializing()
                         && indexShardRoutingTable.primaryShard().unassignedInfo().getReason() == UnassignedInfo.Reason.CLUSTER_RECOVERED)) {
                     // Primary shard to be recovered from remote store.
