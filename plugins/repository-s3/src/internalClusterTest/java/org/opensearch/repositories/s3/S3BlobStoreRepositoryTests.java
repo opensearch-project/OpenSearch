@@ -34,7 +34,9 @@ package org.opensearch.repositories.s3;
 import com.sun.net.httpserver.Headers;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
-import fixture.s3.S3HttpHandler;
+
+import software.amazon.awssdk.core.internal.http.pipeline.stages.ApplyTransactionIdStage;
+
 import org.opensearch.action.ActionRunnable;
 import org.opensearch.action.admin.indices.forcemerge.ForceMergeResponse;
 import org.opensearch.action.support.PlainActionFuture;
@@ -70,7 +72,6 @@ import org.opensearch.snapshots.mockstore.BlobStoreWrapper;
 import org.opensearch.test.BackgroundIndexer;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.threadpool.ThreadPool;
-import software.amazon.awssdk.core.internal.http.pipeline.stages.ApplyTransactionIdStage;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -84,12 +85,14 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.stream.StreamSupport;
 
+import fixture.s3.S3HttpHandler;
+
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.lessThan;
-import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
-import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
 
 @SuppressForbidden(reason = "this test uses a HttpServer to emulate an S3 endpoint")
 // Need to set up a new cluster for each test because cluster settings use randomized authentication settings
