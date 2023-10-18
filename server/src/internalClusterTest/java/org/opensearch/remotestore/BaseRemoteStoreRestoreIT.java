@@ -46,7 +46,10 @@ public class BaseRemoteStoreRestoreIT extends RemoteStoreBaseIntegTestCase {
     }
 
     protected void restore(String... indices) {
-        boolean restoreAllShards = randomBoolean();
+        restore(randomBoolean(), indices);
+    }
+
+    protected void restore(boolean restoreAllShards, String... indices) {
         if (restoreAllShards) {
             assertAcked(client().admin().indices().prepareClose(indices));
         }

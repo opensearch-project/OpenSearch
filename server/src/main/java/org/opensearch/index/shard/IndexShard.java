@@ -72,6 +72,7 @@ import org.opensearch.cluster.routing.RecoverySource;
 import org.opensearch.cluster.routing.RecoverySource.SnapshotRecoverySource;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.ShardRoutingState;
+import org.opensearch.cluster.routing.UnassignedInfo;
 import org.opensearch.common.Booleans;
 import org.opensearch.common.CheckedConsumer;
 import org.opensearch.common.CheckedFunction;
@@ -3532,7 +3533,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 executeRecovery("from store", recoveryState, recoveryListener, this::recoverFromStore);
                 break;
             case REMOTE_STORE:
-                executeRecovery("from remote store", recoveryState, recoveryListener, l -> restoreFromRemoteStore(l));
+                if (shardRouting.unassignedInfo().getReason() == UnassignedInfo.Reason.CLUSTER_RECOVERED) {
+                    logger.info("Cannot start recovery yet!");
+                } else {
+                    executeRecovery("from remote store", recoveryState, recoveryListener, l -> restoreFromRemoteStore(l));
+                }
                 break;
             case PEER:
                 try {

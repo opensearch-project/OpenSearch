@@ -467,12 +467,16 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable> imple
             }
             for (int shardNumber = 0; shardNumber < indexMetadata.getNumberOfShards(); shardNumber++) {
                 ShardId shardId = new ShardId(index, shardNumber);
-                if (forceRecoverAllPrimaries == false && indexShardRoutingTableMap.containsKey(shardId) == false) {
+                if (metadataFromRemoteStore == false && indexShardRoutingTableMap.containsKey(shardId) == false) {
                     throw new IllegalStateException("IndexShardRoutingTable is not present for shardId: " + shardId);
                 }
                 IndexShardRoutingTable.Builder indexShardRoutingBuilder = new IndexShardRoutingTable.Builder(shardId);
                 IndexShardRoutingTable indexShardRoutingTable = indexShardRoutingTableMap.get(shardId);
-                if (forceRecoverAllPrimaries || indexShardRoutingTable == null || indexShardRoutingTable.primaryShard().unassigned()) {
+                if (forceRecoverAllPrimaries
+                    || indexShardRoutingTable == null
+                    || indexShardRoutingTable.primaryShard().unassigned()
+                    || (indexShardRoutingTable.primaryShard().initializing()
+                        && indexShardRoutingTable.primaryShard().unassignedInfo().getReason() == UnassignedInfo.Reason.CLUSTER_RECOVERED)) {
                     // Primary shard to be recovered from remote store.
                     indexShardRoutingBuilder.addShard(ShardRouting.newUnassigned(shardId, true, recoverySource, unassignedInfo));
                     // All the replica shards to be recovered from peer recovery.

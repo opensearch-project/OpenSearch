@@ -48,7 +48,6 @@ import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.MappingMetadata;
 import org.opensearch.cluster.routing.RecoverySource;
 import org.opensearch.cluster.routing.RecoverySource.SnapshotRecoverySource;
-import org.opensearch.cluster.routing.UnassignedInfo;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.unit.TimeValue;
@@ -433,9 +432,6 @@ final class StoreRecovery {
     private boolean canRecover(IndexShard indexShard) {
         if (indexShard.state() == IndexShardState.CLOSED) {
             // got closed on us, just ignore this recovery
-            return false;
-        }
-        if (indexShard.shardRouting.unassignedInfo().getReason() == UnassignedInfo.Reason.CLUSTER_RECOVERED) {
             return false;
         }
         if (indexShard.routingEntry().primary() == false) {

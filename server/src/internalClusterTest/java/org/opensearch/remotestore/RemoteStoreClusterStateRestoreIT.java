@@ -51,6 +51,13 @@ public class RemoteStoreClusterStateRestoreIT extends BaseRemoteStoreRestoreIT {
         internalCluster().startDataOnlyNodes(dataNodeCount);
     }
 
+    @Override
+    protected void verifyRestoredData(Map<String, Long> indexStats, String indexName) throws Exception {
+        ensureRed(indexName);
+        restore(false, indexName);
+        super.verifyRestoredData(indexStats, indexName);
+    }
+
     public void testFullClusterRestore() throws Exception {
         int shardCount = randomIntBetween(1, 2);
         int replicaCount = 1;
