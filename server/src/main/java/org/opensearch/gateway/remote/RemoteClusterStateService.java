@@ -937,7 +937,7 @@ public class RemoteClusterStateService implements Closeable {
 
     private ChecksumBlobStoreFormat<ClusterMetadataManifest> getClusterMetadataManifestBlobStoreFormat(String fileName) {
         long codecVersion = getManifestCodecVersion(fileName);
-        if (codecVersion == ClusterMetadataManifest.CODEC_V1) {
+        if (codecVersion == MANIFEST_CURRENT_CODEC_VERSION) {
             return CLUSTER_METADATA_MANIFEST_FORMAT;
         } else if (codecVersion == ClusterMetadataManifest.CODEC_V0) {
             return CLUSTER_METADATA_MANIFEST_FORMAT_V0;

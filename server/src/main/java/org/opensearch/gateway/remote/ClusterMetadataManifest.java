@@ -133,6 +133,8 @@ public class ClusterMetadataManifest implements Writeable, ToXContentFragment {
         )
     );
 
+    private static final ConstructingObjectParser<ClusterMetadataManifest, Void> CURRENT_PARSER = PARSER_V1;
+
     static {
         declareParser(PARSER_V0, CODEC_V0);
         declareParser(PARSER_V1, CODEC_V1);
@@ -375,7 +377,7 @@ public class ClusterMetadataManifest implements Writeable, ToXContentFragment {
     }
 
     public static ClusterMetadataManifest fromXContent(XContentParser parser) throws IOException {
-        return PARSER_V1.parse(parser, null);
+        return CURRENT_PARSER.parse(parser, null);
     }
 
     /**
