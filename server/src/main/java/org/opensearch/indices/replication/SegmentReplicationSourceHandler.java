@@ -146,11 +146,17 @@ class SegmentReplicationSourceHandler {
                 );
             };
             cancellableThreads.checkForCancel();
-            final IndexShardRoutingTable routingTable = shard.getReplicationGroup().getRoutingTable();
-            ShardRouting targetShardRouting = routingTable.getByAllocationId(request.getTargetAllocationId());
-            if (targetShardRouting == null) {
-                logger.debug("delaying replication of {} as it is not listed as assigned to target node {}", shard.shardId(), targetNode);
-                throw new DelayRecoveryException("source node does not have the shard listed in its state as allocated on the node");
+            if (shard.isPrimaryMode()) {
+                final IndexShardRoutingTable routingTable = shard.getReplicationGroup().getRoutingTable();
+                ShardRouting targetShardRouting = routingTable.getByAllocationId(request.getTargetAllocationId());
+                if (targetShardRouting == null) {
+                    logger.debug(
+                        "delaying replication of {} as it is not listed as assigned to target node {}",
+                        shard.shardId(),
+                        targetNode
+                    );
+                    throw new DelayRecoveryException("source node does not have the shard listed in its state as allocated on the node");
+                }
             }
 
             final StepListener<Void> sendFileStep = new StepListener<>();
