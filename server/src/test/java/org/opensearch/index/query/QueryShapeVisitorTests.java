@@ -12,7 +12,7 @@ import org.opensearch.test.OpenSearchTestCase;
 
 import static org.junit.Assert.assertEquals;
 
-public class QueryShapeVisitorTests extends OpenSearchTestCase {
+final class QueryShapeVisitorTests extends OpenSearchTestCase {
     public void testQueryShapeVisitor() {
         QueryBuilder builder = new BoolQueryBuilder().must(new TermQueryBuilder("foo", "bar"))
             .filter(new ConstantScoreQueryBuilder(new RangeQueryBuilder("timestamp").from("12345677").to("2345678")))

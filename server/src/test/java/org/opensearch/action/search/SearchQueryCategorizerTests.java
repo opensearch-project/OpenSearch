@@ -42,7 +42,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.when;
 
-public class SearchQueryCategorizerTests extends OpenSearchTestCase {
+final class SearchQueryCategorizerTests extends OpenSearchTestCase {
 
     private MetricsRegistry metricsRegistry;
 
@@ -211,10 +211,11 @@ public class SearchQueryCategorizerTests extends OpenSearchTestCase {
         TermQueryBuilder termQueryBuilder = QueryBuilders.termQuery("field", "value2");
         MatchQueryBuilder matchQueryBuilder = QueryBuilders.matchQuery("tags", "php");
         RegexpQueryBuilder regexpQueryBuilder = new RegexpQueryBuilder("field", "text");
-        BoolQueryBuilder boolQueryBuilder = new BoolQueryBuilder().must(termQueryBuilder).filter(matchQueryBuilder).should(regexpQueryBuilder);
+        BoolQueryBuilder boolQueryBuilder = new BoolQueryBuilder().must(termQueryBuilder)
+            .filter(matchQueryBuilder)
+            .should(regexpQueryBuilder);
         sourceBuilder.query(boolQueryBuilder);
         sourceBuilder.aggregation(new RangeAggregationBuilder("agg1").field("num"));
-
 
         searchQueryCategorizer.categorize(sourceBuilder);
 

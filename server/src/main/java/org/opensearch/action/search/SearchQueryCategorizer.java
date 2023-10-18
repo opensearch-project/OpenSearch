@@ -26,11 +26,11 @@ import java.util.ListIterator;
  * Class to categorize the search queries based on the type and increment the relevant counters.
  * Class also logs the query shape.
  */
-public final class SearchQueryCategorizer {
+final class SearchQueryCategorizer {
 
     private static final Logger log = LogManager.getLogger(SearchQueryCategorizer.class);
 
-    public final SearchQueryCounters searchQueryCounters;
+    final SearchQueryCounters searchQueryCounters;
 
     public SearchQueryCategorizer(MetricsRegistry metricsRegistry) {
         searchQueryCounters = new SearchQueryCounters(metricsRegistry);
@@ -47,7 +47,7 @@ public final class SearchQueryCategorizer {
 
     private void incrementQuerySortCounters(List<SortBuilder<?>> sorts) {
         if (sorts != null && sorts.size() > 0) {
-            for (ListIterator<SortBuilder<?>> it = sorts.listIterator(); it.hasNext(); ) {
+            for (ListIterator<SortBuilder<?>> it = sorts.listIterator(); it.hasNext();) {
                 SortBuilder sortBuilder = it.next();
                 String sortOrder = sortBuilder.order().toString();
                 searchQueryCounters.sortCounter.add(1, Tags.create().addTag("sort_order", sortOrder));
