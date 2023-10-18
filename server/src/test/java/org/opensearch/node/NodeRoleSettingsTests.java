@@ -18,6 +18,7 @@ import java.util.Collections;
 import java.util.List;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 
 public class NodeRoleSettingsTests extends OpenSearchTestCase {
 
@@ -73,9 +74,12 @@ public class NodeRoleSettingsTests extends OpenSearchTestCase {
         assertEquals(testRole, nodeRoles.get(0).roleNameAbbreviation());
     }
 
-    public void testNodeRoleOfEmptyArrayNameShouldBeIgnored() {
-        String testRole = "[ ]";
-        Settings roleSettings = Settings.builder().put(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), testRole).build();
-        assertEquals(Collections.emptyList(), NodeRoleSettings.NODE_ROLES_SETTING.get(roleSettings));
+    public void testNodeRolesFromEnvironmentVariables() {
+        Settings roleSettings = Settings.builder()
+            .put(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), "${node.roles.test}")
+            .replacePropertyPlaceholders()
+            .build();
+        List<DiscoveryNodeRole> nodeRoles = NodeRoleSettings.NODE_ROLES_SETTING.get(roleSettings);
+        assertThat(nodeRoles, empty());
     }
 }

@@ -2337,15 +2337,9 @@ public class Setting<T> implements ToXContentObject {
         if (defaultStringValue.apply(Settings.EMPTY) == null) {
             throw new IllegalArgumentException("default value function must not return null");
         }
-        Function<String, List<T>> parser = (s) -> isParsedAsEmptyArray(s)
-            ? Collections.emptyList()
-            : parseableStringToList(s).stream().map(singleValueParser).collect(Collectors.toList());
+        Function<String, List<T>> parser = (s) -> parseableStringToList(s).stream().map(singleValueParser).collect(Collectors.toList());
 
         return new ListSetting<>(key, fallbackSetting, defaultStringValue, parser, validator, properties);
-    }
-
-    private static boolean isParsedAsEmptyArray(String parsableString) {
-        return parsableString.replaceAll("\\s", "").contentEquals("[\"[]\"]");
     }
 
     private static List<String> parseableStringToList(String parsableString) {
