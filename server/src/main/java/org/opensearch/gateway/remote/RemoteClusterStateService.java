@@ -658,8 +658,8 @@ public class RemoteClusterStateService implements Closeable {
     }
 
     // TODO - will be replace by actual implementation after download PR is merged
-    public Metadata getLatestMetadata(String clusterName, String clusterUUID) {
-        return Metadata.builder().build();
+    public Metadata getLatestMetadata(String clusterName, String clusterUUID) throws IOException {
+        return Metadata.builder().indices(getLatestIndexMetadata(clusterName, clusterUUID)).build();
     }
 
     /**
