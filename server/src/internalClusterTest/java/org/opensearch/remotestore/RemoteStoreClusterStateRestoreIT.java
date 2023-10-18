@@ -8,16 +8,14 @@
 
 package org.opensearch.remotestore;
 
-import org.opensearch.cluster.ClusterState;
-import org.opensearch.cluster.metadata.IndexMetadata;
-import org.opensearch.cluster.metadata.Metadata;
-import org.opensearch.action.admin.cluster.remotestore.restore.RestoreRemoteStoreResponse;
 import org.opensearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.opensearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.opensearch.action.admin.indices.template.put.PutIndexTemplateRequest;
-import org.opensearch.action.support.PlainActionFuture;
+import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.block.ClusterBlockException;
+import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.IndexTemplateMetadata;
+import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.metadata.RepositoriesMetadata;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.gateway.remote.ClusterMetadataManifest;
@@ -28,7 +26,6 @@ import org.opensearch.test.OpenSearchIntegTestCase;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.util.Arrays;
-import java.util.Locale;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -39,7 +36,6 @@ import static org.opensearch.cluster.metadata.Metadata.CLUSTER_READ_ONLY_BLOCK;
 import static org.opensearch.cluster.metadata.Metadata.SETTING_READ_ONLY_SETTING;
 import static org.opensearch.gateway.remote.RemoteClusterStateService.REMOTE_CLUSTER_STATE_ENABLED_SETTING;
 import static org.opensearch.indices.ShardLimitValidator.SETTING_CLUSTER_MAX_SHARDS_PER_NODE;
-import static org.opensearch.indices.ShardLimitValidator.SETTING_MAX_SHARDS_PER_CLUSTER_KEY;
 import static org.opensearch.repositories.blobstore.BlobStoreRepository.SYSTEM_REPOSITORY_SETTING;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 
@@ -115,7 +111,7 @@ public class RemoteStoreClusterStateRestoreIT extends BaseRemoteStoreRestoreIT {
         assert !Objects.equals(newClusterUUID, prevClusterUUID) : "cluster restart not successful. cluster uuid is same";
 
         // Step - 3 Trigger full cluster restore
-        // validateMetadata(List.of(INDEX_NAME, secondIndexName));
+        validateMetadata(List.of(INDEX_NAME, secondIndexName));
         verifyRestoredData(indexStats, INDEX_NAME);
         verifyRestoredData(indexStats2, secondIndexName, false);
         assertTrue(INDEX_READ_ONLY_SETTING.get(clusterService().state().metadata().index(secondIndexName).getSettings()));
@@ -219,7 +215,6 @@ public class RemoteStoreClusterStateRestoreIT extends BaseRemoteStoreRestoreIT {
         });
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/9834")
     public void testFullClusterRestoreGlobalMetadata() throws Exception {
         int shardCount = randomIntBetween(1, 2);
         int replicaCount = 1;
@@ -231,7 +226,7 @@ public class RemoteStoreClusterStateRestoreIT extends BaseRemoteStoreRestoreIT {
         String prevClusterUUID = clusterService().state().metadata().clusterUUID();
 
         // Create global metadata - register a custom repo
-        // TODO - uncomment after customs is also uploaded correctly
+        // TODO - uncomment after all customs is also uploaded for all repos - https://github.com/opensearch-project/OpenSearch/issues/10691
         // registerCustomRepository();
 
         // Create global metadata - persistent settings
@@ -282,6 +277,7 @@ public class RemoteStoreClusterStateRestoreIT extends BaseRemoteStoreRestoreIT {
         assertEquals(2, repositoriesMetadata.repositories().size()); // includes remote store repo as well
         assertTrue(SYSTEM_REPOSITORY_SETTING.get(repositoriesMetadata.repository(REPOSITORY_NAME).settings()));
         assertTrue(SYSTEM_REPOSITORY_SETTING.get(repositoriesMetadata.repository(REPOSITORY_2_NAME).settings()));
+        // TODO - uncomment after all customs is also uploaded for all repos - https://github.com/opensearch-project/OpenSearch/issues/10691
         // assertEquals("fs", repositoriesMetadata.repository("custom-repo").type());
         // assertEquals(Settings.builder().put("location", randomRepoPath()).put("compress", false).build(),
         // repositoriesMetadata.repository("custom-repo").settings());
