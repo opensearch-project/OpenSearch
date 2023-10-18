@@ -73,7 +73,12 @@ public final class AsyncTransferManager {
      * @param executorService         The stream reader {@link ExecutorService} for normal priority uploads
      * @param priorityExecutorService The stream read {@link ExecutorService} for high priority uploads
      */
-    public AsyncTransferManager(long minimumPartSize, ExecutorService executorService, ExecutorService priorityExecutorService, ExecutorService urgentExecutorService) {
+    public AsyncTransferManager(
+        long minimumPartSize,
+        ExecutorService executorService,
+        ExecutorService priorityExecutorService,
+        ExecutorService urgentExecutorService
+    ) {
         this.executorService = executorService;
         this.priorityExecutorService = priorityExecutorService;
         this.minimumPartSize = minimumPartSize;
