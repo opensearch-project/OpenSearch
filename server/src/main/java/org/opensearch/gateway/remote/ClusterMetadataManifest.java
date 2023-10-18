@@ -33,7 +33,7 @@ import java.util.Objects;
  */
 public class ClusterMetadataManifest implements Writeable, ToXContentFragment {
 
-    public static final int CODEC_V0 = 0; // Default codec version, where we haven't introduced codec versions for manifest.
+    public static final int CODEC_V0 = 0; // Older codec version, where we haven't introduced codec versions for manifest.
     public static final int CODEC_V1 = 1; // In Codec V1 we have introduced global-metadata and codec version in Manifest file.
 
     private static final ParseField CLUSTER_TERM_FIELD = new ParseField("cluster_term");
@@ -97,7 +97,7 @@ public class ClusterMetadataManifest implements Writeable, ToXContentFragment {
         return (String) fields[11];
     }
 
-    private static final ConstructingObjectParser<ClusterMetadataManifest, Void> PARSER = new ConstructingObjectParser<>(
+    private static final ConstructingObjectParser<ClusterMetadataManifest, Void> PARSER_V0 = new ConstructingObjectParser<>(
         "cluster_metadata_manifest",
         fields -> new ClusterMetadataManifest(
             term(fields),
@@ -107,8 +107,8 @@ public class ClusterMetadataManifest implements Writeable, ToXContentFragment {
             opensearchVersion(fields),
             nodeId(fields),
             committed(fields),
-            CODEC_V0, // Default codec version
-            null, // null global metadata for manifest files with v0 codec
+            CODEC_V0,
+            null,
             indices(fields),
             previousClusterUUID(fields),
             clusterUUIDCommitted(fields)
@@ -134,7 +134,7 @@ public class ClusterMetadataManifest implements Writeable, ToXContentFragment {
     );
 
     static {
-        declareParser(PARSER, CODEC_V0);
+        declareParser(PARSER_V0, CODEC_V0);
         declareParser(PARSER_V1, CODEC_V1);
     }
 
@@ -154,7 +154,7 @@ public class ClusterMetadataManifest implements Writeable, ToXContentFragment {
         parser.declareString(ConstructingObjectParser.constructorArg(), PREVIOUS_CLUSTER_UUID);
         parser.declareBoolean(ConstructingObjectParser.constructorArg(), CLUSTER_UUID_COMMITTED);
 
-        if (codec_version == CODEC_V1) {
+        if (codec_version >= CODEC_V1) {
             parser.declareInt(ConstructingObjectParser.constructorArg(), CODEC_VERSION_FIELD);
             parser.declareString(ConstructingObjectParser.constructorArg(), GLOBAL_METADATA_FIELD);
         }
@@ -295,7 +295,7 @@ public class ClusterMetadataManifest implements Writeable, ToXContentFragment {
         builder.endArray();
         builder.field(PREVIOUS_CLUSTER_UUID.getPreferredName(), getPreviousClusterUUID());
         builder.field(CLUSTER_UUID_COMMITTED.getPreferredName(), isClusterUUIDCommitted());
-        if (getCodecVersion() == CODEC_V1) {
+        if (onOrAfterCodecVersion(CODEC_V1)) {
             builder.field(CODEC_VERSION_FIELD.getPreferredName(), getCodecVersion());
             builder.field(GLOBAL_METADATA_FIELD.getPreferredName(), getGlobalMetadataFileName());
         }
@@ -366,11 +366,15 @@ public class ClusterMetadataManifest implements Writeable, ToXContentFragment {
         return Strings.toString(MediaTypeRegistry.JSON, this);
     }
 
-    public static ClusterMetadataManifest fromXContent(XContentParser parser) throws IOException {
-        return PARSER.parse(parser, null);
+    public boolean onOrAfterCodecVersion(int codecVersion) {
+        return this.codecVersion >= codecVersion;
     }
 
-    public static ClusterMetadataManifest fromXContentV1(XContentParser parser) throws IOException {
+    public static ClusterMetadataManifest fromXContentV0(XContentParser parser) throws IOException {
+        return PARSER_V0.parse(parser, null);
+    }
+
+    public static ClusterMetadataManifest fromXContent(XContentParser parser) throws IOException {
         return PARSER_V1.parse(parser, null);
     }
 

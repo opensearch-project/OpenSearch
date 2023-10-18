@@ -83,6 +83,7 @@ public class RemoteClusterStateService implements Closeable {
 
     private static final Logger logger = LogManager.getLogger(RemoteClusterStateService.class);
 
+    // TODO make this two variable as dynamic setting [issue: #10688]
     public static final int INDEX_METADATA_UPLOAD_WAIT_MILLIS = 20000;
     public static final int GLOBAL_METADATA_UPLOAD_WAIT_MILLIS = 20000;
 
@@ -101,17 +102,17 @@ public class RemoteClusterStateService implements Closeable {
     /**
      * Manifest format compatible with older codec v0, where codec version was missing.
      */
+    public static final ChecksumBlobStoreFormat<ClusterMetadataManifest> CLUSTER_METADATA_MANIFEST_FORMAT_V0 =
+        new ChecksumBlobStoreFormat<>("cluster-metadata-manifest", METADATA_MANIFEST_NAME_FORMAT, ClusterMetadataManifest::fromXContentV0);
+
+    /**
+     * Manifest format compatible with codec v1, where we introduced codec versions/global metadata.
+     */
     public static final ChecksumBlobStoreFormat<ClusterMetadataManifest> CLUSTER_METADATA_MANIFEST_FORMAT = new ChecksumBlobStoreFormat<>(
         "cluster-metadata-manifest",
         METADATA_MANIFEST_NAME_FORMAT,
         ClusterMetadataManifest::fromXContent
     );
-
-    /**
-     * Manifest format compatible with codec v1, where we introduced codec versions/global metadata.
-     */
-    public static final ChecksumBlobStoreFormat<ClusterMetadataManifest> CLUSTER_METADATA_MANIFEST_FORMAT_V1 =
-        new ChecksumBlobStoreFormat<>("cluster-metadata-manifest", METADATA_MANIFEST_NAME_FORMAT, ClusterMetadataManifest::fromXContentV1);
 
     /**
      * Used to specify if cluster state metadata should be published to remote store
@@ -129,6 +130,7 @@ public class RemoteClusterStateService implements Closeable {
     public static final String MANIFEST_PATH_TOKEN = "manifest";
     public static final String MANIFEST_FILE_PREFIX = "manifest";
     public static final String METADATA_FILE_PREFIX = "metadata";
+    public static final int SPLITED_MANIFEST_FILE_LENGTH = 6; // file name manifest__term__version__C/P__timestamp__codecversion
 
     private final String nodeId;
     private final Supplier<RepositoriesService> repositoriesService;
@@ -366,7 +368,7 @@ public class RemoteClusterStateService implements Closeable {
 
         try {
             if (latch.await(GLOBAL_METADATA_UPLOAD_WAIT_MILLIS, TimeUnit.MILLISECONDS) == false) {
-                // TODO: We should add metrics where transfer is timing out.
+                // TODO: We should add metrics where transfer is timing out. [Issue: #10687]
                 GlobalMetadataTransferException ex = new GlobalMetadataTransferException(
                     String.format(Locale.ROOT, "Timed out waiting for transfer of global metadata to complete")
                 );
@@ -566,7 +568,7 @@ public class RemoteClusterStateService implements Closeable {
     private void writeMetadataManifest(String clusterName, String clusterUUID, ClusterMetadataManifest uploadManifest, String fileName)
         throws IOException {
         final BlobContainer metadataManifestContainer = manifestContainer(clusterName, clusterUUID);
-        CLUSTER_METADATA_MANIFEST_FORMAT_V1.write(uploadManifest, metadataManifestContainer, fileName, blobStoreRepository.getCompressor());
+        CLUSTER_METADATA_MANIFEST_FORMAT.write(uploadManifest, metadataManifestContainer, fileName, blobStoreRepository.getCompressor());
     }
 
     private String fetchPreviousClusterUUID(String clusterName, String clusterUUID) {
@@ -935,21 +937,24 @@ public class RemoteClusterStateService implements Closeable {
 
     private ChecksumBlobStoreFormat<ClusterMetadataManifest> getClusterMetadataManifestBlobStoreFormat(String fileName) {
         long codecVersion = getManifestCodecVersion(fileName);
-        if (codecVersion == ClusterMetadataManifest.CODEC_V0) {
+        if (codecVersion == ClusterMetadataManifest.CODEC_V1) {
             return CLUSTER_METADATA_MANIFEST_FORMAT;
-        } else if (codecVersion == ClusterMetadataManifest.CODEC_V1) {
-            return CLUSTER_METADATA_MANIFEST_FORMAT_V1;
+        } else if (codecVersion == ClusterMetadataManifest.CODEC_V0) {
+            return CLUSTER_METADATA_MANIFEST_FORMAT_V0;
         }
 
         throw new IllegalArgumentException("Cluster metadata manifest file is corrupted, don't have valid codec version");
     }
 
     private int getManifestCodecVersion(String fileName) {
-        if (fileName.split(DELIMITER).length < 6) { // Where codec is not part of file name, i.e. default codec version 0 is used.
+        String[] splitName = fileName.split(DELIMITER);
+        if (splitName.length == SPLITED_MANIFEST_FILE_LENGTH) {
+            return Integer.parseInt(splitName[splitName.length - 1]); // Last value would be codec version.
+        } else if (splitName.length < SPLITED_MANIFEST_FILE_LENGTH) { // Where codec is not part of file name, i.e. default codec version 0
+                                                                      // is used.
             return ClusterMetadataManifest.CODEC_V0;
         } else {
-            String[] splitName = fileName.split(DELIMITER);
-            return Integer.parseInt(splitName[splitName.length - 1]); // Last value would be codec version.
+            throw new IllegalArgumentException("Manifest file name is corrupted");
         }
     }
 

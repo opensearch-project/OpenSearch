@@ -26,7 +26,7 @@ import java.util.List;
 
 public class ClusterMetadataManifestTests extends OpenSearchTestCase {
 
-    public void testClusterMetadataManifestXContent() throws IOException {
+    public void testClusterMetadataManifestXContentV0() throws IOException {
         UploadedIndexMetadata uploadedIndexMetadata = new UploadedIndexMetadata("test-index", "test-uuid", "/test/upload/path");
         ClusterMetadataManifest originalManifest = new ClusterMetadataManifest(
             1L,
@@ -48,12 +48,12 @@ public class ClusterMetadataManifestTests extends OpenSearchTestCase {
         builder.endObject();
 
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder))) {
-            final ClusterMetadataManifest fromXContentManifest = ClusterMetadataManifest.fromXContent(parser);
+            final ClusterMetadataManifest fromXContentManifest = ClusterMetadataManifest.fromXContentV0(parser);
             assertEquals(originalManifest, fromXContentManifest);
         }
     }
 
-    public void testClusterMetadataManifestXContentCodecV1() throws IOException {
+    public void testClusterMetadataManifestXContent() throws IOException {
         UploadedIndexMetadata uploadedIndexMetadata = new UploadedIndexMetadata("test-index", "test-uuid", "/test/upload/path");
         ClusterMetadataManifest originalManifest = new ClusterMetadataManifest(
             1L,
@@ -75,7 +75,7 @@ public class ClusterMetadataManifestTests extends OpenSearchTestCase {
         builder.endObject();
 
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder))) {
-            final ClusterMetadataManifest fromXContentManifest = ClusterMetadataManifest.fromXContentV1(parser);
+            final ClusterMetadataManifest fromXContentManifest = ClusterMetadataManifest.fromXContent(parser);
             assertEquals(originalManifest, fromXContentManifest);
         }
     }

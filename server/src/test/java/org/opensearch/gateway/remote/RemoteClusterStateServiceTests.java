@@ -265,7 +265,7 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
 
     }
 
-    public void testWriteFullMetadataInParallelFailureForGlobalMetadata() throws IOException {
+    public void testWriteFullMetadataFailureForGlobalMetadata() throws IOException {
         final ClusterState clusterState = generateClusterStateWithOneIndex().nodes(nodesWithLocalNodeClusterManager()).build();
         AsyncMultiStreamBlobContainer container = (AsyncMultiStreamBlobContainer) mockBlobStoreObjects(AsyncMultiStreamBlobContainer.class);
 
@@ -364,8 +364,8 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
     /*
      * Here we will verify the migration of manifest file from codec V0 and V1.
      *
-     * Initially codec version is 1 and global metadata is also null, we will perform index metadata update.
-     * In final manifest codec version should be 2 and
+     * Initially codec version is 0 and global metadata is also null, we will perform index metadata update.
+     * In final manifest codec version should be 1 and
      * global metadata should be updated, even if it was not changed in this cluster state update
      */
     public void testMigrationFromCodecV0ManifestToCodecV1Manifest() throws IOException {
@@ -445,9 +445,9 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
     }
 
     /*
-     * Here we will verify global metadata is not uploaded again if change is only in index metadata
+     * Here we will verify index metadata is not uploaded again if change is only in global metadata
      */
-    public void testGlobalMetadataNotUpdatingIndexMetadata() throws IOException {
+    public void testGlobalMetadataOnlyUpdated() throws IOException {
         // setup
         mockBlobStoreObjects();
         final CoordinationMetadata coordinationMetadata = CoordinationMetadata.builder().term(1L).build();
@@ -508,9 +508,9 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
     }
 
     /*
-     * Here we will verify index metadata is not uploaded again if change is only in global metadata
+     * Here we will verify global metadata is not uploaded again if change is only in index metadata
      */
-    public void testIndexMetadataNotUpdatingGlobalMetadata() throws IOException {
+    public void testIndexMetadataOnlyUpdated() throws IOException {
         // setup
         mockBlobStoreObjects();
         final CoordinationMetadata coordinationMetadata = CoordinationMetadata.builder().term(1L).build();
