@@ -234,7 +234,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
 
     private void setSearchQueryMetricsEnabled(boolean searchQueryMetricsEnabled) {
         this.searchQueryMetricsEnabled = searchQueryMetricsEnabled;
-        if ((this.searchQueryMetricsEnabled == true ) && this.searchQueryCategorizer == null) {
+        if ((this.searchQueryMetricsEnabled == true) && this.searchQueryCategorizer == null) {
             this.searchQueryCategorizer = new SearchQueryCategorizer(metricsRegistry);
         }
     }

@@ -14,7 +14,8 @@ import org.opensearch.telemetry.metrics.MetricsRegistry;
 /**
  * Class contains all the Counters related to search query types.
  */
-public class SearchQueryCounters {
+final class SearchQueryCounters {
+    private static final String UNIT = "1";
     private final MetricsRegistry metricsRegistry;
 
     // Counters related to Query types
@@ -40,77 +41,77 @@ public class SearchQueryCounters {
         this.aggCounter = metricsRegistry.createCounter(
             "search.query.type.agg.count",
             "Counter for the number of top level agg search queries",
-            "1"
+            UNIT
         );
         this.boolCounter = metricsRegistry.createCounter(
             "search.query.type.bool.count",
             "Counter for the number of top level and nested bool search queries",
-            "1"
+            UNIT
         );
         this.functionScoreCounter = metricsRegistry.createCounter(
             "search.query.type.functionscore.count",
             "Counter for the number of top level and nested function score search queries",
-            "1"
+            UNIT
         );
         this.matchCounter = metricsRegistry.createCounter(
             "search.query.type.match.count",
             "Counter for the number of top level and nested match search queries",
-            "1"
+            UNIT
         );
         this.matchPhrasePrefixCounter = metricsRegistry.createCounter(
             "search.query.type.matchphrase.count",
             "Counter for the number of top level and nested match phrase prefix search queries",
-            "1"
+            UNIT
         );
         this.multiMatchCounter = metricsRegistry.createCounter(
             "search.query.type.multimatch.count",
             "Counter for the number of top level and nested multi match search queries",
-            "1"
+            UNIT
         );
         this.otherQueryCounter = metricsRegistry.createCounter(
             "search.query.type.other.count",
             "Counter for the number of top level and nested search queries that do not match any other categories",
-            "1"
+            UNIT
         );
         this.queryStringQueryCounter = metricsRegistry.createCounter(
             "search.query.type.querystringquery.count",
             "Counter for the number of top level and nested queryStringQuery search queries",
-            "1"
+            UNIT
         );
         this.rangeCounter = metricsRegistry.createCounter(
             "search.query.type.range.count",
             "Counter for the number of top level and nested range search queries",
-            "1"
+            UNIT
         );
         this.regexCounter = metricsRegistry.createCounter(
             "search.query.type.regex.count",
             "Counter for the number of top level and nested regex search queries",
-            "1"
+            UNIT
         );
         this.skippedCounter = metricsRegistry.createCounter(
             "search.query.type.skipped.count",
             "Counter for the number queries skipped due to error",
-            "1"
+            UNIT
         );
         this.sortCounter = metricsRegistry.createCounter(
             "search.query.type.sort.count",
             "Counter for the number of top level sort search queries",
-            "1"
+            UNIT
         );
         this.termCounter = metricsRegistry.createCounter(
             "search.query.type.term.count",
             "Counter for the number of top level and nested term search queries",
-            "1"
+            UNIT
         );
         this.totalCounter = metricsRegistry.createCounter(
             "search.query.type.total.count",
             "Counter for the number of top level and nested search queries",
-            "1"
+            UNIT
         );
         this.wildcardCounter = metricsRegistry.createCounter(
             "search.query.type.wildcard.count",
             "Counter for the number of top level and nested wildcard search queries",
-            "1"
+            UNIT
         );
     }
 }
