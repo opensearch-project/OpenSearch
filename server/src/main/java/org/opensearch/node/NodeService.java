@@ -84,6 +84,7 @@ public class NodeService implements Closeable {
     private final ScriptService scriptService;
     private final HttpServerTransport httpServerTransport;
     private final ResponseCollectorService responseCollectorService;
+    private final ResourceUsageCollectorService resourceUsageCollectorService;
     private final SearchTransportService searchTransportService;
     private final IndexingPressureService indexingPressureService;
     private final AggregationUsageService aggregationUsageService;
@@ -117,6 +118,7 @@ public class NodeService implements Closeable {
         SearchPipelineService searchPipelineService,
         FileCache fileCache,
         TaskCancellationMonitoringService taskCancellationMonitoringService,
+        ResourceUsageCollectorService resourceUsageCollectorService,
         RepositoriesService repositoriesService
     ) {
         this.settings = settings;
@@ -140,6 +142,7 @@ public class NodeService implements Closeable {
         this.clusterService = clusterService;
         this.fileCache = fileCache;
         this.taskCancellationMonitoringService = taskCancellationMonitoringService;
+        this.resourceUsageCollectorService = resourceUsageCollectorService;
         this.repositoriesService = repositoriesService;
         clusterService.addStateApplier(ingestService);
         clusterService.addStateApplier(searchPipelineService);
@@ -222,6 +225,7 @@ public class NodeService implements Closeable {
         boolean fileCacheStats,
         boolean taskCancellation,
         boolean searchPipelineStats,
+        boolean resourceUsageStats,
         boolean repositoriesStats
     ) {
         // for indices stats we want to include previous allocated shards stats as well (it will
@@ -242,6 +246,7 @@ public class NodeService implements Closeable {
             discoveryStats ? discovery.stats() : null,
             ingest ? ingestService.stats() : null,
             adaptiveSelection ? responseCollectorService.getAdaptiveStats(searchTransportService.getPendingSearchRequests()) : null,
+            resourceUsageStats ? resourceUsageCollectorService.stats() : null,
             scriptCache ? scriptService.cacheStats() : null,
             indexingPressure ? this.indexingPressureService.nodeStats() : null,
             shardIndexingPressure ? this.indexingPressureService.shardStats(indices) : null,
