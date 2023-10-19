@@ -54,10 +54,15 @@ import org.xml.sax.InputSource;
  */
 public class HyphenationCompoundWordTokenFilterFactory extends AbstractCompoundWordTokenFilterFactory {
 
+    private final boolean noSubMatches;
+    private final boolean noOverlappingMatches;
     private final HyphenationTree hyphenationTree;
 
     HyphenationCompoundWordTokenFilterFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) {
         super(indexSettings, env, name, settings);
+
+        noSubMatches = settings.getAsBoolean("no_sub_matches", false);
+        noOverlappingMatches = settings.getAsBoolean("no_overlapping_matches", false);
 
         String hyphenationPatternsPath = settings.get("hyphenation_patterns_path", null);
         if (hyphenationPatternsPath == null) {
@@ -85,7 +90,9 @@ public class HyphenationCompoundWordTokenFilterFactory extends AbstractCompoundW
             minWordSize,
             minSubwordSize,
             maxSubwordSize,
-            onlyLongestMatch
+            onlyLongestMatch,
+            noSubMatches,
+            noOverlappingMatches
         );
     }
 }
