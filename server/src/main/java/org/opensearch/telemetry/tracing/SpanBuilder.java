@@ -9,6 +9,7 @@
 package org.opensearch.telemetry.tracing;
 
 import org.opensearch.action.bulk.BulkShardRequest;
+import org.opensearch.action.support.replication.ReplicatedWriteRequest;
 import org.opensearch.common.annotation.InternalApi;
 import org.opensearch.core.common.Strings;
 import org.opensearch.http.HttpRequest;
@@ -69,8 +70,8 @@ public final class SpanBuilder {
         return SpanCreationContext.server().name(createSpanName(action, connection)).attributes(buildSpanAttributes(action, connection));
     }
 
-    public static SpanCreationContext from(String spanName, String nodeId, BulkShardRequest bulkShardRequest) {
-        return SpanCreationContext.server().name(spanName).attributes(buildSpanAttributes(nodeId, bulkShardRequest));
+    public static SpanCreationContext from(String spanName, String nodeId, ReplicatedWriteRequest request) {
+        return SpanCreationContext.server().name(spanName).attributes(buildSpanAttributes(nodeId, request));
     }
 
     private static String createSpanName(HttpRequest httpRequest) {
@@ -155,14 +156,15 @@ public final class SpanBuilder {
         return attributes;
     }
 
-    private static Attributes buildSpanAttributes(String nodeId, BulkShardRequest bulkShardRequest) {
-        Attributes attributes = Attributes.create()
-            .addAttribute(AttributeNames.NODE_ID, nodeId)
-            .addAttribute(AttributeNames.BULK_REQUEST_ITEMS, bulkShardRequest.items().length)
-            .addAttribute(AttributeNames.REFRESH_POLICY, bulkShardRequest.getRefreshPolicy().getValue());
-        if (bulkShardRequest.shardId() != null) {
-            attributes.addAttribute(AttributeNames.INDEX, bulkShardRequest.shardId().getIndexName())
-                .addAttribute(AttributeNames.SHARD_ID, bulkShardRequest.shardId().getId());
+    private static Attributes buildSpanAttributes(String nodeId, ReplicatedWriteRequest request) {
+        Attributes attributes = Attributes.create().addAttribute(AttributeNames.NODE_ID, nodeId);
+        if (request instanceof BulkShardRequest) {
+            attributes.addAttribute(AttributeNames.BULK_REQUEST_ITEMS, ((BulkShardRequest) request).items().length)
+                .addAttribute(AttributeNames.REFRESH_POLICY, request.getRefreshPolicy().getValue());
+            if (request.shardId() != null) {
+                attributes.addAttribute(AttributeNames.INDEX, request.shardId().getIndexName())
+                    .addAttribute(AttributeNames.SHARD_ID, request.shardId().getId());
+            }
         }
         return attributes;
     }
