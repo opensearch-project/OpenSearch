@@ -896,7 +896,7 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
             "cluster-uuid3",
             "cluster-uuid1"
         );
-        mockObjectsForGettingPreviousClusterUUID(clusterUUIDsPointers);
+        mockObjectsForGettingPreviousClusterUUID(clusterUUIDsPointers, randomBoolean());
 
         remoteClusterStateService.start();
         String previousClusterUUID = remoteClusterStateService.getLastKnownUUIDFromRemote("test-cluster");
@@ -1019,6 +1019,11 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
     }
 
     private void mockObjectsForGettingPreviousClusterUUID(Map<String, String> clusterUUIDsPointers) throws IOException {
+        mockObjectsForGettingPreviousClusterUUID(clusterUUIDsPointers, false);
+    }
+
+    private void mockObjectsForGettingPreviousClusterUUID(Map<String, String> clusterUUIDsPointers, boolean differGlobalMetadata)
+        throws IOException {
         final BlobPath blobPath = mock(BlobPath.class);
         when((blobStoreRepository.basePath())).thenReturn(blobPath);
         when(blobPath.add(anyString())).thenReturn(blobPath);
@@ -1059,7 +1064,7 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
             .build();
         Map<String, IndexMetadata> indexMetadataMap1 = Map.of("index-uuid1", indexMetadata1, "index-uuid2", indexMetadata2);
         mockBlobContainerForGlobalMetadata(blobContainer1, clusterManifest1, metadata1);
-        mockBlobContainer(blobContainer1, clusterManifest1, indexMetadataMap1);
+        mockBlobContainer(blobContainer1, clusterManifest1, indexMetadataMap1, ClusterMetadataManifest.CODEC_V1);
 
         List<UploadedIndexMetadata> uploadedIndexMetadataList2 = List.of(
             new UploadedIndexMetadata("index1", "index-uuid1", "key1"),
@@ -1087,10 +1092,9 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
             .build();
         Map<String, IndexMetadata> indexMetadataMap2 = Map.of("index-uuid1", indexMetadata3, "index-uuid2", indexMetadata4);
         mockBlobContainerForGlobalMetadata(blobContainer2, clusterManifest2, metadata2);
-        mockBlobContainer(blobContainer2, clusterManifest2, indexMetadataMap2);
+        mockBlobContainer(blobContainer2, clusterManifest2, indexMetadataMap2, ClusterMetadataManifest.CODEC_V1);
 
         // controls whether we should differ index metadata or global metadata when comparing uuid1 and uuid3
-        boolean differGlobalMetadata = randomBoolean();
         List<UploadedIndexMetadata> uploadedIndexMetadataList3 = differGlobalMetadata
             ? new ArrayList<>(uploadedIndexMetadataList1)
             : List.of(new UploadedIndexMetadata("index1", "index-uuid1", "key1"));
@@ -1113,7 +1117,7 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
             .persistentSettings(Settings.builder().put(Metadata.SETTING_READ_ONLY_SETTING.getKey(), !differGlobalMetadata).build())
             .build();
         mockBlobContainerForGlobalMetadata(blobContainer3, clusterManifest3, metadata3);
-        mockBlobContainer(blobContainer3, clusterManifest3, indexMetadataMap3);
+        mockBlobContainer(blobContainer3, clusterManifest3, indexMetadataMap3, ClusterMetadataManifest.CODEC_V1);
 
         ArrayList<BlobContainer> mockBlobContainerOrderedList = new ArrayList<>(
             List.of(blobContainer1, blobContainer1, blobContainer3, blobContainer3, blobContainer2, blobContainer2)
@@ -1185,19 +1189,29 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
         ClusterMetadataManifest clusterMetadataManifest,
         Map<String, IndexMetadata> indexMetadataMap
     ) throws IOException {
-        BlobMetadata blobMetadata = new PlainBlobMetadata("manifest__manifestFileName__abcd__abcd__abcd__1", 1);
+        mockBlobContainer(blobContainer, clusterMetadataManifest, indexMetadataMap, ClusterMetadataManifest.CODEC_V0);
+    }
+
+    private void mockBlobContainer(
+        BlobContainer blobContainer,
+        ClusterMetadataManifest clusterMetadataManifest,
+        Map<String, IndexMetadata> indexMetadataMap,
+        int codecVersion
+    ) throws IOException {
+        String manifestFileName = codecVersion >= ClusterMetadataManifest.CODEC_V1
+            ? "manifest__manifestFileName__abcd__abcd__abcd__1"
+            : "manifestFileName";
+        BlobMetadata blobMetadata = new PlainBlobMetadata(manifestFileName, 1);
         when(blobContainer.listBlobsByPrefixInSortedOrder("manifest" + DELIMITER, 1, BlobContainer.BlobNameSortOrder.LEXICOGRAPHIC))
             .thenReturn(Arrays.asList(blobMetadata));
 
         BytesReference bytes = RemoteClusterStateService.CLUSTER_METADATA_MANIFEST_FORMAT.serialize(
             clusterMetadataManifest,
-            "manifest__manifestFileName__abcd__abcd__abcd__1",
+            manifestFileName,
             blobStoreRepository.getCompressor(),
             FORMAT_PARAMS
         );
-        when(blobContainer.readBlob("manifest__manifestFileName__abcd__abcd__abcd__1")).thenReturn(
-            new ByteArrayInputStream(bytes.streamInput().readAllBytes())
-        );
+        when(blobContainer.readBlob(manifestFileName)).thenReturn(new ByteArrayInputStream(bytes.streamInput().readAllBytes()));
 
         clusterMetadataManifest.getIndices().forEach(uploadedIndexMetadata -> {
             try {
