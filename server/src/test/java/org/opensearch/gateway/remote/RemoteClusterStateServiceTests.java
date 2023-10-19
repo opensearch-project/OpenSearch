@@ -1026,7 +1026,8 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
             "cluster-uuid1",
             clusterUUIDsPointers.get("cluster-uuid1"),
             randomAlphaOfLength(10),
-            uploadedIndexMetadataList1
+            uploadedIndexMetadataList1,
+            "test-metadata1"
         );
         Settings indexSettings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build();
         IndexMetadata indexMetadata1 = IndexMetadata.builder("index1")
@@ -1039,7 +1040,11 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
             .numberOfShards(1)
             .numberOfReplicas(1)
             .build();
+        Metadata metadata1 = Metadata.builder()
+            .persistentSettings(Settings.builder().put(Metadata.SETTING_READ_ONLY_SETTING.getKey(), true).build())
+            .build();
         Map<String, IndexMetadata> indexMetadataMap1 = Map.of("index-uuid1", indexMetadata1, "index-uuid2", indexMetadata2);
+        mockBlobContainerForGlobalMetadata(blobContainer1, clusterManifest1, metadata1);
         mockBlobContainer(blobContainer1, clusterManifest1, indexMetadataMap1);
 
         List<UploadedIndexMetadata> uploadedIndexMetadataList2 = List.of(
@@ -1050,7 +1055,8 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
             "cluster-uuid2",
             clusterUUIDsPointers.get("cluster-uuid2"),
             randomAlphaOfLength(10),
-            uploadedIndexMetadataList2
+            uploadedIndexMetadataList2,
+            "test-metadata2"
         );
         IndexMetadata indexMetadata3 = IndexMetadata.builder("index1")
             .settings(indexSettings)
@@ -1062,7 +1068,11 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
             .numberOfShards(1)
             .numberOfReplicas(1)
             .build();
+        Metadata metadata2 = Metadata.builder()
+            .persistentSettings(Settings.builder().put(Metadata.SETTING_READ_ONLY_SETTING.getKey(), true).build())
+            .build();
         Map<String, IndexMetadata> indexMetadataMap2 = Map.of("index-uuid1", indexMetadata3, "index-uuid2", indexMetadata4);
+        mockBlobContainerForGlobalMetadata(blobContainer2, clusterManifest2, metadata2);
         mockBlobContainer(blobContainer2, clusterManifest2, indexMetadataMap2);
 
         List<UploadedIndexMetadata> uploadedIndexMetadataList3 = List.of(new UploadedIndexMetadata("index1", "index-uuid1", "key1"));
@@ -1070,7 +1080,8 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
             "cluster-uuid3",
             clusterUUIDsPointers.get("cluster-uuid3"),
             randomAlphaOfLength(10),
-            uploadedIndexMetadataList3
+            uploadedIndexMetadataList3,
+            "test-metadata3"
         );
         IndexMetadata indexMetadata5 = IndexMetadata.builder("index1")
             .settings(indexSettings)
@@ -1078,6 +1089,10 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
             .numberOfReplicas(1)
             .build();
         Map<String, IndexMetadata> indexMetadataMap3 = Map.of("index-uuid1", indexMetadata5);
+        Metadata metadata3 = Metadata.builder()
+            .persistentSettings(Settings.builder().put(Metadata.SETTING_READ_ONLY_SETTING.getKey(), true).build())
+            .build();
+        mockBlobContainerForGlobalMetadata(blobContainer3, clusterManifest3, metadata3);
         mockBlobContainer(blobContainer3, clusterManifest3, indexMetadataMap3);
 
         when(blobStore.blobContainer(ArgumentMatchers.any())).thenReturn(
@@ -1100,7 +1115,8 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
         String clusterUUID,
         String previousClusterUUID,
         String stateUUID,
-        List<UploadedIndexMetadata> uploadedIndexMetadata
+        List<UploadedIndexMetadata> uploadedIndexMetadata,
+        String globalMetadataFileName
     ) {
         return ClusterMetadataManifest.builder()
             .indices(uploadedIndexMetadata)
@@ -1113,7 +1129,7 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
             .previousClusterUUID(previousClusterUUID)
             .committed(true)
             .clusterUUIDCommitted(true)
-            .globalMetadataFileName("test-global-metadata")
+            .globalMetadataFileName(globalMetadataFileName)
             .build();
     }
 
