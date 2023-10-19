@@ -377,7 +377,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 TransportSearchAction.SEARCH_CANCEL_AFTER_TIME_INTERVAL_SETTING,
                 TransportSearchAction.SEARCH_REQUEST_STATS_ENABLED,
                 TransportSearchAction.SEARCH_PHASE_TOOK_ENABLED,
-                TransportSearchAction.SEARCH_QUERY_CATEGORIZATION_ENABLED_SETTING,
+                TransportSearchAction.SEARCH_QUERY_METRICS_ENABLED_SETTING,
                 RemoteClusterService.REMOTE_CLUSTER_SKIP_UNAVAILABLE,
                 SniffConnectionStrategy.REMOTE_CONNECTIONS_PER_CLUSTER,
                 RemoteClusterService.REMOTE_INITIAL_CONNECTION_TIMEOUT_SETTING,
