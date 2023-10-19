@@ -54,12 +54,7 @@ public class FeatureFlags {
      * Gates the functionality of telemetry framework.
      */
     public static final String TELEMETRY = "opensearch.experimental.feature.telemetry.enabled";
-
-    /**
-     * Gates the optimization of datetime formatters caching along with change in default datetime formatter.
-     */
-    public static final String DATETIME_FORMATTER_CACHING = "opensearch.experimental.optimization.datetime_formatter_caching.enabled";
-
+    
     /**
      * Should store the settings from opensearch.yml.
      */
@@ -117,9 +112,4 @@ public class FeatureFlags {
         Property.NodeScope
     );
 
-    public static final Setting<Boolean> DATETIME_FORMATTER_CACHING_SETTING = Setting.boolSetting(
-        DATETIME_FORMATTER_CACHING,
-        true,
-        Property.NodeScope
-    );
 }
