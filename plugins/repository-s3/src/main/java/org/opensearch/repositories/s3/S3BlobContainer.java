@@ -204,7 +204,7 @@ class S3BlobContainer extends AbstractBlobContainer implements AsyncMultiStreamB
                     s3AsyncClient = amazonS3Reference.get().client();
                 }
                 CompletableFuture<Void> completableFuture = blobStore.getAsyncTransferManager()
-                    .uploadObject(s3AsyncClient, uploadRequest, streamContext);
+                    .uploadObject(s3AsyncClient, uploadRequest, streamContext, blobStore.getStatsMetricPublisher());
                 completableFuture.whenComplete((response, throwable) -> {
                     if (throwable == null) {
                         completionListener.onResponse(response);
@@ -389,7 +389,7 @@ class S3BlobContainer extends AbstractBlobContainer implements AsyncMultiStreamB
         assert outstanding.isEmpty();
     }
 
-    private static DeleteObjectsRequest bulkDelete(String bucket, List<String> blobs) {
+    private DeleteObjectsRequest bulkDelete(String bucket, List<String> blobs) {
         return DeleteObjectsRequest.builder()
             .bucket(bucket)
             .delete(
@@ -398,6 +398,7 @@ class S3BlobContainer extends AbstractBlobContainer implements AsyncMultiStreamB
                     .quiet(true)
                     .build()
             )
+            .overrideConfiguration(o -> o.addMetricPublisher(blobStore.getStatsMetricPublisher().deleteObjectsMetricPublisher))
             .build();
     }
 

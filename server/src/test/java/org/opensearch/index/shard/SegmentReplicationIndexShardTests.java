@@ -91,6 +91,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiConsumer;
 import java.util.function.Function;
 
 import static org.opensearch.index.engine.EngineTestCase.assertAtMostOneLuceneDocumentPerSequenceNumber;
@@ -725,6 +726,7 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
                     ReplicationCheckpoint checkpoint,
                     List<StoreFileMetadata> filesToFetch,
                     IndexShard indexShard,
+                    BiConsumer<String, Long> fileProgressTracker,
                     ActionListener<GetSegmentFilesResponse> listener
                 ) {
                     // set the listener, we will only fail it once we cancel the source.
