@@ -10,8 +10,10 @@ package org.opensearch.remotestore;
 
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.core.index.Index;
+import org.opensearch.index.IndexService;
 import org.opensearch.index.shard.IndexShard;
-import org.opensearch.indices.replication.SegmentReplicationBaseIT;
+import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.replication.SegmentReplicationState;
 import org.opensearch.indices.replication.SegmentReplicationTarget;
 import org.opensearch.indices.replication.SegmentReplicationTargetService;
@@ -20,6 +22,7 @@ import org.opensearch.test.InternalTestCluster;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.nio.file.Path;
+import java.util.Optional;
 import java.util.Set;
 
 /**
@@ -49,7 +52,7 @@ public class SegmentReplicationUsingRemoteStoreDisruptionIT extends AbstractRemo
         SegmentReplicationTargetService targetService = internalCluster().getInstance(SegmentReplicationTargetService.class, replicaNode);
         ensureGreen(INDEX_NAME);
         blockNodeOnAnySegmentFile(REPOSITORY_NAME, replicaNode);
-        final IndexShard indexShard = SegmentReplicationBaseIT.getIndexShard(replicaNode, INDEX_NAME);
+        final IndexShard indexShard = getIndexShard(replicaNode, INDEX_NAME);
         indexSingleDoc();
         refresh(INDEX_NAME);
         waitForBlock(replicaNode, REPOSITORY_NAME, TimeValue.timeValueSeconds(10));
@@ -84,7 +87,7 @@ public class SegmentReplicationUsingRemoteStoreDisruptionIT extends AbstractRemo
         SegmentReplicationTargetService targetService = internalCluster().getInstance(SegmentReplicationTargetService.class, replicaNode);
         ensureGreen(INDEX_NAME);
         blockNodeOnAnyFiles(REPOSITORY_NAME, replicaNode);
-        final IndexShard indexShard = SegmentReplicationBaseIT.getIndexShard(replicaNode, INDEX_NAME);
+        final IndexShard indexShard = getIndexShard(replicaNode, INDEX_NAME);
         indexSingleDoc();
         refresh(INDEX_NAME);
         waitForBlock(replicaNode, REPOSITORY_NAME, TimeValue.timeValueSeconds(10));
@@ -111,11 +114,20 @@ public class SegmentReplicationUsingRemoteStoreDisruptionIT extends AbstractRemo
     private String getNode(Set<String> dataNodeNames, boolean primary) {
         assertEquals(2, dataNodeNames.size());
         for (String name : dataNodeNames) {
-            final IndexShard indexShard = SegmentReplicationBaseIT.getIndexShard(name, INDEX_NAME);
+            final IndexShard indexShard = getIndexShard(name, INDEX_NAME);
             if (indexShard.routingEntry().primary() == primary) {
                 return name;
             }
         }
         return null;
+    }
+
+    private IndexShard getIndexShard(String node, String indexName) {
+        final Index index = resolveIndex(indexName);
+        IndicesService indicesService = internalCluster().getInstance(IndicesService.class, node);
+        IndexService indexService = indicesService.indexService(index);
+        assertNotNull(indexService);
+        final Optional<Integer> shardId = indexService.shardIds().stream().findFirst();
+        return shardId.map(indexService::getShard).orElse(null);
     }
 }
