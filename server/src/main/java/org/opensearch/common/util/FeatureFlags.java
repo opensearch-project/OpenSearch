@@ -59,7 +59,7 @@ public class FeatureFlags {
      * Gates the optimization of datetime formatters caching along with change in default datetime formatter.
      */
     public static final String DATETIME_FORMATTER_CACHING = "opensearch.experimental.optimization.datetime_formatter_caching.enabled";
-    
+
     /**
      * Should store the settings from opensearch.yml.
      */
