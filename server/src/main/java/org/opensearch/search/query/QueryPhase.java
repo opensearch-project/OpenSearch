@@ -131,7 +131,7 @@ public class QueryPhase {
     }
 
     public void execute(SearchContext searchContext) throws QueryPhaseExecutionException {
-        long startTime = System.nanoTime();
+        final long startTime = System.nanoTime();
         if (searchContext.hasOnlySuggest()) {
             suggestProcessor.process(searchContext);
             searchContext.queryResult()
