@@ -17,6 +17,7 @@ Resolves #[Issue number to be closed when this PR is merged]
   - [ ] All tests pass
 - [ ] New functionality has been documented.
   - [ ] New functionality has javadoc added
+- [ ] Failing checks are inspected and point to the corresponding known issue(s) 
 - [ ] Commits are signed per the DCO using --signoff
 - [ ] Commit changes are listed out in CHANGELOG.md file (See: [Changelog](../blob/main/CONTRIBUTING.md#changelog))
 - [ ] Public documentation issue/PR [created](https://github.com/opensearch-project/documentation-website/issues/new/choose)
