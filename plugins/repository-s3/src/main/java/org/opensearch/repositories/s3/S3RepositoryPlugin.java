@@ -101,7 +101,7 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
         List<ExecutorBuilder<?>> executorBuilders = new ArrayList<>();
         int halfProcMaxAt5 = halfAllocatedProcessorsMaxFive(allocatedProcessors(settings));
         executorBuilders.add(
-                new FixedExecutorBuilder(settings, URGENT_FUTURE_COMPLETION, urgentPoolCount(settings), 10_000, URGENT_FUTURE_COMPLETION)
+            new FixedExecutorBuilder(settings, URGENT_FUTURE_COMPLETION, urgentPoolCount(settings), 10_000, URGENT_FUTURE_COMPLETION)
         );
         executorBuilders.add(new ScalingExecutorBuilder(URGENT_STREAM_READER, 1, halfProcMaxAt5, TimeValue.timeValueMinutes(5)));
         executorBuilders.add(
