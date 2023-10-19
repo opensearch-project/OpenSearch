@@ -8,6 +8,11 @@
 
 package org.opensearch.indices;
 
+/**
+ * This is specific to disk caching tier and can be used to add methods which are specific to disk tier.
+ * @param <K> Type of key
+ * @param <V> Type of value
+ */
 public interface DiskCachingTier<K, V> extends CachingTier<K, V> {
 
 }

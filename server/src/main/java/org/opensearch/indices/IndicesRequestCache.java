@@ -106,7 +106,7 @@ public final class IndicesRequestCache implements TieredCacheEventListener<Indic
     private final Set<CleanupKey> keysToClean = ConcurrentCollections.newConcurrentSet();
     private final ByteSizeValue size;
     private final TimeValue expire;
-    // private final Cache<Key, BytesReference> cache;
+    private final TieredCacheService<Key, BytesReference> tieredCacheService;
 
     private final TieredCacheHandler<Key, BytesReference> tieredCacheHandler;
 
@@ -114,27 +114,21 @@ public final class IndicesRequestCache implements TieredCacheEventListener<Indic
         this.size = INDICES_CACHE_QUERY_SIZE.get(settings);
         this.expire = INDICES_CACHE_QUERY_EXPIRE.exists(settings) ? INDICES_CACHE_QUERY_EXPIRE.get(settings) : null;
         long sizeInBytes = size.getBytes();
-        // CacheBuilder<Key, BytesReference> cacheBuilder = CacheBuilder.<Key, BytesReference>builder()
-        // .setMaximumWeight(sizeInBytes)
-        // .weigher((k, v) -> k.ramBytesUsed() + v.ramBytesUsed());
-        // //.removalListener(this);
-        // if (expire != null) {
-        // cacheBuilder.setExpireAfterAccess(expire);
-        // }
-        // cache = cacheBuilder.build();
 
+        // Initialize onHeap cache tier first.
         OnHeapCachingTier<Key, BytesReference> openSearchOnHeapCache = new OpenSearchOnHeapCache.Builder<Key, BytesReference>().setWeigher(
             (k, v) -> k.ramBytesUsed() + v.ramBytesUsed()
         ).setMaximumWeight(sizeInBytes).setExpireAfterAccess(expire).build();
 
-        tieredCacheHandler = new TieredCacheSpilloverStrategyHandler.Builder<Key, BytesReference>().setOnHeapCachingTier(
+        // Initialize tiered cache service. TODO: Enable Disk tier when tiered support is turned on.
+        tieredCacheService = new TieredCacheSpilloverStrategyService.Builder<Key, BytesReference>().setOnHeapCachingTier(
             openSearchOnHeapCache
-        ).setOnDiskCachingTier(new DummyDiskCachingTier<>()).setTieredCacheEventListener(this).build();
+        ).setTieredCacheEventListener(this).build();
     }
 
     @Override
     public void close() {
-        tieredCacheHandler.invalidateAll();
+        tieredCacheService.invalidateAll();
     }
 
     void clear(CacheEntity entity) {
@@ -177,9 +171,8 @@ public final class IndicesRequestCache implements TieredCacheEventListener<Indic
         assert readerCacheKeyUniqueId != null;
         final Key key = new Key(cacheEntity, cacheKey, readerCacheKeyUniqueId);
         Loader cacheLoader = new Loader(cacheEntity, loader);
-        BytesReference value = tieredCacheHandler.computeIfAbsent(key, cacheLoader);
+        BytesReference value = tieredCacheService.computeIfAbsent(key, cacheLoader);
         if (cacheLoader.isLoaded()) {
-            // key.entity.onMiss();
             // see if its the first time we see this reader, and make sure to register a cleanup key
             CleanupKey cleanupKey = new CleanupKey(cacheEntity, readerCacheKeyUniqueId);
             if (!registeredClosedListeners.containsKey(cleanupKey)) {
@@ -203,8 +196,7 @@ public final class IndicesRequestCache implements TieredCacheEventListener<Indic
      */
     void invalidate(CacheEntity cacheEntity, DirectoryReader reader, BytesReference cacheKey) {
         assert reader.getReaderCacheHelper() != null;
-        tieredCacheHandler.invalidate(new Key(cacheEntity, reader.getReaderCacheHelper().getKey(), cacheKey));
-        // cache.invalidate(new Key(cacheEntity, reader.getReaderCacheHelper().getKey(), cacheKey));
+        tieredCacheService.invalidate(new Key(cacheEntity, reader.getReaderCacheHelper().getKey(), cacheKey));
     }
 
     /**
@@ -230,7 +222,6 @@ public final class IndicesRequestCache implements TieredCacheEventListener<Indic
         @Override
         public BytesReference load(Key key) throws Exception {
             BytesReference value = loader.get();
-            // entity.onCached(key, value);
             loaded = true;
             return value;
         }
@@ -280,8 +271,8 @@ public final class IndicesRequestCache implements TieredCacheEventListener<Indic
      *
      * @opensearch.internal
      */
-    class Key implements Accountable, Writeable {
-        private final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(Key.class);
+    public static class Key implements Accountable {
+        private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(Key.class);
 
         public final CacheEntity entity; // use as identity equality
         public final String readerCacheKeyUniqueId;
@@ -374,6 +365,9 @@ public final class IndicesRequestCache implements TieredCacheEventListener<Indic
         }
     }
 
+    /**
+     * Logic to clean up in-memory cache.
+     */
     synchronized void cleanCache() {
         final Set<CleanupKey> currentKeysToClean = new HashSet<>();
         final Set<Object> currentFullClean = new HashSet<>();
@@ -390,7 +384,7 @@ public final class IndicesRequestCache implements TieredCacheEventListener<Indic
             }
         }
         if (!currentKeysToClean.isEmpty() || !currentFullClean.isEmpty()) {
-            for (Iterator<Key> iterator = tieredCacheHandler.getOnHeapCachingTier().keys().iterator(); iterator.hasNext();) {
+            for (Iterator<Key> iterator = tieredCacheService.getOnHeapCachingTier().keys().iterator(); iterator.hasNext();) {
                 Key key = iterator.next();
                 if (currentFullClean.contains(key.entity.getCacheIdentity())) {
                     iterator.remove();
@@ -401,15 +395,14 @@ public final class IndicesRequestCache implements TieredCacheEventListener<Indic
                 }
             }
         }
-        // TODO
-        // cache.refresh();
+        tieredCacheService.getOnHeapCachingTier().refresh();
     }
 
     /**
      * Returns the current size of the cache
      */
     long count() {
-        return tieredCacheHandler.count();
+        return tieredCacheService.count();
     }
 
     int numRegisteredCloseListeners() { // for testing

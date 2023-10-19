@@ -40,7 +40,7 @@ public class OpenSearchOnHeapCache<K, V> implements OnHeapCachingTier<K, V>, Rem
 
     @Override
     public void invalidateAll() {
-
+        cache.invalidateAll();
     }
 
     @Override
@@ -81,6 +81,11 @@ public class OpenSearchOnHeapCache<K, V> implements OnHeapCachingTier<K, V>, Rem
     @Override
     public V compute(K key, TieredCacheLoader<K, V> loader) throws Exception {
         return cache.compute(key, key1 -> loader.load(key));
+    }
+
+    @Override
+    public void refresh() {
+        cache.refresh();
     }
 
     @Override
