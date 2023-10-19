@@ -157,7 +157,8 @@ public final class SpanBuilder {
     }
 
     private static Attributes buildSpanAttributes(String nodeId, ReplicatedWriteRequest request) {
-        Attributes attributes = Attributes.create().addAttribute(AttributeNames.NODE_ID, nodeId)
+        Attributes attributes = Attributes.create()
+            .addAttribute(AttributeNames.NODE_ID, nodeId)
             .addAttribute(AttributeNames.REFRESH_POLICY, request.getRefreshPolicy().getValue());
         if (request.shardId() != null) {
             attributes.addAttribute(AttributeNames.INDEX, request.shardId().getIndexName())
