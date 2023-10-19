@@ -544,4 +544,8 @@ public class RemoteFsTranslog extends Translog {
             }
         }
     }
+
+    long getMinSeqNoToKeep() {
+        return minSeqNoToKeep;
+    }
 }

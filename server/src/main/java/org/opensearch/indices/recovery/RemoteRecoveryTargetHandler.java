@@ -75,6 +75,7 @@ public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
     private final AtomicLong requestSeqNoGenerator = new AtomicLong(0);
     private final RetryableTransportClient retryableTransportClient;
     private final RemoteSegmentFileChunkWriter fileChunkWriter;
+    private final boolean remoteStoreEnabled;
 
     public RemoteRecoveryTargetHandler(
         long recoveryId,
@@ -82,7 +83,8 @@ public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
         TransportService transportService,
         DiscoveryNode targetNode,
         RecoverySettings recoverySettings,
-        Consumer<Long> onSourceThrottle
+        Consumer<Long> onSourceThrottle,
+        boolean remoteStoreEnabled
     ) {
         this.transportService = transportService;
         // It is safe to pass the retry timeout value here because RemoteRecoveryTargetHandler
@@ -111,6 +113,7 @@ public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
             requestSeqNoGenerator,
             onSourceThrottle
         );
+        this.remoteStoreEnabled = remoteStoreEnabled;
     }
 
     public DiscoveryNode targetNode() {
@@ -129,7 +132,13 @@ public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
         );
         final Writeable.Reader<TransportResponse.Empty> reader = in -> TransportResponse.Empty.INSTANCE;
         final ActionListener<TransportResponse.Empty> responseListener = ActionListener.map(listener, r -> null);
-        retryableTransportClient.executeRetryableAction(action, request, responseListener, reader);
+        if (remoteStoreEnabled) {
+            // If remote store is enabled, during the prepare_translog phase, translog is also downloaded on the
+            // target host along with incremental segments download. This
+            retryableTransportClient.executeRetryableAction(action, request, translogOpsRequestOptions, responseListener, reader);
+        } else {
+            retryableTransportClient.executeRetryableAction(action, request, responseListener, reader);
+        }
     }
 
     @Override
