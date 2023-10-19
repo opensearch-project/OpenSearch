@@ -228,6 +228,7 @@ public class S3BlobStoreRepositoryTests extends OpenSearchMockAPIBasedRepository
         assertThat(repository.threadPool().relativeTimeInNanos() - beforeFastDelete, lessThan(TEST_COOLDOWN_PERIOD.getNanos()));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/10735")
     @Override
     public void testRequestStats() throws Exception {
         final String repository = createRepository(randomName());
