@@ -913,10 +913,6 @@ public class RemoteClusterStateService implements Closeable {
         return true;
     }
 
-    public Metadata getGlobalMetadata(String c, String b, ClusterMetadataManifest a) {
-        return Metadata.EMPTY_METADATA;
-    }
-
     private boolean isGlobalMetadataEqual(ClusterMetadataManifest first, ClusterMetadataManifest second, String clusterName) {
         Metadata firstGlobalMetadata = getGlobalMetadata(clusterName, first.getClusterUUID(), first);
         Metadata secondGlobalMetadata = getGlobalMetadata(clusterName, second.getClusterUUID(), second);
