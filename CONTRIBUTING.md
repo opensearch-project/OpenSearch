@@ -8,6 +8,7 @@
   - [Developer Certificate of Origin](#developer-certificate-of-origin)
   - [Changelog](#changelog)
   - [Review Process](#review-process)
+  - [Troubleshooting Failing Builds](#troubleshooting-failing-builds)
 
 # Contributing to OpenSearch
 
@@ -162,3 +163,14 @@ During the PR process, expect that there will be some back-and-forth. Please try
 If we accept the PR, a [maintainer](MAINTAINERS.md) will merge your change and usually take care of backporting it to appropriate branches ourselves.
 
 If we reject the PR, we will close the pull request with a comment explaining why. This decision isn't always final: if you feel we have misunderstood your intended change or otherwise think that we should reconsider then please continue the conversation with a comment on the PR and we'll do our best to address any further points you raise.
+
+## Troubleshooting Failing Builds
+
+The OpenSearch testing framework uses a lot of randomization internally to cover as many edge cases and variations as possible. Unfortunately, this posses a challenge since in most cases, every build is unique and may not trigger a particular flow. It leads straight to so called flaky tests - the tests which flip randomly from success to failure without any code changes. 
+
+If your pull request reports a failing test(s) on one of the checks, please:
+ - look if there is an existing [issue](https://github.com/opensearch-project/OpenSearch/issues) reported for the test in question 
+ - if not, please make sure this is not caused by your changes, run the failing test(s) locally for some time
+ - if you are sure the failure is not related, please open a new [bug](https://github.com/opensearch-project/OpenSearch/issues/new?assignees=&labels=bug%2C+untriaged&projects=&template=bug_template.md&title=%5BBUG%5D) with `flaky-test` label
+ - add a comment referencing the issue(s) or bug report(s) to your pull request explaining the failing build(s)
+ - as a bonus point, try to contribute by fixing the flaky test(s)
