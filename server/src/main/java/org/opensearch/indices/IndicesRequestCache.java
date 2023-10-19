@@ -39,10 +39,6 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.opensearch.common.CheckedSupplier;
-import org.opensearch.common.cache.Cache;
-import org.opensearch.common.cache.CacheBuilder;
-import org.opensearch.common.cache.CacheLoader;
-import org.opensearch.common.cache.RemovalListener;
 import org.opensearch.common.cache.RemovalNotification;
 import org.opensearch.common.lucene.index.OpenSearchDirectoryReader;
 import org.opensearch.common.settings.Setting;
@@ -78,7 +74,7 @@ import java.util.concurrent.ConcurrentMap;
  *
  * @opensearch.internal
  */
-public final class IndicesRequestCache implements RemovalListener<IndicesRequestCache.Key, BytesReference>, Closeable {
+public final class IndicesRequestCache implements TieredCacheEventListener<IndicesRequestCache.Key, BytesReference>, Closeable {
 
     private static final Logger logger = LogManager.getLogger(IndicesRequestCache.class);
 
@@ -107,25 +103,27 @@ public final class IndicesRequestCache implements RemovalListener<IndicesRequest
     private final Set<CleanupKey> keysToClean = ConcurrentCollections.newConcurrentSet();
     private final ByteSizeValue size;
     private final TimeValue expire;
-    private final Cache<Key, BytesReference> cache;
+    private final TieredCacheService<Key, BytesReference> tieredCacheService;
 
     IndicesRequestCache(Settings settings) {
         this.size = INDICES_CACHE_QUERY_SIZE.get(settings);
         this.expire = INDICES_CACHE_QUERY_EXPIRE.exists(settings) ? INDICES_CACHE_QUERY_EXPIRE.get(settings) : null;
         long sizeInBytes = size.getBytes();
-        CacheBuilder<Key, BytesReference> cacheBuilder = CacheBuilder.<Key, BytesReference>builder()
-            .setMaximumWeight(sizeInBytes)
-            .weigher((k, v) -> k.ramBytesUsed() + v.ramBytesUsed())
-            .removalListener(this);
-        if (expire != null) {
-            cacheBuilder.setExpireAfterAccess(expire);
-        }
-        cache = cacheBuilder.build();
+
+        // Initialize onHeap cache tier first.
+        OnHeapCachingTier<Key, BytesReference> openSearchOnHeapCache = new OpenSearchOnHeapCache.Builder<Key, BytesReference>().setWeigher(
+            (k, v) -> k.ramBytesUsed() + v.ramBytesUsed()
+        ).setMaximumWeight(sizeInBytes).setExpireAfterAccess(expire).build();
+
+        // Initialize tiered cache service. TODO: Enable Disk tier when tiered support is turned on.
+        tieredCacheService = new TieredCacheSpilloverStrategyService.Builder<Key, BytesReference>().setOnHeapCachingTier(
+            openSearchOnHeapCache
+        ).setTieredCacheEventListener(this).build();
     }
 
     @Override
     public void close() {
-        cache.invalidateAll();
+        tieredCacheService.invalidateAll();
     }
 
     void clear(CacheEntity entity) {
@@ -134,8 +132,23 @@ public final class IndicesRequestCache implements RemovalListener<IndicesRequest
     }
 
     @Override
+    public void onMiss(Key key, TierType tierType) {
+        key.entity.onMiss(tierType);
+    }
+
+    @Override
     public void onRemoval(RemovalNotification<Key, BytesReference> notification) {
         notification.getKey().entity.onRemoval(notification);
+    }
+
+    @Override
+    public void onHit(Key key, BytesReference value, TierType tierType) {
+        key.entity.onHit(tierType);
+    }
+
+    @Override
+    public void onCached(Key key, BytesReference value, TierType tierType) {
+        key.entity.onCached(key, value, tierType);
     }
 
     BytesReference getOrCompute(
@@ -147,9 +160,8 @@ public final class IndicesRequestCache implements RemovalListener<IndicesRequest
         assert reader.getReaderCacheHelper() != null;
         final Key key = new Key(cacheEntity, reader.getReaderCacheHelper().getKey(), cacheKey);
         Loader cacheLoader = new Loader(cacheEntity, loader);
-        BytesReference value = cache.computeIfAbsent(key, cacheLoader);
+        BytesReference value = tieredCacheService.computeIfAbsent(key, cacheLoader);
         if (cacheLoader.isLoaded()) {
-            key.entity.onMiss();
             // see if its the first time we see this reader, and make sure to register a cleanup key
             CleanupKey cleanupKey = new CleanupKey(cacheEntity, reader.getReaderCacheHelper().getKey());
             if (!registeredClosedListeners.containsKey(cleanupKey)) {
@@ -158,8 +170,6 @@ public final class IndicesRequestCache implements RemovalListener<IndicesRequest
                     OpenSearchDirectoryReader.addReaderCloseListener(reader, cleanupKey);
                 }
             }
-        } else {
-            key.entity.onHit();
         }
         return value;
     }
@@ -172,7 +182,7 @@ public final class IndicesRequestCache implements RemovalListener<IndicesRequest
      */
     void invalidate(CacheEntity cacheEntity, DirectoryReader reader, BytesReference cacheKey) {
         assert reader.getReaderCacheHelper() != null;
-        cache.invalidate(new Key(cacheEntity, reader.getReaderCacheHelper().getKey(), cacheKey));
+        tieredCacheService.invalidate(new Key(cacheEntity, reader.getReaderCacheHelper().getKey(), cacheKey));
     }
 
     /**
@@ -180,7 +190,7 @@ public final class IndicesRequestCache implements RemovalListener<IndicesRequest
      *
      * @opensearch.internal
      */
-    private static class Loader implements CacheLoader<Key, BytesReference> {
+    private static class Loader implements org.opensearch.indices.TieredCacheLoader<Key, BytesReference> {
 
         private final CacheEntity entity;
         private final CheckedSupplier<BytesReference, IOException> loader;
@@ -198,7 +208,6 @@ public final class IndicesRequestCache implements RemovalListener<IndicesRequest
         @Override
         public BytesReference load(Key key) throws Exception {
             BytesReference value = loader.get();
-            entity.onCached(key, value);
             loaded = true;
             return value;
         }
@@ -212,7 +221,7 @@ public final class IndicesRequestCache implements RemovalListener<IndicesRequest
         /**
          * Called after the value was loaded.
          */
-        void onCached(Key key, BytesReference value);
+        void onCached(Key key, BytesReference value, TierType tierType);
 
         /**
          * Returns <code>true</code> iff the resource behind this entity is still open ie.
@@ -229,12 +238,12 @@ public final class IndicesRequestCache implements RemovalListener<IndicesRequest
         /**
          * Called each time this entity has a cache hit.
          */
-        void onHit();
+        void onHit(TierType tierType);
 
         /**
          * Called each time this entity has a cache miss.
          */
-        void onMiss();
+        void onMiss(TierType tierType);
 
         /**
          * Called when this entity instance is removed
@@ -247,7 +256,7 @@ public final class IndicesRequestCache implements RemovalListener<IndicesRequest
      *
      * @opensearch.internal
      */
-    static class Key implements Accountable {
+    public static class Key implements Accountable {
         private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(Key.class);
 
         public final CacheEntity entity; // use as identity equality
@@ -328,6 +337,9 @@ public final class IndicesRequestCache implements RemovalListener<IndicesRequest
         }
     }
 
+    /**
+     * Logic to clean up in-memory cache.
+     */
     synchronized void cleanCache() {
         final Set<CleanupKey> currentKeysToClean = new HashSet<>();
         final Set<Object> currentFullClean = new HashSet<>();
@@ -344,7 +356,7 @@ public final class IndicesRequestCache implements RemovalListener<IndicesRequest
             }
         }
         if (!currentKeysToClean.isEmpty() || !currentFullClean.isEmpty()) {
-            for (Iterator<Key> iterator = cache.keys().iterator(); iterator.hasNext();) {
+            for (Iterator<Key> iterator = tieredCacheService.getOnHeapCachingTier().keys().iterator(); iterator.hasNext();) {
                 Key key = iterator.next();
                 if (currentFullClean.contains(key.entity.getCacheIdentity())) {
                     iterator.remove();
@@ -355,15 +367,14 @@ public final class IndicesRequestCache implements RemovalListener<IndicesRequest
                 }
             }
         }
-
-        cache.refresh();
+        tieredCacheService.getOnHeapCachingTier().refresh();
     }
 
     /**
      * Returns the current size of the cache
      */
-    int count() {
-        return cache.count();
+    long count() {
+        return tieredCacheService.count();
     }
 
     int numRegisteredCloseListeners() { // for testing

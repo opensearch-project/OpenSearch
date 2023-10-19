@@ -51,22 +51,27 @@ abstract class AbstractIndexShardCacheEntity implements IndicesRequestCache.Cach
     protected abstract ShardRequestCache stats();
 
     @Override
-    public final void onCached(IndicesRequestCache.Key key, BytesReference value) {
-        stats().onCached(key, value);
+    public final void onCached(IndicesRequestCache.Key key, BytesReference value, TierType tierType) {
+        stats().onCached(key, value, tierType);
     }
 
     @Override
-    public final void onHit() {
-        stats().onHit();
+    public final void onHit(TierType tierType) {
+        stats().onHit(tierType);
     }
 
     @Override
-    public final void onMiss() {
-        stats().onMiss();
+    public final void onMiss(TierType tierType) {
+        stats().onMiss(tierType);
     }
 
     @Override
     public final void onRemoval(RemovalNotification<IndicesRequestCache.Key, BytesReference> notification) {
-        stats().onRemoval(notification.getKey(), notification.getValue(), notification.getRemovalReason() == RemovalReason.EVICTED);
+        stats().onRemoval(
+            notification.getKey(),
+            notification.getValue(),
+            notification.getRemovalReason() == RemovalReason.EVICTED,
+            notification.getTierType()
+        );
     }
 }

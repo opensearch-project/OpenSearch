@@ -422,68 +422,74 @@ public class Cache<K, V> {
             }
         });
         if (value == null) {
-            // we need to synchronize loading of a value for a given key; however, holding the segment lock while
-            // invoking load can lead to deadlock against another thread due to dependent key loading; therefore, we
-            // need a mechanism to ensure that load is invoked at most once, but we are not invoking load while holding
-            // the segment lock; to do this, we atomically put a future in the map that can load the value, and then
-            // get the value from this future on the thread that won the race to place the future into the segment map
-            CacheSegment<K, V> segment = getCacheSegment(key);
-            CompletableFuture<Entry<K, V>> future;
-            CompletableFuture<Entry<K, V>> completableFuture = new CompletableFuture<>();
+            value = compute(key, loader);
+        }
+        return value;
+    }
 
-            try (ReleasableLock ignored = segment.writeLock.acquire()) {
-                future = segment.map.putIfAbsent(key, completableFuture);
-            }
+    public V compute(K key, CacheLoader<K, V> loader) throws ExecutionException {
+        long now = now();
+        // we need to synchronize loading of a value for a given key; however, holding the segment lock while
+        // invoking load can lead to deadlock against another thread due to dependent key loading; therefore, we
+        // need a mechanism to ensure that load is invoked at most once, but we are not invoking load while holding
+        // the segment lock; to do this, we atomically put a future in the map that can load the value, and then
+        // get the value from this future on the thread that won the race to place the future into the segment map
+        CacheSegment<K, V> segment = getCacheSegment(key);
+        CompletableFuture<Entry<K, V>> future;
+        CompletableFuture<Entry<K, V>> completableFuture = new CompletableFuture<>();
 
-            BiFunction<? super Entry<K, V>, Throwable, ? extends V> handler = (ok, ex) -> {
-                if (ok != null) {
-                    try (ReleasableLock ignored = lruLock.acquire()) {
-                        promote(ok, now);
-                    }
-                    return ok.value;
-                } else {
-                    try (ReleasableLock ignored = segment.writeLock.acquire()) {
-                        CompletableFuture<Entry<K, V>> sanity = segment.map.get(key);
-                        if (sanity != null && sanity.isCompletedExceptionally()) {
-                            segment.map.remove(key);
-                        }
-                    }
-                    return null;
-                }
-            };
+        try (ReleasableLock ignored = segment.writeLock.acquire()) {
+            future = segment.map.putIfAbsent(key, completableFuture);
+        }
 
-            CompletableFuture<V> completableValue;
-            if (future == null) {
-                future = completableFuture;
-                completableValue = future.handle(handler);
-                V loaded;
-                try {
-                    loaded = loader.load(key);
-                } catch (Exception e) {
-                    future.completeExceptionally(e);
-                    throw new ExecutionException(e);
+        BiFunction<? super Entry<K, V>, Throwable, ? extends V> handler = (ok, ex) -> {
+            if (ok != null) {
+                try (ReleasableLock ignored = lruLock.acquire()) {
+                    promote(ok, now);
                 }
-                if (loaded == null) {
-                    NullPointerException npe = new NullPointerException("loader returned a null value");
-                    future.completeExceptionally(npe);
-                    throw new ExecutionException(npe);
-                } else {
-                    future.complete(new Entry<>(key, loaded, now));
-                }
+                return ok.value;
             } else {
-                completableValue = future.handle(handler);
-            }
-
-            try {
-                value = completableValue.get();
-                // check to ensure the future hasn't been completed with an exception
-                if (future.isCompletedExceptionally()) {
-                    future.get(); // call get to force the exception to be thrown for other concurrent callers
-                    throw new IllegalStateException("the future was completed exceptionally but no exception was thrown");
+                try (ReleasableLock ignored = segment.writeLock.acquire()) {
+                    CompletableFuture<Entry<K, V>> sanity = segment.map.get(key);
+                    if (sanity != null && sanity.isCompletedExceptionally()) {
+                        segment.map.remove(key);
+                    }
                 }
-            } catch (InterruptedException e) {
-                throw new IllegalStateException(e);
+                return null;
             }
+        };
+
+        CompletableFuture<V> completableValue;
+        if (future == null) {
+            future = completableFuture;
+            completableValue = future.handle(handler);
+            V loaded;
+            try {
+                loaded = loader.load(key);
+            } catch (Exception e) {
+                future.completeExceptionally(e);
+                throw new ExecutionException(e);
+            }
+            if (loaded == null) {
+                NullPointerException npe = new NullPointerException("loader returned a null value");
+                future.completeExceptionally(npe);
+                throw new ExecutionException(npe);
+            } else {
+                future.complete(new Entry<>(key, loaded, now));
+            }
+        } else {
+            completableValue = future.handle(handler);
+        }
+        V value;
+        try {
+            value = completableValue.get();
+            // check to ensure the future hasn't been completed with an exception
+            if (future.isCompletedExceptionally()) {
+                future.get(); // call get to force the exception to be thrown for other concurrent callers
+                throw new IllegalStateException("the future was completed exceptionally but no exception was thrown");
+            }
+        } catch (InterruptedException e) {
+            throw new IllegalStateException(e);
         }
         return value;
     }
