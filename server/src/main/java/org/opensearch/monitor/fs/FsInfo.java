@@ -335,7 +335,7 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContentFragm
             previousSectorsRead = in.readLong();
             currentSectorsWritten = in.readLong();
             previousSectorsWritten = in.readLong();
-            if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
+            if (in.getVersion().onOrAfter(Version.V_2_12_0)) {
                 currentReadTime = in.readLong();
                 previousReadTime = in.readLong();
                 currentWriteTime = in.readLong();
@@ -369,7 +369,7 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContentFragm
             out.writeLong(previousSectorsRead);
             out.writeLong(currentSectorsWritten);
             out.writeLong(previousSectorsWritten);
-            if (out.getVersion().onOrAfter(Version.V_3_0_0)) {
+            if (out.getVersion().onOrAfter(Version.V_2_12_0)) {
                 out.writeLong(currentReadTime);
                 out.writeLong(previousReadTime);
                 out.writeLong(currentWriteTime);
@@ -533,7 +533,7 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContentFragm
             this.totalWriteOperations = in.readLong();
             this.totalReadKilobytes = in.readLong();
             this.totalWriteKilobytes = in.readLong();
-            if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
+            if (in.getVersion().onOrAfter(Version.V_2_12_0)) {
                 this.totalReadTime = in.readLong();
                 this.totalWriteTime = in.readLong();
                 this.totalQueueSize = in.readLong();
@@ -557,7 +557,7 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContentFragm
             out.writeLong(totalWriteOperations);
             out.writeLong(totalReadKilobytes);
             out.writeLong(totalWriteKilobytes);
-            if (out.getVersion().onOrAfter(Version.V_3_0_0)) {
+            if (out.getVersion().onOrAfter(Version.V_2_12_0)) {
                 out.writeLong(totalReadTime);
                 out.writeLong(totalWriteTime);
                 out.writeLong(totalQueueSize);
