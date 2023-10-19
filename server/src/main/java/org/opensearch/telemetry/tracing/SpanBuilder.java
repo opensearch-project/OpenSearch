@@ -157,14 +157,14 @@ public final class SpanBuilder {
     }
 
     private static Attributes buildSpanAttributes(String nodeId, ReplicatedWriteRequest request) {
-        Attributes attributes = Attributes.create().addAttribute(AttributeNames.NODE_ID, nodeId);
+        Attributes attributes = Attributes.create().addAttribute(AttributeNames.NODE_ID, nodeId)
+            .addAttribute(AttributeNames.REFRESH_POLICY, request.getRefreshPolicy().getValue());
+        if (request.shardId() != null) {
+            attributes.addAttribute(AttributeNames.INDEX, request.shardId().getIndexName())
+                .addAttribute(AttributeNames.SHARD_ID, request.shardId().getId());
+        }
         if (request instanceof BulkShardRequest) {
-            attributes.addAttribute(AttributeNames.BULK_REQUEST_ITEMS, ((BulkShardRequest) request).items().length)
-                .addAttribute(AttributeNames.REFRESH_POLICY, request.getRefreshPolicy().getValue());
-            if (request.shardId() != null) {
-                attributes.addAttribute(AttributeNames.INDEX, request.shardId().getIndexName())
-                    .addAttribute(AttributeNames.SHARD_ID, request.shardId().getId());
-            }
+            attributes.addAttribute(AttributeNames.BULK_REQUEST_ITEMS, ((BulkShardRequest) request).items().length);
         }
         return attributes;
     }
