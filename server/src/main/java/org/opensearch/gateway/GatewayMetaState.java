@@ -160,15 +160,15 @@ public class GatewayMetaState implements Closeable {
                 try {
                     ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.get(settings))
                         .version(lastAcceptedVersion)
-                        .metadata(metadata)
                         .build();
 
+                    boolean isRemoteStateRestored = false;
                     if (DiscoveryNode.isClusterManagerNode(settings) && isRemoteStoreClusterStateEnabled(settings)) {
+                        String lastKnownClusterUUID = ClusterState.UNKNOWN_UUID;
                         // If the cluster UUID loaded from local is unknown (_na_) then fetch the best state from remote
                         // If there is no valid state on remote, continue with initial empty state
                         // If there is a valid state, then restore index metadata using this state
-                        String lastKnownClusterUUID = ClusterState.UNKNOWN_UUID;
-                        if (ClusterState.UNKNOWN_UUID.equals(clusterState.metadata().clusterUUID())) {
+                        if (ClusterState.UNKNOWN_UUID.equals(metadata.clusterUUID())) {
                             lastKnownClusterUUID = remoteClusterStateService.getLastKnownUUIDFromRemote(
                                 clusterState.getClusterName().value()
                             );
@@ -181,9 +181,15 @@ public class GatewayMetaState implements Closeable {
                                     new String[] {}
                                 );
                                 clusterState = remoteRestoreResult.getClusterState();
+                                isRemoteStateRestored = true;
                             }
                         }
                         remotePersistedState = new RemotePersistedState(remoteClusterStateService, lastKnownClusterUUID);
+                    }
+
+                    if (isRemoteStateRestored == false) {
+                        // if we did not restore from remote, apply the local disk state.
+                        clusterState = ClusterState.builder(clusterState).metadata(metadata).build();
                     }
 
                     // Recovers Cluster and Index level blocks
