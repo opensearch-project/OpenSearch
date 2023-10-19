@@ -353,7 +353,13 @@ public class RemoteStoreBaseIntegTestCase extends OpenSearchIntegTestCase {
             // Validated that all the restricted settings are entact on all the nodes.
             repository.getRestrictedSystemRepositorySettings()
                 .stream()
-                .forEach(setting -> assertEquals(setting.get(actualRepository.settings()), setting.get(expectedRepository.settings())));
+                .forEach(
+                    setting -> assertEquals(
+                        String.format(Locale.ROOT, "Restricted Settings mismatch [%s]", setting.getKey()),
+                        setting.get(actualRepository.settings()),
+                        setting.get(expectedRepository.settings())
+                    )
+                );
         }
     }
 

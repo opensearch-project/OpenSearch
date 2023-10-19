@@ -23,10 +23,13 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.common.StreamContext;
 import org.opensearch.common.blobstore.stream.write.WritePriority;
 import org.opensearch.common.io.InputStreamContainer;
+import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.repositories.s3.SocketAccess;
 import org.opensearch.repositories.s3.io.CheckedContainer;
 
+import java.io.BufferedInputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
@@ -138,26 +141,39 @@ public class AsyncPartsHandler {
         ExecutorService streamReadExecutor = uploadRequest.getWritePriority() == WritePriority.HIGH
             ? priorityExecutorService
             : executorService;
+        // Buffered stream is needed to allow mark and reset ops during IO errors so that only buffered
+        // data can be retried instead of retrying whole file by the application.
+        InputStream inputStream = new BufferedInputStream(inputStreamContainer.getInputStream(), (int) (ByteSizeUnit.MB.toBytes(1) + 1));
         CompletableFuture<UploadPartResponse> uploadPartResponseFuture = SocketAccess.doPrivileged(
             () -> s3AsyncClient.uploadPart(
                 uploadPartRequest,
-                AsyncRequestBody.fromInputStream(
-                    inputStreamContainer.getInputStream(),
-                    inputStreamContainer.getContentLength(),
-                    streamReadExecutor
-                )
+                AsyncRequestBody.fromInputStream(inputStream, inputStreamContainer.getContentLength(), streamReadExecutor)
             )
         );
 
-        CompletableFuture<CompletedPart> convertFuture = uploadPartResponseFuture.thenApply(
-            uploadPartResponse -> convertUploadPartResponse(
-                completedParts,
-                inputStreamContainers,
-                uploadPartResponse,
-                partNumber,
-                uploadRequest.doRemoteDataIntegrityCheck()
-            )
-        );
+        CompletableFuture<CompletedPart> convertFuture = uploadPartResponseFuture.whenComplete((resp, throwable) -> {
+            try {
+                inputStream.close();
+            } catch (IOException ex) {
+                log.error(
+                    () -> new ParameterizedMessage(
+                        "Failed to close stream while uploading a part of idx {} and file {}.",
+                        uploadPartRequest.partNumber(),
+                        uploadPartRequest.key()
+                    ),
+                    ex
+                );
+            }
+        })
+            .thenApply(
+                uploadPartResponse -> convertUploadPartResponse(
+                    completedParts,
+                    inputStreamContainers,
+                    uploadPartResponse,
+                    partNumber,
+                    uploadRequest.doRemoteDataIntegrityCheck()
+                )
+            );
         futures.add(convertFuture);
 
         CompletableFutureUtils.forwardExceptionTo(convertFuture, uploadPartResponseFuture);
