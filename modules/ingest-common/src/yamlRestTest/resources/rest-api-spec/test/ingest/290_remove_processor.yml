@@ -91,3 +91,93 @@ teardown:
         index: test
         id: 1
   - match: { _source.message: "foo bar baz" }
+
+---
+"Test remove metadata field":
+  - do:
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        body:  >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "remove" : {
+                  "field" : "{{foo}}"
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      index:
+        index: test
+        id: 1
+        pipeline: "my_pipeline"
+        body: {
+          foo: "_index"
+        }
+  - do:
+      get:
+        index: test
+        id: 1
+  - match: { _source: { foo: "_index" } }
+
+  - do:
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        body:  >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "remove" : {
+                  "field" : "_id"
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      index:
+        index: test
+        id: 1
+        pipeline: "my_pipeline"
+        body: { message: "foo bar baz" }
+  - do:
+      get:
+        index: test
+        id: 1
+  - match: { _source: { message: "foo bar baz" } }
+
+  - do:
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        body:  >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "remove" : {
+                  "field" : "_version"
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      index:
+        index: test
+        id: "test_id_10000"
+        pipeline: "my_pipeline"
+        version: 1
+        version_type: "external"
+        body: { message: "foo bar baz" }
+  - do:
+      get:
+        index: test
+        id: 1
+  - match: { _source: { message: "foo bar baz" } }

@@ -40,7 +40,9 @@ import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -48,7 +50,7 @@ public class RemoveProcessorTests extends OpenSearchTestCase {
 
     public void testRemoveFields() throws Exception {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
-        String field = RandomDocumentPicks.randomExistingFieldName(random(), ingestDocument);
+        String field = RandomDocumentPicks.addRandomField(random(), ingestDocument, randomAlphaOfLength(10));
         Processor processor = new RemoveProcessor(
             randomAlphaOfLength(10),
             null,
@@ -123,5 +125,32 @@ public class RemoveProcessorTests extends OpenSearchTestCase {
         processorTag = randomAlphaOfLength(10);
         processor = new RemoveProcessor.Factory(TestTemplateService.instance()).create(null, processorTag, null, configWithEmptyField);
         processor.execute(ingestDocument);
+    }
+
+    public void testRemoveMetadataField() throws Exception {
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
+        // ignore _if_seq_no
+        List<String> metadataFields = ingestDocument.getMetadata()
+            .keySet()
+            .stream()
+            .map(IngestDocument.Metadata::getFieldName)
+            .collect(Collectors.toList());
+        String metadataFieldName = metadataFields.get(randomIntBetween(0, metadataFields.size() - 1));
+        Map<String, Object> config = new HashMap<>();
+        config.put("field", metadataFieldName);
+        String processorTag = randomAlphaOfLength(10);
+        Processor processor = new RemoveProcessor.Factory(TestTemplateService.instance()).create(null, processorTag, null, config);
+        // _if_seq_no and _if_primary_term do not exist in the enriched document, removing them will throw IllegalArgumentException
+        if (metadataFieldName.equals(IngestDocument.Metadata.IF_SEQ_NO.getFieldName())
+            || metadataFieldName.equals(IngestDocument.Metadata.IF_PRIMARY_TERM.getFieldName())) {
+            assertThrows(
+                "field: [" + metadataFieldName + "] doesn't exist",
+                IllegalArgumentException.class,
+                () -> processor.execute(ingestDocument)
+            );
+        } else {
+            // for other metadata fields such as _index, id, ignore the removing operation
+            assertThat(ingestDocument.hasField(metadataFieldName), equalTo(true));
+        }
     }
 }

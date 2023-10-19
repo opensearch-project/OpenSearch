@@ -43,6 +43,7 @@ import org.opensearch.script.TemplateScript;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
@@ -67,6 +68,11 @@ public final class RemoveProcessor extends AbstractProcessor {
 
     @Override
     public IngestDocument execute(IngestDocument document) {
+        final Set<String> metadataFields = document.getMetadata()
+            .keySet()
+            .stream()
+            .map(IngestDocument.Metadata::getFieldName)
+            .collect(Collectors.toSet());
         fields.forEach(field -> {
             String path = document.renderTemplate(field);
             final boolean fieldPathIsNullOrEmpty = Strings.isNullOrEmpty(path);
@@ -79,7 +85,10 @@ public final class RemoveProcessor extends AbstractProcessor {
                     throw new IllegalArgumentException("field [" + path + "] doesn't exist");
                 }
             }
-            document.removeField(path);
+            // ignore metadata fields such as _index, _id, etc.
+            if (!metadataFields.contains(path)) {
+                document.removeField(path);
+            }
         });
         return document;
     }
