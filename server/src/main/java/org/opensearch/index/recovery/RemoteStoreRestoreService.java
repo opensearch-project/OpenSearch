@@ -10,15 +10,16 @@ package org.opensearch.index.recovery;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.opensearch.Version;
 import org.opensearch.action.admin.cluster.remotestore.restore.RestoreRemoteStoreRequest;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateUpdateTask;
 import org.opensearch.cluster.block.ClusterBlocks;
 import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.cluster.metadata.IndexTemplateMetadata;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.metadata.MetadataCreateIndexService;
 import org.opensearch.cluster.metadata.MetadataIndexUpgradeService;
+import org.opensearch.cluster.metadata.RepositoriesMetadata;
 import org.opensearch.cluster.routing.IndexShardRoutingTable;
 import org.opensearch.cluster.routing.RecoverySource;
 import org.opensearch.cluster.routing.RoutingTable;
@@ -27,6 +28,7 @@ import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.collect.Tuple;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.index.shard.ShardId;
@@ -42,11 +44,13 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_STORE_ENABLED;
+import static org.opensearch.repositories.blobstore.BlobStoreRepository.SYSTEM_REPOSITORY_SETTING;
 
 /**
  * Service responsible for restoring index data from remote store
@@ -136,17 +140,16 @@ public class RemoteStoreRestoreService {
         String[] indexNames
     ) {
         Map<String, Tuple<Boolean, IndexMetadata>> indexMetadataMap = new HashMap<>();
+        Metadata remoteMetadata = null;
         boolean metadataFromRemoteStore = (restoreClusterUUID == null
             || restoreClusterUUID.isEmpty()
             || restoreClusterUUID.isBlank()) == false;
         if (metadataFromRemoteStore) {
             try {
-                remoteClusterStateService.getLatestMetadata(currentState.getClusterName().value(), restoreClusterUUID)
-                    .getIndices()
-                    .values()
-                    .forEach(indexMetadata -> {
-                        indexMetadataMap.put(indexMetadata.getIndex().getName(), new Tuple<>(true, indexMetadata));
-                    });
+                remoteMetadata = remoteClusterStateService.getLatestMetadata(currentState.getClusterName().value(), restoreClusterUUID);
+                remoteMetadata.getIndices().values().forEach(indexMetadata -> {
+                    indexMetadataMap.put(indexMetadata.getIndex().getName(), new Tuple<>(true, indexMetadata));
+                });
             } catch (Exception e) {
                 throw new IllegalStateException("Unable to restore remote index metadata", e);
             }
@@ -161,7 +164,7 @@ public class RemoteStoreRestoreService {
             }
         }
         validate(currentState, indexMetadataMap, restoreClusterUUID, restoreAllShards);
-        return executeRestore(currentState, indexMetadataMap, restoreAllShards);
+        return executeRestore(currentState, indexMetadataMap, restoreAllShards, remoteMetadata);
     }
 
     /**
@@ -174,7 +177,8 @@ public class RemoteStoreRestoreService {
     private RemoteRestoreResult executeRestore(
         ClusterState currentState,
         Map<String, Tuple<Boolean, IndexMetadata>> indexMetadataMap,
-        boolean restoreAllShards
+        boolean restoreAllShards,
+        Metadata remoteMetadata
     ) {
         final String restoreUUID = UUIDs.randomBase64UUID();
         List<String> indicesToBeRestored = new ArrayList<>();
@@ -227,11 +231,45 @@ public class RemoteStoreRestoreService {
             totalShards += updatedIndexMetadata.getNumberOfShards();
         }
 
+        if (remoteMetadata != null) {
+            restoreGlobalMetadata(mdBuilder, remoteMetadata);
+        }
+
         RestoreInfo restoreInfo = new RestoreInfo("remote_store", indicesToBeRestored, totalShards, totalShards);
 
         RoutingTable rt = rtBuilder.build();
         ClusterState updatedState = builder.metadata(mdBuilder).blocks(blocks).routingTable(rt).build();
         return RemoteRestoreResult.build(restoreUUID, restoreInfo, allocationService.reroute(updatedState, "restored from remote store"));
+    }
+
+    private void restoreGlobalMetadata(Metadata.Builder mdBuilder, Metadata remoteMetadata) {
+        if (remoteMetadata.persistentSettings() != null) {
+            Settings settings = remoteMetadata.persistentSettings();
+            clusterService.getClusterSettings().validateUpdate(settings);
+            mdBuilder.persistentSettings(settings);
+        }
+        if (remoteMetadata.templates() != null) {
+            for (final IndexTemplateMetadata cursor : remoteMetadata.templates().values()) {
+                mdBuilder.put(cursor);
+            }
+        }
+        if (remoteMetadata.customs() != null) {
+            for (final Map.Entry<String, Metadata.Custom> cursor : remoteMetadata.customs().entrySet()) {
+                if (RepositoriesMetadata.TYPE.equals(cursor.getKey()) == false) {
+                    mdBuilder.putCustom(cursor.getKey(), cursor.getValue());
+                }
+            }
+        }
+        Optional<RepositoriesMetadata> repositoriesMetadata = Optional.ofNullable(remoteMetadata.custom(RepositoriesMetadata.TYPE));
+        repositoriesMetadata = repositoriesMetadata.map(
+            repositoriesMetadata1 -> new RepositoriesMetadata(
+                repositoriesMetadata1.repositories()
+                    .stream()
+                    .filter(repository -> SYSTEM_REPOSITORY_SETTING.get(repository.settings()) == false)
+                    .collect(Collectors.toList())
+            )
+        );
+        repositoriesMetadata.ifPresent(metadata -> mdBuilder.putCustom(RepositoriesMetadata.TYPE, metadata));
     }
 
     /**
@@ -298,8 +336,6 @@ public class RemoteStoreRestoreService {
                         throw new IllegalStateException(finalErrorMsg);
                     }
 
-                    Version minIndexCompatibilityVersion = currentState.getNodes().getMaxNodeVersion().minimumIndexCompatibilityVersion();
-                    metadataIndexUpgradeService.upgradeIndexMetadata(indexMetadata, minIndexCompatibilityVersion);
                     boolean isHidden = IndexMetadata.INDEX_HIDDEN_SETTING.get(indexMetadata.getSettings());
                     createIndexService.validateIndexName(indexName, currentState);
                     createIndexService.validateDotIndex(indexName, isHidden);

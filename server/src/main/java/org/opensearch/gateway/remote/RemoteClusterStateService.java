@@ -711,7 +711,7 @@ public class RemoteClusterStateService implements Closeable {
      * @param clusterName name of the cluster
      * @return {@link IndexMetadata}
      */
-    public Metadata getLatestMetadata(String clusterName, String clusterUUID) throws IOException {
+    public Metadata getLatestMetadata(String clusterName, String clusterUUID) {
         start();
         Optional<ClusterMetadataManifest> clusterMetadataManifest = getLatestClusterMetadataManifest(clusterName, clusterUUID);
         if (!clusterMetadataManifest.isPresent()) {
@@ -759,10 +759,7 @@ public class RemoteClusterStateService implements Closeable {
      */
     public Optional<ClusterMetadataManifest> getLatestClusterMetadataManifest(String clusterName, String clusterUUID) {
         Optional<String> latestManifestFileName = getLatestManifestFileName(clusterName, clusterUUID);
-        if (latestManifestFileName.isPresent()) {
-            return Optional.of(fetchRemoteClusterMetadataManifest(clusterName, clusterUUID, latestManifestFileName.get()));
-        }
-        return Optional.empty();
+        return latestManifestFileName.map(s -> fetchRemoteClusterMetadataManifest(clusterName, clusterUUID, s));
     }
 
     /**
