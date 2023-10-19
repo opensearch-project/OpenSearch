@@ -931,13 +931,13 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
         if (metadata1.clusterUUIDCommitted != metadata2.clusterUUIDCommitted) {
             return false;
         }
-        return isRemoteGlobalStateEquals(metadata1, metadata2);
+        return isGlobalResourcesMetadataEquals(metadata1, metadata2);
     }
 
     /**
      * Compares Metadata entities persisted in Remote Store.
      */
-    public static boolean isRemoteGlobalStateEquals(Metadata metadata1, Metadata metadata2) {
+    public static boolean isGlobalResourcesMetadataEquals(Metadata metadata1, Metadata metadata2) {
         if (!metadata1.persistentSettings.equals(metadata2.persistentSettings)) {
             return false;
         }
