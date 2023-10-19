@@ -331,6 +331,10 @@ public abstract class AbstractSnapshotIntegTestCase extends OpenSearchIntegTestC
         );
     }
 
+    public static void blockNodeOnAnySegmentFile(String repository, String nodeName) {
+        ((MockRepository) internalCluster().getInstance(RepositoriesService.class, nodeName).repository(repository)).blockOnSegmentFiles(true);
+    }
+
     public static void blockDataNode(String repository, String nodeName) {
         ((MockRepository) internalCluster().getInstance(RepositoriesService.class, nodeName).repository(repository)).blockOnDataFiles(true);
     }

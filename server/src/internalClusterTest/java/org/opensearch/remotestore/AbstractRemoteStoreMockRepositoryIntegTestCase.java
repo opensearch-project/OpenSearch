@@ -114,6 +114,10 @@ public abstract class AbstractRemoteStoreMockRepositoryIntegTestCase extends Abs
     }
 
     protected String setup(Path repoLocation, double ioFailureRate, String skipExceptionBlobList, long maxFailure) {
+        return setup(repoLocation, ioFailureRate, skipExceptionBlobList, maxFailure, 0);
+    }
+
+    protected String setup(Path repoLocation, double ioFailureRate, String skipExceptionBlobList, long maxFailure, int replicaCount) {
         // The random_control_io_exception_rate setting ensures that 10-25% of all operations to remote store results in
         /// IOException. skip_exception_on_verification_file & skip_exception_on_list_blobs settings ensures that the
         // repository creation can happen without failure.
@@ -128,6 +132,9 @@ public abstract class AbstractRemoteStoreMockRepositoryIntegTestCase extends Abs
 
         internalCluster().startClusterManagerOnlyNode(settings.build());
         String dataNodeName = internalCluster().startDataOnlyNode(settings.build());
+        for (int i = 0; i < replicaCount; i++) {
+            internalCluster().startDataOnlyNode(settings.build());
+        }
         createIndex(INDEX_NAME);
         logger.info("--> Created index={}", INDEX_NAME);
         ensureYellowAndNoInitializingShards(INDEX_NAME);

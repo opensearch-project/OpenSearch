@@ -194,7 +194,7 @@ public class SegmentReplicationBaseIT extends OpenSearchIntegTestCase {
     /**
      * Fetch IndexShard, assumes only a single shard per node.
      */
-    protected IndexShard getIndexShard(String node, String indexName) {
+    public static IndexShard getIndexShard(String node, String indexName) {
         final Index index = resolveIndex(indexName);
         IndicesService indicesService = internalCluster().getInstance(IndicesService.class, node);
         IndexService indexService = indicesService.indexService(index);
