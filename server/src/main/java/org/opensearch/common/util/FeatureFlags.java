@@ -54,7 +54,6 @@ public class FeatureFlags {
      * Gates the functionality of telemetry framework.
      */
     public static final String TELEMETRY = "opensearch.experimental.feature.telemetry.enabled";
-    
     /**
      * Should store the settings from opensearch.yml.
      */
@@ -111,5 +110,4 @@ public class FeatureFlags {
         false,
         Property.NodeScope
     );
-
 }
