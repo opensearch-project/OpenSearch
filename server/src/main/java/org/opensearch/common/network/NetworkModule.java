@@ -149,9 +149,13 @@ public final class NetworkModule {
         NetworkService networkService,
         HttpServerTransport.Dispatcher dispatcher,
         ClusterSettings clusterSettings,
-        Tracer tracer
+        Tracer tracer,
+        List<TransportInterceptor> coreTransportInterceptors
     ) {
         this.settings = settings;
+        if (coreTransportInterceptors != null) {
+            coreTransportInterceptors.forEach(this::registerTransportInterceptor);
+        }
         for (NetworkPlugin plugin : plugins) {
             Map<String, Supplier<HttpServerTransport>> httpTransportFactory = plugin.getHttpTransports(
                 settings,
@@ -265,14 +269,6 @@ public final class NetworkModule {
      */
     private void registerTransportInterceptor(TransportInterceptor interceptor) {
         this.transportInterceptors.add(Objects.requireNonNull(interceptor, "interceptor must not be null"));
-    }
-
-    /**
-     * Registers a new {@link TransportInterceptor}
-     * This method used to register CoreInterceptors before the plugin interceptors
-     */
-    public void registerCoreTransportInterceptor(TransportInterceptor interceptor) {
-        this.transportInterceptors.add(0, Objects.requireNonNull(interceptor, "interceptor must not be null"));
     }
 
     /**

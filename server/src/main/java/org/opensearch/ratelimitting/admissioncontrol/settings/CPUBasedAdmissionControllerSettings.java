@@ -16,7 +16,6 @@ import org.opensearch.ratelimitting.admissioncontrol.enums.AdmissionControlMode;
 
 import java.util.Arrays;
 import java.util.List;
-import java.util.function.Function;
 
 /**
  * Settings related to cpu based admission controller.
@@ -70,20 +69,13 @@ public class CPUBasedAdmissionControllerSettings {
         Setting.Property.NodeScope
     );
 
-    public static final Setting<List<String>> CPU_BASED_ADMISSION_CONTROLLER_TRANSPORT_URI_LIST = Setting.listSetting(
-        "admission_control.global_cpu_usage.actions_list",
-        Defaults.TRANSPORT_LAYER_DEFAULT_URI_TYPE,
-        Function.identity(),
-        Setting.Property.NodeScope
-    );
-
     // currently limited to one setting will add further more settings in follow-up PR's
     public CPUBasedAdmissionControllerSettings(ClusterSettings clusterSettings, Settings settings) {
         this.transportLayerMode = CPU_BASED_ADMISSION_CONTROLLER_TRANSPORT_LAYER_MODE.get(settings);
         clusterSettings.addSettingsUpdateConsumer(CPU_BASED_ADMISSION_CONTROLLER_TRANSPORT_LAYER_MODE, this::setTransportLayerMode);
         this.searchCPULimit = SEARCH_CPU_USAGE_LIMIT.get(settings);
         this.indexingCPULimit = INDEXING_CPU_USAGE_LIMIT.get(settings);
-        this.transportActionsList = CPU_BASED_ADMISSION_CONTROLLER_TRANSPORT_URI_LIST.get(settings);
+        this.transportActionsList = Defaults.TRANSPORT_LAYER_DEFAULT_URI_TYPE;
         clusterSettings.addSettingsUpdateConsumer(INDEXING_CPU_USAGE_LIMIT, this::setIndexingCPULimit);
         clusterSettings.addSettingsUpdateConsumer(SEARCH_CPU_USAGE_LIMIT, this::setSearchCPULimit);
     }

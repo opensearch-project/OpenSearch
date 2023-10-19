@@ -893,6 +893,7 @@ public class Node implements Closeable {
 
             final RestController restController = actionModule.getRestController();
 
+            List<TransportInterceptor> coreTransportInterceptors = new ArrayList<>();
             final AdmissionControlService admissionControlService = new AdmissionControlService(
                 settings,
                 clusterService.getClusterSettings(),
@@ -903,6 +904,7 @@ public class Node implements Closeable {
                 admissionControlService
             );
 
+            coreTransportInterceptors.add(admissionControlTransportInterceptor);
             final NetworkModule networkModule = new NetworkModule(
                 settings,
                 pluginsService.filterPlugins(NetworkPlugin.class),
@@ -915,9 +917,9 @@ public class Node implements Closeable {
                 networkService,
                 restController,
                 clusterService.getClusterSettings(),
-                tracer
+                tracer,
+                coreTransportInterceptors
             );
-            networkModule.registerCoreTransportInterceptor(admissionControlTransportInterceptor);
 
             Collection<UnaryOperator<Map<String, IndexTemplateMetadata>>> indexTemplateMetadataUpgraders = pluginsService.filterPlugins(
                 Plugin.class

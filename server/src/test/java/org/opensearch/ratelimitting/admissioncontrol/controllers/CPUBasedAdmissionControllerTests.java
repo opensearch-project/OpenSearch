@@ -50,7 +50,9 @@ public class CPUBasedAdmissionControllerTests extends OpenSearchTestCase {
         assertEquals(admissionController.getName(), CPUBasedAdmissionControllerSettings.CPU_BASED_ADMISSION_CONTROLLER);
         assertEquals(admissionController.getRejectionCount(), 0);
         assertEquals(admissionController.settings.getTransportLayerAdmissionControllerMode(), AdmissionControlMode.DISABLED);
-        assertFalse(admissionController.isEnabledForTransportLayer());
+        assertFalse(
+            admissionController.isEnabledForTransportLayer(admissionController.settings.getTransportLayerAdmissionControllerMode())
+        );
     }
 
     public void testCheckUpdateSettings() {
@@ -70,7 +72,7 @@ public class CPUBasedAdmissionControllerTests extends OpenSearchTestCase {
         assertEquals(admissionController.getName(), CPUBasedAdmissionControllerSettings.CPU_BASED_ADMISSION_CONTROLLER);
         assertEquals(admissionController.getRejectionCount(), 0);
         assertEquals(admissionController.settings.getTransportLayerAdmissionControllerMode(), AdmissionControlMode.ENFORCED);
-        assertTrue(admissionController.isEnabledForTransportLayer());
+        assertTrue(admissionController.isEnabledForTransportLayer(admissionController.settings.getTransportLayerAdmissionControllerMode()));
     }
 
     public void testApplyControllerWithDefaultSettings() {
@@ -98,7 +100,7 @@ public class CPUBasedAdmissionControllerTests extends OpenSearchTestCase {
             settings,
             clusterService.getClusterSettings()
         );
-        assertTrue(admissionController.isEnabledForTransportLayer());
+        assertTrue(admissionController.isEnabledForTransportLayer(admissionController.settings.getTransportLayerAdmissionControllerMode()));
         assertEquals(admissionController.getRejectionCount(), 0);
         action = "indices:data/write/bulk[s][p]";
         admissionController.apply(action);

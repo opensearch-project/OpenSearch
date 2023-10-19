@@ -52,7 +52,7 @@ public class AdmissionControlService {
     /**
      * Initialise and Register all the admissionControllers
      */
-    public void initialise() {
+    private void initialise() {
         // Initialise different type of admission controllers
         registerAdmissionController(CPU_BASED_ADMISSION_CONTROLLER);
     }
@@ -69,14 +69,14 @@ public class AdmissionControlService {
      * @param admissionControllerName admissionControllerName to register into the service.
      */
     public void registerAdmissionController(String admissionControllerName) {
-        AdmissionController admissionController = this.getControllerImplementation(admissionControllerName);
+        AdmissionController admissionController = this.controllerFactory(admissionControllerName);
         this.ADMISSION_CONTROLLERS.put(admissionControllerName, admissionController);
     }
 
     /**
      * @return AdmissionController Instance
      */
-    private AdmissionController getControllerImplementation(String admissionControllerName) {
+    private AdmissionController controllerFactory(String admissionControllerName) {
         switch (admissionControllerName) {
             case CPU_BASED_ADMISSION_CONTROLLER:
                 return new CPUBasedAdmissionController(admissionControllerName, this.settings, this.clusterSettings);

@@ -12,6 +12,7 @@ import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.ratelimitting.admissioncontrol.controllers.AdmissionController;
+import org.opensearch.ratelimitting.admissioncontrol.controllers.CPUBasedAdmissionController;
 import org.opensearch.ratelimitting.admissioncontrol.enums.AdmissionControlMode;
 import org.opensearch.ratelimitting.admissioncontrol.settings.CPUBasedAdmissionControllerSettings;
 import org.opensearch.test.OpenSearchTestCase;
@@ -65,12 +66,13 @@ public class AdmissionControlServiceTests extends OpenSearchTestCase {
         AdmissionControlSettings admissionControlSettings = admissionControlService.admissionControlSettings;
         List<AdmissionController> admissionControllerList = admissionControlService.getAdmissionControllers();
         assertEquals(admissionControllerList.size(), 1);
-        AdmissionController cpuBasedAdmissionController = admissionControlService.getAdmissionController(
-            CPUBasedAdmissionControllerSettings.CPU_BASED_ADMISSION_CONTROLLER
-        );
+        CPUBasedAdmissionController cpuBasedAdmissionController = (CPUBasedAdmissionController) admissionControlService
+            .getAdmissionController(CPUBasedAdmissionControllerSettings.CPU_BASED_ADMISSION_CONTROLLER);
         assertEquals(
             admissionControlSettings.isTransportLayerAdmissionControlEnabled(),
-            cpuBasedAdmissionController.isEnabledForTransportLayer()
+            cpuBasedAdmissionController.isEnabledForTransportLayer(
+                cpuBasedAdmissionController.settings.getTransportLayerAdmissionControllerMode()
+            )
         );
 
         Settings settings = Settings.builder()
@@ -79,7 +81,9 @@ public class AdmissionControlServiceTests extends OpenSearchTestCase {
         clusterService.getClusterSettings().applySettings(settings);
         assertEquals(
             admissionControlSettings.isTransportLayerAdmissionControlEnabled(),
-            cpuBasedAdmissionController.isEnabledForTransportLayer()
+            cpuBasedAdmissionController.isEnabledForTransportLayer(
+                cpuBasedAdmissionController.settings.getTransportLayerAdmissionControllerMode()
+            )
         );
         assertFalse(admissionControlSettings.isTransportLayerAdmissionControlEnabled());
 
@@ -92,7 +96,11 @@ public class AdmissionControlServiceTests extends OpenSearchTestCase {
             .build();
         clusterService.getClusterSettings().applySettings(newSettings);
         assertFalse(admissionControlSettings.isTransportLayerAdmissionControlEnabled());
-        assertTrue(cpuBasedAdmissionController.isEnabledForTransportLayer());
+        assertTrue(
+            cpuBasedAdmissionController.isEnabledForTransportLayer(
+                cpuBasedAdmissionController.settings.getTransportLayerAdmissionControllerMode()
+            )
+        );
     }
 
     public void testApplyAdmissionControllerDisabled() {
@@ -120,7 +128,6 @@ public class AdmissionControlServiceTests extends OpenSearchTestCase {
             )
             .build();
         clusterService.getClusterSettings().applySettings(settings);
-        this.action = "indices:data/write/bulk[s][p]";
         admissionControlService.applyTransportAdmissionControl(this.action);
         List<AdmissionController> admissionControllerList = admissionControlService.getAdmissionControllers();
         assertEquals(admissionControllerList.size(), 1);
