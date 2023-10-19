@@ -52,7 +52,17 @@ public interface BlobStore extends Closeable {
     /**
      * Returns statistics on the count of operations that have been performed on this blob store
      */
+    /**
+     * Returns statistics on the count of operations that have been performed on this blob store
+     */
     default Map<String, Long> stats() {
+        return Collections.emptyMap();
+    }
+
+    /**
+     * Returns details statistics of operations that have been performed on this blob store
+     */
+    default Map<Metric, Map<String, Long>> extendedStats() {
         return Collections.emptyMap();
     }
 
@@ -60,4 +70,25 @@ public interface BlobStore extends Closeable {
      * Reload the blob store inplace
      */
     default void reload(RepositoryMetadata repositoryMetadata) {}
+
+    /**
+     * Metrics for BlobStore interactions
+     */
+    enum Metric {
+        REQUEST_SUCCESS("request_success_total"),
+        REQUEST_FAILURE("request_failures_total"),
+        REQUEST_LATENCY("request_time_in_millis"),
+        RETRY_COUNT("request_retry_count_total");
+
+        private String metricName;
+
+        Metric(String name) {
+            this.metricName = name;
+        }
+
+        public String metricName() {
+            return this.metricName;
+        }
+    }
+
 }
