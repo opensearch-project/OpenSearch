@@ -228,7 +228,9 @@ public abstract class TransportWriteAction<
         threadPool.executor(executor).execute(new ActionRunnable<PrimaryResult<ReplicaRequest, Response>>(listener) {
             @Override
             protected void doRun() {
-                Span span = tracer.startSpan(SpanBuilder.from("shardPrimaryAction", clusterService.localNode().getId(), request));
+                Span span = tracer.startSpan(
+                    SpanBuilder.from("dispatchedShardOperationOnPrimary", clusterService.localNode().getId(), request)
+                );
                 try (SpanScope spanScope = tracer.withSpanInScope(span)) {
                     dispatchedShardOperationOnPrimary(request, primary, TraceableActionListener.create(listener, span, tracer));
                 }
@@ -259,7 +261,9 @@ public abstract class TransportWriteAction<
         threadPool.executor(executorFunction.apply(replica)).execute(new ActionRunnable<ReplicaResult>(listener) {
             @Override
             protected void doRun() {
-                Span span = tracer.startSpan(SpanBuilder.from("shardReplicaAction", clusterService.localNode().getId(), request));
+                Span span = tracer.startSpan(
+                    SpanBuilder.from("dispatchedShardOperationOnReplica", clusterService.localNode().getId(), request)
+                );
                 try (SpanScope spanScope = tracer.withSpanInScope(span)) {
                     dispatchedShardOperationOnReplica(request, replica, TraceableActionListener.create(listener, span, tracer));
                 }
