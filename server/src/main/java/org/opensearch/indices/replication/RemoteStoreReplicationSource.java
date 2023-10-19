@@ -32,6 +32,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 
@@ -65,7 +66,7 @@ public class RemoteStoreReplicationSource implements SegmentReplicationSource {
         // TODO: Need to figure out a way to pass this information for segment metadata via remote store.
         try (final GatedCloseable<SegmentInfos> segmentInfosSnapshot = indexShard.getSegmentInfosSnapshot()) {
             final Version version = segmentInfosSnapshot.get().getCommitLuceneVersion();
-            RemoteSegmentMetadata mdFile = remoteDirectory.init();
+            final RemoteSegmentMetadata mdFile = getRemoteSegmentMetadata();
             // During initial recovery flow, the remote store might not
             // have metadata as primary hasn't uploaded anything yet.
             if (mdFile == null && indexShard.state().equals(IndexShardState.STARTED) == false) {
@@ -149,5 +150,11 @@ public class RemoteStoreReplicationSource implements SegmentReplicationSource {
         final AtomicBoolean metadataExists = new AtomicBoolean(false);
         cancellableThreads.executeIO(() -> metadataExists.set(remoteDirectory.readLatestMetadataFile() != null));
         return metadataExists.get();
+    }
+
+    private RemoteSegmentMetadata getRemoteSegmentMetadata() throws IOException {
+        AtomicReference<RemoteSegmentMetadata> mdFile = new AtomicReference<>();
+        cancellableThreads.executeIO(() -> mdFile.set(remoteDirectory.init()));
+        return mdFile.get();
     }
 }
