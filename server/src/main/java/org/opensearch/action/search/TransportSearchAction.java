@@ -88,6 +88,7 @@ import org.opensearch.search.profile.ProfileShardResult;
 import org.opensearch.search.profile.SearchProfileShardResults;
 import org.opensearch.tasks.CancellableTask;
 import org.opensearch.tasks.Task;
+import org.opensearch.telemetry.metrics.MetricsRegistry;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.RemoteClusterAware;
 import org.opensearch.transport.RemoteClusterService;
@@ -136,6 +137,13 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         Property.NodeScope
     );
 
+    public static final Setting<Boolean> SEARCH_QUERY_METRICS_ENABLED_SETTING = Setting.boolSetting(
+        "search.query.metrics.enabled",
+        false,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
     // cluster level setting for timeout based search cancellation. If search request level parameter is present then that will take
     // precedence over the cluster setting value
     public static final String SEARCH_CANCEL_AFTER_TIME_INTERVAL_SETTING_KEY = "search.cancel_after_time_interval";
@@ -168,7 +176,13 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
 
     private volatile boolean isRequestStatsEnabled;
 
+    private volatile boolean searchQueryMetricsEnabled;
+
     private final SearchRequestStats searchRequestStats;
+
+    private final MetricsRegistry metricsRegistry;
+
+    private SearchQueryCategorizer searchQueryCategorizer;
 
     @Inject
     public TransportSearchAction(
@@ -184,7 +198,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         IndexNameExpressionResolver indexNameExpressionResolver,
         NamedWriteableRegistry namedWriteableRegistry,
         SearchPipelineService searchPipelineService,
-        SearchRequestStats searchRequestStats
+        SearchRequestStats searchRequestStats,
+        MetricsRegistry metricsRegistry
     ) {
         super(SearchAction.NAME, transportService, actionFilters, (Writeable.Reader<SearchRequest>) SearchRequest::new);
         this.client = client;
@@ -202,6 +217,17 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         this.isRequestStatsEnabled = clusterService.getClusterSettings().get(SEARCH_REQUEST_STATS_ENABLED);
         clusterService.getClusterSettings().addSettingsUpdateConsumer(SEARCH_REQUEST_STATS_ENABLED, this::setIsRequestStatsEnabled);
         this.searchRequestStats = searchRequestStats;
+        this.metricsRegistry = metricsRegistry;
+        this.searchQueryMetricsEnabled = clusterService.getClusterSettings().get(SEARCH_QUERY_METRICS_ENABLED_SETTING);
+        clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(SEARCH_QUERY_METRICS_ENABLED_SETTING, this::setSearchQueryMetricsEnabled);
+    }
+
+    private void setSearchQueryMetricsEnabled(boolean searchQueryMetricsEnabled) {
+        this.searchQueryMetricsEnabled = searchQueryMetricsEnabled;
+        if ((this.searchQueryMetricsEnabled == true) && this.searchQueryCategorizer == null) {
+            this.searchQueryCategorizer = new SearchQueryCategorizer(metricsRegistry);
+        }
     }
 
     private void setIsRequestStatsEnabled(boolean isRequestStatsEnabled) {
@@ -430,6 +456,14 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         } catch (Exception e) {
             originalListener.onFailure(e);
             return;
+        }
+
+        if (searchQueryMetricsEnabled) {
+            try {
+                searchQueryCategorizer.categorize(searchRequest.source());
+            } catch (Exception e) {
+                logger.error("Error while trying to categorize the query.", e);
+            }
         }
 
         ActionListener<SearchSourceBuilder> rewriteListener = ActionListener.wrap(source -> {
