@@ -1128,17 +1128,15 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
         mockBlobContainerForGlobalMetadata(blobContainer2, clusterManifest2, metadata2);
         mockBlobContainer(blobContainer2, clusterManifest2, indexMetadataMap2, ClusterMetadataManifest.CODEC_V1);
 
-        // controls whether we should differ index metadata or global metadata when comparing uuid1 and uuid3
+        // differGlobalMetadata controls which one of IndexMetadata or Metadata object would be different
+        // when comparing cluster-uuid3 and cluster-uuid1 state.
+        // if set true, only Metadata will differ b/w cluster uuid1 and cluster uuid3.
+        // If set to false, only IndexMetadata would be different
+        // Adding difference in EXACTLY on of these randomly will help us test if our uuid trimming logic compares both
+        // IndexMetadata and Metadata when deciding if the remote state b/w two different cluster uuids is same.
         List<UploadedIndexMetadata> uploadedIndexMetadataList3 = differGlobalMetadata
             ? new ArrayList<>(uploadedIndexMetadataList1)
             : List.of(new UploadedIndexMetadata("index1", "index-uuid1", "key1"));
-        final ClusterMetadataManifest clusterManifest3 = generateClusterMetadataManifest(
-            "cluster-uuid3",
-            clusterUUIDsPointers.get("cluster-uuid3"),
-            randomAlphaOfLength(10),
-            uploadedIndexMetadataList3,
-            "test-metadata3"
-        );
         IndexMetadata indexMetadata5 = IndexMetadata.builder("index1")
             .settings(indexSettings)
             .numberOfShards(1)
@@ -1150,6 +1148,14 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
         Metadata metadata3 = Metadata.builder()
             .persistentSettings(Settings.builder().put(Metadata.SETTING_READ_ONLY_SETTING.getKey(), !differGlobalMetadata).build())
             .build();
+
+        final ClusterMetadataManifest clusterManifest3 = generateClusterMetadataManifest(
+            "cluster-uuid3",
+            clusterUUIDsPointers.get("cluster-uuid3"),
+            randomAlphaOfLength(10),
+            uploadedIndexMetadataList3,
+            "test-metadata3"
+        );
         mockBlobContainerForGlobalMetadata(blobContainer3, clusterManifest3, metadata3);
         mockBlobContainer(blobContainer3, clusterManifest3, indexMetadataMap3, ClusterMetadataManifest.CODEC_V1);
 
