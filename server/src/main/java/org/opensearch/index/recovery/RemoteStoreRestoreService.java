@@ -144,6 +144,11 @@ public class RemoteStoreRestoreService {
             || restoreClusterUUID.isBlank()) == false;
         if (metadataFromRemoteStore) {
             try {
+                // Restore with current cluster UUID will fail as same indices would be present in the cluster which we are trying to
+                // restore
+                if (currentState.metadata().clusterUUID().equals(restoreClusterUUID)) {
+                    throw new IllegalArgumentException("clusterUUID to restore from should be different from current cluster UUID");
+                }
                 remoteMetadata = remoteClusterStateService.getLatestMetadata(currentState.getClusterName().value(), restoreClusterUUID);
                 remoteMetadata.getIndices().values().forEach(indexMetadata -> {
                     indexMetadataMap.put(indexMetadata.getIndex().getName(), new Tuple<>(true, indexMetadata));
@@ -156,12 +161,21 @@ public class RemoteStoreRestoreService {
                 IndexMetadata indexMetadata = currentState.metadata().index(indexName);
                 if (indexMetadata == null) {
                     logger.warn("Index restore is not supported for non-existent index. Skipping: {}", indexName);
+                } else if (indexMetadata.getSettings().getAsBoolean(SETTING_REMOTE_STORE_ENABLED, false)) {
+                    logger.warn("Remote store is not enabled for index: {}", indexName);
+                } else if (restoreAllShards && IndexMetadata.State.CLOSE.equals(indexMetadata.getState()) == false) {
+                    throw new IllegalStateException(
+                        String.format(
+                            Locale.ROOT,
+                            "cannot restore index [%s] because an open index with same name/uuid already exists in the cluster.",
+                            indexName
+                        ) + " Close the existing index."
+                    );
                 } else {
                     indexMetadataMap.put(indexName, new Tuple<>(false, indexMetadata));
                 }
             }
         }
-        validate(currentState, indexMetadataMap, restoreClusterUUID, restoreAllShards);
         return executeRestore(currentState, indexMetadataMap, restoreAllShards, remoteMetadata);
     }
 
@@ -268,39 +282,6 @@ public class RemoteStoreRestoreService {
             )
         );
         repositoriesMetadata.ifPresent(metadata -> mdBuilder.putCustom(RepositoriesMetadata.TYPE, metadata));
-    }
-
-    /**
-     * Performs various validations needed before executing restore
-     * @param currentState current cluster state
-     * @param indexMetadataMap map of index metadata to restore
-     * @param restoreClusterUUID cluster UUID used to restore IndexMetadata
-     * @param restoreAllShards indicates if all shards of the index needs to be restored. This flat is ignored if remoteClusterUUID is provided
-     */
-    private void validate(
-        ClusterState currentState,
-        Map<String, Tuple<Boolean, IndexMetadata>> indexMetadataMap,
-        @Nullable String restoreClusterUUID,
-        boolean restoreAllShards
-    ) throws IllegalStateException, IllegalArgumentException {
-        String errorMsg = "cannot restore index [%s] because an open index with same name/uuid already exists in the cluster.";
-
-        // Restore with current cluster UUID will fail as same indices would be present in the cluster which we are trying to
-        // restore
-        if (currentState.metadata().clusterUUID().equals(restoreClusterUUID)) {
-            throw new IllegalArgumentException("clusterUUID to restore from should be different from current cluster UUID");
-        }
-        for (Map.Entry<String, Tuple<Boolean, IndexMetadata>> indexMetadataEntry : indexMetadataMap.entrySet()) {
-            String indexName = indexMetadataEntry.getKey();
-            IndexMetadata indexMetadata = indexMetadataEntry.getValue().v2();
-            if (indexMetadata.getSettings().getAsBoolean(SETTING_REMOTE_STORE_ENABLED, false)) {
-                if (restoreAllShards && IndexMetadata.State.CLOSE.equals(indexMetadata.getState()) == false) {
-                    throw new IllegalStateException(String.format(Locale.ROOT, errorMsg, indexName) + " Close the existing index.");
-                }
-            } else {
-                logger.warn("Remote store is not enabled for index: {}", indexName);
-            }
-        }
     }
 
     /**
