@@ -62,7 +62,7 @@ import org.opensearch.index.shard.IndexShardClosedException;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.SystemIndices;
 import org.opensearch.tasks.Task;
-import org.opensearch.telemetry.tracing.noop.NoopTracer;
+import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportException;
 import org.opensearch.transport.TransportResponseHandler;
@@ -100,7 +100,8 @@ public class RetentionLeaseSyncAction extends TransportWriteAction<
         final ShardStateAction shardStateAction,
         final ActionFilters actionFilters,
         final IndexingPressureService indexingPressureService,
-        final SystemIndices systemIndices
+        final SystemIndices systemIndices,
+        final Tracer tracer
     ) {
         super(
             settings,
@@ -117,7 +118,7 @@ public class RetentionLeaseSyncAction extends TransportWriteAction<
             false,
             indexingPressureService,
             systemIndices,
-            NoopTracer.INSTANCE
+            tracer
         );
     }
 

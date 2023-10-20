@@ -54,7 +54,7 @@ import org.opensearch.index.translog.Translog;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.SystemIndices;
 import org.opensearch.tasks.Task;
-import org.opensearch.telemetry.tracing.noop.NoopTracer;
+import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.threadpool.ThreadPool.Names;
 import org.opensearch.transport.TransportException;
@@ -94,7 +94,8 @@ public class TransportResyncReplicationAction extends TransportWriteAction<
         ShardStateAction shardStateAction,
         ActionFilters actionFilters,
         IndexingPressureService indexingPressureService,
-        SystemIndices systemIndices
+        SystemIndices systemIndices,
+        Tracer tracer
     ) {
         super(
             settings,
@@ -111,7 +112,7 @@ public class TransportResyncReplicationAction extends TransportWriteAction<
             true, /* we should never reject resync because of thread pool capacity on primary */
             indexingPressureService,
             systemIndices,
-            NoopTracer.INSTANCE
+            tracer
         );
     }
 
