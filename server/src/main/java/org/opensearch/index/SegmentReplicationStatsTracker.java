@@ -33,18 +33,12 @@ public class SegmentReplicationStatsTracker {
         rejectionCount = ConcurrentCollections.newConcurrentMap();
     }
 
-    public SegmentReplicationRejectionStats getRejectionStats() {
-        long rejectionCount = 0;
-        for (IndexService indexService : indicesService) {
-            if (indexService.getIndexSettings().isSegRepEnabled()) {
-                for (IndexShard indexShard : indexService) {
-                    if (indexShard.indexSettings().isSegRepEnabled() && indexShard.routingEntry().primary()) {
-                        rejectionCount += getStatsForShard(indexShard).getRejectedRequestCount();
-                    }
-                }
-            }
-        }
-        return new SegmentReplicationRejectionStats(rejectionCount);
+    public SegmentReplicationRejectionStats getTotalRejectionStats() {
+        return new SegmentReplicationRejectionStats(this.rejectionCount.values().stream().mapToInt(AtomicInteger::get).sum());
+    }
+
+    protected Map<ShardId, AtomicInteger> getRejectionCount() {
+        return rejectionCount;
     }
 
     public SegmentReplicationStats getStats() {

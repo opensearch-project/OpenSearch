@@ -262,7 +262,7 @@ public class NodeService implements Closeable {
             fileCacheStats && fileCache != null ? fileCache.fileCacheStats() : null,
             taskCancellation ? this.taskCancellationMonitoringService.stats() : null,
             searchPipelineStats ? this.searchPipelineService.stats() : null,
-            segmentReplicationTrackerStats ? this.segmentReplicationStatsTracker.getRejectionStats() : null,
+            segmentReplicationTrackerStats ? this.segmentReplicationStatsTracker.getTotalRejectionStats() : null,
             repositoriesStats ? this.repositoriesService.getRepositoriesStats() : null
         );
     }
