@@ -161,7 +161,7 @@ public class RemoteStoreRestoreService {
                 IndexMetadata indexMetadata = currentState.metadata().index(indexName);
                 if (indexMetadata == null) {
                     logger.warn("Index restore is not supported for non-existent index. Skipping: {}", indexName);
-                } else if (indexMetadata.getSettings().getAsBoolean(SETTING_REMOTE_STORE_ENABLED, false)) {
+                } else if (indexMetadata.getSettings().getAsBoolean(SETTING_REMOTE_STORE_ENABLED, false) == false) {
                     logger.warn("Remote store is not enabled for index: {}", indexName);
                 } else if (restoreAllShards && IndexMetadata.State.CLOSE.equals(indexMetadata.getState()) == false) {
                     throw new IllegalStateException(
