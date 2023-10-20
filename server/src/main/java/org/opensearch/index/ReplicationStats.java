@@ -91,11 +91,5 @@ public class ReplicationStats implements ToXContentFragment, Writeable {
         static final String MAX_BYTES_BEHIND = "max_bytes_behind";
         static final String TOTAL_BYTES_BEHIND = "total_bytes_behind";
         static final String MAX_REPLICATION_LAG = "max_replication_lag";
-        static final String MAX_DATA_LAG = "max_data_lag";
-        static final String TOTAL_DATA_LAG = "total_data_lag";
-        static final String MAX_TIME_LAG = "max_time_lag";
-        static final String MAX_DATA_LAG_BYTES = "max_data_lag_in_bytes";
-        static final String TOTAL_DATA_LAG_BYTES = "total_data_lag_in_bytes";
-        static final String MAX_TIME_LAG_MILLIS = "max_time_lag_in_millis";
     }
 }
