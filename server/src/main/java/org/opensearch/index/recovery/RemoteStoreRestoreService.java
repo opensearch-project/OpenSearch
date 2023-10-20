@@ -40,12 +40,10 @@ import org.opensearch.snapshots.RestoreService;
 
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -295,52 +293,8 @@ public class RemoteStoreRestoreService {
         for (Map.Entry<String, Tuple<Boolean, IndexMetadata>> indexMetadataEntry : indexMetadataMap.entrySet()) {
             String indexName = indexMetadataEntry.getKey();
             IndexMetadata indexMetadata = indexMetadataEntry.getValue().v2();
-            String indexUUID = indexMetadata.getIndexUUID();
-            boolean metadataFromRemoteStore = indexMetadataEntry.getValue().v1();
             if (indexMetadata.getSettings().getAsBoolean(SETTING_REMOTE_STORE_ENABLED, false)) {
-                if (metadataFromRemoteStore) {
-                    Set<String> graveyardIndexNames = new HashSet<>();
-                    Set<String> graveyardIndexUUID = new HashSet<>();
-                    Set<String> liveClusterIndexUUIDs = currentState.metadata()
-                        .indices()
-                        .values()
-                        .stream()
-                        .map(IndexMetadata::getIndexUUID)
-                        .collect(Collectors.toSet());
-
-                    currentState.metadata().indexGraveyard().getTombstones().forEach(tombstone -> {
-                        graveyardIndexNames.add(tombstone.getIndex().getName());
-                        graveyardIndexUUID.add(tombstone.getIndex().getUUID());
-                    });
-
-                    // Since updates to graveyard are synced to remote we should neven land in a situation where remote contain index
-                    // metadata for graveyard index.
-                    assert graveyardIndexNames.contains(indexName) == false : String.format(
-                        Locale.ROOT,
-                        "Index name [%s] exists in graveyard!",
-                        indexName
-                    );
-                    assert graveyardIndexUUID.contains(indexUUID) == false : String.format(
-                        Locale.ROOT,
-                        "Index UUID [%s] exists in graveyard!",
-                        indexUUID
-                    );
-
-                    // Any indices being restored from remote cluster state should not already be part of the cluster as this causes
-                    // conflict
-                    boolean sameNameIndexExists = currentState.metadata().hasIndex(indexName);
-                    boolean sameUUIDIndexExists = liveClusterIndexUUIDs.contains(indexUUID);
-                    if (sameNameIndexExists || sameUUIDIndexExists) {
-                        String finalErrorMsg = String.format(Locale.ROOT, errorMsg, indexName);
-                        logger.info(finalErrorMsg);
-                        throw new IllegalStateException(finalErrorMsg);
-                    }
-
-                    boolean isHidden = IndexMetadata.INDEX_HIDDEN_SETTING.get(indexMetadata.getSettings());
-                    createIndexService.validateIndexName(indexName, currentState);
-                    createIndexService.validateDotIndex(indexName, isHidden);
-                    shardLimitValidator.validateShardLimit(indexName, indexMetadata.getSettings(), currentState);
-                } else if (restoreAllShards && IndexMetadata.State.CLOSE.equals(indexMetadata.getState()) == false) {
+                if (restoreAllShards && IndexMetadata.State.CLOSE.equals(indexMetadata.getState()) == false) {
                     throw new IllegalStateException(String.format(Locale.ROOT, errorMsg, indexName) + " Close the existing index.");
                 }
             } else {
