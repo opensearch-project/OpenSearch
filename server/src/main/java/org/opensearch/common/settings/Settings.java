@@ -101,7 +101,7 @@ import static org.opensearch.core.common.unit.ByteSizeValue.parseBytesSizeValue;
 @PublicApi(since = "1.0.0")
 public final class Settings implements ToXContentFragment {
 
-    public static final Settings EMPTY = new Builder().build();
+    public static final Settings EMPTY = new Settings(Collections.emptyMap(), null);
 
     /** The raw settings from the full key to raw string value. */
     private final Map<String, Object> settings;
@@ -757,7 +757,7 @@ public final class Settings implements ToXContentFragment {
     @PublicApi(since = "1.0.0")
     public static class Builder {
 
-        public static final Settings EMPTY_SETTINGS = new Builder().build();
+        public static final Settings EMPTY_SETTINGS = Settings.EMPTY;
 
         // we use a sorted map for consistent serialization when using getAsMap()
         private final Map<String, Object> map = new TreeMap<>();
@@ -1222,7 +1222,7 @@ public final class Settings implements ToXContentFragment {
 
         /**
          * Checks that all settings(except archived settings and wildcards) in the builder start with the specified prefix.
-         *
+         * <p>
          * If a setting doesn't start with the prefix, the builder appends the prefix to such setting.
          */
         public Builder normalizePrefix(String prefix) {

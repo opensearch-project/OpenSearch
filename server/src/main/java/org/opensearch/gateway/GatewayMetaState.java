@@ -92,7 +92,7 @@ import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.isRemoteS
 
 /**
  * Loads (and maybe upgrades) cluster metadata at startup, and persistently stores cluster metadata for future restarts.
- *
+ * <p>
  * When started, ensures that this version is compatible with the state stored on disk, and performs a state upgrade if necessary. Note that the state being
  * loaded when constructing the instance of this class is not necessarily the state that will be used as {@link ClusterState#metadata()} because it might be
  * stale or incomplete. Cluster-manager-eligible nodes must perform an election to find a complete and non-stale state, and cluster-manager-ineligible nodes
@@ -159,38 +159,44 @@ public class GatewayMetaState implements Closeable {
                 PersistedState remotePersistedState = null;
                 boolean success = false;
                 try {
-                    ClusterState clusterState = prepareInitialClusterState(
+                    ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.get(settings))
+                        .version(lastAcceptedVersion)
+                        .metadata(metadata)
+                        .build();
+
+                    if (DiscoveryNode.isClusterManagerNode(settings) && isRemoteStoreClusterStateEnabled(settings)) {
+                        // If the cluster UUID loaded from local is unknown (_na_) then fetch the best state from remote
+                        // If there is no valid state on remote, continue with initial empty state
+                        // If there is a valid state, then restore index metadata using this state
+                        String lastKnownClusterUUID = ClusterState.UNKNOWN_UUID;
+                        if (ClusterState.UNKNOWN_UUID.equals(clusterState.metadata().clusterUUID())) {
+                            lastKnownClusterUUID = remoteClusterStateService.getLastKnownUUIDFromRemote(
+                                clusterState.getClusterName().value()
+                            );
+                            if (ClusterState.UNKNOWN_UUID.equals(lastKnownClusterUUID) == false) {
+                                // Load state from remote
+                                final RemoteRestoreResult remoteRestoreResult = remoteStoreRestoreService.restore(
+                                    clusterState,
+                                    lastKnownClusterUUID,
+                                    false,
+                                    new String[] {}
+                                );
+                                clusterState = remoteRestoreResult.getClusterState();
+                            }
+                        }
+                        remotePersistedState = new RemotePersistedState(remoteClusterStateService, lastKnownClusterUUID);
+                    }
+
+                    // Recovers Cluster and Index level blocks
+                    clusterState = prepareInitialClusterState(
                         transportService,
                         clusterService,
-                        ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.get(settings))
-                            .version(lastAcceptedVersion)
-                            .metadata(upgradeMetadataForNode(metadata, metadataIndexUpgradeService, metadataUpgrader))
+                        ClusterState.builder(clusterState)
+                            .metadata(upgradeMetadataForNode(clusterState.metadata(), metadataIndexUpgradeService, metadataUpgrader))
                             .build()
                     );
 
                     if (DiscoveryNode.isClusterManagerNode(settings)) {
-                        if (isRemoteStoreClusterStateEnabled(settings)) {
-                            // If the cluster UUID loaded from local is unknown (_na_) then fetch the best state from remote
-                            // If there is no valid state on remote, continue with initial empty state
-                            // If there is a valid state, then restore index metadata using this state
-                            String lastKnownClusterUUID = ClusterState.UNKNOWN_UUID;
-                            if (ClusterState.UNKNOWN_UUID.equals(clusterState.metadata().clusterUUID())) {
-                                lastKnownClusterUUID = remoteClusterStateService.getLastKnownUUIDFromRemote(
-                                    clusterState.getClusterName().value()
-                                );
-                                if (ClusterState.UNKNOWN_UUID.equals(lastKnownClusterUUID) == false) {
-                                    // Load state from remote
-                                    final RemoteRestoreResult remoteRestoreResult = remoteStoreRestoreService.restore(
-                                        clusterState,
-                                        lastKnownClusterUUID,
-                                        false,
-                                        new String[] {}
-                                    );
-                                    clusterState = remoteRestoreResult.getClusterState();
-                                }
-                            }
-                            remotePersistedState = new RemotePersistedState(remoteClusterStateService, lastKnownClusterUUID);
-                        }
                         persistedState = new LucenePersistedState(persistedClusterStateService, currentTerm, clusterState);
                     } else {
                         persistedState = new AsyncLucenePersistedState(

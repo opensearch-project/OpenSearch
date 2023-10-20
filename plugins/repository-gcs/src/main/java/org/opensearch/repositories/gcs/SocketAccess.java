@@ -32,6 +32,7 @@
 
 package org.opensearch.repositories.gcs;
 
+import org.apache.logging.log4j.core.util.Throwables;
 import org.opensearch.SpecialPermission;
 import org.opensearch.common.CheckedRunnable;
 
@@ -71,4 +72,16 @@ final class SocketAccess {
             throw (IOException) e.getCause();
         }
     }
+
+    public static <T> T doPrivilegedException(PrivilegedExceptionAction<T> operation) {
+        SpecialPermission.check();
+        try {
+            return AccessController.doPrivileged(operation);
+        } catch (PrivilegedActionException e) {
+            Throwables.rethrow(e.getCause());
+            assert false : "always throws";
+            return null;
+        }
+    }
+
 }

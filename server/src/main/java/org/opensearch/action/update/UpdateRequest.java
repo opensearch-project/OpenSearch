@@ -612,7 +612,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
 
     /**
      * If set, only perform this update request if the document was last modification was assigned this primary term.
-     *
+     * <p>
      * If the document last modification was assigned a different term a
      * {@link org.opensearch.index.engine.VersionConflictEngineException} will be thrown.
      */

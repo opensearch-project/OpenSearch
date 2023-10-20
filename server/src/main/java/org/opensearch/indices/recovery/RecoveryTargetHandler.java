@@ -55,7 +55,7 @@ public interface RecoveryTargetHandler extends FileChunkWriter {
 
     /**
      * Used with Segment replication only
-     *
+     * <p>
      * This function is used to force a sync target primary node with source (old primary). This is to avoid segment files
      * conflict with replicas when target is promoted as primary.
      */

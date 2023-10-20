@@ -343,7 +343,7 @@ public class SearchModule {
 
     /**
      * Constructs a new SearchModule object
-     *
+     * <p>
      * NOTE: This constructor should not be called in production unless an accurate {@link Settings} object is provided.
      *       When constructed, a static flag is set in Lucene {@link BooleanQuery#setMaxClauseCount} according to the settings.
      * @param settings Current settings

@@ -181,7 +181,6 @@ public final class RemoteStoreRefreshListener extends CloseableRetryableRefreshL
             // in the remote store.
             return indexShard.state() != IndexShardState.STARTED || !(indexShard.getEngine() instanceof InternalEngine);
         }
-        ReplicationCheckpoint checkpoint = indexShard.getLatestReplicationCheckpoint();
         beforeSegmentsSync();
         long refreshTimeMs = segmentTracker.getLocalRefreshTimeMs(), refreshClockTimeMs = segmentTracker.getLocalRefreshClockTimeMs();
         long refreshSeqNo = segmentTracker.getLocalRefreshSeqNo();
@@ -199,10 +198,7 @@ public final class RemoteStoreRefreshListener extends CloseableRetryableRefreshL
 
                 try (GatedCloseable<SegmentInfos> segmentInfosGatedCloseable = indexShard.getSegmentInfosSnapshot()) {
                     SegmentInfos segmentInfos = segmentInfosGatedCloseable.get();
-                    assert segmentInfos.getGeneration() == checkpoint.getSegmentsGen() : "SegmentInfos generation: "
-                        + segmentInfos.getGeneration()
-                        + " does not match metadata generation: "
-                        + checkpoint.getSegmentsGen();
+                    final ReplicationCheckpoint checkpoint = indexShard.computeReplicationCheckpoint(segmentInfos);
                     // Capture replication checkpoint before uploading the segments as upload can take some time and checkpoint can
                     // move.
                     long lastRefreshedCheckpoint = ((InternalEngine) indexShard.getEngine()).lastRefreshedCheckpoint();
@@ -347,7 +343,8 @@ public final class RemoteStoreRefreshListener extends CloseableRetryableRefreshL
                 segmentInfosSnapshot,
                 storeDirectory,
                 translogFileGeneration,
-                replicationCheckpoint
+                replicationCheckpoint,
+                indexShard.getNodeId()
             );
         }
     }

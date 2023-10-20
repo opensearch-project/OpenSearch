@@ -174,7 +174,8 @@ public final class NetworkModule {
                 pageCacheRecycler,
                 circuitBreakerService,
                 namedWriteableRegistry,
-                networkService
+                networkService,
+                tracer
             );
             for (Map.Entry<String, Supplier<Transport>> entry : transportFactory.entrySet()) {
                 registerTransport(entry.getKey(), entry.getValue());

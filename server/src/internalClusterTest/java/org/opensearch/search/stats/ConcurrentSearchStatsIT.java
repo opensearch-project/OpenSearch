@@ -38,7 +38,7 @@ import java.util.Map;
 import java.util.function.Function;
 
 import static org.opensearch.index.query.QueryBuilders.scriptQuery;
-import static org.opensearch.search.SearchBootstrapSettings.CONCURRENT_SEGMENT_SEARCH_TARGET_MAX_SLICE_COUNT_KEY;
+import static org.opensearch.search.SearchService.CONCURRENT_SEGMENT_SEARCH_TARGET_MAX_SLICE_COUNT_KEY;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.lessThan;
 

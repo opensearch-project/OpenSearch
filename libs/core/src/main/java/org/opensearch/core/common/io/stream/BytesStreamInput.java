@@ -17,7 +17,7 @@ import java.io.IOException;
  * {@link StreamInput} version of Lucene's {@link org.apache.lucene.store.ByteArrayDataInput}
  * This is used as a replacement of Lucene ByteArrayDataInput for abstracting byte order changes
  * in Lucene's API
- *
+ * <p>
  * Attribution given to apache lucene project under ALv2:
  *
  * Licensed to the Apache Software Foundation (ASF) under one or more

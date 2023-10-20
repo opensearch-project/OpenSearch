@@ -37,6 +37,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.index.IndexCommit;
 import org.opensearch.Version;
+import org.opensearch.action.admin.indices.flush.FlushRequest;
 import org.opensearch.cluster.ClusterChangedEvent;
 import org.opensearch.cluster.ClusterStateListener;
 import org.opensearch.cluster.SnapshotsInProgress;
@@ -74,6 +75,7 @@ import org.opensearch.transport.TransportResponseHandler;
 import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
+import java.nio.file.NoSuchFileException;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
@@ -407,18 +409,32 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
             try {
                 if (remoteStoreIndexShallowCopy && indexShard.indexSettings().isRemoteStoreEnabled()) {
                     long startTime = threadPool.relativeTimeInMillis();
+                    long primaryTerm = indexShard.getOperationPrimaryTerm();
                     // we flush first to make sure we get the latest writes snapshotted
                     wrappedSnapshot = indexShard.acquireLastIndexCommitAndRefresh(true);
-                    long primaryTerm = indexShard.getOperationPrimaryTerm();
-                    final IndexCommit snapshotIndexCommit = wrappedSnapshot.get();
+                    IndexCommit snapshotIndexCommit = wrappedSnapshot.get();
                     long commitGeneration = snapshotIndexCommit.getGeneration();
-                    indexShard.acquireLockOnCommitData(snapshot.getSnapshotId().getUUID(), primaryTerm, commitGeneration);
+                    try {
+                        indexShard.acquireLockOnCommitData(snapshot.getSnapshotId().getUUID(), primaryTerm, commitGeneration);
+                    } catch (NoSuchFileException e) {
+                        wrappedSnapshot.close();
+                        logger.warn(
+                            "Exception while acquiring lock on primaryTerm = {} and generation = {}",
+                            primaryTerm,
+                            commitGeneration
+                        );
+                        indexShard.flush(new FlushRequest(shardId.getIndexName()).force(true));
+                        wrappedSnapshot = indexShard.acquireLastIndexCommit(false);
+                        snapshotIndexCommit = wrappedSnapshot.get();
+                        commitGeneration = snapshotIndexCommit.getGeneration();
+                        indexShard.acquireLockOnCommitData(snapshot.getSnapshotId().getUUID(), primaryTerm, commitGeneration);
+                    }
                     try {
                         repository.snapshotRemoteStoreIndexShard(
                             indexShard.store(),
                             snapshot.getSnapshotId(),
                             indexId,
-                            wrappedSnapshot.get(),
+                            snapshotIndexCommit,
                             getShardStateId(indexShard, snapshotIndexCommit),
                             snapshotStatus,
                             primaryTerm,

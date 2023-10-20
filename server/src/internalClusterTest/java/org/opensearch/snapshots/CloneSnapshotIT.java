@@ -233,9 +233,6 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
         final Path shallowSnapshotRepoPath = randomRepoPath();
         createRepository(shallowSnapshotRepoName, "fs", snapshotRepoSettingsForShallowCopy(shallowSnapshotRepoPath));
 
-        final Path remoteStoreRepoPath = randomRepoPath();
-        createRepository(remoteStoreRepoName, "fs", remoteStoreRepoPath);
-
         final String indexName = "index-1";
         createIndexWithRandomDocs(indexName, randomIntBetween(5, 10));
 

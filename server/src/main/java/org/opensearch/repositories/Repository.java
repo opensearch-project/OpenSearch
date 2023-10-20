@@ -42,6 +42,7 @@ import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.lifecycle.LifecycleComponent;
+import org.opensearch.common.settings.Setting;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.mapper.MapperService;
@@ -55,6 +56,7 @@ import org.opensearch.snapshots.SnapshotInfo;
 
 import java.io.IOException;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
@@ -357,6 +359,14 @@ public interface Repository extends LifecycleComponent {
     );
 
     /**
+     * Returns the list of restricted system repository settings that cannot be mutated post repository creation.
+     * @return list of settings
+     */
+    default List<Setting<?>> getRestrictedSystemRepositorySettings() {
+        return Collections.emptyList();
+    }
+
+    /**
      * Returns Snapshot Shard Metadata for remote store interop enabled snapshot.
      * <p>
      * The index can be renamed on restore, hence different {@code shardId} and {@code snapshotShardId} are supplied.
@@ -454,4 +464,22 @@ public interface Repository extends LifecycleComponent {
     default Map<String, Object> adaptUserMetadata(Map<String, Object> userMetadata) {
         return userMetadata;
     }
+
+    /**
+     * Checks if the repository can be reloaded inplace or not
+     * @return true if the repository can be reloaded inplace, false otherwise
+     */
+    default boolean isReloadable() {
+        return false;
+    }
+
+    /**
+     * Reload the repository inplace
+     */
+    default void reload(RepositoryMetadata repositoryMetadata) {}
+
+    /**
+     * Validate the repository metadata
+     */
+    default void validateMetadata(RepositoryMetadata repositoryMetadata) {}
 }

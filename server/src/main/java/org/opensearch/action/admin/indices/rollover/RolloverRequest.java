@@ -54,7 +54,7 @@ import static org.opensearch.action.ValidateActions.addValidationError;
 
 /**
  * Request class to swap index under an alias or increment data stream generation upon satisfying conditions
- *
+ * <p>
  * Note: there is a new class with the same name for the Java HLRC that uses a typeless format.
  * Any changes done to this class should also go to that client class.
  *

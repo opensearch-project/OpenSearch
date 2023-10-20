@@ -107,7 +107,7 @@ import static org.opensearch.cli.Terminal.Verbosity.VERBOSE;
 
 /**
  * A command for the plugin cli to install a plugin into opensearch.
- *
+ * <p>
  * The install command takes a plugin id, which may be any of the following:
  * <ul>
  * <li>An official opensearch plugin name</li>
@@ -411,7 +411,7 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
 
     /**
      * Returns {@code true} if the given url exists, and {@code false} otherwise.
-     *
+     * <p>
      * The given url must be {@code https} and existing means a {@code HEAD} request returns 200.
      */
     // pkg private for tests to manipulate
@@ -698,7 +698,6 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
 
     /**
      * Creates a URL and opens a connection.
-     *
      * If the URL returns a 404, {@code null} is returned, otherwise the open URL opject is returned.
      */
     // pkg private for tests

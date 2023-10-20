@@ -512,7 +512,7 @@ public class RestoreSnapshotRequest extends ClusterManagerNodeRequest<RestoreSna
      * this is the snapshot that this request restores. If the client can only identify a snapshot by its name then there is a risk that the
      * desired snapshot may be deleted and replaced by a new snapshot with the same name which is inconsistent with the original one. This
      * method lets us fail the restore if the precise snapshot we want is not available.
-     *
+     * <p>
      * This is for internal use only and is not exposed in the REST layer.
      */
     public RestoreSnapshotRequest snapshotUuid(String snapshotUuid) {

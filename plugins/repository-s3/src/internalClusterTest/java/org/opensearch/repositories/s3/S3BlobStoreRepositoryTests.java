@@ -38,7 +38,9 @@ import com.sun.net.httpserver.HttpHandler;
 import software.amazon.awssdk.core.internal.http.pipeline.stages.ApplyTransactionIdStage;
 
 import org.opensearch.action.ActionRunnable;
+import org.opensearch.action.admin.indices.forcemerge.ForceMergeResponse;
 import org.opensearch.action.support.PlainActionFuture;
+import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.SuppressForbidden;
@@ -57,13 +59,17 @@ import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.repositories.RepositoriesService;
+import org.opensearch.repositories.Repository;
 import org.opensearch.repositories.RepositoryData;
+import org.opensearch.repositories.RepositoryMissingException;
+import org.opensearch.repositories.RepositoryStats;
 import org.opensearch.repositories.blobstore.BlobStoreRepository;
 import org.opensearch.repositories.blobstore.OpenSearchMockAPIBasedRepositoryIntegTestCase;
 import org.opensearch.repositories.s3.utils.AwsRequestSigner;
 import org.opensearch.snapshots.SnapshotId;
 import org.opensearch.snapshots.SnapshotsService;
 import org.opensearch.snapshots.mockstore.BlobStoreWrapper;
+import org.opensearch.test.BackgroundIndexer;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.threadpool.ThreadPool;
 
@@ -73,12 +79,18 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.stream.StreamSupport;
 
 import fixture.s3.S3HttpHandler;
 
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.lessThan;
 
@@ -216,6 +228,67 @@ public class S3BlobStoreRepositoryTests extends OpenSearchMockAPIBasedRepository
         assertThat(repository.threadPool().relativeTimeInNanos() - beforeFastDelete, lessThan(TEST_COOLDOWN_PERIOD.getNanos()));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/10735")
+    @Override
+    public void testRequestStats() throws Exception {
+        final String repository = createRepository(randomName());
+        final String index = "index-no-merges";
+        createIndex(
+            index,
+            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build()
+        );
+
+        final long nbDocs = randomLongBetween(10_000L, 20_000L);
+        try (BackgroundIndexer indexer = new BackgroundIndexer(index, "_doc", client(), (int) nbDocs)) {
+            waitForDocs(nbDocs, indexer);
+        }
+
+        flushAndRefresh(index);
+        ForceMergeResponse forceMerge = client().admin().indices().prepareForceMerge(index).setFlush(true).setMaxNumSegments(1).get();
+        assertThat(forceMerge.getSuccessfulShards(), equalTo(1));
+        assertHitCount(client().prepareSearch(index).setSize(0).setTrackTotalHits(true).get(), nbDocs);
+
+        final String snapshot = "snapshot";
+        assertSuccessfulSnapshot(
+            client().admin().cluster().prepareCreateSnapshot(repository, snapshot).setWaitForCompletion(true).setIndices(index)
+        );
+
+        assertAcked(client().admin().indices().prepareDelete(index));
+
+        assertSuccessfulRestore(client().admin().cluster().prepareRestoreSnapshot(repository, snapshot).setWaitForCompletion(true));
+        ensureGreen(index);
+        assertHitCount(client().prepareSearch(index).setSize(0).setTrackTotalHits(true).get(), nbDocs);
+
+        assertAcked(client().admin().cluster().prepareDeleteSnapshot(repository, snapshot).get());
+
+        final RepositoryStats repositoryStats = StreamSupport.stream(
+            internalCluster().getInstances(RepositoriesService.class).spliterator(),
+            false
+        ).map(repositoriesService -> {
+            try {
+                return repositoriesService.repository(repository);
+            } catch (RepositoryMissingException e) {
+                return null;
+            }
+        }).filter(Objects::nonNull).map(Repository::stats).reduce(RepositoryStats::merge).get();
+
+        Map<BlobStore.Metric, Map<String, Long>> extendedStats = repositoryStats.extendedStats;
+        Map<String, Long> aggregatedStats = new HashMap<>();
+        extendedStats.forEach((k, v) -> {
+            if (k == BlobStore.Metric.RETRY_COUNT || k == BlobStore.Metric.REQUEST_SUCCESS || k == BlobStore.Metric.REQUEST_FAILURE) {
+                for (Map.Entry<String, Long> entry : v.entrySet()) {
+                    aggregatedStats.merge(entry.getKey(), entry.getValue(), Math::addExact);
+                }
+            }
+
+        });
+        final Map<String, Long> mockCalls = getMockRequestCounts();
+
+        String assertionErrorMsg = String.format("SDK sent [%s] calls and handler measured [%s] calls", aggregatedStats, mockCalls);
+
+        assertEquals(assertionErrorMsg, mockCalls, aggregatedStats);
+    }
+
     /**
      * S3RepositoryPlugin that allows to disable chunked encoding and to set a low threshold between single upload and multipart upload.
      */
@@ -289,7 +362,7 @@ public class S3BlobStoreRepositoryTests extends OpenSearchMockAPIBasedRepository
 
     /**
      * HTTP handler that injects random S3 service errors
-     *
+     * <p>
      * Note: it is not a good idea to allow this handler to simulate too many errors as it would
      * slow down the test suite.
      */
@@ -327,6 +400,8 @@ public class S3BlobStoreRepositoryTests extends OpenSearchMockAPIBasedRepository
                 trackRequest("PutMultipartObject");
             } else if (Regex.simpleMatch("PUT /*/*", request)) {
                 trackRequest("PutObject");
+            } else if (Regex.simpleMatch("POST /*?delete*", request)) {
+                trackRequest("DeleteObjects");
             }
         }
 

@@ -56,18 +56,18 @@ import static org.opensearch.search.aggregations.pipeline.BucketHelpers.resolveB
 /**
  * This pipeline aggregation gives the user the ability to script functions that "move" across a window
  * of data, instead of single data points.  It is the scripted version of MovingAvg pipeline agg.
- *
+ * <p>
  * Through custom script contexts, we expose a number of convenience methods:
- *
- *  - max
- *  - min
- *  - sum
- *  - unweightedAvg
- *  - linearWeightedAvg
- *  - ewma
- *  - holt
- *  - holtWintersMovAvg
- *
+ * <ul>
+ *   <li>max</li>
+ *  <li> min</li>
+ *  <li> sum</li>
+ *  <li> unweightedAvg</li>
+ *  <li> linearWeightedAvg</li>
+ *  <li> ewma</li>
+ *  <li> holt</li>
+ *  <li> holtWintersMovAvg</li>
+ * </ul>
  *  The user can also define any arbitrary logic via their own scripting, or combine with the above methods.
  *
  * @opensearch.internal

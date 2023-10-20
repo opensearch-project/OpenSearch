@@ -47,6 +47,7 @@ import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.translog.transfer.BlobStoreTransferService;
 import org.opensearch.index.translog.transfer.TranslogTransferManager;
 import org.opensearch.index.translog.transfer.TranslogTransferMetadata;
+import org.opensearch.index.translog.transfer.TranslogUploadFailedException;
 import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.repositories.blobstore.BlobStoreRepository;
@@ -67,6 +68,7 @@ import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
@@ -206,7 +208,7 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
         );
 
         final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(shardId.getIndex(), settings);
-        return new TranslogConfig(shardId, path, indexSettings, NON_RECYCLING_INSTANCE, bufferSize);
+        return new TranslogConfig(shardId, path, indexSettings, NON_RECYCLING_INSTANCE, bufferSize, "");
     }
 
     private BlobStoreRepository createRepository() {
@@ -1049,7 +1051,7 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
         }
     }
 
-    public void testSyncUpFailure() throws IOException {
+    public void testSyncUpLocationFailure() throws IOException {
         int translogOperations = randomIntBetween(1, 20);
         int count = 0;
         fail.failAlways();
@@ -1099,6 +1101,26 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
         assertTrue(statsTracker.getTotalUploadsSucceeded() > 0);
         assertTrue(statsTracker.getLastSuccessfulUploadTimestamp() > 0);
         assertDownloadStatsNoDownloads(statsTracker);
+    }
+
+    public void testSyncUpAlwaysFailure() throws IOException {
+        int translogOperations = randomIntBetween(1, 20);
+        int count = 0;
+        fail.failAlways();
+        for (int op = 0; op < translogOperations; op++) {
+            translog.add(
+                new Translog.Index(String.valueOf(op), count, primaryTerm.get(), Integer.toString(count).getBytes(StandardCharsets.UTF_8))
+            );
+            try {
+                translog.sync();
+                fail("io exception expected");
+            } catch (TranslogUploadFailedException e) {
+                assertTrue("at least one operation pending", translog.syncNeeded());
+            }
+        }
+        assertTrue(translog.isOpen());
+        fail.failNever();
+        translog.sync();
     }
 
     public void testSyncUpToStream() throws IOException {
@@ -1258,7 +1280,8 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
             temp.getTranslogPath(),
             temp.getIndexSettings(),
             temp.getBigArrays(),
-            new ByteSizeValue(1, ByteSizeUnit.KB)
+            new ByteSizeValue(1, ByteSizeUnit.KB),
+            ""
         );
 
         final Set<Long> persistedSeqNos = new HashSet<>();
@@ -1360,7 +1383,8 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
             temp.getTranslogPath(),
             temp.getIndexSettings(),
             temp.getBigArrays(),
-            new ByteSizeValue(1, ByteSizeUnit.KB)
+            new ByteSizeValue(1, ByteSizeUnit.KB),
+            ""
         );
 
         final Set<Long> persistedSeqNos = new HashSet<>();

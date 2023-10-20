@@ -34,7 +34,7 @@ package org.opensearch.example.painlesswhitelist;
 
 /**
  * An example of a class to be allowlisted for use by painless scripts
- *
+ * <p>
  * Each of the members and methods below are allowlisted for use in search scripts.
  * See <a href="file:example_whitelist.txt">example_whitelist.txt</a>.
  */

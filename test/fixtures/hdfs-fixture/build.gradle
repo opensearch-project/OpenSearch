@@ -33,7 +33,7 @@ apply plugin: 'opensearch.java'
 group = 'hdfs'
 
 versions << [
-  'jetty': '9.4.51.v20230217'
+  'jetty': '9.4.52.v20230823'
 ]
 
 dependencies {
@@ -71,5 +71,5 @@ dependencies {
     exclude group: "com.squareup.okio"
   }
   runtimeOnly "com.squareup.okio:okio:3.5.0"
-  runtimeOnly "org.xerial.snappy:snappy-java:1.1.10.4"
+  runtimeOnly "org.xerial.snappy:snappy-java:1.1.10.5"
 }

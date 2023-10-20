@@ -47,7 +47,7 @@ public final class Streamables {
      * Registers writers by class type
      */
     private static void registerWriters() {
-        /** {@link ReadableInstant} */
+        /* {@link ReadableInstant} */
         WriteableRegistry.registerWriter(ReadableInstant.class, (o, v) -> {
             o.writeByte((byte) 13);
             final ReadableInstant instant = (ReadableInstant) v;
@@ -55,7 +55,7 @@ public final class Streamables {
             o.writeLong(instant.getMillis());
         });
         WriteableRegistry.registerClassAlias(ReadableInstant.class, ReadableInstant.class);
-        /** {@link JodaCompatibleZonedDateTime} */
+        /* {@link JodaCompatibleZonedDateTime} */
         WriteableRegistry.registerWriter(JodaCompatibleZonedDateTime.class, (o, v) -> {
             // write the joda compatibility datetime as joda datetime
             o.writeByte((byte) 13);
@@ -65,7 +65,7 @@ public final class Streamables {
             o.writeString(zoneId.equals("Z") ? DateTimeZone.UTC.getID() : zoneId);
             o.writeLong(zonedDateTime.toInstant().toEpochMilli());
         });
-        /** {@link GeoPoint} */
+        /* {@link GeoPoint} */
         WriteableRegistry.registerWriter(GeoPoint.class, (o, v) -> {
             o.writeByte((byte) 22);
             ((GeoPoint) v).writeTo(o);

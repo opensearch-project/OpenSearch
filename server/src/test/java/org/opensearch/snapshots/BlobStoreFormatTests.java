@@ -152,14 +152,16 @@ public class BlobStoreFormatTests extends OpenSearchTestCase {
             mockBlobContainer,
             "check-smile",
             CompressorRegistry.none(),
-            actionListener
+            actionListener,
+            ChecksumBlobStoreFormat.SNAPSHOT_ONLY_FORMAT_PARAMS
         );
         checksumSMILE.writeAsync(
             new BlobObj("checksum smile compressed"),
             mockBlobContainer,
             "check-smile-comp",
             CompressorRegistry.getCompressor(DeflateCompressor.NAME),
-            actionListener
+            actionListener,
+            ChecksumBlobStoreFormat.SNAPSHOT_ONLY_FORMAT_PARAMS
         );
 
         latch.await();

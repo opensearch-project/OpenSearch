@@ -307,7 +307,7 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
         /**
          * Returns a integer representing the type of the suggestion. This is used for
          * internal serialization over the network.
-         *
+         * <p>
          * This class is now serialized as a NamedWriteable and this method only remains for backwards compatibility
          */
         @Deprecated

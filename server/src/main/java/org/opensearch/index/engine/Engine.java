@@ -1256,7 +1256,7 @@ public abstract class Engine implements Closeable {
     /**
      * Rolls the translog generation and cleans unneeded.
      */
-    public abstract void rollTranslogGeneration() throws EngineException;
+    public abstract void rollTranslogGeneration() throws EngineException, IOException;
 
     /**
      * Triggers a forced merge on this engine

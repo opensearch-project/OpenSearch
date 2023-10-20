@@ -4016,7 +4016,7 @@ public class InternalEngineTests extends EngineTestCase {
         final Path badTranslogLog = createTempDir();
         final String badUUID = Translog.createEmptyTranslog(badTranslogLog, SequenceNumbers.NO_OPS_PERFORMED, shardId, primaryTerm.get());
         Translog translog = new LocalTranslog(
-            new TranslogConfig(shardId, badTranslogLog, INDEX_SETTINGS, BigArrays.NON_RECYCLING_INSTANCE),
+            new TranslogConfig(shardId, badTranslogLog, INDEX_SETTINGS, BigArrays.NON_RECYCLING_INSTANCE, ""),
             badUUID,
             createTranslogDeletionPolicy(INDEX_SETTINGS),
             () -> SequenceNumbers.NO_OPS_PERFORMED,
@@ -4033,7 +4033,8 @@ public class InternalEngineTests extends EngineTestCase {
             shardId,
             translog.location(),
             config.getIndexSettings(),
-            BigArrays.NON_RECYCLING_INSTANCE
+            BigArrays.NON_RECYCLING_INSTANCE,
+            ""
         );
 
         EngineConfig brokenConfig = new EngineConfig.Builder().shardId(shardId)
@@ -7285,7 +7286,11 @@ public class InternalEngineTests extends EngineTestCase {
             engine.ensureOpen();
             while (running.get()
                 && assertAndGetInternalTranslogManager(engine.translogManager()).getTranslog().currentFileGeneration() < 500) {
-                engine.translogManager().rollTranslogGeneration(); // make adding operations to translog slower
+                try {
+                    engine.translogManager().rollTranslogGeneration(); // make adding operations to translog slower
+                } catch (IOException e) {
+                    fail("io exception not expected");
+                }
             }
         });
         rollTranslog.start();
@@ -7741,7 +7746,8 @@ public class InternalEngineTests extends EngineTestCase {
                 config.getTranslogConfig().getShardId(),
                 createTempDir(),
                 config.getTranslogConfig().getIndexSettings(),
-                config.getTranslogConfig().getBigArrays()
+                config.getTranslogConfig().getBigArrays(),
+                ""
             );
             EngineConfig configWithWarmer = new EngineConfig.Builder().shardId(config.getShardId())
                 .threadPool(config.getThreadPool())

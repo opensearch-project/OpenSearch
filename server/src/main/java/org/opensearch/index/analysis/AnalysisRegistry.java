@@ -247,7 +247,7 @@ public final class AnalysisRegistry implements Closeable {
 
     /**
      * Creates a custom analyzer from a collection of {@link NameOrDefinition} specifications for each component
-     *
+     * <p>
      * Callers are responsible for closing the returned Analyzer
      */
     public NamedAnalyzer buildCustomAnalyzer(

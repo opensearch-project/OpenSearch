@@ -13,8 +13,8 @@ import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.shard.ShardPath;
+import org.opensearch.index.store.lockmanager.RemoteStoreLockManager;
 import org.opensearch.index.store.lockmanager.RemoteStoreLockManagerFactory;
-import org.opensearch.index.store.lockmanager.RemoteStoreMetadataLockManager;
 import org.opensearch.plugins.IndexStorePlugin;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.Repository;
@@ -64,7 +64,7 @@ public class RemoteSegmentStoreDirectoryFactory implements IndexStorePlugin.Dire
             RemoteDirectory metadataDirectory = new RemoteDirectory(
                 blobStoreRepository.blobStore().blobContainer(commonBlobPath.add("metadata"))
             );
-            RemoteStoreMetadataLockManager mdLockManager = RemoteStoreLockManagerFactory.newLockManager(
+            RemoteStoreLockManager mdLockManager = RemoteStoreLockManagerFactory.newLockManager(
                 repositoriesService.get(),
                 repositoryName,
                 indexUUID,
@@ -75,9 +75,5 @@ public class RemoteSegmentStoreDirectoryFactory implements IndexStorePlugin.Dire
         } catch (RepositoryMissingException e) {
             throw new IllegalArgumentException("Repository should be created before creating index with remote_store enabled setting", e);
         }
-    }
-
-    private RemoteDirectory createRemoteDirectory(BlobStoreRepository repository, BlobPath commonBlobPath, String extension) {
-        return new RemoteDirectory(repository.blobStore().blobContainer(commonBlobPath.add(extension)));
     }
 }

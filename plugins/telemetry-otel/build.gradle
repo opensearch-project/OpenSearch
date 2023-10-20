@@ -28,7 +28,7 @@ dependencies {
   api "io.opentelemetry:opentelemetry-sdk-trace:${versions.opentelemetry}"
   api "io.opentelemetry:opentelemetry-sdk-metrics:${versions.opentelemetry}"
   api "io.opentelemetry:opentelemetry-exporter-logging:${versions.opentelemetry}"
-  api "io.opentelemetry:opentelemetry-semconv:${versions.opentelemetry}-alpha"
+  api "io.opentelemetry.semconv:opentelemetry-semconv:${versions.opentelemetrysemconv}"
   api "io.opentelemetry:opentelemetry-sdk-logs:${versions.opentelemetry}"
   api "io.opentelemetry:opentelemetry-exporter-otlp:${versions.opentelemetry}"
   api "io.opentelemetry:opentelemetry-exporter-common:${versions.opentelemetry}"
@@ -37,6 +37,7 @@ dependencies {
   runtimeOnly "com.squareup.okhttp3:okhttp:4.11.0"
   runtimeOnly "com.squareup.okio:okio-jvm:3.5.0"
   runtimeOnly "io.opentelemetry:opentelemetry-exporter-sender-okhttp:${versions.opentelemetry}"
+  api "io.opentelemetry:opentelemetry-extension-incubator:${versions.opentelemetry}-alpha"
   testImplementation "io.opentelemetry:opentelemetry-sdk-testing:${versions.opentelemetry}"
 }
 
@@ -80,29 +81,12 @@ thirdPartyAudit {
     'io.opentelemetry.api.events.EventEmitter',
     'io.opentelemetry.api.events.EventEmitterBuilder',
     'io.opentelemetry.api.events.EventEmitterProvider',
-    'io.opentelemetry.extension.incubator.metrics.ExtendedDoubleHistogramBuilder',
-    'io.opentelemetry.extension.incubator.metrics.ExtendedLongHistogramBuilder',
     'io.opentelemetry.sdk.autoconfigure.spi.ConfigProperties',
     'io.opentelemetry.sdk.autoconfigure.spi.logs.ConfigurableLogRecordExporterProvider',
     'io.opentelemetry.sdk.autoconfigure.spi.metrics.ConfigurableMetricExporterProvider',
     'io.opentelemetry.sdk.autoconfigure.spi.traces.ConfigurableSpanExporterProvider',
-    'io.opentelemetry.extension.incubator.metrics.DoubleCounterAdviceConfigurer',
-    'io.opentelemetry.extension.incubator.metrics.DoubleGauge',
-    'io.opentelemetry.extension.incubator.metrics.DoubleGaugeAdviceConfigurer',
-    'io.opentelemetry.extension.incubator.metrics.DoubleHistogramAdviceConfigurer',
-    'io.opentelemetry.extension.incubator.metrics.DoubleUpDownCounterAdviceConfigurer',
-    'io.opentelemetry.extension.incubator.metrics.ExtendedDoubleCounterBuilder',
-    'io.opentelemetry.extension.incubator.metrics.ExtendedDoubleGaugeBuilder',
-    'io.opentelemetry.extension.incubator.metrics.ExtendedDoubleUpDownCounterBuilder',
-    'io.opentelemetry.extension.incubator.metrics.ExtendedLongCounterBuilder',
-    'io.opentelemetry.extension.incubator.metrics.ExtendedLongGaugeBuilder',
-    'io.opentelemetry.extension.incubator.metrics.ExtendedLongUpDownCounterBuilder',
-    'io.opentelemetry.extension.incubator.metrics.LongCounterAdviceConfigurer',
-    'io.opentelemetry.extension.incubator.metrics.LongGauge',
-    'io.opentelemetry.extension.incubator.metrics.LongGaugeAdviceConfigurer',
-    'io.opentelemetry.extension.incubator.metrics.LongHistogramAdviceConfigurer',
-    'io.opentelemetry.extension.incubator.metrics.LongUpDownCounterAdviceConfigurer',
-    'kotlin.io.path.PathsKt'
+    'kotlin.io.path.PathsKt',
+    'io.opentelemetry.sdk.autoconfigure.spi.traces.ConfigurableSpanExporterProvider'
   )
 }
 

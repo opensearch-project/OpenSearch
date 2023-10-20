@@ -1052,7 +1052,7 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
 
         /**
          * Returns the next child nested level if there is any, otherwise <code>null</code> is returned.
-         *
+         * <p>
          * In the case of mappings with multiple levels of nested object fields
          */
         public NestedIdentity getChild() {

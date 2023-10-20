@@ -135,9 +135,9 @@ import org.opensearch.env.TestEnvironment;
 import org.opensearch.http.HttpInfo;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexSettings;
-import org.opensearch.index.MergePolicyConfig;
 import org.opensearch.index.MergeSchedulerConfig;
 import org.opensearch.index.MockEngineFactoryPlugin;
+import org.opensearch.index.TieredMergePolicyProvider;
 import org.opensearch.index.codec.CodecService;
 import org.opensearch.index.engine.Segment;
 import org.opensearch.index.mapper.CompletionFieldMapper;
@@ -156,7 +156,6 @@ import org.opensearch.rest.action.RestCancellableNodeClient;
 import org.opensearch.script.MockScriptService;
 import org.opensearch.script.ScriptMetadata;
 import org.opensearch.search.MockSearchService;
-import org.opensearch.search.SearchBootstrapSettings;
 import org.opensearch.search.SearchHit;
 import org.opensearch.search.SearchService;
 import org.opensearch.telemetry.TelemetrySettings;
@@ -508,7 +507,7 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
     private static Settings.Builder setRandomIndexMergeSettings(Random random, Settings.Builder builder) {
         if (random.nextBoolean()) {
             builder.put(
-                MergePolicyConfig.INDEX_COMPOUND_FORMAT_SETTING.getKey(),
+                TieredMergePolicyProvider.INDEX_COMPOUND_FORMAT_SETTING.getKey(),
                 (random.nextBoolean() ? random.nextDouble() : random.nextBoolean()).toString()
             );
         }
@@ -1382,7 +1381,7 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
 
     /**
      * Ensures that all nodes in the cluster are connected to each other.
-     *
+     * <p>
      * Some network disruptions may leave nodes that are not the cluster-manager disconnected from each other.
      * {@link org.opensearch.cluster.NodeConnectionsService} will eventually reconnect but it's
      * handy to be able to ensure this happens faster
@@ -1971,14 +1970,15 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
             // fixed thread pool
             builder.put("thread_pool.search.min_queue_size", 100);
         }
+        // Enable tracer only when Telemetry Setting is enabled
+        if (featureFlagSettings().getAsBoolean(FeatureFlags.TELEMETRY_SETTING.getKey(), false)) {
+            builder.put(TelemetrySettings.TRACER_FEATURE_ENABLED_SETTING.getKey(), true);
+            builder.put(TelemetrySettings.TRACER_ENABLED_SETTING.getKey(), true);
+        }
         if (FeatureFlags.CONCURRENT_SEGMENT_SEARCH_SETTING.get(featureFlagSettings)) {
             // By default, for tests we will put the target slice count of 2. This will increase the probability of having multiple slices
             // when tests are run with concurrent segment search enabled
-            builder.put(SearchBootstrapSettings.CONCURRENT_SEGMENT_SEARCH_TARGET_MAX_SLICE_COUNT_KEY, 2);
-        }
-        // Enable tracer only when Telemetry Setting is enabled
-        if (featureFlagSettings().getAsBoolean(FeatureFlags.TELEMETRY_SETTING.getKey(), false)) {
-            builder.put(TelemetrySettings.TRACER_ENABLED_SETTING.getKey(), true);
+            builder.put(SearchService.CONCURRENT_SEGMENT_SEARCH_TARGET_MAX_SLICE_COUNT_KEY, 2);
         }
         return builder.build();
     }
@@ -2356,11 +2356,11 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
 
     private static void initializeSuiteScope() throws Exception {
         Class<?> targetClass = getTestClass();
-        /**
-         * Note we create these test class instance via reflection
-         * since JUnit creates a new instance per test and that is also
-         * the reason why INSTANCE is static since this entire method
-         * must be executed in a static context.
+        /*
+          Note we create these test class instance via reflection
+          since JUnit creates a new instance per test and that is also
+          the reason why INSTANCE is static since this entire method
+          must be executed in a static context.
          */
         assert INSTANCE == null;
         if (isSuiteScopedTest(targetClass)) {

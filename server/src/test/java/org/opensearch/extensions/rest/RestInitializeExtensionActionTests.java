@@ -67,7 +67,8 @@ public class RestInitializeExtensionActionTests extends OpenSearchTestCase {
             new NetworkService(Collections.emptyList()),
             PageCacheRecycler.NON_RECYCLING_INSTANCE,
             new NamedWriteableRegistry(Collections.emptyList()),
-            new NoneCircuitBreakerService()
+            new NoneCircuitBreakerService(),
+            NoopTracer.INSTANCE
         );
         transportService = new MockTransportService(
             settings,

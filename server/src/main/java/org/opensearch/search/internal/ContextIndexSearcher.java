@@ -67,7 +67,6 @@ import org.apache.lucene.util.SparseFixedBitSet;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lucene.search.TopDocsAndMaxScore;
 import org.opensearch.search.DocValueFormat;
-import org.opensearch.search.SearchBootstrapSettings;
 import org.opensearch.search.SearchService;
 import org.opensearch.search.dfs.AggregatedDfs;
 import org.opensearch.search.profile.ContextualProfileBreakdown;
@@ -286,7 +285,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
 
     /**
      * Lower-level search API.
-     *
+     * <p>
      * {@link LeafCollector#collect(int)} is called for every matching document in
      * the provided <code>ctx</code>.
      */
@@ -451,9 +450,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
      */
     @Override
     protected LeafSlice[] slices(List<LeafReaderContext> leaves) {
-        // For now using the static setting to get the targetMaxSlice value. It will be updated to dynamic mechanism as part of
-        // https://github.com/opensearch-project/OpenSearch/issues/8870 when lucene changes are available
-        return slicesInternal(leaves, SearchBootstrapSettings.getTargetMaxSlice());
+        return slicesInternal(leaves, searchContext.getTargetMaxSliceCount());
     }
 
     public DirectoryReader getDirectoryReader() {

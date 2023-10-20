@@ -244,7 +244,9 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
         WEIGHTED_ROUTING_STATS("weighted_routing"),
         FILE_CACHE_STATS("file_cache"),
         TASK_CANCELLATION("task_cancellation"),
-        SEARCH_PIPELINE("search_pipeline");
+        SEARCH_PIPELINE("search_pipeline"),
+        RESOURCE_USAGE_STATS("resource_usage_stats"),
+        REPOSITORIES("repositories");
 
         private String metricName;
 

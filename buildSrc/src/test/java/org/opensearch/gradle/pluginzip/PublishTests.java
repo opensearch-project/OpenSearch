@@ -58,7 +58,7 @@ public class PublishTests extends GradleUnitTestCase {
      * This test is used to verify that adding the 'opensearch.pluginzip' to the project
      * adds some other transitive plugins and tasks under the hood. This is basically
      * a behavioral test of the {@link Publish#apply(Project)} method.
-     *
+     * <p>
      * This is equivalent of having a build.gradle script with just the following section:
      * <pre>
      *     plugins {
@@ -233,7 +233,7 @@ public class PublishTests extends GradleUnitTestCase {
         GradleRunner runner = prepareGradleRunnerFromTemplate("useDefaultValues.gradle", "build", ZIP_PUBLISH_TASK);
         BuildResult result = runner.build();
 
-        /** Check if build and {@value ZIP_PUBLISH_TASK} tasks have run well */
+        /* Check if build and ZIP_PUBLISH_TASK tasks have run well */
         assertEquals(SUCCESS, result.task(":" + "build").getOutcome());
         assertEquals(SUCCESS, result.task(":" + ZIP_PUBLISH_TASK).getOutcome());
 
@@ -308,7 +308,7 @@ public class PublishTests extends GradleUnitTestCase {
         GradleRunner runner = prepareGradleRunnerFromTemplate("allProjectsGroup.gradle", "build", ZIP_PUBLISH_TASK);
         BuildResult result = runner.build();
 
-        /** Check if build and {@value ZIP_PUBLISH_TASK} tasks have run well */
+        /* Check if build and {@value ZIP_PUBLISH_TASK} tasks have run well */
         assertEquals(SUCCESS, result.task(":" + "build").getOutcome());
         assertEquals(SUCCESS, result.task(":" + ZIP_PUBLISH_TASK).getOutcome());
 
@@ -343,7 +343,7 @@ public class PublishTests extends GradleUnitTestCase {
         GradleRunner runner = prepareGradleRunnerFromTemplate("groupPriorityLevel.gradle", "build", ZIP_PUBLISH_TASK);
         BuildResult result = runner.build();
 
-        /** Check if build and {@value ZIP_PUBLISH_TASK} tasks have run well */
+        /* Check if build and {@value ZIP_PUBLISH_TASK} tasks have run well */
         assertEquals(SUCCESS, result.task(":" + "build").getOutcome());
         assertEquals(SUCCESS, result.task(":" + ZIP_PUBLISH_TASK).getOutcome());
 
@@ -379,7 +379,7 @@ public class PublishTests extends GradleUnitTestCase {
         GradleRunner runner = prepareGradleRunnerFromTemplate("missingPOMEntity.gradle", "build", ZIP_PUBLISH_TASK);
         BuildResult result = runner.build();
 
-        /** Check if build and {@value ZIP_PUBLISH_TASK} tasks have run well */
+        /* Check if build and {@value ZIP_PUBLISH_TASK} tasks have run well */
         assertEquals(SUCCESS, result.task(":" + "build").getOutcome());
         assertEquals(SUCCESS, result.task(":" + ZIP_PUBLISH_TASK).getOutcome());
 
@@ -426,7 +426,7 @@ public class PublishTests extends GradleUnitTestCase {
         GradleRunner runner = prepareGradleRunnerFromTemplate("customizedGroupValue.gradle", "build", ZIP_PUBLISH_TASK);
         BuildResult result = runner.build();
 
-        /** Check if build and {@value ZIP_PUBLISH_TASK} tasks have run well */
+        /* Check if build and {@value ZIP_PUBLISH_TASK} tasks have run well */
         assertEquals(SUCCESS, result.task(":" + "build").getOutcome());
         assertEquals(SUCCESS, result.task(":" + ZIP_PUBLISH_TASK).getOutcome());
 

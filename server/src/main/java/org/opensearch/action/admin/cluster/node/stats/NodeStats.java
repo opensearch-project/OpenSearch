@@ -57,6 +57,8 @@ import org.opensearch.monitor.jvm.JvmStats;
 import org.opensearch.monitor.os.OsStats;
 import org.opensearch.monitor.process.ProcessStats;
 import org.opensearch.node.AdaptiveSelectionStats;
+import org.opensearch.node.NodesResourceUsageStats;
+import org.opensearch.repositories.RepositoriesStats;
 import org.opensearch.script.ScriptCacheStats;
 import org.opensearch.script.ScriptStats;
 import org.opensearch.search.backpressure.stats.SearchBackpressureStats;
@@ -143,6 +145,12 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
     @Nullable
     private SearchPipelineStats searchPipelineStats;
 
+    @Nullable
+    private NodesResourceUsageStats resourceUsageStats;
+
+    @Nullable
+    private RepositoriesStats repositoriesStats;
+
     public NodeStats(StreamInput in) throws IOException {
         super(in);
         timestamp = in.readVLong();
@@ -211,6 +219,16 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         } else {
             searchPipelineStats = null;
         }
+        if (in.getVersion().onOrAfter(Version.V_2_12_0)) {
+            resourceUsageStats = in.readOptionalWriteable(NodesResourceUsageStats::new);
+        } else {
+            resourceUsageStats = null;
+        }
+        if (in.getVersion().onOrAfter(Version.V_2_12_0)) {
+            repositoriesStats = in.readOptionalWriteable(RepositoriesStats::new);
+        } else {
+            repositoriesStats = null;
+        }
     }
 
     public NodeStats(
@@ -229,6 +247,7 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         @Nullable DiscoveryStats discoveryStats,
         @Nullable IngestStats ingestStats,
         @Nullable AdaptiveSelectionStats adaptiveSelectionStats,
+        @Nullable NodesResourceUsageStats resourceUsageStats,
         @Nullable ScriptCacheStats scriptCacheStats,
         @Nullable IndexingPressureStats indexingPressureStats,
         @Nullable ShardIndexingPressureStats shardIndexingPressureStats,
@@ -237,7 +256,8 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         @Nullable WeightedRoutingStats weightedRoutingStats,
         @Nullable FileCacheStats fileCacheStats,
         @Nullable TaskCancellationStats taskCancellationStats,
-        @Nullable SearchPipelineStats searchPipelineStats
+        @Nullable SearchPipelineStats searchPipelineStats,
+        @Nullable RepositoriesStats repositoriesStats
     ) {
         super(node);
         this.timestamp = timestamp;
@@ -254,6 +274,7 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         this.discoveryStats = discoveryStats;
         this.ingestStats = ingestStats;
         this.adaptiveSelectionStats = adaptiveSelectionStats;
+        this.resourceUsageStats = resourceUsageStats;
         this.scriptCacheStats = scriptCacheStats;
         this.indexingPressureStats = indexingPressureStats;
         this.shardIndexingPressureStats = shardIndexingPressureStats;
@@ -263,6 +284,7 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         this.fileCacheStats = fileCacheStats;
         this.taskCancellationStats = taskCancellationStats;
         this.searchPipelineStats = searchPipelineStats;
+        this.repositoriesStats = repositoriesStats;
     }
 
     public long getTimestamp() {
@@ -358,6 +380,11 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
     }
 
     @Nullable
+    public NodesResourceUsageStats getResourceUsageStats() {
+        return resourceUsageStats;
+    }
+
+    @Nullable
     public ScriptCacheStats getScriptCacheStats() {
         return scriptCacheStats;
     }
@@ -398,6 +425,11 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
     @Nullable
     public SearchPipelineStats getSearchPipelineStats() {
         return searchPipelineStats;
+    }
+
+    @Nullable
+    public RepositoriesStats getRepositoriesStats() {
+        return repositoriesStats;
     }
 
     @Override
@@ -448,6 +480,12 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         }
         if (out.getVersion().onOrAfter(Version.V_2_9_0)) {
             out.writeOptionalWriteable(searchPipelineStats);
+        }
+        if (out.getVersion().onOrAfter(Version.V_2_12_0)) {
+            out.writeOptionalWriteable(resourceUsageStats);
+        }
+        if (out.getVersion().onOrAfter(Version.V_2_12_0)) {
+            out.writeOptionalWriteable(repositoriesStats);
         }
     }
 
@@ -539,7 +577,12 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         if (getSearchPipelineStats() != null) {
             getSearchPipelineStats().toXContent(builder, params);
         }
-
+        if (getResourceUsageStats() != null) {
+            getResourceUsageStats().toXContent(builder, params);
+        }
+        if (getRepositoriesStats() != null) {
+            getRepositoriesStats().toXContent(builder, params);
+        }
         return builder;
     }
 }

@@ -146,6 +146,7 @@ import org.opensearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.opensearch.indices.mapper.MapperRegistry;
 import org.opensearch.indices.recovery.PeerRecoveryTargetService;
 import org.opensearch.indices.recovery.RecoveryListener;
+import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpointPublisher;
 import org.opensearch.indices.replication.common.ReplicationType;
@@ -337,6 +338,7 @@ public class IndicesService extends AbstractLifecycleComponent
     private final CountDownLatch closeLatch = new CountDownLatch(1);
     private volatile boolean idFieldDataEnabled;
     private volatile boolean allowExpensiveQueries;
+    private final RecoverySettings recoverySettings;
 
     @Nullable
     private final OpenSearchThreadPoolExecutor danglingIndicesThreadPoolExecutor;
@@ -382,7 +384,8 @@ public class IndicesService extends AbstractLifecycleComponent
         Supplier<RepositoriesService> repositoriesServiceSupplier,
         FileCacheCleaner fileCacheCleaner,
         SearchRequestStats searchRequestStats,
-        @Nullable RemoteStoreStatsTrackerFactory remoteStoreStatsTrackerFactory
+        @Nullable RemoteStoreStatsTrackerFactory remoteStoreStatsTrackerFactory,
+        RecoverySettings recoverySettings
     ) {
         this.settings = settings;
         this.threadPool = threadPool;
@@ -479,6 +482,7 @@ public class IndicesService extends AbstractLifecycleComponent
         this.clusterRemoteTranslogBufferInterval = CLUSTER_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING.get(clusterService.getSettings());
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(CLUSTER_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING, this::setClusterRemoteTranslogBufferInterval);
+        this.recoverySettings = recoverySettings;
     }
 
     /**
@@ -877,7 +881,8 @@ public class IndicesService extends AbstractLifecycleComponent
             remoteDirectoryFactory,
             translogFactorySupplier,
             this::getClusterDefaultRefreshInterval,
-            this::getClusterRemoteTranslogBufferInterval
+            this::getClusterRemoteTranslogBufferInterval,
+            this.recoverySettings
         );
     }
 
@@ -924,7 +929,7 @@ public class IndicesService extends AbstractLifecycleComponent
     /**
      * creates a new mapper service for the given index, in order to do administrative work like mapping updates.
      * This *should not* be used for document parsing. Doing so will result in an exception.
-     *
+     * <p>
      * Note: the returned {@link MapperService} should be closed when unneeded.
      */
     public synchronized MapperService createIndexMapperService(IndexMetadata indexMetadata) throws IOException {
@@ -1136,7 +1141,7 @@ public class IndicesService extends AbstractLifecycleComponent
     /**
      * Deletes the index store trying to acquire all shards locks for this index.
      * This method will delete the metadata for the index even if the actual shards can't be locked.
-     *
+     * <p>
      * Package private for testing
      */
     void deleteIndexStore(String reason, IndexMetadata metadata) throws IOException {
@@ -1217,7 +1222,7 @@ public class IndicesService extends AbstractLifecycleComponent
      * This method deletes the shard contents on disk for the given shard ID. This method will fail if the shard deleting
      * is prevented by {@link #canDeleteShardContent(ShardId, IndexSettings)}
      * of if the shards lock can not be acquired.
-     *
+     * <p>
      * On data nodes, if the deleted shard is the last shard folder in its index, the method will attempt to remove
      * the index folder as well.
      *
