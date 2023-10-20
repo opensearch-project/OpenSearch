@@ -10,7 +10,7 @@ jobs:
     steps:
         - uses: peternied/check-pull-request-description@main
           with:
-            checklist-tems: |
+            checklist-items: |
                 New functionality includes testing.
                 All tests pass
                 New functionality has been documented.
