@@ -8,11 +8,9 @@
 
 package org.opensearch.index;
 
-import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
-import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
 
@@ -76,9 +74,9 @@ public class ReplicationStats implements ToXContentFragment, Writeable {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(Fields.SEGMENT_REPLICATION);
-        builder.field(Fields.MAX_BYTES_BEHIND, new ByteSizeValue(maxBytesBehind).toString());
-        builder.field(Fields.TOTAL_BYTES_BEHIND, new ByteSizeValue(totalBytesBehind).toString());
-        builder.field(Fields.MAX_REPLICATION_LAG, new TimeValue(maxReplicationLag));
+        builder.field(Fields.MAX_BYTES_BEHIND, maxBytesBehind);
+        builder.field(Fields.TOTAL_BYTES_BEHIND, totalBytesBehind);
+        builder.field(Fields.MAX_REPLICATION_LAG, maxReplicationLag);
         builder.endObject();
         return builder;
     }
