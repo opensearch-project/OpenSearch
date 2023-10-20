@@ -84,7 +84,6 @@ import org.opensearch.gateway.ClusterStateUpdaters;
 import org.opensearch.gateway.GatewayService;
 import org.opensearch.gateway.MockGatewayMetaState;
 import org.opensearch.gateway.PersistedClusterStateService;
-import org.opensearch.gateway.remote.RemoteClusterStateService;
 import org.opensearch.monitor.NodeHealthService;
 import org.opensearch.monitor.StatusInfo;
 import org.opensearch.node.remotestore.RemoteStoreNodeService;
@@ -152,7 +151,6 @@ import static org.opensearch.discovery.PeerFinder.DISCOVERY_FIND_PEERS_INTERVAL_
 import static org.opensearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK;
 import static org.opensearch.monitor.StatusInfo.Status.HEALTHY;
 import static org.opensearch.node.Node.NODE_NAME_SETTING;
-import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.isRemoteStoreClusterStateEnabled;
 import static org.opensearch.transport.TransportService.NOOP_TRANSPORT_INTERCEPTOR;
 import static org.opensearch.transport.TransportSettings.CONNECT_TIMEOUT;
 import static org.hamcrest.Matchers.empty;
