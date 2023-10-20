@@ -147,7 +147,6 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
      * term validation in presence of a new primary.
      */
     private final String transportPrimaryTermValidationAction;
-    private final Tracer tracer;
 
     @Inject
     public TransportShardBulkAction(
@@ -187,7 +186,6 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         this.mappingUpdatedAction = mappingUpdatedAction;
         this.segmentReplicationPressureService = segmentReplicationPressureService;
         this.remoteStorePressureService = remoteStorePressureService;
-        this.tracer = tracer;
 
         this.transportPrimaryTermValidationAction = ACTION_NAME + "[validate_primary_term]";
 
