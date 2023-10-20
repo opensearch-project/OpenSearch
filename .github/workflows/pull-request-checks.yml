@@ -17,6 +17,4 @@ jobs:
                 New functionality has javadoc added
                 Commits are signed per the DCO using --signoff
                 Commit changes are listed out in CHANGELOG.md file (See: [Changelog](../blob/main/CONTRIBUTING.md#changelog))
-          
 
-    
