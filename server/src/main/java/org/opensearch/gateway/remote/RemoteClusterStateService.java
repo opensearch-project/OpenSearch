@@ -1072,8 +1072,8 @@ public class RemoteClusterStateService implements Closeable {
      * @param clusterUUID uuid of cluster state to refer to in remote
      * @param manifestsToRetain no of latest manifest files to keep in remote
      */
-    // public for testing
-    public void deleteStaleClusterMetadata(String clusterName, String clusterUUID, int manifestsToRetain) {
+    // package private for testing
+    void deleteStaleClusterMetadata(String clusterName, String clusterUUID, int manifestsToRetain) {
         if (deleteStaleMetadataRunning.compareAndSet(false, true) == false) {
             logger.info("Delete stale cluster metadata task is already in progress.");
             return;
