@@ -62,6 +62,9 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 
 import org.mockito.ArgumentCaptor;
@@ -73,6 +76,7 @@ import static org.opensearch.gateway.remote.RemoteClusterStateService.INDEX_META
 import static org.opensearch.gateway.remote.RemoteClusterStateService.MANIFEST_CURRENT_CODEC_VERSION;
 import static org.opensearch.gateway.remote.RemoteClusterStateService.MANIFEST_FILE_PREFIX;
 import static org.opensearch.gateway.remote.RemoteClusterStateService.METADATA_FILE_PREFIX;
+import static org.opensearch.gateway.remote.RemoteClusterStateService.RETAINED_MANIFESTS;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEY;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_REPOSITORY_SETTINGS_ATTRIBUTE_KEY_PREFIX;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_REPOSITORY_TYPE_ATTRIBUTE_KEY_FORMAT;
@@ -283,6 +287,36 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
             RemoteClusterStateService.GlobalMetadataTransferException.class,
             () -> remoteClusterStateService.writeFullMetadata(clusterState, randomAlphaOfLength(10))
         );
+    }
+
+    public void testSingleExecutionOfDeleteTask() throws Exception {
+        BlobContainer blobContainer = mock(BlobContainer.class);
+        BlobPath blobPath = new BlobPath().add("random-path");
+        when((blobStoreRepository.basePath())).thenReturn(blobPath);
+        when(blobStore.blobContainer(any())).thenReturn(blobContainer);
+
+        CountDownLatch latch = new CountDownLatch(1);
+        AtomicInteger callCount = new AtomicInteger(0);
+        doAnswer(invocation -> {
+            callCount.incrementAndGet();
+            if (latch.await(5000, TimeUnit.SECONDS) == false) {
+                throw new Exception("latch timeout");
+            }
+            return null;
+        }).when(blobContainer)
+            .listBlobsByPrefixInSortedOrder(
+                any(String.class),
+                any(int.class),
+                any(BlobContainer.BlobNameSortOrder.class),
+                any(ActionListener.class)
+            );
+
+        remoteClusterStateService.start();
+        remoteClusterStateService.deleteStaleClusterMetadata("cluster-name", "cluster-uuid", RETAINED_MANIFESTS);
+        remoteClusterStateService.deleteStaleClusterMetadata("cluster-name", "cluster-uuid", RETAINED_MANIFESTS);
+
+        latch.countDown();
+        assertBusy(() -> assertEquals(1, callCount.get()));
     }
 
     public void testWriteFullMetadataInParallelFailureForIndexMetadata() throws IOException {
