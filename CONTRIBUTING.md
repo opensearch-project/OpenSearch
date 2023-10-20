@@ -166,7 +166,7 @@ If we reject the PR, we will close the pull request with a comment explaining wh
 
 ## Troubleshooting Failing Builds
 
-The OpenSearch testing framework uses a lot of randomization internally to cover as many edge cases and variations as possible. Unfortunately, this posses a challenge since in most cases, every build is unique and may not trigger a particular flow. It leads straight to so called flaky tests - the tests which flip randomly from success to failure without any code changes. 
+The OpenSearch testing framework offers many capabilities but exhibits significant complexity (it does lot of randomization internally to cover as many edge cases and variations as possible). Unfortunately, this posses a challenge by making it harder to discover important issues/bugs in straightforward way and may lead to so called flaky tests - the tests which flip randomly from success to failure without any code changes. 
 
 If your pull request reports a failing test(s) on one of the checks, please:
  - look if there is an existing [issue](https://github.com/opensearch-project/OpenSearch/issues) reported for the test in question 
