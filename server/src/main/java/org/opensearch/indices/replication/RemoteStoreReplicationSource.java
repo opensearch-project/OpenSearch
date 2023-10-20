@@ -29,6 +29,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 
 /**
@@ -95,6 +96,7 @@ public class RemoteStoreReplicationSource implements SegmentReplicationSource {
         ReplicationCheckpoint checkpoint,
         List<StoreFileMetadata> filesToFetch,
         IndexShard indexShard,
+        BiConsumer<String, Long> fileProgressTracker,
         ActionListener<GetSegmentFilesResponse> listener
     ) {
         try {
@@ -117,7 +119,12 @@ public class RemoteStoreReplicationSource implements SegmentReplicationSource {
                         assert directoryFiles.contains(file) == false : "Local store already contains the file " + file;
                         toDownloadSegmentNames.add(file);
                     }
-                    indexShard.getFileDownloader().download(remoteDirectory, storeDirectory, toDownloadSegmentNames);
+                    indexShard.getFileDownloader()
+                        .download(
+                            remoteDirectory,
+                            new ReplicationStatsDirectoryWrapper(storeDirectory, fileProgressTracker),
+                            toDownloadSegmentNames
+                        );
                     logger.debug("Downloaded segment files from remote store {}", filesToFetch);
                 } finally {
                     indexShard.store().decRef();

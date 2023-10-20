@@ -61,7 +61,7 @@ public class BaseRemoteStoreRestoreIT extends RemoteStoreBaseIntegTestCase {
             );
     }
 
-    protected void verifyRestoredData(Map<String, Long> indexStats, String indexName) throws Exception {
+    protected void verifyRestoredData(Map<String, Long> indexStats, String indexName, boolean indexMoreData) throws Exception {
         ensureYellowAndNoInitializingShards(indexName);
         ensureGreen(indexName);
         // This is to ensure that shards that were already assigned will get latest count
@@ -71,6 +71,8 @@ public class BaseRemoteStoreRestoreIT extends RemoteStoreBaseIntegTestCase {
             30,
             TimeUnit.SECONDS
         );
+        if (indexMoreData == false) return;
+
         IndexResponse response = indexSingleDoc(indexName);
         if (indexStats.containsKey(MAX_SEQ_NO_TOTAL + "-shard-" + response.getShardId().id())) {
             assertEquals(indexStats.get(MAX_SEQ_NO_TOTAL + "-shard-" + response.getShardId().id()) + 1, response.getSeqNo());
@@ -81,6 +83,10 @@ public class BaseRemoteStoreRestoreIT extends RemoteStoreBaseIntegTestCase {
             30,
             TimeUnit.SECONDS
         );
+    }
+
+    protected void verifyRestoredData(Map<String, Long> indexStats, String indexName) throws Exception {
+        verifyRestoredData(indexStats, indexName, true);
     }
 
     public void prepareCluster(int numClusterManagerNodes, int numDataOnlyNodes, String indices, int replicaCount, int shardCount) {
