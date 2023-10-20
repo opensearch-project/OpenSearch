@@ -373,7 +373,6 @@ public class ClusterStateUpdatersTests extends OpenSearchTestCase {
                         new IndexId(remoteMetadata.getIndex().getName(), remoteMetadata.getIndexUUID())
                     ),
                     new HashMap<>(),
-                    true,
                     true
                 );
             final Index index = remoteMetadata.getIndex();
@@ -428,7 +427,6 @@ public class ClusterStateUpdatersTests extends OpenSearchTestCase {
                         new IndexId(remoteMetadata.getIndex().getName(), remoteMetadata.getIndexUUID())
                     ),
                     new HashMap<>(),
-                    true,
                     true
                 );
             IndexRoutingTable.Builder nonRemoteBuilderWithoutRemoteRecovery = new IndexRoutingTable.Builder(nonRemoteMetadata.getIndex())
@@ -518,7 +516,6 @@ public class ClusterStateUpdatersTests extends OpenSearchTestCase {
                         new IndexId(remoteMetadata.getIndex().getName(), remoteMetadata.getIndexUUID())
                     ),
                     new HashMap<>(),
-                    true,
                     true
                 );
             IndexRoutingTable.Builder remoteBuilderWithoutRemoteRecovery = new IndexRoutingTable.Builder(

@@ -51,11 +51,10 @@ public class RemoteStoreClusterStateRestoreIT extends BaseRemoteStoreRestoreIT {
         internalCluster().startDataOnlyNodes(dataNodeCount);
     }
 
-    @Override
-    protected void verifyRestoredData(Map<String, Long> indexStats, String indexName) throws Exception {
+    protected void verifyRedIndicesAndTriggerRestore(Map<String, Long> indexStats, String indexName) throws Exception {
         ensureRed(indexName);
         restore(false, indexName);
-        super.verifyRestoredData(indexStats, indexName);
+        verifyRestoredData(indexStats, indexName);
     }
 
     public void testFullClusterRestore() throws Exception {
@@ -76,7 +75,7 @@ public class RemoteStoreClusterStateRestoreIT extends BaseRemoteStoreRestoreIT {
 
         // Step - 3 Trigger full cluster restore and validate
         validateMetadata(List.of(INDEX_NAME));
-        verifyRestoredData(indexStats, INDEX_NAME);
+        verifyRedIndicesAndTriggerRestore(indexStats, INDEX_NAME);
     }
 
     public void testFullClusterRestoreMultipleIndices() throws Exception {
@@ -104,7 +103,7 @@ public class RemoteStoreClusterStateRestoreIT extends BaseRemoteStoreRestoreIT {
 
         // Step - 3 Trigger full cluster restore
         validateMetadata(List.of(INDEX_NAME, secondIndexName));
-        verifyRestoredData(indexStats, INDEX_NAME);
+        verifyRedIndicesAndTriggerRestore(indexStats, INDEX_NAME);
     }
 
     public void testFullClusterRestoreManifestFilePointsToInvalidIndexMetadataPathThrowsException() throws Exception {
@@ -166,7 +165,7 @@ public class RemoteStoreClusterStateRestoreIT extends BaseRemoteStoreRestoreIT {
         String newClusterUUID = clusterService().state().metadata().clusterUUID();
         assert Objects.equals(newClusterUUID, prevClusterUUID) : "Full restart not successful. cluster uuid has changed";
         validateCurrentMetadata();
-        verifyRestoredData(indexStats, INDEX_NAME);
+        verifyRedIndicesAndTriggerRestore(indexStats, INDEX_NAME);
     }
 
     private void validateMetadata(List<String> indexNames) {
