@@ -150,11 +150,11 @@ public final class NetworkModule {
         HttpServerTransport.Dispatcher dispatcher,
         ClusterSettings clusterSettings,
         Tracer tracer,
-        List<TransportInterceptor> coreTransportInterceptors
+        List<TransportInterceptor> transportInterceptors
     ) {
         this.settings = settings;
-        if (coreTransportInterceptors != null) {
-            coreTransportInterceptors.forEach(this::registerTransportInterceptor);
+        if (transportInterceptors != null) {
+            transportInterceptors.forEach(this::registerTransportInterceptor);
         }
         for (NetworkPlugin plugin : plugins) {
             Map<String, Supplier<HttpServerTransport>> httpTransportFactory = plugin.getHttpTransports(
@@ -184,11 +184,11 @@ public final class NetworkModule {
             for (Map.Entry<String, Supplier<Transport>> entry : transportFactory.entrySet()) {
                 registerTransport(entry.getKey(), entry.getValue());
             }
-            List<TransportInterceptor> transportInterceptors = plugin.getTransportInterceptors(
+            List<TransportInterceptor> pluginTransportInterceptors = plugin.getTransportInterceptors(
                 namedWriteableRegistry,
                 threadPool.getThreadContext()
             );
-            for (TransportInterceptor interceptor : transportInterceptors) {
+            for (TransportInterceptor interceptor : pluginTransportInterceptors) {
                 registerTransportInterceptor(interceptor);
             }
         }
