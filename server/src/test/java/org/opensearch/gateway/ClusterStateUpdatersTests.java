@@ -41,6 +41,7 @@ import org.opensearch.cluster.metadata.MetadataIndexStateService;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodeRole;
 import org.opensearch.cluster.routing.IndexRoutingTable;
+import org.opensearch.cluster.routing.IndexShardRoutingTable;
 import org.opensearch.cluster.routing.RecoverySource;
 import org.opensearch.cluster.routing.RoutingTable;
 import org.opensearch.cluster.routing.UnassignedInfo;
@@ -52,12 +53,14 @@ import org.opensearch.common.settings.SettingUpgrader;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.set.Sets;
 import org.opensearch.core.index.Index;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.repositories.IndexId;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.Map;
 import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
@@ -275,7 +278,7 @@ public class ClusterStateUpdatersTests extends OpenSearchTestCase {
         }
     }
 
-    public void testSkipRoutingTableUpdateWhenRemoteRecovery() {
+    public void testRoutingTableUpdateWhenRemoteStateRecovery() {
         final int numOfShards = randomIntBetween(1, 10);
 
         final IndexMetadata remoteMetadata = createIndexMetadata(
@@ -286,7 +289,7 @@ public class ClusterStateUpdatersTests extends OpenSearchTestCase {
                 .build()
         );
 
-        // Test remote index routing table is generated with ExistingStoreRecoverySource if no routing table is present
+        // Test remote index routing table is generated with ExistingStoreRecoverySource
         {
             final Index index = remoteMetadata.getIndex();
             final ClusterState initialState = ClusterState.builder(ClusterState.EMPTY_STATE)
@@ -322,48 +325,14 @@ public class ClusterStateUpdatersTests extends OpenSearchTestCase {
 
         }
 
-        // Test remote index routing table is overridden if recovery source is not RemoteStoreRecoverySource
+        // Test remote index routing table is overridden if recovery source is RemoteStoreRecoverySource
         {
-            IndexRoutingTable.Builder remoteBuilderWithoutRemoteRecovery = new IndexRoutingTable.Builder(remoteMetadata.getIndex())
-                .initializeAsNew(remoteMetadata);
             final Index index = remoteMetadata.getIndex();
-            final ClusterState initialState = ClusterState.builder(ClusterState.EMPTY_STATE)
-                .metadata(Metadata.builder().put(remoteMetadata, false).build())
-                .routingTable(new RoutingTable.Builder().add(remoteBuilderWithoutRemoteRecovery.build()).build())
-                .build();
-            assertTrue(initialState.routingTable().hasIndex(index));
-            final ClusterState newState = updateRoutingTable(initialState);
-            IndexRoutingTable newRemoteIndexRoutingTable = newState.routingTable().index(remoteMetadata.getIndex());
-            assertTrue(newState.routingTable().hasIndex(index));
-            assertEquals(
-                0,
-                newRemoteIndexRoutingTable.shardsMatchingPredicateCount(
-                    shardRouting -> shardRouting.unassignedInfo().getReason().equals(UnassignedInfo.Reason.INDEX_CREATED)
-                )
-            );
-            assertEquals(
-                numOfShards,
-                newRemoteIndexRoutingTable.shardsMatchingPredicateCount(
-                    shardRouting -> shardRouting.unassignedInfo().getReason().equals(UnassignedInfo.Reason.CLUSTER_RECOVERED)
-                )
-            );
-            assertEquals(
-                0,
-                newRemoteIndexRoutingTable.shardsMatchingPredicateCount(
-                    shardRouting -> shardRouting.recoverySource() instanceof RecoverySource.RemoteStoreRecoverySource
-                )
-            );
-            assertEquals(
-                numOfShards,
-                newRemoteIndexRoutingTable.shardsMatchingPredicateCount(
-                    shardRouting -> shardRouting.recoverySource() instanceof RecoverySource.EmptyStoreRecoverySource
-                )
-            );
-
-        }
-
-        // Test routing table update is skipped for a remote index
-        {
+            Map<ShardId, IndexShardRoutingTable> routingTableMap = new HashMap<>();
+            for (int shardNumber = 0; shardNumber < remoteMetadata.getNumberOfShards(); shardNumber++) {
+                ShardId shardId = new ShardId(index, shardNumber);
+                routingTableMap.put(shardId, new IndexShardRoutingTable.Builder(new ShardId(remoteMetadata.getIndex(), 1)).build());
+            }
             IndexRoutingTable.Builder remoteBuilderWithRemoteRecovery = new IndexRoutingTable.Builder(remoteMetadata.getIndex())
                 .initializeAsRemoteStoreRestore(
                     remoteMetadata,
@@ -372,10 +341,9 @@ public class ClusterStateUpdatersTests extends OpenSearchTestCase {
                         remoteMetadata.getCreationVersion(),
                         new IndexId(remoteMetadata.getIndex().getName(), remoteMetadata.getIndexUUID())
                     ),
-                    new HashMap<>(),
+                    routingTableMap,
                     true
                 );
-            final Index index = remoteMetadata.getIndex();
             final ClusterState initialState = ClusterState.builder(ClusterState.EMPTY_STATE)
                 .metadata(Metadata.builder().put(remoteMetadata, false).build())
                 .routingTable(new RoutingTable.Builder().add(remoteBuilderWithRemoteRecovery.build()).build())
@@ -387,205 +355,28 @@ public class ClusterStateUpdatersTests extends OpenSearchTestCase {
             assertEquals(
                 0,
                 newRemoteIndexRoutingTable.shardsMatchingPredicateCount(
-                    shardRouting -> shardRouting.unassignedInfo().getReason().equals(UnassignedInfo.Reason.CLUSTER_RECOVERED)
-                )
-            );
-            assertEquals(
-                numOfShards,
-                newRemoteIndexRoutingTable.shardsMatchingPredicateCount(
-                    shardRouting -> shardRouting.unassignedInfo().getReason().equals(UnassignedInfo.Reason.EXISTING_INDEX_RESTORED)
-                )
-            );
-            assertEquals(
-                0,
-                newRemoteIndexRoutingTable.shardsMatchingPredicateCount(
-                    shardRouting -> shardRouting.recoverySource() instanceof RecoverySource.EmptyStoreRecoverySource
-                )
-            );
-            assertEquals(
-                numOfShards,
-                newRemoteIndexRoutingTable.shardsMatchingPredicateCount(
-                    shardRouting -> shardRouting.recoverySource() instanceof RecoverySource.RemoteStoreRecoverySource
-                )
-            );
-
-        }
-
-        // Test reset routing table for 2 indices - one remote and one non remote.
-        // Routing table for non remote index should be updated and remote index routing table should remain intact
-        {
-            final IndexMetadata nonRemoteMetadata = createIndexMetadata(
-                "test-nonremote",
-                Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numOfShards).build()
-            );
-            IndexRoutingTable.Builder remoteBuilderWithRemoteRecovery = new IndexRoutingTable.Builder(remoteMetadata.getIndex())
-                .initializeAsRemoteStoreRestore(
-                    remoteMetadata,
-                    new RecoverySource.RemoteStoreRecoverySource(
-                        UUIDs.randomBase64UUID(),
-                        remoteMetadata.getCreationVersion(),
-                        new IndexId(remoteMetadata.getIndex().getName(), remoteMetadata.getIndexUUID())
-                    ),
-                    new HashMap<>(),
-                    true
-                );
-            IndexRoutingTable.Builder nonRemoteBuilderWithoutRemoteRecovery = new IndexRoutingTable.Builder(nonRemoteMetadata.getIndex())
-                .initializeAsNew(nonRemoteMetadata);
-            final ClusterState initialState = ClusterState.builder(ClusterState.EMPTY_STATE)
-                .metadata(Metadata.builder().put(remoteMetadata, false).build())
-                .metadata(Metadata.builder().put(nonRemoteMetadata, false).build())
-                .routingTable(
-                    new RoutingTable.Builder().add(remoteBuilderWithRemoteRecovery.build())
-                        .add(nonRemoteBuilderWithoutRemoteRecovery.build())
-                        .build()
-                )
-                .build();
-            assertTrue(initialState.routingTable().hasIndex(remoteMetadata.getIndex()));
-            assertTrue(initialState.routingTable().hasIndex(nonRemoteMetadata.getIndex()));
-            final ClusterState newState = updateRoutingTable(initialState);
-            assertTrue(newState.routingTable().hasIndex(remoteMetadata.getIndex()));
-            assertTrue(newState.routingTable().hasIndex(nonRemoteMetadata.getIndex()));
-            IndexRoutingTable newRemoteIndexRoutingTable = newState.routingTable().index(remoteMetadata.getIndex());
-            IndexRoutingTable newNonRemoteIndexRoutingTable = newState.routingTable().index(nonRemoteMetadata.getIndex());
-            assertEquals(
-                0,
-                newRemoteIndexRoutingTable.shardsMatchingPredicateCount(
-                    shardRouting -> shardRouting.unassignedInfo().getReason().equals(UnassignedInfo.Reason.CLUSTER_RECOVERED)
-                )
-            );
-            assertEquals(
-                numOfShards,
-                newRemoteIndexRoutingTable.shardsMatchingPredicateCount(
-                    shardRouting -> shardRouting.unassignedInfo().getReason().equals(UnassignedInfo.Reason.EXISTING_INDEX_RESTORED)
-                )
-            );
-            assertEquals(
-                0,
-                newRemoteIndexRoutingTable.shardsMatchingPredicateCount(
-                    shardRouting -> shardRouting.recoverySource() instanceof RecoverySource.EmptyStoreRecoverySource
-                )
-            );
-            assertEquals(
-                numOfShards,
-                newRemoteIndexRoutingTable.shardsMatchingPredicateCount(
-                    shardRouting -> shardRouting.recoverySource() instanceof RecoverySource.RemoteStoreRecoverySource
-                )
-            );
-            assertEquals(
-                0,
-                newNonRemoteIndexRoutingTable.shardsMatchingPredicateCount(
                     shardRouting -> shardRouting.unassignedInfo().getReason().equals(UnassignedInfo.Reason.INDEX_CREATED)
                 )
             );
             assertEquals(
                 numOfShards,
-                newNonRemoteIndexRoutingTable.shardsMatchingPredicateCount(
+                newRemoteIndexRoutingTable.shardsMatchingPredicateCount(
                     shardRouting -> shardRouting.unassignedInfo().getReason().equals(UnassignedInfo.Reason.CLUSTER_RECOVERED)
                 )
             );
             assertEquals(
                 0,
-                newNonRemoteIndexRoutingTable.shardsMatchingPredicateCount(
+                newRemoteIndexRoutingTable.shardsMatchingPredicateCount(
                     shardRouting -> shardRouting.recoverySource() instanceof RecoverySource.RemoteStoreRecoverySource
                 )
             );
             assertEquals(
                 numOfShards,
-                newNonRemoteIndexRoutingTable.shardsMatchingPredicateCount(
+                newRemoteIndexRoutingTable.shardsMatchingPredicateCount(
                     shardRouting -> shardRouting.recoverySource() instanceof RecoverySource.EmptyStoreRecoverySource
                 )
             );
-        }
 
-        // Test reset routing table for 2 indices, both remote backed but only once index has RemoteStoreRecoverySource.
-        // Routing table for only remote index without RemoteStoreRecoverySource should be updated
-        {
-            final IndexMetadata remoteWithoutRemoteRecoveryMetadata = createIndexMetadata(
-                "test-remote-without-recovery",
-                Settings.builder()
-                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numOfShards)
-                    .put(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, true)
-                    .build()
-            );
-            IndexRoutingTable.Builder remoteBuilderWithRemoteRecovery = new IndexRoutingTable.Builder(remoteMetadata.getIndex())
-                .initializeAsRemoteStoreRestore(
-                    remoteMetadata,
-                    new RecoverySource.RemoteStoreRecoverySource(
-                        UUIDs.randomBase64UUID(),
-                        remoteMetadata.getCreationVersion(),
-                        new IndexId(remoteMetadata.getIndex().getName(), remoteMetadata.getIndexUUID())
-                    ),
-                    new HashMap<>(),
-                    true
-                );
-            IndexRoutingTable.Builder remoteBuilderWithoutRemoteRecovery = new IndexRoutingTable.Builder(
-                remoteWithoutRemoteRecoveryMetadata.getIndex()
-            ).initializeAsNew(remoteWithoutRemoteRecoveryMetadata);
-            final ClusterState initialState = ClusterState.builder(ClusterState.EMPTY_STATE)
-                .metadata(Metadata.builder().put(remoteMetadata, false).build())
-                .metadata(Metadata.builder().put(remoteWithoutRemoteRecoveryMetadata, false).build())
-                .routingTable(
-                    new RoutingTable.Builder().add(remoteBuilderWithRemoteRecovery.build())
-                        .add(remoteBuilderWithoutRemoteRecovery.build())
-                        .build()
-                )
-                .build();
-            assertTrue(initialState.routingTable().hasIndex(remoteMetadata.getIndex()));
-            assertTrue(initialState.routingTable().hasIndex(remoteWithoutRemoteRecoveryMetadata.getIndex()));
-            final ClusterState newState = updateRoutingTable(initialState);
-            assertTrue(newState.routingTable().hasIndex(remoteMetadata.getIndex()));
-            assertTrue(newState.routingTable().hasIndex(remoteWithoutRemoteRecoveryMetadata.getIndex()));
-            IndexRoutingTable newRemoteIndexRoutingTable = newState.routingTable().index(remoteMetadata.getIndex());
-            IndexRoutingTable newRemoteWithoutRemoteRecoveryIndexRoutingTable = newState.routingTable()
-                .index(remoteWithoutRemoteRecoveryMetadata.getIndex());
-            assertEquals(
-                0,
-                newRemoteIndexRoutingTable.shardsMatchingPredicateCount(
-                    shardRouting -> shardRouting.unassignedInfo().getReason().equals(UnassignedInfo.Reason.CLUSTER_RECOVERED)
-                )
-            );
-            assertEquals(
-                numOfShards,
-                newRemoteIndexRoutingTable.shardsMatchingPredicateCount(
-                    shardRouting -> shardRouting.unassignedInfo().getReason().equals(UnassignedInfo.Reason.EXISTING_INDEX_RESTORED)
-                )
-            );
-            assertEquals(
-                0,
-                newRemoteIndexRoutingTable.shardsMatchingPredicateCount(
-                    shardRouting -> shardRouting.recoverySource() instanceof RecoverySource.EmptyStoreRecoverySource
-                )
-            );
-            assertEquals(
-                numOfShards,
-                newRemoteIndexRoutingTable.shardsMatchingPredicateCount(
-                    shardRouting -> shardRouting.recoverySource() instanceof RecoverySource.RemoteStoreRecoverySource
-                )
-            );
-            assertEquals(
-                0,
-                newRemoteWithoutRemoteRecoveryIndexRoutingTable.shardsMatchingPredicateCount(
-                    shardRouting -> shardRouting.unassignedInfo().getReason().equals(UnassignedInfo.Reason.INDEX_CREATED)
-                )
-            );
-            assertEquals(
-                numOfShards,
-                newRemoteWithoutRemoteRecoveryIndexRoutingTable.shardsMatchingPredicateCount(
-                    shardRouting -> shardRouting.unassignedInfo().getReason().equals(UnassignedInfo.Reason.CLUSTER_RECOVERED)
-                )
-            );
-            assertEquals(
-                0,
-                newRemoteWithoutRemoteRecoveryIndexRoutingTable.shardsMatchingPredicateCount(
-                    shardRouting -> shardRouting.recoverySource() instanceof RecoverySource.RemoteStoreRecoverySource
-                )
-            );
-            assertEquals(
-                numOfShards,
-                newRemoteWithoutRemoteRecoveryIndexRoutingTable.shardsMatchingPredicateCount(
-                    shardRouting -> shardRouting.recoverySource() instanceof RecoverySource.EmptyStoreRecoverySource
-                )
-            );
         }
     }
 
