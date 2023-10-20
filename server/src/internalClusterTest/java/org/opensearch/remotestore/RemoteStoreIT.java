@@ -509,4 +509,27 @@ public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
             assertHitCount(client(dataNodes.get(1)).prepareSearch(INDEX_NAME).setSize(0).get(), 50);
         });
     }
+
+    public void testNoSearchIdleForAnyReplicaCount() throws ExecutionException, InterruptedException {
+        internalCluster().startClusterManagerOnlyNode();
+        String primaryShardNode = internalCluster().startDataOnlyNodes(1).get(0);
+
+        createIndex(INDEX_NAME, remoteStoreIndexSettings(0));
+        ensureGreen(INDEX_NAME);
+        IndexShard indexShard = getIndexShard(primaryShardNode);
+        assertFalse(indexShard.isSearchIdleSupported());
+
+        String replicaShardNode = internalCluster().startDataOnlyNodes(1).get(0);
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareUpdateSettings(INDEX_NAME)
+                .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1))
+        );
+        ensureGreen(INDEX_NAME);
+        assertFalse(indexShard.isSearchIdleSupported());
+
+        indexShard = getIndexShard(replicaShardNode);
+        assertFalse(indexShard.isSearchIdleSupported());
+    }
 }
