@@ -1282,7 +1282,12 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
             .version(1L)
             .stateUUID("state-uuid")
             .metadata(
-                Metadata.builder().version(randomNonNegativeLong()).put(indexMetadata, true).clusterUUID("cluster-uuid").coordinationMetadata(coordinationMetadata).build()
+                Metadata.builder()
+                    .version(randomNonNegativeLong())
+                    .put(indexMetadata, true)
+                    .clusterUUID("cluster-uuid")
+                    .coordinationMetadata(coordinationMetadata)
+                    .build()
             );
     }
 
