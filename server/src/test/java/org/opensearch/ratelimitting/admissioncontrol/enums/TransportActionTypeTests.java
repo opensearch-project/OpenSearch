@@ -13,15 +13,15 @@ import org.opensearch.test.OpenSearchTestCase;
 public class TransportActionTypeTests extends OpenSearchTestCase {
 
     public void testValidActionType() {
-        assertEquals(TransportActionType.SEARCH.getType(), "search");
-        assertEquals(TransportActionType.INDEXING.getType(), "indexing");
-        assertEquals(TransportActionType.fromName("search"), TransportActionType.SEARCH);
-        assertEquals(TransportActionType.fromName("indexing"), TransportActionType.INDEXING);
+        assertEquals(AdmissionControlActionType.SEARCH.getType(), "search");
+        assertEquals(AdmissionControlActionType.INDEXING.getType(), "indexing");
+        assertEquals(AdmissionControlActionType.fromName("search"), AdmissionControlActionType.SEARCH);
+        assertEquals(AdmissionControlActionType.fromName("indexing"), AdmissionControlActionType.INDEXING);
     }
 
     public void testInValidActionType() {
         String name = "test";
-        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> TransportActionType.fromName(name));
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> AdmissionControlActionType.fromName(name));
         assertEquals(ex.getMessage(), "Not Supported TransportAction Type: " + name);
     }
 }

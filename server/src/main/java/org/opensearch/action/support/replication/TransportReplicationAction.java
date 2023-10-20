@@ -38,6 +38,7 @@ import org.opensearch.ExceptionsHelper;
 import org.opensearch.OpenSearchException;
 import org.opensearch.action.ActionListenerResponseHandler;
 import org.opensearch.action.UnavailableShardsException;
+import org.opensearch.action.bulk.TransportShardBulkAction;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.ActiveShardCount;
 import org.opensearch.action.support.ChannelActionListener;
@@ -82,6 +83,7 @@ import org.opensearch.index.shard.ShardNotInPrimaryModeException;
 import org.opensearch.indices.IndexClosedException;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.node.NodeClosedException;
+import org.opensearch.ratelimitting.admissioncontrol.enums.AdmissionControlActionType;
 import org.opensearch.tasks.Task;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.ConnectTransportException;
@@ -219,14 +221,26 @@ public abstract class TransportReplicationAction<
 
         transportService.registerRequestHandler(actionName, ThreadPool.Names.SAME, requestReader, this::handleOperationRequest);
 
-        transportService.registerRequestHandler(
-            transportPrimaryAction,
-            executor,
-            forceExecutionOnPrimary,
-            true,
-            in -> new ConcreteShardRequest<>(requestReader, in),
-            this::handlePrimaryRequest
-        );
+        if(transportPrimaryAction.equals(TransportShardBulkAction.ACTION_NAME + PRIMARY_ACTION_SUFFIX)){
+            transportService.registerRequestHandler(
+                transportPrimaryAction,
+                executor,
+                forceExecutionOnPrimary,
+                true,
+                AdmissionControlActionType.INDEXING,
+                in -> new ConcreteShardRequest<>(requestReader, in),
+                this::handlePrimaryRequest
+            );
+        } else {
+            transportService.registerRequestHandler(
+                transportPrimaryAction,
+                executor,
+                forceExecutionOnPrimary,
+                true,
+                in -> new ConcreteShardRequest<>(requestReader, in),
+                this::handlePrimaryRequest
+            );
+        }
 
         // we must never reject on because of thread pool capacity on replicas
         transportService.registerRequestHandler(

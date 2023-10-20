@@ -55,6 +55,7 @@ import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.http.HttpServerTransport;
 import org.opensearch.index.shard.PrimaryReplicaSyncer.ResyncTask;
 import org.opensearch.plugins.NetworkPlugin;
+import org.opensearch.ratelimitting.admissioncontrol.enums.AdmissionControlActionType;
 import org.opensearch.tasks.RawTaskStatus;
 import org.opensearch.tasks.Task;
 import org.opensearch.telemetry.tracing.Tracer;
@@ -295,6 +296,20 @@ public final class NetworkModule {
         ) {
             for (TransportInterceptor interceptor : this.transportInterceptors) {
                 actualHandler = interceptor.interceptHandler(action, executor, forceExecution, actualHandler);
+            }
+            return actualHandler;
+        }
+
+        @Override
+        public <T extends TransportRequest> TransportRequestHandler<T> interceptHandler(
+            String action,
+            String executor,
+            boolean forceExecution,
+            TransportRequestHandler<T> actualHandler,
+            AdmissionControlActionType transportActionType
+        ) {
+            for (TransportInterceptor interceptor : this.transportInterceptors) {
+                actualHandler = interceptor.interceptHandler(action, executor, forceExecution, actualHandler, transportActionType);
             }
             return actualHandler;
         }

@@ -11,6 +11,7 @@ package org.opensearch.ratelimitting.admissioncontrol.controllers;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.ratelimitting.admissioncontrol.enums.AdmissionControlActionType;
 import org.opensearch.ratelimitting.admissioncontrol.enums.AdmissionControlMode;
 import org.opensearch.ratelimitting.admissioncontrol.settings.CPUBasedAdmissionControllerSettings;
 import org.opensearch.test.OpenSearchTestCase;
@@ -45,10 +46,11 @@ public class CPUBasedAdmissionControllerTests extends OpenSearchTestCase {
         admissionController = new CPUBasedAdmissionController(
             CPUBasedAdmissionControllerSettings.CPU_BASED_ADMISSION_CONTROLLER,
             Settings.EMPTY,
-            clusterService.getClusterSettings()
+            clusterService,
+            null
         );
         assertEquals(admissionController.getName(), CPUBasedAdmissionControllerSettings.CPU_BASED_ADMISSION_CONTROLLER);
-        assertEquals(admissionController.getRejectionCount(), 0);
+        assertEquals(admissionController.getRejectionCount(AdmissionControlActionType.INDEXING.getType()), 0);
         assertEquals(admissionController.settings.getTransportLayerAdmissionControllerMode(), AdmissionControlMode.DISABLED);
         assertFalse(
             admissionController.isEnabledForTransportLayer(admissionController.settings.getTransportLayerAdmissionControllerMode())
@@ -59,7 +61,8 @@ public class CPUBasedAdmissionControllerTests extends OpenSearchTestCase {
         admissionController = new CPUBasedAdmissionController(
             CPUBasedAdmissionControllerSettings.CPU_BASED_ADMISSION_CONTROLLER,
             Settings.EMPTY,
-            clusterService.getClusterSettings()
+            clusterService,
+            null
         );
         Settings settings = Settings.builder()
             .put(
@@ -70,7 +73,7 @@ public class CPUBasedAdmissionControllerTests extends OpenSearchTestCase {
         clusterService.getClusterSettings().applySettings(settings);
 
         assertEquals(admissionController.getName(), CPUBasedAdmissionControllerSettings.CPU_BASED_ADMISSION_CONTROLLER);
-        assertEquals(admissionController.getRejectionCount(), 0);
+        assertEquals(admissionController.getRejectionCount(AdmissionControlActionType.INDEXING.getType()), 0);
         assertEquals(admissionController.settings.getTransportLayerAdmissionControllerMode(), AdmissionControlMode.ENFORCED);
         assertTrue(admissionController.isEnabledForTransportLayer(admissionController.settings.getTransportLayerAdmissionControllerMode()));
     }
@@ -79,13 +82,14 @@ public class CPUBasedAdmissionControllerTests extends OpenSearchTestCase {
         admissionController = new CPUBasedAdmissionController(
             CPUBasedAdmissionControllerSettings.CPU_BASED_ADMISSION_CONTROLLER,
             Settings.EMPTY,
-            clusterService.getClusterSettings()
+            clusterService,
+            null
         );
-        assertEquals(admissionController.getRejectionCount(), 0);
+        assertEquals(admissionController.getRejectionCount(AdmissionControlActionType.INDEXING.getType()), 0);
         assertEquals(admissionController.settings.getTransportLayerAdmissionControllerMode(), AdmissionControlMode.DISABLED);
         action = "indices:data/write/bulk[s][p]";
-        admissionController.apply(action);
-        assertEquals(admissionController.getRejectionCount(), 0);
+        admissionController.apply(action, AdmissionControlActionType.INDEXING);
+        assertEquals(admissionController.getRejectionCount(AdmissionControlActionType.INDEXING.getType()), 0);
     }
 
     public void testApplyControllerWhenSettingsEnabled() {
@@ -98,12 +102,13 @@ public class CPUBasedAdmissionControllerTests extends OpenSearchTestCase {
         admissionController = new CPUBasedAdmissionController(
             CPUBasedAdmissionControllerSettings.CPU_BASED_ADMISSION_CONTROLLER,
             settings,
-            clusterService.getClusterSettings()
+            clusterService,
+            null
         );
         assertTrue(admissionController.isEnabledForTransportLayer(admissionController.settings.getTransportLayerAdmissionControllerMode()));
-        assertEquals(admissionController.getRejectionCount(), 0);
+        assertEquals(admissionController.getRejectionCount(AdmissionControlActionType.INDEXING.getType()), 0);
         action = "indices:data/write/bulk[s][p]";
-        admissionController.apply(action);
-        assertEquals(admissionController.getRejectionCount(), 1);
+        admissionController.apply(action, AdmissionControlActionType.INDEXING);
+        assertEquals(admissionController.getRejectionCount(AdmissionControlActionType.INDEXING.getType()), 1);
     }
 }
