@@ -2,10 +2,6 @@ name: Pull Request Checks
 
 on:
   pull_request:
-    types:
-      - opened
-      - edited
-      - reopened
 
 jobs:
   verify-description:
@@ -14,11 +10,13 @@ jobs:
     steps:
         - uses: peternied/check-pull-request-description@main
           with:
-            checklist-items: |
+            checklist-tems: |
                 New functionality includes testing.
                 All tests pass
                 New functionality has been documented.
                 New functionality has javadoc added
                 Commits are signed per the DCO using --signoff
                 Commit changes are listed out in CHANGELOG.md file (See: [Changelog](../blob/main/CONTRIBUTING.md#changelog))
+          
+
     
