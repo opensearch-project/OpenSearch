@@ -91,6 +91,9 @@ public abstract class ReplicationTarget extends AbstractRefCounted {
         // make sure the store is not released until we are done.
         this.cancellableThreads = new CancellableThreads();
         store.incRef();
+        if (indexShard.indexSettings().isRemoteStoreEnabled()) {
+            indexShard.remoteStore().incRef();
+        }
     }
 
     public long getId() {
@@ -278,6 +281,12 @@ public abstract class ReplicationTarget extends AbstractRefCounted {
     );
 
     protected void closeInternal() {
-        store.decRef();
+        try {
+            store.decRef();
+        } finally {
+            if (indexShard.indexSettings().isRemoteStoreEnabled()) {
+                indexShard.remoteStore().decRef();
+            }
+        }
     }
 }
