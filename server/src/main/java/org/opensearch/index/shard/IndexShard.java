@@ -4436,7 +4436,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     /**
-     *
      * Returns true if this shard supports search idle.
      * <p>
      * Indices using Segment Replication will ignore search idle unless there are no replicas.
@@ -4445,6 +4444,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * a new set of segments.
      */
     public final boolean isSearchIdleSupported() {
+        // If the index is remote store backed, then search idle is not supported. This is to ensure that async refresh
+        // task continues to upload to remote store periodically.
+        if (isRemoteTranslogEnabled()) {
+            return false;
+        }
         return indexSettings.isSegRepEnabled() == false || indexSettings.getNumberOfReplicas() == 0;
     }
 
