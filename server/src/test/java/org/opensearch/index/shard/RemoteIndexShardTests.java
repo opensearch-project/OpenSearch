@@ -471,6 +471,15 @@ public class RemoteIndexShardTests extends SegmentReplicationIndexShardTests {
         }
     }
 
+    @Override
+    protected void validateShardIdleWithNoReplicas(IndexShard primary) {
+        // ensure search idle conditions are met.
+        assertFalse(primary.isSearchIdleSupported());
+        assertTrue(primary.isSearchIdle());
+        assertTrue(primary.scheduledRefresh());
+        assertFalse(primary.hasRefreshPending());
+    }
+
     private void assertSingleSegmentFile(IndexShard shard, String fileName) throws IOException {
         final Set<String> segmentsFileNames = Arrays.stream(shard.store().directory().listAll())
             .filter(file -> file.startsWith(IndexFileNames.SEGMENTS))

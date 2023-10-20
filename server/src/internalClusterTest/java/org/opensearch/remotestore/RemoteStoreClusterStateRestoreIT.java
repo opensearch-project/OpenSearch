@@ -65,6 +65,13 @@ public class RemoteStoreClusterStateRestoreIT extends BaseRemoteStoreRestoreIT {
         internalCluster().startDataOnlyNodes(dataNodeCount);
     }
 
+    protected void verifyRedIndicesAndTriggerRestore(Map<String, Long> indexStats, String indexName, boolean indexMoreDocs)
+        throws Exception {
+        ensureRed(indexName);
+        restore(false, indexName);
+        verifyRestoredData(indexStats, indexName, indexMoreDocs);
+    }
+
     public void testFullClusterRestore() throws Exception {
         int shardCount = randomIntBetween(1, 2);
         int replicaCount = 1;
@@ -83,7 +90,7 @@ public class RemoteStoreClusterStateRestoreIT extends BaseRemoteStoreRestoreIT {
 
         // Step - 3 Trigger full cluster restore and validate
         validateMetadata(List.of(INDEX_NAME));
-        verifyRestoredData(indexStats, INDEX_NAME);
+        verifyRedIndicesAndTriggerRestore(indexStats, INDEX_NAME, true);
     }
 
     public void testFullClusterRestoreMultipleIndices() throws Exception {
@@ -112,8 +119,8 @@ public class RemoteStoreClusterStateRestoreIT extends BaseRemoteStoreRestoreIT {
 
         // Step - 3 Trigger full cluster restore
         validateMetadata(List.of(INDEX_NAME, secondIndexName));
-        verifyRestoredData(indexStats, INDEX_NAME);
-        verifyRestoredData(indexStats2, secondIndexName, false);
+        verifyRedIndicesAndTriggerRestore(indexStats, INDEX_NAME, false);
+        verifyRedIndicesAndTriggerRestore(indexStats2, secondIndexName, false);
         assertTrue(INDEX_READ_ONLY_SETTING.get(clusterService().state().metadata().index(secondIndexName).getSettings()));
         assertThrows(ClusterBlockException.class, () -> indexSingleDoc(secondIndexName));
         // Test is complete
@@ -181,7 +188,7 @@ public class RemoteStoreClusterStateRestoreIT extends BaseRemoteStoreRestoreIT {
         String newClusterUUID = clusterService().state().metadata().clusterUUID();
         assert Objects.equals(newClusterUUID, prevClusterUUID) : "Full restart not successful. cluster uuid has changed";
         validateCurrentMetadata();
-        verifyRestoredData(indexStats, INDEX_NAME);
+        verifyRedIndicesAndTriggerRestore(indexStats, INDEX_NAME, true);
     }
 
     private void validateMetadata(List<String> indexNames) {
@@ -246,19 +253,18 @@ public class RemoteStoreClusterStateRestoreIT extends BaseRemoteStoreRestoreIT {
 
         // Step - 3 Trigger full cluster restore and validate
         // validateCurrentMetadata();
-        verifyRestoredData(indexStats, INDEX_NAME, false);
+        assertEquals(Integer.valueOf(34), SETTING_CLUSTER_MAX_SHARDS_PER_NODE.get(clusterService().state().metadata().settings()));
+        assertEquals(true, SETTING_READ_ONLY_SETTING.get(clusterService().state().metadata().settings()));
+        assertTrue(clusterService().state().blocks().hasGlobalBlock(CLUSTER_READ_ONLY_BLOCK));
+        // Remote the cluster read only block to ensure proper cleanup
+        updatePersistentSettings(Settings.builder().put(SETTING_READ_ONLY_SETTING.getKey(), false).build());
+        assertFalse(clusterService().state().blocks().hasGlobalBlock(CLUSTER_READ_ONLY_BLOCK));
+
+        verifyRedIndicesAndTriggerRestore(indexStats, INDEX_NAME, false);
 
         // validate global metadata restored
         verifyRestoredRepositories();
         verifyRestoredIndexTemplate();
-        assertEquals(Integer.valueOf(34), SETTING_CLUSTER_MAX_SHARDS_PER_NODE.get(clusterService().state().metadata().settings()));
-        assertEquals(true, SETTING_READ_ONLY_SETTING.get(clusterService().state().metadata().settings()));
-        assertTrue(clusterService().state().blocks().hasGlobalBlock(CLUSTER_READ_ONLY_BLOCK));
-        // Test is complete
-
-        // Remote the cluster read only block to ensure proper cleanup
-        updatePersistentSettings(Settings.builder().put(SETTING_READ_ONLY_SETTING.getKey(), false).build());
-        assertFalse(clusterService().state().blocks().hasGlobalBlock(CLUSTER_READ_ONLY_BLOCK));
     }
 
     private void registerCustomRepository() {
