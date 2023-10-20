@@ -160,9 +160,9 @@ public class GatewayMetaState implements Closeable {
                 try {
                     ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.get(settings))
                         .version(lastAcceptedVersion)
+                        .metadata(metadata)
                         .build();
 
-                    boolean isRemoteStateRestored = false;
                     if (DiscoveryNode.isClusterManagerNode(settings) && isRemoteStoreClusterStateEnabled(settings)) {
                         String lastKnownClusterUUID = ClusterState.UNKNOWN_UUID;
                         // If the cluster UUID loaded from local is unknown (_na_) then fetch the best state from remote
@@ -175,21 +175,18 @@ public class GatewayMetaState implements Closeable {
                             if (ClusterState.UNKNOWN_UUID.equals(lastKnownClusterUUID) == false) {
                                 // Load state from remote
                                 final RemoteRestoreResult remoteRestoreResult = remoteStoreRestoreService.restore(
-                                    clusterState,
+                                    // Override Metadata restored from local disk during remote state restore.
+                                    // Remote Metadata should always override local disk Metadata
+                                    // if local disk Metadata's cluster uuid is UNKNOWN_UUID
+                                    ClusterState.builder(clusterState).metadata(Metadata.EMPTY_METADATA).build(),
                                     lastKnownClusterUUID,
                                     false,
                                     new String[] {}
                                 );
                                 clusterState = remoteRestoreResult.getClusterState();
-                                isRemoteStateRestored = true;
                             }
                         }
                         remotePersistedState = new RemotePersistedState(remoteClusterStateService, lastKnownClusterUUID);
-                    }
-
-                    if (isRemoteStateRestored == false) {
-                        // if we did not restore from remote, apply the local disk state.
-                        clusterState = ClusterState.builder(clusterState).metadata(metadata).build();
                     }
 
                     // Recovers Cluster and Index level blocks
