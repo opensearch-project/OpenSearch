@@ -8,12 +8,12 @@
 
 package org.opensearch.cluster.service;
 
+import org.opensearch.cluster.coordination.PersistedStateStats;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.gateway.remote.RemoteClusterStateStats;
 
 import java.io.IOException;
 import java.util.concurrent.atomic.AtomicLong;
@@ -25,19 +25,19 @@ import java.util.concurrent.atomic.AtomicLong;
  */
 public class ClusterStateStats implements Writeable, ToXContentObject {
 
-    private AtomicLong stateUpdated = new AtomicLong(0);
-    private AtomicLong stateUpdateTimeTotalInMS = new AtomicLong(0);
+    private AtomicLong stateUpdateSuccess = new AtomicLong(0);
+    private AtomicLong stateUpdateTotalTimeInMillis = new AtomicLong(0);
     private AtomicLong stateUpdateFailed = new AtomicLong(0);
-    private RemoteClusterStateStats remoteStateStats = null;
+    private PersistedStateStats remoteStateStats = null;
 
     public ClusterStateStats() {}
 
-    public long getStateUpdated() {
-        return stateUpdated.get();
+    public long getStateUpdateSuccess() {
+        return stateUpdateSuccess.get();
     }
 
-    public long getStateUpdateTimeTotalInMS() {
-        return stateUpdateTimeTotalInMS.get();
+    public long getStateUpdateTotalTimeInMillis() {
+        return stateUpdateTotalTimeInMillis.get();
     }
 
     public long getStateUpdateFailed() {
@@ -45,7 +45,7 @@ public class ClusterStateStats implements Writeable, ToXContentObject {
     }
 
     public void stateUpdated() {
-        stateUpdated.incrementAndGet();
+        stateUpdateSuccess.incrementAndGet();
     }
 
     public void stateUpdateFailed() {
@@ -53,19 +53,20 @@ public class ClusterStateStats implements Writeable, ToXContentObject {
     }
 
     public void stateUpdateTook(long stateUpdateTime) {
-        stateUpdateTimeTotalInMS.addAndGet(stateUpdateTime);
+        stateUpdateTotalTimeInMillis.addAndGet(stateUpdateTime);
     }
 
-    public void setRemoteStateStats(RemoteClusterStateStats remoteStateStats) {
+    public void setRemoteStateStats(PersistedStateStats remoteStateStats) {
         this.remoteStateStats = remoteStateStats;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeVLong(stateUpdated.get());
-        out.writeVLong(stateUpdateTimeTotalInMS.get());
+        out.writeVLong(stateUpdateSuccess.get());
+        out.writeVLong(stateUpdateTotalTimeInMillis.get());
         out.writeVLong(stateUpdateFailed.get());
         if (remoteStateStats != null) {
+            out.writeBoolean(true);
             remoteStateStats.writeTo(out);
         } else {
             out.writeBoolean(false);
@@ -73,20 +74,20 @@ public class ClusterStateStats implements Writeable, ToXContentObject {
     }
 
     public ClusterStateStats(StreamInput in) throws IOException {
-        this.stateUpdated = new AtomicLong(in.readVLong());
-        this.stateUpdateTimeTotalInMS = new AtomicLong(in.readVLong());
+        this.stateUpdateSuccess = new AtomicLong(in.readVLong());
+        this.stateUpdateTotalTimeInMillis = new AtomicLong(in.readVLong());
         this.stateUpdateFailed = new AtomicLong(in.readVLong());
         if (in.readBoolean()) {
-            this.remoteStateStats = new RemoteClusterStateStats(in);
+            this.remoteStateStats = new PersistedStateStats(in);
         }
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(Fields.CLUSTER_STATE);
-        builder.startObject(Fields.OVERALL_STATS);
-        builder.field(Fields.UPDATE_COUNT, getStateUpdated());
-        builder.field(Fields.TOTAL_TIME_IN_MILLIS, getStateUpdateTimeTotalInMS());
+        builder.startObject(Fields.CLUSTER_STATE_STATS);
+        builder.startObject(Fields.OVERALL);
+        builder.field(Fields.UPDATE_COUNT, getStateUpdateSuccess());
+        builder.field(Fields.TOTAL_TIME_IN_MILLIS, getStateUpdateTotalTimeInMillis());
         builder.field(Fields.FAILED_COUNT, getStateUpdateFailed());
         builder.endObject();
         if (remoteStateStats != null) {
@@ -102,8 +103,8 @@ public class ClusterStateStats implements Writeable, ToXContentObject {
      * @opensearch.internal
      */
     static final class Fields {
-        static final String CLUSTER_STATE = "cluster_state";
-        static final String OVERALL_STATS = "overall_stats";
+        static final String CLUSTER_STATE_STATS = "cluster_state_stats";
+        static final String OVERALL = "overall";
         static final String UPDATE_COUNT = "update_count";
         static final String TOTAL_TIME_IN_MILLIS = "total_time_in_millis";
         static final String FAILED_COUNT = "failed_count";

@@ -68,7 +68,6 @@ import org.opensearch.core.Assertions;
 import org.opensearch.core.common.text.Text;
 import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.discovery.Discovery;
-import org.opensearch.gateway.remote.RemoteClusterStateStats;
 import org.opensearch.node.Node;
 import org.opensearch.threadpool.Scheduler;
 import org.opensearch.threadpool.ThreadPool;
@@ -1000,11 +999,6 @@ public class MasterService extends AbstractLifecycleComponent {
                 throw e;
             }
         }
-    }
-
-    public ClusterStateStats getStateStats(RemoteClusterStateStats remoteStateStats) {
-        stateStats.setRemoteStateStats(remoteStateStats);
-        return stateStats;
     }
 
     public ClusterStateStats getStateStats() {

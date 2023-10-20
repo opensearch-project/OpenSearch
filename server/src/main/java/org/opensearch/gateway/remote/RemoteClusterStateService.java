@@ -119,8 +119,7 @@ public class RemoteClusterStateService implements Closeable {
     private volatile TimeValue slowWriteLoggingThreshold;
 
     private final AtomicBoolean deleteStaleMetadataRunning = new AtomicBoolean(false);
-    private final RemoteClusterStateStats remoteStateStats;
-
+    private final RemoteStateStats remoteStateStats;
     public static final int INDEX_METADATA_CURRENT_CODEC_VERSION = 1;
     public static final int MANIFEST_CURRENT_CODEC_VERSION = 1;
 
@@ -140,7 +139,7 @@ public class RemoteClusterStateService implements Closeable {
         this.threadpool = threadPool;
         this.slowWriteLoggingThreshold = clusterSettings.get(SLOW_WRITE_LOGGING_THRESHOLD);
         clusterSettings.addSettingsUpdateConsumer(SLOW_WRITE_LOGGING_THRESHOLD, this::setSlowWriteLoggingThreshold);
-        this.remoteStateStats = new RemoteClusterStateStats();
+        this.remoteStateStats = new RemoteStateStats();
     }
 
     private BlobStoreTransferService getBlobStoreTransferService() {
@@ -990,7 +989,7 @@ public class RemoteClusterStateService implements Closeable {
         });
     }
 
-    public RemoteClusterStateStats getRemoteClusterStateStats() {
+    public RemoteStateStats getRemoteClusterStateStats() {
         return remoteStateStats;
     }
 }

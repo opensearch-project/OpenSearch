@@ -1019,6 +1019,11 @@ public class AbstractCoordinatorTestCase extends OpenSearchTestCase {
             }
 
             @Override
+            public PersistedStateStats getPersistedStateStats() {
+                return null;
+            }
+
+            @Override
             public void close() {
                 assertTrue(openPersistedStates.remove(this));
                 try {
@@ -1153,19 +1158,6 @@ public class AbstractCoordinatorTestCase extends OpenSearchTestCase {
                     (dn, cs) -> extraJoinValidators.forEach(validator -> validator.accept(dn, cs))
                 );
                 final AllocationService allocationService = OpenSearchAllocationTestCase.createAllocationService(Settings.EMPTY);
-                RemoteClusterStateService remoteClusterStateService;
-                if (isRemoteStoreClusterStateEnabled(settings)) {
-                    remoteClusterStateService = new RemoteClusterStateService(
-                        localNode.getId(),
-                        new SetOnce<>(repositoriesService)::get,
-                        settings,
-                        clusterService.getClusterSettings(),
-                        threadPool::preciseRelativeTimeInNanos,
-                        threadPool
-                    );
-                } else {
-                    remoteClusterStateService = null;
-                }
                 coordinator = new Coordinator(
                     "test_node",
                     settings,
@@ -1183,8 +1175,7 @@ public class AbstractCoordinatorTestCase extends OpenSearchTestCase {
                     getElectionStrategy(),
                     nodeHealthService,
                     persistedStateRegistry,
-                    remoteStoreNodeService,
-                    remoteClusterStateService
+                    remoteStoreNodeService
                 );
                 clusterManagerService.setClusterStatePublisher(coordinator);
                 final GatewayService gatewayService = new GatewayService(

@@ -279,7 +279,7 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
             RemoteClusterStateService.IndexMetadataTransferException.class,
             () -> remoteClusterStateService.writeFullMetadata(clusterState, randomAlphaOfLength(10))
         );
-        assertEquals(0, remoteClusterStateService.getRemoteClusterStateStats().getUploadSuccessCount());
+        assertEquals(0, remoteClusterStateService.getRemoteClusterStateStats().getSuccessCount());
     }
 
     public void testFailWriteIncrementalMetadataNonClusterManagerNode() throws IOException {
@@ -287,7 +287,7 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
         remoteClusterStateService.start();
         final ClusterMetadataManifest manifest = remoteClusterStateService.writeIncrementalMetadata(clusterState, clusterState, null);
         Assert.assertThat(manifest, nullValue());
-        assertEquals(0, remoteClusterStateService.getRemoteClusterStateStats().getUploadSuccessCount());
+        assertEquals(0, remoteClusterStateService.getRemoteClusterStateStats().getSuccessCount());
     }
 
     public void testFailWriteIncrementalMetadataWhenTermChanged() {
@@ -697,9 +697,9 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
             .build();
 
         assertTrue(remoteClusterStateService.getRemoteClusterStateStats() != null);
-        assertEquals(1, remoteClusterStateService.getRemoteClusterStateStats().getUploadSuccessCount());
+        assertEquals(1, remoteClusterStateService.getRemoteClusterStateStats().getSuccessCount());
         assertEquals(0, remoteClusterStateService.getRemoteClusterStateStats().getCleanupAttemptFailedCount());
-        assertEquals(0, remoteClusterStateService.getRemoteClusterStateStats().getUploadFailedCount());
+        assertEquals(0, remoteClusterStateService.getRemoteClusterStateStats().getFailedCount());
     }
 
     public void testFileNames() {

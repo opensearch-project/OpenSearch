@@ -1061,8 +1061,7 @@ public class Node implements Closeable {
                 rerouteService,
                 fsHealthService,
                 persistedStateRegistry,
-                remoteStoreNodeService,
-                remoteClusterStateService
+                remoteStoreNodeService
             );
             final SearchPipelineService searchPipelineService = new SearchPipelineService(
                 clusterService,
@@ -1116,8 +1115,7 @@ public class Node implements Closeable {
                 searchPipelineService,
                 fileCache,
                 taskCancellationMonitoringService,
-                resourceUsageCollectorService,
-                remoteClusterStateService
+                resourceUsageCollectorService
             );
 
             final SearchService searchService = newSearchService(
