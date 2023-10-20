@@ -41,7 +41,6 @@ import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
-import org.opensearch.cluster.routing.RecoverySource;
 import org.opensearch.cluster.routing.RoutingTable;
 import org.opensearch.common.settings.ClusterSettings;
 
@@ -121,21 +120,7 @@ public class ClusterStateUpdaters {
         // initialize all index routing tables as empty
         final RoutingTable.Builder routingTableBuilder = RoutingTable.builder(state.routingTable());
         for (final IndexMetadata cursor : state.metadata().indices().values()) {
-            // Whether IndexMetadata is recovered from local disk or remote it doesn't matter to us at this point.
-            // We are only concerned about index data recovery here. Which is why we only check for remote store enabled and not for remote
-            // cluster state enabled.
-            if (cursor.getSettings().getAsBoolean(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, false) == false
-                || state.routingTable().hasIndex(cursor.getIndex()) == false
-                || state.routingTable()
-                    .index(cursor.getIndex())
-                    .shardsMatchingPredicateCount(
-                        shardRouting -> shardRouting.primary()
-                            // We need to ensure atleast one of the primaries is being recovered from remote.
-                            // This ensures we have gone through the RemoteStoreRestoreService and routing table is updated
-                            && shardRouting.recoverySource() instanceof RecoverySource.RemoteStoreRecoverySource
-                    ) == 0) {
-                routingTableBuilder.addAsRecovery(cursor);
-            }
+            routingTableBuilder.addAsRecovery(cursor);
         }
         // start with 0 based versions for routing table
         routingTableBuilder.version(0);

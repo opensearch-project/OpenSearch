@@ -59,6 +59,11 @@ import org.opensearch.index.translog.Translog;
 import org.opensearch.index.translog.Translog.Location;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.SystemIndices;
+import org.opensearch.telemetry.tracing.Span;
+import org.opensearch.telemetry.tracing.SpanBuilder;
+import org.opensearch.telemetry.tracing.SpanScope;
+import org.opensearch.telemetry.tracing.Tracer;
+import org.opensearch.telemetry.tracing.listener.TraceableActionListener;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
@@ -82,6 +87,7 @@ public abstract class TransportWriteAction<
     protected final SystemIndices systemIndices;
 
     private final Function<IndexShard, String> executorFunction;
+    private final Tracer tracer;
 
     protected TransportWriteAction(
         Settings settings,
@@ -97,7 +103,8 @@ public abstract class TransportWriteAction<
         Function<IndexShard, String> executorFunction,
         boolean forceExecutionOnPrimary,
         IndexingPressureService indexingPressureService,
-        SystemIndices systemIndices
+        SystemIndices systemIndices,
+        Tracer tracer
     ) {
         // We pass ThreadPool.Names.SAME to the super class as we control the dispatching to the
         // ThreadPool.Names.WRITE/ThreadPool.Names.SYSTEM_WRITE thread pools in this class.
@@ -119,6 +126,7 @@ public abstract class TransportWriteAction<
         this.executorFunction = executorFunction;
         this.indexingPressureService = indexingPressureService;
         this.systemIndices = systemIndices;
+        this.tracer = tracer;
     }
 
     protected String executor(IndexShard shard) {
@@ -220,7 +228,12 @@ public abstract class TransportWriteAction<
         threadPool.executor(executor).execute(new ActionRunnable<PrimaryResult<ReplicaRequest, Response>>(listener) {
             @Override
             protected void doRun() {
-                dispatchedShardOperationOnPrimary(request, primary, listener);
+                Span span = tracer.startSpan(
+                    SpanBuilder.from("dispatchedShardOperationOnPrimary", clusterService.localNode().getId(), request)
+                );
+                try (SpanScope spanScope = tracer.withSpanInScope(span)) {
+                    dispatchedShardOperationOnPrimary(request, primary, TraceableActionListener.create(listener, span, tracer));
+                }
             }
 
             @Override
@@ -248,7 +261,12 @@ public abstract class TransportWriteAction<
         threadPool.executor(executorFunction.apply(replica)).execute(new ActionRunnable<ReplicaResult>(listener) {
             @Override
             protected void doRun() {
-                dispatchedShardOperationOnReplica(request, replica, listener);
+                Span span = tracer.startSpan(
+                    SpanBuilder.from("dispatchedShardOperationOnReplica", clusterService.localNode().getId(), request)
+                );
+                try (SpanScope spanScope = tracer.withSpanInScope(span)) {
+                    dispatchedShardOperationOnReplica(request, replica, TraceableActionListener.create(listener, span, tracer));
+                }
             }
 
             @Override

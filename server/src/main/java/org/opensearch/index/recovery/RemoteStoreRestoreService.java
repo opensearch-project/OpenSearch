@@ -183,6 +183,7 @@ public class RemoteStoreRestoreService {
         final String restoreUUID = UUIDs.randomBase64UUID();
         List<String> indicesToBeRestored = new ArrayList<>();
         int totalShards = 0;
+        boolean metadataFromRemoteStore = false;
         ClusterState.Builder builder = ClusterState.builder(currentState);
         Metadata.Builder mdBuilder = Metadata.builder(currentState.metadata());
         ClusterBlocks.Builder blocks = ClusterBlocks.builder().blocks(currentState.blocks());
@@ -190,7 +191,7 @@ public class RemoteStoreRestoreService {
         for (Map.Entry<String, Tuple<Boolean, IndexMetadata>> indexMetadataEntry : indexMetadataMap.entrySet()) {
             String indexName = indexMetadataEntry.getKey();
             IndexMetadata indexMetadata = indexMetadataEntry.getValue().v2();
-            boolean metadataFromRemoteStore = indexMetadataEntry.getValue().v1();
+            metadataFromRemoteStore = indexMetadataEntry.getValue().v1();
             IndexMetadata updatedIndexMetadata = indexMetadata;
             if (metadataFromRemoteStore == false && restoreAllShards) {
                 updatedIndexMetadata = IndexMetadata.builder(indexMetadata)
@@ -204,27 +205,23 @@ public class RemoteStoreRestoreService {
 
             IndexId indexId = new IndexId(indexName, updatedIndexMetadata.getIndexUUID());
 
-            Map<ShardId, IndexShardRoutingTable> indexShardRoutingTableMap = new HashMap<>();
             if (metadataFromRemoteStore == false) {
-                indexShardRoutingTableMap = currentState.routingTable()
+                Map<ShardId, IndexShardRoutingTable> indexShardRoutingTableMap = currentState.routingTable()
                     .index(indexName)
                     .shards()
                     .values()
                     .stream()
                     .collect(Collectors.toMap(IndexShardRoutingTable::shardId, Function.identity()));
+
+                RecoverySource.RemoteStoreRecoverySource recoverySource = new RecoverySource.RemoteStoreRecoverySource(
+                    restoreUUID,
+                    updatedIndexMetadata.getCreationVersion(),
+                    indexId
+                );
+
+                rtBuilder.addAsRemoteStoreRestore(updatedIndexMetadata, recoverySource, indexShardRoutingTableMap, restoreAllShards);
             }
 
-            RecoverySource.RemoteStoreRecoverySource recoverySource = new RecoverySource.RemoteStoreRecoverySource(
-                restoreUUID,
-                updatedIndexMetadata.getCreationVersion(),
-                indexId
-            );
-            rtBuilder.addAsRemoteStoreRestore(
-                updatedIndexMetadata,
-                recoverySource,
-                indexShardRoutingTableMap,
-                restoreAllShards || metadataFromRemoteStore
-            );
             blocks.updateBlocks(updatedIndexMetadata);
             mdBuilder.put(updatedIndexMetadata, true);
             indicesToBeRestored.add(indexName);
@@ -239,7 +236,10 @@ public class RemoteStoreRestoreService {
 
         RoutingTable rt = rtBuilder.build();
         ClusterState updatedState = builder.metadata(mdBuilder).blocks(blocks).routingTable(rt).build();
-        return RemoteRestoreResult.build(restoreUUID, restoreInfo, allocationService.reroute(updatedState, "restored from remote store"));
+        if (metadataFromRemoteStore == false) {
+            updatedState = allocationService.reroute(updatedState, "restored from remote store");
+        }
+        return RemoteRestoreResult.build(restoreUUID, restoreInfo, updatedState);
     }
 
     private void restoreGlobalMetadata(Metadata.Builder mdBuilder, Metadata remoteMetadata) {
