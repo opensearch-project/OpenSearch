@@ -1080,7 +1080,8 @@ public class RemoteClusterStateService implements Closeable {
      * @param clusterUUID uuid of cluster state to refer to in remote
      * @param manifestsToRetain no of latest manifest files to keep in remote
      */
-    private void deleteStaleClusterMetadata(String clusterName, String clusterUUID, int manifestsToRetain) {
+    // package private for testing
+    void deleteStaleClusterMetadata(String clusterName, String clusterUUID, int manifestsToRetain) {
         if (deleteStaleMetadataRunning.compareAndSet(false, true) == false) {
             logger.info("Delete stale cluster metadata task is already in progress.");
             return;
@@ -1117,8 +1118,9 @@ public class RemoteClusterStateService implements Closeable {
                     }
                 }
             );
-        } finally {
+        } catch (Exception e) {
             deleteStaleMetadataRunning.set(false);
+            throw e;
         }
     }
 
@@ -1198,7 +1200,7 @@ public class RemoteClusterStateService implements Closeable {
     public void deleteStaleClusterUUIDs(ClusterState clusterState, ClusterMetadataManifest committedManifest) {
         threadpool.executor(ThreadPool.Names.REMOTE_PURGE).execute(() -> {
             String clusterName = clusterState.getClusterName().value();
-            logger.info("Deleting stale cluster UUIDs data from remote [{}]", clusterName);
+            logger.debug("Deleting stale cluster UUIDs data from remote [{}]", clusterName);
             Set<String> allClustersUUIDsInRemote;
             try {
                 allClustersUUIDsInRemote = new HashSet<>(getAllClusterUUIDs(clusterState.getClusterName().value()));

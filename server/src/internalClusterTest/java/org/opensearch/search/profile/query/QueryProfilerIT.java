@@ -32,6 +32,8 @@
 
 package org.opensearch.search.profile.query;
 
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.apache.lucene.tests.util.English;
 import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.action.search.MultiSearchResponse;
@@ -40,20 +42,23 @@ import org.opensearch.action.search.SearchResponse;
 import org.opensearch.action.search.SearchType;
 import org.opensearch.action.search.ShardSearchFailure;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.search.SearchHit;
 import org.opensearch.search.profile.ProfileResult;
 import org.opensearch.search.profile.ProfileShardResult;
 import org.opensearch.search.sort.SortOrder;
-import org.opensearch.test.OpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedOpenSearchIntegTestCase;
 
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static org.opensearch.search.SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING;
 import static org.opensearch.search.profile.query.RandomQueryGenerator.randomQueryBuilder;
 import static org.hamcrest.Matchers.emptyOrNullString;
 import static org.hamcrest.Matchers.equalTo;
@@ -61,8 +66,32 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
 
-public class QueryProfilerIT extends OpenSearchIntegTestCase {
+public class QueryProfilerIT extends ParameterizedOpenSearchIntegTestCase {
+    private final boolean concurrentSearchEnabled;
+    private static final String MAX_PREFIX = "max_";
+    private static final String MIN_PREFIX = "min_";
+    private static final String AVG_PREFIX = "avg_";
+    private static final String TIMING_TYPE_COUNT_SUFFIX = "_count";
+
+    public QueryProfilerIT(Settings settings, boolean concurrentSearchEnabled) {
+        super(settings);
+        this.concurrentSearchEnabled = concurrentSearchEnabled;
+    }
+
+    @ParametersFactory
+    public static Collection<Object[]> parameters() {
+        return Arrays.asList(
+            new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), false).build(), false },
+            new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), true).build(), true }
+        );
+    }
+
+    @Override
+    protected Settings featureFlagSettings() {
+        return Settings.builder().put(super.featureFlagSettings()).put(FeatureFlags.CONCURRENT_SEGMENT_SEARCH, "true").build();
+    }
 
     /**
      * This test simply checks to make sure nothing crashes.  Test indexes 100-150 documents,
@@ -229,6 +258,7 @@ public class QueryProfilerIT extends OpenSearchIntegTestCase {
                     assertEquals(result.getLuceneDescription(), "field1:one");
                     assertThat(result.getTime(), greaterThan(0L));
                     assertNotNull(result.getTimeBreakdown());
+                    assertQueryProfileResult(result);
                 }
 
                 CollectorResult result = searchProfiles.getCollectorResult();
@@ -271,6 +301,7 @@ public class QueryProfilerIT extends OpenSearchIntegTestCase {
                     assertThat(result.getTime(), greaterThan(0L));
                     assertNotNull(result.getTimeBreakdown());
                     assertEquals(result.getProfiledChildren().size(), 2);
+                    assertQueryProfileResult(result);
 
                     // Check the children
                     List<ProfileResult> children = result.getProfiledChildren();
@@ -282,12 +313,14 @@ public class QueryProfilerIT extends OpenSearchIntegTestCase {
                     assertThat(childProfile.getTime(), greaterThan(0L));
                     assertNotNull(childProfile.getTimeBreakdown());
                     assertEquals(childProfile.getProfiledChildren().size(), 0);
+                    assertQueryProfileResult(childProfile);
 
                     childProfile = children.get(1);
                     assertEquals(childProfile.getQueryName(), "TermQuery");
                     assertEquals(childProfile.getLuceneDescription(), "field1:two");
                     assertThat(childProfile.getTime(), greaterThan(0L));
                     assertNotNull(childProfile.getTimeBreakdown());
+                    assertQueryProfileResult(childProfile);
                 }
 
                 CollectorResult result = searchProfiles.getCollectorResult();
@@ -330,6 +363,7 @@ public class QueryProfilerIT extends OpenSearchIntegTestCase {
                     assertNotNull(result.getLuceneDescription());
                     assertThat(result.getTime(), greaterThan(0L));
                     assertNotNull(result.getTimeBreakdown());
+                    assertQueryProfileResult(result);
                 }
 
                 CollectorResult result = searchProfiles.getCollectorResult();
@@ -375,6 +409,7 @@ public class QueryProfilerIT extends OpenSearchIntegTestCase {
                     assertNotNull(result.getLuceneDescription());
                     assertThat(result.getTime(), greaterThan(0L));
                     assertNotNull(result.getTimeBreakdown());
+                    assertQueryProfileResult(result);
                 }
 
                 CollectorResult result = searchProfiles.getCollectorResult();
@@ -415,6 +450,90 @@ public class QueryProfilerIT extends OpenSearchIntegTestCase {
                     assertNotNull(result.getLuceneDescription());
                     assertThat(result.getTime(), greaterThan(0L));
                     assertNotNull(result.getTimeBreakdown());
+                    assertQueryProfileResult(result);
+                }
+
+                CollectorResult result = searchProfiles.getCollectorResult();
+                assertThat(result.getName(), is(not(emptyOrNullString())));
+                assertThat(result.getTime(), greaterThan(0L));
+            }
+        }
+    }
+
+    public void testSearchLeafForItsLeavesAndRewriteQuery() throws Exception {
+        createIndex("test");
+        ensureGreen();
+
+        int numDocs = 122;
+        IndexRequestBuilder[] docs = new IndexRequestBuilder[numDocs];
+        for (int i = 0; i < numDocs; i++) {
+            docs[i] = client().prepareIndex("test").setId(String.valueOf(i)).setSource("field1", English.intToEnglish(i), "field2", i);
+        }
+
+        List<String> terms = Arrays.asList("zero", "zero", "one");
+
+        indexRandom(true, docs);
+
+        refresh();
+
+        QueryBuilder q = QueryBuilders.boostingQuery(
+            QueryBuilders.idsQuery().addIds(String.valueOf(randomInt()), String.valueOf(randomInt())),
+            QueryBuilders.termsQuery("field1", terms)
+        ).boost(randomFloat()).negativeBoost(randomFloat());
+        logger.info("Query: {}", q);
+
+        SearchResponse resp = client().prepareSearch()
+            .setQuery(q)
+            .setTrackTotalHits(true)
+            .setProfile(true)
+            .setSearchType(SearchType.QUERY_THEN_FETCH)
+            .get();
+
+        assertNotNull("Profile response element should not be null", resp.getProfileResults());
+        assertThat("Profile response should not be an empty array", resp.getProfileResults().size(), not(0));
+
+        for (Map.Entry<String, ProfileShardResult> shardResult : resp.getProfileResults().entrySet()) {
+            assertThat(shardResult.getValue().getNetworkTime().getInboundNetworkTime(), greaterThanOrEqualTo(0L));
+            assertThat(shardResult.getValue().getNetworkTime().getOutboundNetworkTime(), greaterThanOrEqualTo(0L));
+            for (QueryProfileShardResult searchProfiles : shardResult.getValue().getQueryProfileResults()) {
+                List<ProfileResult> results = searchProfiles.getQueryResults();
+                for (ProfileResult result : results) {
+                    assertNotNull(result.getQueryName());
+                    assertNotNull(result.getLuceneDescription());
+                    assertThat(result.getTime(), greaterThan(0L));
+                    Map<String, Long> breakdown = result.getTimeBreakdown();
+                    Long maxSliceTime = result.getMaxSliceTime();
+                    Long minSliceTime = result.getMinSliceTime();
+                    Long avgSliceTime = result.getAvgSliceTime();
+                    if (concurrentSearchEnabled && results.get(0).equals(result)) {
+                        assertNotNull(maxSliceTime);
+                        assertNotNull(minSliceTime);
+                        assertNotNull(avgSliceTime);
+                        assertThat(breakdown.size(), equalTo(66));
+                        for (QueryTimingType queryTimingType : QueryTimingType.values()) {
+                            if (queryTimingType != QueryTimingType.CREATE_WEIGHT) {
+                                String maxTimingType = MAX_PREFIX + queryTimingType;
+                                String minTimingType = MIN_PREFIX + queryTimingType;
+                                String avgTimingType = AVG_PREFIX + queryTimingType;
+                                assertNotNull(breakdown.get(maxTimingType));
+                                assertNotNull(breakdown.get(minTimingType));
+                                assertNotNull(breakdown.get(avgTimingType));
+                                assertNotNull(breakdown.get(maxTimingType + TIMING_TYPE_COUNT_SUFFIX));
+                                assertNotNull(breakdown.get(minTimingType + TIMING_TYPE_COUNT_SUFFIX));
+                                assertNotNull(breakdown.get(avgTimingType + TIMING_TYPE_COUNT_SUFFIX));
+                            }
+                        }
+                    } else if (concurrentSearchEnabled) {
+                        assertThat(maxSliceTime, equalTo(0L));
+                        assertThat(minSliceTime, equalTo(0L));
+                        assertThat(avgSliceTime, equalTo(0L));
+                        assertThat(breakdown.size(), equalTo(27));
+                    } else {
+                        assertThat(maxSliceTime, is(nullValue()));
+                        assertThat(minSliceTime, is(nullValue()));
+                        assertThat(avgSliceTime, is(nullValue()));
+                        assertThat(breakdown.size(), equalTo(27));
+                    }
                 }
 
                 CollectorResult result = searchProfiles.getCollectorResult();
@@ -455,6 +574,7 @@ public class QueryProfilerIT extends OpenSearchIntegTestCase {
                     assertNotNull(result.getLuceneDescription());
                     assertThat(result.getTime(), greaterThan(0L));
                     assertNotNull(result.getTimeBreakdown());
+                    assertQueryProfileResult(result);
                 }
 
                 CollectorResult result = searchProfiles.getCollectorResult();
@@ -494,6 +614,7 @@ public class QueryProfilerIT extends OpenSearchIntegTestCase {
                     assertNotNull(result.getLuceneDescription());
                     assertThat(result.getTime(), greaterThan(0L));
                     assertNotNull(result.getTimeBreakdown());
+                    assertQueryProfileResult(result);
                 }
 
                 CollectorResult result = searchProfiles.getCollectorResult();
@@ -547,6 +668,7 @@ public class QueryProfilerIT extends OpenSearchIntegTestCase {
                     assertNotNull(result.getLuceneDescription());
                     assertThat(result.getTime(), greaterThan(0L));
                     assertNotNull(result.getTimeBreakdown());
+                    assertQueryProfileResult(result);
                 }
 
                 CollectorResult result = searchProfiles.getCollectorResult();
@@ -577,6 +699,37 @@ public class QueryProfilerIT extends OpenSearchIntegTestCase {
 
         SearchResponse resp = client().prepareSearch().setQuery(q).setProfile(false).get();
         assertThat("Profile response element should be an empty map", resp.getProfileResults().size(), equalTo(0));
+    }
+
+    private void assertQueryProfileResult(ProfileResult result) {
+        Map<String, Long> breakdown = result.getTimeBreakdown();
+        Long maxSliceTime = result.getMaxSliceTime();
+        Long minSliceTime = result.getMinSliceTime();
+        Long avgSliceTime = result.getAvgSliceTime();
+        if (concurrentSearchEnabled) {
+            assertNotNull(maxSliceTime);
+            assertNotNull(minSliceTime);
+            assertNotNull(avgSliceTime);
+            assertThat(breakdown.size(), equalTo(66));
+            for (QueryTimingType queryTimingType : QueryTimingType.values()) {
+                if (queryTimingType != QueryTimingType.CREATE_WEIGHT) {
+                    String maxTimingType = MAX_PREFIX + queryTimingType;
+                    String minTimingType = MIN_PREFIX + queryTimingType;
+                    String avgTimingType = AVG_PREFIX + queryTimingType;
+                    assertNotNull(breakdown.get(maxTimingType));
+                    assertNotNull(breakdown.get(minTimingType));
+                    assertNotNull(breakdown.get(avgTimingType));
+                    assertNotNull(breakdown.get(maxTimingType + TIMING_TYPE_COUNT_SUFFIX));
+                    assertNotNull(breakdown.get(minTimingType + TIMING_TYPE_COUNT_SUFFIX));
+                    assertNotNull(breakdown.get(avgTimingType + TIMING_TYPE_COUNT_SUFFIX));
+                }
+            }
+        } else {
+            assertThat(maxSliceTime, is(nullValue()));
+            assertThat(minSliceTime, is(nullValue()));
+            assertThat(avgSliceTime, is(nullValue()));
+            assertThat(breakdown.size(), equalTo(27));
+        }
     }
 
 }
