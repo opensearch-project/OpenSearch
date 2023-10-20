@@ -454,7 +454,7 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
         mockBlobStoreObjects();
         final CoordinationMetadata coordinationMetadata = CoordinationMetadata.builder().term(1L).build();
         final ClusterState initialClusterState = ClusterState.builder(ClusterName.DEFAULT)
-            .metadata(Metadata.builder().coordinationMetadata(coordinationMetadata))
+            .metadata(Metadata.builder().coordinationMetadata(coordinationMetadata).version(randomNonNegativeLong()))
             .build();
         final ClusterMetadataManifest initialManifest = ClusterMetadataManifest.builder()
             .codecVersion(2)
@@ -475,6 +475,7 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
         // new cluster state where only global metadata is different
         Metadata newMetadata = Metadata.builder(clusterState.metadata())
             .persistentSettings(Settings.builder().put("cluster.blocks.read_only", true).build())
+            .version(randomNonNegativeLong())
             .build();
         ClusterState newClusterState = ClusterState.builder(clusterState).metadata(newMetadata).build();
 
@@ -1247,7 +1248,12 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
             .version(1L)
             .stateUUID("state-uuid")
             .metadata(
-                Metadata.builder().put(indexMetadata, true).clusterUUID("cluster-uuid").coordinationMetadata(coordinationMetadata).build()
+                Metadata.builder()
+                    .version(randomNonNegativeLong())
+                    .put(indexMetadata, true)
+                    .clusterUUID("cluster-uuid")
+                    .coordinationMetadata(coordinationMetadata)
+                    .build()
             );
     }
 
