@@ -545,7 +545,8 @@ public class RemoteFsTranslog extends Translog {
         }
     }
 
-    long getMinSeqNoToKeep() {
+    @Override
+    public long getMinUnreferencedSeqNoInSegments(long minUnrefCheckpointInLastCommit) {
         return minSeqNoToKeep;
     }
 }

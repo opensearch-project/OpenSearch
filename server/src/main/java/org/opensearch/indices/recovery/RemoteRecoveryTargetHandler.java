@@ -134,7 +134,7 @@ public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
         final ActionListener<TransportResponse.Empty> responseListener = ActionListener.map(listener, r -> null);
         if (remoteStoreEnabled) {
             // If remote store is enabled, during the prepare_translog phase, translog is also downloaded on the
-            // target host along with incremental segments download. This
+            // target host along with incremental segments download.
             retryableTransportClient.executeRetryableAction(action, request, translogOpsRequestOptions, responseListener, reader);
         } else {
             retryableTransportClient.executeRetryableAction(action, request, responseListener, reader);
