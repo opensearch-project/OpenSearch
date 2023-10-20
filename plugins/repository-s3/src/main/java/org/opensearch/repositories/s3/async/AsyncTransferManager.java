@@ -38,7 +38,9 @@ import org.opensearch.repositories.s3.SocketAccess;
 import org.opensearch.repositories.s3.StatsMetricPublisher;
 import org.opensearch.repositories.s3.io.CheckedContainer;
 
+import java.io.BufferedInputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.List;
@@ -309,15 +311,22 @@ public final class AsyncTransferManager {
         ExecutorService streamReadExecutor = uploadRequest.getWritePriority() == WritePriority.HIGH
             ? priorityExecutorService
             : executorService;
+        // Buffered stream is needed to allow mark and reset ops during IO errors so that only buffered
+        // data can be retried instead of retrying whole file by the application.
+        InputStream inputStream = new BufferedInputStream(inputStreamContainer.getInputStream(), (int) (ByteSizeUnit.MB.toBytes(1) + 1));
         CompletableFuture<Void> putObjectFuture = SocketAccess.doPrivileged(
             () -> s3AsyncClient.putObject(
                 putObjectRequestBuilder.build(),
-                AsyncRequestBody.fromInputStream(
-                    inputStreamContainer.getInputStream(),
-                    inputStreamContainer.getContentLength(),
-                    streamReadExecutor
-                )
+                AsyncRequestBody.fromInputStream(inputStream, inputStreamContainer.getContentLength(), streamReadExecutor)
             ).handle((resp, throwable) -> {
+                try {
+                    inputStream.close();
+                } catch (IOException e) {
+                    log.error(
+                        () -> new ParameterizedMessage("Failed to close stream while uploading single file {}.", uploadRequest.getKey()),
+                        e
+                    );
+                }
                 if (throwable != null) {
                     Throwable unwrappedThrowable = ExceptionsHelper.unwrap(throwable, S3Exception.class);
                     if (unwrappedThrowable != null) {
