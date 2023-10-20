@@ -177,15 +177,17 @@ public class RemoteStorePressureService {
         @Override
         public boolean validate(RemoteSegmentTransferTracker pressureTracker, ShardId shardId) {
             if (pressureTracker.getRefreshSeqNoLag() <= 1) {
+                logger.info("not ready");
                 return true;
             }
             if (pressureTracker.isUploadTimeMovingAverageReady() == false) {
-                logger.trace("upload time moving average is not ready");
+                logger.info("upload time moving average is not ready");
                 return true;
             }
             long timeLag = pressureTracker.getTimeMsLag();
             double dynamicTimeLagThreshold = pressureTracker.getUploadTimeMovingAverage() * pressureSettings
                 .getUploadTimeLagVarianceFactor();
+            logger.info("timeLag={} dynamicTimeLagThreshold={}", timeLag, dynamicTimeLagThreshold);
             return timeLag <= dynamicTimeLagThreshold;
         }
 

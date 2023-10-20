@@ -56,7 +56,7 @@ public class RemoteStoreBackpressureAndResiliencyIT extends AbstractRemoteStoreM
     public void testWritesRejectedDueToTimeLagBreach() throws Exception {
         // Initially indexing happens with doc size of 1KB, then all remote store interactions start failing. Now, the
         // indexing happens with doc size of 1 byte leading to time lag limit getting exceeded and leading to rejections.
-        validateBackpressure(ByteSizeUnit.KB.toIntBytes(1), 20, ByteSizeUnit.BYTES.toIntBytes(1), 15, "time_lag");
+        validateBackpressure(ByteSizeUnit.KB.toIntBytes(1), 20, ByteSizeUnit.BYTES.toIntBytes(1), 3, "time_lag");
     }
 
     private void validateBackpressure(
@@ -133,11 +133,13 @@ public class RemoteStoreBackpressureAndResiliencyIT extends AbstractRemoteStoreM
         return matches.get(0).getSegmentStats();
     }
 
-    private void indexDocAndRefresh(BytesReference source, int iterations) {
+    private void indexDocAndRefresh(BytesReference source, int iterations) throws InterruptedException {
         for (int i = 0; i < iterations; i++) {
             client().prepareIndex(INDEX_NAME).setSource(source, MediaTypeRegistry.JSON).get();
             refresh(INDEX_NAME);
         }
+        Thread.sleep(100);
+        client().prepareIndex(INDEX_NAME).setSource(source, MediaTypeRegistry.JSON).get();
     }
 
     /**
