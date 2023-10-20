@@ -289,36 +289,6 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
         );
     }
 
-    public void testSingleExecutionOfDeleteTask() throws Exception {
-        BlobContainer blobContainer = mock(BlobContainer.class);
-        BlobPath blobPath = new BlobPath().add("random-path");
-        when((blobStoreRepository.basePath())).thenReturn(blobPath);
-        when(blobStore.blobContainer(any())).thenReturn(blobContainer);
-
-        CountDownLatch latch = new CountDownLatch(1);
-        AtomicInteger callCount = new AtomicInteger(0);
-        doAnswer(invocation -> {
-            callCount.incrementAndGet();
-            if (latch.await(5000, TimeUnit.SECONDS) == false) {
-                throw new Exception("latch timeout");
-            }
-            return null;
-        }).when(blobContainer)
-            .listBlobsByPrefixInSortedOrder(
-                any(String.class),
-                any(int.class),
-                any(BlobContainer.BlobNameSortOrder.class),
-                any(ActionListener.class)
-            );
-
-        remoteClusterStateService.start();
-        remoteClusterStateService.deleteStaleClusterMetadata("cluster-name", "cluster-uuid", RETAINED_MANIFESTS);
-        remoteClusterStateService.deleteStaleClusterMetadata("cluster-name", "cluster-uuid", RETAINED_MANIFESTS);
-
-        latch.countDown();
-        assertBusy(() -> assertEquals(1, callCount.get()));
-    }
-
     public void testWriteFullMetadataInParallelFailureForIndexMetadata() throws IOException {
         final ClusterState clusterState = generateClusterStateWithOneIndex().nodes(nodesWithLocalNodeClusterManager()).build();
         AsyncMultiStreamBlobContainer container = (AsyncMultiStreamBlobContainer) mockBlobStoreObjects(AsyncMultiStreamBlobContainer.class);
@@ -1036,6 +1006,36 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
         manifestFileName = RemoteClusterStateService.getManifestFileName(term, version, false);
         splittedName = manifestFileName.split(DELIMITER);
         assertThat(splittedName[3], is("P"));
+    }
+
+    public void testSingleConcurrentExecutionOfStaleManifestCleanup() throws Exception {
+        BlobContainer blobContainer = mock(BlobContainer.class);
+        BlobPath blobPath = new BlobPath().add("random-path");
+        when((blobStoreRepository.basePath())).thenReturn(blobPath);
+        when(blobStore.blobContainer(any())).thenReturn(blobContainer);
+
+        CountDownLatch latch = new CountDownLatch(1);
+        AtomicInteger callCount = new AtomicInteger(0);
+        doAnswer(invocation -> {
+            callCount.incrementAndGet();
+            if (latch.await(5000, TimeUnit.SECONDS) == false) {
+                throw new Exception("Timed out waiting for delete task queuing to complete");
+            }
+            return null;
+        }).when(blobContainer)
+            .listBlobsByPrefixInSortedOrder(
+                any(String.class),
+                any(int.class),
+                any(BlobContainer.BlobNameSortOrder.class),
+                any(ActionListener.class)
+            );
+
+        remoteClusterStateService.start();
+        remoteClusterStateService.deleteStaleClusterMetadata("cluster-name", "cluster-uuid", RETAINED_MANIFESTS);
+        remoteClusterStateService.deleteStaleClusterMetadata("cluster-name", "cluster-uuid", RETAINED_MANIFESTS);
+
+        latch.countDown();
+        assertBusy(() -> assertEquals(1, callCount.get()));
     }
 
     private void mockObjectsForGettingPreviousClusterUUID(Map<String, String> clusterUUIDsPointers) throws IOException {
