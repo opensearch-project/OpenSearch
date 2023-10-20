@@ -333,6 +333,58 @@ public class ConcurrentQueryProfileBreakdownTests extends OpenSearchTestCase {
         directory.close();
     }
 
+    public void testOneLeafContextWithEmptySliceCollectorsToLeaves() throws Exception {
+        final DirectoryReader directoryReader = getDirectoryReader(1);
+        final Directory directory = directoryReader.directory();
+        final long createWeightEarliestStartTime = createWeightTimer.getEarliestTimerStartTime();
+        final long createWeightEndTime = createWeightEarliestStartTime + createWeightTimer.getApproximateTiming();
+        final Map<String, Long> leafProfileBreakdownMap_1 = getLeafBreakdownMap(createWeightEndTime + 10, 10, 1);
+        final AbstractProfileBreakdown<QueryTimingType> leafProfileBreakdown_1 = new TestQueryProfileBreakdown(
+            QueryTimingType.class,
+            leafProfileBreakdownMap_1
+        );
+        testQueryProfileBreakdown.getContexts().put(directoryReader.leaves().get(0), leafProfileBreakdown_1);
+        final Map<String, Long> queryBreakDownMap = testQueryProfileBreakdown.toBreakdownMap();
+        assertFalse(queryBreakDownMap == null || queryBreakDownMap.isEmpty());
+        assertEquals(26, queryBreakDownMap.size());
+        for (QueryTimingType queryTimingType : QueryTimingType.values()) {
+            String timingTypeKey = queryTimingType.toString();
+            String timingTypeCountKey = queryTimingType + TIMING_TYPE_COUNT_SUFFIX;
+
+            if (queryTimingType.equals(QueryTimingType.CREATE_WEIGHT)) {
+                final long createWeightTime = queryBreakDownMap.get(timingTypeKey);
+                assertEquals(createWeightTimer.getApproximateTiming(), createWeightTime);
+                assertEquals(1, (long) queryBreakDownMap.get(timingTypeCountKey));
+                // verify there is no min/max/avg for weight type stats
+                assertFalse(
+                    queryBreakDownMap.containsKey(ConcurrentQueryProfileBreakdown.MAX_PREFIX + timingTypeKey)
+                        || queryBreakDownMap.containsKey(MIN_PREFIX + timingTypeKey)
+                        || queryBreakDownMap.containsKey(ConcurrentQueryProfileBreakdown.AVG_PREFIX + timingTypeKey)
+                        || queryBreakDownMap.containsKey(ConcurrentQueryProfileBreakdown.MAX_PREFIX + timingTypeCountKey)
+                        || queryBreakDownMap.containsKey(MIN_PREFIX + timingTypeCountKey)
+                        || queryBreakDownMap.containsKey(ConcurrentQueryProfileBreakdown.AVG_PREFIX + timingTypeCountKey)
+                );
+                continue;
+            }
+            assertNotNull(queryBreakDownMap.get(timingTypeKey));
+            assertNotNull(queryBreakDownMap.get(timingTypeCountKey));
+            // verify there is no min/max/avg for current breakdown type stats
+            assertFalse(
+                queryBreakDownMap.containsKey(ConcurrentQueryProfileBreakdown.MAX_PREFIX + timingTypeKey)
+                    || queryBreakDownMap.containsKey(MIN_PREFIX + timingTypeKey)
+                    || queryBreakDownMap.containsKey(ConcurrentQueryProfileBreakdown.AVG_PREFIX + timingTypeKey)
+                    || queryBreakDownMap.containsKey(ConcurrentQueryProfileBreakdown.MAX_PREFIX + timingTypeCountKey)
+                    || queryBreakDownMap.containsKey(MIN_PREFIX + timingTypeCountKey)
+                    || queryBreakDownMap.containsKey(ConcurrentQueryProfileBreakdown.AVG_PREFIX + timingTypeCountKey)
+            );
+        }
+        assertEquals(0, testQueryProfileBreakdown.getMaxSliceNodeTime());
+        assertEquals(0, testQueryProfileBreakdown.getMinSliceNodeTime());
+        assertEquals(0, testQueryProfileBreakdown.getAvgSliceNodeTime());
+        directoryReader.close();
+        directory.close();
+    }
+
     private Map<String, Long> getLeafBreakdownMap(long startTime, long timeTaken, long count) {
         Map<String, Long> leafBreakDownMap = new HashMap<>();
         for (QueryTimingType timingType : QueryTimingType.values()) {
