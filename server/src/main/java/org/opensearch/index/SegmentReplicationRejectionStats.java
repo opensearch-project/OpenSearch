@@ -18,7 +18,7 @@ import org.opensearch.core.xcontent.XContentBuilder;
 import java.io.IOException;
 
 /**
- * Segment Replication Rejection Stats.
+ * Segment replication rejection stats.
  *
  * @opensearch.internal
  */
