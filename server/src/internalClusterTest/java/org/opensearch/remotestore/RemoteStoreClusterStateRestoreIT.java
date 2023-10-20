@@ -9,6 +9,7 @@
 package org.opensearch.remotestore;
 
 import org.opensearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
+import org.opensearch.action.admin.indices.datastream.DataStreamRolloverIT;
 import org.opensearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.opensearch.action.admin.indices.template.put.PutIndexTemplateRequest;
 import org.opensearch.cluster.ClusterState;
@@ -213,6 +214,14 @@ public class RemoteStoreClusterStateRestoreIT extends BaseRemoteStoreRestoreIT {
                 assertEquals(currentIndexMetadata.getIndex().getUUID(), uploadedIndexMetadata.getIndexUUID());
             }
         });
+    }
+
+    public void testDataStreamWithRemoteStateRestore() throws Exception {
+        new DataStreamRolloverIT() {
+            protected boolean performRemoteStateRestore() {
+                return true;
+            }
+        }.testDataStreamRollover();
     }
 
     public void testFullClusterRestoreGlobalMetadata() throws Exception {

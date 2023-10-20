@@ -30,13 +30,23 @@ import static org.opensearch.test.OpenSearchIntegTestCase.ClusterScope;
 import static org.opensearch.test.OpenSearchIntegTestCase.Scope;
 import static org.hamcrest.Matchers.is;
 
-@ClusterScope(scope = Scope.TEST, numDataNodes = 2)
+@ClusterScope(scope = Scope.TEST, numDataNodes = DataStreamTestCase.DATA_NODE_COUNT)
 public class DataStreamTestCase extends OpenSearchIntegTestCase {
+
+    protected static final int DATA_NODE_COUNT = 2;
+
+    private void resetCluster() {
+        internalCluster().stopAllNodes();
+        internalCluster().startNodes(DATA_NODE_COUNT);
+    }
 
     public AcknowledgedResponse createDataStream(String name) throws Exception {
         CreateDataStreamAction.Request request = new CreateDataStreamAction.Request(name);
         AcknowledgedResponse response = client().admin().indices().createDataStream(request).get();
         assertThat(response.isAcknowledged(), is(true));
+        if (performRemoteStateRestore()) {
+            resetCluster();
+        }
         return response;
     }
 
@@ -67,6 +77,12 @@ public class DataStreamTestCase extends OpenSearchIntegTestCase {
         RolloverResponse response = client().admin().indices().rolloverIndex(request).get();
         assertThat(response.isAcknowledged(), is(true));
         assertThat(response.isRolledOver(), is(true));
+        if (performRemoteStateRestore()) {
+            String clusterUUIDBefore = clusterService().state().metadata().clusterUUID();
+            resetCluster();
+            String clusterUUIDAfter = clusterService().state().metadata().clusterUUID();
+            assertFalse(clusterUUIDBefore.equals(clusterUUIDAfter));
+        }
         return response;
     }
 
@@ -110,4 +126,7 @@ public class DataStreamTestCase extends OpenSearchIntegTestCase {
         return response;
     }
 
+    protected boolean performRemoteStateRestore() {
+        return false;
+    }
 }

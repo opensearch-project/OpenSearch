@@ -725,7 +725,10 @@ public class RemoteClusterStateService implements Closeable {
         // Fetch Index Metadata
         Map<String, IndexMetadata> indices = getIndexMetadataMap(clusterName, clusterUUID, clusterMetadataManifest.get());
 
-        return Metadata.builder(globalMetadata).indices(indices).build();
+        Map<String, IndexMetadata> indexMetadataMap = new HashMap<>();
+        indices.values().forEach(indexMetadata -> { indexMetadataMap.put(indexMetadata.getIndex().getName(), indexMetadata); });
+
+        return Metadata.builder(globalMetadata).indices(indexMetadataMap).build();
     }
 
     private Metadata getGlobalMetadata(String clusterName, String clusterUUID, ClusterMetadataManifest clusterMetadataManifest) {
