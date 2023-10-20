@@ -89,7 +89,6 @@ public final class QuerySearchResult extends SearchPhaseResult {
 
     private final boolean isNull;
     private long tookTimeNanos;
-    private final static Version minimumTookTimeVersion = Version.V_3_0_0;
 
     public QuerySearchResult() {
         this(false);
@@ -367,7 +366,7 @@ public final class QuerySearchResult extends SearchPhaseResult {
         nodeQueueSize = in.readInt();
         setShardSearchRequest(in.readOptionalWriteable(ShardSearchRequest::new));
         setRescoreDocIds(new RescoreDocIds(in));
-        if (in.getVersion().onOrAfter(minimumTookTimeVersion)) {
+        if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
             tookTimeNanos = in.readVLong();
         } else {
             tookTimeNanos = -1L;
@@ -414,7 +413,7 @@ public final class QuerySearchResult extends SearchPhaseResult {
         out.writeInt(nodeQueueSize);
         out.writeOptionalWriteable(getShardSearchRequest());
         getRescoreDocIds().writeTo(out);
-        if (out.getVersion().onOrAfter(minimumTookTimeVersion)) {
+        if (out.getVersion().onOrAfter(Version.V_3_0_0)) {
             out.writeVLong(tookTimeNanos); // VLong as took time should always be positive
         }
     }
