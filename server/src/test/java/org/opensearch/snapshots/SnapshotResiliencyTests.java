@@ -2123,8 +2123,7 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                             shardStateAction,
                             actionFilters,
                             new IndexingPressureService(settings, clusterService),
-                            new SystemIndices(emptyMap()),
-                            NoopTracer.INSTANCE
+                            new SystemIndices(emptyMap())
                         )
                     ),
                     new GlobalCheckpointSyncAction(
