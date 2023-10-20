@@ -2,20 +2,27 @@ name: Pull Request Checks
 
 on:
   pull_request:
-    types: [opened, edited, review_requested, synchronize, reopened, ready_for_review]
+    types:
+      [
+        opened,
+        edited,
+        review_requested,
+        synchronize,
+        reopened,
+        ready_for_review,
+      ]
 
 jobs:
   verify-description:
     name: Verify Description
     runs-on: ubuntu-latest
     steps:
-        - uses: peternied/check-pull-request-description@main
-          with:
-            checklist-items: |
-                New functionality includes testing.
-                All tests pass
-                New functionality has been documented.
-                New functionality has javadoc added
-                Commits are signed per the DCO using --signoff
-                Commit changes are listed out in CHANGELOG.md file (See: [Changelog](../blob/main/CONTRIBUTING.md#changelog))
-
+      - uses: peternied/check-pull-request-description@main
+        with:
+          checklist-items: |
+            New functionality includes testing.
+            All tests pass
+            New functionality has been documented.
+            New functionality has javadoc added
+            Commits are signed per the DCO using --signoff
+            Commit changes are listed out in CHANGELOG.md file (See: [Changelog](../blob/main/CONTRIBUTING.md#changelog))
