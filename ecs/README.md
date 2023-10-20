@@ -8,7 +8,7 @@ This script generates the ECS mappings for the Wazuh indices.
 - Python 3.6 or higher
 - jq
 
-### Folder structure
+### Folder structrue
 
 There is a folder for each module. Inside each folder, there is a `fields` folder with the required
 files to generate the mappings. These are the inputs for the ECS generator.
@@ -62,7 +62,7 @@ curl -u admin:admin -k -X PUT "https://indexer:9200/_index_template/wazuh-vulner
 ```
 
 Notes:
-- PUT and POST are interchangeable.
+- PUT and POST are interchangable.
 - The name of the index template does not matter. Any name can be used.
 - Adjust credentials and URL accordingly.
 
@@ -83,7 +83,7 @@ are required.
 
 For testing purposes, the script `generate_events.py` can be used to generate events for a given module.
 Currently, it is only able to generate events for the `vulnerability-detector` module. To support other
-modules, please extend or refactor the script.
+modules, please extend of refactor the script.
 
 The script prompts for the required parameters, so it can be launched without arguments:
   
@@ -95,7 +95,7 @@ The script will generate a JSON file with the events, and will also ask whether 
 indexer. If the upload option is selected, the script will ask for the indexer URL and port, credentials,
 and index name.
 
-The script uses a log file. Check it out for debugging or additional information.
+The script uses log file. Check it out for debugging or additonal information.
 
 #### References
 
