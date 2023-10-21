@@ -1043,29 +1043,29 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
 
     public void testIndexMetadataUploadWaitTimeSetting() {
         // verify default value
-        assertEquals(RemoteClusterStateService.indexMetadataUploadWaitTime, RemoteClusterStateService.getIndexMetadataUploadWaitTime());
+        assertEquals(RemoteClusterStateService.INDEX_METADATA_UPLOAD_TIMEOUT, RemoteClusterStateService.getIndexMetadataUploadTimeout());
 
-        // verify update index metadata upload wait time
-        int indexMetadataUploadWaitTime = randomIntBetween(1, 10);
+        // verify update index metadata upload timeout
+        int indexMetadataUploadTimeout = randomIntBetween(1, 10);
         Settings newSettings = Settings.builder()
-            .put("cluster.remote_store.index_metadata.upload_wait_time", indexMetadataUploadWaitTime + "s")
+            .put("cluster.remote_store.index_metadata.upload_timeout", indexMetadataUploadTimeout + "s")
             .build();
         clusterSettings.applySettings(newSettings);
-        assertEquals(indexMetadataUploadWaitTime, RemoteClusterStateService.getIndexMetadataUploadWaitTime().seconds());
+        assertEquals(indexMetadataUploadTimeout, RemoteClusterStateService.getIndexMetadataUploadTimeout().seconds());
 
     }
 
     public void testGlobalMetadataUploadWaitTimeSetting() {
         // verify default value
-        assertEquals(RemoteClusterStateService.globalMetadataUploadWaitTime, RemoteClusterStateService.getGlobalMetadataUploadWaitTime());
+        assertEquals(RemoteClusterStateService.GLOBAL_METADATA_UPLOAD_TIMEOUT, RemoteClusterStateService.getGlobalMetadataUploadTimeout());
 
-        // verify update global metadata upload wait time
-        int globalMetadataUploadWaitTime = randomIntBetween(1, 10);
+        // verify update global metadata upload timeout
+        int globalMetadataUploadTimeout = randomIntBetween(1, 10);
         Settings newSettings = Settings.builder()
-            .put("cluster.remote_store.global_metadata.upload_wait_time", globalMetadataUploadWaitTime + "s")
+            .put("cluster.remote_store.global_metadata.upload_timeout", globalMetadataUploadTimeout + "s")
             .build();
         clusterSettings.applySettings(newSettings);
-        assertEquals(globalMetadataUploadWaitTime, RemoteClusterStateService.getGlobalMetadataUploadWaitTime().seconds());
+        assertEquals(globalMetadataUploadTimeout, RemoteClusterStateService.getGlobalMetadataUploadTimeout().seconds());
     }
 
     private void mockObjectsForGettingPreviousClusterUUID(Map<String, String> clusterUUIDsPointers) throws IOException {
