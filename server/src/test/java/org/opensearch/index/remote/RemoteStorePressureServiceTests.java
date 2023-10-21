@@ -89,7 +89,6 @@ public class RemoteStorePressureServiceTests extends OpenSearchTestCase {
             sum.addAndGet(i);
         });
         double avg = (double) sum.get() / 20;
-        logger.info("avg={}", avg);
 
         // We run this to ensure that the local and remote refresh time are not same anymore
         while (pressureTracker.getLocalRefreshTimeMs() == currentTimeMsUsingSystemNanos()) {
@@ -108,6 +107,7 @@ public class RemoteStorePressureServiceTests extends OpenSearchTestCase {
         Matcher matcher = pattern.matcher(e.getMessage());
         assertTrue(matcher.matches());
 
+        pressureTracker.updateRemoteRefreshTimeMs(pressureTracker.getLocalRefreshTimeMs());
         pressureTracker.updateLocalRefreshTimeMs(currentTimeMsUsingSystemNanos());
         Thread.sleep((long) (2 * avg));
         pressureService.validateSegmentsUploadLag(shardId);

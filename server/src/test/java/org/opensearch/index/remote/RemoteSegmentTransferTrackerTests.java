@@ -153,6 +153,7 @@ public class RemoteSegmentTransferTrackerTests extends OpenSearchTestCase {
         Thread.sleep(100);
         assertTrue(Math.abs(transferTracker.getTimeMsLag() - 100) <= 20);
 
+        transferTracker.updateRemoteRefreshTimeMs(transferTracker.getLocalRefreshTimeMs());
         transferTracker.updateLocalRefreshTimeMs(currentTimeMsUsingSystemNanos());
         long random = randomIntBetween(50, 200);
         Thread.sleep(random);
