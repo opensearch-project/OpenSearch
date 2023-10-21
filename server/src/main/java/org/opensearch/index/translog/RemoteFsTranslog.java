@@ -425,18 +425,18 @@ public class RemoteFsTranslog extends Translog {
         // cleans up remote translog files not referenced in latest uploaded metadata.
         // This enables us to restore translog from the metadata in case of failover or relocation.
         Set<Long> generationsToDelete = new HashSet<>();
-        for (long generation = minRemoteGenReferenced - 1; generation >= 0; generation--) {
+        for (long generation = minRemoteGenReferenced - 1 - indexSettings().getRemoteTranslogExtraKeep(); generation >= 0; generation--) {
             if (fileTransferTracker.uploaded(Translog.getFilename(generation)) == false) {
                 break;
             }
             generationsToDelete.add(generation);
         }
+        translogTransferManager.deleteStaleTranslogMetadataFilesAsync(remoteGenerationDeletionPermits::release);
         if (generationsToDelete.isEmpty() == false) {
             deleteRemoteGeneration(generationsToDelete);
-            translogTransferManager.deleteStaleTranslogMetadataFilesAsync(remoteGenerationDeletionPermits::release);
             deleteStaleRemotePrimaryTerms();
         } else {
-            remoteGenerationDeletionPermits.release(REMOTE_DELETION_PERMITS);
+            remoteGenerationDeletionPermits.release();
         }
     }
 
