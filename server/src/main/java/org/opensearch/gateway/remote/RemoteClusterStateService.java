@@ -83,23 +83,19 @@ public class RemoteClusterStateService implements Closeable {
 
     private static final Logger logger = LogManager.getLogger(RemoteClusterStateService.class);
 
-    // TODO make this two variable as dynamic setting [issue: #10688]
-    // public static final int INDEX_METADATA_UPLOAD_WAIT_MILLIS = 20000;
-    // public static final int GLOBAL_METADATA_UPLOAD_WAIT_MILLIS = 20000;
-
     // default value for index metadata upload wait is 20s
     static volatile TimeValue indexMetadataUploadWaitTime = TimeValue.timeValueMillis(20000);
     // default value for index metadata upload wait is 20s
     static volatile TimeValue globalMetadataUploadWaitTime = TimeValue.timeValueMillis(20000);
 
-    public static final Setting<TimeValue> INDEX_METADATA_UPLOAD_WAIT_TIME_SETTINGS = Setting.timeSetting(
+    public static final Setting<TimeValue> INDEX_METADATA_UPLOAD_WAIT_TIME_SETTING = Setting.timeSetting(
         "cluster.remote_store.index_metadata.upload_wait_time",
         indexMetadataUploadWaitTime,
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
 
-    public static final Setting<TimeValue> GLOBAL_METADATA_UPLOAD_WAIT_TIME_SETTINGS = Setting.timeSetting(
+    public static final Setting<TimeValue> GLOBAL_METADATA_UPLOAD_WAIT_TIME_SETTING = Setting.timeSetting(
         "cluster.remote_store.global_metadata.upload_wait_time",
         globalMetadataUploadWaitTime,
         Setting.Property.Dynamic,
@@ -191,10 +187,10 @@ public class RemoteClusterStateService implements Closeable {
         this.threadpool = threadPool;
         this.slowWriteLoggingThreshold = clusterSettings.get(SLOW_WRITE_LOGGING_THRESHOLD);
         clusterSettings.addSettingsUpdateConsumer(SLOW_WRITE_LOGGING_THRESHOLD, this::setSlowWriteLoggingThreshold);
-        clusterSettings.addSettingsUpdateConsumer(INDEX_METADATA_UPLOAD_WAIT_TIME_SETTINGS, this::setIndexMetadataUploadWaitTime);
-        clusterSettings.addSettingsUpdateConsumer(GLOBAL_METADATA_UPLOAD_WAIT_TIME_SETTINGS, this::setGlobalMetadataUploadWaitTime);
-        setIndexMetadataUploadWaitTime(INDEX_METADATA_UPLOAD_WAIT_TIME_SETTINGS.get(settings));
-        setGlobalMetadataUploadWaitTime(GLOBAL_METADATA_UPLOAD_WAIT_TIME_SETTINGS.get(settings));
+        clusterSettings.addSettingsUpdateConsumer(INDEX_METADATA_UPLOAD_WAIT_TIME_SETTING, this::setIndexMetadataUploadWaitTime);
+        clusterSettings.addSettingsUpdateConsumer(GLOBAL_METADATA_UPLOAD_WAIT_TIME_SETTING, this::setGlobalMetadataUploadWaitTime);
+        setIndexMetadataUploadWaitTime(INDEX_METADATA_UPLOAD_WAIT_TIME_SETTING.get(settings));
+        setGlobalMetadataUploadWaitTime(GLOBAL_METADATA_UPLOAD_WAIT_TIME_SETTING.get(settings));
     }
 
     private BlobStoreTransferService getBlobStoreTransferService() {
