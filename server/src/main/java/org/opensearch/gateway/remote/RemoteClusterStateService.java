@@ -85,7 +85,7 @@ public class RemoteClusterStateService implements Closeable {
 
     // default value for index metadata upload wait is 20s
     static volatile TimeValue indexMetadataUploadWaitTime = TimeValue.timeValueMillis(20000);
-    // default value for index metadata upload wait is 20s
+    // default value for global metadata upload wait is 20s
     static volatile TimeValue globalMetadataUploadWaitTime = TimeValue.timeValueMillis(20000);
 
     public static final Setting<TimeValue> INDEX_METADATA_UPLOAD_WAIT_TIME_SETTING = Setting.timeSetting(
