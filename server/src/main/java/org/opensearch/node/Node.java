@@ -198,6 +198,8 @@ import org.opensearch.plugins.SearchPipelinePlugin;
 import org.opensearch.plugins.SearchPlugin;
 import org.opensearch.plugins.SystemIndexPlugin;
 import org.opensearch.plugins.TelemetryPlugin;
+import org.opensearch.ratelimitting.admissioncontrol.AdmissionControlService;
+import org.opensearch.ratelimitting.admissioncontrol.transport.AdmissionControlTransportInterceptor;
 import org.opensearch.repositories.RepositoriesModule;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.rest.RestController;
@@ -896,6 +898,17 @@ public class Node implements Closeable {
 
             final RestController restController = actionModule.getRestController();
 
+            final AdmissionControlService admissionControlService = new AdmissionControlService(
+                settings,
+                clusterService.getClusterSettings(),
+                threadPool
+            );
+
+            AdmissionControlTransportInterceptor admissionControlTransportInterceptor = new AdmissionControlTransportInterceptor(
+                admissionControlService
+            );
+
+            List<TransportInterceptor> transportInterceptors = List.of(admissionControlTransportInterceptor);
             final NetworkModule networkModule = new NetworkModule(
                 settings,
                 pluginsService.filterPlugins(NetworkPlugin.class),
@@ -908,8 +921,10 @@ public class Node implements Closeable {
                 networkService,
                 restController,
                 clusterService.getClusterSettings(),
-                tracer
+                tracer,
+                transportInterceptors
             );
+
             Collection<UnaryOperator<Map<String, IndexTemplateMetadata>>> indexTemplateMetadataUpgraders = pluginsService.filterPlugins(
                 Plugin.class
             ).stream().map(Plugin::getIndexTemplateMetadataUpgrader).collect(Collectors.toList());
@@ -1186,6 +1201,7 @@ public class Node implements Closeable {
                 b.bind(IndexingPressureService.class).toInstance(indexingPressureService);
                 b.bind(TaskResourceTrackingService.class).toInstance(taskResourceTrackingService);
                 b.bind(SearchBackpressureService.class).toInstance(searchBackpressureService);
+                b.bind(AdmissionControlService.class).toInstance(admissionControlService);
                 b.bind(UsageService.class).toInstance(usageService);
                 b.bind(AggregationUsageService.class).toInstance(searchModule.getValuesSourceRegistry().getUsageService());
                 b.bind(NamedWriteableRegistry.class).toInstance(namedWriteableRegistry);
