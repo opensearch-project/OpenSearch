@@ -25,6 +25,7 @@ import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.io.IOException;
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -233,8 +234,7 @@ public class RemoteStoreClusterStateRestoreIT extends BaseRemoteStoreRestoreIT {
         String prevClusterUUID = clusterService().state().metadata().clusterUUID();
 
         // Create global metadata - register a custom repo
-        // TODO - uncomment after all customs is also uploaded for all repos - https://github.com/opensearch-project/OpenSearch/issues/10691
-        // registerCustomRepository();
+        Path repoPath = registerCustomRepository();
 
         // Create global metadata - persistent settings
         updatePersistentSettings(Settings.builder().put(SETTING_CLUSTER_MAX_SHARDS_PER_NODE.getKey(), 34).build());
@@ -263,30 +263,36 @@ public class RemoteStoreClusterStateRestoreIT extends BaseRemoteStoreRestoreIT {
         verifyRedIndicesAndTriggerRestore(indexStats, INDEX_NAME, false);
 
         // validate global metadata restored
-        verifyRestoredRepositories();
+        verifyRestoredRepositories(repoPath);
         verifyRestoredIndexTemplate();
     }
 
-    private void registerCustomRepository() {
+    private Path registerCustomRepository() {
+        Path path = randomRepoPath();
         assertAcked(
             client().admin()
                 .cluster()
                 .preparePutRepository("custom-repo")
                 .setType("fs")
-                .setSettings(Settings.builder().put("location", randomRepoPath()).put("compress", false))
+                .setSettings(Settings.builder().put("location", path).put("compress", false))
                 .get()
         );
+        return path;
     }
 
-    private void verifyRestoredRepositories() {
+    private void verifyRestoredRepositories(Path repoPath) {
         RepositoriesMetadata repositoriesMetadata = clusterService().state().metadata().custom(RepositoriesMetadata.TYPE);
-        assertEquals(2, repositoriesMetadata.repositories().size()); // includes remote store repo as well
+        assertEquals(3, repositoriesMetadata.repositories().size()); // includes remote store repo as well
         assertTrue(SYSTEM_REPOSITORY_SETTING.get(repositoriesMetadata.repository(REPOSITORY_NAME).settings()));
         assertTrue(SYSTEM_REPOSITORY_SETTING.get(repositoriesMetadata.repository(REPOSITORY_2_NAME).settings()));
-        // TODO - uncomment after all customs is also uploaded for all repos - https://github.com/opensearch-project/OpenSearch/issues/10691
-        // assertEquals("fs", repositoriesMetadata.repository("custom-repo").type());
-        // assertEquals(Settings.builder().put("location", randomRepoPath()).put("compress", false).build(),
-        // repositoriesMetadata.repository("custom-repo").settings());
+        assertEquals("fs", repositoriesMetadata.repository("custom-repo").type());
+        assertEquals(
+            Settings.builder().put("location", repoPath).put("compress", false).build(),
+            repositoriesMetadata.repository("custom-repo").settings()
+        );
+
+        // repo cleanup post verification
+        clusterAdmin().prepareDeleteRepository("custom-repo").get();
     }
 
     private void addClusterLevelReadOnlyBlock() throws InterruptedException, ExecutionException {
