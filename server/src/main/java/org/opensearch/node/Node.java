@@ -136,6 +136,7 @@ import org.opensearch.identity.IdentityService;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.IndexingPressureService;
+import org.opensearch.index.SegmentReplicationStatsTracker;
 import org.opensearch.index.analysis.AnalysisRegistry;
 import org.opensearch.index.engine.EngineFactory;
 import org.opensearch.index.recovery.RemoteStoreRestoreService;
@@ -977,6 +978,7 @@ public class Node implements Closeable {
                 transportService.getTaskManager()
             );
 
+            final SegmentReplicationStatsTracker segmentReplicationStatsTracker = new SegmentReplicationStatsTracker(indicesService);
             RepositoriesModule repositoriesModule = new RepositoriesModule(
                 this.environment,
                 pluginsService.filterPlugins(RepositoryPlugin.class),
@@ -1116,6 +1118,7 @@ public class Node implements Closeable {
                 fileCache,
                 taskCancellationMonitoringService,
                 resourceUsageCollectorService,
+                segmentReplicationStatsTracker,
                 repositoryService
             );
 
@@ -1246,6 +1249,7 @@ public class Node implements Closeable {
                 b.bind(MetricsRegistry.class).toInstance(metricsRegistry);
                 b.bind(RemoteClusterStateService.class).toProvider(() -> remoteClusterStateService);
                 b.bind(PersistedStateRegistry.class).toInstance(persistedStateRegistry);
+                b.bind(SegmentReplicationStatsTracker.class).toInstance(segmentReplicationStatsTracker);
             });
             injector = modules.createInjector();
 
