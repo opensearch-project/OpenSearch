@@ -3016,7 +3016,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             long maxBytesBehind = stats.stream().mapToLong(SegmentReplicationShardStats::getBytesBehindCount).max().orElse(0L);
             long totalBytesBehind = stats.stream().mapToLong(SegmentReplicationShardStats::getBytesBehindCount).sum();
             long maxReplicationLag = stats.stream()
-                .mapToLong(SegmentReplicationShardStats::getCurrentReplicationTimeMillis)
+                .mapToLong(SegmentReplicationShardStats::getCurrentReplicationLagMillis)
                 .max()
                 .orElse(0L);
             return new ReplicationStats(maxBytesBehind, totalBytesBehind, maxReplicationLag);
