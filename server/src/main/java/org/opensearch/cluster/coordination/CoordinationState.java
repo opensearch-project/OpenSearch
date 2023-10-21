@@ -642,7 +642,7 @@ public class CoordinationState {
          * Returns the stats for the persistence layer for {@link CoordinationState}.
          * @return PersistedStateStats
          */
-        PersistedStateStats getPersistedStateStats();
+        PersistedStateStats getStats();
 
         /**
          * Marks the last accepted cluster state as committed.

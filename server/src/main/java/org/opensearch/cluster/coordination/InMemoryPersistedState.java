@@ -66,7 +66,7 @@ public class InMemoryPersistedState implements CoordinationState.PersistedState 
     }
 
     @Override
-    public PersistedStateStats getPersistedStateStats() {
+    public PersistedStateStats getStats() {
         return null;
     }
 

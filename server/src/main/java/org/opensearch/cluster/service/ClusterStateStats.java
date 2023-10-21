@@ -16,6 +16,8 @@ import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.core.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
@@ -25,60 +27,66 @@ import java.util.concurrent.atomic.AtomicLong;
  */
 public class ClusterStateStats implements Writeable, ToXContentObject {
 
-    private AtomicLong stateUpdateSuccess = new AtomicLong(0);
-    private AtomicLong stateUpdateTotalTimeInMillis = new AtomicLong(0);
-    private AtomicLong stateUpdateFailed = new AtomicLong(0);
-    private PersistedStateStats remoteStateStats = null;
+    private AtomicLong updateSuccess = new AtomicLong(0);
+    private AtomicLong updateTotalTimeInMillis = new AtomicLong(0);
+    private AtomicLong updateFailed = new AtomicLong(0);
+    private List<PersistedStateStats> persistenceStats = new ArrayList<>();
 
     public ClusterStateStats() {}
 
-    public long getStateUpdateSuccess() {
-        return stateUpdateSuccess.get();
+    public long getUpdateSuccess() {
+        return updateSuccess.get();
     }
 
-    public long getStateUpdateTotalTimeInMillis() {
-        return stateUpdateTotalTimeInMillis.get();
+    public long getUpdateTotalTimeInMillis() {
+        return updateTotalTimeInMillis.get();
     }
 
-    public long getStateUpdateFailed() {
-        return stateUpdateFailed.get();
+    public long getUpdateFailed() {
+        return updateFailed.get();
+    }
+
+    public List<PersistedStateStats> getPersistenceStats() {
+        return persistenceStats;
     }
 
     public void stateUpdated() {
-        stateUpdateSuccess.incrementAndGet();
+        updateSuccess.incrementAndGet();
     }
 
     public void stateUpdateFailed() {
-        stateUpdateFailed.incrementAndGet();
+        updateFailed.incrementAndGet();
     }
 
     public void stateUpdateTook(long stateUpdateTime) {
-        stateUpdateTotalTimeInMillis.addAndGet(stateUpdateTime);
+        updateTotalTimeInMillis.addAndGet(stateUpdateTime);
     }
 
-    public void setRemoteStateStats(PersistedStateStats remoteStateStats) {
-        this.remoteStateStats = remoteStateStats;
+    public ClusterStateStats setPersistenceStats(List<PersistedStateStats> persistenceStats) {
+        this.persistenceStats = persistenceStats;
+        return this;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeVLong(stateUpdateSuccess.get());
-        out.writeVLong(stateUpdateTotalTimeInMillis.get());
-        out.writeVLong(stateUpdateFailed.get());
-        if (remoteStateStats != null) {
-            out.writeBoolean(true);
-            remoteStateStats.writeTo(out);
-        } else {
-            out.writeBoolean(false);
+        out.writeVLong(updateSuccess.get());
+        out.writeVLong(updateTotalTimeInMillis.get());
+        out.writeVLong(updateFailed.get());
+        out.writeVInt(persistenceStats.size());
+        for (PersistedStateStats stats : persistenceStats) {
+            stats.writeTo(out);
         }
     }
 
     public ClusterStateStats(StreamInput in) throws IOException {
-        this.stateUpdateSuccess = new AtomicLong(in.readVLong());
-        this.stateUpdateTotalTimeInMillis = new AtomicLong(in.readVLong());
-        this.stateUpdateFailed = new AtomicLong(in.readVLong());
-        if (in.readBoolean()) {
-            this.remoteStateStats = new PersistedStateStats(in);
+        this.updateSuccess = new AtomicLong(in.readVLong());
+        this.updateTotalTimeInMillis = new AtomicLong(in.readVLong());
+        this.updateFailed = new AtomicLong(in.readVLong());
+        int persistedStatsSize = in.readVInt();
+        this.persistenceStats = new ArrayList<>();
+        for (int statsNumber = 0; statsNumber < persistedStatsSize; statsNumber++) {
+            PersistedStateStats stats = new PersistedStateStats(in);
+            this.persistenceStats.add(stats);
         }
     }
 
@@ -86,12 +94,12 @@ public class ClusterStateStats implements Writeable, ToXContentObject {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(Fields.CLUSTER_STATE_STATS);
         builder.startObject(Fields.OVERALL);
-        builder.field(Fields.UPDATE_COUNT, getStateUpdateSuccess());
-        builder.field(Fields.TOTAL_TIME_IN_MILLIS, getStateUpdateTotalTimeInMillis());
-        builder.field(Fields.FAILED_COUNT, getStateUpdateFailed());
+        builder.field(Fields.UPDATE_COUNT, getUpdateSuccess());
+        builder.field(Fields.TOTAL_TIME_IN_MILLIS, getUpdateTotalTimeInMillis());
+        builder.field(Fields.FAILED_COUNT, getUpdateFailed());
         builder.endObject();
-        if (remoteStateStats != null) {
-            remoteStateStats.toXContent(builder, params);
+        for (PersistedStateStats stats : persistenceStats) {
+            stats.toXContent(builder, params);
         }
         builder.endObject();
         return builder;

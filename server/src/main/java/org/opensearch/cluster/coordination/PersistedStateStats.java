@@ -80,11 +80,11 @@ public class PersistedStateStats implements Writeable, ToXContentObject {
         return builder;
     }
 
-    public void stateUploadFailed() {
+    public void stateFailed() {
         failedCount.incrementAndGet();
     }
 
-    public void stateUploaded() {
+    public void stateSucceeded() {
         successCount.incrementAndGet();
     }
 
@@ -93,7 +93,7 @@ public class PersistedStateStats implements Writeable, ToXContentObject {
      *
      * @param timeTakenInUpload time taken in uploading the cluster state to remote
      */
-    public void stateUploadTook(long timeTakenInUpload) {
+    public void stateTook(long timeTakenInUpload) {
         totalTimeInMillis.addAndGet(timeTakenInUpload);
     }
 

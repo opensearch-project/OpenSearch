@@ -142,7 +142,7 @@ public class RemoteClusterStateService implements Closeable {
     private volatile TimeValue slowWriteLoggingThreshold;
 
     private final AtomicBoolean deleteStaleMetadataRunning = new AtomicBoolean(false);
-    private final RemoteStateStats remoteStateStats;
+    private final RemotePersistenceStats remoteStateStats;
     public static final int INDEX_METADATA_CURRENT_CODEC_VERSION = 1;
     public static final int MANIFEST_CURRENT_CODEC_VERSION = ClusterMetadataManifest.CODEC_V1;
     public static final int GLOBAL_METADATA_CURRENT_CODEC_VERSION = 1;
@@ -172,7 +172,7 @@ public class RemoteClusterStateService implements Closeable {
         this.threadpool = threadPool;
         this.slowWriteLoggingThreshold = clusterSettings.get(SLOW_WRITE_LOGGING_THRESHOLD);
         clusterSettings.addSettingsUpdateConsumer(SLOW_WRITE_LOGGING_THRESHOLD, this::setSlowWriteLoggingThreshold);
-        this.remoteStateStats = new RemoteStateStats();
+        this.remoteStateStats = new RemotePersistenceStats();
     }
 
     private BlobStoreTransferService getBlobStoreTransferService() {
@@ -213,8 +213,8 @@ public class RemoteClusterStateService implements Closeable {
             false
         );
         final long durationMillis = TimeValue.nsecToMSec(relativeTimeNanosSupplier.getAsLong() - startTimeNanos);
-        remoteStateStats.stateUploaded();
-        remoteStateStats.stateUploadTook(durationMillis);
+        remoteStateStats.stateSucceeded();
+        remoteStateStats.stateTook(durationMillis);
         if (durationMillis >= slowWriteLoggingThreshold.getMillis()) {
             logger.warn(
                 "writing cluster state took [{}ms] which is above the warn threshold of [{}]; " + "wrote full state with [{}] indices",
@@ -316,8 +316,8 @@ public class RemoteClusterStateService implements Closeable {
         deleteStaleClusterMetadata(clusterState.getClusterName().value(), clusterState.metadata().clusterUUID(), RETAINED_MANIFESTS);
 
         final long durationMillis = TimeValue.nsecToMSec(relativeTimeNanosSupplier.getAsLong() - startTimeNanos);
-        remoteStateStats.stateUploaded();
-        remoteStateStats.stateUploadTook(durationMillis);
+        remoteStateStats.stateSucceeded();
+        remoteStateStats.stateTook(durationMillis);
         if (durationMillis >= slowWriteLoggingThreshold.getMillis()) {
             logger.warn(
                 "writing cluster state took [{}ms] which is above the warn threshold of [{}]; "
@@ -1011,7 +1011,7 @@ public class RemoteClusterStateService implements Closeable {
     }
 
     public void writeMetadataFailed() {
-        remoteStateStats.stateUploadFailed();
+        remoteStateStats.stateFailed();
     }
 
     /**
@@ -1217,7 +1217,7 @@ public class RemoteClusterStateService implements Closeable {
         });
     }
 
-    public RemoteStateStats getRemoteClusterStateStats() {
+    public RemotePersistenceStats getRemoteClusterStateStats() {
         return remoteStateStats;
     }
 }

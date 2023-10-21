@@ -17,12 +17,12 @@ import java.util.concurrent.atomic.AtomicLong;
  *
  * @opensearch.internal
  */
-public class RemoteStateStats extends PersistedStateStats {
+public class RemotePersistenceStats extends PersistedStateStats {
     static final String CLEANUP_ATTEMPT_FAILED_COUNT = "cleanup_attempt_failed_count";
     static final String REMOTE = "remote";
     private AtomicLong cleanupAttemptFailedCount = new AtomicLong(0);
 
-    public RemoteStateStats() {
+    public RemotePersistenceStats() {
         super(REMOTE);
         addToExtendedFields(CLEANUP_ATTEMPT_FAILED_COUNT, cleanupAttemptFailedCount);
     }
