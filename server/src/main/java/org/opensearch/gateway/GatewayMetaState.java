@@ -684,24 +684,23 @@ public class GatewayMetaState implements Closeable {
             try {
                 final ClusterMetadataManifest manifest;
                 if (shouldWriteFullClusterState(clusterState)) {
-                    if (clusterState.metadata().clusterUUIDCommitted() == true) {
-                        final Optional<ClusterMetadataManifest> latestManifest = remoteClusterStateService.getLatestClusterMetadataManifest(
-                            clusterState.getClusterName().value(),
+                    final Optional<ClusterMetadataManifest> latestManifest = remoteClusterStateService.getLatestClusterMetadataManifest(
+                        clusterState.getClusterName().value(),
+                        clusterState.metadata().clusterUUID()
+                    );
+                    if (latestManifest.isPresent()) {
+                        // The previous UUID should not change for the current UUID. So fetching the latest manifest
+                        // from remote store and getting the previous UUID.
+                        previousClusterUUID = latestManifest.get().getPreviousClusterUUID();
+                    } else {
+                        // When the user starts the cluster with remote state disabled but later enables the remote state,
+                        // there will not be any manifest for the current cluster UUID.
+                        logger.error(
+                            "Latest manifest is not present in remote store for cluster UUID: {}",
                             clusterState.metadata().clusterUUID()
                         );
-                        if (latestManifest.isPresent()) {
-                            // The previous UUID should not change for the current UUID. So fetching the latest manifest
-                            // from remote store and getting the previous UUID.
-                            previousClusterUUID = latestManifest.get().getPreviousClusterUUID();
-                        } else {
-                            // When the user starts the cluster with remote state disabled but later enables the remote state,
-                            // there will not be any manifest for the current cluster UUID.
-                            logger.error(
-                                "Latest manifest is not present in remote store for cluster UUID: {}",
-                                clusterState.metadata().clusterUUID()
-                            );
-                            previousClusterUUID = ClusterState.UNKNOWN_UUID;
-                        }
+                        // we dont need this as previousClusterUUID would always be unknown in this case
+                        // previousClusterUUID = ClusterState.UNKNOWN_UUID;
                     }
                     manifest = remoteClusterStateService.writeFullMetadata(clusterState, previousClusterUUID);
                 } else {
