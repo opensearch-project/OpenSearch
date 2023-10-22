@@ -1023,6 +1023,9 @@ public final class IndexSettings {
     }
 
     private void setSearchIdleAfter(TimeValue searchIdleAfter) {
+        if (this.isRemoteStoreEnabled) {
+            logger.warn("Search idle is not supported for remote backed indices");
+        }
         if (this.replicationType == ReplicationType.SEGMENT && this.getNumberOfReplicas() > 0) {
             logger.warn("Search idle is not supported for indices with replicas using 'replication.type: SEGMENT'");
         }
