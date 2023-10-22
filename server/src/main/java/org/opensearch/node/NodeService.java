@@ -48,6 +48,7 @@ import org.opensearch.core.indices.breaker.CircuitBreakerService;
 import org.opensearch.discovery.Discovery;
 import org.opensearch.http.HttpServerTransport;
 import org.opensearch.index.IndexingPressureService;
+import org.opensearch.index.SegmentReplicationStatsTracker;
 import org.opensearch.index.store.remote.filecache.FileCache;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.ingest.IngestService;
@@ -95,6 +96,7 @@ public class NodeService implements Closeable {
     private final FileCache fileCache;
     private final TaskCancellationMonitoringService taskCancellationMonitoringService;
     private final RepositoriesService repositoriesService;
+    private final SegmentReplicationStatsTracker segmentReplicationStatsTracker;
 
     NodeService(
         Settings settings,
@@ -119,6 +121,7 @@ public class NodeService implements Closeable {
         FileCache fileCache,
         TaskCancellationMonitoringService taskCancellationMonitoringService,
         ResourceUsageCollectorService resourceUsageCollectorService,
+        SegmentReplicationStatsTracker segmentReplicationStatsTracker,
         RepositoriesService repositoriesService
     ) {
         this.settings = settings;
@@ -146,6 +149,7 @@ public class NodeService implements Closeable {
         this.repositoriesService = repositoriesService;
         clusterService.addStateApplier(ingestService);
         clusterService.addStateApplier(searchPipelineService);
+        this.segmentReplicationStatsTracker = segmentReplicationStatsTracker;
     }
 
     public NodeInfo info(
@@ -226,6 +230,7 @@ public class NodeService implements Closeable {
         boolean taskCancellation,
         boolean searchPipelineStats,
         boolean resourceUsageStats,
+        boolean segmentReplicationTrackerStats,
         boolean repositoriesStats
     ) {
         // for indices stats we want to include previous allocated shards stats as well (it will
@@ -256,6 +261,7 @@ public class NodeService implements Closeable {
             fileCacheStats && fileCache != null ? fileCache.fileCacheStats() : null,
             taskCancellation ? this.taskCancellationMonitoringService.stats() : null,
             searchPipelineStats ? this.searchPipelineService.stats() : null,
+            segmentReplicationTrackerStats ? this.segmentReplicationStatsTracker.getTotalRejectionStats() : null,
             repositoriesStats ? this.repositoriesService.getRepositoriesStats() : null
         );
     }
