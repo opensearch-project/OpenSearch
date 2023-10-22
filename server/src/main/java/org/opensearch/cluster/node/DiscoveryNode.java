@@ -603,7 +603,13 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
             sb.append('}');
         }
         if (!attributes.isEmpty()) {
-            sb.append(attributes);
+            sb.append(
+                attributes.entrySet()
+                    .stream()
+                    .filter(entry -> !entry.getKey().startsWith(REMOTE_STORE_NODE_ATTRIBUTE_KEY_PREFIX)) // filter remote_store attributes
+                                                                                                         // from logging to reduce noise.
+                    .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue))
+            );
         }
         return sb.toString();
     }
