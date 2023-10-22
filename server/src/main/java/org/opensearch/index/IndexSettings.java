@@ -1312,7 +1312,7 @@ public final class IndexSettings {
     }
 
     public int getRemoteTranslogExtraKeep() {
-        return INDEX_REMOTE_TRANSLOG_KEEP_EXTRA_GEN_SETTING.get(settings);
+        return remoteTranslogKeepExtraGen;
     }
 
     /**

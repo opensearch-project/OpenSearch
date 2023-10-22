@@ -431,12 +431,12 @@ public class RemoteFsTranslog extends Translog {
             }
             generationsToDelete.add(generation);
         }
-        translogTransferManager.deleteStaleTranslogMetadataFilesAsync(remoteGenerationDeletionPermits::release);
         if (generationsToDelete.isEmpty() == false) {
             deleteRemoteGeneration(generationsToDelete);
+            translogTransferManager.deleteStaleTranslogMetadataFilesAsync(remoteGenerationDeletionPermits::release);
             deleteStaleRemotePrimaryTerms();
         } else {
-            remoteGenerationDeletionPermits.release();
+            remoteGenerationDeletionPermits.release(REMOTE_DELETION_PERMITS);
         }
     }
 
