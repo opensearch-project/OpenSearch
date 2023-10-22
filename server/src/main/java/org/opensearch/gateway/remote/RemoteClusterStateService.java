@@ -20,6 +20,7 @@ import org.opensearch.common.Nullable;
 import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.blobstore.BlobMetadata;
 import org.opensearch.common.blobstore.BlobPath;
+import org.opensearch.common.blobstore.stream.write.WritePriority;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
@@ -357,7 +358,7 @@ public class RemoteClusterStateService implements Closeable {
             result.set(globalMetadataContainer.path().buildAsString() + globalMetadataFilename);
         }, ex -> { throw new GlobalMetadataTransferException(ex.getMessage(), ex); }), latch);
 
-        GLOBAL_METADATA_FORMAT.writeAsync(
+        GLOBAL_METADATA_FORMAT.urgentWriteAsync(
             clusterState.metadata(),
             globalMetadataContainer,
             globalMetadataFilename,
@@ -489,7 +490,7 @@ public class RemoteClusterStateService implements Closeable {
             ex -> latchedActionListener.onFailure(new IndexMetadataTransferException(indexMetadata.getIndex().toString(), ex))
         );
 
-        INDEX_METADATA_FORMAT.writeAsync(
+        INDEX_METADATA_FORMAT.urgentWriteAsync(
             indexMetadata,
             indexMetadataContainer,
             indexMetadataFilename,
