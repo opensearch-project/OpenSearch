@@ -67,7 +67,6 @@ import org.opensearch.index.recovery.RemoteStoreRestoreService;
 import org.opensearch.index.recovery.RemoteStoreRestoreService.RemoteRestoreResult;
 import org.opensearch.node.Node;
 import org.opensearch.plugins.MetadataUpgrader;
-import org.opensearch.repositories.RepositoryMissingException;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
@@ -711,12 +710,6 @@ public class GatewayMetaState implements Closeable {
                 }
                 assert verifyManifestAndClusterState(manifest, clusterState) == true : "Manifest and ClusterState are not in sync";
                 lastAcceptedManifest = manifest;
-                lastAcceptedState = clusterState;
-            } catch (RepositoryMissingException e) {
-                // TODO This logic needs to be modified once PR for repo registration during bootstrap is pushed
-                // https://github.com/opensearch-project/OpenSearch/pull/9105/
-                // After the above PR is pushed, we can remove this silent failure and throw the exception instead.
-                logger.error("Remote repository is not yet registered");
                 lastAcceptedState = clusterState;
             } catch (Exception e) {
                 handleExceptionOnWrite(e);
