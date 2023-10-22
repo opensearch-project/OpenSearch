@@ -170,8 +170,29 @@ public final class ChecksumBlobStoreFormat<T extends ToXContent> {
      * @param compressor          whether to use compression
      */
     public void write(final T obj, final BlobContainer blobContainer, final String name, final Compressor compressor) throws IOException {
+        write(obj, blobContainer, name, compressor, SNAPSHOT_ONLY_FORMAT_PARAMS);
+    }
+
+    /**
+     * Writes blob with resolving the blob name using {@link #blobName} method.
+     * <p>
+     * The blob will optionally by compressed.
+     *
+     * @param obj                 object to be serialized
+     * @param blobContainer       blob container
+     * @param name                blob name
+     * @param compressor          whether to use compression
+     * @param params              ToXContent params
+     */
+    public void write(
+        final T obj,
+        final BlobContainer blobContainer,
+        final String name,
+        final Compressor compressor,
+        final ToXContent.Params params
+    ) throws IOException {
         final String blobName = blobName(name);
-        final BytesReference bytes = serialize(obj, blobName, compressor, SNAPSHOT_ONLY_FORMAT_PARAMS);
+        final BytesReference bytes = serialize(obj, blobName, compressor, params);
         blobContainer.writeBlob(blobName, bytes.streamInput(), bytes.length(), false);
     }
 
@@ -231,7 +252,7 @@ public final class ChecksumBlobStoreFormat<T extends ToXContent> {
         final ToXContent.Params params
     ) throws IOException {
         if (blobContainer instanceof AsyncMultiStreamBlobContainer == false) {
-            write(obj, blobContainer, name, compressor);
+            write(obj, blobContainer, name, compressor, params);
             listener.onResponse(null);
             return;
         }

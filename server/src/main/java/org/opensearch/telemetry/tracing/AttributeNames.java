@@ -69,4 +69,29 @@ public final class AttributeNames {
      * Action Name.
      */
     public static final String TRANSPORT_ACTION = "action";
+
+    /**
+     * Index Name
+     */
+    public static final String INDEX = "index";
+
+    /**
+     * Shard ID
+     */
+    public static final String SHARD_ID = "shard_id";
+
+    /**
+     * Number of request items in bulk request
+     */
+    public static final String BULK_REQUEST_ITEMS = "bulk_request_items";
+
+    /**
+     * Node ID
+     */
+    public static final String NODE_ID = "node_id";
+
+    /**
+     * Refresh Policy
+     */
+    public static final String REFRESH_POLICY = "refresh_policy";
 }
