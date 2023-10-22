@@ -804,7 +804,7 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
      * restored from remote.
      */
     protected void performRemoteStoreTestAction() {
-        if(triggerRemoteStateRestore()) {
+        if (triggerRemoteStateRestore()) {
             String clusterUUIDBefore = clusterService().state().metadata().clusterUUID();
             internalCluster().resetCluster();
             String clusterUUIDAfter = clusterService().state().metadata().clusterUUID();
