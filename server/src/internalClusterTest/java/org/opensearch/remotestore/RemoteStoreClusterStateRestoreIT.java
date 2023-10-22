@@ -218,7 +218,7 @@ public class RemoteStoreClusterStateRestoreIT extends BaseRemoteStoreRestoreIT {
 
     public void testDataStreamPostRemoteStateRestore() throws Exception {
         new DataStreamRolloverIT() {
-            protected boolean performRemoteStateRestore() {
+            protected boolean triggerRemoteStateRestore() {
                 return true;
             }
         }.testDataStreamRollover();
