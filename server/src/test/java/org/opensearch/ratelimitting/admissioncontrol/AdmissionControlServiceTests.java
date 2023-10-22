@@ -109,12 +109,14 @@ public class AdmissionControlServiceTests extends OpenSearchTestCase {
         admissionControlService = new AdmissionControlService(Settings.EMPTY, clusterService, threadPool, null);
         admissionControlService.applyTransportAdmissionControl(this.action, null);
         List<AdmissionController> admissionControllerList = admissionControlService.getAdmissionControllers();
-        admissionControllerList.forEach(admissionController -> { assertEquals(admissionController.getRejectionCount(AdmissionControlActionType.INDEXING.getType()), 0); });
+        admissionControllerList.forEach(admissionController -> {
+            assertEquals(admissionController.getRejectionCount(AdmissionControlActionType.INDEXING.getType()), 0);
+        });
     }
 
     public void testApplyAdmissionControllerEnabled() {
         this.action = "indices:data/write/bulk[s][p]";
-        admissionControlService = new AdmissionControlService(Settings.EMPTY, clusterService, threadPool,null);
+        admissionControlService = new AdmissionControlService(Settings.EMPTY, clusterService, threadPool, null);
         admissionControlService.applyTransportAdmissionControl(this.action, null);
         assertEquals(
             admissionControlService.getAdmissionController(CPUBasedAdmissionControllerSettings.CPU_BASED_ADMISSION_CONTROLLER)

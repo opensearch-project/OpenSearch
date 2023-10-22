@@ -64,7 +64,6 @@ public class CPUBasedAdmissionControlSettingsTests extends OpenSearchTestCase {
         assertEquals(cpuBasedAdmissionControllerSettings.getTransportLayerAdmissionControllerMode(), AdmissionControlMode.DISABLED);
         assertEquals(cpuBasedAdmissionControllerSettings.getIndexingCPULimit().longValue(), percent);
         assertEquals(cpuBasedAdmissionControllerSettings.getSearchCPULimit().longValue(), percent);
-        assertEquals(cpuBasedAdmissionControllerSettings.getTransportActionsList(), Arrays.asList("indexing", "search"));
     }
 
     public void testGetConfiguredSettings() {

@@ -15,7 +15,7 @@ import org.opensearch.transport.TransportRequest;
 import org.opensearch.transport.TransportRequestHandler;
 
 /**
- * This class allows throttling to intercept requests on both the sender and the receiver side.
+ * This class allows throttling by intercepting requests on both the sender and the receiver side.
  */
 public class AdmissionControlTransportInterceptor implements TransportInterceptor {
 
@@ -37,6 +37,12 @@ public class AdmissionControlTransportInterceptor implements TransportIntercepto
         TransportRequestHandler<T> actualHandler,
         AdmissionControlActionType admissionControlActionType
     ) {
-        return new AdmissionControlTransportHandler<>(action, actualHandler, this.admissionControlService, forceExecution, admissionControlActionType);
+        return new AdmissionControlTransportHandler<>(
+            action,
+            actualHandler,
+            this.admissionControlService,
+            forceExecution,
+            admissionControlActionType
+        );
     }
 }

@@ -59,21 +59,14 @@ public interface TransportInterceptor {
     }
 
     /**
-     *
-     * @param action
-     * @param executor
-     * @param forceExecution
-     * @param actualHandler
-     * @param transportActionType
-     * @return
-     * @param <T>
+     * This is called for handlers that needs admission control support
      */
     default <T extends TransportRequest> TransportRequestHandler<T> interceptHandler(
         String action,
         String executor,
         boolean forceExecution,
         TransportRequestHandler<T> actualHandler,
-        AdmissionControlActionType transportActionType
+        AdmissionControlActionType admissionControlActionType
     ) {
         return interceptHandler(action, executor, forceExecution, actualHandler);
     }

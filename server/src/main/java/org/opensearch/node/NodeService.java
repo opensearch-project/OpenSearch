@@ -269,7 +269,7 @@ public class NodeService implements Closeable {
             searchPipelineStats ? this.searchPipelineService.stats() : null,
             segmentReplicationTrackerStats ? this.segmentReplicationStatsTracker.getTotalRejectionStats() : null,
             repositoriesStats ? this.repositoriesService.getRepositoriesStats() : null,
-            admissionControl ? this.admissionControlService.stats(): null
+            admissionControl ? this.admissionControlService.stats() : null
         );
     }
 

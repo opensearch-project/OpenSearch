@@ -45,9 +45,9 @@ public class CPUBasedAdmissionControllerTests extends OpenSearchTestCase {
     public void testCheckDefaultParameters() {
         admissionController = new CPUBasedAdmissionController(
             CPUBasedAdmissionControllerSettings.CPU_BASED_ADMISSION_CONTROLLER,
-            Settings.EMPTY,
+            null,
             clusterService,
-            null
+            Settings.EMPTY
         );
         assertEquals(admissionController.getName(), CPUBasedAdmissionControllerSettings.CPU_BASED_ADMISSION_CONTROLLER);
         assertEquals(admissionController.getRejectionCount(AdmissionControlActionType.INDEXING.getType()), 0);
@@ -60,9 +60,9 @@ public class CPUBasedAdmissionControllerTests extends OpenSearchTestCase {
     public void testCheckUpdateSettings() {
         admissionController = new CPUBasedAdmissionController(
             CPUBasedAdmissionControllerSettings.CPU_BASED_ADMISSION_CONTROLLER,
-            Settings.EMPTY,
+            null,
             clusterService,
-            null
+            Settings.EMPTY
         );
         Settings settings = Settings.builder()
             .put(
@@ -81,9 +81,9 @@ public class CPUBasedAdmissionControllerTests extends OpenSearchTestCase {
     public void testApplyControllerWithDefaultSettings() {
         admissionController = new CPUBasedAdmissionController(
             CPUBasedAdmissionControllerSettings.CPU_BASED_ADMISSION_CONTROLLER,
-            Settings.EMPTY,
+            null,
             clusterService,
-            null
+            Settings.EMPTY
         );
         assertEquals(admissionController.getRejectionCount(AdmissionControlActionType.INDEXING.getType()), 0);
         assertEquals(admissionController.settings.getTransportLayerAdmissionControllerMode(), AdmissionControlMode.DISABLED);
@@ -101,9 +101,9 @@ public class CPUBasedAdmissionControllerTests extends OpenSearchTestCase {
             .build();
         admissionController = new CPUBasedAdmissionController(
             CPUBasedAdmissionControllerSettings.CPU_BASED_ADMISSION_CONTROLLER,
-            settings,
+            null,
             clusterService,
-            null
+            settings
         );
         assertTrue(admissionController.isEnabledForTransportLayer(admissionController.settings.getTransportLayerAdmissionControllerMode()));
         assertEquals(admissionController.getRejectionCount(AdmissionControlActionType.INDEXING.getType()), 0);

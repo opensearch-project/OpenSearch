@@ -1202,13 +1202,14 @@ public class TransportService extends AbstractLifecycleComponent
     }
 
     /**
-     * Registers a new request handler
+     * Registers a new request handler with admission control support
      *
      * @param action                The action the request handler is associated with
-     * @param requestReader               The request class that will be used to construct new instances for streaming
      * @param executor              The executor the request handling will be executed on
      * @param forceExecution        Force execution on the executor queue and never reject it
-     * @param transportActionType Check the request size and raise an exception in case the limit is breached.
+     * @param canTripCircuitBreaker Check the request size and raise an exception in case the limit is breached.
+     * @param admissionControlActionType Admission control based on resource usage limits of provided action type
+     * @param requestReader               The request class that will be used to construct new instances for streaming
      * @param handler               The handler itself that implements the request handling
      */
     public <Request extends TransportRequest> void registerRequestHandler(
@@ -1216,12 +1217,12 @@ public class TransportService extends AbstractLifecycleComponent
         String executor,
         boolean forceExecution,
         boolean canTripCircuitBreaker,
-        AdmissionControlActionType transportActionType,
+        AdmissionControlActionType admissionControlActionType,
         Writeable.Reader<Request> requestReader,
         TransportRequestHandler<Request> handler
     ) {
         validateActionName(action);
-        handler = interceptor.interceptHandler(action, executor, forceExecution, handler, transportActionType);
+        handler = interceptor.interceptHandler(action, executor, forceExecution, handler, admissionControlActionType);
         RequestHandlerRegistry<Request> reg = new RequestHandlerRegistry<>(
             action,
             requestReader,

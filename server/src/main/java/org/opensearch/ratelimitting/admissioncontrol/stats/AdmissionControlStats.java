@@ -8,7 +8,6 @@
 
 package org.opensearch.ratelimitting.admissioncontrol.stats;
 
-import org.opensearch.Version;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
@@ -18,15 +17,18 @@ import org.opensearch.core.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.List;
 
+/**
+ * Class for admission control stats used as part of node stats
+ */
 public class AdmissionControlStats implements ToXContentFragment, Writeable {
 
-    List<BaseAdmissionControllerStats> admissionControllerStatsList;
+    List<AdmissionControllerStats> admissionControllerStatsList;
 
     /**
      *
      * @param admissionControllerStatsList list of admissionControllerStats
      */
-    public AdmissionControlStats(List<BaseAdmissionControllerStats> admissionControllerStatsList){
+    public AdmissionControlStats(List<AdmissionControllerStats> admissionControllerStatsList) {
         this.admissionControllerStatsList = admissionControllerStatsList;
     }
 
@@ -36,11 +38,7 @@ public class AdmissionControlStats implements ToXContentFragment, Writeable {
      * @throws IOException if an I/O error occurs
      */
     public AdmissionControlStats(StreamInput in) throws IOException {
-        if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
-            this.admissionControllerStatsList = in.readNamedWriteableList(BaseAdmissionControllerStats.class);
-        } else {
-            this.admissionControllerStatsList = null;
-        }
+        this.admissionControllerStatsList = in.readNamedWriteableList(AdmissionControllerStats.class);
     }
 
     /**
@@ -50,9 +48,7 @@ public class AdmissionControlStats implements ToXContentFragment, Writeable {
      */
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getVersion().onOrAfter(Version.V_3_0_0)) {
-            out.writeList(this.admissionControllerStatsList);
-        }
+        out.writeList(this.admissionControllerStatsList);
     }
 
     /**

@@ -54,15 +54,17 @@ public class AdmissionControlTransportHandler<T extends TransportRequest> implem
      */
     @Override
     public void messageReceived(T request, TransportChannel channel, Task task) throws Exception {
-        // intercept all the transport requests here and apply admission control
-        try {
-            // TODO Need to evaluate if we need to apply admission control or not if force Execution is true will update in next PR.
-            this.admissionControlService.applyTransportAdmissionControl(this.action, this.admissionControlActionType);
-        } catch (final OpenSearchRejectedExecutionException openSearchRejectedExecutionException) {
-            log.warn(openSearchRejectedExecutionException.getMessage());
-            channel.sendResponse(openSearchRejectedExecutionException);
-        } catch (final Exception e) {
-            throw e;
+        // skip admission control if force execution is true
+        if (!this.forceExecution) {
+            // intercept the transport requests here and apply admission control
+            try {
+                this.admissionControlService.applyTransportAdmissionControl(this.action, this.admissionControlActionType);
+            } catch (final OpenSearchRejectedExecutionException openSearchRejectedExecutionException) {
+                log.warn(openSearchRejectedExecutionException.getMessage());
+                channel.sendResponse(openSearchRejectedExecutionException);
+            } catch (final Exception e) {
+                throw e;
+            }
         }
         actualHandler.messageReceived(request, channel, task);
     }

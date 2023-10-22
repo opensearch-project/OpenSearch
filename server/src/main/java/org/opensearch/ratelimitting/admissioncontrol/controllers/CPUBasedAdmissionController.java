@@ -16,11 +16,8 @@ import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.node.NodeResourceUsageStats;
 import org.opensearch.node.ResourceUsageCollectorService;
 import org.opensearch.ratelimitting.admissioncontrol.enums.AdmissionControlActionType;
-import org.opensearch.ratelimitting.admissioncontrol.enums.AdmissionControlMode;
 import org.opensearch.ratelimitting.admissioncontrol.settings.CPUBasedAdmissionControllerSettings;
 
-import java.util.HashMap;
-import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -33,56 +30,89 @@ public class CPUBasedAdmissionController extends AdmissionController {
     public CPUBasedAdmissionControllerSettings settings;
 
     /**
-     *
-     * @param admissionControllerName State of the admission controller
+     * @param admissionControllerName       Name of the admission controller
+     * @param resourceUsageCollectorService Instance used to get node resource usage stats
+     * @param clusterService                ClusterService Instance
+     * @param settings                      Immutable settings instance
      */
-    public CPUBasedAdmissionController(String admissionControllerName, Settings settings, ClusterService clusterService, ResourceUsageCollectorService resourceUsageCollectorService) {
-        super(new AtomicLong(0), admissionControllerName, resourceUsageCollectorService, clusterService);
+    public CPUBasedAdmissionController(
+        String admissionControllerName,
+        ResourceUsageCollectorService resourceUsageCollectorService,
+        ClusterService clusterService,
+        Settings settings
+    ) {
+        super(admissionControllerName, resourceUsageCollectorService, new AtomicLong(0), clusterService);
         this.settings = new CPUBasedAdmissionControllerSettings(clusterService.getClusterSettings(), settings);
     }
 
     /**
-     * This function will take of applying admission controller based on CPU usage
+     * Apply admission control based on process CPU usage
      * @param action is the transport action
      */
     @Override
     public void apply(String action, AdmissionControlActionType admissionControlActionType) {
-        // TODO Will extend this logic further currently just incrementing rejectionCount
         if (this.isEnabledForTransportLayer(this.settings.getTransportLayerAdmissionControllerMode())) {
             this.applyForTransportLayer(action, admissionControlActionType);
         }
     }
 
+    /**
+     * Apply transport layer admission control if configured limit has been reached
+     */
     private void applyForTransportLayer(String actionName, AdmissionControlActionType admissionControlActionType) {
-        if (isLimitsBreached(admissionControlActionType)) {
+        if (isLimitsBreached(actionName, admissionControlActionType)) {
             this.addRejectionCount(admissionControlActionType.getType(), 1);
             if (this.isAdmissionControllerEnforced(this.settings.getTransportLayerAdmissionControllerMode())) {
-                throw new OpenSearchRejectedExecutionException("Action ["+ actionName +"] was rejected due to CPU usage admission controller limit breached");
+                throw new OpenSearchRejectedExecutionException(
+                    String.format("CPU usage admission controller limit reached for action [%s]", admissionControlActionType.name())
+                );
             }
         }
     }
 
-    private boolean isLimitsBreached(AdmissionControlActionType transportActionType) {
-        long maxCpuLimit = this.getCpuRejectionThreshold(transportActionType);
-        Optional<NodeResourceUsageStats> nodePerformanceStatistics = this.resourceUsageCollectorService.getNodeStatistics(this.clusterService.state().nodes().getLocalNodeId());
-        if(nodePerformanceStatistics.isPresent()) {
-            double cpuUsage = nodePerformanceStatistics.get().getCpuUtilizationPercent();
-            if (cpuUsage >= maxCpuLimit){
-                LOGGER.warn("CpuBasedAdmissionController rejected the request as the current CPU usage [" +
-                    cpuUsage + "%] exceeds the allowed limit [" + maxCpuLimit + "%]");
-                return true;
+    /**
+     * Check if the configured resource usage limits are breached for the action
+     */
+    private boolean isLimitsBreached(String actionName, AdmissionControlActionType admissionControlActionType) {
+        // check if cluster state is ready
+        if (clusterService.state() != null && clusterService.state().nodes() != null) {
+            long maxCpuLimit = this.getCpuRejectionThreshold(admissionControlActionType);
+            Optional<NodeResourceUsageStats> nodePerformanceStatistics = this.resourceUsageCollectorService.getNodeStatistics(
+                this.clusterService.state().nodes().getLocalNodeId()
+            );
+            if (nodePerformanceStatistics.isPresent()) {
+                double cpuUsage = nodePerformanceStatistics.get().getCpuUtilizationPercent();
+                if (cpuUsage >= maxCpuLimit) {
+                    LOGGER.warn(
+                        "CpuBasedAdmissionController rejected the request as the current CPU "
+                            + "usage [{}] exceeds the allowed limit [{}] for transport action [{}]",
+                        cpuUsage,
+                        maxCpuLimit,
+                        actionName
+                    );
+                    return true;
+                }
             }
         }
         return false;
     }
-    private long getCpuRejectionThreshold(AdmissionControlActionType transportActionType) {
-        switch (transportActionType) {
+
+    /**
+     * Get CPU rejection threshold based on action type
+     */
+    private long getCpuRejectionThreshold(AdmissionControlActionType admissionControlActionType) {
+        switch (admissionControlActionType) {
             case SEARCH:
                 return this.settings.getSearchCPULimit();
             case INDEXING:
                 return this.settings.getIndexingCPULimit();
             default:
-                throw new IllegalArgumentException("Not Supported TransportAction Type: " + transportActionType.getType());
+                throw new IllegalArgumentException(
+                    String.format(
+                        "Admission control not Supported for AdmissionControlActionType: %s",
+                        admissionControlActionType.getType()
+                    )
+                );
         }
     }
 }

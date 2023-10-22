@@ -300,16 +300,19 @@ public final class NetworkModule {
             return actualHandler;
         }
 
+        /**
+         * Intercept the transport action and perform admission control if applicable
+         */
         @Override
         public <T extends TransportRequest> TransportRequestHandler<T> interceptHandler(
             String action,
             String executor,
             boolean forceExecution,
             TransportRequestHandler<T> actualHandler,
-            AdmissionControlActionType transportActionType
+            AdmissionControlActionType admissionControlActionType
         ) {
             for (TransportInterceptor interceptor : this.transportInterceptors) {
-                actualHandler = interceptor.interceptHandler(action, executor, forceExecution, actualHandler, transportActionType);
+                actualHandler = interceptor.interceptHandler(action, executor, forceExecution, actualHandler, admissionControlActionType);
             }
             return actualHandler;
         }
