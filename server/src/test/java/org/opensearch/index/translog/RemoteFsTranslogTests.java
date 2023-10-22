@@ -169,10 +169,6 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
         return create(path, createRepository(), translogUUID, 0);
     }
 
-    private RemoteFsTranslog create(Path path, int extraGenToKeep) throws IOException {
-        return create(path, extraGenToKeep);
-    }
-
     private RemoteFsTranslog create(Path path, BlobStoreRepository repository, String translogUUID, int extraGenToKeep) throws IOException {
         this.repository = repository;
         globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
@@ -739,6 +735,7 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
         // this should now trim as tlog-2 files from remote, but not tlog-3 and tlog-4
         addToTranslogAndListAndUpload(translog, ops, new Translog.Index("2", 2, primaryTerm.get(), new byte[] { 1 }));
         assertEquals(2, translog.stats().estimatedNumberOfOperations());
+        assertBusy(() -> assertTrue(translog.isRemoteGenerationDeletionPermitsAvailable()));
 
         translog.setMinSeqNoToKeep(2);
         // this should now trim as tlog-2 files from remote, but not tlog-3 and tlog-4
