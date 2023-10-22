@@ -21,6 +21,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.gateway.remote.ClusterMetadataManifest;
 import org.opensearch.gateway.remote.ClusterMetadataManifest.UploadedIndexMetadata;
 import org.opensearch.gateway.remote.RemoteClusterStateService;
+import org.opensearch.test.InternalTestCluster;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.io.IOException;
@@ -31,6 +32,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ExecutionException;
 
+import static org.opensearch.cluster.coordination.ClusterBootstrapService.INITIAL_CLUSTER_MANAGER_NODES_SETTING;
 import static org.opensearch.cluster.metadata.IndexMetadata.INDEX_READ_ONLY_SETTING;
 import static org.opensearch.cluster.metadata.Metadata.CLUSTER_READ_ONLY_BLOCK;
 import static org.opensearch.cluster.metadata.Metadata.SETTING_READ_ONLY_SETTING;
@@ -79,6 +81,46 @@ public class RemoteStoreClusterStateRestoreIT extends BaseRemoteStoreRestoreIT {
         resetCluster(dataNodeCount, clusterManagerNodeCount);
 
         String newClusterUUID = clusterService().state().metadata().clusterUUID();
+        assert !Objects.equals(newClusterUUID, prevClusterUUID) : "cluster restart not successful. cluster uuid is same";
+
+        // Step - 3 Trigger full cluster restore and validate
+        validateMetadata(List.of(INDEX_NAME));
+        verifyRestoredData(indexStats, INDEX_NAME);
+    }
+
+    public void testFullClusterStateRestore() throws Exception {
+        int shardCount = randomIntBetween(1, 2);
+        int replicaCount = 1;
+        int dataNodeCount = shardCount * (replicaCount + 1);
+        int clusterManagerNodeCount = 1;
+
+        // Step - 1 index some data to generate files in remote directory
+        Map<String, Long> indexStats = initialTestSetup(shardCount, replicaCount, dataNodeCount, 1);
+        String prevClusterUUID = clusterService().state().metadata().clusterUUID();
+
+        internalCluster().stopAllNodes();
+        internalCluster().setAutoManageClusterManagerNodes(false);
+        internalCluster().startClusterManagerOnlyNodes(
+            clusterManagerNodeCount,
+            Settings.builder()
+                .putList(INITIAL_CLUSTER_MANAGER_NODES_SETTING.getKey()) // disable seeding during bootstrapping
+                .build()
+        );
+        String newClusterUUID = clusterService().state().metadata().clusterUUID();
+        assert Objects.equals(newClusterUUID, ClusterState.UNKNOWN_UUID) : "cluster restart not successful. cluster uuid is not _na_";
+
+        internalCluster().setAutoManageClusterManagerNodes(true);
+        internalCluster().fullRestart(new InternalTestCluster.RestartCallback() {
+            @Override
+            public Settings onNodeStopped(String nodeName) {
+                return Settings.builder()
+                    .putList(INITIAL_CLUSTER_MANAGER_NODES_SETTING.getKey(), nodeName)  // disable seeding
+                    .build();
+            }
+        });
+        internalCluster().startDataOnlyNodes(dataNodeCount);
+        newClusterUUID = clusterService().state().metadata().clusterUUID();
+        assert !Objects.equals(newClusterUUID, ClusterState.UNKNOWN_UUID) : "cluster restart not successful. cluster uuid is still _na_";
         assert !Objects.equals(newClusterUUID, prevClusterUUID) : "cluster restart not successful. cluster uuid is same";
 
         // Step - 3 Trigger full cluster restore and validate
