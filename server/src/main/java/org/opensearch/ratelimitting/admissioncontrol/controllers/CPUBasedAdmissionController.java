@@ -19,13 +19,13 @@ import org.opensearch.ratelimitting.admissioncontrol.enums.AdmissionControlActio
 import org.opensearch.ratelimitting.admissioncontrol.settings.CPUBasedAdmissionControllerSettings;
 
 import java.util.Optional;
-import java.util.concurrent.atomic.AtomicLong;
 
 /**
  *  Class for CPU Based Admission Controller in OpenSearch, which aims to provide CPU utilisation admission control.
  *  It provides methods to apply admission control if configured limit has been reached
  */
 public class CPUBasedAdmissionController extends AdmissionController {
+    public static final String CPU_BASED_ADMISSION_CONTROLLER = "global_cpu_usage";
     private static final Logger LOGGER = LogManager.getLogger(CPUBasedAdmissionController.class);
     public CPUBasedAdmissionControllerSettings settings;
 
@@ -41,7 +41,7 @@ public class CPUBasedAdmissionController extends AdmissionController {
         ClusterService clusterService,
         Settings settings
     ) {
-        super(admissionControllerName, resourceUsageCollectorService, new AtomicLong(0), clusterService);
+        super(admissionControllerName, resourceUsageCollectorService, clusterService);
         this.settings = new CPUBasedAdmissionControllerSettings(clusterService.getClusterSettings(), settings);
     }
 

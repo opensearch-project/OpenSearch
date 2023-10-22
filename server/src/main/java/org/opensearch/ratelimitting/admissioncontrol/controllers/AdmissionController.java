@@ -34,16 +34,14 @@ public abstract class AdmissionController {
     /**
      * @param admissionControllerName       name of the admissionController
      * @param resourceUsageCollectorService instance used to get resource usage stats of the node
-     * @param rejectionCount                initialised rejectionCount value for AdmissionController
      * @param clusterService
      */
     public AdmissionController(
         String admissionControllerName,
         ResourceUsageCollectorService resourceUsageCollectorService,
-        AtomicLong rejectionCount,
         ClusterService clusterService
     ) {
-        this.rejectionCount = rejectionCount;
+        this.rejectionCount = new AtomicLong(0);
         this.admissionControllerName = admissionControllerName;
         this.resourceUsageCollectorService = resourceUsageCollectorService;
         this.clusterService = clusterService;

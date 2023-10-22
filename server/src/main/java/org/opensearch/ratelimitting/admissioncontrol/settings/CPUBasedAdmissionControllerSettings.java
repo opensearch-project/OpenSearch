@@ -19,7 +19,6 @@ import org.opensearch.ratelimitting.admissioncontrol.enums.AdmissionControlMode;
  * @opensearch.internal
  */
 public class CPUBasedAdmissionControllerSettings {
-    public static final String CPU_BASED_ADMISSION_CONTROLLER = "global_cpu_usage";
 
     /**
      * Default parameters for the CPUBasedAdmissionControllerSettings

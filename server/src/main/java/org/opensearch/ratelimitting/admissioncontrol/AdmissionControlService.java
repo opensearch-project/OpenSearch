@@ -25,7 +25,7 @@ import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
-import static org.opensearch.ratelimitting.admissioncontrol.settings.CPUBasedAdmissionControllerSettings.CPU_BASED_ADMISSION_CONTROLLER;
+import static org.opensearch.ratelimitting.admissioncontrol.controllers.CPUBasedAdmissionController.CPU_BASED_ADMISSION_CONTROLLER;
 
 /**
  * Admission control Service that bootstraps and manages all the Admission Controllers in OpenSearch.

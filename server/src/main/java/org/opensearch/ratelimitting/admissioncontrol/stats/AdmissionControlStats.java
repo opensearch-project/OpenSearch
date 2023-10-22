@@ -38,7 +38,7 @@ public class AdmissionControlStats implements ToXContentFragment, Writeable {
      * @throws IOException if an I/O error occurs
      */
     public AdmissionControlStats(StreamInput in) throws IOException {
-        this.admissionControllerStatsList = in.readNamedWriteableList(AdmissionControllerStats.class);
+        this.admissionControllerStatsList = in.readList(AdmissionControllerStats::new);
     }
 
     /**
@@ -49,6 +49,10 @@ public class AdmissionControlStats implements ToXContentFragment, Writeable {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeList(this.admissionControllerStatsList);
+    }
+
+    public List<AdmissionControllerStats> getAdmissionControllerStatsList() {
+        return admissionControllerStatsList;
     }
 
     /**
@@ -62,7 +66,7 @@ public class AdmissionControlStats implements ToXContentFragment, Writeable {
         builder.startObject("admission_control");
         this.admissionControllerStatsList.forEach(stats -> {
             try {
-                builder.field(stats.getWriteableName(), stats);
+                builder.field(stats.getAdmissionControllerName(), stats);
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }

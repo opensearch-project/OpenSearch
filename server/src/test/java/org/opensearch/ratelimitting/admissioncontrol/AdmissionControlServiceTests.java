@@ -68,7 +68,7 @@ public class AdmissionControlServiceTests extends OpenSearchTestCase {
         List<AdmissionController> admissionControllerList = admissionControlService.getAdmissionControllers();
         assertEquals(admissionControllerList.size(), 1);
         CPUBasedAdmissionController cpuBasedAdmissionController = (CPUBasedAdmissionController) admissionControlService
-            .getAdmissionController(CPUBasedAdmissionControllerSettings.CPU_BASED_ADMISSION_CONTROLLER);
+            .getAdmissionController(CPUBasedAdmissionController.CPU_BASED_ADMISSION_CONTROLLER);
         assertEquals(
             admissionControlSettings.isTransportLayerAdmissionControlEnabled(),
             cpuBasedAdmissionController.isEnabledForTransportLayer(
@@ -119,7 +119,7 @@ public class AdmissionControlServiceTests extends OpenSearchTestCase {
         admissionControlService = new AdmissionControlService(Settings.EMPTY, clusterService, threadPool, null);
         admissionControlService.applyTransportAdmissionControl(this.action, null);
         assertEquals(
-            admissionControlService.getAdmissionController(CPUBasedAdmissionControllerSettings.CPU_BASED_ADMISSION_CONTROLLER)
+            admissionControlService.getAdmissionController(CPUBasedAdmissionController.CPU_BASED_ADMISSION_CONTROLLER)
                 .getRejectionCount(AdmissionControlActionType.INDEXING.getType()),
             0
         );
@@ -131,13 +131,28 @@ public class AdmissionControlServiceTests extends OpenSearchTestCase {
             )
             .build();
         clusterService.getClusterSettings().applySettings(settings);
-        admissionControlService.applyTransportAdmissionControl(this.action, null);
         List<AdmissionController> admissionControllerList = admissionControlService.getAdmissionControllers();
         assertEquals(admissionControllerList.size(), 1);
+    }
+
+    public void testApplyAdmissionControllerEnforced() {
+        this.action = "indices:data/write/bulk[s][p]";
+        admissionControlService = new AdmissionControlService(Settings.EMPTY, clusterService, threadPool, null);
+        admissionControlService.applyTransportAdmissionControl(this.action, null);
         assertEquals(
-            admissionControlService.getAdmissionController(CPUBasedAdmissionControllerSettings.CPU_BASED_ADMISSION_CONTROLLER)
+            admissionControlService.getAdmissionController(CPUBasedAdmissionController.CPU_BASED_ADMISSION_CONTROLLER)
                 .getRejectionCount(AdmissionControlActionType.INDEXING.getType()),
-            1
+            0
         );
+
+        Settings settings = Settings.builder()
+            .put(
+                CPUBasedAdmissionControllerSettings.CPU_BASED_ADMISSION_CONTROLLER_TRANSPORT_LAYER_MODE.getKey(),
+                AdmissionControlMode.MONITOR.getMode()
+            )
+            .build();
+        clusterService.getClusterSettings().applySettings(settings);
+        List<AdmissionController> admissionControllerList = admissionControlService.getAdmissionControllers();
+        assertEquals(admissionControllerList.size(), 1);
     }
 }

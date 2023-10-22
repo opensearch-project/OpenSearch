@@ -10,7 +10,7 @@ package org.opensearch.ratelimitting.admissioncontrol.enums;
 
 import org.opensearch.test.OpenSearchTestCase;
 
-public class admissionControlActionTypeTests extends OpenSearchTestCase {
+public class AdmissionControlActionTypeTests extends OpenSearchTestCase {
 
     public void testValidActionType() {
         assertEquals(AdmissionControlActionType.SEARCH.getType(), "search");

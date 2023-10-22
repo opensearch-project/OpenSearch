@@ -8,9 +8,9 @@
 
 package org.opensearch.ratelimitting.admissioncontrol.stats;
 
-import org.opensearch.core.common.io.stream.NamedWriteable;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.ratelimitting.admissioncontrol.controllers.AdmissionController;
@@ -21,7 +21,7 @@ import java.util.Map;
 /**
  * Class for admission controller ( such as CPU ) stats which includes rejection count for each action type
  */
-public class AdmissionControllerStats implements NamedWriteable, ToXContentFragment {
+public class AdmissionControllerStats implements Writeable, ToXContentFragment {
     public Map<String, Long> rejectionCount;
     public String admissionControllerName;
 
@@ -35,9 +35,12 @@ public class AdmissionControllerStats implements NamedWriteable, ToXContentFragm
         this.admissionControllerName = in.readString();
     }
 
-    @Override
-    public String getWriteableName() {
+    public String getAdmissionControllerName() {
         return admissionControllerName;
+    }
+
+    public Map<String, Long> getRejectionCount() {
+        return rejectionCount;
     }
 
     /**
