@@ -266,7 +266,7 @@ public final class InternalTestCluster extends TestCluster {
 
     private final ExecutorService executor;
 
-    private boolean autoManageClusterManagerNodes;
+    private final boolean autoManageClusterManagerNodes;
 
     private final Collection<Class<? extends Plugin>> mockPlugins;
 
@@ -475,10 +475,6 @@ public final class InternalTestCluster extends TestCluster {
             : "bootstrapClusterManagerNodeIndex should be -1 if autoManageClusterManagerNodes is true, but was "
                 + bootstrapClusterManagerNodeIndex;
         this.bootstrapClusterManagerNodeIndex = bootstrapClusterManagerNodeIndex;
-    }
-
-    public void setAutoManageClusterManagerNodes(boolean autoManageClusterManagerNodes) {
-        this.autoManageClusterManagerNodes = autoManageClusterManagerNodes;
     }
 
     @Override

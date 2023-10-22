@@ -88,43 +88,69 @@ public class RemoteStoreClusterStateRestoreIT extends BaseRemoteStoreRestoreIT {
         verifyRestoredData(indexStats, INDEX_NAME);
     }
 
+    /**
+     * This test scenario covers the case where right after remote state restore and persisting it to disk via LucenePersistedState, full cluster restarts.
+     * This is a special case for remote state as at this point cluster uuid in the restored state is still ClusterState.UNKNOWN_UUID as we persist it disk.
+     * After restart the local disk state will be read but should be again overridden with remote state.
+     *
+     * 1. Form a cluster and index few docs
+     * 2. Replace all nodes to remove all local disk state
+     * 3. Start cluster manager node without correct seeding to ensure local disk state is written with cluster uuid ClusterState.UNKNOWN_UUID but with remote restored Metadata
+     * 4. Restart the cluster manager node with correct seeding.
+     * 5. After restart the cluster manager picks up the local disk state with has same Metadata as remote but cluster uuid is still ClusterState.UNKNOWN_UUID
+     * 6. The cluster manager will try to restore from remote again.
+     * 7. Metadata loaded from local disk state will be overridden with remote Metadata and no conflict should arise.
+     * 8. Add data nodes to recover index data
+     * 9. Verify Metadata and index data is restored.
+     */
     public void testFullClusterStateRestore() throws Exception {
         int shardCount = randomIntBetween(1, 2);
         int replicaCount = 1;
         int dataNodeCount = shardCount * (replicaCount + 1);
         int clusterManagerNodeCount = 1;
 
-        // Step - 1 index some data to generate files in remote directory
+        // index some data to generate files in remote directory
         Map<String, Long> indexStats = initialTestSetup(shardCount, replicaCount, dataNodeCount, 1);
         String prevClusterUUID = clusterService().state().metadata().clusterUUID();
 
+        // stop all nodes
         internalCluster().stopAllNodes();
-        internalCluster().setAutoManageClusterManagerNodes(false);
-        internalCluster().startClusterManagerOnlyNodes(
-            clusterManagerNodeCount,
-            Settings.builder()
-                .putList(INITIAL_CLUSTER_MANAGER_NODES_SETTING.getKey()) // disable seeding during bootstrapping
-                .build()
-        );
-        String newClusterUUID = clusterService().state().metadata().clusterUUID();
-        assert Objects.equals(newClusterUUID, ClusterState.UNKNOWN_UUID) : "cluster restart not successful. cluster uuid is not _na_";
 
-        internalCluster().setAutoManageClusterManagerNodes(true);
+        // start a cluster manager node with no cluster manager seeding.
+        // This should fail with IllegalStateException as cluster manager fails to form without any initial seed
+        assertThrows(
+            IllegalStateException.class,
+            () -> internalCluster().startClusterManagerOnlyNodes(
+                clusterManagerNodeCount,
+                Settings.builder()
+                    .putList(INITIAL_CLUSTER_MANAGER_NODES_SETTING.getKey()) // disable seeding during bootstrapping
+                    .build()
+            )
+        );
+
+        // verify cluster manager not elected
+        String newClusterUUID = clusterService().state().metadata().clusterUUID();
+        assert Objects.equals(newClusterUUID, ClusterState.UNKNOWN_UUID)
+            : "Disabling Cluster manager seeding failed. cluster uuid is not unknown";
+
+        // restart cluster manager with correct seed
         internalCluster().fullRestart(new InternalTestCluster.RestartCallback() {
             @Override
             public Settings onNodeStopped(String nodeName) {
                 return Settings.builder()
-                    .putList(INITIAL_CLUSTER_MANAGER_NODES_SETTING.getKey(), nodeName)  // disable seeding
+                    .putList(INITIAL_CLUSTER_MANAGER_NODES_SETTING.getKey(), nodeName)  // Seed with correct Cluster Manager node
                     .build();
             }
         });
-        internalCluster().startDataOnlyNodes(dataNodeCount);
-        newClusterUUID = clusterService().state().metadata().clusterUUID();
-        assert !Objects.equals(newClusterUUID, ClusterState.UNKNOWN_UUID) : "cluster restart not successful. cluster uuid is still _na_";
-        assert !Objects.equals(newClusterUUID, prevClusterUUID) : "cluster restart not successful. cluster uuid is same";
 
-        // Step - 3 Trigger full cluster restore and validate
+        // validate new cluster state formed
+        newClusterUUID = clusterService().state().metadata().clusterUUID();
+        assert !Objects.equals(newClusterUUID, ClusterState.UNKNOWN_UUID) : "cluster restart not successful. cluster uuid is still unknown";
+        assert !Objects.equals(newClusterUUID, prevClusterUUID) : "cluster restart not successful. cluster uuid is same";
         validateMetadata(List.of(INDEX_NAME));
+
+        // start data nodes to trigger index data recovery
+        internalCluster().startDataOnlyNodes(dataNodeCount);
         verifyRestoredData(indexStats, INDEX_NAME);
     }
 
