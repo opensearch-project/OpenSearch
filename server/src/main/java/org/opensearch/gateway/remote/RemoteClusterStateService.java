@@ -589,7 +589,13 @@ public class RemoteClusterStateService implements Closeable {
     private void writeMetadataManifest(String clusterName, String clusterUUID, ClusterMetadataManifest uploadManifest, String fileName)
         throws IOException {
         final BlobContainer metadataManifestContainer = manifestContainer(clusterName, clusterUUID);
-        CLUSTER_METADATA_MANIFEST_FORMAT.write(uploadManifest, metadataManifestContainer, fileName, blobStoreRepository.getCompressor());
+        CLUSTER_METADATA_MANIFEST_FORMAT.write(
+            uploadManifest,
+            metadataManifestContainer,
+            fileName,
+            blobStoreRepository.getCompressor(),
+            FORMAT_PARAMS
+        );
     }
 
     private String fetchPreviousClusterUUID(String clusterName, String clusterUUID) {
@@ -726,10 +732,11 @@ public class RemoteClusterStateService implements Closeable {
      * @return {@link IndexMetadata}
      */
     private IndexMetadata getIndexMetadata(String clusterName, String clusterUUID, UploadedIndexMetadata uploadedIndexMetadata) {
+        BlobContainer blobContainer = indexMetadataContainer(clusterName, clusterUUID, uploadedIndexMetadata.getIndexUUID());
         try {
             String[] splitPath = uploadedIndexMetadata.getUploadedFilename().split("/");
             return INDEX_METADATA_FORMAT.read(
-                indexMetadataContainer(clusterName, clusterUUID, uploadedIndexMetadata.getIndexUUID()),
+                blobContainer,
                 splitPath[splitPath.length - 1],
                 blobStoreRepository.getNamedXContentRegistry()
             );
@@ -919,7 +926,8 @@ public class RemoteClusterStateService implements Closeable {
                 }
             } else {
                 ClusterMetadataManifest previousManifest = trimmedUUIDs.get(currentManifest.getPreviousClusterUUID());
-                if (isMetadataEqual(currentManifest, previousManifest, clusterName)) {
+                if (isMetadataEqual(currentManifest, previousManifest, clusterName)
+                    && isGlobalMetadataEqual(currentManifest, previousManifest, clusterName)) {
                     trimmedUUIDs.remove(clusterUUID);
                 }
             }
@@ -947,6 +955,12 @@ public class RemoteClusterStateService implements Closeable {
             }
         }
         return true;
+    }
+
+    private boolean isGlobalMetadataEqual(ClusterMetadataManifest first, ClusterMetadataManifest second, String clusterName) {
+        Metadata secondGlobalMetadata = getGlobalMetadata(clusterName, second.getClusterUUID(), second);
+        Metadata firstGlobalMetadata = getGlobalMetadata(clusterName, first.getClusterUUID(), first);
+        return Metadata.isGlobalResourcesMetadataEquals(firstGlobalMetadata, secondGlobalMetadata);
     }
 
     private boolean isInvalidClusterUUID(ClusterMetadataManifest manifest) {
