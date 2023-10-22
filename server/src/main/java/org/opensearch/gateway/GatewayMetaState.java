@@ -699,8 +699,6 @@ public class GatewayMetaState implements Closeable {
                             "Latest manifest is not present in remote store for cluster UUID: {}",
                             clusterState.metadata().clusterUUID()
                         );
-                        // we dont need this as previousClusterUUID would always be unknown in this case
-                        // previousClusterUUID = ClusterState.UNKNOWN_UUID;
                     }
                     manifest = remoteClusterStateService.writeFullMetadata(clusterState, previousClusterUUID);
                 } else {
