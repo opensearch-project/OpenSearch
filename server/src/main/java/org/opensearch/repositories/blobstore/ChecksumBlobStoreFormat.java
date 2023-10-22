@@ -200,12 +200,12 @@ public final class ChecksumBlobStoreFormat<T extends ToXContent> {
      * Internally calls {@link #writeAsyncWithPriority} with {@link WritePriority#NORMAL}
      */
     public void writeAsync(
-            final T obj,
-            final BlobContainer blobContainer,
-            final String name,
-            final Compressor compressor,
-            ActionListener<Void> listener,
-            final ToXContent.Params params
+        final T obj,
+        final BlobContainer blobContainer,
+        final String name,
+        final Compressor compressor,
+        ActionListener<Void> listener,
+        final ToXContent.Params params
     ) throws IOException {
         // use NORMAL priority by default
         this.writeAsyncWithPriority(obj, blobContainer, name, compressor, WritePriority.NORMAL, listener, params);
@@ -219,16 +219,15 @@ public final class ChecksumBlobStoreFormat<T extends ToXContent> {
      * other use cases.
      */
     public void urgentWriteAsync(
-            final T obj,
-            final BlobContainer blobContainer,
-            final String name,
-            final Compressor compressor,
-            ActionListener<Void> listener,
-            final ToXContent.Params params
+        final T obj,
+        final BlobContainer blobContainer,
+        final String name,
+        final Compressor compressor,
+        ActionListener<Void> listener,
+        final ToXContent.Params params
     ) throws IOException {
         this.writeAsyncWithPriority(obj, blobContainer, name, compressor, WritePriority.URGENT, listener, params);
     }
-
 
     /**
      * Method to writes blob with resolving the blob name using {@link #blobName} method with specified

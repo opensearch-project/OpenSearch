@@ -32,8 +32,6 @@
 
 package org.opensearch.snapshots;
 
-import org.mockito.ArgumentCaptor;
-import org.mockito.Mock;
 import org.opensearch.OpenSearchCorruptionException;
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.common.blobstore.AsyncMultiStreamBlobContainer;
@@ -46,7 +44,6 @@ import org.opensearch.common.blobstore.fs.FsBlobStore;
 import org.opensearch.common.blobstore.stream.read.ReadContext;
 import org.opensearch.common.blobstore.stream.write.WriteContext;
 import org.opensearch.common.blobstore.stream.write.WritePriority;
-import org.opensearch.common.blobstore.transfer.RemoteTransferContainer;
 import org.opensearch.common.compress.DeflateCompressor;
 import org.opensearch.common.io.Streams;
 import org.opensearch.common.io.stream.BytesStreamOutput;
@@ -58,12 +55,10 @@ import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.gateway.remote.RemoteClusterStateService;
 import org.opensearch.index.translog.BufferedChecksumStreamOutput;
 import org.opensearch.repositories.blobstore.ChecksumBlobStoreFormat;
 import org.opensearch.test.OpenSearchTestCase;
 
-import javax.swing.*;
 import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
@@ -71,9 +66,13 @@ import java.nio.file.Path;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 
+import org.mockito.ArgumentCaptor;
+
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.greaterThan;
-import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 
 public class BlobStoreFormatTests extends OpenSearchTestCase {
 
@@ -163,9 +162,8 @@ public class BlobStoreFormatTests extends OpenSearchTestCase {
 
         verify(spyContainer, times(2)).asyncBlobUpload(writeContextArgumentCaptor.capture(), actionListenerArgumentCaptor.capture());
         assertEquals(2, writeContextArgumentCaptor.getAllValues().size());
-        writeContextArgumentCaptor.getAllValues().forEach(
-                writeContext -> assertEquals(WritePriority.NORMAL, writeContext.getWritePriority())
-        );
+        writeContextArgumentCaptor.getAllValues()
+            .forEach(writeContext -> assertEquals(WritePriority.NORMAL, writeContext.getWritePriority()));
         // Assert that all checksum blobs can be read
         assertEquals(checksumSMILE.read(mockBlobContainer.getDelegate(), "check-smile", xContentRegistry()).getText(), "checksum smile");
         assertEquals(
@@ -177,9 +175,9 @@ public class BlobStoreFormatTests extends OpenSearchTestCase {
     public void testBlobStorePriorityAsyncOperation() throws IOException, InterruptedException {
         BlobStore blobStore = createTestBlobStore();
         MockFsVerifyingBlobContainer mockBlobContainer = new MockFsVerifyingBlobContainer(
-                (FsBlobStore) blobStore,
-                BlobPath.cleanPath(),
-                null
+            (FsBlobStore) blobStore,
+            BlobPath.cleanPath(),
+            null
         );
         MockFsVerifyingBlobContainer spyContainer = spy(mockBlobContainer);
         ChecksumBlobStoreFormat<BlobObj> checksumSMILE = new ChecksumBlobStoreFormat<>(BLOB_CODEC, "%s", BlobObj::fromXContent);
@@ -190,12 +188,12 @@ public class BlobStoreFormatTests extends OpenSearchTestCase {
 
         // Write blobs in different formats
         checksumSMILE.urgentWriteAsync(
-                new BlobObj("cluster state diff"),
-                spyContainer,
-                "cluster-state-diff",
-                CompressorRegistry.none(),
-                getVoidActionListener(latch),
-                ChecksumBlobStoreFormat.SNAPSHOT_ONLY_FORMAT_PARAMS
+            new BlobObj("cluster state diff"),
+            spyContainer,
+            "cluster-state-diff",
+            CompressorRegistry.none(),
+            getVoidActionListener(latch),
+            ChecksumBlobStoreFormat.SNAPSHOT_ONLY_FORMAT_PARAMS
         );
         latch.await();
 
@@ -278,6 +276,7 @@ public class BlobStoreFormatTests extends OpenSearchTestCase {
 
         return actionListener;
     }
+
     protected BlobStore createTestBlobStore() throws IOException {
         return new FsBlobStore(randomIntBetween(1, 8) * 1024, createTempDir(), false);
     }
