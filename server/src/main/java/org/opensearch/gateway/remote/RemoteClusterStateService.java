@@ -568,7 +568,13 @@ public class RemoteClusterStateService implements Closeable {
     private void writeMetadataManifest(String clusterName, String clusterUUID, ClusterMetadataManifest uploadManifest, String fileName)
         throws IOException {
         final BlobContainer metadataManifestContainer = manifestContainer(clusterName, clusterUUID);
-        CLUSTER_METADATA_MANIFEST_FORMAT.write(uploadManifest, metadataManifestContainer, fileName, blobStoreRepository.getCompressor());
+        CLUSTER_METADATA_MANIFEST_FORMAT.write(
+            uploadManifest,
+            metadataManifestContainer,
+            fileName,
+            blobStoreRepository.getCompressor(),
+            FORMAT_PARAMS
+        );
     }
 
     private String fetchPreviousClusterUUID(String clusterName, String clusterUUID) {
