@@ -86,10 +86,12 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
+import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_INDEX_UUID;
@@ -761,6 +763,43 @@ public class GatewayMetaStatePersistedStateTests extends OpenSearchTestCase {
         remotePersistedState.setLastAcceptedState(thirdClusterState);
         remotePersistedState.markLastAcceptedStateAsCommitted();
         assertThat(remotePersistedState.getLastAcceptedState().metadata().clusterUUIDCommitted(), equalTo(true));
+    }
+
+    public void testRemotePersistedStateNotCommitted() throws IOException {
+        final RemoteClusterStateService remoteClusterStateService = Mockito.mock(RemoteClusterStateService.class);
+        final String previousClusterUUID = "prev-cluster-uuid";
+        final ClusterMetadataManifest manifest = ClusterMetadataManifest.builder()
+            .previousClusterUUID(previousClusterUUID)
+            .clusterTerm(1L)
+            .stateVersion(5L)
+            .build();
+        Mockito.when(remoteClusterStateService.getLatestClusterMetadataManifest(Mockito.any(), Mockito.any()))
+            .thenReturn(Optional.of(manifest));
+        Mockito.when(remoteClusterStateService.writeFullMetadata(Mockito.any(), Mockito.any())).thenReturn(manifest);
+
+        Mockito.when(remoteClusterStateService.writeIncrementalMetadata(Mockito.any(), Mockito.any(), Mockito.any())).thenReturn(manifest);
+        CoordinationState.PersistedState remotePersistedState = new RemotePersistedState(
+            remoteClusterStateService,
+            ClusterState.UNKNOWN_UUID
+        );
+
+        assertThat(remotePersistedState.getLastAcceptedState(), nullValue());
+        assertThat(remotePersistedState.getCurrentTerm(), equalTo(0L));
+
+        final long clusterTerm = randomNonNegativeLong();
+        ClusterState clusterState = createClusterState(
+            randomNonNegativeLong(),
+            Metadata.builder().coordinationMetadata(CoordinationMetadata.builder().term(clusterTerm).build()).build()
+        );
+        clusterState = ClusterState.builder(clusterState)
+            .metadata(Metadata.builder(clusterState.getMetadata()).clusterUUID(randomAlphaOfLength(10)).clusterUUIDCommitted(false).build())
+            .build();
+
+        remotePersistedState.setLastAcceptedState(clusterState);
+        ArgumentCaptor<String> previousClusterUUIDCaptor = ArgumentCaptor.forClass(String.class);
+        ArgumentCaptor<ClusterState> clusterStateCaptor = ArgumentCaptor.forClass(ClusterState.class);
+        Mockito.verify(remoteClusterStateService).writeFullMetadata(clusterStateCaptor.capture(), previousClusterUUIDCaptor.capture());
+        assertEquals(previousClusterUUID, previousClusterUUIDCaptor.getValue());
     }
 
     public void testRemotePersistedStateExceptionOnFullStateUpload() throws IOException {
