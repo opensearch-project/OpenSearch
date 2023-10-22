@@ -174,7 +174,9 @@ public class GatewayMetaState implements Closeable {
                             if (ClusterState.UNKNOWN_UUID.equals(lastKnownClusterUUID) == false) {
                                 // Load state from remote
                                 final RemoteRestoreResult remoteRestoreResult = remoteStoreRestoreService.restore(
-                                    clusterState,
+                                    // Remote Metadata should always override local disk Metadata
+                                    // if local disk Metadata's cluster uuid is UNKNOWN_UUID
+                                    ClusterState.builder(clusterState).metadata(Metadata.EMPTY_METADATA).build(),
                                     lastKnownClusterUUID,
                                     false,
                                     new String[] {}
@@ -549,6 +551,9 @@ public class GatewayMetaState implements Closeable {
             // out by this version of OpenSearch. TODO TBD should we avoid indexing when possible?
             final PersistedClusterStateService.Writer writer = persistedClusterStateService.createWriter();
             try {
+                // During remote state restore, there will be non empty metadata getting persisted with cluster UUID as
+                // ClusterState.UNKOWN_UUID . The valid UUID will be generated and persisted along with the first cluster state getting
+                // published.
                 writer.writeFullStateAndCommit(currentTerm, lastAcceptedState);
             } catch (Exception e) {
                 try {
