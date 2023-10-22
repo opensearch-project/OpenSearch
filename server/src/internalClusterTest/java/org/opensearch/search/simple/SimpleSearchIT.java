@@ -305,7 +305,12 @@ public class SimpleSearchIT extends ParameterizedStaticSettingsOpenSearchIntegTe
                 .setSize(size)
                 .setTrackTotalHits(true)
                 .get();
-            assertHitCount(searchResponse, i);
+
+            if (size == 0) {
+                assertHitCount(searchResponse, i, max);
+            } else {
+                assertHitCount(searchResponse, i);
+            }
             assertTrue(searchResponse.isTerminatedEarly());
             assertEquals(Math.min(i, size), searchResponse.getHits().getHits().length);
         }
@@ -319,7 +324,6 @@ public class SimpleSearchIT extends ParameterizedStaticSettingsOpenSearchIntegTe
         assertFalse(searchResponse.isTerminatedEarly());
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/10435")
     public void testSimpleTerminateAfterCountSize0() throws Exception {
         int max = randomIntBetween(3, 29);
         dotestSimpleTerminateAfterCountWithSize(0, max);
