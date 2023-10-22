@@ -951,6 +951,13 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
     }
 
     /**
+     * Ensures the cluster has a yellow state via the cluster health API.
+     */
+    public ClusterHealthStatus ensureYellow(TimeValue timeout, String... indices) {
+        return ensureColor(ClusterHealthStatus.YELLOW, timeout, false, indices);
+    }
+
+    /**
      * Ensures the cluster has a red state via the cluster health API.
      */
     public ClusterHealthStatus ensureRed(String... indices) {
