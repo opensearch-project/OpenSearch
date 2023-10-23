@@ -1028,7 +1028,7 @@ public class RemoteClusterStateService implements Closeable {
     }
 
     public void writeMetadataFailed() {
-        getRemoteClusterStateStats().stateFailed();
+        getStats().stateFailed();
     }
 
     /**
@@ -1236,7 +1236,7 @@ public class RemoteClusterStateService implements Closeable {
         });
     }
 
-    public RemotePersistenceStats getRemoteClusterStateStats() {
+    public RemotePersistenceStats getStats() {
         return remoteStateStats;
     }
 }

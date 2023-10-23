@@ -322,7 +322,7 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
             RemoteClusterStateService.IndexMetadataTransferException.class,
             () -> remoteClusterStateService.writeFullMetadata(clusterState, randomAlphaOfLength(10))
         );
-        assertEquals(0, remoteClusterStateService.getRemoteClusterStateStats().getSuccessCount());
+        assertEquals(0, remoteClusterStateService.getStats().getSuccessCount());
     }
 
     public void testFailWriteIncrementalMetadataNonClusterManagerNode() throws IOException {
@@ -330,7 +330,7 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
         remoteClusterStateService.start();
         final ClusterMetadataManifest manifest = remoteClusterStateService.writeIncrementalMetadata(clusterState, clusterState, null);
         Assert.assertThat(manifest, nullValue());
-        assertEquals(0, remoteClusterStateService.getRemoteClusterStateStats().getSuccessCount());
+        assertEquals(0, remoteClusterStateService.getStats().getSuccessCount());
     }
 
     public void testFailWriteIncrementalMetadataWhenTermChanged() {
@@ -997,10 +997,10 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
         remoteClusterStateService.start();
         final ClusterMetadataManifest manifest = remoteClusterStateService.writeFullMetadata(clusterState, "prev-cluster-uuid");
 
-        assertTrue(remoteClusterStateService.getRemoteClusterStateStats() != null);
-        assertEquals(1, remoteClusterStateService.getRemoteClusterStateStats().getSuccessCount());
-        assertEquals(0, remoteClusterStateService.getRemoteClusterStateStats().getCleanupAttemptFailedCount());
-        assertEquals(0, remoteClusterStateService.getRemoteClusterStateStats().getFailedCount());
+        assertTrue(remoteClusterStateService.getStats() != null);
+        assertEquals(1, remoteClusterStateService.getStats().getSuccessCount());
+        assertEquals(0, remoteClusterStateService.getStats().getCleanupAttemptFailedCount());
+        assertEquals(0, remoteClusterStateService.getStats().getFailedCount());
     }
 
     public void testRemoteStateCleanupFailureStats() throws IOException {
@@ -1014,9 +1014,9 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
         try {
             assertBusy(() -> {
                 // wait for stats to get updated
-                assertTrue(remoteClusterStateService.getRemoteClusterStateStats() != null);
-                assertEquals(0, remoteClusterStateService.getRemoteClusterStateStats().getSuccessCount());
-                assertEquals(1, remoteClusterStateService.getRemoteClusterStateStats().getCleanupAttemptFailedCount());
+                assertTrue(remoteClusterStateService.getStats() != null);
+                assertEquals(0, remoteClusterStateService.getStats().getSuccessCount());
+                assertEquals(1, remoteClusterStateService.getStats().getCleanupAttemptFailedCount());
             });
         } catch (Exception e) {
             throw new RuntimeException(e);

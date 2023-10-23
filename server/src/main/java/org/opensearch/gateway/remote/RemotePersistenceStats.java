@@ -19,11 +19,11 @@ import java.util.concurrent.atomic.AtomicLong;
  */
 public class RemotePersistenceStats extends PersistedStateStats {
     static final String CLEANUP_ATTEMPT_FAILED_COUNT = "cleanup_attempt_failed_count";
-    static final String REMOTE = "remote";
+    static final String REMOTE_UPLOAD = "remote_upload";
     private AtomicLong cleanupAttemptFailedCount = new AtomicLong(0);
 
     public RemotePersistenceStats() {
-        super(REMOTE);
+        super(REMOTE_UPLOAD);
         addToExtendedFields(CLEANUP_ATTEMPT_FAILED_COUNT, cleanupAttemptFailedCount);
     }
 
