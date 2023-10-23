@@ -32,8 +32,6 @@
 
 package org.opensearch.common.util.concurrent;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.opensearch.common.metrics.CounterMetric;
 import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 
@@ -46,8 +44,6 @@ import java.util.concurrent.ThreadPoolExecutor;
  * @opensearch.internal
  */
 public class OpenSearchAbortPolicy implements XRejectedExecutionHandler {
-    private static final Logger LOG = LogManager.getLogger(OpenSearchAbortPolicy.class);
-
     private final CounterMetric rejected = new CounterMetric();
 
     @Override
@@ -68,10 +64,6 @@ public class OpenSearchAbortPolicy implements XRejectedExecutionHandler {
             }
         }
         rejected.inc();
-        if (executor.isTerminating() || executor.isTerminated() || executor.isShutdown()) {
-            LOG.warn("Silently rejecting " + r + " due to shutdown executor shutdown");
-            return;
-        }
         throw new OpenSearchRejectedExecutionException("rejected execution of " + r + " on " + executor, executor.isShutdown());
     }
 
