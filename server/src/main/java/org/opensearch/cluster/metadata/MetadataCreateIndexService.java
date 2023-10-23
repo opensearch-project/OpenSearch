@@ -1252,6 +1252,8 @@ public class MetadataCreateIndexService {
         if (forbidPrivateIndexSettings) {
             validationErrors.addAll(validatePrivateSettingsNotExplicitlySet(settings, indexScopedSettings));
         }
+        Optional<String> error = validateIndexReplicationTypeSettings(settings, clusterService.getClusterSettings());
+        error.ifPresent(validationErrors::add);
         if (indexName.isEmpty() || indexName.get().charAt(0) != '.') {
             // Apply aware replica balance validation only to non system indices
             int replicaCount = settings.getAsInt(
@@ -1259,7 +1261,7 @@ public class MetadataCreateIndexService {
                 DEFAULT_REPLICA_COUNT_SETTING.get(this.clusterService.state().metadata().settings())
             );
             AutoExpandReplicas autoExpandReplica = AutoExpandReplicas.SETTING.get(settings);
-            Optional<String> error = awarenessReplicaBalance.validate(replicaCount, autoExpandReplica);
+            error = awarenessReplicaBalance.validate(replicaCount, autoExpandReplica);
             if (error.isPresent()) {
                 validationErrors.add(error.get());
             }
@@ -1304,6 +1306,24 @@ public class MetadataCreateIndexService {
             }
         }
         return validationErrors;
+    }
+
+    /**
+     * Validates {@code index.replication.type} is not set if {@code cluster.restrict.index.replication_type} is set to true.
+     *
+     * @param requestSettings settings passed in during index create request
+     * @param clusterSettings cluster setting
+     */
+    static Optional<String> validateIndexReplicationTypeSettings(Settings requestSettings, ClusterSettings clusterSettings) {
+        if (requestSettings.hasValue(SETTING_REPLICATION_TYPE) == false
+            || clusterSettings.get(IndicesService.CLUSTER_RESTRICT_INDEX_REPLICATION_TYPE_SETTING) == false) {
+            return Optional.empty();
+        }
+        return Optional.of(
+            "index setting [index.replication.type] is not allowed to be set as ["
+                + IndicesService.CLUSTER_RESTRICT_INDEX_REPLICATION_TYPE_SETTING.getKey()
+                + "=true]"
+        );
     }
 
     /**
