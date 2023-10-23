@@ -215,8 +215,7 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         } else {
             resourceUsageStats = null;
         }
-        // TODO: change to V_2_12_0 on main after backport to 2.x
-        if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
+        if (in.getVersion().onOrAfter(Version.V_2_12_0)) {
             segmentReplicationRejectionStats = in.readOptionalWriteable(SegmentReplicationRejectionStats::new);
         } else {
             segmentReplicationRejectionStats = null;
