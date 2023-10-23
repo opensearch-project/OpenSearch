@@ -2734,6 +2734,7 @@ public final class InternalTestCluster extends TestCluster {
                     false,
                     false,
                     false,
+                    false,
                     false
                 );
                 assertThat(

@@ -568,7 +568,13 @@ public class RemoteClusterStateService implements Closeable {
     private void writeMetadataManifest(String clusterName, String clusterUUID, ClusterMetadataManifest uploadManifest, String fileName)
         throws IOException {
         final BlobContainer metadataManifestContainer = manifestContainer(clusterName, clusterUUID);
-        CLUSTER_METADATA_MANIFEST_FORMAT.write(uploadManifest, metadataManifestContainer, fileName, blobStoreRepository.getCompressor());
+        CLUSTER_METADATA_MANIFEST_FORMAT.write(
+            uploadManifest,
+            metadataManifestContainer,
+            fileName,
+            blobStoreRepository.getCompressor(),
+            FORMAT_PARAMS
+        );
     }
 
     private String fetchPreviousClusterUUID(String clusterName, String clusterUUID) {
@@ -689,10 +695,11 @@ public class RemoteClusterStateService implements Closeable {
      * @return {@link IndexMetadata}
      */
     private IndexMetadata getIndexMetadata(String clusterName, String clusterUUID, UploadedIndexMetadata uploadedIndexMetadata) {
+        BlobContainer blobContainer = indexMetadataContainer(clusterName, clusterUUID, uploadedIndexMetadata.getIndexUUID());
         try {
             String[] splitPath = uploadedIndexMetadata.getUploadedFilename().split("/");
             return INDEX_METADATA_FORMAT.read(
-                indexMetadataContainer(clusterName, clusterUUID, uploadedIndexMetadata.getIndexUUID()),
+                blobContainer,
                 splitPath[splitPath.length - 1],
                 blobStoreRepository.getNamedXContentRegistry()
             );
@@ -885,7 +892,8 @@ public class RemoteClusterStateService implements Closeable {
                 }
             } else {
                 ClusterMetadataManifest previousManifest = trimmedUUIDs.get(currentManifest.getPreviousClusterUUID());
-                if (isMetadataEqual(currentManifest, previousManifest, clusterName)) {
+                if (isMetadataEqual(currentManifest, previousManifest, clusterName)
+                    && isGlobalMetadataEqual(currentManifest, previousManifest, clusterName)) {
                     trimmedUUIDs.remove(clusterUUID);
                 }
             }
@@ -913,6 +921,12 @@ public class RemoteClusterStateService implements Closeable {
             }
         }
         return true;
+    }
+
+    private boolean isGlobalMetadataEqual(ClusterMetadataManifest first, ClusterMetadataManifest second, String clusterName) {
+        Metadata secondGlobalMetadata = getGlobalMetadata(clusterName, second.getClusterUUID(), second);
+        Metadata firstGlobalMetadata = getGlobalMetadata(clusterName, first.getClusterUUID(), first);
+        return Metadata.isGlobalResourcesMetadataEquals(firstGlobalMetadata, secondGlobalMetadata);
     }
 
     private boolean isInvalidClusterUUID(ClusterMetadataManifest manifest) {
@@ -1075,7 +1089,8 @@ public class RemoteClusterStateService implements Closeable {
      * @param clusterUUID uuid of cluster state to refer to in remote
      * @param manifestsToRetain no of latest manifest files to keep in remote
      */
-    private void deleteStaleClusterMetadata(String clusterName, String clusterUUID, int manifestsToRetain) {
+    // package private for testing
+    void deleteStaleClusterMetadata(String clusterName, String clusterUUID, int manifestsToRetain) {
         if (deleteStaleMetadataRunning.compareAndSet(false, true) == false) {
             logger.info("Delete stale cluster metadata task is already in progress.");
             return;
@@ -1112,8 +1127,9 @@ public class RemoteClusterStateService implements Closeable {
                     }
                 }
             );
-        } finally {
+        } catch (Exception e) {
             deleteStaleMetadataRunning.set(false);
+            throw e;
         }
     }
 
@@ -1193,7 +1209,7 @@ public class RemoteClusterStateService implements Closeable {
     public void deleteStaleClusterUUIDs(ClusterState clusterState, ClusterMetadataManifest committedManifest) {
         threadpool.executor(ThreadPool.Names.REMOTE_PURGE).execute(() -> {
             String clusterName = clusterState.getClusterName().value();
-            logger.info("Deleting stale cluster UUIDs data from remote [{}]", clusterName);
+            logger.debug("Deleting stale cluster UUIDs data from remote [{}]", clusterName);
             Set<String> allClustersUUIDsInRemote;
             try {
                 allClustersUUIDsInRemote = new HashSet<>(getAllClusterUUIDs(clusterState.getClusterName().value()));

@@ -215,6 +215,7 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
         TASK_CANCELLATION("task_cancellation"),
         SEARCH_PIPELINE("search_pipeline"),
         RESOURCE_USAGE_STATS("resource_usage_stats"),
+        SEGMENT_REPLICATION_BACKPRESSURE("segment_replication_backpressure"),
         REPOSITORIES("repositories");
 
         private String metricName;
