@@ -32,6 +32,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.gateway.remote.ClusterMetadataManifest;
 import org.opensearch.gateway.remote.RemoteClusterStateService;
 import org.opensearch.indices.ShardLimitValidator;
 import org.opensearch.repositories.IndexId;
@@ -149,7 +150,24 @@ public class RemoteStoreRestoreService {
                 if (currentState.metadata().clusterUUID().equals(restoreClusterUUID)) {
                     throw new IllegalArgumentException("clusterUUID to restore from should be different from current cluster UUID");
                 }
-                remoteMetadata = remoteClusterStateService.getLatestMetadata(currentState.getClusterName().value(), restoreClusterUUID);
+                Optional<ClusterMetadataManifest> clusterMetadataManifest = remoteClusterStateService.getLatestClusterMetadataManifest(
+                    currentState.getClusterName().value(),
+                    restoreClusterUUID
+                );
+                if (clusterMetadataManifest.isEmpty()) {
+                    throw new IllegalStateException(
+                        String.format(
+                            Locale.ROOT,
+                            "Latest cluster metadata manifest is not present for the provided clusterUUID: %s",
+                            restoreClusterUUID
+                        )
+                    );
+                }
+                remoteMetadata = remoteClusterStateService.getLatestMetadata(
+                    currentState.getClusterName().value(),
+                    restoreClusterUUID,
+                    clusterMetadataManifest.get()
+                );
                 remoteMetadata.getIndices().values().forEach(indexMetadata -> {
                     indexMetadataMap.put(indexMetadata.getIndex().getName(), new Tuple<>(true, indexMetadata));
                 });
@@ -255,6 +273,7 @@ public class RemoteStoreRestoreService {
     }
 
     private void restoreGlobalMetadata(Metadata.Builder mdBuilder, Metadata remoteMetadata) {
+        mdBuilder.version(remoteMetadata.version());
         if (remoteMetadata.persistentSettings() != null) {
             Settings settings = remoteMetadata.persistentSettings();
             clusterService.getClusterSettings().validateUpdate(settings);

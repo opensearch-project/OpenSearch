@@ -21,7 +21,9 @@ import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
@@ -90,9 +92,24 @@ public class RemoteClusterStateServiceIT extends RemoteStoreBaseIntegTestCase {
 
         assertEquals(10, repository.blobStore().blobContainer(baseMetadataPath.add("manifest")).listBlobsByPrefix("manifest").size());
 
+        Optional<ClusterMetadataManifest> clusterMetadataManifest = remoteClusterStateService.getLatestClusterMetadataManifest(
+            clusterService().state().getClusterName().value(),
+            getClusterState().metadata().clusterUUID()
+        );
+        if (clusterMetadataManifest.isEmpty()) {
+            throw new IllegalStateException(
+                String.format(
+                    Locale.ROOT,
+                    "Latest cluster metadata manifest is not present for the provided clusterUUID: %s",
+                    getClusterState().metadata().clusterUUID()
+                )
+            );
+        }
+
         Map<String, IndexMetadata> indexMetadataMap = remoteClusterStateService.getLatestMetadata(
             cluster().getClusterName(),
-            getClusterState().metadata().clusterUUID()
+            getClusterState().metadata().clusterUUID(),
+            clusterMetadataManifest.get()
         ).getIndices();
         assertEquals(0, indexMetadataMap.values().stream().findFirst().get().getNumberOfReplicas());
         assertEquals(shardCount, indexMetadataMap.values().stream().findFirst().get().getNumberOfShards());
