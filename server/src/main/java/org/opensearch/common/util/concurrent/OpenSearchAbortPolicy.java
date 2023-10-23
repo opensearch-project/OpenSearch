@@ -69,7 +69,7 @@ public class OpenSearchAbortPolicy implements XRejectedExecutionHandler {
         }
         rejected.inc();
         if (executor.isTerminating() || executor.isTerminated() || executor.isShutdown()) {
-            LOG.warn("Silently rejecting " + r + " due to shutdown on " + executor);
+            LOG.warn("Silently rejecting " + r + " due to shutdown executor shutdown");
             return;
         }
         throw new OpenSearchRejectedExecutionException("rejected execution of " + r + " on " + executor, executor.isShutdown());
