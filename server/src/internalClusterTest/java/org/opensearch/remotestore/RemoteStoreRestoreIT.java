@@ -19,14 +19,12 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.core.common.unit.ByteSizeUnit;
-import org.opensearch.core.util.FileSystemUtils;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.Repository;
 import org.opensearch.test.InternalTestCluster;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.io.IOException;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.Locale;
@@ -34,7 +32,6 @@ import java.util.Map;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_REPOSITORY_SETTINGS_ATTRIBUTE_KEY_PREFIX;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
@@ -269,7 +266,6 @@ public class RemoteStoreRestoreIT extends BaseRemoteStoreRestoreIT {
             TimeUnit.SECONDS
         );
     }
-
 
     public void testRestoreFlowWithForceEmptyTranslog() throws Exception {
         prepareCluster(1, 3, INDEX_NAME, 0, 1);
