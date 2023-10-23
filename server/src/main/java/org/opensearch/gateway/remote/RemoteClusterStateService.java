@@ -1011,7 +1011,7 @@ public class RemoteClusterStateService implements Closeable {
     }
 
     public void writeMetadataFailed() {
-        remoteStateStats.stateFailed();
+        getRemoteClusterStateStats().stateFailed();
     }
 
     /**
@@ -1048,7 +1048,7 @@ public class RemoteClusterStateService implements Closeable {
      * @param clusterName name of the cluster
      * @param clusterUUIDs clusteUUIDs for which the remote state needs to be purged
      */
-    private void deleteStaleUUIDsClusterMetadata(String clusterName, List<String> clusterUUIDs) {
+    void deleteStaleUUIDsClusterMetadata(String clusterName, List<String> clusterUUIDs) {
         clusterUUIDs.forEach(clusterUUID -> {
             getBlobStoreTransferService().deleteAsync(
                 ThreadPool.Names.REMOTE_PURGE,

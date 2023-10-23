@@ -68,7 +68,7 @@ public class PersistedStateStats implements Writeable, ToXContentObject {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(statsName);
-        builder.field(Fields.UPDATE_COUNT, getSuccessCount());
+        builder.field(Fields.SUCCESS_COUNT, getSuccessCount());
         builder.field(Fields.FAILED_COUNT, getFailedCount());
         builder.field(Fields.TOTAL_TIME_IN_MILLIS, getTotalTimeInMillis());
         if (extendedFields.size() > 0) {
@@ -119,7 +119,7 @@ public class PersistedStateStats implements Writeable, ToXContentObject {
      * @opensearch.internal
      */
     static final class Fields {
-        static final String UPDATE_COUNT = "update_count";
+        static final String SUCCESS_COUNT = "success_count";
         static final String TOTAL_TIME_IN_MILLIS = "total_time_in_millis";
         static final String FAILED_COUNT = "failed_count";
     }

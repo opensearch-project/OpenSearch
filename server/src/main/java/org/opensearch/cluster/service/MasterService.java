@@ -1001,7 +1001,7 @@ public class MasterService extends AbstractLifecycleComponent {
         }
     }
 
-    public ClusterStateStats getStateStats() {
+    public ClusterStateStats getClusterStateStats() {
         return stateStats;
     }
 
