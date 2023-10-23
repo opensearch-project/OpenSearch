@@ -8,6 +8,7 @@
 
 package org.opensearch.action.admin.cluster.remotestore.restore;
 
+import org.opensearch.Version;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.action.support.clustermanager.ClusterManagerNodeRequest;
@@ -37,6 +38,7 @@ public class RestoreRemoteStoreRequest extends ClusterManagerNodeRequest<Restore
     private String[] indices = Strings.EMPTY_ARRAY;
     private Boolean waitForCompletion = false;
     private Boolean restoreAllShards = false;
+    private Boolean forceEmptyTranslog = false;
 
     public RestoreRemoteStoreRequest() {}
 
@@ -45,6 +47,9 @@ public class RestoreRemoteStoreRequest extends ClusterManagerNodeRequest<Restore
         indices = in.readStringArray();
         waitForCompletion = in.readOptionalBoolean();
         restoreAllShards = in.readOptionalBoolean();
+        if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
+            forceEmptyTranslog = in.readOptionalBoolean();
+        }
     }
 
     @Override
@@ -53,6 +58,9 @@ public class RestoreRemoteStoreRequest extends ClusterManagerNodeRequest<Restore
         out.writeStringArray(indices);
         out.writeOptionalBoolean(waitForCompletion);
         out.writeOptionalBoolean(restoreAllShards);
+        if (out.getVersion().onOrAfter(Version.V_3_0_0)) {
+            out.writeOptionalBoolean(forceEmptyTranslog);
+        }
     }
 
     @Override
@@ -143,6 +151,27 @@ public class RestoreRemoteStoreRequest extends ClusterManagerNodeRequest<Restore
     }
 
     /**
+     * Set the value for forceEmptyTranslog, denoting whether to create empty translog if remote translog does not have any data.
+     *
+     * @param forceEmptyTranslog If true and if remote translog does not have any data, the operation will create empty translog on local
+     *                           If false, the operation will always try to fetch data from remote translog and will fail if remote translog is empty.
+     * @return this request
+     */
+    public RestoreRemoteStoreRequest forceEmptyTranslog(boolean forceEmptyTranslog) {
+        this.forceEmptyTranslog = forceEmptyTranslog;
+        return this;
+    }
+
+    /**
+     * Returns forceEmptyTranslog setting
+     *
+     * @return true if the operation will create empty translog on local when remote translog is empty
+     */
+    public boolean forceEmptyTranslog() {
+        return forceEmptyTranslog;
+    }
+
+    /**
      * Parses restore definition
      *
      * @param source restore definition
@@ -193,12 +222,13 @@ public class RestoreRemoteStoreRequest extends ClusterManagerNodeRequest<Restore
         RestoreRemoteStoreRequest that = (RestoreRemoteStoreRequest) o;
         return waitForCompletion == that.waitForCompletion
             && restoreAllShards == that.restoreAllShards
+            && forceEmptyTranslog == that.forceEmptyTranslog
             && Arrays.equals(indices, that.indices);
     }
 
     @Override
     public int hashCode() {
-        int result = Objects.hash(waitForCompletion, restoreAllShards);
+        int result = Objects.hash(waitForCompletion, restoreAllShards, forceEmptyTranslog);
         result = 31 * result + Arrays.hashCode(indices);
         return result;
     }

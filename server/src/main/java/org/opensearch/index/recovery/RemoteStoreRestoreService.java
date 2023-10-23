@@ -99,7 +99,13 @@ public class RemoteStoreRestoreService {
 
             @Override
             public ClusterState execute(ClusterState currentState) {
-                RemoteRestoreResult remoteRestoreResult = restore(currentState, null, request.restoreAllShards(), request.indices());
+                RemoteRestoreResult remoteRestoreResult = restore(
+                    currentState,
+                    null,
+                    request.restoreAllShards(),
+                    request.forceEmptyTranslog(),
+                    request.indices()
+                );
                 restoreUUID = remoteRestoreResult.getRestoreUUID();
                 restoreInfo = remoteRestoreResult.getRestoreInfo();
                 return remoteRestoreResult.getClusterState();
@@ -135,6 +141,7 @@ public class RemoteStoreRestoreService {
         ClusterState currentState,
         @Nullable String restoreClusterUUID,
         boolean restoreAllShards,
+        boolean forceEmptyTranslog,
         String[] indexNames
     ) {
         Map<String, Tuple<Boolean, IndexMetadata>> indexMetadataMap = new HashMap<>();
@@ -176,7 +183,7 @@ public class RemoteStoreRestoreService {
                 }
             }
         }
-        return executeRestore(currentState, indexMetadataMap, restoreAllShards, remoteMetadata);
+        return executeRestore(currentState, indexMetadataMap, restoreAllShards, remoteMetadata, forceEmptyTranslog);
     }
 
     /**
@@ -190,7 +197,8 @@ public class RemoteStoreRestoreService {
         ClusterState currentState,
         Map<String, Tuple<Boolean, IndexMetadata>> indexMetadataMap,
         boolean restoreAllShards,
-        Metadata remoteMetadata
+        Metadata remoteMetadata,
+        boolean forceEmptyTranslog
     ) {
         final String restoreUUID = UUIDs.randomBase64UUID();
         List<String> indicesToBeRestored = new ArrayList<>();
@@ -228,7 +236,8 @@ public class RemoteStoreRestoreService {
                 RecoverySource.RemoteStoreRecoverySource recoverySource = new RecoverySource.RemoteStoreRecoverySource(
                     restoreUUID,
                     updatedIndexMetadata.getCreationVersion(),
-                    indexId
+                    indexId,
+                    forceEmptyTranslog
                 );
 
                 rtBuilder.addAsRemoteStoreRestore(updatedIndexMetadata, recoverySource, indexShardRoutingTableMap, restoreAllShards);

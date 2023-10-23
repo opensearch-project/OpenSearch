@@ -179,6 +179,7 @@ public class GatewayMetaState implements Closeable {
                                     ClusterState.builder(clusterState).metadata(Metadata.EMPTY_METADATA).build(),
                                     lastKnownClusterUUID,
                                     false,
+                                    false,
                                     new String[] {}
                                 );
                                 clusterState = remoteRestoreResult.getClusterState();

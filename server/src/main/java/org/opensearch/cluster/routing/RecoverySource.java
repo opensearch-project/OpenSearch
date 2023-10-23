@@ -419,17 +419,28 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
         private final String restoreUUID;
         private final IndexId index;
         private final Version version;
+        private final boolean forceEmptyTranslog;
 
         public RemoteStoreRecoverySource(String restoreUUID, Version version, IndexId indexId) {
+            this(restoreUUID, version, indexId, false);
+        }
+
+        public RemoteStoreRecoverySource(String restoreUUID, Version version, IndexId indexId, boolean forceEmptyTranslog) {
             this.restoreUUID = restoreUUID;
             this.version = Objects.requireNonNull(version);
             this.index = Objects.requireNonNull(indexId);
+            this.forceEmptyTranslog = forceEmptyTranslog;
         }
 
         RemoteStoreRecoverySource(StreamInput in) throws IOException {
             restoreUUID = in.readString();
             version = in.readVersion();
             index = new IndexId(in);
+            if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
+                forceEmptyTranslog = in.readBoolean();
+            } else {
+                forceEmptyTranslog = false;
+            }
         }
 
         public String restoreUUID() {
@@ -450,11 +461,18 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
             return version;
         }
 
+        public boolean forceEmptyTranslog() {
+            return forceEmptyTranslog;
+        }
+
         @Override
         protected void writeAdditionalFields(StreamOutput out) throws IOException {
             out.writeString(restoreUUID);
             out.writeVersion(version);
             index.writeTo(out);
+            if (out.getVersion().onOrAfter(Version.V_3_0_0)) {
+                out.writeBoolean(forceEmptyTranslog);
+            }
         }
 
         @Override
@@ -464,7 +482,10 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
 
         @Override
         public void addAdditionalFields(XContentBuilder builder, ToXContent.Params params) throws IOException {
-            builder.field("version", version.toString()).field("index", index.getName()).field("restoreUUID", restoreUUID);
+            builder.field("version", version.toString())
+                .field("index", index.getName())
+                .field("restoreUUID", restoreUUID)
+                .field("forceEmptyTranslog", forceEmptyTranslog);
         }
 
         @Override
@@ -482,12 +503,15 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
             }
 
             RemoteStoreRecoverySource that = (RemoteStoreRecoverySource) o;
-            return restoreUUID.equals(that.restoreUUID) && index.equals(that.index) && version.equals(that.version);
+            return restoreUUID.equals(that.restoreUUID)
+                && index.equals(that.index)
+                && version.equals(that.version)
+                && forceEmptyTranslog == that.forceEmptyTranslog;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(restoreUUID, index, version);
+            return Objects.hash(restoreUUID, index, version, forceEmptyTranslog);
         }
 
         // TODO: This override should be removed/be updated to return "true",

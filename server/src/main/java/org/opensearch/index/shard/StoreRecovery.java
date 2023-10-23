@@ -76,6 +76,7 @@ import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.nio.channels.FileChannel;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.util.Arrays;
@@ -538,15 +539,23 @@ final class StoreRecovery {
             indexShard.syncSegmentsFromRemoteSegmentStore(true);
             indexShard.syncTranslogFilesFromRemoteTranslog();
 
+            Path location = indexShard.shardPath().resolveTranslog();
+
             // On index creation, the only segment file that is created is segments_N. We can safely discard this file
             // as there is no data associated with this shard as part of segments.
-            if (store.directory().listAll().length <= 1) {
-                Path location = indexShard.shardPath().resolveTranslog();
+            boolean remoteSegmentEmpty = store.directory().listAll().length <= 1;
+            boolean remoteTranslogEmpty = Files.exists(location.resolve(CHECKPOINT_FILE_NAME)) == false;
+
+            if (remoteSegmentEmpty && remoteTranslogEmpty == false) {
                 Checkpoint checkpoint = Checkpoint.read(location.resolve(CHECKPOINT_FILE_NAME));
                 final Path translogFile = location.resolve(Translog.getFilename(checkpoint.getGeneration()));
                 try (FileChannel channel = FileChannel.open(translogFile, StandardOpenOption.READ)) {
                     TranslogHeader translogHeader = TranslogHeader.read(translogFile, channel);
                     store.createEmpty(indexShard.indexSettings().getIndexVersionCreated().luceneVersion, translogHeader.getTranslogUUID());
+                }
+            } else if (remoteSegmentEmpty == false && remoteTranslogEmpty) {
+                if (((RecoverySource.RemoteStoreRecoverySource) indexShard.shardRouting.recoverySource()).forceEmptyTranslog()) {
+                    bootstrap(indexShard, store);
                 }
             }
 
