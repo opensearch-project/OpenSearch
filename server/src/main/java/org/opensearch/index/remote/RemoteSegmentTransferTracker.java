@@ -27,6 +27,7 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 
@@ -67,6 +68,12 @@ public class RemoteSegmentTransferTracker extends RemoteTransferTracker {
     private volatile long remoteRefreshTimeMs;
 
     /**
+     * This is the time of first local refresh after the last successful remote refresh. When the remote store is in
+     * sync with local refresh, this will be reset to -1.
+     */
+    private volatile long remoteRefreshStartTimeMs = -1;
+
+    /**
      * The refresh time(clock) of most recent remote refresh.
      */
     private volatile long remoteRefreshClockTimeMs;
@@ -75,11 +82,6 @@ public class RemoteSegmentTransferTracker extends RemoteTransferTracker {
      * Keeps the seq no lag computed so that we do not compute it for every request.
      */
     private volatile long refreshSeqNoLag;
-
-    /**
-     * Keeps the time (ms) lag computed so that we do not compute it for every request.
-     */
-    private volatile long timeMsLag;
 
     /**
      * Keeps track of the total bytes of segment files which were uploaded to remote store during last successful remote refresh
@@ -132,12 +134,17 @@ public class RemoteSegmentTransferTracker extends RemoteTransferTracker {
         logger = Loggers.getLogger(getClass(), shardId);
         // Both the local refresh time and remote refresh time are set with current time to give consistent view of time lag when it arises.
         long currentClockTimeMs = System.currentTimeMillis();
-        long currentTimeMs = System.nanoTime() / 1_000_000L;
+        long currentTimeMs = currentTimeMsUsingSystemNanos();
         localRefreshTimeMs = currentTimeMs;
         remoteRefreshTimeMs = currentTimeMs;
+        remoteRefreshStartTimeMs = currentTimeMs;
         localRefreshClockTimeMs = currentClockTimeMs;
         remoteRefreshClockTimeMs = currentClockTimeMs;
         this.directoryFileTransferTracker = directoryFileTransferTracker;
+    }
+
+    public static long currentTimeMsUsingSystemNanos() {
+        return TimeUnit.NANOSECONDS.toMillis(System.nanoTime());
     }
 
     @Override
@@ -180,19 +187,22 @@ public class RemoteSegmentTransferTracker extends RemoteTransferTracker {
      */
     public void updateLocalRefreshTimeAndSeqNo() {
         updateLocalRefreshClockTimeMs(System.currentTimeMillis());
-        updateLocalRefreshTimeMs(System.nanoTime() / 1_000_000L);
+        updateLocalRefreshTimeMs(currentTimeMsUsingSystemNanos());
         updateLocalRefreshSeqNo(getLocalRefreshSeqNo() + 1);
     }
 
     // Visible for testing
-    void updateLocalRefreshTimeMs(long localRefreshTimeMs) {
+    synchronized void updateLocalRefreshTimeMs(long localRefreshTimeMs) {
         assert localRefreshTimeMs >= this.localRefreshTimeMs : "newLocalRefreshTimeMs="
             + localRefreshTimeMs
             + " < "
             + "currentLocalRefreshTimeMs="
             + this.localRefreshTimeMs;
+        boolean isRemoteInSyncBeforeLocalRefresh = this.localRefreshTimeMs == this.remoteRefreshTimeMs;
         this.localRefreshTimeMs = localRefreshTimeMs;
-        computeTimeMsLag();
+        if (isRemoteInSyncBeforeLocalRefresh) {
+            this.remoteRefreshStartTimeMs = localRefreshTimeMs;
+        }
     }
 
     private void updateLocalRefreshClockTimeMs(long localRefreshClockTimeMs) {
@@ -221,14 +231,18 @@ public class RemoteSegmentTransferTracker extends RemoteTransferTracker {
         return remoteRefreshClockTimeMs;
     }
 
-    public void updateRemoteRefreshTimeMs(long remoteRefreshTimeMs) {
-        assert remoteRefreshTimeMs >= this.remoteRefreshTimeMs : "newRemoteRefreshTimeMs="
-            + remoteRefreshTimeMs
+    public synchronized void updateRemoteRefreshTimeMs(long refreshTimeMs) {
+        assert refreshTimeMs >= this.remoteRefreshTimeMs : "newRemoteRefreshTimeMs="
+            + refreshTimeMs
             + " < "
             + "currentRemoteRefreshTimeMs="
             + this.remoteRefreshTimeMs;
-        this.remoteRefreshTimeMs = remoteRefreshTimeMs;
-        computeTimeMsLag();
+        this.remoteRefreshTimeMs = refreshTimeMs;
+        // When multiple refreshes have failed, there is a possibility that retry is ongoing while another refresh gets
+        // triggered. After the segments have been uploaded and before the below code runs, the updateLocalRefreshTimeAndSeqNo
+        // method is triggered, which will update the local localRefreshTimeMs. Now, the lag would basically become the
+        // time since the last refresh happened locally.
+        this.remoteRefreshStartTimeMs = refreshTimeMs == this.localRefreshTimeMs ? -1 : this.localRefreshTimeMs;
     }
 
     public void updateRemoteRefreshClockTimeMs(long remoteRefreshClockTimeMs) {
@@ -243,12 +257,11 @@ public class RemoteSegmentTransferTracker extends RemoteTransferTracker {
         return refreshSeqNoLag;
     }
 
-    private void computeTimeMsLag() {
-        timeMsLag = localRefreshTimeMs - remoteRefreshTimeMs;
-    }
-
     public long getTimeMsLag() {
-        return timeMsLag;
+        if (remoteRefreshTimeMs == localRefreshTimeMs) {
+            return 0;
+        }
+        return currentTimeMsUsingSystemNanos() - remoteRefreshStartTimeMs;
     }
 
     public long getBytesLag() {
@@ -354,7 +367,7 @@ public class RemoteSegmentTransferTracker extends RemoteTransferTracker {
             shardId,
             localRefreshClockTimeMs,
             remoteRefreshClockTimeMs,
-            timeMsLag,
+            getTimeMsLag(),
             localRefreshSeqNo,
             remoteRefreshSeqNo,
             uploadBytesStarted.get(),

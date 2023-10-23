@@ -2034,4 +2034,8 @@ public abstract class Translog extends AbstractIndexShardComponent implements In
         writer.close();
         return uuid;
     }
+
+    public long getMinUnreferencedSeqNoInSegments(long minUnrefCheckpointInLastCommit) {
+        return minUnrefCheckpointInLastCommit;
+    }
 }

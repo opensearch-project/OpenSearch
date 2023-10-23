@@ -68,7 +68,6 @@ import org.opensearch.index.recovery.RemoteStoreRestoreService;
 import org.opensearch.index.recovery.RemoteStoreRestoreService.RemoteRestoreResult;
 import org.opensearch.node.Node;
 import org.opensearch.plugins.MetadataUpgrader;
-import org.opensearch.repositories.RepositoryMissingException;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
@@ -176,7 +175,9 @@ public class GatewayMetaState implements Closeable {
                             if (ClusterState.UNKNOWN_UUID.equals(lastKnownClusterUUID) == false) {
                                 // Load state from remote
                                 final RemoteRestoreResult remoteRestoreResult = remoteStoreRestoreService.restore(
-                                    clusterState,
+                                    // Remote Metadata should always override local disk Metadata
+                                    // if local disk Metadata's cluster uuid is UNKNOWN_UUID
+                                    ClusterState.builder(clusterState).metadata(Metadata.EMPTY_METADATA).build(),
                                     lastKnownClusterUUID,
                                     false,
                                     new String[] {}
@@ -551,6 +552,9 @@ public class GatewayMetaState implements Closeable {
             // out by this version of OpenSearch. TODO TBD should we avoid indexing when possible?
             final PersistedClusterStateService.Writer writer = persistedClusterStateService.createWriter();
             try {
+                // During remote state restore, there will be non empty metadata getting persisted with cluster UUID as
+                // ClusterState.UNKOWN_UUID . The valid UUID will be generated and persisted along with the first cluster state getting
+                // published.
                 writer.writeFullStateAndCommit(currentTerm, lastAcceptedState);
             } catch (Exception e) {
                 try {
@@ -718,12 +722,6 @@ public class GatewayMetaState implements Closeable {
                 }
                 assert verifyManifestAndClusterState(manifest, clusterState) == true : "Manifest and ClusterState are not in sync";
                 lastAcceptedManifest = manifest;
-                lastAcceptedState = clusterState;
-            } catch (RepositoryMissingException e) {
-                // TODO This logic needs to be modified once PR for repo registration during bootstrap is pushed
-                // https://github.com/opensearch-project/OpenSearch/pull/9105/
-                // After the above PR is pushed, we can remove this silent failure and throw the exception instead.
-                logger.error("Remote repository is not yet registered");
                 lastAcceptedState = clusterState;
             } catch (Exception e) {
                 remoteClusterStateService.writeMetadataFailed();

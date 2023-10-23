@@ -627,6 +627,39 @@ public class MetadataTests extends OpenSearchTestCase {
         assertFalse(Metadata.isGlobalStateEquals(metadata1, metadata2));
     }
 
+    public void testGlobalResourcesStateEqualsCoordinationMetadata() {
+        CoordinationMetadata coordinationMetadata1 = new CoordinationMetadata(
+            randomNonNegativeLong(),
+            randomVotingConfig(),
+            randomVotingConfig(),
+            randomVotingConfigExclusions()
+        );
+        Metadata metadata1 = Metadata.builder()
+            .coordinationMetadata(coordinationMetadata1)
+            .clusterUUID(randomAlphaOfLength(10))
+            .clusterUUIDCommitted(false)
+            .hashesOfConsistentSettings(Map.of("a", "b"))
+            .persistentSettings(Settings.builder().put(Metadata.SETTING_READ_ONLY_SETTING.getKey(), true).build())
+            .build();
+        CoordinationMetadata coordinationMetadata2 = new CoordinationMetadata(
+            randomNonNegativeLong(),
+            randomVotingConfig(),
+            randomVotingConfig(),
+            randomVotingConfigExclusions()
+        );
+        Metadata metadata2 = Metadata.builder()
+            .coordinationMetadata(coordinationMetadata2)
+            .clusterUUIDCommitted(true)
+            .clusterUUID(randomAlphaOfLength(11))
+            .hashesOfConsistentSettings(Map.of("b", "a"))
+            .persistentSettings(Settings.builder().put(Metadata.SETTING_READ_ONLY_SETTING.getKey(), true).build())
+            .build();
+
+        assertTrue(Metadata.isGlobalStateEquals(metadata1, metadata1));
+        assertFalse(Metadata.isGlobalStateEquals(metadata1, metadata2));
+        assertTrue(Metadata.isGlobalResourcesMetadataEquals(metadata1, metadata2));
+    }
+
     public void testSerializationWithIndexGraveyard() throws IOException {
         final IndexGraveyard graveyard = IndexGraveyardTests.createRandom();
         final Metadata originalMeta = Metadata.builder().indexGraveyard(graveyard).build();

@@ -38,13 +38,16 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.transport.TransportAddress;
+import org.opensearch.node.remotestore.RemoteStoreNodeAttribute;
 import org.opensearch.test.NodeRoles;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.net.InetAddress;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -79,6 +82,22 @@ public class DiscoveryNodeTests extends OpenSearchTestCase {
             previous = current;
         }
 
+    }
+
+    public void testRemoteStoreRedactionInToString() {
+        final Set<DiscoveryNodeRole> roles = new HashSet<>(randomSubsetOf(DiscoveryNodeRole.BUILT_IN_ROLES));
+        Map<String, String> attributes = new HashMap<>();
+        attributes.put(RemoteStoreNodeAttribute.REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY, "test-repo");
+        attributes.put(RemoteStoreNodeAttribute.REMOTE_STORE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEY, "test-repo");
+        final DiscoveryNode node = new DiscoveryNode(
+            "name",
+            "id",
+            new TransportAddress(TransportAddress.META_ADDRESS, 9200),
+            attributes,
+            roles,
+            Version.CURRENT
+        );
+        assertFalse(node.toString().contains(RemoteStoreNodeAttribute.REMOTE_STORE_NODE_ATTRIBUTE_KEY_PREFIX));
     }
 
     public void testDiscoveryNodeIsCreatedWithHostFromInetAddress() throws Exception {
