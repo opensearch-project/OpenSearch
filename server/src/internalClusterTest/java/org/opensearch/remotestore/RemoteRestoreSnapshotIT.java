@@ -357,8 +357,7 @@ public class RemoteRestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
 
     public void testRemoteRestoreIndexRestoredFromSnapshot() throws IOException, ExecutionException, InterruptedException {
         internalCluster().startClusterManagerOnlyNode();
-        internalCluster().startDataOnlyNode();
-        internalCluster().startDataOnlyNode();
+        internalCluster().startDataOnlyNodes(2);
 
         String indexName1 = "testindex1";
         String snapshotRepoName = "test-restore-snapshot-repo";
@@ -395,6 +394,24 @@ public class RemoteRestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
         assertEquals(restoreSnapshotResponse1.status(), RestStatus.ACCEPTED);
         ensureGreen(indexName1);
         assertDocsPresentInIndex(client(), indexName1, numDocsInIndex1);
+
+        // Make sure remote translog is empty
+        String indexUUID = client().admin()
+            .indices()
+            .prepareGetSettings(indexName1)
+            .get()
+            .getSetting(indexName1, IndexMetadata.SETTING_INDEX_UUID);
+
+        Path remoteTranslogMetadataPath = Path.of(String.valueOf(remoteRepoPath), indexUUID, "/0/translog/metadata");
+        Path remoteTranslogDataPath = Path.of(String.valueOf(remoteRepoPath), indexUUID, "/0/translog/data");
+
+        try (
+            Stream<Path> translogMetadata = Files.list(remoteTranslogMetadataPath);
+            Stream<Path> translogData = Files.list(remoteTranslogDataPath)
+        ) {
+            assertTrue(translogData.count() > 0);
+            assertTrue(translogMetadata.count() > 0);
+        }
 
         // Clear the local data before stopping the node. This will make sure that remote translog is empty.
         IndexShard indexShard = getIndexShard(primaryNodeName(indexName1), indexName1);
