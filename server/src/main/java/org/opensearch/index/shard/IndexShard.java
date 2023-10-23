@@ -3403,7 +3403,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             try {
                 getEngine().translogManager().syncTranslog();
             } catch (IOException e) {
-                throw new IllegalStateException("Failed to sync translog to remote from new primary", e);
+                logger.error("Failed to sync translog to remote from new primary", e);
             }
         }
         ensurePeerRecoveryRetentionLeasesExist();
