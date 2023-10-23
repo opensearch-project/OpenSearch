@@ -647,8 +647,6 @@ public class RemoteStoreStatsIT extends RemoteStoreBaseIntegTestCase {
         assertEquals(0, segmentStats.refreshTimeLagMs);
 
         networkDisruption.stopDisrupting();
-        // assertBusy(() -> assertEquals(ClusterHealthStatus.GREEN, ensureYellow(TimeValue.timeValueSeconds(1), INDEX_NAME)), 120,
-        // TimeUnit.SECONDS);
         internalCluster().clearDisruptionScheme();
         ensureStableCluster(3, clusterManagerNode);
         ensureGreen(INDEX_NAME);

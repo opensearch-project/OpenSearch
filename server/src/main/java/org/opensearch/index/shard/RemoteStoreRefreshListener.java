@@ -123,6 +123,9 @@ public final class RemoteStoreRefreshListener extends CloseableRetryableRefreshL
 
     @Override
     protected void runAfterRefreshExactlyOnce(boolean didRefresh) {
+        // We have 2 separate methods to check if sync needs to be done or not. This is required since we use the return boolean
+        // from isReadyForUpload to schedule refresh retries as the index shard or the primary mode are not in complete
+        // ready state.
         if (shouldSync(didRefresh) && isReadyForUpload()) {
             segmentTracker.updateLocalRefreshTimeAndSeqNo();
             try {
@@ -156,11 +159,15 @@ public final class RemoteStoreRefreshListener extends CloseableRetryableRefreshL
     }
 
     private boolean shouldSync(boolean didRefresh) {
-        // The third condition exists for uploading the zero state segments where the refresh has not changed the reader reference, but it
-        // is important to upload the zero state segments so that the restore does not break.
         return this.primaryTerm != indexShard.getOperationPrimaryTerm()
+            // If the readers change, didRefresh is always true.
             || didRefresh
+            // The third condition exists for uploading the zero state segments where the refresh has not changed the reader
+            // reference, but it is important to upload the zero state segments so that the restore does not break.
             || remoteDirectory.getSegmentsUploadedToRemoteStore().isEmpty()
+            // When the shouldSync is called the first time, then 1st condition on primary term is true. But after that
+            // we update the primary term and the same condition would not evaluate to true again in syncSegments.
+            // Below check ensures that if there is commit, then that gets picked up by both 1st and 2nd shouldSync call.
             || isRefreshAfterCommitSafe();
     }
 
@@ -315,6 +322,10 @@ public final class RemoteStoreRefreshListener extends CloseableRetryableRefreshL
             && !remoteDirectory.containsFile(lastCommittedLocalSegmentFileName, getChecksumOfLocalFile(lastCommittedLocalSegmentFileName)));
     }
 
+    /**
+     * Returns if the current refresh has happened after a commit.
+     * @return true if this refresh has happened on account of a commit. If otherwise or exception, returns false.
+     */
     private boolean isRefreshAfterCommitSafe() {
         try {
             return isRefreshAfterCommit();
@@ -440,17 +451,30 @@ public final class RemoteStoreRefreshListener extends CloseableRetryableRefreshL
         }
     }
 
+    /**
+     * On primary term update, we (re)initialise the remote segment directory to reflect the latest metadata file that
+     * has been uploaded to remote store successfully. This method also updates the segment tracker about the latest
+     * uploaded segment files onto remote store.
+     */
     private void initializeRemoteDirectoryOnTermUpdate() throws IOException {
         if (this.primaryTerm != indexShard.getOperationPrimaryTerm()) {
             logger.trace("primaryTerm update from={} to={}", primaryTerm, indexShard.getOperationPrimaryTerm());
             this.primaryTerm = indexShard.getOperationPrimaryTerm();
             RemoteSegmentMetadata uploadedMetadata = this.remoteDirectory.init();
+
+            // During failover, the uploaded metadata would have names of files that have been uploaded to remote store.
+            // Here we update the tracker with latest remote uploaded files.
             if (uploadedMetadata != null) {
                 segmentTracker.setLatestUploadedFiles(uploadedMetadata.getMetadata().keySet());
             }
         }
     }
 
+    /**
+     * This checks for readiness of the index shard and primary mode. This has separated from shouldSync since we use the
+     * returned value of this method for scheduling retries in syncSegments method.
+     * @return true iff primaryMode is true and index shard is not in closed state.
+     */
     private boolean isReadyForUpload() {
         boolean isReady = indexShard.getReplicationTracker().isPrimaryMode() && indexShard.state() != IndexShardState.CLOSED;
         if (isReady == false) {

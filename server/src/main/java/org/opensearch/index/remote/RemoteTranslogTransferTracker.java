@@ -232,6 +232,63 @@ public class RemoteTranslogTransferTracker extends RemoteTransferTracker {
         );
     }
 
+    @Override
+    public String toString() {
+        return "RemoteTranslogTransferStats{"
+            + "lastSuccessfulUploadTimestamp="
+            + lastSuccessfulUploadTimestamp.get()
+            + ","
+            + "totalUploadsStarted="
+            + totalUploadsStarted.get()
+            + ","
+            + "totalUploadsSucceeded="
+            + totalUploadsSucceeded.get()
+            + ","
+            + "totalUploadsFailed="
+            + totalUploadsFailed.get()
+            + ","
+            + "uploadBytesStarted="
+            + uploadBytesStarted.get()
+            + ","
+            + "uploadBytesFailed="
+            + uploadBytesFailed.get()
+            + ","
+            + "totalUploadTimeInMillis="
+            + totalUploadTimeInMillis.get()
+            + ","
+            + "uploadBytesMovingAverage="
+            + uploadBytesMovingAverageReference.get().getAverage()
+            + ","
+            + "uploadBytesPerSecMovingAverage="
+            + uploadBytesPerSecMovingAverageReference.get().getAverage()
+            + ","
+            + "uploadTimeMovingAverage="
+            + uploadTimeMsMovingAverageReference.get().getAverage()
+            + ","
+            + "lastSuccessfulDownloadTimestamp="
+            + lastSuccessfulDownloadTimestamp.get()
+            + ","
+            + "totalDownloadsSucceeded="
+            + totalDownloadsSucceeded.get()
+            + ","
+            + "downloadBytesSucceeded="
+            + downloadBytesSucceeded.get()
+            + ","
+            + "totalDownloadTimeInMillis="
+            + totalDownloadTimeInMillis.get()
+            + ","
+            + "downloadBytesMovingAverage="
+            + downloadBytesMovingAverageReference.get().getAverage()
+            + ","
+            + "downloadBytesPerSecMovingAverage="
+            + downloadBytesPerSecMovingAverageReference.get().getAverage()
+            + ","
+            + "downloadTimeMovingAverage="
+            + downloadTimeMsMovingAverageReference.get().getAverage()
+            + ","
+            + "}";
+    }
+
     /**
      * Represents the tracker's state as seen in the stats API.
      *
