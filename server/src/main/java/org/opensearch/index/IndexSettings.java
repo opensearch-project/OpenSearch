@@ -668,6 +668,14 @@ public final class IndexSettings {
         Property.IndexScope
     );
 
+    public static final Setting<Integer> INDEX_REMOTE_TRANSLOG_KEEP_EXTRA_GEN_SETTING = Setting.intSetting(
+        "index.remote_store.translog.keep_extra_gen",
+        100,
+        0,
+        Property.Dynamic,
+        Property.IndexScope
+    );
+
     private final Index index;
     private final Version version;
     private final Logger logger;
@@ -680,6 +688,7 @@ public final class IndexSettings {
     private final String remoteStoreTranslogRepository;
     private final String remoteStoreRepository;
     private final boolean isRemoteSnapshot;
+    private int remoteTranslogKeepExtraGen;
     private Version extendedCompatibilitySnapshotVersion;
 
     // volatile fields are updated via #updateIndexMetadata(IndexMetadata) under lock
@@ -850,6 +859,7 @@ public final class IndexSettings {
         remoteStoreTranslogRepository = settings.get(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY);
         remoteTranslogUploadBufferInterval = INDEX_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING.get(settings);
         remoteStoreRepository = settings.get(IndexMetadata.SETTING_REMOTE_SEGMENT_STORE_REPOSITORY);
+        this.remoteTranslogKeepExtraGen = INDEX_REMOTE_TRANSLOG_KEEP_EXTRA_GEN_SETTING.get(settings);
         isRemoteSnapshot = IndexModule.Type.REMOTE_SNAPSHOT.match(this.settings);
 
         if (isRemoteSnapshot && FeatureFlags.isEnabled(SEARCHABLE_SNAPSHOT_EXTENDED_COMPATIBILITY)) {
@@ -1021,6 +1031,7 @@ public final class IndexSettings {
             INDEX_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING,
             this::setRemoteTranslogUploadBufferInterval
         );
+        scopedSettings.addSettingsUpdateConsumer(INDEX_REMOTE_TRANSLOG_KEEP_EXTRA_GEN_SETTING, this::setRemoteTranslogKeepExtraGen);
     }
 
     private void setSearchIdleAfter(TimeValue searchIdleAfter) {
@@ -1300,6 +1311,10 @@ public final class IndexSettings {
         return remoteTranslogUploadBufferInterval;
     }
 
+    public int getRemoteTranslogExtraKeep() {
+        return remoteTranslogKeepExtraGen;
+    }
+
     /**
      * Returns true iff the remote translog buffer interval setting exists or in other words is explicitly set.
      */
@@ -1309,6 +1324,10 @@ public final class IndexSettings {
 
     public void setRemoteTranslogUploadBufferInterval(TimeValue remoteTranslogUploadBufferInterval) {
         this.remoteTranslogUploadBufferInterval = remoteTranslogUploadBufferInterval;
+    }
+
+    public void setRemoteTranslogKeepExtraGen(int extraGen) {
+        this.remoteTranslogKeepExtraGen = extraGen;
     }
 
     /**
