@@ -83,9 +83,23 @@ public class RemoteClusterStateService implements Closeable {
 
     private static final Logger logger = LogManager.getLogger(RemoteClusterStateService.class);
 
-    // TODO make this two variable as dynamic setting [issue: #10688]
-    public static final int INDEX_METADATA_UPLOAD_WAIT_MILLIS = 20000;
-    public static final int GLOBAL_METADATA_UPLOAD_WAIT_MILLIS = 20000;
+    public static final TimeValue INDEX_METADATA_UPLOAD_TIMEOUT_DEFAULT = TimeValue.timeValueMillis(20000);
+
+    public static final TimeValue GLOBAL_METADATA_UPLOAD_TIMEOUT_DEFAULT = TimeValue.timeValueMillis(20000);
+
+    public static final Setting<TimeValue> INDEX_METADATA_UPLOAD_TIMEOUT_SETTING = Setting.timeSetting(
+        "cluster.remote_store.state.index_metadata.upload_timeout",
+        INDEX_METADATA_UPLOAD_TIMEOUT_DEFAULT,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
+    public static final Setting<TimeValue> GLOBAL_METADATA_UPLOAD_TIMEOUT_SETTING = Setting.timeSetting(
+        "cluster.remote_store.state.global_metadata.upload_timeout",
+        GLOBAL_METADATA_UPLOAD_TIMEOUT_DEFAULT,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
 
     public static final ChecksumBlobStoreFormat<IndexMetadata> INDEX_METADATA_FORMAT = new ChecksumBlobStoreFormat<>(
         "index-metadata",
@@ -141,6 +155,9 @@ public class RemoteClusterStateService implements Closeable {
     private BlobStoreTransferService blobStoreTransferService;
     private volatile TimeValue slowWriteLoggingThreshold;
 
+    private volatile TimeValue indexMetadataUploadTimeout;
+    private volatile TimeValue globalMetadataUploadTimeout;
+
     private final AtomicBoolean deleteStaleMetadataRunning = new AtomicBoolean(false);
 
     public static final int INDEX_METADATA_CURRENT_CODEC_VERSION = 1;
@@ -171,7 +188,11 @@ public class RemoteClusterStateService implements Closeable {
         this.relativeTimeNanosSupplier = relativeTimeNanosSupplier;
         this.threadpool = threadPool;
         this.slowWriteLoggingThreshold = clusterSettings.get(SLOW_WRITE_LOGGING_THRESHOLD);
+        this.indexMetadataUploadTimeout = clusterSettings.get(INDEX_METADATA_UPLOAD_TIMEOUT_SETTING);
+        this.globalMetadataUploadTimeout = clusterSettings.get(GLOBAL_METADATA_UPLOAD_TIMEOUT_SETTING);
         clusterSettings.addSettingsUpdateConsumer(SLOW_WRITE_LOGGING_THRESHOLD, this::setSlowWriteLoggingThreshold);
+        clusterSettings.addSettingsUpdateConsumer(INDEX_METADATA_UPLOAD_TIMEOUT_SETTING, this::setIndexMetadataUploadTimeout);
+        clusterSettings.addSettingsUpdateConsumer(GLOBAL_METADATA_UPLOAD_TIMEOUT_SETTING, this::setGlobalMetadataUploadTimeout);
     }
 
     private BlobStoreTransferService getBlobStoreTransferService() {
@@ -367,7 +388,7 @@ public class RemoteClusterStateService implements Closeable {
         );
 
         try {
-            if (latch.await(GLOBAL_METADATA_UPLOAD_WAIT_MILLIS, TimeUnit.MILLISECONDS) == false) {
+            if (latch.await(getGlobalMetadataUploadTimeout().millis(), TimeUnit.MILLISECONDS) == false) {
                 // TODO: We should add metrics where transfer is timing out. [Issue: #10687]
                 GlobalMetadataTransferException ex = new GlobalMetadataTransferException(
                     String.format(Locale.ROOT, "Timed out waiting for transfer of global metadata to complete")
@@ -422,7 +443,7 @@ public class RemoteClusterStateService implements Closeable {
         }
 
         try {
-            if (latch.await(INDEX_METADATA_UPLOAD_WAIT_MILLIS, TimeUnit.MILLISECONDS) == false) {
+            if (latch.await(getIndexMetadataUploadTimeout().millis(), TimeUnit.MILLISECONDS) == false) {
                 IndexMetadataTransferException ex = new IndexMetadataTransferException(
                     String.format(
                         Locale.ROOT,
@@ -619,6 +640,22 @@ public class RemoteClusterStateService implements Closeable {
 
     private void setSlowWriteLoggingThreshold(TimeValue slowWriteLoggingThreshold) {
         this.slowWriteLoggingThreshold = slowWriteLoggingThreshold;
+    }
+
+    private void setIndexMetadataUploadTimeout(TimeValue newIndexMetadataUploadTimeout) {
+        this.indexMetadataUploadTimeout = newIndexMetadataUploadTimeout;
+    }
+
+    private void setGlobalMetadataUploadTimeout(TimeValue newGlobalMetadataUploadTimeout) {
+        this.globalMetadataUploadTimeout = newGlobalMetadataUploadTimeout;
+    }
+
+    public TimeValue getIndexMetadataUploadTimeout() {
+        return this.indexMetadataUploadTimeout;
+    }
+
+    public TimeValue getGlobalMetadataUploadTimeout() {
+        return this.globalMetadataUploadTimeout;
     }
 
     static String getManifestFileName(long term, long version, boolean committed) {
