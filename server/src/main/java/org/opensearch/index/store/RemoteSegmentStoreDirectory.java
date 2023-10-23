@@ -290,10 +290,6 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
                 );
             }
         }
-
-        public int getWrittenByMajor() {
-            return writtenByMajor;
-        }
     }
 
     /**
