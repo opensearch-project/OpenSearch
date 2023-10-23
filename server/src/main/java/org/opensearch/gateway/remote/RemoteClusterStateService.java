@@ -357,7 +357,7 @@ public class RemoteClusterStateService implements Closeable {
             result.set(globalMetadataContainer.path().buildAsString() + globalMetadataFilename);
         }, ex -> { throw new GlobalMetadataTransferException(ex.getMessage(), ex); }), latch);
 
-        GLOBAL_METADATA_FORMAT.urgentWriteAsync(
+        GLOBAL_METADATA_FORMAT.writeAsyncWithUrgentPriority(
             clusterState.metadata(),
             globalMetadataContainer,
             globalMetadataFilename,
@@ -489,7 +489,7 @@ public class RemoteClusterStateService implements Closeable {
             ex -> latchedActionListener.onFailure(new IndexMetadataTransferException(indexMetadata.getIndex().toString(), ex))
         );
 
-        INDEX_METADATA_FORMAT.urgentWriteAsync(
+        INDEX_METADATA_FORMAT.writeAsyncWithUrgentPriority(
             indexMetadata,
             indexMetadataContainer,
             indexMetadataFilename,

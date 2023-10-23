@@ -218,7 +218,7 @@ public final class ChecksumBlobStoreFormat<T extends ToXContent> {
      * Use {@link #writeAsync(ToXContent, BlobContainer, String, Compressor, ActionListener, ToXContent.Params)} for
      * other use cases.
      */
-    public void urgentWriteAsync(
+    public void writeAsyncWithUrgentPriority(
         final T obj,
         final BlobContainer blobContainer,
         final String name,

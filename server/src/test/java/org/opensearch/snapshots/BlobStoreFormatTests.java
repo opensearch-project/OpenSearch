@@ -187,7 +187,7 @@ public class BlobStoreFormatTests extends OpenSearchTestCase {
         CountDownLatch latch = new CountDownLatch(1);
 
         // Write blobs in different formats
-        checksumSMILE.urgentWriteAsync(
+        checksumSMILE.writeAsyncWithUrgentPriority(
             new BlobObj("cluster state diff"),
             spyContainer,
             "cluster-state-diff",
