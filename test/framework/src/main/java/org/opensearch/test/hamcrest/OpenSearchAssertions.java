@@ -307,7 +307,16 @@ public class OpenSearchAssertions {
     public static void assertHitCount(SearchResponse countResponse, long minHitCount, long maxHitCount) {
         final TotalHits totalHits = countResponse.getHits().getTotalHits();
         if (!(totalHits.relation == TotalHits.Relation.EQUAL_TO && totalHits.value >= minHitCount && totalHits.value <= maxHitCount)) {
-            fail("Count is " + totalHits + " not between " + minHitCount + " and " + maxHitCount + " inclusive. " + formatShardStatus(countResponse));
+            fail(
+                "Count is "
+                    + totalHits
+                    + " not between "
+                    + minHitCount
+                    + " and "
+                    + maxHitCount
+                    + " inclusive. "
+                    + formatShardStatus(countResponse)
+            );
         }
     }
 
