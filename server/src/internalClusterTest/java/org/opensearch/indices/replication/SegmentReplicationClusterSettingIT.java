@@ -142,12 +142,11 @@ public class SegmentReplicationClusterSettingIT extends OpenSearchIntegTestCase 
 
         // Test create index fails
         Settings indexSettings = Settings.builder().put(indexSettings()).put(SETTING_REPLICATION_TYPE, replicationType).build();
-        try {
+        if (setRestrict) {
+            IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> createIndex(INDEX_NAME, indexSettings));
+            assertEquals(expectedExceptionMsg, exception.getMessage());
+        } else {
             createIndex(INDEX_NAME, indexSettings);
-            assertFalse(setRestrict);
-        } catch (Exception e) {
-            assertTrue(setRestrict);
-            assertEquals(expectedExceptionMsg, e.getMessage());
         }
     }
 
