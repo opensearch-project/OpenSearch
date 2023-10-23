@@ -396,7 +396,7 @@ public class RemoteRestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
         ensureGreen(indexName1);
         assertDocsPresentInIndex(client(), indexName1, numDocsInIndex1);
 
-        // Clear the local data before stopping the node.
+        // Clear the local data before stopping the node. This will make sure that remote translog is empty.
         IndexShard indexShard = getIndexShard(primaryNodeName(indexName1), indexName1);
         try (Stream<Path> files = Files.list(indexShard.shardPath().resolveTranslog())) {
             IOUtils.deleteFilesIgnoringExceptions(files.collect(Collectors.toList()));
