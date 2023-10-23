@@ -549,6 +549,11 @@ public class PersistentTasksClusterService implements ClusterStateListener, Clos
         }
 
         @Override
+        protected boolean doNotRunWhenShuttingDown() {
+            return true;
+        }
+
+        @Override
         public void runInternal() {
             if (clusterService.localNode().isClusterManagerNode()) {
                 final ClusterState state = clusterService.state();

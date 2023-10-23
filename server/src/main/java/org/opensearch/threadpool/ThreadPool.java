@@ -63,6 +63,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.Delayed;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.RejectedExecutionException;
@@ -466,9 +467,9 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         return new ScheduledCancellableAdapter(scheduler.schedule(command, delay.millis(), TimeUnit.MILLISECONDS));
     }
 
-    public void scheduleUnlessShuttingDown(TimeValue delay, String executor, Runnable command) {
+    public ScheduledCancellable scheduleUnlessShuttingDown(final TimeValue delay, final String executor, final Runnable command) {
         try {
-            schedule(command, delay, executor);
+            return schedule(command, delay, executor);
         } catch (OpenSearchRejectedExecutionException e) {
             if (e.isExecutorShutdown()) {
                 logger.debug(
@@ -480,6 +481,28 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
                     ),
                     e
                 );
+                return new ScheduledCancellable() {
+                    @Override
+                    public long getDelay(TimeUnit unit) {
+                        return unit.convert(delay.duration(), delay.timeUnit());
+                    }
+
+                    @Override
+                    public int compareTo(Delayed other) {
+                        // unwrap other by calling on it.
+                        return -other.compareTo(this);
+                    }
+
+                    @Override
+                    public boolean cancel() {
+                        return false; // Already canceled
+                    }
+
+                    @Override
+                    public boolean isCancelled() {
+                        return true; // Always canceled
+                    }
+                };
             } else {
                 throw e;
             }

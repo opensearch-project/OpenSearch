@@ -90,6 +90,13 @@ public abstract class AbstractAsyncTask implements Runnable, Closeable {
     protected abstract boolean mustReschedule();
 
     /**
+     * If the node is shutting down do not schedule this task.
+     */
+    protected boolean doNotRunWhenShuttingDown() {
+        return false;
+    }
+
+    /**
      * Schedule the task to run after the configured interval if it
      * is not closed and any further conditions imposed by derived
      * classes are met.  Any previously scheduled invocation is
@@ -106,8 +113,12 @@ public abstract class AbstractAsyncTask implements Runnable, Closeable {
             if (logger.isTraceEnabled()) {
                 logger.trace("scheduling {} every {}", toString(), interval);
             }
-            cancellable = threadPool.schedule(this, interval, getThreadPool());
-            isScheduledOrRunning = true;
+            if (doNotRunWhenShuttingDown()) {
+                cancellable = threadPool.scheduleUnlessShuttingDown(interval, getThreadPool(), this);
+            } else {
+                cancellable = threadPool.schedule(this, interval, getThreadPool());
+            }
+            isScheduledOrRunning = !cancellable.isCancelled();
         } else {
             logger.trace("scheduled {} disabled", toString());
             cancellable = null;

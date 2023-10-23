@@ -232,6 +232,11 @@ public class SegmentReplicationPressureService implements Closeable {
         }
 
         @Override
+        protected boolean doNotRunWhenShuttingDown() {
+            return true;
+        }
+
+        @Override
         protected void runInternal() {
             // Do not fail the replicas if time limit is set to 0 (i.e. disabled).
             if (TimeValue.ZERO.equals(pressureService.replicationTimeLimitFailReplica) == false) {
