@@ -13,11 +13,11 @@ on:
       ]
 
 jobs:
-  verify-description:
-    name: Verify Description
+  verify-description-checklist:
+    name: Verify Description Checklist
     runs-on: ubuntu-latest
     steps:
-      - uses: peternied/check-pull-request-description@main
+      - uses: peternied/check-pull-request-description-checklist@v1
         with:
           checklist-items: |
             New functionality includes testing.
