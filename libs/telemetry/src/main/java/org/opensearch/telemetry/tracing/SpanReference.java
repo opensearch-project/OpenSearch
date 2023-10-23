@@ -17,7 +17,6 @@ import org.opensearch.common.annotation.InternalApi;
  */
 @InternalApi
 final class SpanReference {
-
     private Span span;
 
     /**
