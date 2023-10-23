@@ -32,11 +32,10 @@
 
 package org.opensearch.common.util.concurrent;
 
-import org.opensearch.common.settings.Setting;
-import org.opensearch.common.settings.Settings;
-import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
-import org.opensearch.test.OpenSearchTestCase;
-import org.hamcrest.Matcher;
+import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.lessThan;
 
 import java.util.Locale;
 import java.util.concurrent.CountDownLatch;
@@ -45,10 +44,11 @@ import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import static org.hamcrest.Matchers.anyOf;
-import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.lessThan;
+import org.hamcrest.Matcher;
+import org.opensearch.common.settings.Setting;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
+import org.opensearch.test.OpenSearchTestCase;
 
 /**
  * Tests for OpenSearchExecutors and its components like OpenSearchAbortPolicy.
@@ -351,11 +351,7 @@ public class OpenSearchExecutorsTests extends OpenSearchTestCase {
         executor.execute(() -> taskCompleted.set(true));
 
         assertThat("All tasks were rejected, so the task completed flag was never set", taskCompleted.get(), equalTo(false));
-        assertThat(
-            "No additional completions recorded for rejected tasks",
-            executor.getCompletedTaskCount(),
-            equalTo(beforeCompletedTaskCount)
-        );
+        assertThat("No additional completions recorded for rejected tasks", executor.getCompletedTaskCount(), equalTo(beforeCompletedTaskCount));
     }
 
     public void testInheritContext() throws InterruptedException {
