@@ -134,6 +134,12 @@ public abstract class TransportReplicationAction<
         Setting.Property.NodeScope
     );
 
+    /**
+     * Making primary and replica actions suffixes as constant
+     */
+    public static final String PRIMARY_ACTION_SUFFIX = "[p]";
+    public static final String REPLICA_ACTION_SUFFIX = "[r]";
+
     protected final ThreadPool threadPool;
     protected final TransportService transportService;
     protected final ClusterService clusterService;
@@ -204,8 +210,8 @@ public abstract class TransportReplicationAction<
         this.shardStateAction = shardStateAction;
         this.executor = executor;
 
-        this.transportPrimaryAction = actionName + "[p]";
-        this.transportReplicaAction = actionName + "[r]";
+        this.transportPrimaryAction = actionName + PRIMARY_ACTION_SUFFIX;
+        this.transportReplicaAction = actionName + REPLICA_ACTION_SUFFIX;
 
         this.initialRetryBackoffBound = REPLICATION_INITIAL_RETRY_BACKOFF_BOUND.get(settings);
         this.retryTimeout = REPLICATION_RETRY_TIMEOUT.get(settings);

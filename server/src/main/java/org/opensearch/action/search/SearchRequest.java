@@ -256,7 +256,7 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         if (in.getVersion().onOrAfter(Version.V_2_7_0)) {
             pipeline = in.readOptionalString();
         }
-        if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
+        if (in.getVersion().onOrAfter(Version.V_2_12_0)) {
             phaseTook = in.readOptionalBoolean();
         }
     }
@@ -290,7 +290,7 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         if (out.getVersion().onOrAfter(Version.V_2_7_0)) {
             out.writeOptionalString(pipeline);
         }
-        if (out.getVersion().onOrAfter(Version.V_3_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_2_12_0)) {
             out.writeOptionalBoolean(phaseTook);
         }
     }

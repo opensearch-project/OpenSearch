@@ -178,6 +178,7 @@ import org.opensearch.gateway.MetaStateService;
 import org.opensearch.gateway.TransportNodesListGatewayStartedShards;
 import org.opensearch.index.IndexingPressureService;
 import org.opensearch.index.SegmentReplicationPressureService;
+import org.opensearch.index.SegmentReplicationStatsTracker;
 import org.opensearch.index.analysis.AnalysisRegistry;
 import org.opensearch.index.remote.RemoteStorePressureService;
 import org.opensearch.index.remote.RemoteStoreStatsTrackerFactory;
@@ -2188,6 +2189,7 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                         clusterService,
                         mock(IndicesService.class),
                         mock(ShardStateAction.class),
+                        mock(SegmentReplicationStatsTracker.class),
                         mock(ThreadPool.class)
                     ),
                     mock(RemoteStorePressureService.class),
