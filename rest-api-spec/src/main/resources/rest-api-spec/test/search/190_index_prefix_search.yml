@@ -16,12 +16,18 @@ setup:
           index:  test
           id:     1
           body:   { text: some short words with a stupendously long one }
+  - do:
+      index:
+        index:  test
+        id:     3
+        body:   { text: ["a", "b-12"] }
 
   - do:
       index:
         index:  test
         id:     2
         body:   { text: sentence with UPPERCASE WORDS }
+
 
   - do:
       indices.refresh:
@@ -114,5 +120,18 @@ setup:
                 { "span_term": { "text": "short" } },
                 { "span_multi": { "match": { "prefix": { "text": "word" } } } }
               ]
+
+  - match: {hits.total: 1}
+
+---
+"search index prefixes with multiple value":
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          query:
+            match_phrase_prefix:
+              text: "b-12"
 
   - match: {hits.total: 1}

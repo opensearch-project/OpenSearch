@@ -523,17 +523,24 @@ public class TextFieldMapper extends ParametrizedFieldMapper {
         private final int minChars;
         private final int maxChars;
         private final Analyzer delegate;
+        private final int positionIncrementGap;
 
-        PrefixWrappedAnalyzer(Analyzer delegate, int minChars, int maxChars) {
+        PrefixWrappedAnalyzer(Analyzer delegate, int minChars, int maxChars, int positionIncrementGap) {
             super(delegate.getReuseStrategy());
             this.delegate = delegate;
             this.minChars = minChars;
             this.maxChars = maxChars;
+            this.positionIncrementGap = positionIncrementGap;
         }
 
         @Override
         protected Analyzer getWrappedAnalyzer(String fieldName) {
             return delegate;
+        }
+
+        @Override
+        public int getPositionIncrementGap(String fieldName) {
+            return positionIncrementGap;
         }
 
         @Override
@@ -611,7 +618,16 @@ public class TextFieldMapper extends ParametrizedFieldMapper {
 
         void setAnalyzer(NamedAnalyzer delegate) {
             setIndexAnalyzer(
-                new NamedAnalyzer(delegate.name(), AnalyzerScope.INDEX, new PrefixWrappedAnalyzer(delegate.analyzer(), minChars, maxChars))
+                new NamedAnalyzer(
+                    delegate.name(),
+                    AnalyzerScope.INDEX,
+                    new PrefixWrappedAnalyzer(
+                        delegate.analyzer(),
+                        minChars,
+                        maxChars,
+                        parentField.indexAnalyzer().getPositionIncrementGap(parentField.name())
+                    )
+                )
             );
         }
 
