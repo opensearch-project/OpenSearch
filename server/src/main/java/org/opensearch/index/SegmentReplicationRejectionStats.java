@@ -34,8 +34,7 @@ public class SegmentReplicationRejectionStats implements Writeable, ToXContentFr
     }
 
     public SegmentReplicationRejectionStats(StreamInput in) throws IOException {
-        // TODO: change to V_2_12_0 on main after backport to 2.x
-        if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
+        if (in.getVersion().onOrAfter(Version.V_2_12_0)) {
             this.totalRejectionCount = in.readVLong();
         }
     }
@@ -53,8 +52,7 @@ public class SegmentReplicationRejectionStats implements Writeable, ToXContentFr
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        // TODO: change to V_2_12_0 on main after backport to 2.x
-        if (out.getVersion().onOrAfter(Version.V_3_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_2_12_0)) {
             out.writeVLong(totalRejectionCount);
         }
     }
