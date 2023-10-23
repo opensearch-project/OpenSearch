@@ -1871,6 +1871,18 @@ public final class InternalTestCluster extends TestCluster {
         }
     }
 
+    /**
+     * Replace all nodes by stopping all current node and starting new node.
+     * Used for remote store test cases, where remote state is restored.
+     */
+    public void resetCluster() {
+        int totalClusterManagerNodes = numClusterManagerNodes();
+        int totalDataNodes = numDataNodes();
+        stopAllNodes();
+        startClusterManagerOnlyNodes(totalClusterManagerNodes);
+        startDataOnlyNodes(totalDataNodes);
+    }
+
     private synchronized void startAndPublishNodesAndClients(List<NodeAndClient> nodeAndClients) {
         if (nodeAndClients.size() > 0) {
             final int newClusterManagers = (int) nodeAndClients.stream()

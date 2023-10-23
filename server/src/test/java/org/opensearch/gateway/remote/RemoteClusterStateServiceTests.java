@@ -102,6 +102,7 @@ import static org.mockito.Mockito.when;
 public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
 
     private RemoteClusterStateService remoteClusterStateService;
+    private ClusterSettings clusterSettings;
     private Supplier<RepositoriesService> repositoriesServiceSupplier;
     private RepositoriesService repositoriesService;
     private BlobStoreRepository blobStoreRepository;
@@ -132,6 +133,7 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
             .put(RemoteClusterStateService.REMOTE_CLUSTER_STATE_ENABLED_SETTING.getKey(), true)
             .build();
 
+        clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         NamedXContentRegistry xContentRegistry = new NamedXContentRegistry(
             Stream.of(
                 NetworkModule.getNamedXContents().stream(),
@@ -149,7 +151,7 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
             "test-node-id",
             repositoriesServiceSupplier,
             settings,
-            new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+            clusterSettings,
             () -> 0L,
             threadPool
         );
@@ -826,9 +828,9 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
         ).getIndices();
 
         assertEquals(indexMetadataMap.size(), 1);
-        assertEquals(indexMetadataMap.get(index.getUUID()).getIndex().getName(), index.getName());
-        assertEquals(indexMetadataMap.get(index.getUUID()).getNumberOfShards(), indexMetadata.getNumberOfShards());
-        assertEquals(indexMetadataMap.get(index.getUUID()).getNumberOfReplicas(), indexMetadata.getNumberOfReplicas());
+        assertEquals(indexMetadataMap.get(index.getName()).getIndex().getName(), index.getName());
+        assertEquals(indexMetadataMap.get(index.getName()).getNumberOfShards(), indexMetadata.getNumberOfShards());
+        assertEquals(indexMetadataMap.get(index.getName()).getNumberOfReplicas(), indexMetadata.getNumberOfReplicas());
     }
 
     public void testMarkLastStateAsCommittedSuccess() throws IOException {
@@ -1051,6 +1053,38 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
 
         latch.countDown();
         assertBusy(() -> assertEquals(1, callCount.get()));
+    }
+
+    public void testIndexMetadataUploadWaitTimeSetting() {
+        // verify default value
+        assertEquals(
+            RemoteClusterStateService.INDEX_METADATA_UPLOAD_TIMEOUT_DEFAULT,
+            remoteClusterStateService.getIndexMetadataUploadTimeout()
+        );
+
+        // verify update index metadata upload timeout
+        int indexMetadataUploadTimeout = randomIntBetween(1, 10);
+        Settings newSettings = Settings.builder()
+            .put("cluster.remote_store.state.index_metadata.upload_timeout", indexMetadataUploadTimeout + "s")
+            .build();
+        clusterSettings.applySettings(newSettings);
+        assertEquals(indexMetadataUploadTimeout, remoteClusterStateService.getIndexMetadataUploadTimeout().seconds());
+    }
+
+    public void testGlobalMetadataUploadWaitTimeSetting() {
+        // verify default value
+        assertEquals(
+            RemoteClusterStateService.GLOBAL_METADATA_UPLOAD_TIMEOUT_DEFAULT,
+            remoteClusterStateService.getGlobalMetadataUploadTimeout()
+        );
+
+        // verify update global metadata upload timeout
+        int globalMetadataUploadTimeout = randomIntBetween(1, 10);
+        Settings newSettings = Settings.builder()
+            .put("cluster.remote_store.state.global_metadata.upload_timeout", globalMetadataUploadTimeout + "s")
+            .build();
+        clusterSettings.applySettings(newSettings);
+        assertEquals(globalMetadataUploadTimeout, remoteClusterStateService.getGlobalMetadataUploadTimeout().seconds());
     }
 
     private void mockObjectsForGettingPreviousClusterUUID(Map<String, String> clusterUUIDsPointers) throws IOException {
