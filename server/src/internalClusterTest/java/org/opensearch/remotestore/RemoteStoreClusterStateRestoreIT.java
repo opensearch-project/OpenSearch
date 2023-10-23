@@ -111,7 +111,7 @@ public class RemoteStoreClusterStateRestoreIT extends BaseRemoteStoreRestoreIT {
      * 8. Add data nodes to recover index data
      * 9. Verify Metadata and index data is restored.
      */
-    public void testFullClusterStateRestore() throws Exception {
+    public void testFullClusterRestoreDoesntFailWithConflictingLocalState() throws Exception {
         int shardCount = randomIntBetween(1, 2);
         int replicaCount = 1;
         int dataNodeCount = shardCount * (replicaCount + 1);
@@ -159,7 +159,7 @@ public class RemoteStoreClusterStateRestoreIT extends BaseRemoteStoreRestoreIT {
 
         // start data nodes to trigger index data recovery
         internalCluster().startDataOnlyNodes(dataNodeCount);
-        verifyRestoredData(indexStats, INDEX_NAME);
+        verifyRedIndicesAndTriggerRestore(indexStats, INDEX_NAME, true);
     }
 
     public void testFullClusterRestoreMultipleIndices() throws Exception {
