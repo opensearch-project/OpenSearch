@@ -407,7 +407,7 @@ final class StoreRecovery {
                 if (indexShard.indexSettings.isRemoteTranslogStoreEnabled() == false) {
                     bootstrap(indexShard, store);
                 } else {
-                    bootstrapForSnapshot(indexShard, store);
+                    bootstrapFromLastCommit(indexShard, store);
                 }
                 assert indexShard.shardRouting.primary() : "only primary shards can recover from store";
                 writeEmptyRetentionLeasesFile(indexShard);
@@ -555,7 +555,7 @@ final class StoreRecovery {
                 }
             } else if (remoteSegmentEmpty == false && remoteTranslogEmpty) {
                 if (((RecoverySource.RemoteStoreRecoverySource) indexShard.shardRouting.recoverySource()).forceEmptyTranslog()) {
-                    bootstrap(indexShard, store);
+                    bootstrapFromLastCommit(indexShard, store);
                 }
             }
 
@@ -695,7 +695,7 @@ final class StoreRecovery {
             if (indexShard.indexSettings.isRemoteTranslogStoreEnabled() == false) {
                 bootstrap(indexShard, store);
             } else {
-                bootstrapForSnapshot(indexShard, store);
+                bootstrapFromLastCommit(indexShard, store);
             }
             assert indexShard.shardRouting.primary() : "only primary shards can recover from store";
             writeEmptyRetentionLeasesFile(indexShard);
@@ -747,7 +747,7 @@ final class StoreRecovery {
         }
     }
 
-    private void bootstrapForSnapshot(final IndexShard indexShard, final Store store) throws IOException {
+    private void bootstrapFromLastCommit(final IndexShard indexShard, final Store store) throws IOException {
         store.bootstrapNewHistory();
         final SegmentInfos segmentInfos = store.readLastCommittedSegmentsInfo();
         final long localCheckpoint = Long.parseLong(segmentInfos.userData.get(SequenceNumbers.LOCAL_CHECKPOINT_KEY));

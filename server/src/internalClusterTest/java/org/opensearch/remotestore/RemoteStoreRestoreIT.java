@@ -12,17 +12,21 @@ import org.opensearch.action.admin.cluster.remotestore.restore.RestoreRemoteStor
 import org.opensearch.action.admin.cluster.remotestore.restore.RestoreRemoteStoreResponse;
 import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.cluster.health.ClusterHealthStatus;
+import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.core.common.unit.ByteSizeUnit;
+import org.opensearch.core.util.FileSystemUtils;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.Repository;
 import org.opensearch.test.InternalTestCluster;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.Locale;
@@ -30,6 +34,7 @@ import java.util.Map;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_REPOSITORY_SETTINGS_ATTRIBUTE_KEY_PREFIX;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
@@ -232,6 +237,78 @@ public class RemoteStoreRestoreIT extends BaseRemoteStoreRestoreIT {
         ensureGreen(INDEX_NAME);
         assertEquals(shardCount, getNumShards(INDEX_NAME).totalNumShards);
         verifyRestoredData(indexStats, INDEX_NAME);
+    }
+
+    public void testRestoreFlowWithForceEmptyTranslogNoOp() throws Exception {
+        prepareCluster(1, 3, INDEX_NAME, 0, 1);
+        Map<String, Long> indexStats = indexData(randomIntBetween(2, 3), randomBoolean(), INDEX_NAME);
+
+        assertHitCount(client().prepareSearch(INDEX_NAME).setSize(0).get(), indexStats.get(REFRESHED_OR_FLUSHED_OPERATIONS));
+
+        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(primaryNodeName(INDEX_NAME)));
+        ensureRed(INDEX_NAME);
+
+        // Do not delete data from remote translog. If data is present in remote translog, forceEmptyTranslog is ignored
+
+        logger.info("--> Restore with forceEmptyTranslog, should have no effect as remote translog has data");
+        assertAcked(client().admin().indices().prepareClose(INDEX_NAME));
+        client().admin()
+            .cluster()
+            .restoreRemoteStore(
+                new RestoreRemoteStoreRequest().indices(INDEX_NAME).restoreAllShards(true).forceEmptyTranslog(true),
+                PlainActionFuture.newFuture()
+            );
+        ensureGreen(INDEX_NAME);
+
+        ensureYellowAndNoInitializingShards(INDEX_NAME);
+        ensureGreen(INDEX_NAME);
+        refresh(INDEX_NAME);
+        assertBusy(
+            () -> assertHitCount(client().prepareSearch(INDEX_NAME).setSize(0).get(), indexStats.get(TOTAL_OPERATIONS)),
+            30,
+            TimeUnit.SECONDS
+        );
+    }
+
+
+    public void testRestoreFlowWithForceEmptyTranslog() throws Exception {
+        prepareCluster(1, 3, INDEX_NAME, 0, 1);
+        Map<String, Long> indexStats = indexData(randomIntBetween(2, 3), randomBoolean(), INDEX_NAME);
+
+        assertHitCount(client().prepareSearch(INDEX_NAME).setSize(0).get(), indexStats.get(REFRESHED_OR_FLUSHED_OPERATIONS));
+
+        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(primaryNodeName(INDEX_NAME)));
+        ensureRed(INDEX_NAME);
+
+        // Delete data from remote translog so that forceEmptyTranslog can take effect
+        String indexUUID = client().admin()
+            .indices()
+            .prepareGetSettings(INDEX_NAME)
+            .get()
+            .getSetting(INDEX_NAME, IndexMetadata.SETTING_INDEX_UUID);
+
+        Path remoteTranslogMetadataPath = Path.of(String.valueOf(translogRepoPath), indexUUID, "/0/translog/metadata");
+        Path remoteTranslogDataPath = Path.of(String.valueOf(translogRepoPath), indexUUID, "/0/translog/data");
+        IOUtils.rm(remoteTranslogDataPath, remoteTranslogMetadataPath);
+
+        logger.info("--> Restore with forceEmptyTranslog, should turn the index green");
+        assertAcked(client().admin().indices().prepareClose(INDEX_NAME));
+        client().admin()
+            .cluster()
+            .restoreRemoteStore(
+                new RestoreRemoteStoreRequest().indices(INDEX_NAME).restoreAllShards(true).forceEmptyTranslog(true),
+                PlainActionFuture.newFuture()
+            );
+        ensureGreen(INDEX_NAME);
+
+        ensureYellowAndNoInitializingShards(INDEX_NAME);
+        ensureGreen(INDEX_NAME);
+        refresh(INDEX_NAME);
+        assertBusy(
+            () -> assertHitCount(client().prepareSearch(INDEX_NAME).setSize(0).get(), indexStats.get(REFRESHED_OR_FLUSHED_OPERATIONS)),
+            30,
+            TimeUnit.SECONDS
+        );
     }
 
     /**
