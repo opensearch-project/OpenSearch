@@ -43,6 +43,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 
 import static org.opensearch.index.engine.EngineTestCase.assertAtMostOneLuceneDocumentPerSequenceNumber;
@@ -388,9 +389,10 @@ public class RemoteIndexShardTests extends SegmentReplicationIndexShardTests {
                     ReplicationCheckpoint checkpoint,
                     List<StoreFileMetadata> filesToFetch,
                     IndexShard indexShard,
+                    BiConsumer<String, Long> fileProgressTracker,
                     ActionListener<GetSegmentFilesResponse> listener
                 ) {
-                    super.getSegmentFiles(replicationId, checkpoint, filesToFetch, indexShard, listener);
+                    super.getSegmentFiles(replicationId, checkpoint, filesToFetch, indexShard, (fileName, bytesRecovered) -> {}, listener);
                     runAfterGetFiles[index.getAndIncrement()].run();
                 }
 
@@ -467,6 +469,15 @@ public class RemoteIndexShardTests extends SegmentReplicationIndexShardTests {
             shards.removeReplica(replica);
             closeShards(replica);
         }
+    }
+
+    @Override
+    protected void validateShardIdleWithNoReplicas(IndexShard primary) {
+        // ensure search idle conditions are met.
+        assertFalse(primary.isSearchIdleSupported());
+        assertTrue(primary.isSearchIdle());
+        assertTrue(primary.scheduledRefresh());
+        assertFalse(primary.hasRefreshPending());
     }
 
     private void assertSingleSegmentFile(IndexShard shard, String fileName) throws IOException {

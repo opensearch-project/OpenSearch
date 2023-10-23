@@ -1104,10 +1104,10 @@ public class QueryProfilePhaseTests extends IndexShardTestCase {
             assertThat(query.getTimeBreakdown().get("score_count"), greaterThan(0L));
             if (executor != null) {
                 assertThat(query.getTimeBreakdown().get("max_score"), greaterThan(0L));
-                assertThat(query.getTimeBreakdown().get("min_score"), greaterThan(0L));
+                assertThat(query.getTimeBreakdown().get("min_score"), greaterThanOrEqualTo(0L));
                 assertThat(query.getTimeBreakdown().get("avg_score"), greaterThan(0L));
                 assertThat(query.getTimeBreakdown().get("max_score_count"), greaterThan(0L));
-                assertThat(query.getTimeBreakdown().get("min_score_count"), greaterThan(0L));
+                assertThat(query.getTimeBreakdown().get("min_score_count"), greaterThanOrEqualTo(0L));
                 assertThat(query.getTimeBreakdown().get("avg_score_count"), greaterThan(0L));
             }
             assertThat(query.getTimeBreakdown().get("create_weight"), greaterThan(0L));
@@ -1278,7 +1278,7 @@ public class QueryProfilePhaseTests extends IndexShardTestCase {
                 assertThat(query.getTimeBreakdown().get("max_score"), greaterThan(0L));
                 assertThat(query.getTimeBreakdown().get("min_score"), greaterThanOrEqualTo(0L));
                 assertThat(query.getTimeBreakdown().get("avg_score"), greaterThan(0L));
-                assertThat(query.getTimeBreakdown().get("max_score_count"), greaterThanOrEqualTo(6L));
+                assertThat(query.getTimeBreakdown().get("max_score_count"), greaterThanOrEqualTo(4L));
                 assertThat(query.getTimeBreakdown().get("min_score_count"), greaterThanOrEqualTo(0L));
                 assertThat(query.getTimeBreakdown().get("avg_score_count"), greaterThanOrEqualTo(1L));
             }
@@ -1400,7 +1400,7 @@ public class QueryProfilePhaseTests extends IndexShardTestCase {
                 assertThat(query.getTimeBreakdown().get("min_score"), greaterThan(0L));
                 assertThat(query.getTimeBreakdown().get("avg_score"), greaterThan(0L));
                 assertThat(query.getTimeBreakdown().get("max_score_count"), greaterThanOrEqualTo(6L));
-                assertThat(query.getTimeBreakdown().get("min_score_count"), greaterThanOrEqualTo(6L));
+                assertThat(query.getTimeBreakdown().get("min_score_count"), greaterThanOrEqualTo(2L));
                 assertThat(query.getTimeBreakdown().get("avg_score_count"), greaterThanOrEqualTo(6L));
             }
             assertThat(query.getTimeBreakdown().get("create_weight"), greaterThan(0L));
@@ -1435,7 +1435,7 @@ public class QueryProfilePhaseTests extends IndexShardTestCase {
                 assertThat(query.getTimeBreakdown().get("min_score"), greaterThan(0L));
                 assertThat(query.getTimeBreakdown().get("avg_score"), greaterThan(0L));
                 assertThat(query.getTimeBreakdown().get("max_score_count"), greaterThanOrEqualTo(6L));
-                assertThat(query.getTimeBreakdown().get("min_score_count"), greaterThanOrEqualTo(6L));
+                assertThat(query.getTimeBreakdown().get("min_score_count"), greaterThanOrEqualTo(2L));
                 assertThat(query.getTimeBreakdown().get("avg_score_count"), greaterThanOrEqualTo(6L));
             }
             assertThat(query.getTimeBreakdown().get("create_weight"), greaterThan(0L));

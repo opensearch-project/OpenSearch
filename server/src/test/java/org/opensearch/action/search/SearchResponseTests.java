@@ -74,7 +74,9 @@ import org.junit.Before;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 import static java.util.Collections.singletonMap;
@@ -152,6 +154,11 @@ public class SearchResponseTests extends OpenSearchTestCase {
         Boolean terminatedEarly = randomBoolean() ? null : randomBoolean();
         int numReducePhases = randomIntBetween(1, 10);
         long tookInMillis = randomNonNegativeLong();
+        Map<String, Long> phaseTookMap = new HashMap<>();
+        for (SearchPhaseName searchPhaseName : SearchPhaseName.values()) {
+            phaseTookMap.put(searchPhaseName.getName(), randomNonNegativeLong());
+        }
+        SearchResponse.PhaseTook phaseTook = new SearchResponse.PhaseTook(phaseTookMap);
         int totalShards = randomIntBetween(1, Integer.MAX_VALUE);
         int successfulShards = randomIntBetween(0, totalShards);
         int skippedShards = randomIntBetween(0, totalShards);
@@ -182,6 +189,7 @@ public class SearchResponseTests extends OpenSearchTestCase {
             successfulShards,
             skippedShards,
             tookInMillis,
+            phaseTook,
             shardSearchFailures,
             randomBoolean() ? randomClusters() : SearchResponse.Clusters.EMPTY,
             null
@@ -353,6 +361,14 @@ public class SearchResponseTests extends OpenSearchTestCase {
             assertEquals(1, searchExtBuilders.size());
         }
         {
+            Map<String, Long> phaseTookMap = new HashMap<>();
+            for (SearchPhaseName searchPhaseName : SearchPhaseName.values()) {
+                phaseTookMap.put(searchPhaseName.getName(), 0L);
+            }
+            phaseTookMap.put(SearchPhaseName.QUERY.getName(), 50L);
+            phaseTookMap.put(SearchPhaseName.FETCH.getName(), 25L);
+            phaseTookMap.put(SearchPhaseName.EXPAND.getName(), 30L);
+            SearchResponse.PhaseTook phaseTook = new SearchResponse.PhaseTook(phaseTookMap);
             SearchResponse response = new SearchResponse(
                 new InternalSearchResponse(
                     new SearchHits(hits, new TotalHits(100, TotalHits.Relation.EQUAL_TO), 1.5f),
@@ -368,13 +384,24 @@ public class SearchResponseTests extends OpenSearchTestCase {
                 0,
                 0,
                 0,
+                phaseTook,
                 ShardSearchFailure.EMPTY_ARRAY,
-                new SearchResponse.Clusters(5, 3, 2)
+                new SearchResponse.Clusters(5, 3, 2),
+                null
             );
             StringBuilder expectedString = new StringBuilder();
             expectedString.append("{");
             {
                 expectedString.append("\"took\":0,");
+                expectedString.append("\"phase_took\":");
+                {
+                    expectedString.append("{\"dfs_pre_query\":0,");
+                    expectedString.append("\"query\":50,");
+                    expectedString.append("\"fetch\":25,");
+                    expectedString.append("\"dfs_query\":0,");
+                    expectedString.append("\"expand\":30,");
+                    expectedString.append("\"can_match\":0},");
+                }
                 expectedString.append("\"timed_out\":false,");
                 expectedString.append("\"_shards\":");
                 {
@@ -475,6 +502,24 @@ public class SearchResponseTests extends OpenSearchTestCase {
         XContentBuilder builder = XContentBuilder.builder(MediaTypeRegistry.JSON.xContent());
         deserialized.getClusters().toXContent(builder, ToXContent.EMPTY_PARAMS);
         assertEquals(0, builder.toString().length());
+    }
+
+    public void testSearchResponsePhaseTookEquals() throws IOException {
+        SearchResponse.PhaseTook phaseTookA = new SearchResponse.PhaseTook(Map.of("foo", 0L, "bar", 1L));
+        SearchResponse.PhaseTook phaseTookB = new SearchResponse.PhaseTook(Map.of("foo", 1L, "bar", 1L));
+        SearchResponse.PhaseTook phaseTookC = new SearchResponse.PhaseTook(Map.of("foo", 0L));
+        SearchResponse.PhaseTook phaseTookD = new SearchResponse.PhaseTook(Map.of());
+
+        assertNotEquals(phaseTookA, phaseTookB);
+        assertNotEquals(phaseTookB, phaseTookA);
+        assertNotEquals(phaseTookA, phaseTookC);
+        assertNotEquals(phaseTookC, phaseTookA);
+        assertNotEquals(phaseTookA, phaseTookD);
+        assertNotEquals(phaseTookD, phaseTookA);
+        assertEquals(phaseTookA, phaseTookA);
+        assertEquals(phaseTookB, phaseTookB);
+        assertEquals(phaseTookC, phaseTookC);
+        assertEquals(phaseTookD, phaseTookD);
     }
 
     static class DummySearchExtBuilder extends SearchExtBuilder {

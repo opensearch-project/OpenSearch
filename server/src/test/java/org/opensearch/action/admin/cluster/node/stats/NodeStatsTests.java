@@ -49,6 +49,7 @@ import org.opensearch.core.indices.breaker.CircuitBreakerStats;
 import org.opensearch.discovery.DiscoveryStats;
 import org.opensearch.http.HttpStats;
 import org.opensearch.index.ReplicationStats;
+import org.opensearch.index.SegmentReplicationRejectionStats;
 import org.opensearch.index.remote.RemoteSegmentStats;
 import org.opensearch.index.remote.RemoteTranslogTransferTracker;
 import org.opensearch.index.translog.RemoteTranslogStats;
@@ -59,6 +60,8 @@ import org.opensearch.monitor.jvm.JvmStats;
 import org.opensearch.monitor.os.OsStats;
 import org.opensearch.monitor.process.ProcessStats;
 import org.opensearch.node.AdaptiveSelectionStats;
+import org.opensearch.node.NodeResourceUsageStats;
+import org.opensearch.node.NodesResourceUsageStats;
 import org.opensearch.node.ResponseCollectorService;
 import org.opensearch.script.ScriptCacheStats;
 import org.opensearch.script.ScriptStats;
@@ -282,6 +285,10 @@ public class NodeStatsTests extends OpenSearchTestCase {
                     assertEquals(ioStats.getTotalReadOperations(), deserializedIoStats.getTotalReadOperations());
                     assertEquals(ioStats.getTotalWriteKilobytes(), deserializedIoStats.getTotalWriteKilobytes());
                     assertEquals(ioStats.getTotalWriteOperations(), deserializedIoStats.getTotalWriteOperations());
+                    assertEquals(ioStats.getTotalReadTime(), deserializedIoStats.getTotalReadTime());
+                    assertEquals(ioStats.getTotalWriteTime(), deserializedIoStats.getTotalWriteTime());
+                    assertEquals(ioStats.getTotalQueueSize(), deserializedIoStats.getTotalQueueSize());
+                    assertEquals(ioStats.getTotalIOTimeMillis(), deserializedIoStats.getTotalIOTimeMillis());
                     assertEquals(ioStats.getDevicesStats().length, deserializedIoStats.getDevicesStats().length);
                     for (int i = 0; i < ioStats.getDevicesStats().length; i++) {
                         FsInfo.DeviceStats deviceStats = ioStats.getDevicesStats()[i];
@@ -392,6 +399,35 @@ public class NodeStatsTests extends OpenSearchTestCase {
                         assertEquals(aStats.serviceTime, bStats.serviceTime, 0.01);
                         assertEquals(aStats.responseTime, bStats.responseTime, 0.01);
                     });
+                }
+                NodesResourceUsageStats resourceUsageStats = nodeStats.getResourceUsageStats();
+                NodesResourceUsageStats deserializedResourceUsageStats = deserializedNodeStats.getResourceUsageStats();
+                if (resourceUsageStats == null) {
+                    assertNull(deserializedResourceUsageStats);
+                } else {
+                    resourceUsageStats.getNodeIdToResourceUsageStatsMap().forEach((k, v) -> {
+                        NodeResourceUsageStats aResourceUsageStats = resourceUsageStats.getNodeIdToResourceUsageStatsMap().get(k);
+                        NodeResourceUsageStats bResourceUsageStats = deserializedResourceUsageStats.getNodeIdToResourceUsageStatsMap()
+                            .get(k);
+                        assertEquals(
+                            aResourceUsageStats.getMemoryUtilizationPercent(),
+                            bResourceUsageStats.getMemoryUtilizationPercent(),
+                            0.0
+                        );
+                        assertEquals(aResourceUsageStats.getCpuUtilizationPercent(), bResourceUsageStats.getCpuUtilizationPercent(), 0.0);
+                        assertEquals(aResourceUsageStats.getTimestamp(), bResourceUsageStats.getTimestamp());
+                    });
+                }
+                SegmentReplicationRejectionStats segmentReplicationRejectionStats = nodeStats.getSegmentReplicationRejectionStats();
+                SegmentReplicationRejectionStats deserializedSegmentReplicationRejectionStats = deserializedNodeStats
+                    .getSegmentReplicationRejectionStats();
+                if (segmentReplicationRejectionStats == null) {
+                    assertNull(deserializedSegmentReplicationRejectionStats);
+                } else {
+                    assertEquals(
+                        segmentReplicationRejectionStats.getTotalRejectionCount(),
+                        deserializedSegmentReplicationRejectionStats.getTotalRejectionCount()
+                    );
                 }
                 ScriptCacheStats scriptCacheStats = nodeStats.getScriptCacheStats();
                 ScriptCacheStats deserializedScriptCacheStats = deserializedNodeStats.getScriptCacheStats();
@@ -625,12 +661,20 @@ public class NodeStatsTests extends OpenSearchTestCase {
                         randomNonNegativeLong(),
                         randomNonNegativeLong(),
                         randomNonNegativeLong(),
+                        randomNonNegativeLong(),
+                        randomNonNegativeLong(),
+                        randomNonNegativeLong(),
+                        randomNonNegativeLong(),
                         null
                     );
                 deviceStatsArray[i] = new FsInfo.DeviceStats(
                     randomInt(),
                     randomInt(),
                     randomAlphaOfLengthBetween(3, 10),
+                    randomNonNegativeLong(),
+                    randomNonNegativeLong(),
+                    randomNonNegativeLong(),
+                    randomNonNegativeLong(),
                     randomNonNegativeLong(),
                     randomNonNegativeLong(),
                     randomNonNegativeLong(),
@@ -756,6 +800,35 @@ public class NodeStatsTests extends OpenSearchTestCase {
             }
             adaptiveSelectionStats = new AdaptiveSelectionStats(nodeConnections, nodeStats);
         }
+        NodesResourceUsageStats nodesResourceUsageStats = null;
+        if (frequently()) {
+            int numNodes = randomIntBetween(0, 10);
+            Map<String, Long> nodeConnections = new HashMap<>();
+            Map<String, NodeResourceUsageStats> resourceUsageStatsMap = new HashMap<>();
+            for (int i = 0; i < numNodes; i++) {
+                String nodeId = randomAlphaOfLengthBetween(3, 10);
+                // add outgoing connection info
+                if (frequently()) {
+                    nodeConnections.put(nodeId, randomLongBetween(0, 100));
+                }
+                // add node calculations
+                if (frequently()) {
+                    NodeResourceUsageStats stats = new NodeResourceUsageStats(
+                        nodeId,
+                        System.currentTimeMillis(),
+                        randomDoubleBetween(1.0, 100.0, true),
+                        randomDoubleBetween(1.0, 100.0, true)
+                    );
+                    resourceUsageStatsMap.put(nodeId, stats);
+                }
+            }
+            nodesResourceUsageStats = new NodesResourceUsageStats(resourceUsageStatsMap);
+        }
+        SegmentReplicationRejectionStats segmentReplicationRejectionStats = null;
+        if (frequently()) {
+            segmentReplicationRejectionStats = new SegmentReplicationRejectionStats(randomNonNegativeLong());
+        }
+
         ClusterManagerThrottlingStats clusterManagerThrottlingStats = null;
         if (frequently()) {
             clusterManagerThrottlingStats = new ClusterManagerThrottlingStats();
@@ -787,6 +860,7 @@ public class NodeStatsTests extends OpenSearchTestCase {
             discoveryStats,
             ingestStats,
             adaptiveSelectionStats,
+            nodesResourceUsageStats,
             scriptCacheStats,
             null,
             null,
@@ -795,6 +869,8 @@ public class NodeStatsTests extends OpenSearchTestCase {
             weightedRoutingStats,
             null,
             null,
+            null,
+            segmentReplicationRejectionStats,
             null
         );
     }
@@ -815,6 +891,7 @@ public class NodeStatsTests extends OpenSearchTestCase {
             remoteSegmentStats.setMaxRefreshTimeLag(2L);
             remoteSegmentStats.addTotalUploadTime(20L);
             remoteSegmentStats.addTotalDownloadTime(20L);
+            remoteSegmentStats.addTotalRejections(5L);
 
             RemoteTranslogStats remoteTranslogStats = indicesStats.getTranslog().getRemoteTranslogStats();
             RemoteTranslogStats otherRemoteTranslogStats = new RemoteTranslogStats(getRandomRemoteTranslogTransferTrackerStats());

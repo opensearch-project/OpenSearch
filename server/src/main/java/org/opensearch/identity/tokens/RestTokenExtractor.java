@@ -26,7 +26,7 @@ public class RestTokenExtractor {
 
     /**
      * Given a rest request it will extract authentication token
-     *
+     * <p>
      * If no token was found, returns null.
      */
     public static AuthToken extractToken(final RestRequest request) {

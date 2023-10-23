@@ -43,7 +43,7 @@ import java.util.Optional;
 
 /**
  * A command to move shards in some way.
- *
+ * <p>
  * Commands are registered in {@link NetworkModule}.
  *
  * @opensearch.internal

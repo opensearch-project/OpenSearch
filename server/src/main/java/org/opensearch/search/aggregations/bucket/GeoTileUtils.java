@@ -101,7 +101,7 @@ public final class GeoTileUtils {
 
     /**
      * Parse an integer precision (zoom level). The {@link ValueType#INT} allows it to be a number or a string.
-     *
+     * <p>
      * The precision is expressed as a zoom level between 0 and {@link #MAX_ZOOM} (inclusive).
      *
      * @param parser {@link XContentParser} to parse the value from

@@ -117,6 +117,8 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
 
     private String pipeline;
 
+    private Boolean phaseTook = null;
+
     public SearchRequest() {
         this.localClusterAlias = null;
         this.absoluteStartMillis = DEFAULT_ABSOLUTE_START_MILLIS;
@@ -209,6 +211,7 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         this.absoluteStartMillis = absoluteStartMillis;
         this.finalReduce = finalReduce;
         this.cancelAfterTimeInterval = searchRequest.cancelAfterTimeInterval;
+        this.phaseTook = searchRequest.phaseTook;
     }
 
     /**
@@ -253,6 +256,9 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         if (in.getVersion().onOrAfter(Version.V_2_7_0)) {
             pipeline = in.readOptionalString();
         }
+        if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
+            phaseTook = in.readOptionalBoolean();
+        }
     }
 
     @Override
@@ -283,6 +289,9 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         out.writeOptionalTimeValue(cancelAfterTimeInterval);
         if (out.getVersion().onOrAfter(Version.V_2_7_0)) {
             out.writeOptionalString(pipeline);
+        }
+        if (out.getVersion().onOrAfter(Version.V_3_0_0)) {
+            out.writeOptionalBoolean(phaseTook);
         }
     }
 
@@ -600,7 +609,7 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
      * the search request expands to exceeds the threshold. This filter roundtrip can limit the number of shards significantly if for
      * instance a shard can not match any documents based on its rewrite method ie. if date filters are mandatory to match but the shard
      * bounds and the query are disjoint.
-     *
+     * <p>
      * When unspecified, the pre-filter phase is executed if any of these conditions is met:
      * <ul>
      * <li>The request targets more than 128 shards</li>
@@ -616,12 +625,26 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
     }
 
     /**
+     * Returns value of user-provided phase_took query parameter for this search request.
+     */
+    public Boolean isPhaseTook() {
+        return phaseTook;
+    }
+
+    /**
+     * Sets value of phase_took query param if provided by user. Defaults to <code>null</code>.
+     */
+    public void setPhaseTook(Boolean phaseTook) {
+        this.phaseTook = phaseTook;
+    }
+
+    /**
      * Returns a threshold that enforces a pre-filter roundtrip to pre-filter search shards based on query rewriting if the number of shards
      * the search request expands to exceeds the threshold, or <code>null</code> if the threshold is unspecified.
      * This filter roundtrip can limit the number of shards significantly if for
      * instance a shard can not match any documents based on its rewrite method ie. if date filters are mandatory to match but the shard
      * bounds and the query are disjoint.
-     *
+     * <p>
      * When unspecified, the pre-filter phase is executed if any of these conditions is met:
      * <ul>
      * <li>The request targets more than 128 shards</li>
@@ -719,7 +742,8 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
             && absoluteStartMillis == that.absoluteStartMillis
             && ccsMinimizeRoundtrips == that.ccsMinimizeRoundtrips
             && Objects.equals(cancelAfterTimeInterval, that.cancelAfterTimeInterval)
-            && Objects.equals(pipeline, that.pipeline);
+            && Objects.equals(pipeline, that.pipeline)
+            && Objects.equals(phaseTook, that.phaseTook);
     }
 
     @Override
@@ -740,7 +764,8 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
             localClusterAlias,
             absoluteStartMillis,
             ccsMinimizeRoundtrips,
-            cancelAfterTimeInterval
+            cancelAfterTimeInterval,
+            phaseTook
         );
     }
 
@@ -783,6 +808,8 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
             + cancelAfterTimeInterval
             + ", pipeline="
             + pipeline
+            + ", phaseTook="
+            + phaseTook
             + "}";
     }
 }

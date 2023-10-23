@@ -33,7 +33,6 @@ import org.opensearch.index.store.RemoteSegmentStoreDirectory;
 import org.opensearch.index.store.RemoteSegmentStoreDirectory.MetadataFilenameUtils;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.store.lockmanager.RemoteStoreLockManager;
-import org.opensearch.indices.recovery.DefaultRecoverySettings;
 import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpointPublisher;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.threadpool.ThreadPool;
@@ -156,8 +155,7 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
             remoteMetadataDirectory,
             mock(RemoteStoreLockManager.class),
             mock(ThreadPool.class),
-            shardId,
-            DefaultRecoverySettings.INSTANCE
+            shardId
         );
         FilterDirectory remoteStoreFilterDirectory = new RemoteStoreRefreshListenerTests.TestFilterDirectory(
             new RemoteStoreRefreshListenerTests.TestFilterDirectory(remoteSegmentStoreDirectory)
@@ -522,8 +520,8 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
             if (counter.incrementAndGet() <= succeedOnAttempt) {
                 throw new RuntimeException("Inducing failure in upload");
             }
-            return indexShard.getLatestSegmentInfosAndCheckpoint();
-        })).when(shard).getLatestSegmentInfosAndCheckpoint();
+            return indexShard.getLatestReplicationCheckpoint();
+        })).when(shard).computeReplicationCheckpoint(any());
 
         doAnswer(invocation -> {
             if (Objects.nonNull(successLatch)) {

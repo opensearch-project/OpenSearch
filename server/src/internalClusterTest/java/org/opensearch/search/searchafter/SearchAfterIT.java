@@ -220,8 +220,8 @@ public class SearchAfterIT extends ParameterizedOpenSearchIntegTestCase {
             .setPointInTime(new PointInTimeBuilder(pitResponse.getId()))
             .get();
         assertEquals(3, sr.getHits().getHits().length);
-        /**
-         * Add new data and assert PIT results remain the same and normal search results gets refreshed
+        /*
+          Add new data and assert PIT results remain the same and normal search results gets refreshed
          */
         indexRandom(true, client().prepareIndex("test").setId("4").setSource("field1", 102));
         sr = client().prepareSearch()

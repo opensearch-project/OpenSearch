@@ -41,6 +41,7 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.util.concurrent.OpenSearchExecutors;
 import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.core.common.unit.ByteSizeValue;
 
@@ -85,12 +86,12 @@ public class RecoverySettings {
     );
 
     /**
-     * Controls the maximum number of streams that can be started concurrently when downloading from the remote store.
+     * Controls the maximum number of streams that can be started concurrently per recovery when downloading from the remote store.
      */
-    public static final Setting<Integer> INDICES_RECOVERY_MAX_CONCURRENT_REMOTE_STORE_STREAMS_SETTING = Setting.intSetting(
+    public static final Setting<Integer> INDICES_RECOVERY_MAX_CONCURRENT_REMOTE_STORE_STREAMS_SETTING = new Setting<>(
         "indices.recovery.max_concurrent_remote_store_streams",
-        20,
-        1,
+        (s) -> Integer.toString(Math.max(1, OpenSearchExecutors.allocatedProcessors(s) / 2)),
+        (s) -> Setting.parseInt(s, 1, "indices.recovery.max_concurrent_remote_store_streams"),
         Property.Dynamic,
         Property.NodeScope
     );

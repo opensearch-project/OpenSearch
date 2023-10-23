@@ -47,11 +47,14 @@ import org.opensearch.repositories.s3.async.AsyncExecutorContainer;
 import org.opensearch.repositories.s3.async.AsyncTransferManager;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 
 import static org.opensearch.repositories.s3.S3Repository.BUCKET_SETTING;
 import static org.opensearch.repositories.s3.S3Repository.BUFFER_SIZE_SETTING;
+import static org.opensearch.repositories.s3.S3Repository.BULK_DELETE_SIZE;
 import static org.opensearch.repositories.s3.S3Repository.CANNED_ACL_SETTING;
 import static org.opensearch.repositories.s3.S3Repository.SERVER_SIDE_ENCRYPTION_SETTING;
 import static org.opensearch.repositories.s3.S3Repository.STORAGE_CLASS_SETTING;
@@ -74,6 +77,8 @@ class S3BlobStore implements BlobStore {
 
     private volatile StorageClass storageClass;
 
+    private volatile int bulkDeletesSize;
+
     private volatile RepositoryMetadata repositoryMetadata;
 
     private final StatsMetricPublisher statsMetricPublisher = new StatsMetricPublisher();
@@ -92,6 +97,7 @@ class S3BlobStore implements BlobStore {
         ByteSizeValue bufferSize,
         String cannedACL,
         String storageClass,
+        int bulkDeletesSize,
         RepositoryMetadata repositoryMetadata,
         AsyncTransferManager asyncTransferManager,
         AsyncExecutorContainer priorityExecutorBuilder,
@@ -105,6 +111,7 @@ class S3BlobStore implements BlobStore {
         this.bufferSize = bufferSize;
         this.cannedACL = initCannedACL(cannedACL);
         this.storageClass = initStorageClass(storageClass);
+        this.bulkDeletesSize = bulkDeletesSize;
         this.repositoryMetadata = repositoryMetadata;
         this.asyncTransferManager = asyncTransferManager;
         this.normalExecutorBuilder = normalExecutorBuilder;
@@ -119,6 +126,7 @@ class S3BlobStore implements BlobStore {
         this.bufferSize = BUFFER_SIZE_SETTING.get(repositoryMetadata.settings());
         this.cannedACL = initCannedACL(CANNED_ACL_SETTING.get(repositoryMetadata.settings()));
         this.storageClass = initStorageClass(STORAGE_CLASS_SETTING.get(repositoryMetadata.settings()));
+        this.bulkDeletesSize = BULK_DELETE_SIZE.get(repositoryMetadata.settings());
     }
 
     @Override
@@ -150,6 +158,10 @@ class S3BlobStore implements BlobStore {
         return bufferSize.getBytes();
     }
 
+    public int getBulkDeletesSize() {
+        return bulkDeletesSize;
+    }
+
     @Override
     public BlobContainer blobContainer(BlobPath path) {
         return new S3BlobContainer(path, this);
@@ -168,6 +180,16 @@ class S3BlobStore implements BlobStore {
     @Override
     public Map<String, Long> stats() {
         return statsMetricPublisher.getStats().toMap();
+    }
+
+    @Override
+    public Map<Metric, Map<String, Long>> extendedStats() {
+        if (statsMetricPublisher.getExtendedStats() == null || statsMetricPublisher.getExtendedStats().isEmpty()) {
+            return Collections.emptyMap();
+        }
+        Map<Metric, Map<String, Long>> extendedStats = new HashMap<>();
+        statsMetricPublisher.getExtendedStats().forEach((k, v) -> extendedStats.put(k, v.toMap()));
+        return extendedStats;
     }
 
     public ObjectCannedACL getCannedACL() {
