@@ -826,9 +826,9 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
         ).getIndices();
 
         assertEquals(indexMetadataMap.size(), 1);
-        assertEquals(indexMetadataMap.get(index.getUUID()).getIndex().getName(), index.getName());
-        assertEquals(indexMetadataMap.get(index.getUUID()).getNumberOfShards(), indexMetadata.getNumberOfShards());
-        assertEquals(indexMetadataMap.get(index.getUUID()).getNumberOfReplicas(), indexMetadata.getNumberOfReplicas());
+        assertEquals(indexMetadataMap.get(index.getName()).getIndex().getName(), index.getName());
+        assertEquals(indexMetadataMap.get(index.getName()).getNumberOfShards(), indexMetadata.getNumberOfShards());
+        assertEquals(indexMetadataMap.get(index.getName()).getNumberOfReplicas(), indexMetadata.getNumberOfReplicas());
     }
 
     public void testMarkLastStateAsCommittedSuccess() throws IOException {
