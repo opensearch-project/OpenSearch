@@ -161,6 +161,7 @@ public class RemoteFsTranslog extends Translog {
             remoteTranslogTransferTracker
         );
         RemoteFsTranslog.download(translogTransferManager, location, logger);
+        logger.trace(remoteTranslogTransferTracker.toString());
     }
 
     static void download(TranslogTransferManager translogTransferManager, Path location, Logger logger) throws IOException {
@@ -173,15 +174,20 @@ public class RemoteFsTranslog extends Translog {
          */
         IOException ex = null;
         for (int i = 0; i <= DOWNLOAD_RETRIES; i++) {
+            boolean success = false;
+            long startTimeMs = System.currentTimeMillis();
             try {
                 downloadOnce(translogTransferManager, location, logger);
+                success = true;
                 return;
             } catch (FileNotFoundException | NoSuchFileException e) {
                 // continue till download retries
                 ex = e;
+            } finally {
+                logger.trace("downloadOnce success={} timeElapsed={}", success, (System.currentTimeMillis() - startTimeMs));
             }
         }
-        logger.debug("Exhausted all download retries during translog/checkpoint file download");
+        logger.info("Exhausted all download retries during translog/checkpoint file download");
         throw ex;
     }
 

@@ -4783,6 +4783,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * @throws IOException if exception occurs while reading segments from remote store.
      */
     public void syncSegmentsFromRemoteSegmentStore(boolean overrideLocal, final Runnable onFileSync) throws IOException {
+        boolean syncSegmentSuccess = false;
+        long startTimeMs = System.currentTimeMillis();
         assert indexSettings.isRemoteStoreEnabled();
         logger.trace("Downloading segments from remote segment store");
         RemoteSegmentStoreDirectory remoteDirectory = getRemoteDirectory();
@@ -4832,9 +4834,15 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     : "There should not be any segments file in the dir";
                 store.commitSegmentInfos(infosSnapshot, processedLocalCheckpoint, processedLocalCheckpoint);
             }
+            syncSegmentSuccess = true;
         } catch (IOException e) {
             throw new IndexShardRecoveryException(shardId, "Exception while copying segment files from remote segment store", e);
         } finally {
+            logger.trace(
+                "syncSegmentsFromRemoteSegmentStore success={} elapsedTime={}",
+                syncSegmentSuccess,
+                (System.currentTimeMillis() - startTimeMs)
+            );
             store.decRef();
             remoteStore.decRef();
         }
