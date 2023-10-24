@@ -45,7 +45,7 @@ public final class RestRestoreRemoteStoreAction extends BaseRestHandler {
         );
         restoreRemoteStoreRequest.waitForCompletion(request.paramAsBoolean("wait_for_completion", false));
         restoreRemoteStoreRequest.restoreAllShards(request.paramAsBoolean("restore_all_shards", false));
-        restoreRemoteStoreRequest.forceEmptyTranslog(request.paramAsBoolean("force_empty_translog", false));
+        restoreRemoteStoreRequest.forceAllocate(request.paramAsBoolean("force_allocate", false));
         request.applyContentParser(p -> restoreRemoteStoreRequest.source(p.mapOrdered()));
         return channel -> client.admin().cluster().restoreRemoteStore(restoreRemoteStoreRequest, new RestToXContentListener<>(channel));
     }

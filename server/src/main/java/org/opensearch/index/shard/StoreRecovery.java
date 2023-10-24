@@ -554,7 +554,7 @@ final class StoreRecovery {
                     store.createEmpty(indexShard.indexSettings().getIndexVersionCreated().luceneVersion, translogHeader.getTranslogUUID());
                 }
             } else if (remoteSegmentEmpty == false && remoteTranslogEmpty) {
-                if (((RecoverySource.RemoteStoreRecoverySource) indexShard.shardRouting.recoverySource()).forceEmptyTranslog()) {
+                if (((RecoverySource.RemoteStoreRecoverySource) indexShard.shardRouting.recoverySource()).forceAllocate()) {
                     bootstrapFromLastCommit(indexShard, store);
                 }
             }

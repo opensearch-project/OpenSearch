@@ -38,7 +38,7 @@ public class RestoreRemoteStoreRequest extends ClusterManagerNodeRequest<Restore
     private String[] indices = Strings.EMPTY_ARRAY;
     private Boolean waitForCompletion = false;
     private Boolean restoreAllShards = false;
-    private Boolean forceEmptyTranslog = false;
+    private Boolean forceAllocate = false;
 
     public RestoreRemoteStoreRequest() {}
 
@@ -48,7 +48,7 @@ public class RestoreRemoteStoreRequest extends ClusterManagerNodeRequest<Restore
         waitForCompletion = in.readOptionalBoolean();
         restoreAllShards = in.readOptionalBoolean();
         if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
-            forceEmptyTranslog = in.readOptionalBoolean();
+            forceAllocate = in.readOptionalBoolean();
         }
     }
 
@@ -59,7 +59,7 @@ public class RestoreRemoteStoreRequest extends ClusterManagerNodeRequest<Restore
         out.writeOptionalBoolean(waitForCompletion);
         out.writeOptionalBoolean(restoreAllShards);
         if (out.getVersion().onOrAfter(Version.V_3_0_0)) {
-            out.writeOptionalBoolean(forceEmptyTranslog);
+            out.writeOptionalBoolean(forceAllocate);
         }
     }
 
@@ -151,24 +151,24 @@ public class RestoreRemoteStoreRequest extends ClusterManagerNodeRequest<Restore
     }
 
     /**
-     * Set the value for forceEmptyTranslog, denoting whether to create empty translog if remote translog does not have any data.
+     * Set the value for forceAllocate, denoting whether to create empty store/translog if remote segment store/translog does not have any data.
      *
-     * @param forceEmptyTranslog If true and if remote translog does not have any data, the operation will create empty translog on local
-     *                           If false, the operation will always try to fetch data from remote translog and will fail if remote translog is empty.
+     * @param forceAllocate If true and if remote segment store/translog does not have any data, the operation will create empty store/translog on local
+     *                      If false, the operation will always try to fetch data from remote segment store/translog and will fail if either one is empty.
      * @return this request
      */
-    public RestoreRemoteStoreRequest forceEmptyTranslog(boolean forceEmptyTranslog) {
-        this.forceEmptyTranslog = forceEmptyTranslog;
+    public RestoreRemoteStoreRequest forceAllocate(boolean forceAllocate) {
+        this.forceAllocate = forceAllocate;
         return this;
     }
 
     /**
-     * Returns forceEmptyTranslog setting
+     * Returns forceAllocate setting
      *
-     * @return true if the operation will create empty translog on local when remote translog is empty
+     * @return true if the operation will create empty store/translog on local when remote segment store/translog is empty
      */
-    public boolean forceEmptyTranslog() {
-        return forceEmptyTranslog;
+    public boolean forceAllocate() {
+        return forceAllocate;
     }
 
     /**
@@ -222,13 +222,13 @@ public class RestoreRemoteStoreRequest extends ClusterManagerNodeRequest<Restore
         RestoreRemoteStoreRequest that = (RestoreRemoteStoreRequest) o;
         return waitForCompletion == that.waitForCompletion
             && restoreAllShards == that.restoreAllShards
-            && forceEmptyTranslog == that.forceEmptyTranslog
+            && forceAllocate == that.forceAllocate
             && Arrays.equals(indices, that.indices);
     }
 
     @Override
     public int hashCode() {
-        int result = Objects.hash(waitForCompletion, restoreAllShards, forceEmptyTranslog);
+        int result = Objects.hash(waitForCompletion, restoreAllShards, forceAllocate);
         result = 31 * result + Arrays.hashCode(indices);
         return result;
     }

@@ -419,17 +419,17 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
         private final String restoreUUID;
         private final IndexId index;
         private final Version version;
-        private final boolean forceEmptyTranslog;
+        private final boolean forceAllocate;
 
         public RemoteStoreRecoverySource(String restoreUUID, Version version, IndexId indexId) {
             this(restoreUUID, version, indexId, false);
         }
 
-        public RemoteStoreRecoverySource(String restoreUUID, Version version, IndexId indexId, boolean forceEmptyTranslog) {
+        public RemoteStoreRecoverySource(String restoreUUID, Version version, IndexId indexId, boolean forceAllocate) {
             this.restoreUUID = restoreUUID;
             this.version = Objects.requireNonNull(version);
             this.index = Objects.requireNonNull(indexId);
-            this.forceEmptyTranslog = forceEmptyTranslog;
+            this.forceAllocate = forceAllocate;
         }
 
         RemoteStoreRecoverySource(StreamInput in) throws IOException {
@@ -437,9 +437,9 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
             version = in.readVersion();
             index = new IndexId(in);
             if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
-                forceEmptyTranslog = in.readBoolean();
+                forceAllocate = in.readBoolean();
             } else {
-                forceEmptyTranslog = false;
+                forceAllocate = false;
             }
         }
 
@@ -461,8 +461,8 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
             return version;
         }
 
-        public boolean forceEmptyTranslog() {
-            return forceEmptyTranslog;
+        public boolean forceAllocate() {
+            return forceAllocate;
         }
 
         @Override
@@ -471,7 +471,7 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
             out.writeVersion(version);
             index.writeTo(out);
             if (out.getVersion().onOrAfter(Version.V_3_0_0)) {
-                out.writeBoolean(forceEmptyTranslog);
+                out.writeBoolean(forceAllocate);
             }
         }
 
@@ -485,7 +485,7 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
             builder.field("version", version.toString())
                 .field("index", index.getName())
                 .field("restoreUUID", restoreUUID)
-                .field("forceEmptyTranslog", forceEmptyTranslog);
+                .field("forceAllocate", forceAllocate);
         }
 
         @Override
@@ -506,12 +506,12 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
             return restoreUUID.equals(that.restoreUUID)
                 && index.equals(that.index)
                 && version.equals(that.version)
-                && forceEmptyTranslog == that.forceEmptyTranslog;
+                && forceAllocate == that.forceAllocate;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(restoreUUID, index, version, forceEmptyTranslog);
+            return Objects.hash(restoreUUID, index, version, forceAllocate);
         }
 
         // TODO: This override should be removed/be updated to return "true",

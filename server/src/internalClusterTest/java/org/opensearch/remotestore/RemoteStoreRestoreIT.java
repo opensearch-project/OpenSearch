@@ -38,7 +38,7 @@ import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.greaterThan;
 
-@OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.SUITE, numDataNodes = 0)
+@OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class RemoteStoreRestoreIT extends BaseRemoteStoreRestoreIT {
 
     /**
@@ -236,7 +236,7 @@ public class RemoteStoreRestoreIT extends BaseRemoteStoreRestoreIT {
         verifyRestoredData(indexStats, INDEX_NAME);
     }
 
-    public void testRestoreFlowWithForceEmptyTranslogNoOp() throws Exception {
+    public void testRestoreFlowWithForceAllocateNoOp() throws Exception {
         prepareCluster(1, 3, INDEX_NAME, 0, 1);
         Map<String, Long> indexStats = indexData(randomIntBetween(2, 3), randomBoolean(), INDEX_NAME);
 
@@ -252,7 +252,7 @@ public class RemoteStoreRestoreIT extends BaseRemoteStoreRestoreIT {
         client().admin()
             .cluster()
             .restoreRemoteStore(
-                new RestoreRemoteStoreRequest().indices(INDEX_NAME).restoreAllShards(true).forceEmptyTranslog(true),
+                new RestoreRemoteStoreRequest().indices(INDEX_NAME).restoreAllShards(true).forceAllocate(true),
                 PlainActionFuture.newFuture()
             );
         ensureGreen(INDEX_NAME);
@@ -267,7 +267,7 @@ public class RemoteStoreRestoreIT extends BaseRemoteStoreRestoreIT {
         );
     }
 
-    public void testRestoreFlowWithForceEmptyTranslog() throws Exception {
+    public void testRestoreFlowWithForceAllocate() throws Exception {
         prepareCluster(1, 3, INDEX_NAME, 0, 1);
         Map<String, Long> indexStats = indexData(randomIntBetween(2, 3), randomBoolean(), INDEX_NAME);
 
@@ -292,7 +292,7 @@ public class RemoteStoreRestoreIT extends BaseRemoteStoreRestoreIT {
         client().admin()
             .cluster()
             .restoreRemoteStore(
-                new RestoreRemoteStoreRequest().indices(INDEX_NAME).restoreAllShards(true).forceEmptyTranslog(true),
+                new RestoreRemoteStoreRequest().indices(INDEX_NAME).restoreAllShards(true).forceAllocate(true),
                 PlainActionFuture.newFuture()
             );
         ensureGreen(INDEX_NAME);

@@ -103,7 +103,7 @@ public class RemoteStoreRestoreService {
                     currentState,
                     null,
                     request.restoreAllShards(),
-                    request.forceEmptyTranslog(),
+                    request.forceAllocate(),
                     request.indices()
                 );
                 restoreUUID = remoteRestoreResult.getRestoreUUID();
@@ -141,7 +141,7 @@ public class RemoteStoreRestoreService {
         ClusterState currentState,
         @Nullable String restoreClusterUUID,
         boolean restoreAllShards,
-        boolean forceEmptyTranslog,
+        boolean forceAllocate,
         String[] indexNames
     ) {
         Map<String, Tuple<Boolean, IndexMetadata>> indexMetadataMap = new HashMap<>();
@@ -183,7 +183,7 @@ public class RemoteStoreRestoreService {
                 }
             }
         }
-        return executeRestore(currentState, indexMetadataMap, restoreAllShards, remoteMetadata, forceEmptyTranslog);
+        return executeRestore(currentState, indexMetadataMap, restoreAllShards, remoteMetadata, forceAllocate);
     }
 
     /**
@@ -198,7 +198,7 @@ public class RemoteStoreRestoreService {
         Map<String, Tuple<Boolean, IndexMetadata>> indexMetadataMap,
         boolean restoreAllShards,
         Metadata remoteMetadata,
-        boolean forceEmptyTranslog
+        boolean forceAllocate
     ) {
         final String restoreUUID = UUIDs.randomBase64UUID();
         List<String> indicesToBeRestored = new ArrayList<>();
@@ -237,7 +237,7 @@ public class RemoteStoreRestoreService {
                     restoreUUID,
                     updatedIndexMetadata.getCreationVersion(),
                     indexId,
-                    forceEmptyTranslog
+                    forceAllocate
                 );
 
                 rtBuilder.addAsRemoteStoreRestore(updatedIndexMetadata, recoverySource, indexShardRoutingTableMap, restoreAllShards);
