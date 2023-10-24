@@ -266,10 +266,11 @@ public class S3BlobContainerMockClientTests extends OpenSearchTestCase implement
         @Override
         public AmazonAsyncS3Reference client(
             RepositoryMetadata repositoryMetadata,
+            AsyncExecutorContainer urgentExecutorBuilder,
             AsyncExecutorContainer priorityExecutorBuilder,
             AsyncExecutorContainer normalExecutorBuilder
         ) {
-            return new AmazonAsyncS3Reference(AmazonAsyncS3WithCredentials.create(asyncClient, asyncClient, null));
+            return new AmazonAsyncS3Reference(AmazonAsyncS3WithCredentials.create(asyncClient, asyncClient, asyncClient, null));
         }
     }
 
@@ -393,8 +394,10 @@ public class S3BlobContainerMockClientTests extends OpenSearchTestCase implement
             new AsyncTransferManager(
                 S3Repository.PARALLEL_MULTIPART_UPLOAD_MINIMUM_PART_SIZE_SETTING.getDefault(Settings.EMPTY).getBytes(),
                 asyncExecutorContainer.getStreamReader(),
+                asyncExecutorContainer.getStreamReader(),
                 asyncExecutorContainer.getStreamReader()
             ),
+            asyncExecutorContainer,
             asyncExecutorContainer,
             asyncExecutorContainer
         );
