@@ -106,11 +106,10 @@ public class RemoteClusterStateServiceIT extends RemoteStoreBaseIntegTestCase {
             );
         }
 
-        Map<String, IndexMetadata> indexMetadataMap = remoteClusterStateService.getLatestMetadata(
+        Map<String, IndexMetadata> indexMetadataMap = remoteClusterStateService.getLatestClusterState(
             cluster().getClusterName(),
-            getClusterState().metadata().clusterUUID(),
-            clusterMetadataManifest.get()
-        ).getIndices();
+            getClusterState().metadata().clusterUUID()
+        ).getMetadata().getIndices();
         assertEquals(0, indexMetadataMap.values().stream().findFirst().get().getNumberOfReplicas());
         assertEquals(shardCount, indexMetadataMap.values().stream().findFirst().get().getNumberOfShards());
     }
