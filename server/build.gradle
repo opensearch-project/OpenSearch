@@ -364,7 +364,9 @@ tasks.named("thirdPartyAudit").configure {
             'com.google.protobuf.UnsafeUtil$Android32MemoryAccessor',
             'com.google.protobuf.UnsafeUtil$Android64MemoryAccessor',
             'com.google.protobuf.UnsafeUtil$JvmMemoryAccessor',
-            'com.google.protobuf.UnsafeUtil$MemoryAccessor'
+            'com.google.protobuf.UnsafeUtil$MemoryAccessor',
+            'org.apache.logging.log4j.core.util.internal.UnsafeUtil',
+            'org.apache.logging.log4j.core.util.internal.UnsafeUtil$1'
     )
 }
 
