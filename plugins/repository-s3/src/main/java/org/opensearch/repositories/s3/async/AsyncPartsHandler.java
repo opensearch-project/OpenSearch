@@ -48,6 +48,7 @@ public class AsyncPartsHandler {
      * @param s3AsyncClient S3 client to use for upload
      * @param executorService Thread pool for regular upload
      * @param priorityExecutorService Thread pool for priority uploads
+     * @param urgentExecutorService Thread pool for urgent uploads
      * @param uploadRequest request for upload
      * @param streamContext Stream context used in supplying individual file parts
      * @param uploadId Upload Id against which multi-part is being performed
@@ -60,6 +61,7 @@ public class AsyncPartsHandler {
         S3AsyncClient s3AsyncClient,
         ExecutorService executorService,
         ExecutorService priorityExecutorService,
+        ExecutorService urgentExecutorService,
         UploadRequest uploadRequest,
         StreamContext streamContext,
         String uploadId,
@@ -83,6 +85,7 @@ public class AsyncPartsHandler {
                 s3AsyncClient,
                 executorService,
                 priorityExecutorService,
+                urgentExecutorService,
                 completedParts,
                 inputStreamContainers,
                 futures,
@@ -129,6 +132,7 @@ public class AsyncPartsHandler {
         S3AsyncClient s3AsyncClient,
         ExecutorService executorService,
         ExecutorService priorityExecutorService,
+        ExecutorService urgentExecutorService,
         AtomicReferenceArray<CompletedPart> completedParts,
         AtomicReferenceArray<CheckedContainer> inputStreamContainers,
         List<CompletableFuture<CompletedPart>> futures,
@@ -138,9 +142,14 @@ public class AsyncPartsHandler {
     ) {
         Integer partNumber = uploadPartRequest.partNumber();
 
-        ExecutorService streamReadExecutor = uploadRequest.getWritePriority() == WritePriority.HIGH
-            ? priorityExecutorService
-            : executorService;
+        ExecutorService streamReadExecutor;
+        if (uploadRequest.getWritePriority() == WritePriority.URGENT) {
+            streamReadExecutor = urgentExecutorService;
+        } else if (uploadRequest.getWritePriority() == WritePriority.HIGH) {
+            streamReadExecutor = priorityExecutorService;
+        } else {
+            streamReadExecutor = executorService;
+        }
         // Buffered stream is needed to allow mark and reset ops during IO errors so that only buffered
         // data can be retried instead of retrying whole file by the application.
         InputStream inputStream = new BufferedInputStream(inputStreamContainer.getInputStream(), (int) (ByteSizeUnit.MB.toBytes(1) + 1));
