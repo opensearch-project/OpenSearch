@@ -4981,6 +4981,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             logger.debug("File {} does not exist in local FS, downloading from remote store", file);
         } catch (IOException e) {
             logger.warn("Exception while reading checksum of file: {}, this can happen if file is corrupted", file);
+            // For any other exception on reading checksum, we delete the file to re-download again
+            store.deleteQuiet(file);
         }
         return false;
     }
