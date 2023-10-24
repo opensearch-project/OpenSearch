@@ -278,6 +278,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.iterableWithSize;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.mockito.Mockito.RETURNS_DEEP_STUBS;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -2190,7 +2191,7 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                         mock(IndicesService.class),
                         mock(ShardStateAction.class),
                         mock(SegmentReplicationStatsTracker.class),
-                        mock(ThreadPool.class)
+                        mock(ThreadPool.class, RETURNS_DEEP_STUBS)
                     ),
                     mock(RemoteStorePressureService.class),
                     new SystemIndices(emptyMap()),

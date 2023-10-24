@@ -31,10 +31,12 @@
 
 package org.opensearch.common.util.concurrent;
 
+import org.apache.logging.log4j.Logger;
 import org.opensearch.common.Randomness;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.threadpool.Scheduler;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
 import org.junit.AfterClass;
@@ -48,6 +50,19 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.equalTo;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.RETURNS_DEEP_STUBS;
+import static org.mockito.Mockito.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
+import static org.mockito.Mockito.when;
 
 public class AbstractAsyncTaskTests extends OpenSearchTestCase {
 
@@ -247,5 +262,120 @@ public class AbstractAsyncTaskTests extends OpenSearchTestCase {
             assertTrue(task.isClosed());
             assertFalse(task.isScheduled());
         }
+    }
+
+    public void testScheduledDuringShutdown_defaultBehavior() throws Exception {
+        final Logger mockedLogger = mock(Logger.class);
+        final ThreadPool mockedThreadPool = mock(ThreadPool.class, RETURNS_DEEP_STUBS);
+
+        final AbstractAsyncTask task = spy(new AbstractAsyncTask(mockedLogger, mockedThreadPool, TimeValue.MAX_VALUE, true) {
+            @Override
+            protected boolean mustReschedule() {
+                return true;
+            }
+
+            @Override
+            protected void runInternal() {}
+        });
+
+        task.run();
+        assertThat(task.isScheduled(), equalTo(true));
+
+        verify(task).isScheduled();
+        verify(task, times(2)).run();
+        verify(task, times(2)).mustReschedule();
+        verify(task, times(2)).runInternal();
+        verify(task, times(2)).doNotRunWhenShuttingDown();
+        verify(task, times(2)).rescheduleIfNecessary();
+        verify(task, times(2)).getThreadPool();
+        verify(task, times(3)).isClosed();
+
+        verify(mockedLogger, times(2)).isTraceEnabled();
+
+        verify(mockedThreadPool, times(2)).schedule(any(), any(), any());
+
+        verifyNoMoreInteractions(mockedLogger, mockedThreadPool, task);
+    }
+
+    public void testScheduledDuringShutdown_doNotRunOnShutdown_normal() throws Exception {
+        final Logger mockedLogger = mock(Logger.class);
+        final ThreadPool mockedThreadPool = mock(ThreadPool.class, RETURNS_DEEP_STUBS);
+
+        final AbstractAsyncTask task = spy(new AbstractAsyncTask(mockedLogger, mockedThreadPool, TimeValue.MAX_VALUE, true) {
+            @Override
+            protected boolean mustReschedule() {
+                return true;
+            }
+
+            @Override
+            protected boolean doNotRunWhenShuttingDown() {
+                return true;
+            }
+
+            @Override
+            protected void runInternal() {}
+        });
+
+        task.run();
+
+        assertThat(task.isScheduled(), equalTo(true));
+
+        verify(task).isScheduled();
+        verify(task, times(2)).run();
+        verify(task, times(2)).mustReschedule();
+        verify(task, times(2)).runInternal();
+        verify(task, times(2)).doNotRunWhenShuttingDown();
+        verify(task, times(2)).rescheduleIfNecessary();
+        verify(task, times(2)).getThreadPool();
+        verify(task, times(3)).isClosed();
+
+        verify(mockedLogger, times(2)).isTraceEnabled();
+
+        verify(mockedThreadPool, times(2)).scheduleUnlessShuttingDown(any(), any(), any());
+
+        verifyNoMoreInteractions(mockedLogger, mockedThreadPool, task);
+    }
+
+    public void testScheduledDuringShutdown_doNotRunOnShutdown_shuttingDown() throws Exception {
+        final Logger mockedLogger = mock(Logger.class);
+        final ThreadPool mockedThreadPool = mock(ThreadPool.class, RETURNS_DEEP_STUBS);
+        final Scheduler.ScheduledCancellable scheduledCancellable = mock(Scheduler.ScheduledCancellable.class);
+        when(scheduledCancellable.isCancelled()).thenReturn(true);
+        when(mockedThreadPool.scheduleUnlessShuttingDown(any(), any(), any())).thenReturn(scheduledCancellable);
+
+        final AbstractAsyncTask task = spy(new AbstractAsyncTask(mockedLogger, mockedThreadPool, TimeValue.MAX_VALUE, true) {
+            @Override
+            protected boolean mustReschedule() {
+                return true;
+            }
+
+            @Override
+            protected boolean doNotRunWhenShuttingDown() {
+                return true;
+            }
+
+            @Override
+            protected void runInternal() {}
+        });
+
+        task.run();
+
+        assertThat(task.isScheduled(), equalTo(false));
+
+        verify(task).isScheduled();
+        verify(task, times(2)).run();
+        verify(task, times(2)).mustReschedule();
+        verify(task, times(2)).runInternal();
+        verify(task, times(2)).doNotRunWhenShuttingDown();
+        verify(task, times(2)).rescheduleIfNecessary();
+        verify(task, times(2)).getThreadPool();
+        verify(task, times(3)).isClosed();
+
+        verify(mockedLogger, times(2)).isTraceEnabled();
+        verify(mockedLogger, times(2)).trace(eq("scheduled {} disabled"), any(String.class));
+
+        verify(mockedThreadPool, times(2)).scheduleUnlessShuttingDown(any(), any(), any());
+
+        verifyNoMoreInteractions(mockedLogger, mockedThreadPool, task);
     }
 }
