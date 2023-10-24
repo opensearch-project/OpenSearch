@@ -640,7 +640,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     if (currentRouting.initializing() && currentRouting.isRelocationTarget() == false && newRouting.active()) {
                         // the cluster-manager started a recovering primary, activate primary mode.
                         replicationTracker.activatePrimaryMode(getLocalCheckpoint());
-                        ensurePeerRecoveryRetentionLeasesExist();
+                        postActivatePrimaryMode();
                     }
                 } else {
                     assert currentRouting.primary() == false : "term is only increased as part of primary promotion";
@@ -711,8 +711,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                                 // are brought up to date.
                                 checkpointPublisher.publish(this, getLatestReplicationCheckpoint());
                             }
-
-                            ensurePeerRecoveryRetentionLeasesExist();
+                            postActivatePrimaryMode();
                             /*
                              * If this shard was serving as a replica shard when another shard was promoted to primary then
                              * its Lucene index was reset during the primary term transition. In particular, the Lucene index
@@ -3392,6 +3391,20 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 + "]";
         synchronized (mutex) {
             replicationTracker.activateWithPrimaryContext(primaryContext); // make changes to primaryMode flag only under mutex
+        }
+        postActivatePrimaryMode();
+    }
+
+    private void postActivatePrimaryMode() {
+        if (indexSettings.isRemoteStoreEnabled()) {
+            // We make sure to upload translog (even if it does not contain any operations) to remote translog.
+            // This helps to get a consistent state in remote store where both remote segment store and remote
+            // translog contains data.
+            try {
+                getEngine().translogManager().syncTranslog();
+            } catch (IOException e) {
+                logger.error("Failed to sync translog to remote from new primary", e);
+            }
         }
         ensurePeerRecoveryRetentionLeasesExist();
     }
