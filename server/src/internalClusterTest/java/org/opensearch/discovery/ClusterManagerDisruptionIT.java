@@ -39,6 +39,7 @@ import org.opensearch.action.bulk.BulkResponse;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.coordination.NoClusterManagerBlockService;
 import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.cluster.service.ClusterStateStats;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
@@ -195,6 +196,8 @@ public class ClusterManagerDisruptionIT extends AbstractDisruptionTestCase {
                 }
 
             }
+            ClusterStateStats clusterStateStats = internalCluster().clusterService().getClusterManagerService().getClusterStateStats();
+            assertTrue(clusterStateStats.getUpdateFailed() > 0);
         });
     }
 

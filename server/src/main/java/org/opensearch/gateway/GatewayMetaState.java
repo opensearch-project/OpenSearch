@@ -48,6 +48,7 @@ import org.opensearch.cluster.coordination.CoordinationState.PersistedState;
 import org.opensearch.cluster.coordination.InMemoryPersistedState;
 import org.opensearch.cluster.coordination.PersistedStateRegistry;
 import org.opensearch.cluster.coordination.PersistedStateRegistry.PersistedStateType;
+import org.opensearch.cluster.coordination.PersistedStateStats;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.IndexTemplateMetadata;
 import org.opensearch.cluster.metadata.Manifest;
@@ -616,6 +617,12 @@ public class GatewayMetaState implements Closeable {
             lastAcceptedState = clusterState;
         }
 
+        @Override
+        public PersistedStateStats getStats() {
+            // Note: These stats are not published yet, will come in future
+            return null;
+        }
+
         private PersistedClusterStateService.Writer getWriterSafe() {
             final PersistedClusterStateService.Writer writer = persistenceWriter.get();
             if (writer == null) {
@@ -718,8 +725,14 @@ public class GatewayMetaState implements Closeable {
                 lastAcceptedManifest = manifest;
                 lastAcceptedState = clusterState;
             } catch (Exception e) {
+                remoteClusterStateService.writeMetadataFailed();
                 handleExceptionOnWrite(e);
             }
+        }
+
+        @Override
+        public PersistedStateStats getStats() {
+            return remoteClusterStateService.getStats();
         }
 
         private boolean verifyManifestAndClusterState(ClusterMetadataManifest manifest, ClusterState clusterState) {
