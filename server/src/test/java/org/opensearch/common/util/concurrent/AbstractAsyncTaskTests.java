@@ -33,6 +33,7 @@ package org.opensearch.common.util.concurrent;
 
 import org.apache.logging.log4j.Logger;
 import org.opensearch.common.Randomness;
+import org.opensearch.common.SuppressLoggerChecks;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.test.OpenSearchTestCase;
@@ -336,6 +337,7 @@ public class AbstractAsyncTaskTests extends OpenSearchTestCase {
         verifyNoMoreInteractions(mockedLogger, mockedThreadPool, task);
     }
 
+    @SuppressLoggerChecks(reason = "mock logger call validation")
     public void testScheduledDuringShutdown_doNotRunOnShutdown_shuttingDown() throws Exception {
         final Logger mockedLogger = mock(Logger.class);
         final ThreadPool mockedThreadPool = mock(ThreadPool.class, RETURNS_DEEP_STUBS);
