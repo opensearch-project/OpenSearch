@@ -149,6 +149,7 @@ public class RemoteStoreRestoreService {
                 if (currentState.metadata().clusterUUID().equals(restoreClusterUUID)) {
                     throw new IllegalArgumentException("clusterUUID to restore from should be different from current cluster UUID");
                 }
+                logger.info("Restoring cluster state from remote store from cluster UUID : [{}]", restoreClusterUUID);
                 remoteMetadata = remoteClusterStateService.getLatestMetadata(currentState.getClusterName().value(), restoreClusterUUID);
                 remoteMetadata.getIndices().values().forEach(indexMetadata -> {
                     indexMetadataMap.put(indexMetadata.getIndex().getName(), new Tuple<>(true, indexMetadata));
