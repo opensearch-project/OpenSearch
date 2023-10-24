@@ -333,6 +333,11 @@ tasks.named("thirdPartyAudit").configure {
             'org.osgi.framework.SynchronousBundleListener',
             'org.osgi.framework.wiring.BundleWire',
             'org.osgi.framework.wiring.BundleWiring',
+            'org.zeromq.SocketType',
+            'org.zeromq.ZContext',
+            'org.zeromq.ZMonitor',
+            'org.zeromq.ZMonitor$Event',
+            'org.zeromq.ZMonitor$ZEvent',
             'org.zeromq.ZMQ$Context',
             'org.zeromq.ZMQ$Socket',
             'org.zeromq.ZMQ',
@@ -358,7 +363,9 @@ tasks.named("thirdPartyAudit").configure {
             'com.google.protobuf.UnsafeUtil$Android32MemoryAccessor',
             'com.google.protobuf.UnsafeUtil$Android64MemoryAccessor',
             'com.google.protobuf.UnsafeUtil$JvmMemoryAccessor',
-            'com.google.protobuf.UnsafeUtil$MemoryAccessor'
+            'com.google.protobuf.UnsafeUtil$MemoryAccessor',
+            'org.apache.logging.log4j.core.util.internal.UnsafeUtil',
+            'org.apache.logging.log4j.core.util.internal.UnsafeUtil$1'
     )
 }
 
