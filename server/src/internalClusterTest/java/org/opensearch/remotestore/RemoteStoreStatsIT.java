@@ -589,21 +589,23 @@ public class RemoteStoreStatsIT extends RemoteStoreBaseIntegTestCase {
                 .getRemoteStoreStats();
             Arrays.stream(remoteStoreStats).forEach(statObject -> {
                 RemoteSegmentTransferTracker.Stats segmentStats = statObject.getSegmentStats();
+                RemoteTranslogTransferTracker.Stats translogStats = statObject.getTranslogStats();
                 if (statObject.getShardRouting().primary()) {
                     assertTrue(
                         segmentStats.totalUploadsSucceeded == 1
                             && segmentStats.totalUploadsStarted == segmentStats.totalUploadsSucceeded
                             && segmentStats.totalUploadsFailed == 0
                     );
+                    // On primary shard creation, we upload to remote translog post primary mode activation.
+                    // This changes upload stats to non-zero for primary shard.
+                    assertNonZeroTranslogUploadStatsNoFailures(translogStats);
                 } else {
                     assertTrue(
                         segmentStats.directoryFileTransferTrackerStats.transferredBytesStarted == 0
                             && segmentStats.directoryFileTransferTrackerStats.transferredBytesSucceeded == 0
                     );
+                    assertZeroTranslogUploadStats(translogStats);
                 }
-
-                RemoteTranslogTransferTracker.Stats translogStats = statObject.getTranslogStats();
-                assertZeroTranslogUploadStats(translogStats);
                 assertZeroTranslogDownloadStats(translogStats);
             });
         }, 5, TimeUnit.SECONDS);

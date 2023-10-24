@@ -12,6 +12,7 @@ import org.opensearch.action.DocWriteResponse;
 import org.opensearch.action.admin.cluster.remotestore.restore.RestoreRemoteStoreRequest;
 import org.opensearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.opensearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
+import org.opensearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.opensearch.action.admin.indices.get.GetIndexRequest;
 import org.opensearch.action.admin.indices.get.GetIndexResponse;
 import org.opensearch.action.delete.DeleteResponse;
@@ -21,10 +22,16 @@ import org.opensearch.client.Requests;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.io.PathUtils;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.io.IOUtils;
+import org.opensearch.core.index.Index;
 import org.opensearch.core.rest.RestStatus;
+import org.opensearch.index.IndexService;
 import org.opensearch.index.IndexSettings;
+import org.opensearch.index.shard.IndexShard;
+import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.snapshots.AbstractSnapshotIntegTestCase;
+import org.opensearch.snapshots.SnapshotInfo;
 import org.opensearch.snapshots.SnapshotState;
 import org.opensearch.test.InternalTestCluster;
 import org.opensearch.test.OpenSearchIntegTestCase;
@@ -32,9 +39,14 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Optional;
 import java.util.concurrent.ExecutionException;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_SEGMENT_STORE_REPOSITORY;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_STORE_ENABLED;
@@ -357,6 +369,90 @@ public class RemoteRestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
         indexDocuments(client, indexName1, numDocsInIndex1, numDocsInIndex1 + 2);
         ensureGreen(indexName1);
         assertDocsPresentInIndex(client, indexName1, numDocsInIndex1 + 2);
+    }
+
+    public void testRemoteRestoreIndexRestoredFromSnapshot() throws IOException, ExecutionException, InterruptedException {
+        internalCluster().startClusterManagerOnlyNode();
+        internalCluster().startDataOnlyNodes(2);
+
+        String indexName1 = "testindex1";
+        String snapshotRepoName = "test-restore-snapshot-repo";
+        String snapshotName1 = "test-restore-snapshot1";
+        Path absolutePath1 = randomRepoPath().toAbsolutePath();
+        logger.info("Snapshot Path [{}]", absolutePath1);
+
+        createRepository(snapshotRepoName, "fs", getRepositorySettings(absolutePath1, true));
+
+        Settings indexSettings = getIndexSettings(1, 0).build();
+        createIndex(indexName1, indexSettings);
+
+        final int numDocsInIndex1 = randomIntBetween(20, 30);
+        indexDocuments(client(), indexName1, numDocsInIndex1);
+        flushAndRefresh(indexName1);
+        ensureGreen(indexName1);
+
+        logger.info("--> snapshot");
+        SnapshotInfo snapshotInfo1 = createSnapshot(snapshotRepoName, snapshotName1, new ArrayList<>(Arrays.asList(indexName1)));
+        assertThat(snapshotInfo1.successfulShards(), greaterThan(0));
+        assertThat(snapshotInfo1.successfulShards(), equalTo(snapshotInfo1.totalShards()));
+        assertThat(snapshotInfo1.state(), equalTo(SnapshotState.SUCCESS));
+
+        assertAcked(client().admin().indices().delete(new DeleteIndexRequest(indexName1)).get());
+        assertFalse(indexExists(indexName1));
+
+        RestoreSnapshotResponse restoreSnapshotResponse1 = client().admin()
+            .cluster()
+            .prepareRestoreSnapshot(snapshotRepoName, snapshotName1)
+            .setWaitForCompletion(false)
+            .setIndices(indexName1)
+            .get();
+
+        assertEquals(restoreSnapshotResponse1.status(), RestStatus.ACCEPTED);
+        ensureGreen(indexName1);
+        assertDocsPresentInIndex(client(), indexName1, numDocsInIndex1);
+
+        // Make sure remote translog is empty
+        String indexUUID = client().admin()
+            .indices()
+            .prepareGetSettings(indexName1)
+            .get()
+            .getSetting(indexName1, IndexMetadata.SETTING_INDEX_UUID);
+
+        Path remoteTranslogMetadataPath = Path.of(String.valueOf(remoteRepoPath), indexUUID, "/0/translog/metadata");
+        Path remoteTranslogDataPath = Path.of(String.valueOf(remoteRepoPath), indexUUID, "/0/translog/data");
+
+        try (
+            Stream<Path> translogMetadata = Files.list(remoteTranslogMetadataPath);
+            Stream<Path> translogData = Files.list(remoteTranslogDataPath)
+        ) {
+            assertTrue(translogData.count() > 0);
+            assertTrue(translogMetadata.count() > 0);
+        }
+
+        // Clear the local data before stopping the node. This will make sure that remote translog is empty.
+        IndexShard indexShard = getIndexShard(primaryNodeName(indexName1), indexName1);
+        try (Stream<Path> files = Files.list(indexShard.shardPath().resolveTranslog())) {
+            IOUtils.deleteFilesIgnoringExceptions(files.collect(Collectors.toList()));
+        }
+        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(primaryNodeName(indexName1)));
+
+        ensureRed(indexName1);
+
+        client().admin()
+            .cluster()
+            .restoreRemoteStore(new RestoreRemoteStoreRequest().indices(indexName1).restoreAllShards(false), PlainActionFuture.newFuture());
+
+        ensureGreen(indexName1);
+        assertDocsPresentInIndex(client(), indexName1, numDocsInIndex1);
+    }
+
+    protected IndexShard getIndexShard(String node, String indexName) {
+        final Index index = resolveIndex(indexName);
+        IndicesService indicesService = internalCluster().getInstance(IndicesService.class, node);
+        IndexService indexService = indicesService.indexService(index);
+        assertNotNull(indexService);
+        final Optional<Integer> shardId = indexService.shardIds().stream().findFirst();
+        return shardId.map(indexService::getShard).orElse(null);
     }
 
     public void testRestoreShallowCopySnapshotWithDifferentRepo() throws IOException {
