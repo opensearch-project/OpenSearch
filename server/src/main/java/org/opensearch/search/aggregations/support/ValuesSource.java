@@ -584,7 +584,7 @@ public abstract class ValuesSource {
          */
         public static class FieldData extends Numeric {
 
-            protected final IndexNumericFieldData indexFieldData;
+            public final IndexNumericFieldData indexFieldData;
 
             public FieldData(IndexNumericFieldData indexFieldData) {
                 this.indexFieldData = indexFieldData;
