@@ -364,6 +364,8 @@ public class RemoteClusterStateService implements Closeable {
     private String writeGlobalMetadata(ClusterState clusterState) throws IOException {
 
         AtomicReference<String> result = new AtomicReference<String>();
+        AtomicReference<Exception> exceptionReference = new AtomicReference<Exception>();
+
         final BlobContainer globalMetadataContainer = globalMetadataContainer(
             clusterState.getClusterName().value(),
             clusterState.metadata().clusterUUID()
@@ -376,7 +378,7 @@ public class RemoteClusterStateService implements Closeable {
         LatchedActionListener completionListener = new LatchedActionListener<>(ActionListener.wrap(resp -> {
             logger.trace(String.format(Locale.ROOT, "GlobalMetadata uploaded successfully."));
             result.set(globalMetadataContainer.path().buildAsString() + globalMetadataFilename);
-        }, ex -> { throw new GlobalMetadataTransferException(ex.getMessage(), ex); }), latch);
+        }, ex -> { exceptionReference.set(ex); }), latch);
 
         GLOBAL_METADATA_FORMAT.writeAsync(
             clusterState.metadata(),
@@ -403,7 +405,9 @@ public class RemoteClusterStateService implements Closeable {
             Thread.currentThread().interrupt();
             throw exception;
         }
-
+        if (exceptionReference.get() != null) {
+            throw new GlobalMetadataTransferException(exceptionReference.get().getMessage(), exceptionReference.get());
+        }
         return result.get();
     }
 
