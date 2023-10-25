@@ -31,7 +31,6 @@ package org.opensearch.common.inject;
 
 import org.opensearch.common.inject.internal.Errors;
 import org.opensearch.common.inject.spi.Element;
-import org.opensearch.common.inject.spi.MembersInjectorLookup;
 import org.opensearch.common.inject.spi.ProviderLookup;
 
 import java.util.ArrayList;
@@ -63,15 +62,8 @@ class DeferredLookups implements Lookups {
 
     @Override
     public <T> Provider<T> getProvider(Key<T> key) {
-        ProviderLookup<T> lookup = new ProviderLookup<>(key, key);
+        final ProviderLookup<T> lookup = new ProviderLookup<>(key, key);
         lookups.add(lookup);
         return lookup.getProvider();
-    }
-
-    @Override
-    public <T> MembersInjector<T> getMembersInjector(TypeLiteral<T> type) {
-        MembersInjectorLookup<T> lookup = new MembersInjectorLookup<>(type, type);
-        lookups.add(lookup);
-        return lookup.getMembersInjector();
     }
 }

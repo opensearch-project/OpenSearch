@@ -29,21 +29,15 @@
 
 package org.opensearch.common.inject.internal;
 
-import org.opensearch.common.inject.Binder;
 import org.opensearch.common.inject.Injector;
 import org.opensearch.common.inject.Key;
 import org.opensearch.common.inject.Provider;
 import org.opensearch.common.inject.spi.BindingTargetVisitor;
-import org.opensearch.common.inject.spi.Dependency;
-import org.opensearch.common.inject.spi.HasDependencies;
 import org.opensearch.common.inject.spi.InjectionPoint;
 import org.opensearch.common.inject.spi.InstanceBinding;
 import org.opensearch.common.inject.util.Providers;
 
-import java.util.HashSet;
 import java.util.Set;
-
-import static java.util.Collections.unmodifiableSet;
 
 /**
  * Instance binding implementation
@@ -98,26 +92,8 @@ public class InstanceBindingImpl<T> extends BindingImpl<T> implements InstanceBi
     }
 
     @Override
-    public Set<Dependency<?>> getDependencies() {
-        return instance instanceof HasDependencies
-            ? unmodifiableSet(new HashSet<>((((HasDependencies) instance).getDependencies())))
-            : Dependency.forInjectionPoints(injectionPoints);
-    }
-
-    @Override
     public BindingImpl<T> withScoping(Scoping scoping) {
         return new InstanceBindingImpl<>(getSource(), getKey(), scoping, injectionPoints, instance);
-    }
-
-    @Override
-    public BindingImpl<T> withKey(Key<T> key) {
-        return new InstanceBindingImpl<>(getSource(), key, getScoping(), injectionPoints, instance);
-    }
-
-    @Override
-    public void applyTo(Binder binder) {
-        // instance bindings aren't scoped
-        binder.withSource(getSource()).bind(getKey()).toInstance(instance);
     }
 
     @Override

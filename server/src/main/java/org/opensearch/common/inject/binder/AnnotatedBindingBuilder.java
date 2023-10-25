@@ -29,8 +29,6 @@
 
 package org.opensearch.common.inject.binder;
 
-import java.lang.annotation.Annotation;
-
 /**
  * See the EDSL examples at {@link org.opensearch.common.inject.Binder}.
  *
@@ -38,15 +36,4 @@ import java.lang.annotation.Annotation;
  *
  * @opensearch.internal
  */
-public interface AnnotatedBindingBuilder<T> extends LinkedBindingBuilder<T> {
-
-    /**
-     * See the EDSL examples at {@link org.opensearch.common.inject.Binder}.
-     */
-    LinkedBindingBuilder<T> annotatedWith(Class<? extends Annotation> annotationType);
-
-    /**
-     * See the EDSL examples at {@link org.opensearch.common.inject.Binder}.
-     */
-    LinkedBindingBuilder<T> annotatedWith(Annotation annotation);
-}
+public interface AnnotatedBindingBuilder<T> extends LinkedBindingBuilder<T> {}

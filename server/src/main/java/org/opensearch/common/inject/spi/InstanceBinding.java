@@ -41,7 +41,7 @@ import java.util.Set;
  *
  * @opensearch.internal
  */
-public interface InstanceBinding<T> extends Binding<T>, HasDependencies {
+public interface InstanceBinding<T> extends Binding<T> {
 
     /**
      * Returns the user-supplied instance.

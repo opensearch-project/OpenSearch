@@ -31,8 +31,6 @@ package org.opensearch.common.inject.spi;
 
 import org.opensearch.common.inject.Binding;
 
-import java.util.Set;
-
 /**
  * A binding to the constructor of a concrete clss. To resolve injections, an instance is
  * instantiated by invoking the constructor.
@@ -42,19 +40,4 @@ import java.util.Set;
  *
  * @opensearch.internal
  */
-public interface ConstructorBinding<T> extends Binding<T>, HasDependencies {
-
-    /**
-     * Gets the constructor this binding injects.
-     */
-    InjectionPoint getConstructor();
-
-    /**
-     * Returns all instance method and field injection points on {@code type}.
-     *
-     * @return a possibly empty set of injection points. The set has a specified iteration order. All
-     *         fields are returned and then all methods. Within the fields, supertype fields are returned
-     *         before subtype fields. Similarly, supertype methods are returned before subtype methods.
-     */
-    Set<InjectionPoint> getInjectableMembers();
-}
+public interface ConstructorBinding<T> extends Binding<T> {}

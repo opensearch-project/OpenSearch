@@ -32,11 +32,8 @@ package org.opensearch.common.inject;
 import org.opensearch.common.inject.internal.BindingImpl;
 import org.opensearch.common.inject.internal.Errors;
 import org.opensearch.common.inject.internal.MatcherAndConverter;
-import org.opensearch.common.inject.spi.TypeListenerBinding;
 
 import java.lang.annotation.Annotation;
-import java.util.Collections;
-import java.util.List;
 import java.util.Map;
 
 import static java.util.Collections.emptySet;
@@ -98,16 +95,6 @@ interface State {
         }
 
         @Override
-        public void addTypeListener(TypeListenerBinding typeListenerBinding) {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public List<TypeListenerBinding> getTypeListenerBindings() {
-            return Collections.emptyList();
-        }
-
-        @Override
         public void denylist(Key<?> key) {}
 
         @Override
@@ -160,10 +147,6 @@ interface State {
      */
     Iterable<MatcherAndConverter> getConvertersThisLevel();
 
-    void addTypeListener(TypeListenerBinding typeListenerBinding);
-
-    List<TypeListenerBinding> getTypeListenerBindings();
-
     /**
      * Forbids the corresponding injector from creating a binding to {@code key}. Child injectors
      * denylist their bound keys on their parent injectors to prevent just-in-time bindings on the
@@ -183,7 +166,7 @@ interface State {
      */
     Object lock();
 
-    // ES_GUICE: clean denylist keys
+    // OPENSEARCH_GUICE: clean denylist keys
     void clearDenylisted();
 
     void makeAllBindingsToEagerSingletons(Injector injector);

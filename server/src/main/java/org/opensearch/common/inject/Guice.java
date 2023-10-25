@@ -29,8 +29,6 @@
 
 package org.opensearch.common.inject;
 
-import java.util.Arrays;
-
 /**
  * The entry point to the Guice framework. Creates {@link Injector}s from
  * {@link Module}s.
@@ -68,41 +66,9 @@ public final class Guice {
      * Creates an injector for the given set of modules.
      *
      * @throws CreationException if one or more errors occur during Injector
-     *                           construction
-     */
-    public static Injector createInjector(Module... modules) {
-        return createInjector(Arrays.asList(modules));
-    }
-
-    /**
-     * Creates an injector for the given set of modules.
-     *
-     * @throws CreationException if one or more errors occur during Injector
      *                           creation
      */
     public static Injector createInjector(Iterable<? extends Module> modules) {
-        return createInjector(Stage.DEVELOPMENT, modules);
-    }
-
-    /**
-     * Creates an injector for the given set of modules, in a given development
-     * stage.
-     *
-     * @throws CreationException if one or more errors occur during Injector
-     *                           creation
-     */
-    public static Injector createInjector(Stage stage, Module... modules) {
-        return createInjector(stage, Arrays.asList(modules));
-    }
-
-    /**
-     * Creates an injector for the given set of modules, in a given development
-     * stage.
-     *
-     * @throws CreationException if one or more errors occur during Injector
-     *                           construction
-     */
-    public static Injector createInjector(Stage stage, Iterable<? extends Module> modules) {
-        return new InjectorBuilder().stage(stage).addModules(modules).build();
+        return new InjectorBuilder().addModules(modules).build();
     }
 }

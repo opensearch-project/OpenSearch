@@ -33,10 +33,8 @@ import org.opensearch.common.inject.internal.Errors;
 import org.opensearch.common.inject.spi.Message;
 
 import java.util.Collection;
-import java.util.Collections;
 import java.util.Set;
 
-import static java.util.Collections.singleton;
 import static java.util.Collections.unmodifiableSet;
 import static org.opensearch.common.util.set.Sets.newHashSet;
 
@@ -55,21 +53,12 @@ public final class ProvisionException extends RuntimeException {
     /**
      * Creates a ConfigurationException containing {@code messages}.
      */
-    public ProvisionException(Iterable<Message> messages) {
+    public ProvisionException(final Iterable<Message> messages) {
         this.messages = unmodifiableSet(newHashSet(messages));
         if (this.messages.isEmpty()) {
             throw new IllegalArgumentException();
         }
         initCause(Errors.getOnlyCause(this.messages));
-    }
-
-    public ProvisionException(String message, Throwable cause) {
-        super(cause);
-        this.messages = singleton(new Message(Collections.emptyList(), message, cause));
-    }
-
-    public ProvisionException(String message) {
-        this.messages = singleton(new Message(message));
     }
 
     /**

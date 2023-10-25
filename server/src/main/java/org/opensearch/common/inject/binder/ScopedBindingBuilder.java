@@ -29,8 +29,6 @@
 
 package org.opensearch.common.inject.binder;
 
-import org.opensearch.common.inject.Scope;
-
 import java.lang.annotation.Annotation;
 
 /**
@@ -46,11 +44,6 @@ public interface ScopedBindingBuilder {
      * See the EDSL examples at {@link org.opensearch.common.inject.Binder}.
      */
     void in(Class<? extends Annotation> scopeAnnotation);
-
-    /**
-     * See the EDSL examples at {@link org.opensearch.common.inject.Binder}.
-     */
-    void in(Scope scope);
 
     /**
      * Instructs the {@link org.opensearch.common.inject.Injector} to eagerly initialize this

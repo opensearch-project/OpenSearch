@@ -45,7 +45,7 @@ class RealElement implements Element {
     private final int uniqueId;
     private final String setName;
 
-    RealElement(String setName) {
+    RealElement(final String setName) {
         uniqueId = nextUniqueId.getAndIncrement();
         this.setName = setName;
     }
@@ -71,7 +71,7 @@ class RealElement implements Element {
     }
 
     @Override
-    public boolean equals(Object o) {
+    public boolean equals(final Object o) {
         return o instanceof Element && ((Element) o).setName().equals(setName()) && ((Element) o).uniqueId() == uniqueId();
     }
 

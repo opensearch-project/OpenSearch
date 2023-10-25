@@ -75,11 +75,11 @@ class Initializer {
         Objects.requireNonNull(source);
 
         // short circuit if the object has no injections
-        if (instance == null || (injectionPoints.isEmpty() && !injector.membersInjectorStore.hasTypeListeners())) {
+        if (instance == null || (injectionPoints.isEmpty())) {
             return Initializables.of(instance);
         }
 
-        InjectableReference<T> initializable = new InjectableReference<>(injector, instance, source);
+        final InjectableReference<T> initializable = new InjectableReference<>(injector, instance, source);
         pendingInjection.put(instance, initializable);
         return initializable;
     }

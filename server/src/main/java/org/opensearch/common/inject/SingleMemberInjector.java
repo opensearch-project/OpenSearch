@@ -31,7 +31,6 @@ package org.opensearch.common.inject;
 
 import org.opensearch.common.inject.internal.Errors;
 import org.opensearch.common.inject.internal.InternalContext;
-import org.opensearch.common.inject.spi.InjectionPoint;
 
 /**
  * Injects a field or method of a given object.
@@ -40,6 +39,4 @@ import org.opensearch.common.inject.spi.InjectionPoint;
  */
 interface SingleMemberInjector {
     void inject(Errors errors, InternalContext context, Object o);
-
-    InjectionPoint getInjectionPoint();
 }

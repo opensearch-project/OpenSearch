@@ -46,14 +46,14 @@ import java.util.Objects;
  */
 class ScopeBindingProcessor extends AbstractProcessor {
 
-    ScopeBindingProcessor(Errors errors) {
+    ScopeBindingProcessor(final Errors errors) {
         super(errors);
     }
 
     @Override
-    public Boolean visit(ScopeBinding command) {
-        Scope scope = command.getScope();
-        Class<? extends Annotation> annotationType = command.getAnnotationType();
+    public Boolean visit(final ScopeBinding command) {
+        final Scope scope = command.getScope();
+        final Class<? extends Annotation> annotationType = command.getAnnotationType();
 
         if (!Annotations.isScopeAnnotation(annotationType)) {
             errors.withSource(annotationType).missingScopeAnnotation();
@@ -65,7 +65,7 @@ class ScopeBindingProcessor extends AbstractProcessor {
             // Go ahead and bind anyway so we don't get collateral errors.
         }
 
-        Scope existing = injector.state.getScope(Objects.requireNonNull(annotationType, "annotation type"));
+        final Scope existing = injector.state.getScope(Objects.requireNonNull(annotationType, "annotation type"));
         if (existing != null) {
             errors.duplicateScopes(existing, annotationType, scope);
         } else {

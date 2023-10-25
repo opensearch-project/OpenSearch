@@ -47,12 +47,12 @@ class ConstantFactory<T> implements InternalFactory<T> {
 
     private final Initializable<T> initializable;
 
-    ConstantFactory(Initializable<T> initializable) {
+    ConstantFactory(final Initializable<T> initializable) {
         this.initializable = initializable;
     }
 
     @Override
-    public T get(Errors errors, InternalContext context, Dependency dependency) throws ErrorsException {
+    public T get(final Errors errors, final InternalContext context, final Dependency dependency) throws ErrorsException {
         return initializable.get(errors);
     }
 

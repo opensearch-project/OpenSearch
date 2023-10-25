@@ -42,13 +42,11 @@ import org.opensearch.OpenSearchTimeoutException;
 import org.opensearch.Version;
 import org.opensearch.action.ActionModule;
 import org.opensearch.action.ActionModule.DynamicActionRegistry;
-import org.opensearch.action.ActionType;
 import org.opensearch.action.admin.cluster.snapshots.status.TransportNodesSnapshotsStatus;
 import org.opensearch.action.search.SearchExecutionStatsCollector;
 import org.opensearch.action.search.SearchPhaseController;
 import org.opensearch.action.search.SearchRequestStats;
 import org.opensearch.action.search.SearchTransportService;
-import org.opensearch.action.support.TransportAction;
 import org.opensearch.action.update.UpdateHelper;
 import org.opensearch.bootstrap.BootstrapCheck;
 import org.opensearch.bootstrap.BootstrapContext;
@@ -1288,7 +1286,7 @@ public class Node implements Closeable {
             resourcesToClose.add(injector.getInstance(PeerRecoverySourceService.class));
             this.pluginLifecycleComponents = Collections.unmodifiableList(pluginLifecycleComponents);
             DynamicActionRegistry dynamicActionRegistry = actionModule.getDynamicActionRegistry();
-            dynamicActionRegistry.registerUnmodifiableActionMap(injector.getInstance(new Key<Map<ActionType, TransportAction>>() {
+            dynamicActionRegistry.registerUnmodifiableActionMap(injector.getInstance(new Key<>() {
             }));
             client.initialize(
                 dynamicActionRegistry,

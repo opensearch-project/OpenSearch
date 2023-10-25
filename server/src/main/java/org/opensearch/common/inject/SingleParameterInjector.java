@@ -46,12 +46,12 @@ class SingleParameterInjector<T> {
     private final Dependency<T> dependency;
     private final InternalFactory<? extends T> factory;
 
-    SingleParameterInjector(Dependency<T> dependency, InternalFactory<? extends T> factory) {
+    SingleParameterInjector(final Dependency<T> dependency, final InternalFactory<? extends T> factory) {
         this.dependency = dependency;
         this.factory = factory;
     }
 
-    private T inject(Errors errors, InternalContext context) throws ErrorsException {
+    private T inject(final Errors errors, final InternalContext context) throws ErrorsException {
         context.setDependency(dependency);
         try {
             return factory.get(errors.withSource(dependency), context, dependency);
@@ -63,19 +63,20 @@ class SingleParameterInjector<T> {
     /**
      * Returns an array of parameter values.
      */
-    static Object[] getAll(Errors errors, InternalContext context, SingleParameterInjector<?>[] parameterInjectors) throws ErrorsException {
+    static Object[] getAll(final Errors errors, final InternalContext context, final SingleParameterInjector<?>[] parameterInjectors)
+        throws ErrorsException {
         if (parameterInjectors == null) {
             return NO_ARGUMENTS;
         }
 
-        int numErrorsBefore = errors.size();
+        final int numErrorsBefore = errors.size();
 
-        int size = parameterInjectors.length;
-        Object[] parameters = new Object[size];
+        final int size = parameterInjectors.length;
+        final Object[] parameters = new Object[size];
 
         // optimization: use manual for/each to save allocating an iterator here
         for (int i = 0; i < size; i++) {
-            SingleParameterInjector<?> parameterInjector = parameterInjectors[i];
+            final SingleParameterInjector<?> parameterInjector = parameterInjectors[i];
             try {
                 parameters[i] = parameterInjector.inject(errors, context);
             } catch (ErrorsException e) {

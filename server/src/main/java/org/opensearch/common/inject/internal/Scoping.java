@@ -33,8 +33,6 @@ import org.opensearch.common.inject.Scope;
 import org.opensearch.common.inject.Scopes;
 import org.opensearch.common.inject.Singleton;
 import org.opensearch.common.inject.Stage;
-import org.opensearch.common.inject.binder.ScopedBindingBuilder;
-import org.opensearch.common.inject.spi.BindingScopingVisitor;
 
 import java.lang.annotation.Annotation;
 
@@ -54,11 +52,6 @@ public abstract class Scoping {
      */
     public static final Scoping UNSCOPED = new Scoping() {
         @Override
-        public <V> V acceptVisitor(BindingScopingVisitor<V> visitor) {
-            return visitor.visitNoScoping();
-        }
-
-        @Override
         public Scope getScopeInstance() {
             return Scopes.NO_SCOPE;
         }
@@ -67,19 +60,9 @@ public abstract class Scoping {
         public String toString() {
             return Scopes.NO_SCOPE.toString();
         }
-
-        @Override
-        public void applyTo(ScopedBindingBuilder scopedBindingBuilder) {
-            // do nothing
-        }
     };
 
     public static final Scoping SINGLETON_ANNOTATION = new Scoping() {
-        @Override
-        public <V> V acceptVisitor(BindingScopingVisitor<V> visitor) {
-            return visitor.visitScopeAnnotation(Singleton.class);
-        }
-
         @Override
         public Class<? extends Annotation> getScopeAnnotation() {
             return Singleton.class;
@@ -89,19 +72,9 @@ public abstract class Scoping {
         public String toString() {
             return Singleton.class.getName();
         }
-
-        @Override
-        public void applyTo(ScopedBindingBuilder scopedBindingBuilder) {
-            scopedBindingBuilder.in(Singleton.class);
-        }
     };
 
     public static final Scoping SINGLETON_INSTANCE = new Scoping() {
-        @Override
-        public <V> V acceptVisitor(BindingScopingVisitor<V> visitor) {
-            return visitor.visitScope(Scopes.SINGLETON);
-        }
-
         @Override
         public Scope getScopeInstance() {
             return Scopes.SINGLETON;
@@ -111,19 +84,9 @@ public abstract class Scoping {
         public String toString() {
             return Scopes.SINGLETON.toString();
         }
-
-        @Override
-        public void applyTo(ScopedBindingBuilder scopedBindingBuilder) {
-            scopedBindingBuilder.in(Scopes.SINGLETON);
-        }
     };
 
     public static final Scoping EAGER_SINGLETON = new Scoping() {
-        @Override
-        public <V> V acceptVisitor(BindingScopingVisitor<V> visitor) {
-            return visitor.visitEagerSingleton();
-        }
-
         @Override
         public Scope getScopeInstance() {
             return Scopes.SINGLETON;
@@ -132,11 +95,6 @@ public abstract class Scoping {
         @Override
         public String toString() {
             return "eager singleton";
-        }
-
-        @Override
-        public void applyTo(ScopedBindingBuilder scopedBindingBuilder) {
-            scopedBindingBuilder.asEagerSingleton();
         }
     };
 
@@ -147,11 +105,6 @@ public abstract class Scoping {
 
         return new Scoping() {
             @Override
-            public <V> V acceptVisitor(BindingScopingVisitor<V> visitor) {
-                return visitor.visitScopeAnnotation(scopingAnnotation);
-            }
-
-            @Override
             public Class<? extends Annotation> getScopeAnnotation() {
                 return scopingAnnotation;
             }
@@ -159,11 +112,6 @@ public abstract class Scoping {
             @Override
             public String toString() {
                 return scopingAnnotation.getName();
-            }
-
-            @Override
-            public void applyTo(ScopedBindingBuilder scopedBindingBuilder) {
-                scopedBindingBuilder.in(scopingAnnotation);
             }
         };
     }
@@ -175,11 +123,6 @@ public abstract class Scoping {
 
         return new Scoping() {
             @Override
-            public <V> V acceptVisitor(BindingScopingVisitor<V> visitor) {
-                return visitor.visitScope(scope);
-            }
-
-            @Override
             public Scope getScopeInstance() {
                 return scope;
             }
@@ -187,11 +130,6 @@ public abstract class Scoping {
             @Override
             public String toString() {
                 return scope.toString();
-            }
-
-            @Override
-            public void applyTo(ScopedBindingBuilder scopedBindingBuilder) {
-                scopedBindingBuilder.in(scope);
             }
         };
     }
@@ -240,10 +178,6 @@ public abstract class Scoping {
     public Class<? extends Annotation> getScopeAnnotation() {
         return null;
     }
-
-    public abstract <V> V acceptVisitor(BindingScopingVisitor<V> visitor);
-
-    public abstract void applyTo(ScopedBindingBuilder scopedBindingBuilder);
 
     private Scoping() {}
 }

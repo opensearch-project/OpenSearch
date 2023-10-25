@@ -39,7 +39,5 @@ package org.opensearch.common.inject;
  */
 interface Lookups {
 
-    <T> Provider<T> getProvider(Key<T> key);
-
-    <T> MembersInjector<T> getMembersInjector(TypeLiteral<T> type);
+    <T> Provider<T> getProvider(final Key<T> key);
 }

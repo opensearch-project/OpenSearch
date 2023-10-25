@@ -52,8 +52,8 @@ public class Scopes {
      */
     public static final Scope SINGLETON = new Scope() {
         @Override
-        public <T> Provider<T> scope(Key<T> key, final Provider<T> creator) {
-            return new Provider<T>() {
+        public <T> Provider<T> scope(final Provider<T> creator) {
+            return new Provider<>() {
 
                 private volatile T instance;
 
@@ -63,11 +63,11 @@ public class Scopes {
                 public T get() {
                     if (instance == null) {
                         /*
-                        * Use a pretty coarse lock. We don't want to run into deadlocks
-                        * when two threads try to load circularly-dependent objects.
-                        * Maybe one of these days we will identify independent graphs of
-                        * objects and offer to load them in parallel.
-                        */
+                         * Use a pretty coarse lock. We don't want to run into deadlocks
+                         * when two threads try to load circularly-dependent objects.
+                         * Maybe one of these days we will identify independent graphs of
+                         * objects and offer to load them in parallel.
+                         */
                         synchronized (InjectorImpl.class) {
                             if (instance == null) {
                                 instance = creator.get();
@@ -104,7 +104,7 @@ public class Scopes {
      */
     public static final Scope NO_SCOPE = new Scope() {
         @Override
-        public <T> Provider<T> scope(Key<T> key, Provider<T> unscoped) {
+        public <T> Provider<T> scope(Provider<T> unscoped) {
             return unscoped;
         }
 
@@ -117,12 +117,7 @@ public class Scopes {
     /**
      * Scopes an internal factory.
      */
-    static <T> InternalFactory<? extends T> scope(
-        Key<T> key,
-        InjectorImpl injector,
-        InternalFactory<? extends T> creator,
-        Scoping scoping
-    ) {
+    static <T> InternalFactory<? extends T> scope(InjectorImpl injector, InternalFactory<? extends T> creator, Scoping scoping) {
 
         if (scoping.isNoScope()) {
             return creator;
@@ -131,8 +126,8 @@ public class Scopes {
         Scope scope = scoping.getScopeInstance();
 
         // TODO: use diamond operator once JI-9019884 is fixed
-        Provider<T> scoped = scope.scope(key, new ProviderToInternalFactoryAdapter<T>(injector, creator));
-        return new InternalFactoryToProviderAdapter<>(Initializables.<Provider<? extends T>>of(scoped));
+        Provider<T> scoped = scope.scope(new ProviderToInternalFactoryAdapter<>(injector, creator));
+        return new InternalFactoryToProviderAdapter<>(Initializables.of(scoped));
     }
 
     /**

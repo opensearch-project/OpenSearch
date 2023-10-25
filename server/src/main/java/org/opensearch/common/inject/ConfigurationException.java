@@ -55,7 +55,7 @@ public final class ConfigurationException extends RuntimeException {
     /**
      * Creates a ConfigurationException containing {@code messages}.
      */
-    public ConfigurationException(Iterable<Message> messages) {
+    public ConfigurationException(final Iterable<Message> messages) {
         this.messages = unmodifiableSet(newHashSet(messages));
         initCause(Errors.getOnlyCause(this.messages));
     }
@@ -63,12 +63,12 @@ public final class ConfigurationException extends RuntimeException {
     /**
      * Returns a copy of this configuration exception with the specified partial value.
      */
-    public ConfigurationException withPartialValue(Object partialValue) {
+    public ConfigurationException withPartialValue(final Object partialValue) {
         if (this.partialValue != null) {
             String message = String.format(Locale.ROOT, "Can't clobber existing partial value %s with %s", this.partialValue, partialValue);
             throw new IllegalStateException(message);
         }
-        ConfigurationException result = new ConfigurationException(messages);
+        final ConfigurationException result = new ConfigurationException(messages);
         result.partialValue = partialValue;
         return result;
     }

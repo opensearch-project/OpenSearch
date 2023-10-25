@@ -30,7 +30,6 @@
 package org.opensearch.common.inject.spi;
 
 import org.opensearch.common.inject.Binding;
-import org.opensearch.common.inject.Key;
 import org.opensearch.common.inject.Provider;
 
 /**
@@ -42,10 +41,4 @@ import org.opensearch.common.inject.Provider;
  *
  * @opensearch.internal
  */
-public interface ProviderBinding<T extends Provider<?>> extends Binding<T> {
-
-    /**
-     * Returns the key whose binding is used to {@link Provider#get provide instances}.
-     */
-    Key<?> getProvidedKey();
-}
+public interface ProviderBinding<T extends Provider<?>> extends Binding<T> {}

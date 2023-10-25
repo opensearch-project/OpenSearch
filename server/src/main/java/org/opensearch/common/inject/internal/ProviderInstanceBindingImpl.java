@@ -29,20 +29,14 @@ limitations under the License.
 
 package org.opensearch.common.inject.internal;
 
-import org.opensearch.common.inject.Binder;
 import org.opensearch.common.inject.Injector;
 import org.opensearch.common.inject.Key;
 import org.opensearch.common.inject.Provider;
 import org.opensearch.common.inject.spi.BindingTargetVisitor;
-import org.opensearch.common.inject.spi.Dependency;
-import org.opensearch.common.inject.spi.HasDependencies;
 import org.opensearch.common.inject.spi.InjectionPoint;
 import org.opensearch.common.inject.spi.ProviderInstanceBinding;
 
-import java.util.HashSet;
 import java.util.Set;
-
-import static java.util.Collections.unmodifiableSet;
 
 /**
  * Provider instance binding
@@ -55,13 +49,13 @@ public final class ProviderInstanceBindingImpl<T> extends BindingImpl<T> impleme
     final Set<InjectionPoint> injectionPoints;
 
     public ProviderInstanceBindingImpl(
-        Injector injector,
-        Key<T> key,
-        Object source,
-        InternalFactory<? extends T> internalFactory,
-        Scoping scoping,
-        Provider<? extends T> providerInstance,
-        Set<InjectionPoint> injectionPoints
+        final Injector injector,
+        final Key<T> key,
+        final Object source,
+        final InternalFactory<? extends T> internalFactory,
+        final Scoping scoping,
+        final Provider<? extends T> providerInstance,
+        final Set<InjectionPoint> injectionPoints
     ) {
         super(injector, key, source, internalFactory, scoping);
         this.providerInstance = providerInstance;
@@ -69,11 +63,11 @@ public final class ProviderInstanceBindingImpl<T> extends BindingImpl<T> impleme
     }
 
     public ProviderInstanceBindingImpl(
-        Object source,
-        Key<T> key,
-        Scoping scoping,
-        Set<InjectionPoint> injectionPoints,
-        Provider<? extends T> providerInstance
+        final Object source,
+        final Key<T> key,
+        final Scoping scoping,
+        final Set<InjectionPoint> injectionPoints,
+        final Provider<? extends T> providerInstance
     ) {
         super(source, key, scoping);
         this.injectionPoints = injectionPoints;
@@ -81,7 +75,7 @@ public final class ProviderInstanceBindingImpl<T> extends BindingImpl<T> impleme
     }
 
     @Override
-    public <V> V acceptTargetVisitor(BindingTargetVisitor<? super T, V> visitor) {
+    public <V> V acceptTargetVisitor(final BindingTargetVisitor<? super T, V> visitor) {
         return visitor.visit(this);
     }
 
@@ -96,25 +90,8 @@ public final class ProviderInstanceBindingImpl<T> extends BindingImpl<T> impleme
     }
 
     @Override
-    public Set<Dependency<?>> getDependencies() {
-        return providerInstance instanceof HasDependencies
-            ? unmodifiableSet(new HashSet<>((((HasDependencies) providerInstance).getDependencies())))
-            : Dependency.forInjectionPoints(injectionPoints);
-    }
-
-    @Override
-    public BindingImpl<T> withScoping(Scoping scoping) {
+    public BindingImpl<T> withScoping(final Scoping scoping) {
         return new ProviderInstanceBindingImpl<>(getSource(), getKey(), scoping, injectionPoints, providerInstance);
-    }
-
-    @Override
-    public BindingImpl<T> withKey(Key<T> key) {
-        return new ProviderInstanceBindingImpl<>(getSource(), key, getScoping(), injectionPoints, providerInstance);
-    }
-
-    @Override
-    public void applyTo(Binder binder) {
-        getScoping().applyTo(binder.withSource(getSource()).bind(getKey()).toProvider(getProviderInstance()));
     }
 
     @Override

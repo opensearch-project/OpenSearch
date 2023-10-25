@@ -29,7 +29,6 @@
 
 package org.opensearch.common.inject.spi;
 
-import org.opensearch.common.inject.Binder;
 import org.opensearch.common.inject.Key;
 import org.opensearch.common.inject.Provider;
 
@@ -37,7 +36,7 @@ import java.util.Objects;
 
 /**
  * A lookup of the provider for a type. Lookups are created explicitly in a module using
- * {@link org.opensearch.common.inject.Binder#getProvider(Class) getProvider()} statements:
+ * {@link org.opensearch.common.inject.Binder#getProvider(Key) getProvider()} statements:
  * <pre>
  *     Provider&lt;PaymentService&gt; paymentServiceProvider
  *         = getProvider(PaymentService.class);</pre>
@@ -56,9 +55,9 @@ public final class ProviderLookup<T> implements Element {
      */
     // NOTE: this class is not part of guice and was added so the provider lookup's key can be accessible for tests
     public static class ProviderImpl<T> implements Provider<T> {
-        private ProviderLookup<T> lookup;
+        private final ProviderLookup<T> lookup;
 
-        private ProviderImpl(ProviderLookup<T> lookup) {
+        private ProviderImpl(final ProviderLookup<T> lookup) {
             this.lookup = lookup;
         }
 
@@ -74,17 +73,13 @@ public final class ProviderLookup<T> implements Element {
         public String toString() {
             return "Provider<" + lookup.key.getTypeLiteral() + ">";
         }
-
-        public Key<T> getKey() {
-            return lookup.getKey();
-        }
     }
 
     private final Object source;
     private final Key<T> key;
     private Provider<T> delegate;
 
-    public ProviderLookup(Object source, Key<T> key) {
+    public ProviderLookup(final Object source, final Key<T> key) {
         this.source = Objects.requireNonNull(source, "source");
         this.key = Objects.requireNonNull(key, "key");
     }
@@ -99,7 +94,7 @@ public final class ProviderLookup<T> implements Element {
     }
 
     @Override
-    public <T> T acceptVisitor(ElementVisitor<T> visitor) {
+    public <T> T acceptVisitor(final ElementVisitor<T> visitor) {
         return visitor.visit(this);
     }
 
@@ -108,24 +103,11 @@ public final class ProviderLookup<T> implements Element {
      *
      * @throws IllegalStateException if the delegate is already set
      */
-    public void initializeDelegate(Provider<T> delegate) {
+    public void initializeDelegate(final Provider<T> delegate) {
         if (this.delegate != null) {
             throw new IllegalStateException("delegate already initialized");
         }
         this.delegate = Objects.requireNonNull(delegate, "delegate");
-    }
-
-    @Override
-    public void applyTo(Binder binder) {
-        initializeDelegate(binder.withSource(getSource()).getProvider(key));
-    }
-
-    /**
-     * Returns the delegate provider, or {@code null} if it has not yet been initialized. The delegate
-     * will be initialized when this element is processed, or otherwise used to create an injector.
-     */
-    public Provider<T> getDelegate() {
-        return delegate;
     }
 
     /**

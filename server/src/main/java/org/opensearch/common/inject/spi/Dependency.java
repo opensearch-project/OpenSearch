@@ -31,11 +31,7 @@ package org.opensearch.common.inject.spi;
 
 import org.opensearch.common.inject.Key;
 
-import java.util.HashSet;
 import java.util.Objects;
-import java.util.Set;
-
-import static java.util.Collections.unmodifiableSet;
 
 /**
  * A variable that can be resolved by an injector.
@@ -55,7 +51,7 @@ public final class Dependency<T> {
     private final boolean nullable;
     private final int parameterIndex;
 
-    Dependency(InjectionPoint injectionPoint, Key<T> key, boolean nullable, int parameterIndex) {
+    Dependency(final InjectionPoint injectionPoint, final Key<T> key, final boolean nullable, final int parameterIndex) {
         this.injectionPoint = injectionPoint;
         this.key = key;
         this.nullable = nullable;
@@ -66,19 +62,8 @@ public final class Dependency<T> {
      * Returns a new dependency that is not attached to an injection point. The returned dependency is
      * nullable.
      */
-    public static <T> Dependency<T> get(Key<T> key) {
+    public static <T> Dependency<T> get(final Key<T> key) {
         return new Dependency<>(null, key, true, -1);
-    }
-
-    /**
-     * Returns the dependencies from the given injection points.
-     */
-    public static Set<Dependency<?>> forInjectionPoints(Set<InjectionPoint> injectionPoints) {
-        Set<Dependency<?>> dependencies = new HashSet<>();
-        for (InjectionPoint injectionPoint : injectionPoints) {
-            dependencies.addAll(injectionPoint.getDependencies());
-        }
-        return unmodifiableSet(dependencies);
     }
 
     /**
@@ -118,7 +103,7 @@ public final class Dependency<T> {
     }
 
     @Override
-    public boolean equals(Object o) {
+    public boolean equals(final Object o) {
         if (o instanceof Dependency) {
             Dependency<?> dependency = (Dependency<?>) o;
             return Objects.equals(injectionPoint, dependency.injectionPoint)

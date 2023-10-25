@@ -59,7 +59,7 @@ public class Strings {
      *         converted to uppercase
      * @throws NullPointerException if {@code s} is null
      */
-    public static String capitalize(String s) {
+    public static String capitalize(final String s) {
         if (s.length() == 0) {
             return s;
         }

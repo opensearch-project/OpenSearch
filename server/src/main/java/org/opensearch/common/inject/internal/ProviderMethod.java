@@ -34,14 +34,12 @@ import org.opensearch.common.inject.Exposed;
 import org.opensearch.common.inject.Key;
 import org.opensearch.common.inject.PrivateBinder;
 import org.opensearch.common.inject.Provider;
-import org.opensearch.common.inject.spi.Dependency;
 import org.opensearch.common.inject.spi.ProviderWithDependencies;
 
 import java.lang.annotation.Annotation;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.List;
-import java.util.Set;
 
 /**
  * A provider that invokes a method and returns its result.
@@ -55,7 +53,6 @@ public class ProviderMethod<T> implements ProviderWithDependencies<T> {
     private final Class<? extends Annotation> scopeAnnotation;
     private final Object instance;
     private final Method method;
-    private final Set<Dependency<?>> dependencies;
     private final List<Provider<?>> parameterProviders;
     private final boolean exposed;
 
@@ -63,33 +60,18 @@ public class ProviderMethod<T> implements ProviderWithDependencies<T> {
      * @param method the method to invoke. Its return type must be the same type as {@code key}.
      */
     ProviderMethod(
-        Key<T> key,
-        Method method,
-        Object instance,
-        Set<Dependency<?>> dependencies,
-        List<Provider<?>> parameterProviders,
-        Class<? extends Annotation> scopeAnnotation
+        final Key<T> key,
+        final Method method,
+        final Object instance,
+        final List<Provider<?>> parameterProviders,
+        final Class<? extends Annotation> scopeAnnotation
     ) {
         this.key = key;
         this.scopeAnnotation = scopeAnnotation;
         this.instance = instance;
-        this.dependencies = dependencies;
         this.method = method;
         this.parameterProviders = parameterProviders;
         this.exposed = method.getAnnotation(Exposed.class) != null;
-    }
-
-    public Key<T> getKey() {
-        return key;
-    }
-
-    public Method getMethod() {
-        return method;
-    }
-
-    // exposed for GIN
-    public Object getInstance() {
-        return instance;
     }
 
     public void configure(Binder binder) {
@@ -125,10 +107,5 @@ public class ProviderMethod<T> implements ProviderWithDependencies<T> {
         } catch (InvocationTargetException e) {
             throw new RuntimeException(e);
         }
-    }
-
-    @Override
-    public Set<Dependency<?>> getDependencies() {
-        return dependencies;
     }
 }

@@ -29,11 +29,8 @@
 
 package org.opensearch.common.inject;
 
-import org.opensearch.common.inject.binder.AnnotatedElementBuilder;
-
 /**
- * Returns a binder whose configuration information is hidden from its environment by default. See
- * {@link org.opensearch.common.inject.PrivateModule PrivateModule} for details.
+ * Returns a binder whose configuration information is hidden from its environment by default.
  *
  * @author jessewilson@google.com (Jesse Wilson)
  * @since 2.0
@@ -46,20 +43,6 @@ public interface PrivateBinder extends Binder {
      * Makes the binding for {@code key} available to the enclosing environment
      */
     void expose(Key<?> key);
-
-    /**
-     * Makes a binding for {@code type} available to the enclosing environment. Use {@link
-     * org.opensearch.common.inject.binder.AnnotatedElementBuilder#annotatedWith(Class) annotatedWith()} to expose {@code type} with a
-     * binding annotation.
-     */
-    AnnotatedElementBuilder expose(Class<?> type);
-
-    /**
-     * Makes a binding for {@code type} available to the enclosing environment. Use {@link
-     * AnnotatedElementBuilder#annotatedWith(Class) annotatedWith()} to expose {@code type} with a
-     * binding annotation.
-     */
-    AnnotatedElementBuilder expose(TypeLiteral<?> type);
 
     @Override
     PrivateBinder withSource(Object source);

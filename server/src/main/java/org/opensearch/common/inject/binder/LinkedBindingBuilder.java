@@ -29,9 +29,7 @@
 
 package org.opensearch.common.inject.binder;
 
-import org.opensearch.common.inject.Key;
 import org.opensearch.common.inject.Provider;
-import org.opensearch.common.inject.TypeLiteral;
 
 /**
  * See the EDSL examples at {@link org.opensearch.common.inject.Binder}.
@@ -50,34 +48,10 @@ public interface LinkedBindingBuilder<T> extends ScopedBindingBuilder {
     /**
      * See the EDSL examples at {@link org.opensearch.common.inject.Binder}.
      */
-    ScopedBindingBuilder to(TypeLiteral<? extends T> implementation);
-
-    /**
-     * See the EDSL examples at {@link org.opensearch.common.inject.Binder}.
-     */
-    ScopedBindingBuilder to(Key<? extends T> targetKey);
-
-    /**
-     * See the EDSL examples at {@link org.opensearch.common.inject.Binder}.
-     *
-     * @see org.opensearch.common.inject.Injector#injectMembers
-     */
     void toInstance(T instance);
 
     /**
      * See the EDSL examples at {@link org.opensearch.common.inject.Binder}.
-     *
-     * @see org.opensearch.common.inject.Injector#injectMembers
      */
     ScopedBindingBuilder toProvider(Provider<? extends T> provider);
-
-    /**
-     * See the EDSL examples at {@link org.opensearch.common.inject.Binder}.
-     */
-    ScopedBindingBuilder toProvider(Class<? extends Provider<? extends T>> providerType);
-
-    /**
-     * See the EDSL examples at {@link org.opensearch.common.inject.Binder}.
-     */
-    ScopedBindingBuilder toProvider(Key<? extends Provider<? extends T>> providerKey);
 }

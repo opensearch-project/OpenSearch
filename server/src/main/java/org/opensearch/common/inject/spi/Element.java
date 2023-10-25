@@ -29,14 +29,12 @@
 
 package org.opensearch.common.inject.spi;
 
-import org.opensearch.common.inject.Binder;
-
 /**
  * A core component of a module or injector.
  * <p>
  * The elements of a module can be inspected, validated and rewritten. Use {@link
  * Elements#getElements(org.opensearch.common.inject.Module[]) Elements.getElements()} to read the elements
- * from a module, and {@link Elements#getModule(Iterable) Elements.getModule()} to rewrite them.
+ * from a module to rewrite them.
  * This can be used for static analysis and generation of Guice modules.
  *
  * @author jessewilson@google.com (Jesse Wilson)
@@ -63,14 +61,4 @@ public interface Element {
      * @param visitor to call back on
      */
     <T> T acceptVisitor(ElementVisitor<T> visitor);
-
-    /**
-     * Writes this module element to the given binder (optional operation).
-     *
-     * @param binder to apply configuration element to
-     * @throws UnsupportedOperationException if the {@code applyTo} method is not supported by this
-     *                                       element.
-     */
-    void applyTo(Binder binder);
-
 }

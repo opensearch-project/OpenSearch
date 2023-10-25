@@ -33,7 +33,6 @@ import org.opensearch.common.inject.Binding;
 import org.opensearch.common.inject.Injector;
 import org.opensearch.common.inject.Key;
 import org.opensearch.common.inject.Provider;
-import org.opensearch.common.inject.spi.BindingScopingVisitor;
 import org.opensearch.common.inject.spi.ElementVisitor;
 import org.opensearch.common.inject.spi.InstanceBinding;
 
@@ -113,16 +112,7 @@ public abstract class BindingImpl<T> implements Binding<T> {
         return visitor.visit(this);
     }
 
-    @Override
-    public <V> V acceptScopingVisitor(BindingScopingVisitor<V> visitor) {
-        return scoping.acceptVisitor(visitor);
-    }
-
     protected BindingImpl<T> withScoping(Scoping scoping) {
-        throw new AssertionError();
-    }
-
-    protected BindingImpl<T> withKey(Key<T> key) {
         throw new AssertionError();
     }
 

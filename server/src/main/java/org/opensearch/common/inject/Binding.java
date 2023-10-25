@@ -29,7 +29,6 @@
 
 package org.opensearch.common.inject;
 
-import org.opensearch.common.inject.spi.BindingScopingVisitor;
 import org.opensearch.common.inject.spi.BindingTargetVisitor;
 import org.opensearch.common.inject.spi.Element;
 
@@ -82,9 +81,8 @@ public interface Binding<T> extends Element {
      * Returns the scoped provider guice uses to fulfill requests for this
      * binding.
      *
-     * @throws UnsupportedOperationException when invoked on a {@link Binding}
-     *                                       created via {@link org.opensearch.common.inject.spi.Elements#getElements}. This
-     *                                       method is only supported on {@link Binding}s returned from an injector.
+     * @throws UnsupportedOperationException when invoked on a {@link Binding} This method is only supported on
+     *                                       {@link Binding}s returned from an injector.
      */
     Provider<T> getProvider();
 
@@ -95,12 +93,4 @@ public interface Binding<T> extends Element {
      * @since 2.0
      */
     <V> V acceptTargetVisitor(BindingTargetVisitor<? super T, V> visitor);
-
-    /**
-     * Accepts a scoping visitor. Invokes the visitor method specific to this binding's scoping.
-     *
-     * @param visitor to call back on
-     * @since 2.0
-     */
-    <V> V acceptScopingVisitor(BindingScopingVisitor<V> visitor);
 }

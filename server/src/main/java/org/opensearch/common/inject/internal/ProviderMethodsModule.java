@@ -35,7 +35,6 @@ import org.opensearch.common.inject.Module;
 import org.opensearch.common.inject.Provider;
 import org.opensearch.common.inject.Provides;
 import org.opensearch.common.inject.TypeLiteral;
-import org.opensearch.common.inject.spi.Dependency;
 import org.opensearch.common.inject.spi.Message;
 import org.opensearch.common.inject.util.Modules;
 
@@ -43,12 +42,8 @@ import java.lang.annotation.Annotation;
 import java.lang.reflect.Member;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
-import java.util.Set;
-
-import static java.util.Collections.unmodifiableSet;
 
 /**
  * Creates bindings to methods annotated with {@literal @}{@link Provides}. Use the scope and
@@ -89,7 +84,7 @@ public final class ProviderMethodsModule implements Module {
     }
 
     @Override
-    public synchronized void configure(Binder binder) {
+    public synchronized void configure(final Binder binder) {
         for (ProviderMethod<?> providerMethod : getProviderMethods(binder)) {
             providerMethod.configure(binder);
         }
@@ -109,30 +104,28 @@ public final class ProviderMethodsModule implements Module {
 
     <T> ProviderMethod<T> createProviderMethod(Binder binder, final Method method) {
         binder = binder.withSource(method);
-        Errors errors = new Errors(method);
+        final Errors errors = new Errors(method);
 
         // prepare the parameter providers
-        Set<Dependency<?>> dependencies = new HashSet<>();
-        List<Provider<?>> parameterProviders = new ArrayList<>();
-        List<TypeLiteral<?>> parameterTypes = typeLiteral.getParameterTypes(method);
-        Annotation[][] parameterAnnotations = method.getParameterAnnotations();
+        final List<Provider<?>> parameterProviders = new ArrayList<>();
+        final List<TypeLiteral<?>> parameterTypes = typeLiteral.getParameterTypes(method);
+        final Annotation[][] parameterAnnotations = method.getParameterAnnotations();
         for (int i = 0; i < parameterTypes.size(); i++) {
-            Key<?> key = getKey(errors, parameterTypes.get(i), method, parameterAnnotations[i]);
-            dependencies.add(Dependency.get(key));
+            final Key<?> key = getKey(errors, parameterTypes.get(i), method, parameterAnnotations[i]);
             parameterProviders.add(binder.getProvider(key));
         }
 
         @SuppressWarnings("unchecked") // Define T as the method's return type.
-        TypeLiteral<T> returnType = (TypeLiteral<T>) typeLiteral.getReturnType(method);
+        final TypeLiteral<T> returnType = (TypeLiteral<T>) typeLiteral.getReturnType(method);
 
-        Key<T> key = getKey(errors, returnType, method, method.getAnnotations());
-        Class<? extends Annotation> scopeAnnotation = Annotations.findScopeAnnotation(errors, method.getAnnotations());
+        final Key<T> key = getKey(errors, returnType, method, method.getAnnotations());
+        final Class<? extends Annotation> scopeAnnotation = Annotations.findScopeAnnotation(errors, method.getAnnotations());
 
         for (Message message : errors.getMessages()) {
             binder.addError(message);
         }
 
-        return new ProviderMethod<>(key, method, delegate, unmodifiableSet(dependencies), parameterProviders, scopeAnnotation);
+        return new ProviderMethod<>(key, method, delegate, parameterProviders, scopeAnnotation);
     }
 
     <T> Key<T> getKey(Errors errors, TypeLiteral<T> type, Member member, Annotation[] annotations) {

@@ -42,7 +42,6 @@ import org.opensearch.common.inject.spi.Dependency;
 import org.opensearch.common.inject.spi.InjectionListener;
 import org.opensearch.common.inject.spi.InjectionPoint;
 import org.opensearch.common.inject.spi.Message;
-import org.opensearch.common.inject.spi.TypeListenerBinding;
 
 import java.io.PrintWriter;
 import java.io.StringWriter;
@@ -123,7 +122,7 @@ public final class Errors {
     /**
      * Returns an instance that uses {@code source} as a reference point for newly added errors.
      */
-    public Errors withSource(Object source) {
+    public Errors withSource(final Object source) {
         return source == SourceProvider.UNKNOWN_SOURCE ? this : new Errors(this, source);
     }
 
@@ -140,11 +139,16 @@ public final class Errors {
      * Otherwise we need to know who's calling when resolving a just-in-time
      * binding, which makes things unnecessarily complex.
      */
-    public Errors missingImplementation(Key key) {
+    public Errors missingImplementation(final Key key) {
         return addMessage("No implementation for %s was bound.", key);
     }
 
-    public Errors converterReturnedNull(String stringValue, Object source, TypeLiteral<?> type, MatcherAndConverter matchingConverter) {
+    public Errors converterReturnedNull(
+        final String stringValue,
+        final Object source,
+        final TypeLiteral<?> type,
+        final MatcherAndConverter matchingConverter
+    ) {
         return addMessage(
             "Received null converting '%s' (bound at %s) to %s%n" + " using %s.",
             stringValue,
@@ -155,11 +159,11 @@ public final class Errors {
     }
 
     public Errors conversionTypeError(
-        String stringValue,
-        Object source,
-        TypeLiteral<?> type,
-        MatcherAndConverter matchingConverter,
-        Object converted
+        final String stringValue,
+        final Object source,
+        final TypeLiteral<?> type,
+        final MatcherAndConverter matchingConverter,
+        final Object converted
     ) {
         return addMessage(
             "Type mismatch converting '%s' (bound at %s) to %s%n" + " using %s.%n" + " Converter returned %s.",
@@ -172,11 +176,11 @@ public final class Errors {
     }
 
     public Errors conversionError(
-        String stringValue,
-        Object source,
-        TypeLiteral<?> type,
-        MatcherAndConverter matchingConverter,
-        RuntimeException cause
+        final String stringValue,
+        final Object source,
+        final TypeLiteral<?> type,
+        final MatcherAndConverter matchingConverter,
+        final RuntimeException cause
     ) {
         return errorInUserCode(
             cause,
@@ -190,11 +194,11 @@ public final class Errors {
     }
 
     public Errors ambiguousTypeConversion(
-        String stringValue,
-        Object source,
-        TypeLiteral<?> type,
-        MatcherAndConverter a,
-        MatcherAndConverter b
+        final String stringValue,
+        final Object source,
+        final TypeLiteral<?> type,
+        final MatcherAndConverter a,
+        final MatcherAndConverter b
     ) {
         return addMessage(
             "Multiple converters can convert '%s' (bound at %s) to %s:%n"
@@ -213,11 +217,11 @@ public final class Errors {
         return addMessage("Binding to Provider is not allowed.");
     }
 
-    public Errors subtypeNotProvided(Class<? extends Provider<?>> providerType, Class<?> type) {
+    public Errors subtypeNotProvided(final Class<? extends Provider<?>> providerType, final Class<?> type) {
         return addMessage("%s doesn't provide instances of %s.", providerType, type);
     }
 
-    public Errors notASubtype(Class<?> implementationType, Class<?> type) {
+    public Errors notASubtype(final Class<?> implementationType, final Class<?> type) {
         return addMessage("%s doesn't extend %s.", implementationType, type);
     }
 
@@ -229,7 +233,7 @@ public final class Errors {
         return addMessage("@ProvidedBy points to the same class it annotates.");
     }
 
-    public Errors missingRuntimeRetention(Object source) {
+    public Errors missingRuntimeRetention(final Object source) {
         return addMessage("Please annotate with @Retention(RUNTIME).%n" + " Bound at %s.", convert(source));
     }
 
@@ -237,19 +241,23 @@ public final class Errors {
         return addMessage("Please annotate with @ScopeAnnotation.");
     }
 
-    public Errors optionalConstructor(Constructor constructor) {
+    public Errors optionalConstructor(final Constructor constructor) {
         return addMessage("%s is annotated @Inject(optional=true), " + "but constructors cannot be optional.", constructor);
     }
 
-    public Errors cannotBindToGuiceType(String simpleName) {
+    public Errors cannotBindToGuiceType(final String simpleName) {
         return addMessage("Binding to core guice framework type is not allowed: %s.", simpleName);
     }
 
-    public Errors scopeNotFound(Class<? extends Annotation> scopeAnnotation) {
+    public Errors scopeNotFound(final Class<? extends Annotation> scopeAnnotation) {
         return addMessage("No scope is bound to %s.", scopeAnnotation);
     }
 
-    public Errors scopeAnnotationOnAbstractType(Class<? extends Annotation> scopeAnnotation, Class<?> type, Object source) {
+    public Errors scopeAnnotationOnAbstractType(
+        final Class<? extends Annotation> scopeAnnotation,
+        final Class<?> type,
+        final Object source
+    ) {
         return addMessage(
             "%s is annotated with %s, but scope annotations are not supported " + "for abstract types.%n Bound at %s.",
             type,
@@ -258,7 +266,7 @@ public final class Errors {
         );
     }
 
-    public Errors misplacedBindingAnnotation(Member member, Annotation bindingAnnotation) {
+    public Errors misplacedBindingAnnotation(final Member member, final Annotation bindingAnnotation) {
         return addMessage(
             "%s is annotated with %s, but binding annotations should be applied " + "to its parameters instead.",
             member,
@@ -269,15 +277,15 @@ public final class Errors {
     private static final String CONSTRUCTOR_RULES = "Classes must have either one (and only one) constructor "
         + "annotated with @Inject or a zero-argument constructor that is not private.";
 
-    public Errors missingConstructor(Class<?> implementation) {
+    public Errors missingConstructor(final Class<?> implementation) {
         return addMessage("Could not find a suitable constructor in %s. " + CONSTRUCTOR_RULES, implementation);
     }
 
-    public Errors tooManyConstructors(Class<?> implementation) {
+    public Errors tooManyConstructors(final Class<?> implementation) {
         return addMessage("%s has more than one constructor annotated with @Inject. " + CONSTRUCTOR_RULES, implementation);
     }
 
-    public Errors duplicateScopes(Scope existing, Class<? extends Annotation> annotationType, Scope scope) {
+    public Errors duplicateScopes(final Scope existing, final Class<? extends Annotation> annotationType, final Scope scope) {
         return addMessage("Scope %s is already bound to %s. Cannot bind %s.", existing, annotationType, scope);
     }
 
@@ -289,18 +297,22 @@ public final class Errors {
         return addMessage("Missing constant value. Please call to(...).");
     }
 
-    public Errors cannotInjectInnerClass(Class<?> type) {
+    public Errors cannotInjectInnerClass(final Class<?> type) {
         return addMessage(
             "Injecting into inner classes is not supported.  " + "Please use a 'static' class (top-level or nested) instead of %s.",
             type
         );
     }
 
-    public Errors duplicateBindingAnnotations(Member member, Class<? extends Annotation> a, Class<? extends Annotation> b) {
+    public Errors duplicateBindingAnnotations(
+        final Member member,
+        final Class<? extends Annotation> a,
+        final Class<? extends Annotation> b
+    ) {
         return addMessage("%s has more than one annotation annotated with @BindingAnnotation: " + "%s and %s", member, a, b);
     }
 
-    public Errors duplicateScopeAnnotations(Class<? extends Annotation> a, Class<? extends Annotation> b) {
+    public Errors duplicateScopeAnnotations(final Class<? extends Annotation> a, final Class<? extends Annotation> b) {
         return addMessage("More than one scope annotation was found: %s and %s.", a, b);
     }
 
@@ -308,50 +320,39 @@ public final class Errors {
         return addMessage("Binding points to itself.");
     }
 
-    public Errors bindingAlreadySet(Key<?> key, Object source) {
+    public Errors bindingAlreadySet(final Key<?> key, final Object source) {
         return addMessage("A binding to %s was already configured at %s.", key, convert(source));
     }
 
-    public Errors childBindingAlreadySet(Key<?> key) {
+    public Errors childBindingAlreadySet(final Key<?> key) {
         return addMessage("A binding to %s already exists on a child injector.", key);
     }
 
-    public Errors errorInjectingMethod(Throwable cause) {
+    public Errors errorInjectingMethod(final Throwable cause) {
         return errorInUserCode(cause, "Error injecting method, %s", cause);
     }
 
-    public Errors errorNotifyingTypeListener(TypeListenerBinding listener, TypeLiteral<?> type, Throwable cause) {
-        return errorInUserCode(
-            cause,
-            "Error notifying TypeListener %s (bound at %s) of %s.%n" + " Reason: %s",
-            listener.getListener(),
-            convert(listener.getSource()),
-            type,
-            cause
-        );
-    }
-
-    public Errors errorInjectingConstructor(Throwable cause) {
+    public Errors errorInjectingConstructor(final Throwable cause) {
         return errorInUserCode(cause, "Error injecting constructor, %s", cause);
     }
 
-    public Errors errorInProvider(RuntimeException runtimeException) {
+    public Errors errorInProvider(final RuntimeException runtimeException) {
         return errorInUserCode(runtimeException, "Error in custom provider, %s", runtimeException);
     }
 
-    public Errors errorInUserInjector(MembersInjector<?> listener, TypeLiteral<?> type, RuntimeException cause) {
+    public Errors errorInUserInjector(final MembersInjector<?> listener, final TypeLiteral<?> type, final RuntimeException cause) {
         return errorInUserCode(cause, "Error injecting %s using %s.%n" + " Reason: %s", type, listener, cause);
     }
 
-    public Errors errorNotifyingInjectionListener(InjectionListener<?> listener, TypeLiteral<?> type, RuntimeException cause) {
+    public Errors errorNotifyingInjectionListener(
+        final InjectionListener<?> listener,
+        final TypeLiteral<?> type,
+        final RuntimeException cause
+    ) {
         return errorInUserCode(cause, "Error notifying InjectionListener %s of %s.%n" + " Reason: %s", listener, type, cause);
     }
 
-    public void exposedButNotBound(Key<?> key) {
-        addMessage("Could not expose() %s, it must be explicitly bound.", key);
-    }
-
-    public static Collection<Message> getMessagesFromThrowable(Throwable throwable) {
+    public static Collection<Message> getMessagesFromThrowable(final Throwable throwable) {
         if (throwable instanceof ProvisionException) {
             return ((ProvisionException) throwable).getErrorMessages();
         } else if (throwable instanceof ConfigurationException) {
@@ -363,7 +364,7 @@ public final class Errors {
         }
     }
 
-    public Errors errorInUserCode(Throwable cause, String messageFormat, Object... arguments) {
+    public Errors errorInUserCode(final Throwable cause, final String messageFormat, final Object... arguments) {
         Collection<Message> messages = getMessagesFromThrowable(cause);
 
         if (!messages.isEmpty()) {
@@ -381,7 +382,7 @@ public final class Errors {
         return addMessage("Cannot inject a MembersInjector that has no type parameter");
     }
 
-    public Errors cannotInjectTypeLiteralOf(Type unsupportedType) {
+    public Errors cannotInjectTypeLiteralOf(final Type unsupportedType) {
         return addMessage("Cannot inject a TypeLiteral of %s", unsupportedType);
     }
 
@@ -389,7 +390,7 @@ public final class Errors {
         return addMessage("Cannot inject a TypeLiteral that has no type parameter");
     }
 
-    public Errors cannotSatisfyCircularDependency(Class<?> expectedType) {
+    public Errors cannotSatisfyCircularDependency(final Class<?> expectedType) {
         return addMessage("Tried proxying %s to support a circular dependency, but it is not an interface.", expectedType);
     }
 
@@ -417,21 +418,21 @@ public final class Errors {
         throw new ProvisionException(getMessages());
     }
 
-    private Message merge(Message message) {
+    private Message merge(final Message message) {
         List<Object> sources = new ArrayList<>();
         sources.addAll(getSources());
         sources.addAll(message.getSources());
         return new Message(sources, message.getMessage(), message.getCause());
     }
 
-    public Errors merge(Collection<Message> messages) {
+    public Errors merge(final Collection<Message> messages) {
         for (Message message : messages) {
             addMessage(merge(message));
         }
         return this;
     }
 
-    public Errors merge(Errors moreErrors) {
+    public Errors merge(final Errors moreErrors) {
         if (moreErrors.root == root || moreErrors.root.errors == null) {
             return this;
         }
@@ -450,7 +451,7 @@ public final class Errors {
         return sources;
     }
 
-    public void throwIfNewErrors(int expectedSize) throws ErrorsException {
+    public void throwIfNewErrors(final int expectedSize) throws ErrorsException {
         if (size() == expectedSize) {
             return;
         }
@@ -466,17 +467,17 @@ public final class Errors {
         return root.errors != null;
     }
 
-    public Errors addMessage(String messageFormat, Object... arguments) {
+    public Errors addMessage(final String messageFormat, final Object... arguments) {
         return addMessage(null, messageFormat, arguments);
     }
 
-    private Errors addMessage(Throwable cause, String messageFormat, Object... arguments) {
-        String message = format(messageFormat, arguments);
+    private Errors addMessage(final Throwable cause, final String messageFormat, final Object... arguments) {
+        final String message = format(messageFormat, arguments);
         addMessage(new Message(getSources(), message, cause));
         return this;
     }
 
-    public Errors addMessage(Message message) {
+    public Errors addMessage(final Message message) {
         if (root.errors == null) {
             root.errors = new ArrayList<>();
         }
@@ -484,7 +485,7 @@ public final class Errors {
         return this;
     }
 
-    public static String format(String messageFormat, Object... arguments) {
+    public static String format(final String messageFormat, final Object... arguments) {
         for (int i = 0; i < arguments.length; i++) {
             arguments[i] = Errors.convert(arguments[i]);
         }
@@ -496,13 +497,8 @@ public final class Errors {
             return Collections.emptyList();
         }
 
-        List<Message> result = new ArrayList<>(root.errors);
-        CollectionUtil.timSort(result, new Comparator<Message>() {
-            @Override
-            public int compare(Message a, Message b) {
-                return a.getSource().compareTo(b.getSource());
-            }
-        });
+        final List<Message> result = new ArrayList<>(root.errors);
+        CollectionUtil.timSort(result, Comparator.comparing(Message::getSource));
 
         return unmodifiableList(result);
     }
@@ -510,22 +506,22 @@ public final class Errors {
     /**
      * Returns the formatted message for an exception with the specified messages.
      */
-    public static String format(String heading, Collection<Message> errorMessages) {
+    public static String format(final String heading, final Collection<Message> errorMessages) {
         try (Formatter fmt = new Formatter(Locale.ROOT)) {
             fmt.format(heading).format(":%n%n");
             int index = 1;
-            boolean displayCauses = getOnlyCause(errorMessages) == null;
+            final boolean displayCauses = getOnlyCause(errorMessages) == null;
 
             for (Message errorMessage : errorMessages) {
                 fmt.format("%s) %s%n", index++, errorMessage.getMessage());
 
-                List<Object> dependencies = errorMessage.getSources();
+                final List<Object> dependencies = errorMessage.getSources();
                 for (int i = dependencies.size() - 1; i >= 0; i--) {
-                    Object source = dependencies.get(i);
+                    final Object source = dependencies.get(i);
                     formatSource(fmt, source);
                 }
 
-                Throwable cause = errorMessage.getCause();
+                final Throwable cause = errorMessage.getCause();
                 if (displayCauses && cause != null) {
                     StringWriter writer = new StringWriter();
                     cause.printStackTrace(new PrintWriter(writer));
@@ -549,13 +545,13 @@ public final class Errors {
      * Returns {@code value} if it is non-null allowed to be null. Otherwise a message is added and
      * an {@code ErrorsException} is thrown.
      */
-    public <T> T checkForNull(T value, Object source, Dependency<?> dependency) throws ErrorsException {
+    public <T> T checkForNull(final T value, final Object source, final Dependency<?> dependency) throws ErrorsException {
         if (value != null || dependency.isNullable()) {
             return value;
         }
 
-        int parameterIndex = dependency.getParameterIndex();
-        String parameterName = (parameterIndex != -1) ? "parameter " + parameterIndex + " of " : "";
+        final int parameterIndex = dependency.getParameterIndex();
+        final String parameterName = (parameterIndex != -1) ? "parameter " + parameterIndex + " of " : "";
         addMessage(
             "null returned by binding at %s%n but %s%s is not @Nullable",
             source,
@@ -570,7 +566,7 @@ public final class Errors {
      * Returns the cause throwable if there is exactly one cause in {@code messages}. If there are
      * zero or multiple messages with causes, null is returned.
      */
-    public static Throwable getOnlyCause(Collection<Message> messages) {
+    public static Throwable getOnlyCause(final Collection<Message> messages) {
         Throwable onlyCause = null;
         for (Message message : messages) {
             Throwable messageCause = message.getCause();
@@ -601,34 +597,34 @@ public final class Errors {
 
         final Class<T> type;
 
-        Converter(Class<T> type) {
+        Converter(final Class<T> type) {
             this.type = type;
         }
 
-        boolean appliesTo(Object o) {
+        boolean appliesTo(final Object o) {
             return type.isAssignableFrom(o.getClass());
         }
 
-        String convert(Object o) {
+        String convert(final Object o) {
             return toString(type.cast(o));
         }
 
-        abstract String toString(T t);
+        abstract String toString(final T t);
     }
 
-    private static final Collection<Converter<?>> converters = Arrays.asList(new Converter<Class>(Class.class) {
+    private static final Collection<Converter<?>> converters = Arrays.asList(new Converter<>(Class.class) {
         @Override
-        public String toString(Class c) {
+        public String toString(final Class c) {
             return c.getName();
         }
-    }, new Converter<Member>(Member.class) {
+    }, new Converter<>(Member.class) {
         @Override
-        public String toString(Member member) {
+        public String toString(final Member member) {
             return MoreTypes.toString(member);
         }
-    }, new Converter<Key>(Key.class) {
+    }, new Converter<>(Key.class) {
         @Override
-        public String toString(Key key) {
+        public String toString(final Key key) {
             if (key.getAnnotationType() != null) {
                 return key.getTypeLiteral()
                     + " annotated with "
@@ -639,7 +635,7 @@ public final class Errors {
         }
     });
 
-    public static Object convert(Object o) {
+    public static Object convert(final Object o) {
         for (Converter<?> converter : converters) {
             if (converter.appliesTo(o)) {
                 return converter.convert(o);
@@ -648,10 +644,10 @@ public final class Errors {
         return o;
     }
 
-    public static void formatSource(Formatter formatter, Object source) {
+    public static void formatSource(final Formatter formatter, final Object source) {
         if (source instanceof Dependency) {
-            Dependency<?> dependency = (Dependency<?>) source;
-            InjectionPoint injectionPoint = dependency.getInjectionPoint();
+            final Dependency<?> dependency = (Dependency<?>) source;
+            final InjectionPoint injectionPoint = dependency.getInjectionPoint();
             if (injectionPoint != null) {
                 formatInjectionPoint(formatter, dependency, injectionPoint);
             } else {
@@ -679,9 +675,9 @@ public final class Errors {
         }
     }
 
-    public static void formatInjectionPoint(Formatter formatter, Dependency<?> dependency, InjectionPoint injectionPoint) {
-        Member member = injectionPoint.getMember();
-        Class<? extends Member> memberType = MoreTypes.memberType(member);
+    public static void formatInjectionPoint(final Formatter formatter, Dependency<?> dependency, final InjectionPoint injectionPoint) {
+        final Member member = injectionPoint.getMember();
+        final Class<? extends Member> memberType = MoreTypes.memberType(member);
 
         if (memberType == Field.class) {
             dependency = injectionPoint.getDependencies().get(0);

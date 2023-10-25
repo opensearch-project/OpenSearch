@@ -66,33 +66,13 @@ public interface BindingTargetVisitor<T, V> {
     V visit(LinkedKeyBinding<? extends T> binding);
 
     /**
-     * Visit a binding to a key exposed from an enclosed private environment. This target is only
-     * found in injector bindings.
-     */
-    V visit(ExposedBinding<? extends T> binding);
-
-    /**
      * Visit an untargetted binding. This target is found only on module bindings. It indicates
      * that the injector should use its implicit binding strategies to resolve injections.
      */
     V visit(UntargettedBinding<? extends T> binding);
 
     /**
-     * Visit a constructor binding. To resolve injections, an instance is instantiated by invoking
-     * {@code constructor}. This target is found only on injector bindings.
+     * Empty visitor.
      */
-    V visit(ConstructorBinding<? extends T> binding);
-
-    /**
-     * Visit a binding created from converting a bound instance to a new type. The source binding
-     * has the same binding annotation but a different type. This target is found only on injector
-     * bindings.
-     */
-    V visit(ConvertedConstantBinding<? extends T> binding);
-
-    /**
-     * Visit a binding to a {@link org.opensearch.common.inject.Provider} that delegates to the binding for the
-     * provided type. This target is found only on injector bindings.
-     */
-    V visit(ProviderBinding<? extends T> binding);
+    V visit();
 }

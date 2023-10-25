@@ -31,7 +31,6 @@ package org.opensearch.common.inject;
 
 import org.opensearch.common.inject.internal.Errors;
 import org.opensearch.common.inject.internal.ErrorsException;
-import org.opensearch.common.inject.internal.InternalContext;
 import org.opensearch.common.inject.internal.InternalFactory;
 import org.opensearch.common.inject.spi.Dependency;
 
@@ -56,12 +55,9 @@ class ProviderToInternalFactoryAdapter<T> implements Provider<T> {
     public T get() {
         final Errors errors = new Errors();
         try {
-            T t = injector.callInContext(new ContextualCallable<T>() {
-                @Override
-                public T call(InternalContext context) throws ErrorsException {
-                    Dependency dependency = context.getDependency();
-                    return internalFactory.get(errors, context, dependency);
-                }
+            T t = injector.callInContext((ContextualCallable<T>) context -> {
+                Dependency dependency = context.getDependency();
+                return internalFactory.get(errors, context, dependency);
             });
             errors.throwIfNewErrors(0);
             return t;

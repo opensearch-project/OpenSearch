@@ -39,4 +39,4 @@ import org.opensearch.common.inject.Provider;
  *
  * @opensearch.internal
  */
-public interface ProviderWithDependencies<T> extends Provider<T>, HasDependencies {}
+public interface ProviderWithDependencies<T> extends Provider<T> {}

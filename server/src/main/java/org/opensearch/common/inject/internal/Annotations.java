@@ -52,7 +52,7 @@ public class Annotations {
     /**
      * Returns true if the given annotation is retained at runtime.
      */
-    public static boolean isRetainedAtRuntime(Class<? extends Annotation> annotationType) {
+    public static boolean isRetainedAtRuntime(final Class<? extends Annotation> annotationType) {
         Retention retention = annotationType.getAnnotation(Retention.class);
         return retention != null && retention.value() == RetentionPolicy.RUNTIME;
     }
@@ -60,14 +60,14 @@ public class Annotations {
     /**
      * Returns the scope annotation on {@code type}, or null if none is specified.
      */
-    public static Class<? extends Annotation> findScopeAnnotation(Errors errors, Class<?> implementation) {
+    public static Class<? extends Annotation> findScopeAnnotation(final Errors errors, final Class<?> implementation) {
         return findScopeAnnotation(errors, implementation.getAnnotations());
     }
 
     /**
      * Returns the scoping annotation, or null if there isn't one.
      */
-    public static Class<? extends Annotation> findScopeAnnotation(Errors errors, Annotation[] annotations) {
+    public static Class<? extends Annotation> findScopeAnnotation(final Errors errors, final Annotation[] annotations) {
         Class<? extends Annotation> found = null;
 
         for (Annotation annotation : annotations) {
@@ -83,7 +83,7 @@ public class Annotations {
         return found;
     }
 
-    public static boolean isScopeAnnotation(Class<? extends Annotation> annotationType) {
+    public static boolean isScopeAnnotation(final Class<? extends Annotation> annotationType) {
         return annotationType.getAnnotation(ScopeAnnotation.class) != null;
     }
 
@@ -91,12 +91,12 @@ public class Annotations {
      * Adds an error if there is a misplaced annotations on {@code type}. Scoping
      * annotations are not allowed on abstract classes or interfaces.
      */
-    public static void checkForMisplacedScopeAnnotations(Class<?> type, Object source, Errors errors) {
+    public static void checkForMisplacedScopeAnnotations(final Class<?> type, final Object source, final Errors errors) {
         if (Classes.isConcrete(type)) {
             return;
         }
 
-        Class<? extends Annotation> scopeAnnotation = findScopeAnnotation(errors, type);
+        final Class<? extends Annotation> scopeAnnotation = findScopeAnnotation(errors, type);
         if (scopeAnnotation != null) {
             errors.withSource(type).scopeAnnotationOnAbstractType(scopeAnnotation, type, source);
         }
@@ -105,9 +105,10 @@ public class Annotations {
     /**
      * Gets a key for the given type, member and annotations.
      */
-    public static Key<?> getKey(TypeLiteral<?> type, Member member, Annotation[] annotations, Errors errors) throws ErrorsException {
-        int numErrorsBefore = errors.size();
-        Annotation found = findBindingAnnotation(errors, member, annotations);
+    public static Key<?> getKey(final TypeLiteral<?> type, final Member member, final Annotation[] annotations, final Errors errors)
+        throws ErrorsException {
+        final int numErrorsBefore = errors.size();
+        final Annotation found = findBindingAnnotation(errors, member, annotations);
         errors.throwIfNewErrors(numErrorsBefore);
         return found == null ? Key.get(type) : Key.get(type, found);
     }
@@ -115,7 +116,7 @@ public class Annotations {
     /**
      * Returns the binding annotation on {@code member}, or null if there isn't one.
      */
-    public static Annotation findBindingAnnotation(Errors errors, Member member, Annotation[] annotations) {
+    public static Annotation findBindingAnnotation(final Errors errors, final Member member, final Annotation[] annotations) {
         Annotation found = null;
 
         for (Annotation annotation : annotations) {

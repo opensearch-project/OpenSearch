@@ -41,24 +41,22 @@ import java.lang.reflect.Member;
  */
 public class StackTraceElements {
 
-    public static Object forMember(Member member) {
+    public static Object forMember(final Member member) {
         if (member == null) {
             return SourceProvider.UNKNOWN_SOURCE;
         }
 
-        Class declaringClass = member.getDeclaringClass();
+        final Class declaringClass = member.getDeclaringClass();
+        final int lineNumber = -1;
 
-        String fileName = null;
-        int lineNumber = -1;
-
-        Class<? extends Member> memberType = MoreTypes.memberType(member);
-        String memberName = memberType == Constructor.class ? "<init>" : member.getName();
-        return new StackTraceElement(declaringClass.getName(), memberName, fileName, lineNumber);
+        final Class<? extends Member> memberType = MoreTypes.memberType(member);
+        final String memberName = memberType == Constructor.class ? "<init>" : member.getName();
+        return new StackTraceElement(declaringClass.getName(), memberName, null, lineNumber);
     }
 
-    public static Object forType(Class<?> implementation) {
-        String fileName = null;
-        int lineNumber = -1;
+    public static Object forType(final Class<?> implementation) {
+        final String fileName = null;
+        final int lineNumber = -1;
 
         return new StackTraceElement(implementation.getName(), "class", fileName, lineNumber);
     }

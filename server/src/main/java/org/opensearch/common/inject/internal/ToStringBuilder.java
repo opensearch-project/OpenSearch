@@ -46,15 +46,11 @@ public class ToStringBuilder {
 
     final String name;
 
-    public ToStringBuilder(String name) {
-        this.name = name;
-    }
-
-    public ToStringBuilder(Class type) {
+    public ToStringBuilder(final Class type) {
         this.name = type.getSimpleName();
     }
 
-    public ToStringBuilder add(String name, Object value) {
+    public ToStringBuilder add(final String name, final Object value) {
         if (map.put(name, value) != null) {
             throw new RuntimeException("Duplicate names: " + name);
         }

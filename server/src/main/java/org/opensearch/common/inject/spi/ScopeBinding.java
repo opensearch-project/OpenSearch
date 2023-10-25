@@ -29,7 +29,6 @@
 
 package org.opensearch.common.inject.spi;
 
-import org.opensearch.common.inject.Binder;
 import org.opensearch.common.inject.Scope;
 
 import java.lang.annotation.Annotation;
@@ -53,7 +52,7 @@ public final class ScopeBinding implements Element {
     private final Class<? extends Annotation> annotationType;
     private final Scope scope;
 
-    ScopeBinding(Object source, Class<? extends Annotation> annotationType, Scope scope) {
+    ScopeBinding(final Object source, final Class<? extends Annotation> annotationType, final Scope scope) {
         this.source = Objects.requireNonNull(source, "source");
         this.annotationType = Objects.requireNonNull(annotationType, "annotationType");
         this.scope = Objects.requireNonNull(scope, "scope");
@@ -73,12 +72,7 @@ public final class ScopeBinding implements Element {
     }
 
     @Override
-    public <T> T acceptVisitor(ElementVisitor<T> visitor) {
+    public <T> T acceptVisitor(final ElementVisitor<T> visitor) {
         return visitor.visit(this);
-    }
-
-    @Override
-    public void applyTo(Binder binder) {
-        binder.withSource(getSource()).bindScope(annotationType, scope);
     }
 }

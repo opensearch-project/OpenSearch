@@ -30,9 +30,6 @@
 package org.opensearch.common.inject.spi;
 
 import org.opensearch.common.inject.Binding;
-import org.opensearch.common.inject.Key;
-
-import java.util.Set;
 
 /**
  * A binding created from converting a bound instance to a new type. The source binding has the same
@@ -43,21 +40,4 @@ import java.util.Set;
  *
  * @opensearch.internal
  */
-public interface ConvertedConstantBinding<T> extends Binding<T>, HasDependencies {
-
-    /**
-     * Returns the converted value.
-     */
-    T getValue();
-
-    /**
-     * Returns the key for the source binding.
-     */
-    Key<String> getSourceKey();
-
-    /**
-     * Returns a singleton set containing only the converted key.
-     */
-    @Override
-    Set<Dependency<?>> getDependencies();
-}
+public interface ConvertedConstantBinding<T> extends Binding<T> {}

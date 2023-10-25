@@ -45,7 +45,7 @@ public abstract class FailableCache<K, V> {
 
     protected abstract V create(K key, Errors errors) throws ErrorsException;
 
-    public V get(K key, Errors errors) throws ErrorsException {
+    public V get(final K key, final Errors errors) throws ErrorsException {
         Object resultOrError = cache.get(key);
         if (resultOrError == null) {
             synchronized (this) {

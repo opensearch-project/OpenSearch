@@ -46,7 +46,7 @@ public class ModulesBuilder implements Iterable<Module> {
 
     private final List<Module> modules = new ArrayList<>();
 
-    public ModulesBuilder add(Module... newModules) {
+    public ModulesBuilder add(final Module... newModules) {
         Collections.addAll(modules, newModules);
         return this;
     }
@@ -57,7 +57,7 @@ public class ModulesBuilder implements Iterable<Module> {
     }
 
     public Injector createInjector() {
-        Injector injector = Guice.createInjector(modules);
+        final Injector injector = Guice.createInjector(modules);
         ((InjectorImpl) injector).clearCache();
         // in OpenSearch, we always create all instances as if they are eager singletons
         // this allows for considerable memory savings (no need to store construction info) as well as cycles

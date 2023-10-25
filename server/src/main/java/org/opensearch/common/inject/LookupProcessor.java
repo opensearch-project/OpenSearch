@@ -31,11 +31,10 @@ package org.opensearch.common.inject;
 
 import org.opensearch.common.inject.internal.Errors;
 import org.opensearch.common.inject.internal.ErrorsException;
-import org.opensearch.common.inject.spi.MembersInjectorLookup;
 import org.opensearch.common.inject.spi.ProviderLookup;
 
 /**
- * Handles {@link Binder#getProvider} and {@link Binder#getMembersInjector(TypeLiteral)} commands.
+ * Handles {@link Binder#getProvider} commands.
  *
  * @author crazybob@google.com (Bob Lee)
  * @author jessewilson@google.com (Jesse Wilson)
@@ -44,27 +43,15 @@ import org.opensearch.common.inject.spi.ProviderLookup;
  */
 class LookupProcessor extends AbstractProcessor {
 
-    LookupProcessor(Errors errors) {
+    LookupProcessor(final Errors errors) {
         super(errors);
     }
 
     @Override
-    public <T> Boolean visit(MembersInjectorLookup<T> lookup) {
-        try {
-            MembersInjector<T> membersInjector = injector.membersInjectorStore.get(lookup.getType(), errors);
-            lookup.initializeDelegate(membersInjector);
-        } catch (ErrorsException e) {
-            errors.merge(e.getErrors()); // TODO: source
-        }
-
-        return true;
-    }
-
-    @Override
-    public <T> Boolean visit(ProviderLookup<T> lookup) {
+    public <T> Boolean visit(final ProviderLookup<T> lookup) {
         // ensure the provider can be created
         try {
-            Provider<T> provider = injector.getProviderOrThrow(lookup.getKey(), errors);
+            final Provider<T> provider = injector.getProviderOrThrow(lookup.getKey(), errors);
             lookup.initializeDelegate(provider);
         } catch (ErrorsException e) {
             errors.merge(e.getErrors()); // TODO: source

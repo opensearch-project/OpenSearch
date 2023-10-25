@@ -87,21 +87,21 @@ public class MoreTypes {
      *
      * @throws ConfigurationException if {@code type} contains a type variable
      */
-    public static <T> TypeLiteral<T> makeKeySafe(TypeLiteral<T> type) {
+    public static <T> TypeLiteral<T> makeKeySafe(final TypeLiteral<T> type) {
         if (!isFullySpecified(type.getType())) {
-            String message = type + " cannot be used as a key; It is not fully specified.";
+            final String message = type + " cannot be used as a key; It is not fully specified.";
             throw new ConfigurationException(singleton(new Message(message)));
         }
 
         @SuppressWarnings("unchecked")
-        TypeLiteral<T> wrappedPrimitives = (TypeLiteral<T>) PRIMITIVE_TO_WRAPPER.get(type);
+        final TypeLiteral<T> wrappedPrimitives = (TypeLiteral<T>) PRIMITIVE_TO_WRAPPER.get(type);
         return wrappedPrimitives != null ? wrappedPrimitives : type;
     }
 
     /**
      * Returns true if {@code type} is free from type variables.
      */
-    private static boolean isFullySpecified(Type type) {
+    private static boolean isFullySpecified(final Type type) {
         if (type instanceof Class) {
             return true;
 
@@ -120,20 +120,20 @@ public class MoreTypes {
      * Returns a type that is functionally equal but not necessarily equal
      * according to {@link Object#equals(Object) Object.equals()}.
      */
-    public static Type canonicalize(Type type) {
+    public static Type canonicalize(final Type type) {
         if (type instanceof ParameterizedTypeImpl || type instanceof GenericArrayTypeImpl || type instanceof WildcardTypeImpl) {
             return type;
 
         } else if (type instanceof ParameterizedType) {
-            ParameterizedType p = (ParameterizedType) type;
+            final ParameterizedType p = (ParameterizedType) type;
             return new ParameterizedTypeImpl(p.getOwnerType(), p.getRawType(), p.getActualTypeArguments());
 
         } else if (type instanceof GenericArrayType) {
-            GenericArrayType g = (GenericArrayType) type;
+            final GenericArrayType g = (GenericArrayType) type;
             return new GenericArrayTypeImpl(g.getGenericComponentType());
 
         } else if (type instanceof Class && ((Class<?>) type).isArray()) {
-            Class<?> c = (Class<?>) type;
+            final Class<?> c = (Class<?>) type;
             return new GenericArrayTypeImpl(c.getComponentType());
 
         } else if (type instanceof WildcardType) {
@@ -146,18 +146,18 @@ public class MoreTypes {
         }
     }
 
-    public static Class<?> getRawType(Type type) {
+    public static Class<?> getRawType(final Type type) {
         if (type instanceof Class<?>) {
             // type is a normal class.
             return (Class<?>) type;
 
         } else if (type instanceof ParameterizedType) {
-            ParameterizedType parameterizedType = (ParameterizedType) type;
+            final ParameterizedType parameterizedType = (ParameterizedType) type;
 
             // I'm not exactly sure why getRawType() returns Type instead of Class.
             // Neal isn't either but suspects some pathological case related
             // to nested classes exists.
-            Type rawType = parameterizedType.getRawType();
+            final Type rawType = parameterizedType.getRawType();
             if (!(rawType instanceof Class)) {
                 throw new IllegalArgumentException("Expected a Class, but <" + type + "> is of type " + type.getClass().getName());
             }
@@ -182,7 +182,7 @@ public class MoreTypes {
     /**
      * Returns true if {@code a} and {@code b} are equal.
      */
-    public static boolean equals(Type a, Type b) {
+    public static boolean equals(final Type a, final Type b) {
         if (a == b) {
             // also handles (a == null && b == null)
             return true;
@@ -197,8 +197,8 @@ public class MoreTypes {
             }
 
             // TODO: save a .clone() call
-            ParameterizedType pa = (ParameterizedType) a;
-            ParameterizedType pb = (ParameterizedType) b;
+            final ParameterizedType pa = (ParameterizedType) a;
+            final ParameterizedType pb = (ParameterizedType) b;
             return Objects.equals(pa.getOwnerType(), pb.getOwnerType())
                 && pa.getRawType().equals(pb.getRawType())
                 && Arrays.equals(pa.getActualTypeArguments(), pb.getActualTypeArguments());
@@ -208,8 +208,8 @@ public class MoreTypes {
                 return false;
             }
 
-            GenericArrayType ga = (GenericArrayType) a;
-            GenericArrayType gb = (GenericArrayType) b;
+            final GenericArrayType ga = (GenericArrayType) a;
+            final GenericArrayType gb = (GenericArrayType) b;
             return equals(ga.getGenericComponentType(), gb.getGenericComponentType());
 
         } else if (a instanceof WildcardType) {
@@ -217,16 +217,16 @@ public class MoreTypes {
                 return false;
             }
 
-            WildcardType wa = (WildcardType) a;
-            WildcardType wb = (WildcardType) b;
+            final WildcardType wa = (WildcardType) a;
+            final WildcardType wb = (WildcardType) b;
             return Arrays.equals(wa.getUpperBounds(), wb.getUpperBounds()) && Arrays.equals(wa.getLowerBounds(), wb.getLowerBounds());
 
         } else if (a instanceof TypeVariable) {
             if (!(b instanceof TypeVariable)) {
                 return false;
             }
-            TypeVariable<?> va = (TypeVariable) a;
-            TypeVariable<?> vb = (TypeVariable) b;
+            final TypeVariable<?> va = (TypeVariable) a;
+            final TypeVariable<?> vb = (TypeVariable) b;
             return va.getGenericDeclaration() == vb.getGenericDeclaration() && va.getName().equals(vb.getName());
 
         } else {
@@ -238,20 +238,20 @@ public class MoreTypes {
     /**
      * Returns the hashCode of {@code type}.
      */
-    public static int hashCode(Type type) {
+    public static int hashCode(final Type type) {
         if (type instanceof Class) {
             // Class specifies hashCode().
             return type.hashCode();
 
         } else if (type instanceof ParameterizedType) {
-            ParameterizedType p = (ParameterizedType) type;
+            final ParameterizedType p = (ParameterizedType) type;
             return Arrays.hashCode(p.getActualTypeArguments()) ^ p.getRawType().hashCode() ^ hashCodeOrZero(p.getOwnerType());
 
         } else if (type instanceof GenericArrayType) {
             return hashCode(((GenericArrayType) type).getGenericComponentType());
 
         } else if (type instanceof WildcardType) {
-            WildcardType w = (WildcardType) type;
+            final WildcardType w = (WildcardType) type;
             return Arrays.hashCode(w.getLowerBounds()) ^ Arrays.hashCode(w.getUpperBounds());
 
         } else {
@@ -260,19 +260,19 @@ public class MoreTypes {
         }
     }
 
-    private static int hashCodeOrZero(Object o) {
+    private static int hashCodeOrZero(final Object o) {
         return o != null ? o.hashCode() : 0;
     }
 
-    public static String toString(Type type) {
+    public static String toString(final Type type) {
         if (type instanceof Class<?>) {
             return ((Class) type).getName();
 
         } else if (type instanceof ParameterizedType) {
-            ParameterizedType parameterizedType = (ParameterizedType) type;
-            Type[] arguments = parameterizedType.getActualTypeArguments();
-            Type ownerType = parameterizedType.getOwnerType();
-            StringBuilder stringBuilder = new StringBuilder();
+            final ParameterizedType parameterizedType = (ParameterizedType) type;
+            final Type[] arguments = parameterizedType.getActualTypeArguments();
+            final Type ownerType = parameterizedType.getOwnerType();
+            final StringBuilder stringBuilder = new StringBuilder();
             if (ownerType != null) {
                 stringBuilder.append(toString(ownerType)).append(".");
             }
@@ -289,9 +289,9 @@ public class MoreTypes {
             return toString(((GenericArrayType) type).getGenericComponentType()) + "[]";
 
         } else if (type instanceof WildcardType) {
-            WildcardType wildcardType = (WildcardType) type;
-            Type[] lowerBounds = wildcardType.getLowerBounds();
-            Type[] upperBounds = wildcardType.getUpperBounds();
+            final WildcardType wildcardType = (WildcardType) type;
+            final Type[] lowerBounds = wildcardType.getLowerBounds();
+            final Type[] upperBounds = wildcardType.getUpperBounds();
 
             if (upperBounds.length != 1 || lowerBounds.length > 1) {
                 throw new UnsupportedOperationException("Unsupported wildcard type " + type);
@@ -316,13 +316,10 @@ public class MoreTypes {
     /**
      * Returns {@code Field.class}, {@code Method.class} or {@code Constructor.class}.
      */
-    public static Class<? extends Member> memberType(Member member) {
+    public static Class<? extends Member> memberType(final Member member) {
         Objects.requireNonNull(member, "member");
 
-        if (member instanceof MemberImpl) {
-            return ((MemberImpl) member).memberType;
-
-        } else if (member instanceof Field) {
+        if (member instanceof Field) {
             return Field.class;
 
         } else if (member instanceof Method) {
@@ -340,8 +337,8 @@ public class MoreTypes {
      * Formats a member as concise string, such as {@code java.util.ArrayList.size},
      * {@code java.util.ArrayList<init>()} or {@code java.util.List.remove()}.
      */
-    public static String toString(Member member) {
-        Class<? extends Member> memberType = memberType(member);
+    public static String toString(final Member member) {
+        final Class<? extends Member> memberType = memberType(member);
 
         if (memberType == Method.class) {
             return member.getDeclaringClass().getName() + "." + member.getName() + "()";
@@ -354,25 +351,19 @@ public class MoreTypes {
         }
     }
 
-    public static String memberKey(Member member) {
-        Objects.requireNonNull(member, "member");
-
-        return "<NO_MEMBER_KEY>";
-    }
-
     /**
      * Returns the generic supertype for {@code supertype}. For example, given a class {@code
      * IntegerSet}, the result for when supertype is {@code Set.class} is {@code Set<Integer>} and the
      * result when the supertype is {@code Collection.class} is {@code Collection<Integer>}.
      */
-    public static Type getGenericSupertype(Type type, Class<?> rawType, Class<?> toResolve) {
+    public static Type getGenericSupertype(final Type type, Class<?> rawType, final Class<?> toResolve) {
         if (toResolve == rawType) {
             return type;
         }
 
         // we skip searching through interfaces if unknown is an interface
         if (toResolve.isInterface()) {
-            Class[] interfaces = rawType.getInterfaces();
+            final Class[] interfaces = rawType.getInterfaces();
             for (int i = 0, length = interfaces.length; i < length; i++) {
                 if (interfaces[i] == toResolve) {
                     return rawType.getGenericInterfaces()[i];
@@ -385,7 +376,7 @@ public class MoreTypes {
         // check our supertypes
         if (!rawType.isInterface()) {
             while (rawType != Object.class) {
-                Class<?> rawSupertype = rawType.getSuperclass();
+                final Class<?> rawSupertype = rawType.getSuperclass();
                 if (rawSupertype == toResolve) {
                     return rawType.getGenericSuperclass();
                 } else if (toResolve.isAssignableFrom(rawSupertype)) {
@@ -399,15 +390,15 @@ public class MoreTypes {
         return toResolve;
     }
 
-    public static Type resolveTypeVariable(Type type, Class<?> rawType, TypeVariable unknown) {
-        Class<?> declaredByRaw = declaringClassOf(unknown);
+    public static Type resolveTypeVariable(final Type type, final Class<?> rawType, final TypeVariable unknown) {
+        final Class<?> declaredByRaw = declaringClassOf(unknown);
 
         // we can't reduce this further
         if (declaredByRaw == null) {
             return unknown;
         }
 
-        Type declaredBy = getGenericSupertype(type, rawType, declaredByRaw);
+        final Type declaredBy = getGenericSupertype(type, rawType, declaredByRaw);
         if (declaredBy instanceof ParameterizedType) {
             int index = indexOf(declaredByRaw.getTypeParameters(), unknown);
             return ((ParameterizedType) declaredBy).getActualTypeArguments()[index];
@@ -416,7 +407,7 @@ public class MoreTypes {
         return unknown;
     }
 
-    private static int indexOf(Object[] array, Object toFind) {
+    private static int indexOf(final Object[] array, final Object toFind) {
         for (int i = 0; i < array.length; i++) {
             if (toFind.equals(array[i])) {
                 return i;
@@ -429,8 +420,8 @@ public class MoreTypes {
      * Returns the declaring class of {@code typeVariable}, or {@code null} if it was not declared by
      * a class.
      */
-    private static Class<?> declaringClassOf(TypeVariable typeVariable) {
-        GenericDeclaration genericDeclaration = typeVariable.getGenericDeclaration();
+    private static Class<?> declaringClassOf(final TypeVariable typeVariable) {
+        final GenericDeclaration genericDeclaration = typeVariable.getGenericDeclaration();
         return genericDeclaration instanceof Class ? (Class<?>) genericDeclaration : null;
     }
 
@@ -444,7 +435,7 @@ public class MoreTypes {
         private final Type rawType;
         private final Type[] typeArguments;
 
-        public ParameterizedTypeImpl(Type ownerType, Type rawType, Type... typeArguments) {
+        public ParameterizedTypeImpl(final Type ownerType, final Type rawType, final Type... typeArguments) {
             // require an owner type if the raw type needs it
             if (rawType instanceof Class<?>) {
                 Class rawTypeAsClass = (Class) rawType;
@@ -492,7 +483,7 @@ public class MoreTypes {
                 return false;
             }
 
-            for (Type type : typeArguments) {
+            for (final Type type : typeArguments) {
                 if (!MoreTypes.isFullySpecified(type)) {
                     return false;
                 }
@@ -502,7 +493,7 @@ public class MoreTypes {
         }
 
         @Override
-        public boolean equals(Object other) {
+        public boolean equals(final Object other) {
             return other instanceof ParameterizedType && MoreTypes.equals(this, (ParameterizedType) other);
         }
 
@@ -525,7 +516,7 @@ public class MoreTypes {
     public static class GenericArrayTypeImpl implements GenericArrayType, CompositeType {
         private final Type componentType;
 
-        public GenericArrayTypeImpl(Type componentType) {
+        public GenericArrayTypeImpl(final Type componentType) {
             this.componentType = canonicalize(componentType);
         }
 
@@ -540,7 +531,7 @@ public class MoreTypes {
         }
 
         @Override
-        public boolean equals(Object o) {
+        public boolean equals(final Object o) {
             return o instanceof GenericArrayType && MoreTypes.equals(this, (GenericArrayType) o);
         }
 
@@ -566,7 +557,7 @@ public class MoreTypes {
         private final Type upperBound;
         private final Type lowerBound;
 
-        public WildcardTypeImpl(Type[] upperBounds, Type[] lowerBounds) {
+        public WildcardTypeImpl(final Type[] upperBounds, final Type[] lowerBounds) {
             if (lowerBounds.length > 1) {
                 throw new IllegalArgumentException("Must have at most one lower bound.");
             }
@@ -606,7 +597,7 @@ public class MoreTypes {
         }
 
         @Override
-        public boolean equals(Object other) {
+        public boolean equals(final Object other) {
             return other instanceof WildcardType && MoreTypes.equals(this, (WildcardType) other);
         }
 
@@ -621,57 +612,9 @@ public class MoreTypes {
         }
     }
 
-    private static void checkNotPrimitive(Type type, String use) {
+    private static void checkNotPrimitive(final Type type, final String use) {
         if (type instanceof Class<?> && ((Class) type).isPrimitive()) {
             throw new IllegalArgumentException("Primitive types are not allowed in " + use + ": " + type);
-        }
-    }
-
-    /**
-     * We cannot serialize the built-in Java member classes, which prevents us from using Members in
-     * our exception types. We workaround this with this serializable implementation. It includes all
-     * of the API methods, plus everything we use for line numbers and messaging.
-     *
-     * @opensearch.internal
-     */
-    public static class MemberImpl implements Member {
-        private final Class<?> declaringClass;
-        private final String name;
-        private final int modifiers;
-        private final boolean synthetic;
-        private final Class<? extends Member> memberType;
-
-        private MemberImpl(Member member) {
-            this.declaringClass = member.getDeclaringClass();
-            this.name = member.getName();
-            this.modifiers = member.getModifiers();
-            this.synthetic = member.isSynthetic();
-            this.memberType = memberType(member);
-        }
-
-        @Override
-        public Class getDeclaringClass() {
-            return declaringClass;
-        }
-
-        @Override
-        public String getName() {
-            return name;
-        }
-
-        @Override
-        public int getModifiers() {
-            return modifiers;
-        }
-
-        @Override
-        public boolean isSynthetic() {
-            return synthetic;
-        }
-
-        @Override
-        public String toString() {
-            return MoreTypes.toString(this);
         }
     }
 

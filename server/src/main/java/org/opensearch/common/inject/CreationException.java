@@ -48,7 +48,7 @@ public class CreationException extends RuntimeException {
     /**
      * Creates a CreationException containing {@code messages}.
      */
-    public CreationException(Collection<Message> messages) {
+    public CreationException(final Collection<Message> messages) {
         this.messages = messages;
         if (this.messages.isEmpty()) {
             throw new IllegalArgumentException();

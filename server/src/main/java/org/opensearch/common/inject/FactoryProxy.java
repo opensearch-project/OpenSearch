@@ -50,7 +50,7 @@ class FactoryProxy<T> implements InternalFactory<T>, BindingProcessor.CreationLi
 
     private InternalFactory<? extends T> targetFactory;
 
-    FactoryProxy(InjectorImpl injector, Key<T> key, Key<? extends T> targetKey, Object source) {
+    FactoryProxy(final InjectorImpl injector, final Key<T> key, Key<? extends T> targetKey, final Object source) {
         this.injector = injector;
         this.key = key;
         this.targetKey = targetKey;
@@ -67,7 +67,7 @@ class FactoryProxy<T> implements InternalFactory<T>, BindingProcessor.CreationLi
     }
 
     @Override
-    public T get(Errors errors, InternalContext context, Dependency<?> dependency) throws ErrorsException {
+    public T get(final Errors errors, final InternalContext context, final Dependency<?> dependency) throws ErrorsException {
         return targetFactory.get(errors.withSource(targetKey), context, dependency);
     }
 

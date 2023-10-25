@@ -54,7 +54,7 @@ public final class Providers {
      *                 life a Guice-supplied Provider will never return null.
      */
     public static <T> Provider<T> of(final T instance) {
-        return new Provider<T>() {
+        return new Provider<>() {
             @Override
             public T get() {
                 return instance;

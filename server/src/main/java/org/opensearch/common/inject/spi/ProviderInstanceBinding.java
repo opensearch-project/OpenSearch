@@ -43,7 +43,7 @@ import java.util.Set;
  *
  * @opensearch.internal
  */
-public interface ProviderInstanceBinding<T> extends Binding<T>, HasDependencies {
+public interface ProviderInstanceBinding<T> extends Binding<T> {
 
     /**
      * Returns the user-supplied, unscoped provider.

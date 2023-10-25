@@ -33,13 +33,11 @@ import org.opensearch.common.inject.Binder;
 import org.opensearch.common.inject.ConfigurationException;
 import org.opensearch.common.inject.Key;
 import org.opensearch.common.inject.Provider;
-import org.opensearch.common.inject.TypeLiteral;
 import org.opensearch.common.inject.binder.AnnotatedBindingBuilder;
 import org.opensearch.common.inject.spi.Element;
 import org.opensearch.common.inject.spi.InjectionPoint;
 import org.opensearch.common.inject.spi.Message;
 
-import java.lang.annotation.Annotation;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
@@ -62,29 +60,8 @@ public class BindingBuilder<T> extends AbstractBindingBuilder<T> implements Anno
     }
 
     @Override
-    public BindingBuilder<T> annotatedWith(Class<? extends Annotation> annotationType) {
-        annotatedWithInternal(annotationType);
-        return this;
-    }
-
-    @Override
-    public BindingBuilder<T> annotatedWith(Annotation annotation) {
-        annotatedWithInternal(annotation);
-        return this;
-    }
-
-    @Override
     public BindingBuilder<T> to(Class<? extends T> implementation) {
-        return to(Key.get(implementation));
-    }
-
-    @Override
-    public BindingBuilder<T> to(TypeLiteral<? extends T> implementation) {
-        return to(Key.get(implementation));
-    }
-
-    @Override
-    public BindingBuilder<T> to(Key<? extends T> linkedKey) {
+        Key<? extends T> linkedKey = Key.get(implementation);
         Objects.requireNonNull(linkedKey, "linkedKey");
         checkNotTargetted();
         BindingImpl<T> base = getBinding();
@@ -134,21 +111,6 @@ public class BindingBuilder<T> extends AbstractBindingBuilder<T> implements Anno
 
         BindingImpl<T> base = getBinding();
         setBinding(new ProviderInstanceBindingImpl<>(base.getSource(), base.getKey(), base.getScoping(), injectionPoints, provider));
-        return this;
-    }
-
-    @Override
-    public BindingBuilder<T> toProvider(Class<? extends Provider<? extends T>> providerType) {
-        return toProvider(Key.get(providerType));
-    }
-
-    @Override
-    public BindingBuilder<T> toProvider(Key<? extends Provider<? extends T>> providerKey) {
-        Objects.requireNonNull(providerKey, "providerKey");
-        checkNotTargetted();
-
-        BindingImpl<T> base = getBinding();
-        setBinding(new LinkedProviderBindingImpl<>(base.getSource(), base.getKey(), base.getScoping(), providerKey));
         return this;
     }
 

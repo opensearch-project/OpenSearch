@@ -49,7 +49,7 @@ import java.lang.annotation.Annotation;
 public class Nullability {
     private Nullability() {}
 
-    public static boolean allowsNull(Annotation[] annotations) {
+    public static boolean allowsNull(final Annotation[] annotations) {
         for (Annotation a : annotations) {
             if ("Nullable".equals(a.annotationType().getSimpleName())) {
                 return true;

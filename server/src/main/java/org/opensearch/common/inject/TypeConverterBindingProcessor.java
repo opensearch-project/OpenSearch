@@ -33,18 +33,15 @@ import org.opensearch.common.inject.internal.Errors;
 import org.opensearch.common.inject.internal.MatcherAndConverter;
 import org.opensearch.common.inject.internal.SourceProvider;
 import org.opensearch.common.inject.internal.Strings;
-import org.opensearch.common.inject.matcher.AbstractMatcher;
 import org.opensearch.common.inject.matcher.Matcher;
 import org.opensearch.common.inject.matcher.Matchers;
 import org.opensearch.common.inject.spi.TypeConverter;
-import org.opensearch.common.inject.spi.TypeConverterBinding;
 
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Type;
 
 /**
- * Handles {@link Binder#convertToTypes} commands.
  *
  * @author crazybob@google.com (Bob Lee)
  * @author jessewilson@google.com (Jesse Wilson)
@@ -101,7 +98,7 @@ class TypeConverterBindingProcessor extends AbstractProcessor {
                 }
             });
 
-            internalConvertToTypes(new AbstractMatcher<TypeLiteral<?>>() {
+            internalConvertToTypes(new Matcher<>() {
                 @Override
                 public boolean matches(TypeLiteral<?> typeLiteral) {
                     return typeLiteral.getRawType() == Class.class;
@@ -164,7 +161,7 @@ class TypeConverterBindingProcessor extends AbstractProcessor {
     }
 
     private void convertToClasses(final Matcher<? super Class<?>> typeMatcher, TypeConverter converter) {
-        internalConvertToTypes(new AbstractMatcher<TypeLiteral<?>>() {
+        internalConvertToTypes(new Matcher<>() {
             @Override
             public boolean matches(TypeLiteral<?> typeLiteral) {
                 Type type = typeLiteral.getType();
@@ -184,11 +181,5 @@ class TypeConverterBindingProcessor extends AbstractProcessor {
 
     private void internalConvertToTypes(Matcher<? super TypeLiteral<?>> typeMatcher, TypeConverter converter) {
         injector.state.addConverter(new MatcherAndConverter(typeMatcher, converter, SourceProvider.UNKNOWN_SOURCE));
-    }
-
-    @Override
-    public Boolean visit(TypeConverterBinding command) {
-        injector.state.addConverter(new MatcherAndConverter(command.getTypeMatcher(), command.getTypeConverter(), command.getSource()));
-        return true;
     }
 }

@@ -29,7 +29,6 @@
 
 package org.opensearch.common.inject.spi;
 
-import org.opensearch.common.inject.Binder;
 import org.opensearch.common.inject.internal.Errors;
 import org.opensearch.common.inject.internal.SourceProvider;
 
@@ -60,17 +59,17 @@ public final class Message implements Element {
     /**
      * @since 2.0
      */
-    public Message(List<Object> sources, String message, Throwable cause) {
+    public Message(final List<Object> sources, final String message, final Throwable cause) {
         this.sources = Collections.unmodifiableList(sources);
         this.message = Objects.requireNonNull(message, "message");
         this.cause = cause;
     }
 
-    public Message(Object source, String message) {
+    public Message(final Object source, final String message) {
         this(Collections.singletonList(source), message, null);
     }
 
-    public Message(Object source, Throwable cause) {
+    public Message(final Object source, final Throwable cause) {
         this(Collections.singletonList(source), null, cause);
     }
 
@@ -101,7 +100,7 @@ public final class Message implements Element {
      * @since 2.0
      */
     @Override
-    public <T> T acceptVisitor(ElementVisitor<T> visitor) {
+    public <T> T acceptVisitor(final ElementVisitor<T> visitor) {
         return visitor.visit(this);
     }
 
@@ -126,19 +125,11 @@ public final class Message implements Element {
     }
 
     @Override
-    public boolean equals(Object o) {
+    public boolean equals(final Object o) {
         if (!(o instanceof Message)) {
             return false;
         }
         Message e = (Message) o;
         return message.equals(e.message) && Objects.equals(cause, e.cause) && sources.equals(e.sources);
-    }
-
-    /**
-     * @since 2.0
-     */
-    @Override
-    public void applyTo(Binder binder) {
-        binder.withSource(getSource()).addError(this);
     }
 }

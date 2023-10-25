@@ -50,17 +50,17 @@ class InternalFactoryToProviderAdapter<T> implements InternalFactory<T> {
     private final Initializable<Provider<? extends T>> initializable;
     private final Object source;
 
-    InternalFactoryToProviderAdapter(Initializable<Provider<? extends T>> initializable) {
+    InternalFactoryToProviderAdapter(final Initializable<Provider<? extends T>> initializable) {
         this(initializable, SourceProvider.UNKNOWN_SOURCE);
     }
 
-    InternalFactoryToProviderAdapter(Initializable<Provider<? extends T>> initializable, Object source) {
+    InternalFactoryToProviderAdapter(final Initializable<Provider<? extends T>> initializable, Object source) {
         this.initializable = Objects.requireNonNull(initializable, "provider");
         this.source = Objects.requireNonNull(source, "source");
     }
 
     @Override
-    public T get(Errors errors, InternalContext context, Dependency<?> dependency) throws ErrorsException {
+    public T get(final Errors errors, final InternalContext context, final Dependency<?> dependency) throws ErrorsException {
         try {
             return errors.checkForNull(initializable.get(errors).get(), source, dependency);
         } catch (RuntimeException userException) {

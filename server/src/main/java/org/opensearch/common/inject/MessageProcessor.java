@@ -40,17 +40,17 @@ import org.opensearch.common.inject.spi.Message;
  *
  * @opensearch.internal
  */
-class MessageProcessor extends AbstractProcessor {
+final class MessageProcessor extends AbstractProcessor {
 
     // private static final Logger logger = Logger.getLogger(Guice.class.getName());
 
-    MessageProcessor(Errors errors) {
+    MessageProcessor(final Errors errors) {
         super(errors);
     }
 
     @Override
-    public Boolean visit(Message message) {
-        // ES_GUICE: don't log failures using jdk logging
+    public Boolean visit(final Message message) {
+        // OPENSEARCH_GUICE: don't log failures using jdk logging
         // if (message.getCause() != null) {
         // String rootMessage = getRootMessage(message.getCause());
         // logger.log(Level.INFO,
@@ -60,10 +60,5 @@ class MessageProcessor extends AbstractProcessor {
 
         errors.addMessage(message);
         return true;
-    }
-
-    public static String getRootMessage(Throwable t) {
-        Throwable cause = t.getCause();
-        return cause == null ? t.toString() : getRootMessage(cause);
     }
 }

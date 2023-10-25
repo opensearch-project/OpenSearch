@@ -34,26 +34,18 @@ import org.apache.logging.log4j.Logger;
 import org.opensearch.common.inject.AbstractModule;
 import org.opensearch.common.inject.Binder;
 import org.opensearch.common.inject.Key;
-import org.opensearch.common.inject.MembersInjector;
 import org.opensearch.common.inject.Module;
 import org.opensearch.common.inject.PrivateBinder;
-import org.opensearch.common.inject.PrivateModule;
 import org.opensearch.common.inject.Provider;
 import org.opensearch.common.inject.Scope;
 import org.opensearch.common.inject.Stage;
 import org.opensearch.common.inject.TypeLiteral;
 import org.opensearch.common.inject.binder.AnnotatedBindingBuilder;
-import org.opensearch.common.inject.binder.AnnotatedConstantBindingBuilder;
-import org.opensearch.common.inject.binder.AnnotatedElementBuilder;
 import org.opensearch.common.inject.internal.AbstractBindingBuilder;
 import org.opensearch.common.inject.internal.BindingBuilder;
-import org.opensearch.common.inject.internal.ConstantBindingBuilderImpl;
 import org.opensearch.common.inject.internal.Errors;
-import org.opensearch.common.inject.internal.ExposureBuilder;
-import org.opensearch.common.inject.internal.PrivateElementsImpl;
 import org.opensearch.common.inject.internal.ProviderMethodsModule;
 import org.opensearch.common.inject.internal.SourceProvider;
-import org.opensearch.common.inject.matcher.Matcher;
 
 import java.lang.annotation.Annotation;
 import java.util.ArrayList;
@@ -65,8 +57,7 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * Exposes elements of a module so they can be inspected, validated or {@link
- * Element#applyTo(Binder) rewritten}.
+ * Exposes elements of a module so they can be inspected, validated.
  *
  * @author jessewilson@google.com (Jesse Wilson)
  * @since 2.0
@@ -78,40 +69,19 @@ public final class Elements {
     /**
      * Records the elements executed by {@code modules}.
      */
-    public static List<Element> getElements(Module... modules) {
+    public static List<Element> getElements(final Module... modules) {
         return getElements(Stage.DEVELOPMENT, Arrays.asList(modules));
     }
 
     /**
      * Records the elements executed by {@code modules}.
      */
-    public static List<Element> getElements(Iterable<? extends Module> modules) {
-        return getElements(Stage.DEVELOPMENT, modules);
-    }
-
-    /**
-     * Records the elements executed by {@code modules}.
-     */
-    public static List<Element> getElements(Stage stage, Iterable<? extends Module> modules) {
-        RecordingBinder binder = new RecordingBinder(stage);
+    public static List<Element> getElements(final Stage stage, final Iterable<? extends Module> modules) {
+        final RecordingBinder binder = new RecordingBinder(stage);
         for (Module module : modules) {
             binder.install(module);
         }
         return Collections.unmodifiableList(binder.elements);
-    }
-
-    /**
-     * Returns the module composed of {@code elements}.
-     */
-    public static Module getModule(final Iterable<? extends Element> elements) {
-        return new Module() {
-            @Override
-            public void configure(Binder binder) {
-                for (Element element : elements) {
-                    element.applyTo(binder);
-                }
-            }
-        };
     }
 
     /**
@@ -130,9 +100,8 @@ public final class Elements {
          * The binder where exposed bindings will be created
          */
         private final RecordingBinder parent;
-        private final PrivateElementsImpl privateElements;
 
-        private RecordingBinder(Stage stage) {
+        private RecordingBinder(final Stage stage) {
             this.stage = stage;
             this.modules = new HashSet<>();
             this.elements = new ArrayList<>();
@@ -141,18 +110,16 @@ public final class Elements {
                 Elements.class,
                 RecordingBinder.class,
                 AbstractModule.class,
-                ConstantBindingBuilderImpl.class,
                 AbstractBindingBuilder.class,
                 BindingBuilder.class
             );
             this.parent = null;
-            this.privateElements = null;
         }
 
         /**
          * Creates a recording binder that's backed by {@code prototype}.
          */
-        private RecordingBinder(RecordingBinder prototype, Object source, SourceProvider sourceProvider) {
+        private RecordingBinder(final RecordingBinder prototype, final Object source, final SourceProvider sourceProvider) {
             if (!(source == null ^ sourceProvider == null)) {
                 throw new IllegalArgumentException();
             }
@@ -163,69 +130,17 @@ public final class Elements {
             this.source = source;
             this.sourceProvider = sourceProvider;
             this.parent = prototype.parent;
-            this.privateElements = prototype.privateElements;
-        }
-
-        /**
-         * Creates a private recording binder.
-         */
-        private RecordingBinder(RecordingBinder parent, PrivateElementsImpl privateElements) {
-            this.stage = parent.stage;
-            this.modules = new HashSet<>();
-            this.elements = privateElements.getElementsMutable();
-            this.source = parent.source;
-            this.sourceProvider = parent.sourceProvider;
-            this.parent = parent;
-            this.privateElements = privateElements;
         }
 
         @Override
-        public void bindScope(Class<? extends Annotation> annotationType, Scope scope) {
+        public void bindScope(final Class<? extends Annotation> annotationType, final Scope scope) {
             elements.add(new ScopeBinding(getSource(), annotationType, scope));
         }
 
         @Override
-        @SuppressWarnings("unchecked") // it is safe to use the type literal for the raw type
-        public void requestInjection(Object instance) {
-            requestInjection((TypeLiteral) TypeLiteral.get(instance.getClass()), instance);
-        }
-
-        @Override
-        public <T> void requestInjection(TypeLiteral<T> type, T instance) {
-            elements.add(new InjectionRequest<>(getSource(), type, instance));
-        }
-
-        @Override
-        public <T> MembersInjector<T> getMembersInjector(final TypeLiteral<T> typeLiteral) {
-            final MembersInjectorLookup<T> element = new MembersInjectorLookup<>(getSource(), typeLiteral);
-            elements.add(element);
-            return element.getMembersInjector();
-        }
-
-        @Override
-        public <T> MembersInjector<T> getMembersInjector(Class<T> type) {
-            return getMembersInjector(TypeLiteral.get(type));
-        }
-
-        @Override
-        public void bindListener(Matcher<? super TypeLiteral<?>> typeMatcher, TypeListener listener) {
-            elements.add(new TypeListenerBinding(getSource(), listener, typeMatcher));
-        }
-
-        @Override
-        public void requestStaticInjection(Class<?>... types) {
-            for (Class<?> type : types) {
-                elements.add(new StaticInjectionRequest(getSource(), type));
-            }
-        }
-
-        @Override
-        public void install(Module module) {
+        public void install(final Module module) {
             if (modules.add(module)) {
-                Binder binder = this;
-                if (module instanceof PrivateModule) {
-                    binder = binder.newPrivateBinder();
-                }
+                final Binder binder = this;
 
                 try {
                     module.configure(binder);
@@ -233,7 +148,7 @@ public final class Elements {
                     // NOTE: This is not in the original guice. We rethrow here to expose any explicit errors in configure()
                     throw e;
                 } catch (RuntimeException e) {
-                    Collection<Message> messages = Errors.getMessagesFromThrowable(e);
+                    final Collection<Message> messages = Errors.getMessagesFromThrowable(e);
                     if (!messages.isEmpty()) {
                         elements.addAll(messages);
                     } else {
@@ -245,17 +160,12 @@ public final class Elements {
         }
 
         @Override
-        public Stage currentStage() {
-            return stage;
-        }
-
-        @Override
-        public void addError(String message, Object... arguments) {
+        public void addError(final String message, final Object... arguments) {
             elements.add(new Message(getSource(), Errors.format(message, arguments)));
         }
 
         @Override
-        public void addError(Throwable t) {
+        public void addError(final Throwable t) {
             String message = "An exception was caught and reported. Message: " + t.getMessage();
             elements.add(new Message(Collections.singletonList(getSource()), message, t));
         }
@@ -281,25 +191,10 @@ public final class Elements {
         }
 
         @Override
-        public AnnotatedConstantBindingBuilder bindConstant() {
-            return new ConstantBindingBuilderImpl<Void>(this, elements, getSource());
-        }
-
-        @Override
         public <T> Provider<T> getProvider(final Key<T> key) {
             final ProviderLookup<T> element = new ProviderLookup<>(getSource(), key);
             elements.add(element);
             return element.getProvider();
-        }
-
-        @Override
-        public <T> Provider<T> getProvider(Class<T> type) {
-            return getProvider(Key.get(type));
-        }
-
-        @Override
-        public void convertToTypes(Matcher<? super TypeLiteral<?>> typeMatcher, TypeConverter converter) {
-            elements.add(new TypeConverterBinding(getSource(), typeMatcher, converter));
         }
 
         @Override
@@ -308,59 +203,25 @@ public final class Elements {
         }
 
         @Override
-        public RecordingBinder skipSources(Class... classesToSkip) {
+        public RecordingBinder skipSources(final Class... classesToSkip) {
             // if a source is specified explicitly, we don't need to skip sources
             if (source != null) {
                 return this;
             }
 
-            SourceProvider newSourceProvider = sourceProvider.plusSkippedClasses(classesToSkip);
+            final SourceProvider newSourceProvider = sourceProvider.plusSkippedClasses(classesToSkip);
             return new RecordingBinder(this, null, newSourceProvider);
         }
 
         @Override
-        public PrivateBinder newPrivateBinder() {
-            PrivateElementsImpl privateElements = new PrivateElementsImpl(getSource());
-            elements.add(privateElements);
-            return new RecordingBinder(this, privateElements);
-        }
-
-        @Override
         public void expose(Key<?> key) {
-            exposeInternal(key);
+            addError("Cannot expose %s on a standard binder. " + "Exposed bindings are only applicable to private binders.", key);
         }
 
-        @Override
-        public AnnotatedElementBuilder expose(Class<?> type) {
-            return exposeInternal(Key.get(type));
-        }
-
-        @Override
-        public AnnotatedElementBuilder expose(TypeLiteral<?> type) {
-            return exposeInternal(Key.get(type));
-        }
-
-        private <T> AnnotatedElementBuilder exposeInternal(Key<T> key) {
-            if (privateElements == null) {
-                addError("Cannot expose %s on a standard binder. " + "Exposed bindings are only applicable to private binders.", key);
-                return new AnnotatedElementBuilder() {
-                    @Override
-                    public void annotatedWith(Class<? extends Annotation> annotationType) {}
-
-                    @Override
-                    public void annotatedWith(Annotation annotation) {}
-                };
-            }
-
-            ExposureBuilder<T> builder = new ExposureBuilder<>(this, getSource(), key);
-            privateElements.addExposureBuilder(builder);
-            return builder;
-        }
-
-        private static Logger logger = LogManager.getLogger(Elements.class);
+        private static final Logger logger = LogManager.getLogger(Elements.class);
 
         protected Object getSource() {
-            Object ret;
+            final Object ret;
             if (logger.isDebugEnabled()) {
                 ret = sourceProvider != null ? sourceProvider.get() : source;
             } else {

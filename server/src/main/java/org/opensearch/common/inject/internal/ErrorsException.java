@@ -42,7 +42,7 @@ public class ErrorsException extends Exception {
 
     private final Errors errors;
 
-    public ErrorsException(Errors errors) {
+    public ErrorsException(final Errors errors) {
         this.errors = errors;
     }
 

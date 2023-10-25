@@ -32,15 +32,9 @@ package org.opensearch.common.inject;
 import org.opensearch.common.inject.internal.Errors;
 import org.opensearch.common.inject.spi.Element;
 import org.opensearch.common.inject.spi.ElementVisitor;
-import org.opensearch.common.inject.spi.InjectionRequest;
-import org.opensearch.common.inject.spi.MembersInjectorLookup;
 import org.opensearch.common.inject.spi.Message;
-import org.opensearch.common.inject.spi.PrivateElements;
 import org.opensearch.common.inject.spi.ProviderLookup;
 import org.opensearch.common.inject.spi.ScopeBinding;
-import org.opensearch.common.inject.spi.StaticInjectionRequest;
-import org.opensearch.common.inject.spi.TypeConverterBinding;
-import org.opensearch.common.inject.spi.TypeListenerBinding;
 
 import java.util.Iterator;
 import java.util.List;
@@ -100,42 +94,12 @@ abstract class AbstractProcessor implements ElementVisitor<Boolean> {
     }
 
     @Override
-    public Boolean visit(InjectionRequest<?> injectionRequest) {
-        return false;
-    }
-
-    @Override
-    public Boolean visit(StaticInjectionRequest staticInjectionRequest) {
-        return false;
-    }
-
-    @Override
-    public Boolean visit(TypeConverterBinding typeConverterBinding) {
-        return false;
-    }
-
-    @Override
     public <T> Boolean visit(Binding<T> binding) {
         return false;
     }
 
     @Override
     public <T> Boolean visit(ProviderLookup<T> providerLookup) {
-        return false;
-    }
-
-    @Override
-    public Boolean visit(PrivateElements privateElements) {
-        return false;
-    }
-
-    @Override
-    public <T> Boolean visit(MembersInjectorLookup<T> lookup) {
-        return false;
-    }
-
-    @Override
-    public Boolean visit(TypeListenerBinding binding) {
         return false;
     }
 }

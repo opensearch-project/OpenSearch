@@ -75,7 +75,7 @@ public class ConstructionContext<T> {
         invocationHandlers = null;
     }
 
-    public Object createProxy(Errors errors, Class<?> expectedType) throws ErrorsException {
+    public Object createProxy(final Errors errors, final Class<?> expectedType) throws ErrorsException {
         // TODO: if I create a proxy which implements all the interfaces of
         // the implementation type, I'll be able to get away with one proxy
         // instance (as opposed to one per caller).
@@ -88,12 +88,12 @@ public class ConstructionContext<T> {
             invocationHandlers = new ArrayList<>();
         }
 
-        DelegatingInvocationHandler<T> invocationHandler = new DelegatingInvocationHandler<>();
+        final DelegatingInvocationHandler<T> invocationHandler = new DelegatingInvocationHandler<>();
         invocationHandlers.add(invocationHandler);
 
         // ES: Replace, since we don't use bytecode gen, just get the type class loader, or system if its null
         // ClassLoader classLoader = BytecodeGen.getClassLoader(expectedType);
-        ClassLoader classLoader = expectedType.getClassLoader() == null
+        final ClassLoader classLoader = expectedType.getClassLoader() == null
             ? ClassLoader.getSystemClassLoader()
             : expectedType.getClassLoader();
         return expectedType.cast(Proxy.newProxyInstance(classLoader, new Class[] { expectedType }, invocationHandler));
@@ -130,9 +130,7 @@ public class ConstructionContext<T> {
             try {
                 // This appears to be not test-covered
                 return method.invoke(delegate, args);
-            } catch (IllegalAccessException e) {
-                throw new RuntimeException(e);
-            } catch (IllegalArgumentException e) {
+            } catch (IllegalAccessException | IllegalArgumentException e) {
                 throw new RuntimeException(e);
             } catch (InvocationTargetException e) {
                 throw e.getTargetException();
