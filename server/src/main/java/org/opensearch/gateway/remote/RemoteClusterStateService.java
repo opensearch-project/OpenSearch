@@ -244,7 +244,6 @@ public class RemoteClusterStateService implements Closeable {
                 allUploadedIndexMetadata.size()
             );
         } else {
-            // todo change to debug
             logger.info(
                 "writing cluster state took [{}ms]; " + "wrote full state with [{}] indices and global metadata",
                 durationMillis,
@@ -416,13 +415,6 @@ public class RemoteClusterStateService implements Closeable {
             throw exception;
         }
         if (exceptionReference.get() != null) {
-            logger.error(
-                () -> new ParameterizedMessage(
-                    "Exception during transfer of GlobalMetadata to Remote {}",
-                    exceptionReference.get().getMessage()
-                ),
-                exceptionReference.get()
-            );
             throw new GlobalMetadataTransferException(exceptionReference.get().getMessage(), exceptionReference.get());
         }
         return result.get();
@@ -497,7 +489,6 @@ public class RemoteClusterStateService implements Closeable {
                 )
             );
             exceptionList.forEach(exception::addSuppressed);
-            logger.error("Exception in transferring index metadata to remote store", exception);
             throw exception;
         }
         return result;
