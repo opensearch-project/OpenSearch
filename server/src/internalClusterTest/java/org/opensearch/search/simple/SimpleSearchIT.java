@@ -306,6 +306,9 @@ public class SimpleSearchIT extends ParameterizedStaticSettingsOpenSearchIntegTe
                 .setTrackTotalHits(true)
                 .get();
 
+            // Do not expect an exact match as an optimization introduced by https://issues.apache.org/jira/browse/LUCENE-10620
+            // can produce a total hit count > terminated_after, but this only kicks in
+            // when size = 0 which is when TotalHitCountCollector is used.
             if (size == 0) {
                 assertHitCount(searchResponse, i, max);
             } else {
@@ -334,6 +337,24 @@ public class SimpleSearchIT extends ParameterizedStaticSettingsOpenSearchIntegTe
         dotestSimpleTerminateAfterCountWithSize(randomIntBetween(1, max), max);
     }
 
+    /**
+     * Special cases when size = 0:
+     *
+     * If track_total_hits = true:
+     *   Weight#count optimization can cause totalHits in the response to be up to the total doc count regardless of terminate_after.
+     *   So, we will have to do a range check, not an equality check.
+     *
+     * If track_total_hits != true, but set to a value AND terminate_after is set:
+     *   Again, due to the optimization, any count can be returned.
+     *   Up to terminate_after, relation == EQUAL_TO.
+     *   But if track_total_hits_up_to >= terminate_after, relation can be EQ _or_ GTE.
+     *   This ambiguity is due to the fact that totalHits == track_total_hits_up_to
+     *   or totalHits > track_total_hits_up_to and SearchPhaseController sets totalHits = track_total_hits_up_to when returning results
+     *   in which case relation = GTE.
+     *
+     * @param size
+     * @throws Exception
+     */
     public void doTestSimpleTerminateAfterTrackTotalHitsUpTo(int size) throws Exception {
         prepareCreate("test").setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 0)).get();
         ensureGreen();
@@ -350,6 +371,7 @@ public class SimpleSearchIT extends ParameterizedStaticSettingsOpenSearchIntegTe
         refresh();
 
         SearchResponse searchResponse;
+
         searchResponse = client().prepareSearch("test")
             .setQuery(QueryBuilders.rangeQuery("field").gte(1).lte(numDocs))
             .setTerminateAfter(10)
@@ -360,25 +382,28 @@ public class SimpleSearchIT extends ParameterizedStaticSettingsOpenSearchIntegTe
         assertEquals(5, searchResponse.getHits().getTotalHits().value);
         assertEquals(GREATER_THAN_OR_EQUAL_TO, searchResponse.getHits().getTotalHits().relation);
 
-        searchResponse = client().prepareSearch("test")
-            .setQuery(QueryBuilders.rangeQuery("field").gte(1).lte(numDocs))
-            .setTerminateAfter(5)
-            .setSize(size)
-            .setTrackTotalHitsUpTo(10)
-            .get();
-        assertTrue(searchResponse.isTerminatedEarly());
-        assertEquals(5, searchResponse.getHits().getTotalHits().value);
-        assertEquals(EQUAL_TO, searchResponse.getHits().getTotalHits().relation);
+        // For size = 0, the following queries terminate early, but hits and relation can vary.
+        if (size > 0) {
+            searchResponse = client().prepareSearch("test")
+                .setQuery(QueryBuilders.rangeQuery("field").gte(1).lte(numDocs))
+                .setTerminateAfter(5)
+                .setSize(size)
+                .setTrackTotalHitsUpTo(10)
+                .get();
+            assertTrue(searchResponse.isTerminatedEarly());
+            assertEquals(5, searchResponse.getHits().getTotalHits().value);
+            assertEquals(EQUAL_TO, searchResponse.getHits().getTotalHits().relation);
 
-        searchResponse = client().prepareSearch("test")
-            .setQuery(QueryBuilders.rangeQuery("field").gte(1).lte(numDocs))
-            .setTerminateAfter(5)
-            .setSize(size)
-            .setTrackTotalHitsUpTo(5)
-            .get();
-        assertTrue(searchResponse.isTerminatedEarly());
-        assertEquals(5, searchResponse.getHits().getTotalHits().value);
-        assertEquals(EQUAL_TO, searchResponse.getHits().getTotalHits().relation);
+            searchResponse = client().prepareSearch("test")
+                .setQuery(QueryBuilders.rangeQuery("field").gte(1).lte(numDocs))
+                .setTerminateAfter(5)
+                .setSize(size)
+                .setTrackTotalHitsUpTo(5)
+                .get();
+            assertTrue(searchResponse.isTerminatedEarly());
+            assertEquals(5, searchResponse.getHits().getTotalHits().value);
+            assertEquals(EQUAL_TO, searchResponse.getHits().getTotalHits().relation);
+        }
 
         searchResponse = client().prepareSearch("test")
             .setQuery(QueryBuilders.rangeQuery("field").gte(1).lte(numDocs))
@@ -387,7 +412,12 @@ public class SimpleSearchIT extends ParameterizedStaticSettingsOpenSearchIntegTe
             .setTrackTotalHits(true)
             .get();
         assertTrue(searchResponse.isTerminatedEarly());
-        assertEquals(5, searchResponse.getHits().getTotalHits().value);
+        if (size == 0) {
+            // Since terminate_after < track_total_hits, we need to do a range check.
+            assertHitCount(searchResponse, 5, numDocs);
+        } else {
+            assertEquals(5, searchResponse.getHits().getTotalHits().value);
+        }
         assertEquals(EQUAL_TO, searchResponse.getHits().getTotalHits().relation);
 
         searchResponse = client().prepareSearch("test")
@@ -397,7 +427,12 @@ public class SimpleSearchIT extends ParameterizedStaticSettingsOpenSearchIntegTe
             .setTrackTotalHits(true)
             .get();
         assertFalse(searchResponse.isTerminatedEarly());
-        assertEquals(numDocs, searchResponse.getHits().getTotalHits().value);
+        if (size == 0) {
+            // Since terminate_after < track_total_hits, we need to do a range check.
+            assertHitCount(searchResponse, 5, numDocs);
+        } else {
+            assertEquals(5, searchResponse.getHits().getTotalHits().value);
+        }
         assertEquals(EQUAL_TO, searchResponse.getHits().getTotalHits().relation);
 
         searchResponse = client().prepareSearch("test")
@@ -409,12 +444,11 @@ public class SimpleSearchIT extends ParameterizedStaticSettingsOpenSearchIntegTe
         assertEquals(GREATER_THAN_OR_EQUAL_TO, searchResponse.getHits().getTotalHits().relation);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/10435")
-    public void testSimpleTerminateAfterTrackTotalHitsUpToRandomSize() throws Exception {
+    public void testSimpleTerminateAfterTrackTotalHitsUpToRandomSize0() throws Exception {
         doTestSimpleTerminateAfterTrackTotalHitsUpTo(0);
     }
 
-    public void testSimpleTerminateAfterTrackTotalHitsUpToSize0() throws Exception {
+    public void testSimpleTerminateAfterTrackTotalHitsUpToSize() throws Exception {
         doTestSimpleTerminateAfterTrackTotalHitsUpTo(randomIntBetween(1, 29));
     }
 
