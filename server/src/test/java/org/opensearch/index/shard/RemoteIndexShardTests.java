@@ -386,6 +386,7 @@ public class RemoteIndexShardTests extends SegmentReplicationIndexShardTests {
                 new SegmentReplicationTargetService.SegmentReplicationListener() {
                     @Override
                     public void onReplicationDone(SegmentReplicationState state) {
+                        latch.countDown();
                         Assert.fail("Replication should fail with simulated error");
                     }
 
@@ -395,9 +396,9 @@ public class RemoteIndexShardTests extends SegmentReplicationIndexShardTests {
                         ReplicationFailedException e,
                         boolean sendShardFailure
                     ) {
+                        latch.countDown();
                         assertFalse(sendShardFailure);
                         logger.error("Replication error", e);
-                        latch.countDown();
                     }
                 }
             );
@@ -431,9 +432,9 @@ public class RemoteIndexShardTests extends SegmentReplicationIndexShardTests {
                         ReplicationFailedException e,
                         boolean sendShardFailure
                     ) {
+                        waitForSecondRound.countDown();
                         logger.error("Replication error", e);
                         Assert.fail("Replication should not fail");
-                        waitForSecondRound.countDown();
                     }
                 }
             );
@@ -447,10 +448,10 @@ public class RemoteIndexShardTests extends SegmentReplicationIndexShardTests {
     }
 
     /**
-     * This test validates that local non-readable (partially written, corrupt) on disk are deleted vs failing the
+     * This test validates that local non-readable (corrupt, partially) on disk are deleted vs failing the
      * replication event. This test mimics local files (not referenced by reader) by throwing exception post file copy and
      * blocking update of reader. Once this is done, it corrupts one segment file and ensure that file is deleted in next
-     * round of segment replication goes through without any issues.
+     * round of segment replication by ensuring doc count.
      */
     public void testNoFailuresOnFileReads() throws Exception {
         try (ReplicationGroup shards = createGroup(1, getIndexSettings(), new NRTReplicationEngineFactory())) {
@@ -464,22 +465,21 @@ public class RemoteIndexShardTests extends SegmentReplicationIndexShardTests {
 
             final SegmentReplicationSourceFactory sourceFactory = mock(SegmentReplicationSourceFactory.class);
             final SegmentReplicationTargetService targetService = newTargetService(sourceFactory);
-
             when(sourceFactory.get(any())).thenReturn(
                 getRemoteStoreReplicationSource(replica, () -> { throw new RuntimeException("Simulated"); })
             );
-            CountDownLatch waitOnReplication = new CountDownLatch(1);
+            CountDownLatch waitOnReplicationCompletion = new CountDownLatch(1);
 
             // Start first round of segment replication. This should fail with simulated error but with replica having
             // files in its local store but not in active reader.
-            targetService.startReplication(
+            SegmentReplicationTarget segmentReplicationTarget = targetService.startReplication(
                 replica,
                 primary.getLatestReplicationCheckpoint(),
                 new SegmentReplicationTargetService.SegmentReplicationListener() {
                     @Override
                     public void onReplicationDone(SegmentReplicationState state) {
+                        waitOnReplicationCompletion.countDown();
                         Assert.fail("Replication should fail with simulated error");
-                        waitOnReplication.countDown();
                     }
 
                     @Override
@@ -488,12 +488,13 @@ public class RemoteIndexShardTests extends SegmentReplicationIndexShardTests {
                         ReplicationFailedException e,
                         boolean sendShardFailure
                     ) {
+                        waitOnReplicationCompletion.countDown();
                         assertFalse(sendShardFailure);
-                        waitOnReplication.countDown();
                     }
                 }
             );
-            waitOnReplication.await();
+            waitOnReplicationCompletion.await();
+            assertBusy(() -> { assertEquals("Target should be closed", 0, segmentReplicationTarget.refCount()); });
             String fileToCorrupt = null;
             // Corrupt one data file
             Path shardPath = replica.shardPath().getDataPath().resolve(ShardPath.INDEX_FOLDER_NAME);
