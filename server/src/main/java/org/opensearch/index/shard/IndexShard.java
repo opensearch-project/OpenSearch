@@ -4962,7 +4962,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return segmentNFile;
     }
 
-    private boolean localDirectoryContains(Directory localDirectory, String file, long checksum) {
+    // Visible for testing
+    boolean localDirectoryContains(Directory localDirectory, String file, long checksum) throws IOException {
         try (IndexInput indexInput = localDirectory.openInput(file, IOContext.DEFAULT)) {
             if (checksum == CodecUtil.retrieveChecksum(indexInput)) {
                 return true;
@@ -4982,7 +4983,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         } catch (IOException e) {
             logger.warn("Exception while reading checksum of file: {}, this can happen if file is corrupted", file);
             // For any other exception on reading checksum, we delete the file to re-download again
-            store.deleteQuiet(file);
+            localDirectory.deleteFile(file);
         }
         return false;
     }
