@@ -35,7 +35,6 @@ import org.opensearch.indices.replication.common.ReplicationLuceneIndex;
 import org.opensearch.indices.replication.common.ReplicationTarget;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
@@ -195,7 +194,13 @@ public class SegmentReplicationTarget extends ReplicationTarget {
         // set of local files that can be reused
         final Set<String> reuseFiles = diff.missing.stream()
             .filter(storeFileMetadata -> localFiles.contains(storeFileMetadata.name()))
-            .filter(this::validateLocalChecksum)
+            .filter((storeFileMetadata) -> {
+                try {
+                    return validateLocalChecksum(storeFileMetadata);
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                }
+            })
             .map(StoreFileMetadata::name)
             .collect(Collectors.toSet());
 
@@ -232,7 +237,7 @@ public class SegmentReplicationTarget extends ReplicationTarget {
         return missingFiles;
     }
 
-    private boolean validateLocalChecksum(StoreFileMetadata file) {
+    private boolean validateLocalChecksum(StoreFileMetadata file) throws IOException {
         try (IndexInput indexInput = indexShard.store().directory().openInput(file.name(), IOContext.DEFAULT)) {
             String checksum = Store.digestToString(CodecUtil.retrieveChecksum(indexInput));
             if (file.checksum().equals(checksum)) {
@@ -243,7 +248,11 @@ public class SegmentReplicationTarget extends ReplicationTarget {
                 return false;
             }
         } catch (IOException e) {
-            throw new UncheckedIOException("Error reading " + file, e);
+            logger.warn("Error reading " + file, e);
+            // Delete file on exceptions so that it can be re-downloaded. This is safe to do as this file is local only
+            // and not referenced by reader.
+            indexShard.store().directory().deleteFile(file.name());
+            return false;
         }
     }
 
