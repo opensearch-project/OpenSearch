@@ -36,6 +36,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedList;
@@ -210,6 +211,62 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
         assertNotNull(exception.get());
         assertTrue(exception.get() instanceof TranslogUploadFailedException);
         assertEquals("Timed out waiting for transfer of snapshot test-to-string to complete", exception.get().getMessage());
+    }
+
+    public void testTransferSnapshotOnThreadInterrupt() throws Exception {
+        SetOnce<Thread> uploadThread = new SetOnce<>();
+        doAnswer(invocationOnMock -> {
+            uploadThread.set(new Thread(() -> {
+                ActionListener<TransferFileSnapshot> listener = invocationOnMock.getArgument(2);
+                try {
+                    Thread.sleep(31 * 1000);
+                } catch (InterruptedException ignore) {
+                    List<TransferFileSnapshot> list = new ArrayList<>(invocationOnMock.getArgument(0));
+                    listener.onFailure(new FileTransferException(list.get(0), ignore));
+                }
+            }));
+            uploadThread.get().start();
+            return null;
+        }).when(transferService).uploadBlobs(anySet(), anyMap(), any(ActionListener.class), any(WritePriority.class));
+        FileTransferTracker fileTransferTracker = new FileTransferTracker(
+            new ShardId("index", "indexUUid", 0),
+            remoteTranslogTransferTracker
+        );
+        TranslogTransferManager translogTransferManager = new TranslogTransferManager(
+            shardId,
+            transferService,
+            remoteBaseTransferPath,
+            fileTransferTracker,
+            remoteTranslogTransferTracker
+        );
+        SetOnce<Exception> exception = new SetOnce<>();
+
+        Thread thread = new Thread(() -> {
+            try {
+                translogTransferManager.transferSnapshot(createTransferSnapshot(), new TranslogTransferListener() {
+                    @Override
+                    public void onUploadComplete(TransferSnapshot transferSnapshot) {}
+
+                    @Override
+                    public void onUploadFailed(TransferSnapshot transferSnapshot, Exception ex) {
+                        exception.set(ex);
+                    }
+                });
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        });
+        thread.start();
+
+        Thread.sleep(1000);
+        // Interrupt the thread
+        thread.interrupt();
+        assertBusy(() -> {
+            assertNotNull(exception.get());
+            assertTrue(exception.get() instanceof TranslogUploadFailedException);
+            assertEquals("Failed to upload test-to-string", exception.get().getMessage());
+        });
+        uploadThread.get().interrupt();
     }
 
     private TransferSnapshot createTransferSnapshot() {

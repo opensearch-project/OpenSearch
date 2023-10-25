@@ -162,9 +162,10 @@ public class TranslogTransferManager {
                     throw ex;
                 }
             } catch (InterruptedException ex) {
-                exceptionList.forEach(ex::addSuppressed);
+                Exception exception = new TranslogUploadFailedException("Failed to upload " + transferSnapshot, ex);
+                exceptionList.forEach(exception::addSuppressed);
                 Thread.currentThread().interrupt();
-                throw ex;
+                throw exception;
             }
             if (exceptionList.isEmpty()) {
                 TransferFileSnapshot tlogMetadata = prepareMetadata(transferSnapshot);
