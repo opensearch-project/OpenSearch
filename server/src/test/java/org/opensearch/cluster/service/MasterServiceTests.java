@@ -691,6 +691,9 @@ public class MasterServiceTests extends OpenSearchTestCase {
                     submittedTasksPerThread.get(entry.getKey()).get()
                 );
             }
+            // verify stats values after state is published
+            assertEquals(1, clusterManagerService.getClusterStateStats().getUpdateSuccess());
+            assertEquals(0, clusterManagerService.getClusterStateStats().getUpdateFailed());
         }
     }
 

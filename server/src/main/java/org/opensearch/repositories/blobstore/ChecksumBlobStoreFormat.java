@@ -197,21 +197,56 @@ public final class ChecksumBlobStoreFormat<T extends ToXContent> {
     }
 
     /**
-     * Writes blob with resolving the blob name using {@link #blobName} method.
-     * Leverages the multipart upload if supported by the blobContainer.
-     *
-     * @param obj                 object to be serialized
-     * @param blobContainer       blob container
-     * @param name                blob name
-     * @param compressor          whether to use compression
-     * @param listener            listener to listen to write result
-     * @param params              ToXContent params
+     * Internally calls {@link #writeAsyncWithPriority} with {@link WritePriority#NORMAL}
      */
     public void writeAsync(
         final T obj,
         final BlobContainer blobContainer,
         final String name,
         final Compressor compressor,
+        ActionListener<Void> listener,
+        final ToXContent.Params params
+    ) throws IOException {
+        // use NORMAL priority by default
+        this.writeAsyncWithPriority(obj, blobContainer, name, compressor, WritePriority.NORMAL, listener, params);
+    }
+
+    /**
+     * Internally calls {@link #writeAsyncWithPriority} with {@link WritePriority#URGENT}
+     * <p>
+     * <b>NOTE:</b> We use this method to upload urgent priority objects like cluster state to remote stores.
+     * Use {@link #writeAsync(ToXContent, BlobContainer, String, Compressor, ActionListener, ToXContent.Params)} for
+     * other use cases.
+     */
+    public void writeAsyncWithUrgentPriority(
+        final T obj,
+        final BlobContainer blobContainer,
+        final String name,
+        final Compressor compressor,
+        ActionListener<Void> listener,
+        final ToXContent.Params params
+    ) throws IOException {
+        this.writeAsyncWithPriority(obj, blobContainer, name, compressor, WritePriority.URGENT, listener, params);
+    }
+
+    /**
+     * Method to writes blob with resolving the blob name using {@link #blobName} method with specified
+     * {@link WritePriority}. Leverages the multipart upload if supported by the blobContainer.
+     *
+     * @param obj                 object to be serialized
+     * @param blobContainer       blob container
+     * @param name                blob name
+     * @param compressor          whether to use compression
+     * @param priority            write priority to be used
+     * @param listener            listener to listen to write result
+     * @param params              ToXContent params
+     */
+    private void writeAsyncWithPriority(
+        final T obj,
+        final BlobContainer blobContainer,
+        final String name,
+        final Compressor compressor,
+        final WritePriority priority,
         ActionListener<Void> listener,
         final ToXContent.Params params
     ) throws IOException {
@@ -222,7 +257,7 @@ public final class ChecksumBlobStoreFormat<T extends ToXContent> {
         }
         final String blobName = blobName(name);
         final BytesReference bytes = serialize(obj, blobName, compressor, params);
-        final String resourceDescription = "ChecksumBlobStoreFormat.writeAsync(blob=\"" + blobName + "\")";
+        final String resourceDescription = "ChecksumBlobStoreFormat.writeAsyncWithPriority(blob=\"" + blobName + "\")";
         try (IndexInput input = new ByteArrayIndexInput(resourceDescription, BytesReference.toBytes(bytes))) {
             long expectedChecksum;
             try {
@@ -242,7 +277,7 @@ public final class ChecksumBlobStoreFormat<T extends ToXContent> {
                     blobName,
                     bytes.length(),
                     true,
-                    WritePriority.HIGH,
+                    priority,
                     (size, position) -> new OffsetRangeIndexInputStream(input, size, position),
                     expectedChecksum,
                     ((AsyncMultiStreamBlobContainer) blobContainer).remoteIntegrityCheckSupported()

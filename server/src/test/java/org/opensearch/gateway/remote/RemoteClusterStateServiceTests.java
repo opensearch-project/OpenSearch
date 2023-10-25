@@ -273,7 +273,7 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
             new BytesArray(writtenBytes)
         );
 
-        assertEquals(capturedWriteContext.getWritePriority(), WritePriority.HIGH);
+        assertEquals(capturedWriteContext.getWritePriority(), WritePriority.URGENT);
         assertEquals(writtenIndexMetadata.getNumberOfShards(), 1);
         assertEquals(writtenIndexMetadata.getNumberOfReplicas(), 0);
         assertEquals(writtenIndexMetadata.getIndex().getName(), "test-index");
@@ -294,7 +294,13 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
         ArgumentCaptor<ActionListener<Void>> actionListenerArgumentCaptor = ArgumentCaptor.forClass(ActionListener.class);
 
         doAnswer((i) -> {
-            actionListenerArgumentCaptor.getValue().onFailure(new RuntimeException("Cannot upload to remote"));
+            // For async write action listener will be called from different thread, replicating same behaviour here.
+            new Thread(new Runnable() {
+                @Override
+                public void run() {
+                    actionListenerArgumentCaptor.getValue().onFailure(new RuntimeException("Cannot upload to remote"));
+                }
+            }).start();
             return null;
         }).when(container).asyncBlobUpload(any(WriteContext.class), actionListenerArgumentCaptor.capture());
 
@@ -324,6 +330,7 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
             RemoteClusterStateService.IndexMetadataTransferException.class,
             () -> remoteClusterStateService.writeFullMetadata(clusterState, randomAlphaOfLength(10))
         );
+        assertEquals(0, remoteClusterStateService.getStats().getSuccessCount());
     }
 
     public void testFailWriteIncrementalMetadataNonClusterManagerNode() throws IOException {
@@ -331,6 +338,7 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
         remoteClusterStateService.start();
         final ClusterMetadataManifest manifest = remoteClusterStateService.writeIncrementalMetadata(clusterState, clusterState, null);
         Assert.assertThat(manifest, nullValue());
+        assertEquals(0, remoteClusterStateService.getStats().getSuccessCount());
     }
 
     public void testFailWriteIncrementalMetadataWhenTermChanged() {
@@ -985,6 +993,38 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
             assertBusy(() -> {
                 verify(manifest2Container, times(1)).delete();
                 verify(manifest3Container, times(1)).delete();
+            });
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public void testRemoteStateStats() throws IOException {
+        final ClusterState clusterState = generateClusterStateWithOneIndex().nodes(nodesWithLocalNodeClusterManager()).build();
+        mockBlobStoreObjects();
+        remoteClusterStateService.start();
+        final ClusterMetadataManifest manifest = remoteClusterStateService.writeFullMetadata(clusterState, "prev-cluster-uuid");
+
+        assertTrue(remoteClusterStateService.getStats() != null);
+        assertEquals(1, remoteClusterStateService.getStats().getSuccessCount());
+        assertEquals(0, remoteClusterStateService.getStats().getCleanupAttemptFailedCount());
+        assertEquals(0, remoteClusterStateService.getStats().getFailedCount());
+    }
+
+    public void testRemoteStateCleanupFailureStats() throws IOException {
+        BlobContainer blobContainer = mock(BlobContainer.class);
+        doThrow(IOException.class).when(blobContainer).delete();
+        when(blobStore.blobContainer(any())).thenReturn(blobContainer);
+        BlobPath blobPath = new BlobPath().add("random-path");
+        when((blobStoreRepository.basePath())).thenReturn(blobPath);
+        remoteClusterStateService.start();
+        remoteClusterStateService.deleteStaleUUIDsClusterMetadata("cluster1", Arrays.asList("cluster-uuid1"));
+        try {
+            assertBusy(() -> {
+                // wait for stats to get updated
+                assertTrue(remoteClusterStateService.getStats() != null);
+                assertEquals(0, remoteClusterStateService.getStats().getSuccessCount());
+                assertEquals(1, remoteClusterStateService.getStats().getCleanupAttemptFailedCount());
             });
         } catch (Exception e) {
             throw new RuntimeException(e);

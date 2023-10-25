@@ -32,6 +32,7 @@
 package org.opensearch.index.shard;
 
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexCommit;
@@ -45,6 +46,7 @@ import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.IOContext;
+import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.tests.mockfile.ExtrasFS;
 import org.apache.lucene.tests.store.BaseDirectoryWrapper;
 import org.apache.lucene.util.BytesRef;
@@ -91,6 +93,7 @@ import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.indices.breaker.NoneCircuitBreakerService;
+import org.opensearch.core.util.FileSystemUtils;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
@@ -163,11 +166,13 @@ import org.opensearch.threadpool.ThreadPool;
 import org.junit.Assert;
 
 import java.io.IOException;
+import java.nio.channels.FileChannel;
 import java.nio.charset.Charset;
 import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.SimpleFileVisitor;
+import java.nio.file.StandardOpenOption;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -2745,6 +2750,7 @@ public class IndexShardTests extends IndexShardTestCase {
             AllocationId.newRelocation(routing.allocationId())
         );
         IndexShardTestCase.updateRoutingEntry(indexShard, routing);
+        indexDoc(indexShard, "_doc", "0");
         assertTrue(indexShard.isSyncNeeded());
         try {
             indexShard.relocated(routing.getTargetRelocatingShard().allocationId().getId(), primaryContext -> {}, () -> {});
@@ -4904,6 +4910,53 @@ public class IndexShardTests extends IndexShardTestCase {
         assertThat(thirdForceMergeUUID, not(equalTo(secondForceMergeUUID)));
         assertThat(thirdForceMergeUUID, equalTo(secondForceMergeRequest.forceMergeUUID()));
         closeShards(shard);
+    }
+
+    public void testLocalDirectoryContains() throws IOException {
+        IndexShard indexShard = newStartedShard(true);
+        int numDocs = between(1, 10);
+        for (int i = 0; i < numDocs; i++) {
+            indexDoc(indexShard, "_doc", Integer.toString(i));
+        }
+        flushShard(indexShard);
+        indexShard.store().incRef();
+        Directory localDirectory = indexShard.store().directory();
+        Path shardPath = indexShard.shardPath().getDataPath().resolve(ShardPath.INDEX_FOLDER_NAME);
+        Path tempDir = createTempDir();
+        for (String file : localDirectory.listAll()) {
+            if (file.equals("write.lock") || file.startsWith("extra")) {
+                continue;
+            }
+            boolean corrupted = randomBoolean();
+            long checksum = 0;
+            try (IndexInput indexInput = localDirectory.openInput(file, IOContext.DEFAULT)) {
+                checksum = CodecUtil.retrieveChecksum(indexInput);
+            }
+            if (corrupted) {
+                Files.copy(shardPath.resolve(file), tempDir.resolve(file));
+                try (FileChannel raf = FileChannel.open(shardPath.resolve(file), StandardOpenOption.READ, StandardOpenOption.WRITE)) {
+                    CorruptionUtils.corruptAt(shardPath.resolve(file), raf, (int) (raf.size() - 8));
+                }
+            }
+            if (corrupted == false) {
+                assertTrue(indexShard.localDirectoryContains(localDirectory, file, checksum));
+            } else {
+                assertFalse(indexShard.localDirectoryContains(localDirectory, file, checksum));
+                assertFalse(Files.exists(shardPath.resolve(file)));
+            }
+        }
+        try (Stream<Path> files = Files.list(tempDir)) {
+            files.forEach(p -> {
+                try {
+                    Files.copy(p, shardPath.resolve(p.getFileName()));
+                } catch (IOException e) {
+                    // Ignore
+                }
+            });
+        }
+        FileSystemUtils.deleteSubDirectories(tempDir);
+        indexShard.store().decRef();
+        closeShards(indexShard);
     }
 
     private void populateSampleRemoteSegmentStats(RemoteSegmentTransferTracker tracker) {
