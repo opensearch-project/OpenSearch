@@ -10,6 +10,7 @@ package org.opensearch.index.translog.transfer;
 
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.opensearch.action.LatchedActionListener;
+import org.opensearch.common.SetOnce;
 import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.blobstore.BlobMetadata;
 import org.opensearch.common.blobstore.BlobPath;
@@ -180,6 +181,37 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
         assertEquals(4, fileTransferTracker.allUploaded().size());
     }
 
+    public void testTransferSnapshotOnUploadTimeout() throws Exception {
+        doAnswer(invocationOnMock -> {
+            Thread.sleep(31 * 1000);
+            return null;
+        }).when(transferService).uploadBlobs(anySet(), anyMap(), any(ActionListener.class), any(WritePriority.class));
+        FileTransferTracker fileTransferTracker = new FileTransferTracker(
+            new ShardId("index", "indexUUid", 0),
+            remoteTranslogTransferTracker
+        );
+        TranslogTransferManager translogTransferManager = new TranslogTransferManager(
+            shardId,
+            transferService,
+            remoteBaseTransferPath,
+            fileTransferTracker,
+            remoteTranslogTransferTracker
+        );
+        SetOnce<Exception> exception = new SetOnce<>();
+        translogTransferManager.transferSnapshot(createTransferSnapshot(), new TranslogTransferListener() {
+            @Override
+            public void onUploadComplete(TransferSnapshot transferSnapshot) {}
+
+            @Override
+            public void onUploadFailed(TransferSnapshot transferSnapshot, Exception ex) {
+                exception.set(ex);
+            }
+        });
+        assertNotNull(exception.get());
+        assertTrue(exception.get() instanceof TranslogUploadFailedException);
+        assertEquals("Timed out waiting for transfer of snapshot test-to-string to complete", exception.get().getMessage());
+    }
+
     private TransferSnapshot createTransferSnapshot() {
         return new TransferSnapshot() {
             @Override
@@ -231,6 +263,11 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
             @Override
             public TranslogTransferMetadata getTranslogTransferMetadata() {
                 return new TranslogTransferMetadata(primaryTerm, generation, minTranslogGeneration, randomInt(5));
+            }
+
+            @Override
+            public String toString() {
+                return "test-to-string";
             }
         };
     }
