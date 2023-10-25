@@ -110,7 +110,9 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
         executorBuilders.add(new ScalingExecutorBuilder(PRIORITY_STREAM_READER, 1, halfProcMaxAt5, TimeValue.timeValueMinutes(5)));
 
         executorBuilders.add(new FixedExecutorBuilder(settings, FUTURE_COMPLETION, normalPoolCount(settings), 10_000, FUTURE_COMPLETION));
-        executorBuilders.add(new ScalingExecutorBuilder(STREAM_READER, 1, halfProcMaxAt5, TimeValue.timeValueMinutes(5)));
+        executorBuilders.add(
+            new ScalingExecutorBuilder(STREAM_READER, 1, 3 * allocatedProcessors(settings), TimeValue.timeValueMinutes(5))
+        );
         return executorBuilders;
     }
 
