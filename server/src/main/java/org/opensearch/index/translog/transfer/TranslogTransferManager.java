@@ -156,7 +156,7 @@ public class TranslogTransferManager {
 
             try {
                 if (latch.await(TRANSFER_TIMEOUT_IN_MILLIS, TimeUnit.MILLISECONDS) == false) {
-                    Exception ex = new TimeoutException("Timed out waiting for transfer of snapshot " + transferSnapshot + " to complete");
+                    Exception ex = new TranslogUploadFailedException("Timed out waiting for transfer of snapshot " + transferSnapshot + " to complete");
                     exceptionList.forEach(ex::addSuppressed);
                     throw ex;
                 }
