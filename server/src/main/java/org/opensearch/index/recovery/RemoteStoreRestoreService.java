@@ -242,6 +242,8 @@ public class RemoteStoreRestoreService {
 
         if (remoteState != null) {
             restoreGlobalMetadata(mdBuilder, remoteState.getMetadata());
+            // Restore ClusterState version
+            logger.info("Restoring ClusterState with Remote State version [{}]", remoteState.version());
             builder.version(remoteState.version());
         }
 
