@@ -306,7 +306,7 @@ public class RemoteClusterStateService implements Closeable {
         for (final IndexMetadata indexMetadata : clusterState.metadata().indices().values()) {
             final Long previousVersion = previousStateIndexMetadataVersionByName.get(indexMetadata.getIndex().getName());
             if (previousVersion == null || indexMetadata.getVersion() != previousVersion) {
-                logger.trace(
+                logger.debug(
                     "updating metadata for [{}], changing version from [{}] to [{}]",
                     indexMetadata.getIndex(),
                     previousVersion,
@@ -416,6 +416,13 @@ public class RemoteClusterStateService implements Closeable {
             throw exception;
         }
         if (exceptionReference.get() != null) {
+            logger.error(
+                () -> new ParameterizedMessage(
+                    "Exception during transfer of GlobalMetadata to Remote {}",
+                    exceptionReference.get().getMessage()
+                ),
+                exceptionReference.get()
+            );
             throw new GlobalMetadataTransferException(exceptionReference.get().getMessage(), exceptionReference.get());
         }
         return result.get();
