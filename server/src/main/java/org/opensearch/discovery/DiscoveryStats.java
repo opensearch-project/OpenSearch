@@ -64,7 +64,7 @@ public class DiscoveryStats implements Writeable, ToXContentFragment {
     public DiscoveryStats(StreamInput in) throws IOException {
         queueStats = in.readOptionalWriteable(PendingClusterStateStats::new);
         publishStats = in.readOptionalWriteable(PublishClusterStateStats::new);
-        if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
+        if (in.getVersion().onOrAfter(Version.V_2_12_0)) {
             clusterStateStats = in.readOptionalWriteable(ClusterStateStats::new);
         } else {
             clusterStateStats = null;
@@ -75,7 +75,7 @@ public class DiscoveryStats implements Writeable, ToXContentFragment {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeOptionalWriteable(queueStats);
         out.writeOptionalWriteable(publishStats);
-        if (out.getVersion().onOrAfter(Version.V_3_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_2_12_0)) {
             out.writeOptionalWriteable(clusterStateStats);
         }
     }
