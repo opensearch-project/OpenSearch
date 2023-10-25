@@ -161,10 +161,10 @@ public final class RemoteStoreRefreshListener extends CloseableRetryableRefreshL
      * This checks if there is a sync required to remote.
      *
      * @param didRefresh             if the readers changed.
-     * @param avoidPrimaryTermChange consider change in primary term or not for should sync
+     * @param skipPrimaryTermCheck consider change in primary term or not for should sync
      * @return true if sync is needed
      */
-    private boolean shouldSync(boolean didRefresh, boolean avoidPrimaryTermChange) {
+    private boolean shouldSync(boolean didRefresh, boolean skipPrimaryTermCheck) {
         boolean shouldSync = didRefresh // If the readers change, didRefresh is always true.
             // The third condition exists for uploading the zero state segments where the refresh has not changed the reader
             // reference, but it is important to upload the zero state segments so that the restore does not break.
@@ -173,7 +173,7 @@ public final class RemoteStoreRefreshListener extends CloseableRetryableRefreshL
             // we update the primary term and the same condition would not evaluate to true again in syncSegments.
             // Below check ensures that if there is commit, then that gets picked up by both 1st and 2nd shouldSync call.
             || isRefreshAfterCommitSafe();
-        if (shouldSync || avoidPrimaryTermChange) {
+        if (shouldSync || skipPrimaryTermCheck) {
             return shouldSync;
         }
         return this.primaryTerm != indexShard.getOperationPrimaryTerm();
