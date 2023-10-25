@@ -294,7 +294,13 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
         ArgumentCaptor<ActionListener<Void>> actionListenerArgumentCaptor = ArgumentCaptor.forClass(ActionListener.class);
 
         doAnswer((i) -> {
-            actionListenerArgumentCaptor.getValue().onFailure(new RuntimeException("Cannot upload to remote"));
+            // For async write action listener will be called from different thread, replicating same behaviour here.
+            new Thread(new Runnable() {
+                @Override
+                public void run() {
+                    actionListenerArgumentCaptor.getValue().onFailure(new RuntimeException("Cannot upload to remote"));
+                }
+            }).start();
             return null;
         }).when(container).asyncBlobUpload(any(WriteContext.class), actionListenerArgumentCaptor.capture());
 
