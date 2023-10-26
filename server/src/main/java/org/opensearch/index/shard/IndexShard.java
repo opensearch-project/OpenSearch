@@ -1996,6 +1996,23 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return ((RemoteSegmentStoreDirectory) remoteDirectory);
     }
 
+    /*
+    Returns true iff it is able to verify that there is at least one
+    remote segment metadata uploaded
+     */
+    boolean atLeastOneRemoteSync() {
+        assert indexSettings.isRemoteStoreEnabled();
+        try {
+            RemoteSegmentStoreDirectory directory = getRemoteDirectory();
+            if (directory.readLatestMetadataFile() != null) {
+                return true;
+            }
+        } catch (IOException e) {
+            logger.error("Exception while reading latest metadata");
+        }
+        return false;
+    }
+
     public void preRecovery() {
         final IndexShardState currentState = this.state; // single volatile read
         if (currentState == IndexShardState.CLOSED) {
