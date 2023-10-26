@@ -1204,7 +1204,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
 
         QueryPhase queryPhase = new QueryPhase(delayedQueryPhaseSearcher);
         queryPhase.execute(searchContext);
-        long tookTime = searchContext.queryResult().getTookTimeNanos();
+        Long tookTime = searchContext.queryResult().getTookTimeNanos();
         assertTrue(tookTime >= (long) sleepMillis * 1000000);
         reader.close();
         dir.close();

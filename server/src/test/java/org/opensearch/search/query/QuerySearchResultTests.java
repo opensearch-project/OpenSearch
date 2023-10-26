@@ -99,27 +99,35 @@ public class QuerySearchResultTests extends OpenSearchTestCase {
         if (randomBoolean()) {
             result.aggregations(InternalAggregationsTests.createTestInstance());
         }
-        assertEquals(0, result.getTookTimeNanos());
+        assertNull(result.getTookTimeNanos());
         return result;
     }
 
     public void testSerialization() throws Exception {
-        QuerySearchResult querySearchResult = createTestInstance();
-        QuerySearchResult deserialized = copyWriteable(querySearchResult, namedWriteableRegistry, QuerySearchResult::new);
-        assertEquals(querySearchResult.getContextId().getId(), deserialized.getContextId().getId());
-        assertNull(deserialized.getSearchShardTarget());
-        assertEquals(querySearchResult.topDocs().maxScore, deserialized.topDocs().maxScore, 0f);
-        assertEquals(querySearchResult.topDocs().topDocs.totalHits, deserialized.topDocs().topDocs.totalHits);
-        assertEquals(querySearchResult.from(), deserialized.from());
-        assertEquals(querySearchResult.size(), deserialized.size());
-        assertEquals(querySearchResult.hasAggs(), deserialized.hasAggs());
-        if (deserialized.hasAggs()) {
-            Aggregations aggs = querySearchResult.consumeAggs().expand();
-            Aggregations deserializedAggs = deserialized.consumeAggs().expand();
-            assertEquals(aggs.asList(), deserializedAggs.asList());
+        for (int i = 0; i < 2; i++) {
+            QuerySearchResult querySearchResult = createTestInstance();
+            if (i == 0) {
+                querySearchResult.setTookTimeNanos(1000L); // test both an initialized and an uninitialized null value
+            }
+            QuerySearchResult deserialized = copyWriteable(querySearchResult, namedWriteableRegistry, QuerySearchResult::new);
+            assertEquals(querySearchResult.getContextId().getId(), deserialized.getContextId().getId());
+            assertNull(deserialized.getSearchShardTarget());
+            assertEquals(querySearchResult.topDocs().maxScore, deserialized.topDocs().maxScore, 0f);
+            assertEquals(querySearchResult.topDocs().topDocs.totalHits, deserialized.topDocs().topDocs.totalHits);
+            assertEquals(querySearchResult.from(), deserialized.from());
+            assertEquals(querySearchResult.size(), deserialized.size());
+            assertEquals(querySearchResult.hasAggs(), deserialized.hasAggs());
+            if (deserialized.hasAggs()) {
+                Aggregations aggs = querySearchResult.consumeAggs().expand();
+                Aggregations deserializedAggs = deserialized.consumeAggs().expand();
+                assertEquals(aggs.asList(), deserializedAggs.asList());
+            }
+            assertEquals(querySearchResult.terminatedEarly(), deserialized.terminatedEarly());
+            assertEquals(querySearchResult.getTookTimeNanos(), deserialized.getTookTimeNanos());
+            if (i == 1) {
+                assertNull(deserialized.getTookTimeNanos());
+            }
         }
-        assertEquals(querySearchResult.terminatedEarly(), deserialized.terminatedEarly());
-        assertEquals(querySearchResult.getTookTimeNanos(), deserialized.getTookTimeNanos());
     }
 
     public void testNullResponse() throws Exception {
