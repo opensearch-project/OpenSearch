@@ -6,10 +6,5 @@
  * compatible open source license.
  */
 
-package org.opensearch.indices;
-
-public enum TierType {
-
-    ON_HEAP,
-    DISK;
-}
+/** Base package for cache tier support. */
+package org.opensearch.common.cache.tier;

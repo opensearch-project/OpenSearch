@@ -32,7 +32,7 @@
 
 package org.opensearch.common.cache;
 
-import org.opensearch.indices.TierType;
+import org.opensearch.common.cache.tier.TierType;
 
 /**
  * Notification when an element is removed from the cache
