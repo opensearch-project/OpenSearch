@@ -116,7 +116,7 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
         clusters = new Clusters(in);
         scrollId = in.readOptionalString();
         tookInMillis = in.readVLong();
-        if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
+        if (in.getVersion().onOrAfter(Version.V_2_12_0)) {
             phaseTook = in.readOptionalWriteable(PhaseTook::new);
         } else {
             phaseTook = null;
@@ -557,7 +557,7 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
         clusters.writeTo(out);
         out.writeOptionalString(scrollId);
         out.writeVLong(tookInMillis);
-        if (out.getVersion().onOrAfter(Version.V_3_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_2_12_0)) {
             out.writeOptionalWriteable(phaseTook);
         }
         out.writeVInt(skippedShards);

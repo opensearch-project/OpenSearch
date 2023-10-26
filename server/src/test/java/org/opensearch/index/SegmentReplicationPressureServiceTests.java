@@ -278,6 +278,13 @@ public class SegmentReplicationPressureServiceTests extends OpenSearchIndexLevel
         ClusterService clusterService = mock(ClusterService.class);
         when(clusterService.getClusterSettings()).thenReturn(new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
 
-        return new SegmentReplicationPressureService(settings, clusterService, indicesService, shardStateAction, mock(ThreadPool.class));
+        return new SegmentReplicationPressureService(
+            settings,
+            clusterService,
+            indicesService,
+            shardStateAction,
+            new SegmentReplicationStatsTracker(indicesService),
+            mock(ThreadPool.class)
+        );
     }
 }
