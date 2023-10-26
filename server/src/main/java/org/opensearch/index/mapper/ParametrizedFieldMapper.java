@@ -325,7 +325,8 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
             setValue(initializer.apply(toInit));
         }
 
-        private void parse(String field, ParserContext context, Object in) {
+        // public for testing only
+        public void parse(String field, ParserContext context, Object in) {
             setValue(parser.apply(field, context, in));
         }
 

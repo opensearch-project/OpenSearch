@@ -222,7 +222,7 @@ final class Security {
      * Reads and returns the specified {@code policyFile}.
      * <p>
      * Jar files listed in {@code codebases} location will be provided to the policy file via
-     * a system property of the short name: e.g. <code>${codebase.joda-convert-1.2.jar}</code>
+     * a system property of the short name: e.g. <code>${codebase.some-dependency-1.2.jar}</code>
      * would map to full URL.
      */
     @SuppressForbidden(reason = "accesses fully qualified URLs to configure security")

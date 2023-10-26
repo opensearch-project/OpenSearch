@@ -32,7 +32,7 @@
 
 package org.opensearch.common.time;
 
-import org.opensearch.common.joda.Joda;
+import org.opensearch.OpenSearchParseException;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.time.Clock;
@@ -40,6 +40,7 @@ import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoField;
 import java.time.temporal.TemporalAccessor;
 import java.util.Locale;
@@ -580,107 +581,734 @@ public class DateFormattersTests extends OpenSearchTestCase {
         );
     }
 
-    public void testCamelCaseDeprecation() {
-        String[] deprecatedNames = new String[] {
-            "basicDate",
-            "basicDateTime",
-            "basicDateTimeNoMillis",
-            "basicOrdinalDate",
-            "basicOrdinalDateTime",
-            "basicOrdinalDateTimeNoMillis",
-            "basicTime",
-            "basicTimeNoMillis",
-            "basicTTime",
-            "basicTTimeNoMillis",
-            "basicWeekDate",
-            "basicWeekDateTime",
-            "basicWeekDateTimeNoMillis",
-            "dateHour",
-            "dateHourMinute",
-            "dateHourMinuteSecond",
-            "dateHourMinuteSecondFraction",
-            "dateHourMinuteSecondMillis",
-            "dateOptionalTime",
-            "dateTime",
-            "dateTimeNoMillis",
-            "hourMinute",
-            "hourMinuteSecond",
-            "hourMinuteSecondFraction",
-            "hourMinuteSecondMillis",
-            "ordinalDate",
-            "ordinalDateTime",
-            "ordinalDateTimeNoMillis",
-            "timeNoMillis",
-            "tTime",
-            "tTimeNoMillis",
-            "weekDate",
-            "weekDateTime",
-            "weekDateTimeNoMillis",
-            "weekyearWeek",
-            "weekyearWeekDay",
-            "yearMonth",
-            "yearMonthDay",
-            "strictBasicWeekDate",
-            "strictBasicWeekDateTime",
-            "strictBasicWeekDateTimeNoMillis",
-            "strictDate",
-            "strictDateHour",
-            "strictDateHourMinute",
-            "strictDateHourMinuteSecond",
-            "strictDateHourMinuteSecondFraction",
-            "strictDateHourMinuteSecondMillis",
-            "strictDateOptionalTime",
-            "strictDateOptionalTimeNanos",
-            "strictDateTime",
-            "strictDateTimeNoMillis",
-            "strictHour",
-            "strictHourMinute",
-            "strictHourMinuteSecond",
-            "strictHourMinuteSecondFraction",
-            "strictHourMinuteSecondMillis",
-            "strictOrdinalDate",
-            "strictOrdinalDateTime",
-            "strictOrdinalDateTimeNoMillis",
-            "strictTime",
-            "strictTimeNoMillis",
-            "strictTTime",
-            "strictTTimeNoMillis",
-            "strictWeekDate",
-            "strictWeekDateTime",
-            "strictWeekDateTimeNoMillis",
-            "strictWeekyear",
-            "strictWeekyearWeek",
-            "strictWeekyearWeekDay",
-            "strictYear",
-            "strictYearMonth",
-            "strictYearMonthDay" };
-        for (String name : deprecatedNames) {
-            String snakeCaseName = FormatNames.forName(name).getSnakeCaseName();
+    public void testTimezoneParsing() {
+        /** this testcase won't work in joda. See comment in {@link #testPartialTimeParsing()}
+         *  assertSameDateAs("2016-11-30T+01", "strict_date_optional_time", "strict_date_optional_time");
+         */
+        assertSameDateAs("2016-11-30T00+01", "strict_date_optional_time");
+        assertSameDateAs("2016-11-30T00+0100", "strict_date_optional_time");
+        assertSameDateAs("2016-11-30T00+01:00", "strict_date_optional_time");
+    }
 
-            DateFormatter dateFormatter = DateFormatter.forPattern(name);
-            assertThat(dateFormatter.pattern(), equalTo(name));
-            assertWarnings(
-                "Camel case format name "
-                    + name
-                    + " is deprecated and will be removed in a future version. "
-                    + "Use snake case name "
-                    + snakeCaseName
-                    + " instead."
-            );
+    public void testPartialTimeParsing() {
+        /*
+        This does not work in Joda as it reports 2016-11-30T01:00:00Z
+        because strict_date_optional_time confuses +01 with an hour (which is a signed fixed length digit)
+        assertSameDateAs("2016-11-30T+01", "strict_date_optional_time", "strict_date_optional_time");
+        ES java.time implementation does not suffer from this,
+        but we intentionally not allow parsing timezone without an time part as it is not allowed in iso8601
+        */
+        assertParseException("2016-11-30T+01", "strict_date_optional_time");
 
-            dateFormatter = DateFormatter.forPattern(snakeCaseName);
-            assertThat(dateFormatter.pattern(), equalTo(snakeCaseName));
+        assertSameDateAs("2016-11-30T12+01", "strict_date_optional_time");
+        assertSameDateAs("2016-11-30T12:00+01", "strict_date_optional_time");
+        assertSameDateAs("2016-11-30T12:00:00+01", "strict_date_optional_time");
+        assertSameDateAs("2016-11-30T12:00:00.000+01", "strict_date_optional_time");
+
+        // without timezone
+        assertSameDateAs("2016-11-30T", "strict_date_optional_time");
+        assertSameDateAs("2016-11-30T12", "strict_date_optional_time");
+        assertSameDateAs("2016-11-30T12:00", "strict_date_optional_time");
+        assertSameDateAs("2016-11-30T12:00:00", "strict_date_optional_time");
+        assertSameDateAs("2016-11-30T12:00:00.000", "strict_date_optional_time");
+    }
+
+    // date_optional part of a parser names "strict_date_optional_time" or "date_optional"time
+    // means that date part can be partially parsed.
+    public void testPartialDateParsing() {
+        assertSameDateAs("2001", "strict_date_optional_time_nanos");
+        assertSameDateAs("2001-01", "strict_date_optional_time_nanos");
+        assertSameDateAs("2001-01-01", "strict_date_optional_time_nanos");
+
+        assertSameDateAs("2001", "strict_date_optional_time");
+        assertSameDateAs("2001-01", "strict_date_optional_time");
+        assertSameDateAs("2001-01-01", "strict_date_optional_time");
+
+        assertSameDateAs("2001", "date_optional_time");
+        assertSameDateAs("2001-01", "date_optional_time");
+        assertSameDateAs("2001-01-01", "date_optional_time");
+
+        assertSameDateAs("2001", "iso8601");
+        assertSameDateAs("2001-01", "iso8601");
+        assertSameDateAs("2001-01-01", "iso8601");
+
+        assertSameDateAs("9999", "date_optional_time||epoch_second");
+    }
+
+    public void testCompositeDateMathParsing() {
+        // in all these examples the second pattern will be used
+        assertDateMathEquals("2014-06-06T12:01:02.123", "2014-06-06T12:01:02.123", "yyyy-MM-dd'T'HH:mm:ss||yyyy-MM-dd'T'HH:mm:ss.SSS");
+        assertDateMathEquals("2014-06-06T12:01:02.123", "2014-06-06T12:01:02.123", "strict_date_time_no_millis||yyyy-MM-dd'T'HH:mm:ss.SSS");
+        assertDateMathEquals(
+            "2014-06-06T12:01:02.123",
+            "2014-06-06T12:01:02.123",
+            "yyyy-MM-dd'T'HH:mm:ss+HH:MM||yyyy-MM-dd'T'HH:mm:ss.SSS"
+        );
+    }
+
+    public void testExceptionWhenCompositeParsingFailsDateMath() {
+        // both parsing failures should contain pattern and input text in exception
+        // both patterns fail parsing the input text due to only 2 digits of millis. Hence full text was not parsed.
+        String pattern = "yyyy-MM-dd'T'HH:mm:ss||yyyy-MM-dd'T'HH:mm:ss.SS";
+        String text = "2014-06-06T12:01:02.123";
+        OpenSearchParseException e1 = expectThrows(
+            OpenSearchParseException.class,
+            () -> dateMathToMillis(text, DateFormatter.forPattern(pattern))
+        );
+        assertThat(e1.getMessage(), containsString(pattern));
+        assertThat(e1.getMessage(), containsString(text));
+    }
+
+    // these parsers should allow both ',' and '.' as a decimal point
+    public void testDecimalPointParsing() {
+        assertSameDateAs("2001-01-01T00:00:00.123Z", "strict_date_optional_time");
+        assertSameDateAs("2001-01-01T00:00:00,123Z", "strict_date_optional_time");
+
+        assertSameDateAs("2001-01-01T00:00:00.123Z", "date_optional_time");
+        assertSameDateAs("2001-01-01T00:00:00,123Z", "date_optional_time");
+
+        // only java.time has nanos parsing, but the results for 3digits should be the same
+        DateFormatter javaFormatter = DateFormatter.forPattern("strict_date_optional_time_nanos");
+        assertSameDate("2001-01-01T00:00:00.123Z", javaFormatter);
+        assertSameDate("2001-01-01T00:00:00,123Z", javaFormatter);
+
+        assertParseException("2001-01-01T00:00:00.123,456Z", "strict_date_optional_time");
+        assertParseException("2001-01-01T00:00:00.123,456Z", "date_optional_time");
+        // This should fail, but java is ok with this because the field has the same value
+        // assertJavaTimeParseException("2001-01-01T00:00:00.123,123Z", "strict_date_optional_time_nanos");
+    }
+
+    public void testTimeZoneFormatting() {
+        assertSameDateAs("2001-01-01T00:00:00Z", "date_time_no_millis");
+        // the following fail under java 8 but work under java 10, needs investigation
+        assertSameDateAs("2001-01-01T00:00:00-0800", "date_time_no_millis");
+        assertSameDateAs("2001-01-01T00:00:00+1030", "date_time_no_millis");
+        assertSameDateAs("2001-01-01T00:00:00-08", "date_time_no_millis");
+        assertSameDateAs("2001-01-01T00:00:00+10:30", "date_time_no_millis");
+
+        // different timezone parsing styles require a different number of letters
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyyMMdd'T'HHmmss.SSSXXX", Locale.ROOT);
+        formatter.parse("20181126T121212.123Z");
+        formatter.parse("20181126T121212.123-08:30");
+
+        DateTimeFormatter formatter2 = DateTimeFormatter.ofPattern("yyyyMMdd'T'HHmmss.SSSXXXX", Locale.ROOT);
+        formatter2.parse("20181126T121212.123+1030");
+        formatter2.parse("20181126T121212.123-0830");
+
+        // ... and can be combined, note that this is not an XOR, so one could append both timezones with this example
+        DateTimeFormatter formatter3 = DateTimeFormatter.ofPattern("yyyyMMdd'T'HHmmss.SSS[XXXX][XXX]", Locale.ROOT);
+        formatter3.parse("20181126T121212.123Z");
+        formatter3.parse("20181126T121212.123-08:30");
+        formatter3.parse("20181126T121212.123+1030");
+        formatter3.parse("20181126T121212.123-0830");
+    }
+
+    public void testCustomTimeFormats() {
+        assertSameDateAs("2010 12 06 11:05:15", "yyyy dd MM HH:mm:ss");
+        assertSameDateAs("12/06", "dd/MM");
+        assertSameDateAs("Nov 24 01:29:01 -0800", "MMM dd HH:mm:ss Z");
+    }
+
+    public void testFormatsValidParsing() {
+        assertSameDateAs("1522332219", "epoch_second");
+        assertSameDateAs("0", "epoch_second");
+        assertSameDateAs("1", "epoch_second");
+        assertSameDateAs("1522332219321", "epoch_millis");
+        assertSameDateAs("0", "epoch_millis");
+        assertSameDateAs("1", "epoch_millis");
+
+        assertSameDateAs("20181126", "basic_date");
+        assertSameDateAs("20181126T121212.123Z", "basic_date_time");
+        assertSameDateAs("20181126T121212.123+10:00", "basic_date_time");
+        assertSameDateAs("20181126T121212.123-0800", "basic_date_time");
+
+        assertSameDateAs("20181126T121212Z", "basic_date_time_no_millis");
+        assertSameDateAs("20181126T121212+01:00", "basic_date_time_no_millis");
+        assertSameDateAs("20181126T121212+0100", "basic_date_time_no_millis");
+        assertSameDateAs("2018363", "basic_ordinal_date");
+        assertSameDateAs("2018363T121212.1Z", "basic_ordinal_date_time");
+        assertSameDateAs("2018363T121212.123Z", "basic_ordinal_date_time");
+        assertSameDateAs("2018363T121212.123456789Z", "basic_ordinal_date_time");
+        assertSameDateAs("2018363T121212.123+0100", "basic_ordinal_date_time");
+        assertSameDateAs("2018363T121212.123+01:00", "basic_ordinal_date_time");
+        assertSameDateAs("2018363T121212Z", "basic_ordinal_date_time_no_millis");
+        assertSameDateAs("2018363T121212+0100", "basic_ordinal_date_time_no_millis");
+        assertSameDateAs("2018363T121212+01:00", "basic_ordinal_date_time_no_millis");
+        assertSameDateAs("121212.1Z", "basic_time");
+        assertSameDateAs("121212.123Z", "basic_time");
+        assertSameDateAs("121212.123456789Z", "basic_time");
+        assertSameDateAs("121212.1+0100", "basic_time");
+        assertSameDateAs("121212.123+0100", "basic_time");
+        assertSameDateAs("121212.123+01:00", "basic_time");
+        assertSameDateAs("121212Z", "basic_time_no_millis");
+        assertSameDateAs("121212+0100", "basic_time_no_millis");
+        assertSameDateAs("121212+01:00", "basic_time_no_millis");
+        assertSameDateAs("T121212.1Z", "basic_t_time");
+        assertSameDateAs("T121212.123Z", "basic_t_time");
+        assertSameDateAs("T121212.123456789Z", "basic_t_time");
+        assertSameDateAs("T121212.1+0100", "basic_t_time");
+        assertSameDateAs("T121212.123+0100", "basic_t_time");
+        assertSameDateAs("T121212.123+01:00", "basic_t_time");
+        assertSameDateAs("T121212Z", "basic_t_time_no_millis");
+        assertSameDateAs("T121212+0100", "basic_t_time_no_millis");
+        assertSameDateAs("T121212+01:00", "basic_t_time_no_millis");
+        assertSameDateAs("2018W313", "basic_week_date");
+        assertSameDateAs("1W313", "basic_week_date");
+        assertSameDateAs("18W313", "basic_week_date");
+        assertSameDateAs("2018W313T121212.1Z", "basic_week_date_time");
+        assertSameDateAs("2018W313T121212.123Z", "basic_week_date_time");
+        assertSameDateAs("2018W313T121212.123456789Z", "basic_week_date_time");
+        assertSameDateAs("2018W313T121212.123+0100", "basic_week_date_time");
+        assertSameDateAs("2018W313T121212.123+01:00", "basic_week_date_time");
+        assertSameDateAs("2018W313T121212Z", "basic_week_date_time_no_millis");
+        assertSameDateAs("2018W313T121212+0100", "basic_week_date_time_no_millis");
+        assertSameDateAs("2018W313T121212+01:00", "basic_week_date_time_no_millis");
+
+        assertSameDateAs("2018-12-31", "date");
+        assertSameDateAs("18-5-6", "date");
+        assertSameDateAs("10000-5-6", "date");
+
+        assertSameDateAs("2018-12-31T12", "date_hour");
+        assertSameDateAs("2018-12-31T8", "date_hour");
+
+        assertSameDateAs("2018-12-31T12:12", "date_hour_minute");
+        assertSameDateAs("2018-12-31T8:3", "date_hour_minute");
+
+        assertSameDateAs("2018-12-31T12:12:12", "date_hour_minute_second");
+        assertSameDateAs("2018-12-31T12:12:1", "date_hour_minute_second");
+
+        assertSameDateAs("2018-12-31T12:12:12.1", "date_hour_minute_second_fraction");
+        assertSameDateAs("2018-12-31T12:12:12.123", "date_hour_minute_second_fraction");
+        assertSameDateAs("2018-12-31T12:12:12.123456789", "date_hour_minute_second_fraction");
+        assertSameDateAs("2018-12-31T12:12:12.1", "date_hour_minute_second_millis");
+        assertSameDateAs("2018-12-31T12:12:12.123", "date_hour_minute_second_millis");
+        assertParseException("2018-12-31T12:12:12.123456789", "date_hour_minute_second_millis");
+        assertSameDateAs("2018-12-31T12:12:12.1", "date_hour_minute_second_millis");
+        assertSameDateAs("2018-12-31T12:12:12.1", "date_hour_minute_second_fraction");
+
+        assertSameDateAs("2018-05", "date_optional_time");
+        assertSameDateAs("2018-05-30", "date_optional_time");
+        assertSameDateAs("2018-05-30T20", "date_optional_time");
+        assertSameDateAs("2018-05-30T20:21", "date_optional_time");
+        assertSameDateAs("2018-05-30T20:21:23", "date_optional_time");
+        assertSameDateAs("2018-05-30T20:21:23.1", "date_optional_time");
+        assertSameDateAs("2018-05-30T20:21:23.123", "date_optional_time");
+        assertSameDateAs("2018-05-30T20:21:23.123456789", "date_optional_time");
+        assertSameDateAs("2018-05-30T20:21:23.123Z", "date_optional_time");
+        assertSameDateAs("2018-05-30T20:21:23.123456789Z", "date_optional_time");
+        assertSameDateAs("2018-05-30T20:21:23.1+0100", "date_optional_time");
+        assertSameDateAs("2018-05-30T20:21:23.123+0100", "date_optional_time");
+        assertSameDateAs("2018-05-30T20:21:23.1+01:00", "date_optional_time");
+        assertSameDateAs("2018-05-30T20:21:23.123+01:00", "date_optional_time");
+        assertSameDateAs("2018-12-1", "date_optional_time");
+        assertSameDateAs("2018-12-31T10:15:30", "date_optional_time");
+        assertSameDateAs("2018-12-31T10:15:3", "date_optional_time");
+        assertSameDateAs("2018-12-31T10:5:30", "date_optional_time");
+        assertSameDateAs("2018-12-31T1:15:30", "date_optional_time");
+
+        assertSameDateAs("2018-12-31T10:15:30.1Z", "date_time");
+        assertSameDateAs("2018-12-31T10:15:30.123Z", "date_time");
+        assertSameDateAs("2018-12-31T10:15:30.123456789Z", "date_time");
+        assertSameDateAs("2018-12-31T10:15:30.1+0100", "date_time");
+        assertSameDateAs("2018-12-31T10:15:30.123+0100", "date_time");
+        assertSameDateAs("2018-12-31T10:15:30.123+01:00", "date_time");
+        assertSameDateAs("2018-12-31T10:15:30.1+01:00", "date_time");
+        assertSameDateAs("2018-12-31T10:15:30.11Z", "date_time");
+        assertSameDateAs("2018-12-31T10:15:30.11+0100", "date_time");
+        assertSameDateAs("2018-12-31T10:15:30.11+01:00", "date_time");
+        assertSameDateAs("2018-12-31T10:15:3.1Z", "date_time");
+        assertSameDateAs("2018-12-31T10:15:3.123Z", "date_time");
+        assertSameDateAs("2018-12-31T10:15:3.123456789Z", "date_time");
+        assertSameDateAs("2018-12-31T10:15:3.1+0100", "date_time");
+        assertSameDateAs("2018-12-31T10:15:3.123+0100", "date_time");
+        assertSameDateAs("2018-12-31T10:15:3.123+01:00", "date_time");
+        assertSameDateAs("2018-12-31T10:15:3.1+01:00", "date_time");
+
+        assertSameDateAs("2018-12-31T10:15:30Z", "date_time_no_millis");
+        assertSameDateAs("2018-12-31T10:15:30+0100", "date_time_no_millis");
+        assertSameDateAs("2018-12-31T10:15:30+01:00", "date_time_no_millis");
+        assertSameDateAs("2018-12-31T10:5:30Z", "date_time_no_millis");
+        assertSameDateAs("2018-12-31T10:5:30+0100", "date_time_no_millis");
+        assertSameDateAs("2018-12-31T10:5:30+01:00", "date_time_no_millis");
+        assertSameDateAs("2018-12-31T10:15:3Z", "date_time_no_millis");
+        assertSameDateAs("2018-12-31T10:15:3+0100", "date_time_no_millis");
+        assertSameDateAs("2018-12-31T10:15:3+01:00", "date_time_no_millis");
+        assertSameDateAs("2018-12-31T1:15:30Z", "date_time_no_millis");
+        assertSameDateAs("2018-12-31T1:15:30+0100", "date_time_no_millis");
+        assertSameDateAs("2018-12-31T1:15:30+01:00", "date_time_no_millis");
+
+        assertSameDateAs("12", "hour");
+        assertSameDateAs("01", "hour");
+        assertSameDateAs("1", "hour");
+
+        assertSameDateAs("12:12", "hour_minute");
+        assertSameDateAs("12:01", "hour_minute");
+        assertSameDateAs("12:1", "hour_minute");
+
+        assertSameDateAs("12:12:12", "hour_minute_second");
+        assertSameDateAs("12:12:01", "hour_minute_second");
+        assertSameDateAs("12:12:1", "hour_minute_second");
+
+        assertSameDateAs("12:12:12.123", "hour_minute_second_fraction");
+        assertSameDateAs("12:12:12.123456789", "hour_minute_second_fraction");
+        assertSameDateAs("12:12:12.1", "hour_minute_second_fraction");
+        assertParseException("12:12:12", "hour_minute_second_fraction");
+        assertSameDateAs("12:12:12.123", "hour_minute_second_millis");
+        assertParseException("12:12:12.123456789", "hour_minute_second_millis");
+        assertSameDateAs("12:12:12.1", "hour_minute_second_millis");
+        assertParseException("12:12:12", "hour_minute_second_millis");
+
+        assertSameDateAs("2018-128", "ordinal_date");
+        assertSameDateAs("2018-1", "ordinal_date");
+
+        assertSameDateAs("2018-128T10:15:30.1Z", "ordinal_date_time");
+        assertSameDateAs("2018-128T10:15:30.123Z", "ordinal_date_time");
+        assertSameDateAs("2018-128T10:15:30.123456789Z", "ordinal_date_time");
+        assertSameDateAs("2018-128T10:15:30.123+0100", "ordinal_date_time");
+        assertSameDateAs("2018-128T10:15:30.123+01:00", "ordinal_date_time");
+        assertSameDateAs("2018-1T10:15:30.1Z", "ordinal_date_time");
+        assertSameDateAs("2018-1T10:15:30.123Z", "ordinal_date_time");
+        assertSameDateAs("2018-1T10:15:30.123456789Z", "ordinal_date_time");
+        assertSameDateAs("2018-1T10:15:30.123+0100", "ordinal_date_time");
+        assertSameDateAs("2018-1T10:15:30.123+01:00", "ordinal_date_time");
+
+        assertSameDateAs("2018-128T10:15:30Z", "ordinal_date_time_no_millis");
+        assertSameDateAs("2018-128T10:15:30+0100", "ordinal_date_time_no_millis");
+        assertSameDateAs("2018-128T10:15:30+01:00", "ordinal_date_time_no_millis");
+        assertSameDateAs("2018-1T10:15:30Z", "ordinal_date_time_no_millis");
+        assertSameDateAs("2018-1T10:15:30+0100", "ordinal_date_time_no_millis");
+        assertSameDateAs("2018-1T10:15:30+01:00", "ordinal_date_time_no_millis");
+
+        assertSameDateAs("10:15:30.1Z", "time");
+        assertSameDateAs("10:15:30.123Z", "time");
+        assertSameDateAs("10:15:30.123456789Z", "time");
+        assertSameDateAs("10:15:30.123+0100", "time");
+        assertSameDateAs("10:15:30.123+01:00", "time");
+        assertSameDateAs("1:15:30.1Z", "time");
+        assertSameDateAs("1:15:30.123Z", "time");
+        assertSameDateAs("1:15:30.123+0100", "time");
+        assertSameDateAs("1:15:30.123+01:00", "time");
+        assertSameDateAs("10:1:30.1Z", "time");
+        assertSameDateAs("10:1:30.123Z", "time");
+        assertSameDateAs("10:1:30.123+0100", "time");
+        assertSameDateAs("10:1:30.123+01:00", "time");
+        assertSameDateAs("10:15:3.1Z", "time");
+        assertSameDateAs("10:15:3.123Z", "time");
+        assertSameDateAs("10:15:3.123+0100", "time");
+        assertSameDateAs("10:15:3.123+01:00", "time");
+        assertParseException("10:15:3.1", "time");
+        assertParseException("10:15:3Z", "time");
+
+        assertSameDateAs("10:15:30Z", "time_no_millis");
+        assertSameDateAs("10:15:30+0100", "time_no_millis");
+        assertSameDateAs("10:15:30+01:00", "time_no_millis");
+        assertSameDateAs("01:15:30Z", "time_no_millis");
+        assertSameDateAs("01:15:30+0100", "time_no_millis");
+        assertSameDateAs("01:15:30+01:00", "time_no_millis");
+        assertSameDateAs("1:15:30Z", "time_no_millis");
+        assertSameDateAs("1:15:30+0100", "time_no_millis");
+        assertSameDateAs("1:15:30+01:00", "time_no_millis");
+        assertSameDateAs("10:5:30Z", "time_no_millis");
+        assertSameDateAs("10:5:30+0100", "time_no_millis");
+        assertSameDateAs("10:5:30+01:00", "time_no_millis");
+        assertSameDateAs("10:15:3Z", "time_no_millis");
+        assertSameDateAs("10:15:3+0100", "time_no_millis");
+        assertSameDateAs("10:15:3+01:00", "time_no_millis");
+        assertParseException("10:15:3", "time_no_millis");
+
+        assertSameDateAs("T10:15:30.1Z", "t_time");
+        assertSameDateAs("T10:15:30.123Z", "t_time");
+        assertSameDateAs("T10:15:30.123456789Z", "t_time");
+        assertSameDateAs("T10:15:30.1+0100", "t_time");
+        assertSameDateAs("T10:15:30.123+0100", "t_time");
+        assertSameDateAs("T10:15:30.123+01:00", "t_time");
+        assertSameDateAs("T10:15:30.1+01:00", "t_time");
+        assertSameDateAs("T1:15:30.123Z", "t_time");
+        assertSameDateAs("T1:15:30.123+0100", "t_time");
+        assertSameDateAs("T1:15:30.123+01:00", "t_time");
+        assertSameDateAs("T10:1:30.123Z", "t_time");
+        assertSameDateAs("T10:1:30.123+0100", "t_time");
+        assertSameDateAs("T10:1:30.123+01:00", "t_time");
+        assertSameDateAs("T10:15:3.123Z", "t_time");
+        assertSameDateAs("T10:15:3.123+0100", "t_time");
+        assertSameDateAs("T10:15:3.123+01:00", "t_time");
+        assertParseException("T10:15:3.1", "t_time");
+        assertParseException("T10:15:3Z", "t_time");
+
+        assertSameDateAs("T10:15:30Z", "t_time_no_millis");
+        assertSameDateAs("T10:15:30+0100", "t_time_no_millis");
+        assertSameDateAs("T10:15:30+01:00", "t_time_no_millis");
+        assertSameDateAs("T1:15:30Z", "t_time_no_millis");
+        assertSameDateAs("T1:15:30+0100", "t_time_no_millis");
+        assertSameDateAs("T1:15:30+01:00", "t_time_no_millis");
+        assertSameDateAs("T10:1:30Z", "t_time_no_millis");
+        assertSameDateAs("T10:1:30+0100", "t_time_no_millis");
+        assertSameDateAs("T10:1:30+01:00", "t_time_no_millis");
+        assertSameDateAs("T10:15:3Z", "t_time_no_millis");
+        assertSameDateAs("T10:15:3+0100", "t_time_no_millis");
+        assertSameDateAs("T10:15:3+01:00", "t_time_no_millis");
+        assertParseException("T10:15:3", "t_time_no_millis");
+
+        assertSameDateAs("2012-W48-6", "week_date");
+        assertSameDateAs("2012-W01-6", "week_date");
+        assertSameDateAs("2012-W1-6", "week_date");
+        assertParseException("2012-W1-8", "week_date");
+
+        assertSameDateAs("2012-W48-6T10:15:30.1Z", "week_date_time");
+        assertSameDateAs("2012-W48-6T10:15:30.123Z", "week_date_time");
+        assertSameDateAs("2012-W48-6T10:15:30.123456789Z", "week_date_time");
+        assertSameDateAs("2012-W48-6T10:15:30.1+0100", "week_date_time");
+        assertSameDateAs("2012-W48-6T10:15:30.123+0100", "week_date_time");
+        assertSameDateAs("2012-W48-6T10:15:30.1+01:00", "week_date_time");
+        assertSameDateAs("2012-W48-6T10:15:30.123+01:00", "week_date_time");
+        assertSameDateAs("2012-W1-6T10:15:30.1Z", "week_date_time");
+        assertSameDateAs("2012-W1-6T10:15:30.123Z", "week_date_time");
+        assertSameDateAs("2012-W1-6T10:15:30.1+0100", "week_date_time");
+        assertSameDateAs("2012-W1-6T10:15:30.123+0100", "week_date_time");
+        assertSameDateAs("2012-W1-6T10:15:30.1+01:00", "week_date_time");
+        assertSameDateAs("2012-W1-6T10:15:30.123+01:00", "week_date_time");
+
+        assertSameDateAs("2012-W48-6T10:15:30Z", "week_date_time_no_millis");
+        assertSameDateAs("2012-W48-6T10:15:30+0100", "week_date_time_no_millis");
+        assertSameDateAs("2012-W48-6T10:15:30+01:00", "week_date_time_no_millis");
+        assertSameDateAs("2012-W1-6T10:15:30Z", "week_date_time_no_millis");
+        assertSameDateAs("2012-W1-6T10:15:30+0100", "week_date_time_no_millis");
+        assertSameDateAs("2012-W1-6T10:15:30+01:00", "week_date_time_no_millis");
+
+        assertSameDateAs("2012", "year");
+        assertSameDateAs("1", "year");
+        assertSameDateAs("-2000", "year");
+
+        assertSameDateAs("2012-12", "year_month");
+        assertSameDateAs("1-1", "year_month");
+
+        assertSameDateAs("2012-12-31", "year_month_day");
+        assertSameDateAs("1-12-31", "year_month_day");
+        assertSameDateAs("2012-1-31", "year_month_day");
+        assertSameDateAs("2012-12-1", "year_month_day");
+
+        assertSameDateAs("2018", "weekyear");
+        assertSameDateAs("1", "weekyear");
+        assertSameDateAs("2017", "weekyear");
+
+        assertSameDateAs("2018-W29", "weekyear_week");
+        assertSameDateAs("2018-W1", "weekyear_week");
+
+        assertSameDateAs("2012-W31-5", "weekyear_week_day");
+        assertSameDateAs("2012-W1-1", "weekyear_week_day");
+    }
+
+    public void testCompositeParsing() {
+        // in all these examples the second pattern will be used
+        assertSameDateAs("2014-06-06T12:01:02.123", "yyyy-MM-dd'T'HH:mm:ss||yyyy-MM-dd'T'HH:mm:ss.SSS");
+        assertSameDateAs("2014-06-06T12:01:02.123", "strict_date_time_no_millis||yyyy-MM-dd'T'HH:mm:ss.SSS");
+        assertSameDateAs("2014-06-06T12:01:02.123", "yyyy-MM-dd'T'HH:mm:ss+HH:MM||yyyy-MM-dd'T'HH:mm:ss.SSS");
+    }
+
+    public void testStrictParsing() {
+        assertSameDateAs("2018W313", "strict_basic_week_date");
+        assertParseException("18W313", "strict_basic_week_date");
+        assertSameDateAs("2018W313T121212.1Z", "strict_basic_week_date_time");
+        assertSameDateAs("2018W313T121212.123Z", "strict_basic_week_date_time");
+        assertSameDateAs("2018W313T121212.123456789Z", "strict_basic_week_date_time");
+        assertSameDateAs("2018W313T121212.1+0100", "strict_basic_week_date_time");
+        assertSameDateAs("2018W313T121212.123+0100", "strict_basic_week_date_time");
+        assertSameDateAs("2018W313T121212.1+01:00", "strict_basic_week_date_time");
+        assertSameDateAs("2018W313T121212.123+01:00", "strict_basic_week_date_time");
+        assertParseException("2018W313T12128.123Z", "strict_basic_week_date_time");
+        assertParseException("2018W313T12128.123456789Z", "strict_basic_week_date_time");
+        assertParseException("2018W313T81212.123Z", "strict_basic_week_date_time");
+        assertParseException("2018W313T12812.123Z", "strict_basic_week_date_time");
+        assertParseException("2018W313T12812.1Z", "strict_basic_week_date_time");
+        assertSameDateAs("2018W313T121212Z", "strict_basic_week_date_time_no_millis");
+        assertSameDateAs("2018W313T121212+0100", "strict_basic_week_date_time_no_millis");
+        assertSameDateAs("2018W313T121212+01:00", "strict_basic_week_date_time_no_millis");
+        assertParseException("2018W313T12128Z", "strict_basic_week_date_time_no_millis");
+        assertParseException("2018W313T12128+0100", "strict_basic_week_date_time_no_millis");
+        assertParseException("2018W313T12128+01:00", "strict_basic_week_date_time_no_millis");
+        assertParseException("2018W313T81212Z", "strict_basic_week_date_time_no_millis");
+        assertParseException("2018W313T81212+0100", "strict_basic_week_date_time_no_millis");
+        assertParseException("2018W313T81212+01:00", "strict_basic_week_date_time_no_millis");
+        assertParseException("2018W313T12812Z", "strict_basic_week_date_time_no_millis");
+        assertParseException("2018W313T12812+0100", "strict_basic_week_date_time_no_millis");
+        assertParseException("2018W313T12812+01:00", "strict_basic_week_date_time_no_millis");
+        assertSameDateAs("2018-12-31", "strict_date");
+        assertParseException("10000-12-31", "strict_date");
+        assertParseException("2018-8-31", "strict_date");
+        assertSameDateAs("2018-12-31T12", "strict_date_hour");
+        assertParseException("2018-12-31T8", "strict_date_hour");
+        assertSameDateAs("2018-12-31T12:12", "strict_date_hour_minute");
+        assertParseException("2018-12-31T8:3", "strict_date_hour_minute");
+        assertSameDateAs("2018-12-31T12:12:12", "strict_date_hour_minute_second");
+        assertParseException("2018-12-31T12:12:1", "strict_date_hour_minute_second");
+        assertSameDateAs("2018-12-31T12:12:12.1", "strict_date_hour_minute_second_fraction");
+        assertSameDateAs("2018-12-31T12:12:12.123", "strict_date_hour_minute_second_fraction");
+        assertSameDateAs("2018-12-31T12:12:12.123456789", "strict_date_hour_minute_second_fraction");
+        assertSameDateAs("2018-12-31T12:12:12.123", "strict_date_hour_minute_second_millis");
+        assertSameDateAs("2018-12-31T12:12:12.1", "strict_date_hour_minute_second_millis");
+        assertSameDateAs("2018-12-31T12:12:12.1", "strict_date_hour_minute_second_fraction");
+        assertParseException("2018-12-31T12:12:12", "strict_date_hour_minute_second_millis");
+        assertParseException("2018-12-31T12:12:12", "strict_date_hour_minute_second_fraction");
+        assertSameDateAs("2018-12-31", "strict_date_optional_time");
+        assertParseException("2018-12-1", "strict_date_optional_time");
+        assertParseException("2018-1-31", "strict_date_optional_time");
+        assertParseException("10000-01-31", "strict_date_optional_time");
+        assertSameDateAs("2010-01-05T02:00", "strict_date_optional_time");
+        assertSameDateAs("2018-12-31T10:15:30", "strict_date_optional_time");
+        assertSameDateAs("2018-12-31T10:15:30Z", "strict_date_optional_time");
+        assertSameDateAs("2018-12-31T10:15:30+0100", "strict_date_optional_time");
+        assertSameDateAs("2018-12-31T10:15:30+01:00", "strict_date_optional_time");
+        assertParseException("2018-12-31T10:15:3", "strict_date_optional_time");
+        assertParseException("2018-12-31T10:5:30", "strict_date_optional_time");
+        assertParseException("2018-12-31T9:15:30", "strict_date_optional_time");
+        assertSameDateAs("2015-01-04T00:00Z", "strict_date_optional_time");
+        assertSameDateAs("2018-12-31T10:15:30.1Z", "strict_date_time");
+        assertSameDateAs("2018-12-31T10:15:30.123Z", "strict_date_time");
+        assertSameDateAs("2018-12-31T10:15:30.123456789Z", "strict_date_time");
+        assertSameDateAs("2018-12-31T10:15:30.1+0100", "strict_date_time");
+        assertSameDateAs("2018-12-31T10:15:30.123+0100", "strict_date_time");
+        assertSameDateAs("2018-12-31T10:15:30.1+01:00", "strict_date_time");
+        assertSameDateAs("2018-12-31T10:15:30.123+01:00", "strict_date_time");
+        assertSameDateAs("2018-12-31T10:15:30.11Z", "strict_date_time");
+        assertSameDateAs("2018-12-31T10:15:30.11+0100", "strict_date_time");
+        assertSameDateAs("2018-12-31T10:15:30.11+01:00", "strict_date_time");
+        assertParseException("2018-12-31T10:15:3.123Z", "strict_date_time");
+        assertParseException("2018-12-31T10:5:30.123Z", "strict_date_time");
+        assertParseException("2018-12-31T1:15:30.123Z", "strict_date_time");
+        assertSameDateAs("2018-12-31T10:15:30Z", "strict_date_time_no_millis");
+        assertSameDateAs("2018-12-31T10:15:30+0100", "strict_date_time_no_millis");
+        assertSameDateAs("2018-12-31T10:15:30+01:00", "strict_date_time_no_millis");
+        assertParseException("2018-12-31T10:5:30Z", "strict_date_time_no_millis");
+        assertParseException("2018-12-31T10:15:3Z", "strict_date_time_no_millis");
+        assertParseException("2018-12-31T1:15:30Z", "strict_date_time_no_millis");
+        assertSameDateAs("12", "strict_hour");
+        assertSameDateAs("01", "strict_hour");
+        assertParseException("1", "strict_hour");
+        assertSameDateAs("12:12", "strict_hour_minute");
+        assertSameDateAs("12:01", "strict_hour_minute");
+        assertParseException("12:1", "strict_hour_minute");
+        assertSameDateAs("12:12:12", "strict_hour_minute_second");
+        assertSameDateAs("12:12:01", "strict_hour_minute_second");
+        assertParseException("12:12:1", "strict_hour_minute_second");
+        assertSameDateAs("12:12:12.123", "strict_hour_minute_second_fraction");
+        assertSameDateAs("12:12:12.123456789", "strict_hour_minute_second_fraction");
+        assertSameDateAs("12:12:12.1", "strict_hour_minute_second_fraction");
+        assertParseException("12:12:12", "strict_hour_minute_second_fraction");
+        assertSameDateAs("12:12:12.123", "strict_hour_minute_second_millis");
+        assertSameDateAs("12:12:12.1", "strict_hour_minute_second_millis");
+        assertParseException("12:12:12", "strict_hour_minute_second_millis");
+        assertSameDateAs("2018-128", "strict_ordinal_date");
+        assertParseException("2018-1", "strict_ordinal_date");
+
+        assertSameDateAs("2018-128T10:15:30.1Z", "strict_ordinal_date_time");
+        assertSameDateAs("2018-128T10:15:30.123Z", "strict_ordinal_date_time");
+        assertSameDateAs("2018-128T10:15:30.123456789Z", "strict_ordinal_date_time");
+        assertSameDateAs("2018-128T10:15:30.1+0100", "strict_ordinal_date_time");
+        assertSameDateAs("2018-128T10:15:30.123+0100", "strict_ordinal_date_time");
+        assertSameDateAs("2018-128T10:15:30.1+01:00", "strict_ordinal_date_time");
+        assertSameDateAs("2018-128T10:15:30.123+01:00", "strict_ordinal_date_time");
+        assertParseException("2018-1T10:15:30.123Z", "strict_ordinal_date_time");
+
+        assertSameDateAs("2018-128T10:15:30Z", "strict_ordinal_date_time_no_millis");
+        assertSameDateAs("2018-128T10:15:30+0100", "strict_ordinal_date_time_no_millis");
+        assertSameDateAs("2018-128T10:15:30+01:00", "strict_ordinal_date_time_no_millis");
+        assertParseException("2018-1T10:15:30Z", "strict_ordinal_date_time_no_millis");
+
+        assertSameDateAs("10:15:30.1Z", "strict_time");
+        assertSameDateAs("10:15:30.123Z", "strict_time");
+        assertSameDateAs("10:15:30.123456789Z", "strict_time");
+        assertSameDateAs("10:15:30.123+0100", "strict_time");
+        assertSameDateAs("10:15:30.123+01:00", "strict_time");
+        assertParseException("1:15:30.123Z", "strict_time");
+        assertParseException("10:1:30.123Z", "strict_time");
+        assertParseException("10:15:3.123Z", "strict_time");
+        assertParseException("10:15:3.1", "strict_time");
+        assertParseException("10:15:3Z", "strict_time");
+
+        assertSameDateAs("10:15:30Z", "strict_time_no_millis");
+        assertSameDateAs("10:15:30+0100", "strict_time_no_millis");
+        assertSameDateAs("10:15:30+01:00", "strict_time_no_millis");
+        assertSameDateAs("01:15:30Z", "strict_time_no_millis");
+        assertSameDateAs("01:15:30+0100", "strict_time_no_millis");
+        assertSameDateAs("01:15:30+01:00", "strict_time_no_millis");
+        assertParseException("1:15:30Z", "strict_time_no_millis");
+        assertParseException("10:5:30Z", "strict_time_no_millis");
+        assertParseException("10:15:3Z", "strict_time_no_millis");
+        assertParseException("10:15:3", "strict_time_no_millis");
+
+        assertSameDateAs("T10:15:30.1Z", "strict_t_time");
+        assertSameDateAs("T10:15:30.123Z", "strict_t_time");
+        assertSameDateAs("T10:15:30.123456789Z", "strict_t_time");
+        assertSameDateAs("T10:15:30.1+0100", "strict_t_time");
+        assertSameDateAs("T10:15:30.123+0100", "strict_t_time");
+        assertSameDateAs("T10:15:30.1+01:00", "strict_t_time");
+        assertSameDateAs("T10:15:30.123+01:00", "strict_t_time");
+        assertParseException("T1:15:30.123Z", "strict_t_time");
+        assertParseException("T10:1:30.123Z", "strict_t_time");
+        assertParseException("T10:15:3.123Z", "strict_t_time");
+        assertParseException("T10:15:3.1", "strict_t_time");
+        assertParseException("T10:15:3Z", "strict_t_time");
+
+        assertSameDateAs("T10:15:30Z", "strict_t_time_no_millis");
+        assertSameDateAs("T10:15:30+0100", "strict_t_time_no_millis");
+        assertSameDateAs("T10:15:30+01:00", "strict_t_time_no_millis");
+        assertParseException("T1:15:30Z", "strict_t_time_no_millis");
+        assertParseException("T10:1:30Z", "strict_t_time_no_millis");
+        assertParseException("T10:15:3Z", "strict_t_time_no_millis");
+        assertParseException("T10:15:3", "strict_t_time_no_millis");
+
+        assertSameDateAs("2012-W48-6", "strict_week_date");
+        assertSameDateAs("2012-W01-6", "strict_week_date");
+        assertParseException("2012-W1-6", "strict_week_date");
+        assertParseException("2012-W1-8", "strict_week_date");
+
+        assertSameDateAs("2012-W48-6", "strict_week_date");
+        assertSameDateAs("2012-W01-6", "strict_week_date");
+        assertParseException("2012-W1-6", "strict_week_date");
+        assertParseException("2012-W01-8", "strict_week_date");
+
+        assertSameDateAs("2012-W48-6T10:15:30.1Z", "strict_week_date_time");
+        assertSameDateAs("2012-W48-6T10:15:30.123Z", "strict_week_date_time");
+        assertSameDateAs("2012-W48-6T10:15:30.123456789Z", "strict_week_date_time");
+        assertSameDateAs("2012-W48-6T10:15:30.1+0100", "strict_week_date_time");
+        assertSameDateAs("2012-W48-6T10:15:30.123+0100", "strict_week_date_time");
+        assertSameDateAs("2012-W48-6T10:15:30.1+01:00", "strict_week_date_time");
+        assertSameDateAs("2012-W48-6T10:15:30.123+01:00", "strict_week_date_time");
+        assertParseException("2012-W1-6T10:15:30.123Z", "strict_week_date_time");
+
+        assertSameDateAs("2012-W48-6T10:15:30Z", "strict_week_date_time_no_millis");
+        assertSameDateAs("2012-W48-6T10:15:30+0100", "strict_week_date_time_no_millis");
+        assertSameDateAs("2012-W48-6T10:15:30+01:00", "strict_week_date_time_no_millis");
+        assertParseException("2012-W1-6T10:15:30Z", "strict_week_date_time_no_millis");
+
+        assertSameDateAs("2012", "strict_year");
+        assertParseException("1", "strict_year");
+        assertSameDateAs("-2000", "strict_year");
+
+        assertSameDateAs("2012-12", "strict_year_month");
+        assertParseException("1-1", "strict_year_month");
+
+        assertSameDateAs("2012-12-31", "strict_year_month_day");
+        assertParseException("1-12-31", "strict_year_month_day");
+        assertParseException("2012-1-31", "strict_year_month_day");
+        assertParseException("2012-12-1", "strict_year_month_day");
+
+        assertSameDateAs("2018", "strict_weekyear");
+        assertParseException("1", "strict_weekyear");
+
+        assertSameDateAs("2018", "strict_weekyear");
+        assertSameDateAs("2017", "strict_weekyear");
+        assertParseException("1", "strict_weekyear");
+
+        assertSameDateAs("2018-W29", "strict_weekyear_week");
+        assertSameDateAs("2018-W01", "strict_weekyear_week");
+        assertParseException("2018-W1", "strict_weekyear_week");
+
+        assertSameDateAs("2012-W31-5", "strict_weekyear_week_day");
+        assertParseException("2012-W1-1", "strict_weekyear_week_day");
+    }
+
+    public void testSeveralTimeFormats() {
+        {
+            String format = "year_month_day||ordinal_date";
+            DateFormatter javaFormatter = DateFormatter.forPattern(format);
+            assertSameDate("2018-12-12", javaFormatter);
+            assertSameDate("2018-128", javaFormatter);
         }
-
-        for (String name : deprecatedNames) {
-            if (name.equals("strictDateOptionalTimeNanos") == false) {
-                DateFormatter dateFormatter = Joda.forPattern(name);
-                assertThat(dateFormatter.pattern(), equalTo(name));
-
-                String snakeCaseName = FormatNames.forName(name).getSnakeCaseName();
-                dateFormatter = Joda.forPattern(snakeCaseName);
-                assertThat(dateFormatter.pattern(), equalTo(snakeCaseName));
-            }
+        {
+            String format = "strict_date_optional_time||dd-MM-yyyy";
+            DateFormatter javaFormatter = DateFormatter.forPattern(format);
+            assertSameDate("31-01-2014", javaFormatter);
         }
     }
+
+    public void testParsingLocalDateFromYearOfEra() {
+        // with strict resolving, YearOfEra expect an era, otherwise it won't resolve to a date
+        assertSameDate("2018363", DateFormatter.forPattern("uuuuDDD"));
+    }
+
+    public void testDateFormatterWithLocale() {
+        Locale locale = randomLocale(random());
+        String pattern = randomBoolean() ? "strict_date_optional_time||date_time" : "date_time||strict_date_optional_time";
+        DateFormatter formatter = DateFormatter.forPattern(pattern).withLocale(locale);
+        assertThat(formatter.pattern(), is(pattern));
+        assertThat(formatter.locale(), is(locale));
+    }
+
+    public void testParsingMissingTimezone() {
+        long millisJava = DateFormatter.forPattern("8yyyy-MM-dd HH:mm:ss").parseMillis("2018-02-18 17:47:17");
+        long millisJoda = DateFormatter.forPattern("yyyy-MM-dd HH:mm:ss").parseMillis("2018-02-18 17:47:17");
+        assertThat(millisJava, is(millisJoda));
+    }
+
+    // the iso 8601 parser is available via Joda.forPattern(), so we have to test this slightly differently
+    public void testIso8601Parsers() {
+        String format = "iso8601";
+        DateFormatter javaFormatter = DateFormatter.forPattern(format);
+
+        assertSameDate("2018-10-10", javaFormatter);
+        assertSameDate("2018-10-10T", javaFormatter);
+        assertSameDate("2018-10-10T10", javaFormatter);
+        assertSameDate("2018-10-10T10+0430", javaFormatter);
+        assertSameDate("2018-10-10T10:11", javaFormatter);
+        assertSameDate("2018-10-10T10:11-08:00", javaFormatter);
+        assertSameDate("2018-10-10T10:11Z", javaFormatter);
+        assertSameDate("2018-10-10T10:11:12", javaFormatter);
+        assertSameDate("2018-10-10T10:11:12+0100", javaFormatter);
+        assertSameDate("2018-10-10T10:11:12.123", javaFormatter);
+        assertSameDate("2018-10-10T10:11:12.123Z", javaFormatter);
+        assertSameDate("2018-10-10T10:11:12.123+0000", javaFormatter);
+        assertSameDate("2018-10-10T10:11:12,123", javaFormatter);
+        assertSameDate("2018-10-10T10:11:12,123Z", javaFormatter);
+        assertSameDate("2018-10-10T10:11:12,123+05:30", javaFormatter);
+    }
+
+    public void testExceptionWhenCompositeParsingFails() {
+        assertParseException("2014-06-06T12:01:02.123", "yyyy-MM-dd'T'HH:mm:ss||yyyy-MM-dd'T'HH:mm:ss.SS");
+    }
+
+    private void assertSameDateAs(String input, String javaPattern) {
+        DateFormatter javaFormatter = DateFormatter.forPattern(javaPattern);
+        assertSameDate(input, javaFormatter);
+    }
+
+    private void assertSameDate(String input, DateFormatter javaFormatter) {
+        TemporalAccessor javaTimeAccessor = javaFormatter.parse(input);
+        ZonedDateTime zonedDateTime = DateFormatters.from(javaTimeAccessor);
+        assertNotNull(zonedDateTime);
+    }
+
+    private void assertDateMathEquals(String text, String expected, String pattern) {
+        Locale locale = randomLocale(random());
+        assertDateMathEquals(text, expected, pattern, locale);
+    }
+
+    private void assertDateMathEquals(String text, String expected, String pattern, Locale locale) {
+        long gotMillisJava = dateMathToMillis(text, DateFormatter.forPattern(pattern), locale);
+        long expectedMillis = DateFormatters.from(DateFormatter.forPattern("strict_date_optional_time").withLocale(locale).parse(expected))
+            .toInstant()
+            .toEpochMilli();
+
+        assertThat(gotMillisJava, equalTo(expectedMillis));
+    }
+
+    private long dateMathToMillis(final String text, final DateFormatter dateFormatter) {
+        DateFormatter javaFormatter = dateFormatter.withLocale(randomLocale(random()));
+        DateMathParser javaDateMath = javaFormatter.toDateMathParser();
+        return javaDateMath.parse(text, () -> 0, true, null).toEpochMilli();
+    }
+
+    private long dateMathToMillis(final String text, final DateFormatter dateFormatter, final Locale locale) {
+        DateFormatter javaFormatter = dateFormatter.withLocale(locale);
+        DateMathParser javaDateMath = javaFormatter.toDateMathParser();
+        return javaDateMath.parse(text, () -> 0, true, null).toEpochMilli();
+    }
+
+    private void assertParseException(String input, String format) {
+        DateFormatter javaTimeFormatter = DateFormatter.forPattern(format);
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> javaTimeFormatter.parse(input));
+        assertThat(e.getMessage(), containsString(input));
+        assertThat(e.getMessage(), containsString(format));
+    }
+
 }

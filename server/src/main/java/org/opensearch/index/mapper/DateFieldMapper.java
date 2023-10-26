@@ -282,10 +282,15 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
         private DateFormatter buildFormatter() {
             try {
                 if (format.isConfigured() && !printFormat.isConfigured()) {
-                    return DateFormatter.forPattern(format.getValue(), null, !format.isConfigured()).withLocale(locale.getValue());
+                    return DateFormatter.forPattern(format.getValue(), null, format.isConfigured() == false, indexCreatedVersion)
+                        .withLocale(locale.getValue());
                 }
-                return DateFormatter.forPattern(format.getValue(), printFormat.getValue(), !format.isConfigured())
-                    .withLocale(locale.getValue());
+                return DateFormatter.forPattern(
+                    format.getValue(),
+                    printFormat.getValue(),
+                    format.isConfigured() == false,
+                    indexCreatedVersion
+                ).withLocale(locale.getValue());
             } catch (IllegalArgumentException e) {
                 throw new IllegalArgumentException("Error parsing [format] on field [" + name() + "]: " + e.getMessage(), e);
             }

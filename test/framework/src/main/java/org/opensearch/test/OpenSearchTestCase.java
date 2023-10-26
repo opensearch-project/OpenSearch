@@ -74,7 +74,6 @@ import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.io.PathUtils;
 import org.opensearch.common.io.PathUtilsForTesting;
 import org.opensearch.common.io.stream.BytesStreamOutput;
-import org.opensearch.common.joda.JodaDeprecationPatterns;
 import org.opensearch.common.logging.DeprecatedMessage;
 import org.opensearch.common.logging.HeaderWarning;
 import org.opensearch.common.logging.HeaderWarningAppender;
@@ -133,7 +132,6 @@ import org.opensearch.test.junit.listeners.ReproduceInfoPrinter;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 import org.opensearch.transport.nio.MockNioTransportPlugin;
-import org.joda.time.DateTimeZone;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -211,7 +209,6 @@ import static org.hamcrest.Matchers.hasItem;
 @LuceneTestCase.SuppressReproduceLine
 public abstract class OpenSearchTestCase extends LuceneTestCase {
 
-    protected static final List<String> JODA_TIMEZONE_IDS;
     protected static final List<String> JAVA_TIMEZONE_IDS;
     protected static final List<String> JAVA_ZONE_IDS;
 
@@ -272,20 +269,52 @@ public abstract class OpenSearchTestCase extends LuceneTestCase {
         TransportService.ensureClassloaded(); // ensure server streamables are registered
 
         // filter out joda timezones that are deprecated for the java time migration
-        List<String> jodaTZIds = DateTimeZone.getAvailableIDs()
-            .stream()
-            .filter(s -> DateUtils.DEPRECATED_SHORT_TZ_IDS.contains(s) == false)
+        Set<String> removedJodaTZIds = Set.of(
+            "ACT",
+            "AET",
+            "AGT",
+            "ART",
+            "AST",
+            "BET",
+            "BST",
+            "CAT",
+            "CNT",
+            "CST",
+            "CTT",
+            "EAT",
+            "ECT",
+            "EST",
+            "HST",
+            "IET",
+            "IST",
+            "JST",
+            "MIT",
+            "MST",
+            "NET",
+            "NST",
+            "PLT",
+            "PNT",
+            "PRT",
+            "PST",
+            "SST",
+            "VST"
+        );
+        final Predicate<String> removedJodaTZIdsFilter = removedJodaTZIds::contains;
+        final Predicate<String> removedZoneIdsFilter = tz -> tz.startsWith("System/") || DateUtils.DEPRECATED_SHORT_TZ_IDS.contains(tz);
+
+        // filter time zones that aren't supported by joda since there is no java date equivalent.
+        // this is only needed until 3.0 (when wire compatibility no longer communicates w/ joda compatible nodes)
+        JAVA_TIMEZONE_IDS = Arrays.stream(TimeZone.getAvailableIDs())
+            .filter(removedJodaTZIdsFilter.negate())
+            .filter(removedZoneIdsFilter.negate())
             .sorted()
             .collect(Collectors.toList());
-        JODA_TIMEZONE_IDS = Collections.unmodifiableList(jodaTZIds);
 
-        List<String> javaTZIds = Arrays.asList(TimeZone.getAvailableIDs());
-        Collections.sort(javaTZIds);
-        JAVA_TIMEZONE_IDS = Collections.unmodifiableList(javaTZIds);
-
-        List<String> javaZoneIds = new ArrayList<>(ZoneId.getAvailableZoneIds());
-        Collections.sort(javaZoneIds);
-        JAVA_ZONE_IDS = Collections.unmodifiableList(javaZoneIds);
+        JAVA_ZONE_IDS = ZoneId.getAvailableZoneIds()
+            .stream()
+            .filter(removedZoneIdsFilter.negate())
+            .sorted()
+            .collect(Collectors.toUnmodifiableList());
     }
 
     @SuppressForbidden(reason = "force log4j and netty sysprops")
@@ -422,10 +451,6 @@ public abstract class OpenSearchTestCase extends LuceneTestCase {
         return true;
     }
 
-    protected boolean enableJodaDeprecationWarningsCheck() {
-        return false;
-    }
-
     @After
     public final void after() throws Exception {
         checkStaticState(false);
@@ -461,9 +486,6 @@ public abstract class OpenSearchTestCase extends LuceneTestCase {
             final List<String> warnings = threadContext.getResponseHeaders().get("Warning");
             if (warnings != null) {
                 List<String> filteredWarnings = new ArrayList<>(warnings);
-                if (enableJodaDeprecationWarningsCheck() == false) {
-                    filteredWarnings = filterJodaDeprecationWarnings(filteredWarnings);
-                }
                 if (JvmInfo.jvmInfo().getBundledJdk() == false) {
                     // unit tests do not run with the bundled JDK, if there are warnings we need to filter the no-jdk deprecation warning
                     filteredWarnings = filteredWarnings.stream()
@@ -560,43 +582,28 @@ public abstract class OpenSearchTestCase extends LuceneTestCase {
         }
         try {
             final List<String> actualWarnings = threadContext.getResponseHeaders().get("Warning");
-            if (actualWarnings != null && enableJodaDeprecationWarningsCheck() == false) {
-                List<String> filteredWarnings = filterJodaDeprecationWarnings(actualWarnings);
-                assertWarnings(stripXContentPosition, filteredWarnings, expectedWarnings);
-            } else {
-                assertWarnings(stripXContentPosition, actualWarnings, expectedWarnings);
+            assertNotNull("no warnings, expected: " + Arrays.asList(expectedWarnings), actualWarnings);
+            final Set<String> actualWarningValues = actualWarnings.stream()
+                .map(s -> HeaderWarning.extractWarningValueFromWarningHeader(s, stripXContentPosition))
+                .collect(Collectors.toSet());
+            for (String msg : expectedWarnings) {
+                assertThat(actualWarningValues, hasItem(HeaderWarning.escapeAndEncode(msg)));
             }
+            assertEquals(
+                "Expected "
+                    + expectedWarnings.length
+                    + " warnings but found "
+                    + actualWarnings.size()
+                    + "\nExpected: "
+                    + Arrays.asList(expectedWarnings)
+                    + "\nActual: "
+                    + actualWarnings,
+                expectedWarnings.length,
+                actualWarnings.size()
+            );
         } finally {
             resetDeprecationLogger();
         }
-    }
-
-    private List<String> filterJodaDeprecationWarnings(List<String> actualWarnings) {
-        return actualWarnings.stream()
-            .filter(m -> m.contains(JodaDeprecationPatterns.USE_NEW_FORMAT_SPECIFIERS) == false)
-            .collect(Collectors.toList());
-    }
-
-    private void assertWarnings(boolean stripXContentPosition, List<String> actualWarnings, String[] expectedWarnings) {
-        assertNotNull("no warnings, expected: " + Arrays.asList(expectedWarnings), actualWarnings);
-        final Set<String> actualWarningValues = actualWarnings.stream()
-            .map(s -> HeaderWarning.extractWarningValueFromWarningHeader(s, stripXContentPosition))
-            .collect(Collectors.toSet());
-        for (String msg : expectedWarnings) {
-            assertThat(actualWarningValues, hasItem(HeaderWarning.escapeAndEncode(msg)));
-        }
-        assertEquals(
-            "Expected "
-                + expectedWarnings.length
-                + " warnings but found "
-                + actualWarnings.size()
-                + "\nExpected: "
-                + Arrays.asList(expectedWarnings)
-                + "\nActual: "
-                + actualWarnings,
-            expectedWarnings.length,
-            actualWarnings.size()
-        );
     }
 
     /**
@@ -989,34 +996,17 @@ public abstract class OpenSearchTestCase extends LuceneTestCase {
     }
 
     /**
-     * generate a random DateTimeZone from the ones available in joda library
-     */
-    public static DateTimeZone randomDateTimeZone() {
-        return DateTimeZone.forID(randomFrom(JODA_TIMEZONE_IDS));
-    }
-
-    /**
      * generate a random TimeZone from the ones available in java.util
      */
     public static TimeZone randomTimeZone() {
-        return TimeZone.getTimeZone(randomJodaAndJavaSupportedTimezone(JAVA_TIMEZONE_IDS));
+        return TimeZone.getTimeZone(randomFrom(JAVA_TIMEZONE_IDS));
     }
 
     /**
      * generate a random TimeZone from the ones available in java.time
      */
     public static ZoneId randomZone() {
-        return ZoneId.of(randomJodaAndJavaSupportedTimezone(JAVA_ZONE_IDS));
-    }
-
-    /**
-     * We need to exclude time zones not supported by joda (like SystemV* timezones)
-     * because they cannot be converted back to DateTimeZone which we currently
-     * still need to do internally e.g. in bwc serialization and in the extract() method
-     * //TODO remove once joda is not supported
-     */
-    private static String randomJodaAndJavaSupportedTimezone(List<String> zoneIds) {
-        return randomValueOtherThanMany(id -> JODA_TIMEZONE_IDS.contains(id) == false, () -> randomFrom(zoneIds));
+        return ZoneId.of(randomFrom(JAVA_ZONE_IDS));
     }
 
     /**

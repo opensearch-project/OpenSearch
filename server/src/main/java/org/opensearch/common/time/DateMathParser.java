@@ -32,14 +32,14 @@
 
 package org.opensearch.common.time;
 
-import org.joda.time.DateTimeZone;
-
 import java.time.Instant;
 import java.time.ZoneId;
 import java.util.function.LongSupplier;
 
 /**
- * An abstraction over date math parsing to allow different implementation for joda and java time.
+ * An abstraction over date math parsing.
+ *
+ * todo: merge {@link JavaDateMathParser} into this class
  *
  * @opensearch.internal
  */
@@ -49,17 +49,7 @@ public interface DateMathParser {
      * Parse a date math expression without timezone info and rounding down.
      */
     default Instant parse(String text, LongSupplier now) {
-        return parse(text, now, false, (ZoneId) null);
-    }
-
-    // Note: we take a callable here for the timestamp in order to be able to figure out
-    // if it has been used. For instance, the request cache does not cache requests that make
-    // use of `now`.
-
-    // exists for backcompat, do not use!
-    @Deprecated
-    default Instant parse(String text, LongSupplier now, boolean roundUpProperty, DateTimeZone tz) {
-        return parse(text, now, roundUpProperty, tz == null ? null : ZoneId.of(tz.getID()));
+        return parse(text, now, false, null);
     }
 
     /**

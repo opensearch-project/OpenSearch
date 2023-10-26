@@ -32,13 +32,12 @@
 
 package org.opensearch.common.time;
 
+import org.opensearch.Version;
 import org.opensearch.core.common.Strings;
-import org.joda.time.DateTime;
 
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
-import java.time.ZonedDateTime;
 import java.time.format.DateTimeParseException;
 import java.time.temporal.TemporalAccessor;
 import java.util.ArrayList;
@@ -67,14 +66,6 @@ public interface DateFormatter {
      */
     default long parseMillis(String input) {
         return DateFormatters.from(parse(input)).toInstant().toEpochMilli();
-    }
-
-    /**
-     * Parse the given input into a Joda {@link DateTime}.
-     */
-    default DateTime parseJoda(String input) {
-        ZonedDateTime dateTime = ZonedDateTime.from(parse(input));
-        return new DateTime(dateTime.toInstant().toEpochMilli(), DateUtils.zoneIdToDateTimeZone(dateTime.getZone()));
     }
 
     /**
@@ -107,15 +98,6 @@ public interface DateFormatter {
     default String formatMillis(long millis) {
         ZoneId zone = zone() != null ? zone() : ZoneOffset.UTC;
         return format(Instant.ofEpochMilli(millis).atZone(zone));
-    }
-
-    /**
-     * Return the given Joda {@link DateTime} formatted with this format.
-     */
-    default String formatJoda(DateTime dateTime) {
-        return format(
-            ZonedDateTime.ofInstant(Instant.ofEpochMilli(dateTime.getMillis()), DateUtils.dateTimeZoneToZoneId(dateTime.getZone()))
-        );
     }
 
     /**
@@ -155,7 +137,7 @@ public interface DateFormatter {
      */
     DateMathParser toDateMathParser();
 
-    static DateFormatter forPattern(String input, String printPattern, Boolean canCacheFormatter) {
+    static DateFormatter forPattern(String input, String printPattern, Boolean canCacheFormatter, final Version supportedVersion) {
 
         if (Strings.hasLength(input) == false) {
             throw new IllegalArgumentException("No date pattern provided");
@@ -164,7 +146,12 @@ public interface DateFormatter {
         // support the 6.x BWC compatible way of parsing java 8 dates
         String format = strip8Prefix(input);
         List<String> patterns = splitCombinedPatterns(format);
-        List<DateFormatter> formatters = patterns.stream().map(DateFormatters::forPattern).collect(Collectors.toList());
+        List<DateFormatter> formatters = patterns.stream().map(p -> {
+            if (supportedVersion.before(Version.V_2_12_0)) {
+                return LegacyFormatNames.camelCaseToSnakeCase(p);
+            }
+            return p;
+        }).map(DateFormatters::forPattern).collect(Collectors.toList());
 
         DateFormatter printFormatter = formatters.get(0);
         if (Strings.hasLength(printPattern)) {
@@ -179,15 +166,19 @@ public interface DateFormatter {
     }
 
     static DateFormatter forPattern(String input) {
-        return forPattern(input, null, false);
+        return forPattern(input, null, false, Version.CURRENT);
+    }
+
+    static DateFormatter forPattern(final String input, final Version version) {
+        return forPattern(input, null, false, version);
     }
 
     static DateFormatter forPattern(String input, String printPattern) {
-        return forPattern(input, printPattern, false);
+        return forPattern(input, printPattern, false, Version.CURRENT);
     }
 
     static DateFormatter forPattern(String input, Boolean canCacheFormatter) {
-        return forPattern(input, null, canCacheFormatter);
+        return forPattern(input, null, canCacheFormatter, Version.CURRENT);
     }
 
     static String strip8Prefix(String input) {

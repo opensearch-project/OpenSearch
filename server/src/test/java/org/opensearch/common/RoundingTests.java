@@ -235,7 +235,7 @@ public class RoundingTests extends OpenSearchTestCase {
 
     /**
      * Randomized test on TimeUnitRounding. Test uses random
-     * {@link org.opensearch.common.Rounding.DateTimeUnit} and {@link ZoneId} and often (50% of the time)
+     * {@link Rounding.DateTimeUnit} and {@link ZoneId} and often (50% of the time)
      * chooses test dates that are exactly on or close to offset changes (e.g.
      * DST) in the chosen time zone.
      * <p>

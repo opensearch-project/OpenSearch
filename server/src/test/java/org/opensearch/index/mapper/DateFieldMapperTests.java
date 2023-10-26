@@ -34,10 +34,12 @@ package org.opensearch.index.mapper;
 
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexableField;
+import org.opensearch.Version;
 import org.opensearch.common.time.DateFormatter;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.termvectors.TermVectorsService;
 import org.opensearch.search.DocValueFormat;
+import org.opensearch.test.VersionUtils;
 
 import java.io.IOException;
 import java.time.ZoneId;
@@ -214,6 +216,29 @@ public class DateFieldMapperTests extends MapperTestCase {
         assertEquals(DocValuesType.SORTED_NUMERIC, dvField.fieldType().docValuesType());
         assertEquals(1457654400000L, dvField.numericValue().longValue());
         assertFalse(dvField.fieldType().stored());
+    }
+
+    public void testLegacyDateFormatName() throws IOException {
+        // check that indexes created prior to 2.12.0 support camel case
+        final DocumentMapper legacyMapper = createDocumentMapper(
+            VersionUtils.randomVersionBetween(random(), Version.V_2_0_0, VersionUtils.getPreviousVersion(Version.V_2_12_0)), // BWC
+                                                                                                                             // compatible
+            fieldMapping(b -> {
+                b.field("type", "date");
+                b.field("format", "strictDateOptionalTime||strictDateOptionalTimeNanos");
+            })
+        );
+
+        // check that indexes created on or after 2.12
+        MapperParsingException e = expectThrows(
+            MapperParsingException.class,
+            () -> createDocumentMapper(VersionUtils.randomVersionBetween(random(), Version.V_2_12_0, Version.CURRENT), fieldMapping(b -> {
+                b.field("type", "date");
+                b.field("format", "strictDateOptionalTime||strictDateOptionalTimeNanos");
+            }))
+        );
+        assertThat(e.getMessage(), containsString("Invalid format: [strictDateOptionalTime]: Unknown pattern letter: t"));
+        assertThat(e.getMessage(), containsString("Error parsing [format] on field [field]: Invalid"));
     }
 
     public void testNanosNullValue() throws IOException {

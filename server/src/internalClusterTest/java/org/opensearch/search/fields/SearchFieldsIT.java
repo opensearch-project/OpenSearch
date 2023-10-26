@@ -64,14 +64,12 @@ import org.opensearch.search.lookup.FieldLookup;
 import org.opensearch.search.sort.SortOrder;
 import org.opensearch.test.InternalSettingsPlugin;
 import org.opensearch.test.ParameterizedOpenSearchIntegTestCase;
-import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
-import org.joda.time.format.DateTimeFormat;
 
 import java.math.BigInteger;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Base64;
@@ -80,6 +78,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
@@ -1191,7 +1190,7 @@ public class SearchFieldsIT extends ParameterizedOpenSearchIntegTestCase {
         assertThat(searchResponse.getHits().getAt(0).getFields().get("double_field").getValue(), equalTo((Object) 6.0d));
         assertThat(
             searchResponse.getHits().getAt(0).getFields().get("date_field").getValue(),
-            equalTo(DateFormatter.forPattern("dateOptionalTime").format(date))
+            equalTo(DateFormatter.forPattern("date_optional_time").format(date))
         );
         assertThat(searchResponse.getHits().getAt(0).getFields().get("boolean_field").getValue(), equalTo((Object) true));
         assertThat(searchResponse.getHits().getAt(0).getFields().get("text_field").getValue(), equalTo("foo"));
@@ -1321,10 +1320,10 @@ public class SearchFieldsIT extends ParameterizedOpenSearchIntegTestCase {
         assertAcked(prepareCreate("test").setMapping(mapping));
         ensureGreen("test");
 
-        DateTime date = new DateTime(1990, 12, 29, 0, 0, DateTimeZone.UTC);
-        org.joda.time.format.DateTimeFormatter formatter = DateTimeFormat.forPattern("yyyy-MM-dd");
+        ZonedDateTime date = ZonedDateTime.of(1990, 12, 29, 0, 0, 0, 0, ZoneOffset.UTC);
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("uuuu-MM-dd", Locale.ROOT);
 
-        index("test", MapperService.SINGLE_MAPPING_NAME, "1", "text_field", "foo", "date_field", formatter.print(date));
+        index("test", MapperService.SINGLE_MAPPING_NAME, "1", "text_field", "foo", "date_field", formatter.format(date));
         refresh("test");
 
         SearchRequestBuilder builder = client().prepareSearch()
@@ -1382,10 +1381,10 @@ public class SearchFieldsIT extends ParameterizedOpenSearchIntegTestCase {
         assertAcked(prepareCreate("test").setMapping(mapping));
         ensureGreen("test");
 
-        DateTime date = new DateTime(1990, 12, 29, 0, 0, DateTimeZone.UTC);
-        org.joda.time.format.DateTimeFormatter formatter = DateTimeFormat.forPattern("yyyy-MM-dd");
+        ZonedDateTime date = ZonedDateTime.of(1990, 12, 29, 0, 0, 0, 0, ZoneOffset.UTC);
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("uuuu-MM-dd", Locale.ROOT);
 
-        index("test", MapperService.SINGLE_MAPPING_NAME, "1", "text_field", "foo", "date_field", formatter.print(date));
+        index("test", MapperService.SINGLE_MAPPING_NAME, "1", "text_field", "foo", "date_field", formatter.format(date));
         refresh("test");
 
         SearchRequestBuilder builder = client().prepareSearch()

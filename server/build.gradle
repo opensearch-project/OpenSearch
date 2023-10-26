@@ -130,9 +130,6 @@ dependencies {
   // utilities
   api project(":libs:opensearch-cli")
 
-  // time handling, remove with java 8 time
-  api "joda-time:joda-time:${versions.joda}"
-
   // percentiles aggregation
   api 'com.tdunning:t-digest:3.3'
   // precentil ranks aggregation

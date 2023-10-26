@@ -39,18 +39,20 @@ import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver.Context;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver.DateMathExpressionResolver;
 import org.opensearch.test.OpenSearchTestCase;
-import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
-import org.joda.time.format.DateTimeFormat;
 
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.joda.time.DateTimeZone.UTC;
 
 public class DateMathExpressionResolverTests extends OpenSearchTestCase {
 
@@ -80,20 +82,32 @@ public class DateMathExpressionResolverTests extends OpenSearchTestCase {
         assertThat(result.size(), equalTo(3));
         assertThat(
             result.get(0),
-            equalTo(".marvel-" + DateTimeFormat.forPattern("YYYY.MM.dd").print(new DateTime(context.getStartTime(), UTC)))
+            equalTo(
+                ".marvel-"
+                    + DateTimeFormatter.ofPattern("uuuu.MM.dd", Locale.ROOT)
+                        .format(ZonedDateTime.ofInstant(Instant.ofEpochMilli(context.getStartTime()), ZoneOffset.UTC))
+            )
         );
         assertThat(
             result.get(1),
-            equalTo(".watch_history-" + DateTimeFormat.forPattern("YYYY.MM.dd").print(new DateTime(context.getStartTime(), UTC)))
+            equalTo(
+                ".watch_history-"
+                    + DateTimeFormatter.ofPattern("uuuu.MM.dd", Locale.ROOT)
+                        .format(ZonedDateTime.ofInstant(Instant.ofEpochMilli(context.getStartTime()), ZoneOffset.UTC))
+            )
         );
         assertThat(
             result.get(2),
-            equalTo("logstash-" + DateTimeFormat.forPattern("YYYY.MM.dd").print(new DateTime(context.getStartTime(), UTC)))
+            equalTo(
+                "logstash-"
+                    + DateTimeFormatter.ofPattern("uuuu.MM.dd", Locale.ROOT)
+                        .format(ZonedDateTime.ofInstant(Instant.ofEpochMilli(context.getStartTime()), ZoneOffset.UTC))
+            )
         );
     }
 
     public void testEmpty() throws Exception {
-        List<String> result = expressionResolver.resolve(context, Collections.<String>emptyList());
+        List<String> result = expressionResolver.resolve(context, Collections.emptyList());
         assertThat(result.size(), equalTo(0));
     }
 
@@ -110,9 +124,11 @@ public class DateMathExpressionResolverTests extends OpenSearchTestCase {
             result.get(0),
             equalTo(
                 ".text1-"
-                    + DateTimeFormat.forPattern("YYYY.MM.dd").print(new DateTime(context.getStartTime(), UTC))
+                    + DateTimeFormatter.ofPattern("uuuu.MM.dd", Locale.ROOT)
+                        .format(ZonedDateTime.ofInstant(Instant.ofEpochMilli(context.getStartTime()), ZoneOffset.UTC))
                     + "-text2-"
-                    + DateTimeFormat.forPattern("YYYY.MM.dd").print(new DateTime(context.getStartTime(), UTC).withDayOfMonth(1))
+                    + DateTimeFormatter.ofPattern("uuuu.MM.dd", Locale.ROOT)
+                        .format(ZonedDateTime.ofInstant(Instant.ofEpochMilli(context.getStartTime()), ZoneOffset.UTC).withDayOfMonth(1))
             )
         );
     }
@@ -122,7 +138,11 @@ public class DateMathExpressionResolverTests extends OpenSearchTestCase {
         assertThat(results.size(), equalTo(1));
         assertThat(
             results.get(0),
-            equalTo(".marvel-" + DateTimeFormat.forPattern("yyyy.MM.dd").print(new DateTime(context.getStartTime(), UTC)))
+            equalTo(
+                ".marvel-"
+                    + DateTimeFormatter.ofPattern("uuuu.MM.dd", Locale.ROOT)
+                        .format(ZonedDateTime.ofInstant(Instant.ofEpochMilli(context.getStartTime()), ZoneOffset.UTC))
+            )
         );
     }
 
@@ -131,7 +151,11 @@ public class DateMathExpressionResolverTests extends OpenSearchTestCase {
         assertThat(result.size(), equalTo(1));
         assertThat(
             result.get(0),
-            equalTo(".mar{v}el-" + DateTimeFormat.forPattern("yyyy.MM.dd").print(new DateTime(context.getStartTime(), UTC)))
+            equalTo(
+                ".mar{v}el-"
+                    + DateTimeFormatter.ofPattern("uuuu.MM.dd", Locale.ROOT)
+                        .format(ZonedDateTime.ofInstant(Instant.ofEpochMilli(context.getStartTime()), ZoneOffset.UTC))
+            )
         );
     }
 
@@ -140,7 +164,11 @@ public class DateMathExpressionResolverTests extends OpenSearchTestCase {
         assertThat(result.size(), equalTo(1));
         assertThat(
             result.get(0),
-            equalTo(".marvel-" + DateTimeFormat.forPattern("'{year}'yyyy").print(new DateTime(context.getStartTime(), UTC)))
+            equalTo(
+                ".marvel-"
+                    + DateTimeFormatter.ofPattern("'{year}'yyyy", Locale.ROOT)
+                        .format(ZonedDateTime.ofInstant(Instant.ofEpochMilli(context.getStartTime()), ZoneOffset.UTC))
+            )
         );
     }
 
@@ -153,45 +181,56 @@ public class DateMathExpressionResolverTests extends OpenSearchTestCase {
         assertThat(result.get(0), equalTo("name1"));
         assertThat(
             result.get(1),
-            equalTo(".marvel-" + DateTimeFormat.forPattern("yyyy.MM.dd").print(new DateTime(context.getStartTime(), UTC)))
+            equalTo(
+                ".marvel-"
+                    + DateTimeFormatter.ofPattern("uuuu.MM.dd", Locale.ROOT)
+                        .format(ZonedDateTime.ofInstant(Instant.ofEpochMilli(context.getStartTime()), ZoneOffset.UTC))
+            )
         );
         assertThat(result.get(2), equalTo("name2"));
         assertThat(
             result.get(3),
-            equalTo(".logstash-" + DateTimeFormat.forPattern("yyyy.MM").print(new DateTime(context.getStartTime(), UTC).withDayOfMonth(1)))
+            equalTo(
+                ".logstash-"
+                    + DateTimeFormatter.ofPattern("uuuu.MM", Locale.ROOT)
+                        .format(ZonedDateTime.ofInstant(Instant.ofEpochMilli(context.getStartTime()), ZoneOffset.UTC).withDayOfMonth(1))
+            )
         );
     }
 
     public void testExpression_CustomTimeZoneInIndexName() throws Exception {
-        DateTimeZone timeZone;
+        ZoneId timeZone;
         int hoursOffset;
         int minutesOffset = 0;
         if (randomBoolean()) {
             hoursOffset = randomIntBetween(-12, 14);
-            timeZone = DateTimeZone.forOffsetHours(hoursOffset);
+            timeZone = ZoneOffset.ofHours(hoursOffset);
         } else {
             hoursOffset = randomIntBetween(-11, 13);
             minutesOffset = randomIntBetween(0, 59);
-            timeZone = DateTimeZone.forOffsetHoursMinutes(hoursOffset, minutesOffset);
+            timeZone = ZoneOffset.ofHoursMinutes(hoursOffset, minutesOffset);
         }
-        DateTime now;
+        ZonedDateTime now;
         if (hoursOffset >= 0) {
             // rounding to next day 00:00
-            now = DateTime.now(UTC)
+            now = ZonedDateTime.now(ZoneOffset.UTC)
                 .plusHours(hoursOffset)
                 .plusMinutes(minutesOffset)
-                .withHourOfDay(0)
-                .withMinuteOfHour(0)
-                .withSecondOfMinute(0);
+                .withHour(0)
+                .withMinute(0)
+                .withSecond(0);
         } else {
             // rounding to today 00:00
-            now = DateTime.now(UTC).withHourOfDay(0).withMinuteOfHour(0).withSecondOfMinute(0);
+            now = ZonedDateTime.now(ZoneOffset.UTC).withHour(0).withMinute(0).withSecond(0);
         }
-        Context context = new Context(this.context.getState(), this.context.getOptions(), now.getMillis(), false);
-        List<String> results = expressionResolver.resolve(context, Arrays.asList("<.marvel-{now/d{yyyy.MM.dd|" + timeZone.getID() + "}}>"));
+        Context context = new Context(this.context.getState(), this.context.getOptions(), now.toInstant().toEpochMilli(), false);
+        List<String> results = expressionResolver.resolve(context, Arrays.asList("<.marvel-{now/d{yyyy.MM.dd|" + timeZone.getId() + "}}>"));
         assertThat(results.size(), equalTo(1));
         logger.info("timezone: [{}], now [{}], name: [{}]", timeZone, now, results.get(0));
-        assertThat(results.get(0), equalTo(".marvel-" + DateTimeFormat.forPattern("yyyy.MM.dd").print(now.withZone(timeZone))));
+        assertThat(
+            results.get(0),
+            equalTo(".marvel-" + DateTimeFormatter.ofPattern("uuuu.MM.dd", Locale.ROOT).format(now.withZoneSameInstant(timeZone)))
+        );
     }
 
     public void testExpressionInvalidUnescaped() throws Exception {

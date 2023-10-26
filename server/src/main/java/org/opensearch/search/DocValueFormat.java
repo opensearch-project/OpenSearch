@@ -243,14 +243,15 @@ public interface DocValueFormat extends NamedWriteable {
         }
 
         public DateTime(StreamInput in) throws IOException {
-            if (in.getVersion().onOrAfter(Version.V_2_12_0)) {
+            final Version inVersion = in.getVersion();
+            if (inVersion.onOrAfter(Version.V_2_12_0)) {
                 this.formatter = DateFormatter.forPattern(in.readString(), in.readOptionalString());
             } else {
-                this.formatter = DateFormatter.forPattern(in.readString());
+                this.formatter = DateFormatter.forPattern(in.readString(), inVersion);
             }
 
             this.parser = formatter.toDateMathParser();
-            String zoneId = in.readString();
+            final String zoneId = in.readString();
             this.timeZone = ZoneId.of(zoneId);
             this.resolution = DateFieldMapper.Resolution.ofOrdinal(in.readVInt());
             if (in.getVersion().before(Version.V_3_0_0)) {

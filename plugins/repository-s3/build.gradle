@@ -79,7 +79,6 @@ dependencies {
   api "com.fasterxml.jackson.core:jackson-databind:${versions.jackson_databind}"
   api "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}"
   api "com.fasterxml.jackson.dataformat:jackson-dataformat-cbor:${versions.jackson}"
-  api "joda-time:joda-time:${versions.joda}"
   api "org.slf4j:slf4j-api:${versions.slf4j}"
 
   // network stack
@@ -129,6 +128,7 @@ test {
   // this is tested explicitly in separate test tasks
   exclude '**/RepositoryCredentialsTests.class'
   exclude '**/S3RepositoryThirdPartyTests.class'
+  systemProperty 'aws.region', 'us-east-2'
 }
 
 boolean useFixture = false
