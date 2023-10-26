@@ -40,6 +40,13 @@ import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.opensearch.common.CheckedSupplier;
 import org.opensearch.common.cache.RemovalNotification;
+import org.opensearch.common.cache.tier.OnHeapCachingTier;
+import org.opensearch.common.cache.tier.OpenSearchOnHeapCache;
+import org.opensearch.common.cache.tier.TierType;
+import org.opensearch.common.cache.tier.TieredCacheEventListener;
+import org.opensearch.common.cache.tier.TieredCacheLoader;
+import org.opensearch.common.cache.tier.TieredCacheService;
+import org.opensearch.common.cache.tier.TieredCacheSpilloverStrategyService;
 import org.opensearch.common.lucene.index.OpenSearchDirectoryReader;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
@@ -190,7 +197,7 @@ public final class IndicesRequestCache implements TieredCacheEventListener<Indic
      *
      * @opensearch.internal
      */
-    private static class Loader implements org.opensearch.indices.TieredCacheLoader<Key, BytesReference> {
+    private static class Loader implements TieredCacheLoader<Key, BytesReference> {
 
         private final CacheEntity entity;
         private final CheckedSupplier<BytesReference, IOException> loader;

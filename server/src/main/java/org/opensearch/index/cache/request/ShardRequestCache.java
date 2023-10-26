@@ -33,9 +33,9 @@
 package org.opensearch.index.cache.request;
 
 import org.apache.lucene.util.Accountable;
+import org.opensearch.common.cache.tier.TierType;
 import org.opensearch.common.metrics.CounterMetric;
 import org.opensearch.core.common.bytes.BytesReference;
-import org.opensearch.indices.TierType;
 
 import java.util.EnumMap;
 

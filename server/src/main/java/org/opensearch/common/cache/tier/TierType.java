@@ -6,10 +6,13 @@
  * compatible open source license.
  */
 
-package org.opensearch.indices;
+package org.opensearch.common.cache.tier;
 
-public interface TieredCacheLoader<K, V> {
-    V load(K key) throws Exception;
+/**
+ * Tier types in cache.
+ */
+public enum TierType {
 
-    boolean isLoaded();
+    ON_HEAP,
+    DISK;
 }

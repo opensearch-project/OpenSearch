@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.indices;
+package org.opensearch.common.cache.tier;
 
 import org.opensearch.common.cache.Cache;
 import org.opensearch.common.cache.CacheBuilder;
@@ -14,21 +14,28 @@ import org.opensearch.common.cache.RemovalListener;
 import org.opensearch.common.cache.RemovalNotification;
 import org.opensearch.common.unit.TimeValue;
 
+import java.util.Objects;
 import java.util.concurrent.ExecutionException;
 import java.util.function.ToLongBiFunction;
 
+/**
+ * This variant of on-heap cache uses OpenSearch custom cache implementation.
+ * @param <K> Type of key
+ * @param <V> Type of value
+ */
 public class OpenSearchOnHeapCache<K, V> implements OnHeapCachingTier<K, V>, RemovalListener<K, V> {
 
     private final Cache<K, V> cache;
     private RemovalListener<K, V> removalListener;
 
-    private OpenSearchOnHeapCache(long maxWeightInBytes, ToLongBiFunction<K, V> weigher, TimeValue expireAfterAcess) {
+    private OpenSearchOnHeapCache(Builder<K, V> builder) {
+        Objects.requireNonNull(builder.weigher);
         CacheBuilder<K, V> cacheBuilder = CacheBuilder.<K, V>builder()
-            .setMaximumWeight(maxWeightInBytes)
-            .weigher(weigher)
+            .setMaximumWeight(builder.maxWeightInBytes)
+            .weigher(builder.weigher)
             .removalListener(this);
-        if (expireAfterAcess != null) {
-            cacheBuilder.setExpireAfterAccess(expireAfterAcess);
+        if (builder.expireAfterAcess != null) {
+            cacheBuilder.setExpireAfterAccess(builder.expireAfterAcess);
         }
         cache = cacheBuilder.build();
     }
@@ -93,6 +100,11 @@ public class OpenSearchOnHeapCache<K, V> implements OnHeapCachingTier<K, V>, Rem
         removalListener.onRemoval(notification);
     }
 
+    /**
+     * Builder object
+     * @param <K> Type of key
+     * @param <V> Type of value
+     */
     public static class Builder<K, V> {
         private long maxWeightInBytes;
 
@@ -118,7 +130,7 @@ public class OpenSearchOnHeapCache<K, V> implements OnHeapCachingTier<K, V>, Rem
         }
 
         public OpenSearchOnHeapCache<K, V> build() {
-            return new OpenSearchOnHeapCache<K, V>(maxWeightInBytes, weigher, expireAfterAcess);
+            return new OpenSearchOnHeapCache<K, V>(this);
         }
     }
 }

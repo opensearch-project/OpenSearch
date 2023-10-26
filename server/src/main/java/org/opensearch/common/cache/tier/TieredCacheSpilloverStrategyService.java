@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.indices;
+package org.opensearch.common.cache.tier;
 
 import org.opensearch.common.cache.RemovalListener;
 import org.opensearch.common.cache.RemovalNotification;
@@ -39,14 +39,10 @@ public class TieredCacheSpilloverStrategyService<K, V> implements TieredCacheSer
      */
     private final List<CachingTier<K, V>> cachingTierList;
 
-    private TieredCacheSpilloverStrategyService(
-        OnHeapCachingTier<K, V> onHeapCachingTier,
-        DiskCachingTier<K, V> diskCachingTier,
-        TieredCacheEventListener<K, V> tieredCacheEventListener
-    ) {
-        this.onHeapCachingTier = Objects.requireNonNull(onHeapCachingTier);
-        this.diskCachingTier = Optional.ofNullable(diskCachingTier);
-        this.tieredCacheEventListener = Objects.requireNonNull(tieredCacheEventListener);
+    private TieredCacheSpilloverStrategyService(Builder<K, V> builder) {
+        this.onHeapCachingTier = Objects.requireNonNull(builder.onHeapCachingTier);
+        this.diskCachingTier = Optional.ofNullable(builder.diskCachingTier);
+        this.tieredCacheEventListener = Objects.requireNonNull(builder.tieredCacheEventListener);
         this.cachingTierList = this.diskCachingTier.map(diskTier -> Arrays.asList(onHeapCachingTier, diskTier))
             .orElse(List.of(onHeapCachingTier));
         setRemovalListeners();
@@ -197,6 +193,11 @@ public class TieredCacheSpilloverStrategyService<K, V> implements TieredCacheSer
         }
     }
 
+    /**
+     * Builder object
+     * @param <K> Type of key
+     * @param <V> Type of value
+     */
     public static class Builder<K, V> {
         private OnHeapCachingTier<K, V> onHeapCachingTier;
         private DiskCachingTier<K, V> diskCachingTier;
@@ -220,11 +221,7 @@ public class TieredCacheSpilloverStrategyService<K, V> implements TieredCacheSer
         }
 
         public TieredCacheSpilloverStrategyService<K, V> build() {
-            return new TieredCacheSpilloverStrategyService<K, V>(
-                this.onHeapCachingTier,
-                this.diskCachingTier,
-                this.tieredCacheEventListener
-            );
+            return new TieredCacheSpilloverStrategyService<K, V>(this);
         }
     }
 

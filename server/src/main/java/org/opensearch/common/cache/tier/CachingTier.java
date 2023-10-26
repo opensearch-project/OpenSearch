@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.indices;
+package org.opensearch.common.cache.tier;
 
 import org.opensearch.common.cache.RemovalListener;
 
