@@ -8,9 +8,12 @@
 
 package org.opensearch.gateway.remote;
 
+import org.opensearch.action.admin.cluster.node.stats.NodesStatsRequest;
+import org.opensearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.discovery.DiscoveryStats;
 import org.opensearch.remotestore.RemoteStoreBaseIntegTestCase;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.blobstore.BlobStoreRepository;
@@ -19,6 +22,7 @@ import org.opensearch.test.OpenSearchIntegTestCase;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.opensearch.gateway.remote.RemoteClusterStateService.REMOTE_CLUSTER_STATE_ENABLED_SETTING;
@@ -86,12 +90,51 @@ public class RemoteClusterStateServiceIT extends RemoteStoreBaseIntegTestCase {
 
         assertEquals(10, repository.blobStore().blobContainer(baseMetadataPath.add("manifest")).listBlobsByPrefix("manifest").size());
 
-        Map<String, IndexMetadata> indexMetadataMap = remoteClusterStateService.getLatestIndexMetadata(
+        Map<String, IndexMetadata> indexMetadataMap = remoteClusterStateService.getLatestMetadata(
             cluster().getClusterName(),
             getClusterState().metadata().clusterUUID()
-        );
+        ).getIndices();
         assertEquals(0, indexMetadataMap.values().stream().findFirst().get().getNumberOfReplicas());
         assertEquals(shardCount, indexMetadataMap.values().stream().findFirst().get().getNumberOfShards());
+    }
+
+    public void testRemoteStateStats() {
+        int shardCount = randomIntBetween(1, 2);
+        int replicaCount = 1;
+        int dataNodeCount = shardCount * (replicaCount + 1);
+        int clusterManagerNodeCount = 1;
+        prepareCluster(clusterManagerNodeCount, dataNodeCount, INDEX_NAME, replicaCount, shardCount);
+        String clusterManagerNode = internalCluster().getClusterManagerName();
+        String dataNode = internalCluster().getDataNodeNames().stream().collect(Collectors.toList()).get(0);
+
+        // Fetch _nodes/stats
+        NodesStatsResponse nodesStatsResponse = client().admin()
+            .cluster()
+            .prepareNodesStats(clusterManagerNode)
+            .addMetric(NodesStatsRequest.Metric.DISCOVERY.metricName())
+            .get();
+
+        // assert cluster state stats
+        DiscoveryStats discoveryStats = nodesStatsResponse.getNodes().get(0).getDiscoveryStats();
+
+        assertNotNull(discoveryStats.getClusterStateStats());
+        assertTrue(discoveryStats.getClusterStateStats().getUpdateSuccess() > 1);
+        assertEquals(0, discoveryStats.getClusterStateStats().getUpdateFailed());
+        assertTrue(discoveryStats.getClusterStateStats().getUpdateTotalTimeInMillis() > 0);
+        // assert remote state stats
+        assertTrue(discoveryStats.getClusterStateStats().getPersistenceStats().get(0).getSuccessCount() > 1);
+        assertEquals(0, discoveryStats.getClusterStateStats().getPersistenceStats().get(0).getFailedCount());
+        assertTrue(discoveryStats.getClusterStateStats().getPersistenceStats().get(0).getTotalTimeInMillis() > 0);
+
+        NodesStatsResponse nodesStatsResponseDataNode = client().admin()
+            .cluster()
+            .prepareNodesStats(dataNode)
+            .addMetric(NodesStatsRequest.Metric.DISCOVERY.metricName())
+            .get();
+        // assert cluster state stats for data node
+        DiscoveryStats dataNodeDiscoveryStats = nodesStatsResponseDataNode.getNodes().get(0).getDiscoveryStats();
+        assertNotNull(dataNodeDiscoveryStats.getClusterStateStats());
+        assertEquals(0, dataNodeDiscoveryStats.getClusterStateStats().getUpdateSuccess());
     }
 
     private void setReplicaCount(int replicaCount) {

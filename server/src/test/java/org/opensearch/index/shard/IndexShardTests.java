@@ -2745,6 +2745,7 @@ public class IndexShardTests extends IndexShardTestCase {
             AllocationId.newRelocation(routing.allocationId())
         );
         IndexShardTestCase.updateRoutingEntry(indexShard, routing);
+        indexDoc(indexShard, "_doc", "0");
         assertTrue(indexShard.isSyncNeeded());
         try {
             indexShard.relocated(routing.getTargetRelocatingShard().allocationId().getId(), primaryContext -> {}, () -> {});
@@ -4910,6 +4911,8 @@ public class IndexShardTests extends IndexShardTestCase {
         tracker.addUploadBytesStarted(30L);
         tracker.addUploadBytesSucceeded(10L);
         tracker.addUploadBytesFailed(10L);
+        tracker.incrementRejectionCount();
+        tracker.incrementRejectionCount();
     }
 
     private void populateSampleRemoteTranslogStats(RemoteTranslogTransferTracker tracker) {
@@ -4943,5 +4946,7 @@ public class IndexShardTests extends IndexShardTestCase {
         assertEquals(remoteSegmentTransferTracker.getUploadBytesStarted(), remoteSegmentStats.getUploadBytesStarted());
         assertEquals(remoteSegmentTransferTracker.getUploadBytesSucceeded(), remoteSegmentStats.getUploadBytesSucceeded());
         assertEquals(remoteSegmentTransferTracker.getUploadBytesFailed(), remoteSegmentStats.getUploadBytesFailed());
+        assertTrue(remoteSegmentStats.getTotalRejections() > 0);
+        assertEquals(remoteSegmentTransferTracker.getRejectionCount(), remoteSegmentStats.getTotalRejections());
     }
 }

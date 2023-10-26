@@ -48,11 +48,11 @@ import java.util.List;
 public interface ValueFetcher {
     /**
      * Given access to a document's _source, return this field's values.
-     *
+     * <p>
      * In addition to pulling out the values, they will be parsed into a standard form.
      * For example numeric field mappers make sure to parse the source value into a number
      * of the right type.
-     *
+     * <p>
      * Note that for array values, the order in which values are returned is undefined and
      * should not be relied on.
      *

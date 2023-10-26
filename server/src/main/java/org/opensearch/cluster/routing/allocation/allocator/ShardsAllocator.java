@@ -63,12 +63,12 @@ public interface ShardsAllocator {
      * Returns the decision for where a shard should reside in the cluster.  If the shard is unassigned,
      * then the {@link AllocateUnassignedDecision} will be non-null.  If the shard is not in the unassigned
      * state, then the {@link MoveDecision} will be non-null.
-     *
+     * <p>
      * This method is primarily used by the cluster allocation explain API to provide detailed explanations
      * for the allocation of a single shard.  Implementations of the {@link #allocate(RoutingAllocation)} method
      * may use the results of this method implementation to decide on allocating shards in the routing table
      * to the cluster.
-     *
+     * <p>
      * If an implementation of this interface does not support explaining decisions for a single shard through
      * the cluster explain API, then this method should throw a {@code UnsupportedOperationException}.
      */

@@ -550,11 +550,11 @@ public class Task {
      * This method is called when threads finish execution, and also when the task is unregistered (to mark the task's
      * own thread as complete). When the active thread count becomes zero, the onTaskResourceTrackingCompleted method
      * is called exactly once on all registered listeners.
-     *
+     * <p>
      * Since a task is unregistered after the message is processed, it implies that the threads responsible to produce
      * the response must have started prior to it (i.e. startThreadResourceTracking called before unregister).
      * This ensures that the number of active threads doesn't drop to zero pre-maturely.
-     *
+     * <p>
      * Rarely, some threads may even start execution after the task is unregistered. As resource stats are piggy-backed
      * with the response, any thread usage info captured after the task is unregistered may be irrelevant.
      *

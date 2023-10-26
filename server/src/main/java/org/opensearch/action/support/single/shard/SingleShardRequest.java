@@ -55,7 +55,7 @@ public abstract class SingleShardRequest<Request extends SingleShardRequest<Requ
 
     /**
      * The concrete index name
-     *
+     * <p>
      * Whether index property is optional depends on the concrete implementation. If index property is required the
      * concrete implementation should use {@link #validateNonNullIndex()} to check if the index property has been set
      */

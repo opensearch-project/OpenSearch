@@ -47,6 +47,7 @@ import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.translog.transfer.BlobStoreTransferService;
 import org.opensearch.index.translog.transfer.TranslogTransferManager;
 import org.opensearch.index.translog.transfer.TranslogTransferMetadata;
+import org.opensearch.index.translog.transfer.TranslogUploadFailedException;
 import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.repositories.blobstore.BlobStoreRepository;
@@ -67,6 +68,7 @@ import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
@@ -95,6 +97,7 @@ import java.util.zip.CRC32;
 import java.util.zip.CheckedInputStream;
 
 import static org.opensearch.common.util.BigArrays.NON_RECYCLING_INSTANCE;
+import static org.opensearch.index.IndexSettings.INDEX_REMOTE_TRANSLOG_KEEP_EXTRA_GEN_SETTING;
 import static org.opensearch.index.translog.RemoteFsTranslog.TRANSLOG;
 import static org.opensearch.index.translog.SnapshotMatchers.containsOperationsInAnyOrder;
 import static org.opensearch.index.translog.TranslogDeletionPolicies.createTranslogDeletionPolicy;
@@ -122,6 +125,8 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
     private ThreadPool threadPool;
     private final static String METADATA_DIR = "metadata";
     private final static String DATA_DIR = "data";
+
+    AtomicInteger writeCalls = new AtomicInteger();
     BlobStoreRepository repository;
 
     BlobStoreTransferService blobStoreTransferService;
@@ -161,13 +166,13 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
 
     private RemoteFsTranslog create(Path path) throws IOException {
         final String translogUUID = Translog.createEmptyTranslog(path, SequenceNumbers.NO_OPS_PERFORMED, shardId, primaryTerm.get());
-        return create(path, createRepository(), translogUUID);
+        return create(path, createRepository(), translogUUID, 0);
     }
 
-    private RemoteFsTranslog create(Path path, BlobStoreRepository repository, String translogUUID) throws IOException {
+    private RemoteFsTranslog create(Path path, BlobStoreRepository repository, String translogUUID, int extraGenToKeep) throws IOException {
         this.repository = repository;
         globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
-        final TranslogConfig translogConfig = getTranslogConfig(path);
+        final TranslogConfig translogConfig = getTranslogConfig(path, extraGenToKeep);
         final TranslogDeletionPolicy deletionPolicy = createTranslogDeletionPolicy(translogConfig.getIndexSettings());
         threadPool = new TestThreadPool(getClass().getName());
         blobStoreTransferService = new BlobStoreTransferService(repository.blobStore(), threadPool);
@@ -183,10 +188,17 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
             primaryMode::get,
             new RemoteTranslogTransferTracker(shardId, 10)
         );
+    }
 
+    private RemoteFsTranslog create(Path path, BlobStoreRepository repository, String translogUUID) throws IOException {
+        return create(path, repository, translogUUID, 0);
     }
 
     private TranslogConfig getTranslogConfig(final Path path) {
+        return getTranslogConfig(path, 0);
+    }
+
+    private TranslogConfig getTranslogConfig(final Path path, int gensToKeep) {
         final Settings settings = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, org.opensearch.Version.CURRENT)
             // only randomize between nog age retention and a long one, so failures will have a chance of reproducing
@@ -194,6 +206,7 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
             .put(IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING.getKey(), randomIntBetween(-1, 2048) + "b")
             .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
             .put(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, true)
+            .put(INDEX_REMOTE_TRANSLOG_KEEP_EXTRA_GEN_SETTING.getKey(), gensToKeep)
             .build();
         return getTranslogConfig(path, settings);
     }
@@ -206,7 +219,7 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
         );
 
         final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(shardId.getIndex(), settings);
-        return new TranslogConfig(shardId, path, indexSettings, NON_RECYCLING_INSTANCE, bufferSize);
+        return new TranslogConfig(shardId, path, indexSettings, NON_RECYCLING_INSTANCE, bufferSize, "");
     }
 
     private BlobStoreRepository createRepository() {
@@ -368,6 +381,111 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
             assertThat(snapshot.totalOperations(), equalTo(0));
         }
 
+    }
+
+    private TranslogConfig getConfig(int gensToKeep) {
+        Path tempDir = createTempDir();
+        final TranslogConfig temp = getTranslogConfig(tempDir, gensToKeep);
+        final TranslogConfig config = new TranslogConfig(
+            temp.getShardId(),
+            temp.getTranslogPath(),
+            temp.getIndexSettings(),
+            temp.getBigArrays(),
+            new ByteSizeValue(1, ByteSizeUnit.KB),
+            ""
+        );
+        return config;
+    }
+
+    private ChannelFactory getChannelFactory() {
+        writeCalls = new AtomicInteger();
+        final ChannelFactory channelFactory = (file, openOption) -> {
+            FileChannel delegate = FileChannel.open(file, openOption);
+            boolean success = false;
+            try {
+                // don't do partial writes for checkpoints we rely on the fact that the bytes are written as an atomic operation
+                final boolean isCkpFile = file.getFileName().toString().endsWith(".ckp");
+
+                final FileChannel channel;
+                if (isCkpFile) {
+                    channel = delegate;
+                } else {
+                    channel = new FilterFileChannel(delegate) {
+
+                        @Override
+                        public int write(ByteBuffer src) throws IOException {
+                            writeCalls.incrementAndGet();
+                            return super.write(src);
+                        }
+                    };
+                }
+                success = true;
+                return channel;
+            } finally {
+                if (success == false) {
+                    IOUtils.closeWhileHandlingException(delegate);
+                }
+            }
+        };
+        return channelFactory;
+    }
+
+    public void testExtraGenToKeep() throws Exception {
+        TranslogConfig config = getConfig(1);
+        ChannelFactory channelFactory = getChannelFactory();
+        final Set<Long> persistedSeqNos = new HashSet<>();
+        String translogUUID = Translog.createEmptyTranslog(
+            config.getTranslogPath(),
+            SequenceNumbers.NO_OPS_PERFORMED,
+            shardId,
+            channelFactory,
+            primaryTerm.get()
+        );
+        TranslogDeletionPolicy deletionPolicy = createTranslogDeletionPolicy(config.getIndexSettings());
+        ArrayList<Translog.Operation> ops = new ArrayList<>();
+        try (
+            RemoteFsTranslog translog = new RemoteFsTranslog(
+                config,
+                translogUUID,
+                deletionPolicy,
+                () -> SequenceNumbers.NO_OPS_PERFORMED,
+                primaryTerm::get,
+                persistedSeqNos::add,
+                repository,
+                threadPool,
+                () -> Boolean.TRUE,
+                new RemoteTranslogTransferTracker(shardId, 10)
+            ) {
+                @Override
+                ChannelFactory getChannelFactory() {
+                    return channelFactory;
+                }
+            }
+        ) {
+            addToTranslogAndListAndUpload(translog, ops, new Translog.Index("1", 0, primaryTerm.get(), new byte[] { 1 }));
+
+            addToTranslogAndListAndUpload(translog, ops, new Translog.Index("2", 1, primaryTerm.get(), new byte[] { 1 }));
+
+            addToTranslogAndListAndUpload(translog, ops, new Translog.Index("3", 2, primaryTerm.get(), new byte[] { 1 }));
+
+            // expose the new checkpoint (simulating a commit), before we trim the translog
+            translog.setMinSeqNoToKeep(2);
+
+            // Trims from local
+            translog.trimUnreferencedReaders();
+            assertBusy(() -> assertTrue(translog.isRemoteGenerationDeletionPermitsAvailable()));
+
+            addToTranslogAndListAndUpload(translog, ops, new Translog.Index("4", 3, primaryTerm.get(), new byte[] { 1 }));
+
+            // Trims from remote now
+            translog.trimUnreferencedReaders();
+            assertBusy(() -> assertTrue(translog.isRemoteGenerationDeletionPermitsAvailable()));
+            assertEquals(
+                6,
+                blobStoreTransferService.listAll(getTranslogDirectory().add(DATA_DIR).add(String.valueOf(primaryTerm.get()))).size()
+            );
+
+        }
     }
 
     public void testReadLocation() throws IOException {
@@ -617,14 +735,22 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
         // this should now trim as tlog-2 files from remote, but not tlog-3 and tlog-4
         addToTranslogAndListAndUpload(translog, ops, new Translog.Index("2", 2, primaryTerm.get(), new byte[] { 1 }));
         assertEquals(2, translog.stats().estimatedNumberOfOperations());
+        assertBusy(() -> assertTrue(translog.isRemoteGenerationDeletionPermitsAvailable()));
 
         translog.setMinSeqNoToKeep(2);
-
-        assertBusy(() -> assertTrue(translog.isRemoteGenerationDeletionPermitsAvailable()));
+        // this should now trim as tlog-2 files from remote, but not tlog-3 and tlog-4
         translog.trimUnreferencedReaders();
+        assertBusy(() -> assertTrue(translog.isRemoteGenerationDeletionPermitsAvailable()));
         assertEquals(1, translog.readers.size());
         assertEquals(1, translog.stats().estimatedNumberOfOperations());
-        assertBusy(() -> assertEquals(4, translog.allUploaded().size()));
+        assertBusy(() -> {
+            assertEquals(4, translog.allUploaded().size());
+            assertEquals(
+                4,
+                blobStoreTransferService.listAll(getTranslogDirectory().add(DATA_DIR).add(String.valueOf(primaryTerm.get()))).size()
+            );
+        });
+
     }
 
     public void testMetadataFileDeletion() throws Exception {
@@ -1049,7 +1175,7 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
         }
     }
 
-    public void testSyncUpFailure() throws IOException {
+    public void testSyncUpLocationFailure() throws IOException {
         int translogOperations = randomIntBetween(1, 20);
         int count = 0;
         fail.failAlways();
@@ -1099,6 +1225,26 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
         assertTrue(statsTracker.getTotalUploadsSucceeded() > 0);
         assertTrue(statsTracker.getLastSuccessfulUploadTimestamp() > 0);
         assertDownloadStatsNoDownloads(statsTracker);
+    }
+
+    public void testSyncUpAlwaysFailure() throws IOException {
+        int translogOperations = randomIntBetween(1, 20);
+        int count = 0;
+        fail.failAlways();
+        for (int op = 0; op < translogOperations; op++) {
+            translog.add(
+                new Translog.Index(String.valueOf(op), count, primaryTerm.get(), Integer.toString(count).getBytes(StandardCharsets.UTF_8))
+            );
+            try {
+                translog.sync();
+                fail("io exception expected");
+            } catch (TranslogUploadFailedException e) {
+                assertTrue("at least one operation pending", translog.syncNeeded());
+            }
+        }
+        assertTrue(translog.isOpen());
+        fail.failNever();
+        translog.sync();
     }
 
     public void testSyncUpToStream() throws IOException {
@@ -1251,48 +1397,10 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
     }
 
     public void testTranslogWriterCanFlushInAddOrReadCall() throws IOException {
-        Path tempDir = createTempDir();
-        final TranslogConfig temp = getTranslogConfig(tempDir);
-        final TranslogConfig config = new TranslogConfig(
-            temp.getShardId(),
-            temp.getTranslogPath(),
-            temp.getIndexSettings(),
-            temp.getBigArrays(),
-            new ByteSizeValue(1, ByteSizeUnit.KB)
-        );
-
+        final TranslogConfig config = getConfig(1);
         final Set<Long> persistedSeqNos = new HashSet<>();
-        final AtomicInteger writeCalls = new AtomicInteger();
-
-        final ChannelFactory channelFactory = (file, openOption) -> {
-            FileChannel delegate = FileChannel.open(file, openOption);
-            boolean success = false;
-            try {
-                // don't do partial writes for checkpoints we rely on the fact that the bytes are written as an atomic operation
-                final boolean isCkpFile = file.getFileName().toString().endsWith(".ckp");
-
-                final FileChannel channel;
-                if (isCkpFile) {
-                    channel = delegate;
-                } else {
-                    channel = new FilterFileChannel(delegate) {
-
-                        @Override
-                        public int write(ByteBuffer src) throws IOException {
-                            writeCalls.incrementAndGet();
-                            return super.write(src);
-                        }
-                    };
-                }
-                success = true;
-                return channel;
-            } finally {
-                if (success == false) {
-                    IOUtils.closeWhileHandlingException(delegate);
-                }
-            }
-        };
-
+        writeCalls = new AtomicInteger();
+        final ChannelFactory channelFactory = getChannelFactory();
         String translogUUID = Translog.createEmptyTranslog(
             config.getTranslogPath(),
             SequenceNumbers.NO_OPS_PERFORMED,
@@ -1360,7 +1468,8 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
             temp.getTranslogPath(),
             temp.getIndexSettings(),
             temp.getBigArrays(),
-            new ByteSizeValue(1, ByteSizeUnit.KB)
+            new ByteSizeValue(1, ByteSizeUnit.KB),
+            ""
         );
 
         final Set<Long> persistedSeqNos = new HashSet<>();

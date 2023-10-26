@@ -130,9 +130,9 @@ import org.opensearch.env.TestEnvironment;
 import org.opensearch.http.HttpInfo;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexSettings;
-import org.opensearch.index.MergePolicyConfig;
 import org.opensearch.index.MergeSchedulerConfig;
 import org.opensearch.index.MockEngineFactoryPlugin;
+import org.opensearch.index.TieredMergePolicyProvider;
 import org.opensearch.index.codec.CodecService;
 import org.opensearch.index.engine.Segment;
 import org.opensearch.index.mapper.CompletionFieldMapper;
@@ -500,7 +500,7 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
     private static Settings.Builder setRandomIndexMergeSettings(Random random, Settings.Builder builder) {
         if (random.nextBoolean()) {
             builder.put(
-                MergePolicyConfig.INDEX_COMPOUND_FORMAT_SETTING.getKey(),
+                TieredMergePolicyProvider.INDEX_COMPOUND_FORMAT_SETTING.getKey(),
                 (random.nextBoolean() ? random.nextDouble() : random.nextBoolean()).toString()
             );
         }
@@ -787,6 +787,30 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
         // Enabling Telemetry setting by default
         featureSettings.put(FeatureFlags.TELEMETRY_SETTING.getKey(), true);
         return featureSettings.build();
+    }
+
+    /**
+     * Represent if it needs to trigger remote state restore or not.
+     * For tests with remote store enabled domain, it will be overridden to true.
+     *
+     * @return if needs to perform remote state restore or not
+     */
+    protected boolean triggerRemoteStateRestore() {
+        return false;
+    }
+
+    /**
+     * For tests with remote cluster state, it will reset the cluster and cluster state will be
+     * restored from remote.
+     */
+    protected void performRemoteStoreTestAction() {
+        if (triggerRemoteStateRestore()) {
+            String clusterUUIDBefore = clusterService().state().metadata().clusterUUID();
+            internalCluster().resetCluster();
+            String clusterUUIDAfter = clusterService().state().metadata().clusterUUID();
+            // assertion that UUID is changed post restore.
+            assertFalse(clusterUUIDBefore.equals(clusterUUIDAfter));
+        }
     }
 
     /**
@@ -1343,7 +1367,7 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
 
     /**
      * Ensures that all nodes in the cluster are connected to each other.
-     *
+     * <p>
      * Some network disruptions may leave nodes that are not the cluster-manager disconnected from each other.
      * {@link org.opensearch.cluster.NodeConnectionsService} will eventually reconnect but it's
      * handy to be able to ensure this happens faster
@@ -1928,6 +1952,7 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
 
         // Enable tracer only when Telemetry Setting is enabled
         if (featureFlagSettings().getAsBoolean(FeatureFlags.TELEMETRY_SETTING.getKey(), false)) {
+            builder.put(TelemetrySettings.TRACER_FEATURE_ENABLED_SETTING.getKey(), true);
             builder.put(TelemetrySettings.TRACER_ENABLED_SETTING.getKey(), true);
         }
         if (FeatureFlags.CONCURRENT_SEGMENT_SEARCH_SETTING.get(featureFlagSettings)) {
@@ -2311,11 +2336,11 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
 
     private static void initializeSuiteScope() throws Exception {
         Class<?> targetClass = getTestClass();
-        /**
-         * Note we create these test class instance via reflection
-         * since JUnit creates a new instance per test and that is also
-         * the reason why INSTANCE is static since this entire method
-         * must be executed in a static context.
+        /*
+          Note we create these test class instance via reflection
+          since JUnit creates a new instance per test and that is also
+          the reason why INSTANCE is static since this entire method
+          must be executed in a static context.
          */
         assert INSTANCE == null;
         if (isSuiteScopedTest(targetClass)) {

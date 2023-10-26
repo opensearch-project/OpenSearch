@@ -161,6 +161,7 @@ public class RemoteFsTranslog extends Translog {
             remoteTranslogTransferTracker
         );
         RemoteFsTranslog.download(translogTransferManager, location, logger);
+        logger.trace(remoteTranslogTransferTracker.toString());
     }
 
     static void download(TranslogTransferManager translogTransferManager, Path location, Logger logger) throws IOException {
@@ -173,15 +174,20 @@ public class RemoteFsTranslog extends Translog {
          */
         IOException ex = null;
         for (int i = 0; i <= DOWNLOAD_RETRIES; i++) {
+            boolean success = false;
+            long startTimeMs = System.currentTimeMillis();
             try {
                 downloadOnce(translogTransferManager, location, logger);
+                success = true;
                 return;
             } catch (FileNotFoundException | NoSuchFileException e) {
                 // continue till download retries
                 ex = e;
+            } finally {
+                logger.trace("downloadOnce success={} timeElapsed={}", success, (System.currentTimeMillis() - startTimeMs));
             }
         }
-        logger.debug("Exhausted all download retries during translog/checkpoint file download");
+        logger.info("Exhausted all download retries during translog/checkpoint file download");
         throw ex;
     }
 
@@ -242,15 +248,10 @@ public class RemoteFsTranslog extends Translog {
 
     @Override
     public boolean ensureSynced(Location location) throws IOException {
-        try {
-            assert location.generation <= current.getGeneration();
-            if (location.generation == current.getGeneration()) {
-                ensureOpen();
-                return prepareAndUpload(primaryTermSupplier.getAsLong(), location.generation);
-            }
-        } catch (final Exception ex) {
-            closeOnTragicEvent(ex);
-            throw ex;
+        assert location.generation <= current.getGeneration();
+        if (location.generation == current.getGeneration()) {
+            ensureOpen();
+            return prepareAndUpload(primaryTermSupplier.getAsLong(), location.generation);
         }
         return false;
     }
@@ -327,7 +328,8 @@ public class RemoteFsTranslog extends Translog {
                 generation,
                 location,
                 readers,
-                Translog::getCommitCheckpointFileName
+                Translog::getCommitCheckpointFileName,
+                config.getNodeId()
             ).build()
         ) {
             return translogTransferManager.transferSnapshot(
@@ -354,14 +356,8 @@ public class RemoteFsTranslog extends Translog {
 
     @Override
     public void sync() throws IOException {
-        try {
-            if (syncToDisk() || syncNeeded()) {
-                prepareAndUpload(primaryTermSupplier.getAsLong(), null);
-            }
-        } catch (final Exception e) {
-            tragedy.setTragicException(e);
-            closeOnTragicEvent(e);
-            throw e;
+        if (syncToDisk() || syncNeeded()) {
+            prepareAndUpload(primaryTermSupplier.getAsLong(), null);
         }
     }
 
@@ -435,7 +431,7 @@ public class RemoteFsTranslog extends Translog {
         // cleans up remote translog files not referenced in latest uploaded metadata.
         // This enables us to restore translog from the metadata in case of failover or relocation.
         Set<Long> generationsToDelete = new HashSet<>();
-        for (long generation = minRemoteGenReferenced - 1; generation >= 0; generation--) {
+        for (long generation = minRemoteGenReferenced - 1 - indexSettings().getRemoteTranslogExtraKeep(); generation >= 0; generation--) {
             if (fileTransferTracker.uploaded(Translog.getFilename(generation)) == false) {
                 break;
             }
@@ -553,5 +549,10 @@ public class RemoteFsTranslog extends Translog {
                 throw (RuntimeException) ex;
             }
         }
+    }
+
+    @Override
+    public long getMinUnreferencedSeqNoInSegments(long minUnrefCheckpointInLastCommit) {
+        return minSeqNoToKeep;
     }
 }

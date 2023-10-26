@@ -64,6 +64,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import org.mockito.invocation.InvocationOnMock;
 
+import static org.opensearch.repositories.s3.S3Repository.BULK_DELETE_SIZE;
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
@@ -265,10 +266,11 @@ public class S3BlobContainerMockClientTests extends OpenSearchTestCase implement
         @Override
         public AmazonAsyncS3Reference client(
             RepositoryMetadata repositoryMetadata,
+            AsyncExecutorContainer urgentExecutorBuilder,
             AsyncExecutorContainer priorityExecutorBuilder,
             AsyncExecutorContainer normalExecutorBuilder
         ) {
-            return new AmazonAsyncS3Reference(AmazonAsyncS3WithCredentials.create(asyncClient, asyncClient, null));
+            return new AmazonAsyncS3Reference(AmazonAsyncS3WithCredentials.create(asyncClient, asyncClient, asyncClient, null));
         }
     }
 
@@ -387,12 +389,15 @@ public class S3BlobContainerMockClientTests extends OpenSearchTestCase implement
             S3Repository.BUFFER_SIZE_SETTING.getDefault(Settings.EMPTY),
             S3Repository.CANNED_ACL_SETTING.getDefault(Settings.EMPTY),
             S3Repository.STORAGE_CLASS_SETTING.getDefault(Settings.EMPTY),
+            BULK_DELETE_SIZE.get(Settings.EMPTY),
             repositoryMetadata,
             new AsyncTransferManager(
                 S3Repository.PARALLEL_MULTIPART_UPLOAD_MINIMUM_PART_SIZE_SETTING.getDefault(Settings.EMPTY).getBytes(),
                 asyncExecutorContainer.getStreamReader(),
+                asyncExecutorContainer.getStreamReader(),
                 asyncExecutorContainer.getStreamReader()
             ),
+            asyncExecutorContainer,
             asyncExecutorContainer,
             asyncExecutorContainer
         );

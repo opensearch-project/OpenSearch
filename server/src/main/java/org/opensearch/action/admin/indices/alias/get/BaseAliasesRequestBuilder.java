@@ -81,7 +81,7 @@ public abstract class BaseAliasesRequestBuilder<
 
     /**
      * Specifies what type of requested indices to ignore and wildcard indices expressions.
-     *
+     * <p>
      * For example indices that don't exist.
      */
     @SuppressWarnings("unchecked")

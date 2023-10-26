@@ -56,6 +56,7 @@ public final class TranslogConfig {
     private final ShardId shardId;
     private final Path translogPath;
     private final ByteSizeValue bufferSize;
+    private final String nodeId;
 
     /**
      * Creates a new TranslogConfig instance
@@ -64,16 +65,24 @@ public final class TranslogConfig {
      * @param indexSettings the index settings used to set internal variables
      * @param bigArrays a bigArrays instance used for temporarily allocating write operations
      */
-    public TranslogConfig(ShardId shardId, Path translogPath, IndexSettings indexSettings, BigArrays bigArrays) {
-        this(shardId, translogPath, indexSettings, bigArrays, DEFAULT_BUFFER_SIZE);
+    public TranslogConfig(ShardId shardId, Path translogPath, IndexSettings indexSettings, BigArrays bigArrays, String nodeId) {
+        this(shardId, translogPath, indexSettings, bigArrays, DEFAULT_BUFFER_SIZE, nodeId);
     }
 
-    TranslogConfig(ShardId shardId, Path translogPath, IndexSettings indexSettings, BigArrays bigArrays, ByteSizeValue bufferSize) {
+    TranslogConfig(
+        ShardId shardId,
+        Path translogPath,
+        IndexSettings indexSettings,
+        BigArrays bigArrays,
+        ByteSizeValue bufferSize,
+        String nodeId
+    ) {
         this.bufferSize = bufferSize;
         this.indexSettings = indexSettings;
         this.shardId = shardId;
         this.translogPath = translogPath;
         this.bigArrays = bigArrays;
+        this.nodeId = nodeId;
     }
 
     /**
@@ -109,5 +118,9 @@ public final class TranslogConfig {
      */
     public ByteSizeValue getBufferSize() {
         return bufferSize;
+    }
+
+    public String getNodeId() {
+        return nodeId;
     }
 }

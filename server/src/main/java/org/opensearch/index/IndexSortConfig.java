@@ -53,7 +53,7 @@ import java.util.function.Supplier;
 
 /**
  * Holds all the information that is used to build the sort order of an index.
- *
+ * <p>
  * The index sort settings are <b>final</b> and can be defined only at index creation.
  * These settings are divided in four lists that are merged during the initialization of this class:
  * <ul>

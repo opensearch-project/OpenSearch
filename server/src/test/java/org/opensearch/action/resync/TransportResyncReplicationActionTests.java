@@ -135,7 +135,8 @@ public class TransportResyncReplicationActionTests extends OpenSearchTestCase {
                     new NetworkService(emptyList()),
                     PageCacheRecycler.NON_RECYCLING_INSTANCE,
                     new NamedWriteableRegistry(emptyList()),
-                    new NoneCircuitBreakerService()
+                    new NoneCircuitBreakerService(),
+                    NoopTracer.INSTANCE
                 )
             ) {
 
@@ -202,7 +203,8 @@ public class TransportResyncReplicationActionTests extends OpenSearchTestCase {
                     shardStateAction,
                     new ActionFilters(new HashSet<>()),
                     new IndexingPressureService(Settings.EMPTY, clusterService),
-                    new SystemIndices(emptyMap())
+                    new SystemIndices(emptyMap()),
+                    NoopTracer.INSTANCE
                 );
 
                 assertThat(action.globalBlockLevel(), nullValue());
@@ -255,7 +257,8 @@ public class TransportResyncReplicationActionTests extends OpenSearchTestCase {
             mock(ShardStateAction.class),
             new ActionFilters(new HashSet<>()),
             mock(IndexingPressureService.class),
-            new SystemIndices(emptyMap())
+            new SystemIndices(emptyMap()),
+            NoopTracer.INSTANCE
         );
     }
 }

@@ -25,7 +25,10 @@ import java.util.Optional;
  */
 @InternalApi
 class DefaultTracer implements Tracer {
-    static final String THREAD_NAME = "th_name";
+    /**
+     * Current thread name.
+     */
+    static final String THREAD_NAME = "thread.name";
 
     private final TracingTelemetry tracingTelemetry;
     private final TracerContextStorage<String, Span> tracerContextStorage;
@@ -80,6 +83,11 @@ class DefaultTracer implements Tracer {
     @Override
     public SpanScope withSpanInScope(Span span) {
         return DefaultSpanScope.create(span, tracerContextStorage).attach();
+    }
+
+    @Override
+    public boolean isRecording() {
+        return true;
     }
 
     private Span createSpan(SpanCreationContext spanCreationContext, Span parentSpan) {

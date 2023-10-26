@@ -103,7 +103,7 @@ dependencies {
   api localGroovy()
 
   api 'commons-codec:commons-codec:1.16.0'
-  api 'org.apache.commons:commons-compress:1.23.0'
+  api 'org.apache.commons:commons-compress:1.24.0'
   api 'org.apache.ant:ant:1.10.14'
   api 'com.netflix.nebula:gradle-extra-configurations-plugin:10.0.0'
   api 'com.netflix.nebula:nebula-publishing-plugin:20.3.0'
@@ -114,7 +114,7 @@ dependencies {
   api 'com.github.johnrengelman:shadow:8.1.1'
   api 'org.jdom:jdom2:2.0.6.1'
   api "org.jetbrains.kotlin:kotlin-stdlib-jdk8:${props.getProperty('kotlin')}"
-  api 'de.thetaphi:forbiddenapis:3.5.1'
+  api 'de.thetaphi:forbiddenapis:3.6'
   api 'com.avast.gradle:gradle-docker-compose-plugin:0.16.12'
   api "org.yaml:snakeyaml:${props.getProperty('snakeyaml')}"
   api 'org.apache.maven:maven-model:3.9.4'

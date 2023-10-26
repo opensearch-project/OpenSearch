@@ -49,7 +49,7 @@ import java.util.Objects;
 
 /**
  * Represents the recovery source of a shard. Available recovery types are:
- *
+ * <p>
  * - {@link EmptyStoreRecoverySource} recovery from an empty store
  * - {@link ExistingStoreRecoverySource} recovery from an existing store
  * - {@link PeerRecoverySource} recovery from a primary on another node

@@ -233,7 +233,6 @@ import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
-import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -3334,6 +3333,9 @@ public class InternalEngineTests extends EngineTestCase {
             );
 
             assertTrue(cleanupCompleted.await(10, TimeUnit.SECONDS));
+            // Cleanup count will be incremented whenever cleanup is performed correctly.
+            long unreferencedFileCleanUpsPerformed = engine.unreferencedFileCleanUpsPerformed();
+            assertThat(unreferencedFileCleanUpsPerformed, equalTo(1L));
         } catch (Exception ex) {
             throw new AssertionError(ex);
         }
@@ -3445,6 +3447,9 @@ public class InternalEngineTests extends EngineTestCase {
             );
 
             assertTrue(cleanupCompleted.await(10, TimeUnit.SECONDS));
+            // Cleanup count will not be incremented whenever cleanup is disabled.
+            long unreferencedFileCleanUpsPerformed = engine.unreferencedFileCleanUpsPerformed();
+            assertThat(unreferencedFileCleanUpsPerformed, equalTo(0L));
         } catch (Exception ex) {
             throw new AssertionError(ex);
         }
@@ -3549,6 +3554,9 @@ public class InternalEngineTests extends EngineTestCase {
             );
 
             assertTrue(cleanupCompleted.await(10, TimeUnit.SECONDS));
+            // Cleanup count will not be incremented whenever there is some issue with cleanup.
+            long unreferencedFileCleanUpsPerformed = engine.unreferencedFileCleanUpsPerformed();
+            assertThat(unreferencedFileCleanUpsPerformed, equalTo(0L));
         } catch (Exception ex) {
             throw new AssertionError(ex);
         }
@@ -3997,7 +4005,7 @@ public class InternalEngineTests extends EngineTestCase {
         final Path badTranslogLog = createTempDir();
         final String badUUID = Translog.createEmptyTranslog(badTranslogLog, SequenceNumbers.NO_OPS_PERFORMED, shardId, primaryTerm.get());
         Translog translog = new LocalTranslog(
-            new TranslogConfig(shardId, badTranslogLog, INDEX_SETTINGS, BigArrays.NON_RECYCLING_INSTANCE),
+            new TranslogConfig(shardId, badTranslogLog, INDEX_SETTINGS, BigArrays.NON_RECYCLING_INSTANCE, ""),
             badUUID,
             createTranslogDeletionPolicy(INDEX_SETTINGS),
             () -> SequenceNumbers.NO_OPS_PERFORMED,
@@ -4014,7 +4022,8 @@ public class InternalEngineTests extends EngineTestCase {
             shardId,
             translog.location(),
             config.getIndexSettings(),
-            BigArrays.NON_RECYCLING_INSTANCE
+            BigArrays.NON_RECYCLING_INSTANCE,
+            ""
         );
 
         EngineConfig brokenConfig = new EngineConfig.Builder().shardId(shardId)
@@ -7247,7 +7256,11 @@ public class InternalEngineTests extends EngineTestCase {
             engine.ensureOpen();
             while (running.get()
                 && assertAndGetInternalTranslogManager(engine.translogManager()).getTranslog().currentFileGeneration() < 500) {
-                engine.translogManager().rollTranslogGeneration(); // make adding operations to translog slower
+                try {
+                    engine.translogManager().rollTranslogGeneration(); // make adding operations to translog slower
+                } catch (IOException e) {
+                    fail("io exception not expected");
+                }
             }
         });
         rollTranslog.start();
@@ -7703,7 +7716,8 @@ public class InternalEngineTests extends EngineTestCase {
                 config.getTranslogConfig().getShardId(),
                 createTempDir(),
                 config.getTranslogConfig().getIndexSettings(),
-                config.getTranslogConfig().getBigArrays()
+                config.getTranslogConfig().getBigArrays(),
+                ""
             );
             EngineConfig configWithWarmer = new EngineConfig.Builder().shardId(config.getShardId())
                 .threadPool(config.getThreadPool())

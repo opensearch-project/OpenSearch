@@ -754,7 +754,7 @@ public class MetadataCreateIndexService {
     /**
      * Parses the provided mappings json and the inheritable mappings from the templates (if any)
      * into a map.
-     *
+     * <p>
      * The template mappings are applied in the order they are encountered in the list (clients
      * should make sure the lower index, closer to the head of the list, templates have the highest
      * {@link IndexTemplateMetadata#order()}). This merging makes no distinction between field
@@ -792,7 +792,7 @@ public class MetadataCreateIndexService {
      * Validates and creates the settings for the new index based on the explicitly configured settings via the
      * {@link CreateIndexClusterStateUpdateRequest}, inherited from templates and, if recovering from another index (ie. split, shrink,
      * clone), the resize settings.
-     *
+     * <p>
      * The template mappings are applied in the order they are encountered in the list (clients should make sure the lower index, closer
      * to the head of the list, templates have the highest {@link IndexTemplateMetadata#order()})
      *
@@ -1009,7 +1009,7 @@ public class MetadataCreateIndexService {
     /**
      * Validate and resolve the aliases explicitly set for the index, together with the ones inherited from the specified
      * templates.
-     *
+     * <p>
      * The template mappings are applied in the order they are encountered in the list (clients should make sure the lower index, closer
      * to the head of the list, templates have the highest {@link IndexTemplateMetadata#order()})
      *
@@ -1252,6 +1252,7 @@ public class MetadataCreateIndexService {
         if (forbidPrivateIndexSettings) {
             validationErrors.addAll(validatePrivateSettingsNotExplicitlySet(settings, indexScopedSettings));
         }
+        validateIndexReplicationTypeSettings(settings, clusterService.getClusterSettings()).ifPresent(validationErrors::add);
         if (indexName.isEmpty() || indexName.get().charAt(0) != '.') {
             // Apply aware replica balance validation only to non system indices
             int replicaCount = settings.getAsInt(
@@ -1304,6 +1305,24 @@ public class MetadataCreateIndexService {
             }
         }
         return validationErrors;
+    }
+
+    /**
+     * Validates {@code index.replication.type} is not set if {@code cluster.restrict.index.replication_type} is set to true.
+     *
+     * @param requestSettings settings passed in during index create request
+     * @param clusterSettings cluster setting
+     */
+    private static Optional<String> validateIndexReplicationTypeSettings(Settings requestSettings, ClusterSettings clusterSettings) {
+        if (requestSettings.hasValue(SETTING_REPLICATION_TYPE)
+            && clusterSettings.get(IndicesService.CLUSTER_RESTRICT_INDEX_REPLICATION_TYPE_SETTING)) {
+            return Optional.of(
+                "index setting [index.replication.type] is not allowed to be set as ["
+                    + IndicesService.CLUSTER_RESTRICT_INDEX_REPLICATION_TYPE_SETTING.getKey()
+                    + "=true]"
+            );
+        }
+        return Optional.empty();
     }
 
     /**

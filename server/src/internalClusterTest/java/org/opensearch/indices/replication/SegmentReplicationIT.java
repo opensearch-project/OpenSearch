@@ -1776,5 +1776,4 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
         assertThat(response.getIndex(), equalTo(INDEX_NAME));
 
     }
-
 }

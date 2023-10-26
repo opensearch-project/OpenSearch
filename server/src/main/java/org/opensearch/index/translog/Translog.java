@@ -840,7 +840,7 @@ public abstract class Translog extends AbstractIndexShardComponent implements In
 
     /**
      * Closes the translog if the current translog writer experienced a tragic exception.
-     *
+     * <p>
      * Note that in case this thread closes the translog it must not already be holding a read lock on the translog as it will acquire a
      * write lock in the course of closing the translog
      *
@@ -1976,7 +1976,7 @@ public abstract class Translog extends AbstractIndexShardComponent implements In
     /**
      * Creates a new empty translog within the specified {@code location} that contains the given {@code initialGlobalCheckpoint},
      * {@code primaryTerm} and {@code translogUUID}.
-     *
+     * <p>
      * This method should be used directly under specific circumstances like for shards that will see no indexing. Specifying a non-unique
      * translog UUID could cause a lot of issues and that's why in all (but one) cases the method
      * {@link #createEmptyTranslog(Path, long, ShardId, long)} should be used instead.
@@ -2033,5 +2033,9 @@ public abstract class Translog extends AbstractIndexShardComponent implements In
         );
         writer.close();
         return uuid;
+    }
+
+    public long getMinUnreferencedSeqNoInSegments(long minUnrefCheckpointInLastCommit) {
+        return minUnrefCheckpointInLastCommit;
     }
 }

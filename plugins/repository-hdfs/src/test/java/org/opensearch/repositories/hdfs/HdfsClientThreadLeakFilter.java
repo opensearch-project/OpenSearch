@@ -42,7 +42,7 @@ import com.carrotsearch.randomizedtesting.ThreadFilter;
  * thread leaks out of the client and is picked up by the test framework. This thread filter is meant
  * to ignore the offending thread until a version of Hadoop is released that addresses the incorrect
  * interrupt handling.
- *
+ * <p>
  * In Hadoop 3.3.6, the org.apache.hadoop.fs.statistics.impl.EvaluatingStatisticsMap uses ForkJoinPool
  * to perform statistics calculation, leaving dangling workers.
  *
