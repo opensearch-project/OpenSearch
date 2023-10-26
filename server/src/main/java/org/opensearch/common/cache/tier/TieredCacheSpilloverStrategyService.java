@@ -55,7 +55,7 @@ public class TieredCacheSpilloverStrategyService<K, V> implements TieredCacheSer
      * @param key Key for lookup.
      * @param loader Used to load value in case it is not present in any tier.
      * @return value
-     * @throws Exception
+     * @throws Exception exception thrown
      */
     @Override
     public V computeIfAbsent(K key, TieredCacheLoader<K, V> loader) throws Exception {
@@ -80,7 +80,7 @@ public class TieredCacheSpilloverStrategyService<K, V> implements TieredCacheSer
 
     /**
      * First fetches the tier type which has this key. And then invalidate accordingly.
-     * @param key
+     * @param key key to invalidate
      */
     @Override
     public void invalidate(K key) {
