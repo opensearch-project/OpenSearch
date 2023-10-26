@@ -881,25 +881,31 @@ public class RemoteClusterStateService implements Closeable {
      * @return List of cluster UUIDs. The first element is the most recent cluster UUID in the chain
      */
     private List<String> createClusterChain(final Map<String, ClusterMetadataManifest> manifestsByClusterUUID, final String clusterName) {
-        final Map<String, String> clusterUUIDGraph = manifestsByClusterUUID.values()
+        final List<ClusterMetadataManifest> validClusterManifests = manifestsByClusterUUID.values()
             .stream()
-            .collect(Collectors.toMap(ClusterMetadataManifest::getClusterUUID, ClusterMetadataManifest::getPreviousClusterUUID));
-        final List<String> validClusterUUIDs = manifestsByClusterUUID.values()
-            .stream()
-            .filter(m -> !isInvalidClusterUUID(m) && !clusterUUIDGraph.containsValue(m.getClusterUUID()))
-            .map(ClusterMetadataManifest::getClusterUUID)
+            .filter(this::isValidClusterUUID)
             .collect(Collectors.toList());
-        if (validClusterUUIDs.isEmpty()) {
-            logger.info("There is no valid previous cluster UUID");
+        final Map<String, String> clusterUUIDGraph = validClusterManifests.stream()
+            .collect(Collectors.toMap(ClusterMetadataManifest::getClusterUUID, ClusterMetadataManifest::getPreviousClusterUUID));
+        final List<String> topLevelClusterUUIDs = validClusterManifests.stream()
+            .map(ClusterMetadataManifest::getClusterUUID)
+            .filter(clusterUUID -> !clusterUUIDGraph.containsValue(clusterUUID))
+            .collect(Collectors.toList());
+
+        if (topLevelClusterUUIDs.isEmpty()) {
+            // This can occur only when there are no valid cluster UUIDs
+            assert validClusterManifests.isEmpty() : "There are no top level cluster UUIDs even when there are valid cluster UUIDs";
+            logger.info("There is no valid previous cluster UUID. All cluster UUIDs evaluated are: {}", manifestsByClusterUUID.keySet());
             return Collections.emptyList();
         }
-        if (validClusterUUIDs.size() > 1) {
+        if (topLevelClusterUUIDs.size() > 1) {
+            logger.info("Top level cluster UUIDs: {}", topLevelClusterUUIDs);
             // If the valid cluster UUIDs are more that 1, it means there was some race condition where
             // more then 2 cluster manager nodes tried to become active cluster manager and published
             // 2 cluster UUIDs which followed the same previous UUID.
             final Map<String, ClusterMetadataManifest> manifestsByClusterUUIDTrimmed = trimClusterUUIDs(
                 manifestsByClusterUUID,
-                validClusterUUIDs,
+                topLevelClusterUUIDs,
                 clusterName
             );
             if (manifestsByClusterUUID.size() == manifestsByClusterUUIDTrimmed.size()) {
@@ -908,14 +914,14 @@ public class RemoteClusterStateService implements Closeable {
                         Locale.ROOT,
                         "The system has ended into multiple valid cluster states in the remote store. "
                             + "Please check their latest manifest to decide which one you want to keep. Valid Cluster UUIDs: - %s",
-                        validClusterUUIDs
+                        topLevelClusterUUIDs
                     )
                 );
             }
             return createClusterChain(manifestsByClusterUUIDTrimmed, clusterName);
         }
         final List<String> validChain = new ArrayList<>();
-        String currentUUID = validClusterUUIDs.get(0);
+        String currentUUID = topLevelClusterUUIDs.get(0);
         while (currentUUID != null && !ClusterState.UNKNOWN_UUID.equals(currentUUID)) {
             validChain.add(currentUUID);
             // Getting the previous cluster UUID of a cluster UUID from the clusterUUID Graph
@@ -942,11 +948,7 @@ public class RemoteClusterStateService implements Closeable {
             // Here we compare the manifest of current UUID to that of previous UUID
             // In case currentUUID's latest manifest is same as previous UUIDs latest manifest,
             // that means it was restored from previousUUID and no IndexMetadata update was performed on it.
-            if (ClusterState.UNKNOWN_UUID.equals(currentManifest.getPreviousClusterUUID())) {
-                if (currentManifest.getIndices().isEmpty()) {
-                    trimmedUUIDs.remove(clusterUUID);
-                }
-            } else {
+            if (!ClusterState.UNKNOWN_UUID.equals(currentManifest.getPreviousClusterUUID())) {
                 ClusterMetadataManifest previousManifest = trimmedUUIDs.get(currentManifest.getPreviousClusterUUID());
                 if (isMetadataEqual(currentManifest, previousManifest, clusterName)
                     && isGlobalMetadataEqual(currentManifest, previousManifest, clusterName)) {
@@ -985,8 +987,8 @@ public class RemoteClusterStateService implements Closeable {
         return Metadata.isGlobalResourcesMetadataEquals(firstGlobalMetadata, secondGlobalMetadata);
     }
 
-    private boolean isInvalidClusterUUID(ClusterMetadataManifest manifest) {
-        return !manifest.isClusterUUIDCommitted();
+    private boolean isValidClusterUUID(ClusterMetadataManifest manifest) {
+        return manifest.isClusterUUIDCommitted();
     }
 
     /**
