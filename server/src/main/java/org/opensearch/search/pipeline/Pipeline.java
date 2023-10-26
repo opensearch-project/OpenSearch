@@ -137,18 +137,7 @@ class Pipeline {
             return;
         }
 
-        long[] pipelineStart = new long[1];
-
-        ActionListener<SearchRequest> finalListener = ActionListener.wrap(r -> {
-            long took = TimeUnit.NANOSECONDS.toMillis(relativeTimeSupplier.getAsLong() - pipelineStart[0]);
-            afterTransformRequest(took);
-            requestListener.onResponse(new PipelinedRequest(this, r));
-        }, e -> {
-            long took = TimeUnit.NANOSECONDS.toMillis(relativeTimeSupplier.getAsLong() - pipelineStart[0]);
-            afterTransformRequest(took);
-            onTransformRequestFailure();
-            requestListener.onFailure(new SearchPipelineProcessingException(e));
-        });
+        ActionListener<SearchRequest> finalListener = getTerminalSearchRequestActionListener(requestListener);
 
         // Chain listeners back-to-front
         ActionListener<SearchRequest> currentListener = finalListener;
@@ -183,9 +172,23 @@ class Pipeline {
             }, finalListener::onFailure);
         }
 
-        pipelineStart[0] = relativeTimeSupplier.getAsLong();
         beforeTransformRequest();
         currentListener.onResponse(request);
+    }
+
+    private ActionListener<SearchRequest> getTerminalSearchRequestActionListener(ActionListener<SearchRequest> requestListener) {
+        final long pipelineStart = relativeTimeSupplier.getAsLong();
+
+        return ActionListener.wrap(r -> {
+            long took = TimeUnit.NANOSECONDS.toMillis(relativeTimeSupplier.getAsLong() - pipelineStart);
+            afterTransformRequest(took);
+            requestListener.onResponse(new PipelinedRequest(this, r));
+        }, e -> {
+            long took = TimeUnit.NANOSECONDS.toMillis(relativeTimeSupplier.getAsLong() - pipelineStart);
+            afterTransformRequest(took);
+            onTransformRequestFailure();
+            requestListener.onFailure(new SearchPipelineProcessingException(e));
+        });
     }
 
     ActionListener<SearchResponse> transformResponseListener(SearchRequest request, ActionListener<SearchResponse> responseListener) {
