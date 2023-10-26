@@ -25,7 +25,6 @@ import java.util.concurrent.atomic.AtomicLong;
  */
 public abstract class AdmissionController {
 
-    private final AtomicLong rejectionCount;
     private final String admissionControllerName;
     final ResourceUsageCollectorService resourceUsageCollectorService;
     public final Map<String, AtomicLong> rejectionCountMap;
@@ -34,14 +33,13 @@ public abstract class AdmissionController {
     /**
      * @param admissionControllerName       name of the admissionController
      * @param resourceUsageCollectorService instance used to get resource usage stats of the node
-     * @param clusterService
+     * @param clusterService instance of the clusterService
      */
     public AdmissionController(
         String admissionControllerName,
         ResourceUsageCollectorService resourceUsageCollectorService,
         ClusterService clusterService
     ) {
-        this.rejectionCount = new AtomicLong(0);
         this.admissionControllerName = admissionControllerName;
         this.resourceUsageCollectorService = resourceUsageCollectorService;
         this.clusterService = clusterService;

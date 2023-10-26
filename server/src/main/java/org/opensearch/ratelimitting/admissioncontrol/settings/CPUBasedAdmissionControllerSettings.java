@@ -24,7 +24,7 @@ public class CPUBasedAdmissionControllerSettings {
      * Default parameters for the CPUBasedAdmissionControllerSettings
      */
     public static class Defaults {
-        public static final long CPU_USAGE_LIMIT = 95;
+        public static final long CPU_USAGE_LIMIT = 0;
     }
 
     private AdmissionControlMode transportLayerMode;

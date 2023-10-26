@@ -59,13 +59,15 @@ public class AdmissionControlTransportHandler<T extends TransportRequest> implem
             // intercept the transport requests here and apply admission control
             try {
                 this.admissionControlService.applyTransportAdmissionControl(this.action, this.admissionControlActionType);
+                actualHandler.messageReceived(request, channel, task);
             } catch (final OpenSearchRejectedExecutionException openSearchRejectedExecutionException) {
                 log.warn(openSearchRejectedExecutionException.getMessage());
                 channel.sendResponse(openSearchRejectedExecutionException);
             } catch (final Exception e) {
                 throw e;
             }
+        } else {
+            actualHandler.messageReceived(request, channel, task);
         }
-        actualHandler.messageReceived(request, channel, task);
     }
 }

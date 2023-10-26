@@ -55,12 +55,6 @@ public class AdmissionControlStats implements ToXContentFragment, Writeable {
         return admissionControllerStatsList;
     }
 
-    /**
-     * @param builder
-     * @param params
-     * @return
-     * @throws IOException
-     */
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject("admission_control");

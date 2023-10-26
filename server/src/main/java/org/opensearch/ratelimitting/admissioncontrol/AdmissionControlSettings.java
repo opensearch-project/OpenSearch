@@ -23,7 +23,7 @@ public final class AdmissionControlSettings {
      * Default parameters for the AdmissionControlSettings
      */
     public static class Defaults {
-        public static final String MODE = "disabled";
+        public static final String MODE = "enforced";
     }
 
     /**

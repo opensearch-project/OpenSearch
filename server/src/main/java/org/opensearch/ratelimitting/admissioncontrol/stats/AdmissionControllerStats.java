@@ -44,9 +44,9 @@ public class AdmissionControllerStats implements Writeable, ToXContentFragment {
     }
 
     /**
-     * Write this into the {@linkplain StreamOutput}.
-     *
-     * @param out
+     * Writes this instance into a {@link StreamOutput}
+     * @param out the {@link StreamOutput} to write to
+     * @throws IOException if an error occurs while writing to the StreamOutput
      */
     @Override
     public void writeTo(StreamOutput out) throws IOException {
@@ -54,12 +54,6 @@ public class AdmissionControllerStats implements Writeable, ToXContentFragment {
         out.writeString(this.admissionControllerName);
     }
 
-    /**
-     * @param builder
-     * @param params
-     * @return
-     * @throws IOException
-     */
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
