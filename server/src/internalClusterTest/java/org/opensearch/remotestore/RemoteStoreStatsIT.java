@@ -663,6 +663,29 @@ public class RemoteStoreStatsIT extends RemoteStoreBaseIntegTestCase {
         logger.info("Test completed");
     }
 
+    public void testZeroLagOnCreateIndex() throws InterruptedException {
+        setup();
+        String clusterManagerNode = internalCluster().getClusterManagerName();
+
+        int numOfShards = randomIntBetween(1, 3);
+        createIndex(INDEX_NAME, remoteStoreIndexSettings(1, numOfShards));
+        ensureGreen(INDEX_NAME);
+        long currentTimeNs = System.nanoTime();
+        while (currentTimeNs == System.nanoTime()) {
+            Thread.sleep(10);
+        }
+
+        for (int i = 0; i < numOfShards; i++) {
+            RemoteStoreStatsResponse response = client(clusterManagerNode).admin()
+                .cluster()
+                .prepareRemoteStoreStats(INDEX_NAME, String.valueOf(i))
+                .get();
+            for (RemoteStoreStats remoteStoreStats : response.getRemoteStoreStats()) {
+                assertEquals(0, remoteStoreStats.getSegmentStats().refreshTimeLagMs);
+            }
+        }
+    }
+
     private void indexDocs() {
         for (int i = 0; i < randomIntBetween(5, 10); i++) {
             if (randomBoolean()) {
