@@ -32,6 +32,7 @@
 
 package org.opensearch.script;
 
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.core.ParseField;
 import org.opensearch.core.common.io.stream.StreamInput;
@@ -91,8 +92,9 @@ import static org.opensearch.core.xcontent.ConstructingObjectParser.constructorA
  * }
  * </code>
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class ScriptLanguagesInfo implements ToXContentObject, Writeable {
     private static final ParseField TYPES_ALLOWED = new ParseField("types_allowed");
     private static final ParseField LANGUAGE_CONTEXTS = new ParseField("language_contexts");

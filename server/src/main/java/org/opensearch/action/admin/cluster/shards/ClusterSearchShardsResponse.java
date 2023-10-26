@@ -33,6 +33,7 @@
 package org.opensearch.action.admin.cluster.shards;
 
 import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.action.ActionResponse;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
@@ -47,8 +48,9 @@ import java.util.Map;
 /**
  * Transport response for searching shards
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class ClusterSearchShardsResponse extends ActionResponse implements ToXContentObject {
 
     private final ClusterSearchShardsGroup[] groups;

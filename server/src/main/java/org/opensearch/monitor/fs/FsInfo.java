@@ -34,6 +34,7 @@ package org.opensearch.monitor.fs;
 
 import org.opensearch.Version;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
@@ -51,15 +52,17 @@ import java.util.Set;
 /**
  * FileSystem information
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContentFragment {
 
     /**
      * Path for the file system
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public static class Path implements Writeable, ToXContentObject {
 
         String path;
@@ -220,8 +223,9 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContentFragm
     /**
      * The device status.
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public static class DeviceStats implements Writeable, ToXContentFragment {
 
         final int majorDeviceNumber;
@@ -463,8 +467,9 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContentFragm
     /**
      * The I/O statistics.
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public static class IoStats implements Writeable, ToXContentFragment {
 
         private static final String OPERATIONS = "operations";

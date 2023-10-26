@@ -33,6 +33,7 @@ package org.opensearch.search.collapse;
 
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.grouping.CollapsingTopDocsCollector;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.index.mapper.KeywordFieldMapper;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.NumberFieldMapper;
@@ -43,8 +44,9 @@ import java.util.List;
 /**
  * Context used for field collapsing
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class CollapseContext {
     private final String fieldName;
     private final MappedFieldType fieldType;

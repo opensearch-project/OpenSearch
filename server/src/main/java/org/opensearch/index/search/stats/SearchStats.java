@@ -36,6 +36,7 @@ import org.opensearch.Version;
 import org.opensearch.action.search.SearchPhaseName;
 import org.opensearch.action.search.SearchRequestStats;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.common.Strings;
@@ -55,15 +56,17 @@ import java.util.Map;
 /**
  * Encapsulates stats for search time
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class SearchStats implements Writeable, ToXContentFragment {
 
     /**
      * Holds statistic values for a particular phase.
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public static class PhaseStatsLongHolder implements Writeable {
 
         long current;
@@ -110,8 +113,9 @@ public class SearchStats implements Writeable, ToXContentFragment {
     /**
      * Holds requests stats for different phases.
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public static class RequestStatsLongHolder {
 
         Map<String, PhaseStatsLongHolder> requestStatsHolder = new HashMap<>();
@@ -130,9 +134,9 @@ public class SearchStats implements Writeable, ToXContentFragment {
     /**
      * Holder of statistics values
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
-
+    @PublicApi(since = "1.0.0")
     public static class Stats implements Writeable, ToXContentFragment {
 
         private long queryCount;
