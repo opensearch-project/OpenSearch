@@ -921,7 +921,7 @@ public class RemoteClusterStateService implements Closeable {
             // Getting the previous cluster UUID of a cluster UUID from the clusterUUID Graph
             currentUUID = clusterUUIDGraph.get(currentUUID);
         }
-        logger.debug("Known UUIDs found in remote store : [{}]", validChain);
+        logger.info("Known UUIDs found in remote store : [{}]", validChain);
         return validChain;
     }
 
