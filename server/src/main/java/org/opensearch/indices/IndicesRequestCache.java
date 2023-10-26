@@ -186,8 +186,7 @@ public final class IndicesRequestCache implements RemovalListener<IndicesRequest
         String readerCacheKeyId = null;
         if (reader instanceof OpenSearchDirectoryReader) {
             IndexReader.CacheHelper cacheHelper = ((OpenSearchDirectoryReader) reader).getDelegatingCacheHelper();
-            readerCacheKeyId = ((OpenSearchDirectoryReader.DelegatingCacheHelper) cacheHelper).getDelegatingCacheKey()
-                .getId();
+            readerCacheKeyId = ((OpenSearchDirectoryReader.DelegatingCacheHelper) cacheHelper).getDelegatingCacheKey().getId();
         }
         cache.invalidate(new Key(cacheEntity, cacheKey, readerCacheKeyId));
     }
