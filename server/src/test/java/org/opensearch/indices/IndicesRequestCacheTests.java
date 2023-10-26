@@ -448,10 +448,10 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
         IndexWriter writer = new IndexWriter(dir, config);
         ShardId shardId = new ShardId("foo", "bar", 1);
         IndexReader reader1 = OpenSearchDirectoryReader.wrap(DirectoryReader.open(writer), shardId);
-        String rKey1 = ((OpenSearchDirectoryReader) reader1).getDelegatingCacheHelper().getDelegatingCacheKey().getId().toString();
+        String rKey1 = ((OpenSearchDirectoryReader) reader1).getDelegatingCacheHelper().getDelegatingCacheKey().getId();
         writer.addDocument(new Document());
         IndexReader reader2 = OpenSearchDirectoryReader.wrap(DirectoryReader.open(writer), shardId);
-        String rKey2 = ((OpenSearchDirectoryReader) reader2).getDelegatingCacheHelper().getDelegatingCacheKey().getId().toString();
+        String rKey2 = ((OpenSearchDirectoryReader) reader2).getDelegatingCacheHelper().getDelegatingCacheKey().getId();
         IOUtils.close(reader1, reader2, writer, dir);
         IndicesRequestCache.Key key1 = indicesRequestCache.new Key(new TestEntity(null, trueBoolean), new TestBytesReference(1), rKey1);
         IndicesRequestCache.Key key2 = indicesRequestCache.new Key(new TestEntity(null, trueBoolean), new TestBytesReference(1), rKey1);
@@ -488,7 +488,7 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
 
         IndicesRequestCache.Key key2 = indicesRequestCache.new Key(in);
 
-        assertEquals(readerCacheKeyId, key2.readerCacheKeyUniqueId);
+        assertEquals(readerCacheKeyId, key2.readerCacheKeyId);
         assertEquals(shardCacheEntity.getCacheIdentity(), key2.entity.getCacheIdentity());
         assertEquals(termBytes, key2.value);
 

@@ -113,18 +113,18 @@ public final class OpenSearchDirectoryReader extends FilterDirectoryReader {
      */
     public class DelegatingCacheKey {
         CacheKey cacheKey;
-        private final UUID uniqueId;
+        private final String uniqueId;
 
         DelegatingCacheKey(CacheKey cacheKey) {
             this.cacheKey = cacheKey;
-            this.uniqueId = UUID.randomUUID();
+            this.uniqueId = UUID.randomUUID().toString();
         }
 
         public CacheKey getCacheKey() {
             return this.cacheKey;
         }
 
-        public UUID getId() {
+        public String getId() {
             return uniqueId;
         }
     }

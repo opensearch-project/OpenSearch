@@ -167,14 +167,14 @@ public final class IndicesRequestCache implements TieredCacheEventListener<Indic
 
         OpenSearchDirectoryReader.DelegatingCacheHelper delegatingCacheHelper = (OpenSearchDirectoryReader.DelegatingCacheHelper) reader
             .getReaderCacheHelper();
-        String readerCacheKeyUniqueId = delegatingCacheHelper.getDelegatingCacheKey().getId().toString();
-        assert readerCacheKeyUniqueId != null;
-        final Key key = new Key(cacheEntity, cacheKey, readerCacheKeyUniqueId);
+        String readerCacheKeyId = delegatingCacheHelper.getDelegatingCacheKey().getId();
+        assert readerCacheKeyId != null;
+        final Key key = new Key(cacheEntity, cacheKey, readerCacheKeyId);
         Loader cacheLoader = new Loader(cacheEntity, loader);
         BytesReference value = tieredCacheService.computeIfAbsent(key, cacheLoader);
         if (cacheLoader.isLoaded()) {
             // see if its the first time we see this reader, and make sure to register a cleanup key
-            CleanupKey cleanupKey = new CleanupKey(cacheEntity, readerCacheKeyUniqueId);
+            CleanupKey cleanupKey = new CleanupKey(cacheEntity, readerCacheKeyId);
             if (!registeredClosedListeners.containsKey(cleanupKey)) {
                 Boolean previous = registeredClosedListeners.putIfAbsent(cleanupKey, Boolean.TRUE);
                 if (previous == null) {
@@ -196,7 +196,13 @@ public final class IndicesRequestCache implements TieredCacheEventListener<Indic
      */
     void invalidate(CacheEntity cacheEntity, DirectoryReader reader, BytesReference cacheKey) {
         assert reader.getReaderCacheHelper() != null;
-        tieredCacheService.invalidate(new Key(cacheEntity, reader.getReaderCacheHelper().getKey(), cacheKey));
+        String readerCacheKeyId = null;
+        if (reader instanceof OpenSearchDirectoryReader) {
+            IndexReader.CacheHelper cacheHelper = ((OpenSearchDirectoryReader) reader).getDelegatingCacheHelper();
+            readerCacheKeyId = ((OpenSearchDirectoryReader.DelegatingCacheHelper) cacheHelper).getDelegatingCacheKey()
+                .getId();
+        }
+        cache.invalidate(new Key(cacheEntity, cacheKey, readerCacheKeyId));
     }
 
     /**
@@ -275,18 +281,18 @@ public final class IndicesRequestCache implements TieredCacheEventListener<Indic
         private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(Key.class);
 
         public final CacheEntity entity; // use as identity equality
-        public final String readerCacheKeyUniqueId;
+        public final String readerCacheKeyId;
         public final BytesReference value;
 
-        Key(CacheEntity entity, BytesReference value, String readerCacheKeyUniqueId) {
+        Key(CacheEntity entity, BytesReference value, String readerCacheKeyId) {
             this.entity = entity;
             this.value = value;
-            this.readerCacheKeyUniqueId = Objects.requireNonNull(readerCacheKeyUniqueId);
+            this.readerCacheKeyId = Objects.requireNonNull(readerCacheKeyId);
         }
 
         Key(StreamInput in) throws IOException {
             this.entity = in.readOptionalWriteable(in1 -> indicesService.new IndexShardCacheEntity(in1));
-            this.readerCacheKeyUniqueId = in.readOptionalString();
+            this.readerCacheKeyId = in.readOptionalString();
             this.value = in.readBytesReference();
         }
 
@@ -306,7 +312,7 @@ public final class IndicesRequestCache implements TieredCacheEventListener<Indic
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Key key = (Key) o;
-            if (Objects.equals(readerCacheKeyUniqueId, key.readerCacheKeyUniqueId) == false) return false;
+            if (Objects.equals(readerCacheKeyId, key.readerCacheKeyId) == false) return false;
             if (!entity.getCacheIdentity().equals(key.entity.getCacheIdentity())) return false;
             if (!value.equals(key.value)) return false;
             return true;
@@ -315,7 +321,7 @@ public final class IndicesRequestCache implements TieredCacheEventListener<Indic
         @Override
         public int hashCode() {
             int result = entity.getCacheIdentity().hashCode();
-            result = 31 * result + readerCacheKeyUniqueId.hashCode();
+            result = 31 * result + readerCacheKeyId.hashCode();
             result = 31 * result + value.hashCode();
             return result;
         }
@@ -323,18 +329,18 @@ public final class IndicesRequestCache implements TieredCacheEventListener<Indic
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeOptionalWriteable(entity);
-            out.writeOptionalString(readerCacheKeyUniqueId);
+            out.writeOptionalString(readerCacheKeyId);
             out.writeBytesReference(value);
         }
     }
 
     private class CleanupKey implements IndexReader.ClosedListener {
         final CacheEntity entity;
-        final String readerCacheKeyUniqueId;
+        final String readerCacheKeyId;
 
-        private CleanupKey(CacheEntity entity, String readerCacheKeyUniqueId) {
+        private CleanupKey(CacheEntity entity, String readerCacheKeyId) {
             this.entity = entity;
-            this.readerCacheKeyUniqueId = readerCacheKeyUniqueId;
+            this.readerCacheKeyId = readerCacheKeyId;
         }
 
         @Override
@@ -352,7 +358,7 @@ public final class IndicesRequestCache implements TieredCacheEventListener<Indic
                 return false;
             }
             CleanupKey that = (CleanupKey) o;
-            if (Objects.equals(readerCacheKeyUniqueId, that.readerCacheKeyUniqueId) == false) return false;
+            if (Objects.equals(readerCacheKeyId, that.readerCacheKeyId) == false) return false;
             if (!entity.getCacheIdentity().equals(that.entity.getCacheIdentity())) return false;
             return true;
         }
@@ -360,7 +366,7 @@ public final class IndicesRequestCache implements TieredCacheEventListener<Indic
         @Override
         public int hashCode() {
             int result = entity.getCacheIdentity().hashCode();
-            result = 31 * result + Objects.hashCode(readerCacheKeyUniqueId);
+            result = 31 * result + Objects.hashCode(readerCacheKeyId);
             return result;
         }
     }
@@ -376,7 +382,7 @@ public final class IndicesRequestCache implements TieredCacheEventListener<Indic
         for (Iterator<CleanupKey> iterator = keysToClean.iterator(); iterator.hasNext();) {
             CleanupKey cleanupKey = iterator.next();
             iterator.remove();
-            if (cleanupKey.readerCacheKeyUniqueId == null || cleanupKey.entity.isOpen() == false) {
+            if (cleanupKey.readerCacheKeyId == null || cleanupKey.entity.isOpen() == false) {
                 // null indicates full cleanup, as does a closed shard
                 currentFullClean.add(cleanupKey.entity.getCacheIdentity());
             } else {
@@ -389,7 +395,7 @@ public final class IndicesRequestCache implements TieredCacheEventListener<Indic
                 if (currentFullClean.contains(key.entity.getCacheIdentity())) {
                     iterator.remove();
                 } else {
-                    if (currentKeysToClean.contains(new CleanupKey(key.entity, key.readerCacheKeyUniqueId))) {
+                    if (currentKeysToClean.contains(new CleanupKey(key.entity, key.readerCacheKeyId))) {
                         iterator.remove();
                     }
                 }
