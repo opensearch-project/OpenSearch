@@ -244,9 +244,8 @@ public class RemoteClusterStateService implements Closeable {
                 allUploadedIndexMetadata.size()
             );
         } else {
-            // todo change to debug
             logger.info(
-                "writing cluster state took [{}ms]; " + "wrote full state with [{}] indices",
+                "writing cluster state took [{}ms]; " + "wrote full state with [{}] indices and global metadata",
                 durationMillis,
                 allUploadedIndexMetadata.size()
             );
@@ -285,6 +284,7 @@ public class RemoteClusterStateService implements Closeable {
         if (updateGlobalMetadata || previousManifest.getGlobalMetadataFileName() == null) {
             globalMetadataFile = writeGlobalMetadata(clusterState);
         } else {
+            logger.debug("Global metadata has not updated in cluster state, skipping upload of it");
             globalMetadataFile = previousManifest.getGlobalMetadataFileName();
         }
 
@@ -305,7 +305,7 @@ public class RemoteClusterStateService implements Closeable {
         for (final IndexMetadata indexMetadata : clusterState.metadata().indices().values()) {
             final Long previousVersion = previousStateIndexMetadataVersionByName.get(indexMetadata.getIndex().getName());
             if (previousVersion == null || indexMetadata.getVersion() != previousVersion) {
-                logger.trace(
+                logger.debug(
                     "updating metadata for [{}], changing version from [{}] to [{}]",
                     indexMetadata.getIndex(),
                     previousVersion,
@@ -342,18 +342,22 @@ public class RemoteClusterStateService implements Closeable {
         if (durationMillis >= slowWriteLoggingThreshold.getMillis()) {
             logger.warn(
                 "writing cluster state took [{}ms] which is above the warn threshold of [{}]; "
-                    + "wrote  metadata for [{}] indices and skipped [{}] unchanged indices",
+                    + "wrote  metadata for [{}] indices and skipped [{}] unchanged indices, global metadata updated : [{}]",
                 durationMillis,
                 slowWriteLoggingThreshold,
                 numIndicesUpdated,
-                numIndicesUnchanged
+                numIndicesUnchanged,
+                updateGlobalMetadata
             );
         } else {
-            logger.trace(
-                "writing cluster state took [{}ms]; " + "wrote metadata for [{}] indices and skipped [{}] unchanged indices",
+            logger.info(
+                "writing cluster state for version [{}] took [{}ms]; "
+                    + "wrote metadata for [{}] indices and skipped [{}] unchanged indices, global metadata updated : [{}]",
+                manifest.getStateVersion(),
                 durationMillis,
                 numIndicesUpdated,
-                numIndicesUnchanged
+                numIndicesUnchanged,
+                updateGlobalMetadata
             );
         }
         return manifest;
@@ -604,6 +608,11 @@ public class RemoteClusterStateService implements Closeable {
             fileName,
             blobStoreRepository.getCompressor(),
             FORMAT_PARAMS
+        );
+        logger.debug(
+            "Metadata manifest file [{}] written during [{}] phase. ",
+            fileName,
+            uploadManifest.isCommitted() ? "commit" : "publish"
         );
     }
 
@@ -912,6 +921,7 @@ public class RemoteClusterStateService implements Closeable {
             // Getting the previous cluster UUID of a cluster UUID from the clusterUUID Graph
             currentUUID = clusterUUIDGraph.get(currentUUID);
         }
+        logger.info("Known UUIDs found in remote store : [{}]", validChain);
         return validChain;
     }
 
@@ -1231,7 +1241,7 @@ public class RemoteClusterStateService implements Closeable {
             });
 
             if (staleManifestPaths.isEmpty()) {
-                logger.info("No stale Remote Cluster Metadata files found");
+                logger.debug("No stale Remote Cluster Metadata files found");
                 return;
             }
 
