@@ -208,6 +208,9 @@ public class DateMathExpressionResolverTests extends OpenSearchTestCase {
         } else {
             hoursOffset = randomIntBetween(-11, 13);
             minutesOffset = randomIntBetween(0, 59);
+            if (hoursOffset < 0) {
+                minutesOffset = -minutesOffset;
+            }
             timeZone = ZoneOffset.ofHoursMinutes(hoursOffset, minutesOffset);
         }
         ZonedDateTime now;

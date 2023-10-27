@@ -1,5 +1,5 @@
 ---
-"Create index with camel case on date format (allowed with warning prior to 2.12.0)":
+"Create index with camel case date format (allowed with warning prior to 2.12.0)":
   - skip:
       version: "2.12.0 - "
       reason:  "at version 2.12.0, camel case date format is not allowed"
@@ -40,14 +40,14 @@
   - match: { hits.total: 1 }
 
 ---
-"Create index with camel case date format (when bwc version is > 8.0.0)":
+"Create index with camel case date format (when version is >= 2.12.0)":
   - skip:
       version: " - 2.11.99"
       reason:  "at version 2.12.0, camel case date format is not allowed"
       features: "warnings"
   - do:
       indices.create:
-        index: camel_case_on_format
+        index: camel_case_date_format
         body:
           settings:
             index:
@@ -69,7 +69,7 @@
   - do:
       search:
         rest_total_hits_as_int: true
-        index: camel_case_on_format
+        index: camel_case_date_format
         body:
           query:
             range:
