@@ -232,7 +232,6 @@ import static org.opensearch.index.seqno.RetentionLeaseActions.RETAIN_ALL;
 import static org.opensearch.index.seqno.SequenceNumbers.LOCAL_CHECKPOINT_KEY;
 import static org.opensearch.index.seqno.SequenceNumbers.MAX_SEQ_NO;
 import static org.opensearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
-import static org.opensearch.index.shard.RemoteStoreRefreshListener.EXCLUDE_FILES;
 import static org.opensearch.index.translog.Translog.Durability;
 import static org.opensearch.index.translog.Translog.TRANSLOG_UUID_KEY;
 
@@ -1998,26 +1997,25 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return ((RemoteSegmentStoreDirectory) remoteDirectory);
     }
 
-    /*
+    /**
     Returns true iff it is able to verify that there is at least one
     remote segment metadata uploaded
      */
-    boolean atLeastOneRemoteSync() {
+    boolean isRemoteSync() {
         assert indexSettings.isRemoteStoreEnabled();
         try {
             RemoteSegmentStoreDirectory directory = getRemoteDirectory();
             if (directory.readLatestMetadataFile() != null) {
                 // verifying that all files except EXCLUDE_FILES are uploaded to the remote
                 Collection<String> uploadFiles = directory.getSegmentsUploadedToRemoteStore().keySet();
-                Set<String> localFiles = new HashSet<>(List.of(store.directory().listAll())).stream()
-                    .filter(file -> EXCLUDE_FILES.contains(file) == false)
-                    .collect(Collectors.toSet());
+                SegmentInfos segmentInfos = store.readLastCommittedSegmentsInfo();
+                Collection<String> localFiles = segmentInfos.files(true);
                 if (uploadFiles.containsAll(localFiles)) {
                     return true;
                 }
             }
         } catch (IOException e) {
-            logger.error("Exception while reading latest metadata");
+            logger.error("Exception while reading latest metadata", e);
         }
         return false;
     }
