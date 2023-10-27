@@ -2850,6 +2850,7 @@ public class IndexShardTests extends IndexShardTestCase {
         indexDoc(source, "_doc", "1");
         indexDoc(source, "_doc", "2");
         source.refresh("test");
+        assertTrue("At lease one remote sync should have been completed", source.atLeastOneRemoteSync());
         assertDocs(source, "1", "2");
         indexDoc(source, "_doc", "3");
         source.refresh("test");

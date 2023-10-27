@@ -181,7 +181,7 @@ public final class RemoteStoreRefreshListener extends CloseableRetryableRefreshL
     }
 
     /*
-     @return true if retry is needed
+     @return false if retry is needed
      */
     private boolean syncSegments() {
         if (isReadyForUpload() == false) {
@@ -502,6 +502,10 @@ public final class RemoteStoreRefreshListener extends CloseableRetryableRefreshL
             }
             if (indexShard.getEngineOrNull() != null) {
                 sb.append(" engineType=").append(indexShard.getEngine().getClass().getSimpleName());
+            }
+            if (isLocalOrSnapshotRecovery() == false) {
+                sb.append(" recoverySourceType=").append(indexShard.recoveryState().getRecoverySource().getType());
+                sb.append(" primary=").append(indexShard.shardRouting.primary());
             }
             logger.trace(sb.toString());
         }
