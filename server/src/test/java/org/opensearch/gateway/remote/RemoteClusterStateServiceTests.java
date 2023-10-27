@@ -68,6 +68,7 @@ import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
@@ -230,8 +231,15 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
 
         ArgumentCaptor<ActionListener<Void>> actionListenerArgumentCaptor = ArgumentCaptor.forClass(ActionListener.class);
         ArgumentCaptor<WriteContext> writeContextArgumentCaptor = ArgumentCaptor.forClass(WriteContext.class);
-
+        AtomicReference<WriteContext> capturedWriteContext = new AtomicReference<>();
         doAnswer((i) -> {
+            actionListenerArgumentCaptor.getValue().onResponse(null);
+            return null;
+        }).doAnswer((i) -> {
+            actionListenerArgumentCaptor.getValue().onResponse(null);
+            capturedWriteContext.set(writeContextArgumentCaptor.getValue());
+            return null;
+        }).doAnswer((i) -> {
             actionListenerArgumentCaptor.getValue().onResponse(null);
             return null;
         }).when(container).asyncBlobUpload(writeContextArgumentCaptor.capture(), actionListenerArgumentCaptor.capture());
@@ -262,27 +270,30 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
         assertThat(manifest.getStateUUID(), is(expectedManifest.getStateUUID()));
         assertThat(manifest.getPreviousClusterUUID(), is(expectedManifest.getPreviousClusterUUID()));
 
-        assertEquals(actionListenerArgumentCaptor.getAllValues().size(), 2);
-        assertEquals(writeContextArgumentCaptor.getAllValues().size(), 2);
+        assertEquals(actionListenerArgumentCaptor.getAllValues().size(), 3);
+        assertEquals(writeContextArgumentCaptor.getAllValues().size(), 3);
 
-        WriteContext capturedWriteContext = writeContextArgumentCaptor.getValue();
-        byte[] writtenBytes = capturedWriteContext.getStreamProvider(Integer.MAX_VALUE).provideStream(0).getInputStream().readAllBytes();
+        byte[] writtenBytes = capturedWriteContext.get()
+            .getStreamProvider(Integer.MAX_VALUE)
+            .provideStream(0)
+            .getInputStream()
+            .readAllBytes();
         IndexMetadata writtenIndexMetadata = RemoteClusterStateService.INDEX_METADATA_FORMAT.deserialize(
-            capturedWriteContext.getFileName(),
+            capturedWriteContext.get().getFileName(),
             blobStoreRepository.getNamedXContentRegistry(),
             new BytesArray(writtenBytes)
         );
 
-        assertEquals(capturedWriteContext.getWritePriority(), WritePriority.URGENT);
+        assertEquals(capturedWriteContext.get().getWritePriority(), WritePriority.URGENT);
         assertEquals(writtenIndexMetadata.getNumberOfShards(), 1);
         assertEquals(writtenIndexMetadata.getNumberOfReplicas(), 0);
         assertEquals(writtenIndexMetadata.getIndex().getName(), "test-index");
         assertEquals(writtenIndexMetadata.getIndex().getUUID(), "index-uuid");
         long expectedChecksum = RemoteTransferContainer.checksumOfChecksum(new ByteArrayIndexInput("metadata-filename", writtenBytes), 8);
-        if (capturedWriteContext.doRemoteDataIntegrityCheck()) {
-            assertEquals(capturedWriteContext.getExpectedChecksum().longValue(), expectedChecksum);
+        if (capturedWriteContext.get().doRemoteDataIntegrityCheck()) {
+            assertEquals(capturedWriteContext.get().getExpectedChecksum().longValue(), expectedChecksum);
         } else {
-            assertEquals(capturedWriteContext.getExpectedChecksum(), null);
+            assertEquals(capturedWriteContext.get().getExpectedChecksum(), null);
         }
 
     }
@@ -307,6 +318,30 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
         remoteClusterStateService.start();
         assertThrows(
             RemoteClusterStateService.GlobalMetadataTransferException.class,
+            () -> remoteClusterStateService.writeFullMetadata(clusterState, randomAlphaOfLength(10))
+        );
+    }
+
+    public void testTimeoutWhileWritingManifestFile() throws IOException {
+        final ClusterState clusterState = generateClusterStateWithOneIndex().nodes(nodesWithLocalNodeClusterManager()).build();
+        AsyncMultiStreamBlobContainer container = (AsyncMultiStreamBlobContainer) mockBlobStoreObjects(AsyncMultiStreamBlobContainer.class);
+
+        ArgumentCaptor<ActionListener<Void>> actionListenerArgumentCaptor = ArgumentCaptor.forClass(ActionListener.class);
+
+        doAnswer((i) -> { // For Global Metadata
+            actionListenerArgumentCaptor.getValue().onResponse(null);
+            return null;
+        }).doAnswer((i) -> { // For Index Metadata
+            actionListenerArgumentCaptor.getValue().onResponse(null);
+            return null;
+        }).doAnswer((i) -> {
+            // For Manifest file perform No Op, so latch in code will timeout
+            return null;
+        }).when(container).asyncBlobUpload(any(WriteContext.class), actionListenerArgumentCaptor.capture());
+
+        remoteClusterStateService.start();
+        assertThrows(
+            RemoteClusterStateService.MetadataManifestTransferException.class,
             () -> remoteClusterStateService.writeFullMetadata(clusterState, randomAlphaOfLength(10))
         );
     }
@@ -1126,6 +1161,22 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
             .build();
         clusterSettings.applySettings(newSettings);
         assertEquals(indexMetadataUploadTimeout, remoteClusterStateService.getIndexMetadataUploadTimeout().seconds());
+    }
+
+    public void testMetadataManifestUploadWaitTimeSetting() {
+        // verify default value
+        assertEquals(
+            RemoteClusterStateService.METADATA_MANIFEST_UPLOAD_TIMEOUT_DEFAULT,
+            remoteClusterStateService.getMetadataManifestUploadTimeout()
+        );
+
+        // verify update metadata manifest upload timeout
+        int metadataManifestUploadTimeout = randomIntBetween(1, 10);
+        Settings newSettings = Settings.builder()
+            .put("cluster.remote_store.state.metadata_manifest.upload_timeout", metadataManifestUploadTimeout + "s")
+            .build();
+        clusterSettings.applySettings(newSettings);
+        assertEquals(metadataManifestUploadTimeout, remoteClusterStateService.getMetadataManifestUploadTimeout().seconds());
     }
 
     public void testGlobalMetadataUploadWaitTimeSetting() {
