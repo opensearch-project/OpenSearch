@@ -14,18 +14,17 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.node.ResourceUsageCollectorService;
 import org.opensearch.ratelimitting.admissioncontrol.enums.AdmissionControlActionType;
 import org.opensearch.ratelimitting.admissioncontrol.enums.AdmissionControlMode;
-import org.opensearch.ratelimitting.admissioncontrol.settings.CPUBasedAdmissionControllerSettings;
+import org.opensearch.ratelimitting.admissioncontrol.settings.CpuBasedAdmissionControllerSettings;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
 
 import org.mockito.Mockito;
 
-public class CPUBasedAdmissionControllerTests extends OpenSearchTestCase {
+public class CpuBasedAdmissionControllerTests extends OpenSearchTestCase {
     private ClusterService clusterService;
     private ThreadPool threadPool;
-    CPUBasedAdmissionController admissionController = null;
-
+    CpuBasedAdmissionController admissionController = null;
     String action = "TEST_ACTION";
 
     @Override
@@ -46,13 +45,13 @@ public class CPUBasedAdmissionControllerTests extends OpenSearchTestCase {
     }
 
     public void testCheckDefaultParameters() {
-        admissionController = new CPUBasedAdmissionController(
-            CPUBasedAdmissionController.CPU_BASED_ADMISSION_CONTROLLER,
+        admissionController = new CpuBasedAdmissionController(
+            CpuBasedAdmissionController.CPU_BASED_ADMISSION_CONTROLLER,
             null,
             clusterService,
             Settings.EMPTY
         );
-        assertEquals(admissionController.getName(), CPUBasedAdmissionController.CPU_BASED_ADMISSION_CONTROLLER);
+        assertEquals(admissionController.getName(), CpuBasedAdmissionController.CPU_BASED_ADMISSION_CONTROLLER);
         assertEquals(admissionController.getRejectionCount(AdmissionControlActionType.INDEXING.getType()), 0);
         assertEquals(admissionController.settings.getTransportLayerAdmissionControllerMode(), AdmissionControlMode.DISABLED);
         assertFalse(
@@ -61,21 +60,21 @@ public class CPUBasedAdmissionControllerTests extends OpenSearchTestCase {
     }
 
     public void testCheckUpdateSettings() {
-        admissionController = new CPUBasedAdmissionController(
-            CPUBasedAdmissionController.CPU_BASED_ADMISSION_CONTROLLER,
+        admissionController = new CpuBasedAdmissionController(
+            CpuBasedAdmissionController.CPU_BASED_ADMISSION_CONTROLLER,
             null,
             clusterService,
             Settings.EMPTY
         );
         Settings settings = Settings.builder()
             .put(
-                CPUBasedAdmissionControllerSettings.CPU_BASED_ADMISSION_CONTROLLER_TRANSPORT_LAYER_MODE.getKey(),
+                CpuBasedAdmissionControllerSettings.CPU_BASED_ADMISSION_CONTROLLER_TRANSPORT_LAYER_MODE.getKey(),
                 AdmissionControlMode.ENFORCED.getMode()
             )
             .build();
         clusterService.getClusterSettings().applySettings(settings);
 
-        assertEquals(admissionController.getName(), CPUBasedAdmissionController.CPU_BASED_ADMISSION_CONTROLLER);
+        assertEquals(admissionController.getName(), CpuBasedAdmissionController.CPU_BASED_ADMISSION_CONTROLLER);
         assertEquals(admissionController.getRejectionCount(AdmissionControlActionType.INDEXING.getType()), 0);
         assertEquals(admissionController.settings.getTransportLayerAdmissionControllerMode(), AdmissionControlMode.ENFORCED);
         assertTrue(admissionController.isEnabledForTransportLayer(admissionController.settings.getTransportLayerAdmissionControllerMode()));
@@ -83,8 +82,8 @@ public class CPUBasedAdmissionControllerTests extends OpenSearchTestCase {
 
     public void testApplyControllerWithDefaultSettings() {
         ResourceUsageCollectorService rs = Mockito.mock(ResourceUsageCollectorService.class);
-        admissionController = new CPUBasedAdmissionController(
-            CPUBasedAdmissionController.CPU_BASED_ADMISSION_CONTROLLER,
+        admissionController = new CpuBasedAdmissionController(
+            CpuBasedAdmissionController.CPU_BASED_ADMISSION_CONTROLLER,
             rs,
             clusterService,
             Settings.EMPTY
@@ -99,13 +98,13 @@ public class CPUBasedAdmissionControllerTests extends OpenSearchTestCase {
     public void testApplyControllerWhenSettingsEnabled() throws Exception {
         Settings settings = Settings.builder()
             .put(
-                CPUBasedAdmissionControllerSettings.CPU_BASED_ADMISSION_CONTROLLER_TRANSPORT_LAYER_MODE.getKey(),
+                CpuBasedAdmissionControllerSettings.CPU_BASED_ADMISSION_CONTROLLER_TRANSPORT_LAYER_MODE.getKey(),
                 AdmissionControlMode.ENFORCED.getMode()
             )
             .build();
         ResourceUsageCollectorService rs = Mockito.mock(ResourceUsageCollectorService.class);
-        admissionController = new CPUBasedAdmissionController(
-            CPUBasedAdmissionController.CPU_BASED_ADMISSION_CONTROLLER,
+        admissionController = new CpuBasedAdmissionController(
+            CpuBasedAdmissionController.CPU_BASED_ADMISSION_CONTROLLER,
             rs,
             clusterService,
             settings
@@ -116,5 +115,29 @@ public class CPUBasedAdmissionControllerTests extends OpenSearchTestCase {
         );
         assertEquals(admissionController.getRejectionCount(AdmissionControlActionType.INDEXING.getType()), 0);
         // we can assert admission control and rejections as part of ITs
+    }
+
+    public void testRejectionCount() {
+        Settings settings = Settings.builder()
+            .put(
+                CpuBasedAdmissionControllerSettings.CPU_BASED_ADMISSION_CONTROLLER_TRANSPORT_LAYER_MODE.getKey(),
+                AdmissionControlMode.ENFORCED.getMode()
+            )
+            .build();
+        ResourceUsageCollectorService rs = Mockito.mock(ResourceUsageCollectorService.class);
+        admissionController = new CpuBasedAdmissionController(
+            CpuBasedAdmissionController.CPU_BASED_ADMISSION_CONTROLLER,
+            rs,
+            clusterService,
+            settings
+        );
+        admissionController.addRejectionCount(AdmissionControlActionType.SEARCH.getType(), 1);
+        admissionController.addRejectionCount(AdmissionControlActionType.INDEXING.getType(), 3);
+        assertEquals(admissionController.getRejectionCount(AdmissionControlActionType.SEARCH.getType()), 1);
+        assertEquals(admissionController.getRejectionCount(AdmissionControlActionType.INDEXING.getType()), 3);
+        admissionController.addRejectionCount(AdmissionControlActionType.SEARCH.getType(), 1);
+        admissionController.addRejectionCount(AdmissionControlActionType.INDEXING.getType(), 2);
+        assertEquals(admissionController.getRejectionCount(AdmissionControlActionType.SEARCH.getType()), 2);
+        assertEquals(admissionController.getRejectionCount(AdmissionControlActionType.INDEXING.getType()), 5);
     }
 }

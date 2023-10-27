@@ -16,18 +16,19 @@ import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.node.NodeResourceUsageStats;
 import org.opensearch.node.ResourceUsageCollectorService;
 import org.opensearch.ratelimitting.admissioncontrol.enums.AdmissionControlActionType;
-import org.opensearch.ratelimitting.admissioncontrol.settings.CPUBasedAdmissionControllerSettings;
+import org.opensearch.ratelimitting.admissioncontrol.settings.CpuBasedAdmissionControllerSettings;
 
+import java.util.Locale;
 import java.util.Optional;
 
 /**
  *  Class for CPU Based Admission Controller in OpenSearch, which aims to provide CPU utilisation admission control.
  *  It provides methods to apply admission control if configured limit has been reached
  */
-public class CPUBasedAdmissionController extends AdmissionController {
+public class CpuBasedAdmissionController extends AdmissionController {
     public static final String CPU_BASED_ADMISSION_CONTROLLER = "global_cpu_usage";
-    private static final Logger LOGGER = LogManager.getLogger(CPUBasedAdmissionController.class);
-    public CPUBasedAdmissionControllerSettings settings;
+    private static final Logger LOGGER = LogManager.getLogger(CpuBasedAdmissionController.class);
+    public CpuBasedAdmissionControllerSettings settings;
 
     /**
      * @param admissionControllerName       Name of the admission controller
@@ -35,14 +36,14 @@ public class CPUBasedAdmissionController extends AdmissionController {
      * @param clusterService                ClusterService Instance
      * @param settings                      Immutable settings instance
      */
-    public CPUBasedAdmissionController(
+    public CpuBasedAdmissionController(
         String admissionControllerName,
         ResourceUsageCollectorService resourceUsageCollectorService,
         ClusterService clusterService,
         Settings settings
     ) {
         super(admissionControllerName, resourceUsageCollectorService, clusterService);
-        this.settings = new CPUBasedAdmissionControllerSettings(clusterService.getClusterSettings(), settings);
+        this.settings = new CpuBasedAdmissionControllerSettings(clusterService.getClusterSettings(), settings);
     }
 
     /**
@@ -64,7 +65,11 @@ public class CPUBasedAdmissionController extends AdmissionController {
             this.addRejectionCount(admissionControlActionType.getType(), 1);
             if (this.isAdmissionControllerEnforced(this.settings.getTransportLayerAdmissionControllerMode())) {
                 throw new OpenSearchRejectedExecutionException(
-                    String.format("CPU usage admission controller limit reached for action [%s]", admissionControlActionType.name())
+                    String.format(
+                        Locale.ROOT,
+                        "CPU usage admission controller rejected the request for action [%s] as CPU limit reached",
+                        admissionControlActionType.name()
+                    )
                 );
             }
         }
@@ -84,11 +89,12 @@ public class CPUBasedAdmissionController extends AdmissionController {
                 double cpuUsage = nodePerformanceStatistics.get().getCpuUtilizationPercent();
                 if (cpuUsage >= maxCpuLimit) {
                     LOGGER.warn(
-                        "CpuBasedAdmissionController rejected the request as the current CPU "
-                            + "usage [{}] exceeds the allowed limit [{}] for transport action [{}]",
+                        "CpuBasedAdmissionController limit reached as the current CPU "
+                            + "usage [{}] exceeds the allowed limit [{}] for transport action [{}] in admissionControlMode [{}]",
                         cpuUsage,
                         maxCpuLimit,
-                        actionName
+                        actionName,
+                        this.settings.getTransportLayerAdmissionControllerMode()
                     );
                     return true;
                 }
@@ -109,6 +115,7 @@ public class CPUBasedAdmissionController extends AdmissionController {
             default:
                 throw new IllegalArgumentException(
                     String.format(
+                        Locale.ROOT,
                         "Admission control not Supported for AdmissionControlActionType: %s",
                         admissionControlActionType.getType()
                     )

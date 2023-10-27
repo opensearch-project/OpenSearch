@@ -219,7 +219,6 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
         RESOURCE_USAGE_STATS("resource_usage_stats"),
         SEGMENT_REPLICATION_BACKPRESSURE("segment_replication_backpressure"),
         REPOSITORIES("repositories"),
-
         ADMISSION_CONTROL("admission_control");
 
         private String metricName;

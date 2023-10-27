@@ -14,7 +14,7 @@ import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.node.ResourceUsageCollectorService;
 import org.opensearch.ratelimitting.admissioncontrol.controllers.AdmissionController;
-import org.opensearch.ratelimitting.admissioncontrol.controllers.CPUBasedAdmissionController;
+import org.opensearch.ratelimitting.admissioncontrol.controllers.CpuBasedAdmissionController;
 import org.opensearch.ratelimitting.admissioncontrol.enums.AdmissionControlActionType;
 import org.opensearch.ratelimitting.admissioncontrol.stats.AdmissionControlStats;
 import org.opensearch.ratelimitting.admissioncontrol.stats.AdmissionControllerStats;
@@ -25,7 +25,7 @@ import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
-import static org.opensearch.ratelimitting.admissioncontrol.controllers.CPUBasedAdmissionController.CPU_BASED_ADMISSION_CONTROLLER;
+import static org.opensearch.ratelimitting.admissioncontrol.controllers.CpuBasedAdmissionController.CPU_BASED_ADMISSION_CONTROLLER;
 
 /**
  * Admission control Service that bootstraps and manages all the Admission Controllers in OpenSearch.
@@ -33,12 +33,11 @@ import static org.opensearch.ratelimitting.admissioncontrol.controllers.CPUBased
 public class AdmissionControlService {
     private final ThreadPool threadPool;
     public final AdmissionControlSettings admissionControlSettings;
-    private final ConcurrentMap<String, AdmissionController> ADMISSION_CONTROLLERS;
+    private final ConcurrentMap<String, AdmissionController> admissionControllers;
     private static final Logger logger = LogManager.getLogger(AdmissionControlService.class);
     private final ClusterService clusterService;
     private final Settings settings;
-
-    private ResourceUsageCollectorService resourceUsageCollectorService;
+    private final ResourceUsageCollectorService resourceUsageCollectorService;
 
     /**
      *
@@ -55,7 +54,7 @@ public class AdmissionControlService {
     ) {
         this.threadPool = threadPool;
         this.admissionControlSettings = new AdmissionControlSettings(clusterService.getClusterSettings(), settings);
-        this.ADMISSION_CONTROLLERS = new ConcurrentHashMap<>();
+        this.admissionControllers = new ConcurrentHashMap<>();
         this.clusterService = clusterService;
         this.settings = settings;
         this.resourceUsageCollectorService = resourceUsageCollectorService;
@@ -76,7 +75,7 @@ public class AdmissionControlService {
      * @param admissionControlActionType admissionControllerActionType value
      */
     public void applyTransportAdmissionControl(String action, AdmissionControlActionType admissionControlActionType) {
-        this.ADMISSION_CONTROLLERS.forEach(
+        this.admissionControllers.forEach(
             (name, admissionController) -> { admissionController.apply(action, admissionControlActionType); }
         );
     }
@@ -87,7 +86,7 @@ public class AdmissionControlService {
      */
     public void registerAdmissionController(String admissionControllerName) {
         AdmissionController admissionController = this.controllerFactory(admissionControllerName);
-        this.ADMISSION_CONTROLLERS.put(admissionControllerName, admissionController);
+        this.admissionControllers.put(admissionControllerName, admissionController);
     }
 
     /**
@@ -96,7 +95,7 @@ public class AdmissionControlService {
     private AdmissionController controllerFactory(String admissionControllerName) {
         switch (admissionControllerName) {
             case CPU_BASED_ADMISSION_CONTROLLER:
-                return new CPUBasedAdmissionController(
+                return new CpuBasedAdmissionController(
                     admissionControllerName,
                     this.resourceUsageCollectorService,
                     this.clusterService,
@@ -112,7 +111,7 @@ public class AdmissionControlService {
      * @return list of the registered admissionControllers
      */
     public List<AdmissionController> getAdmissionControllers() {
-        return new ArrayList<>(this.ADMISSION_CONTROLLERS.values());
+        return new ArrayList<>(this.admissionControllers.values());
     }
 
     /**
@@ -121,7 +120,7 @@ public class AdmissionControlService {
      * @return instance of the AdmissionController Instance
      */
     public AdmissionController getAdmissionController(String controllerName) {
-        return this.ADMISSION_CONTROLLERS.getOrDefault(controllerName, null);
+        return this.admissionControllers.getOrDefault(controllerName, null);
     }
 
     /**
@@ -129,9 +128,9 @@ public class AdmissionControlService {
      */
     public AdmissionControlStats stats() {
         List<AdmissionControllerStats> statsList = new ArrayList<>();
-        if (this.ADMISSION_CONTROLLERS.size() > 0) {
-            this.ADMISSION_CONTROLLERS.forEach((controllerName, admissionController) -> {
-                AdmissionControllerStats admissionControllerStats = new AdmissionControllerStats(admissionController, controllerName);
+        if (this.admissionControllers.size() > 0) {
+            this.admissionControllers.forEach((controllerName, admissionController) -> {
+                AdmissionControllerStats admissionControllerStats = new AdmissionControllerStats(admissionController);
                 statsList.add(admissionControllerStats);
             });
             return new AdmissionControlStats(statsList);

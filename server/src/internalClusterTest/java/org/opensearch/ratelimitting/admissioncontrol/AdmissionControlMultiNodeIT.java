@@ -32,7 +32,7 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.node.resource.tracker.ResourceTrackerSettings;
 import org.opensearch.ratelimitting.admissioncontrol.enums.AdmissionControlActionType;
 import org.opensearch.ratelimitting.admissioncontrol.enums.AdmissionControlMode;
-import org.opensearch.ratelimitting.admissioncontrol.settings.CPUBasedAdmissionControllerSettings;
+import org.opensearch.ratelimitting.admissioncontrol.settings.CpuBasedAdmissionControllerSettings;
 import org.opensearch.ratelimitting.admissioncontrol.stats.AdmissionControllerStats;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.junit.After;
@@ -45,8 +45,8 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Stream;
 
 import static org.opensearch.ratelimitting.admissioncontrol.AdmissionControlSettings.ADMISSION_CONTROL_TRANSPORT_LAYER_MODE;
-import static org.opensearch.ratelimitting.admissioncontrol.settings.CPUBasedAdmissionControllerSettings.INDEXING_CPU_USAGE_LIMIT;
-import static org.opensearch.ratelimitting.admissioncontrol.settings.CPUBasedAdmissionControllerSettings.SEARCH_CPU_USAGE_LIMIT;
+import static org.opensearch.ratelimitting.admissioncontrol.settings.CpuBasedAdmissionControllerSettings.INDEXING_CPU_USAGE_LIMIT;
+import static org.opensearch.ratelimitting.admissioncontrol.settings.CpuBasedAdmissionControllerSettings.SEARCH_CPU_USAGE_LIMIT;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 2, numClientNodes = 1)
@@ -124,7 +124,7 @@ public class AdmissionControlMultiNodeIT extends OpenSearchIntegTestCase {
         updateSettingsRequest.transientSettings(
             Settings.builder()
                 .put(
-                    CPUBasedAdmissionControllerSettings.CPU_BASED_ADMISSION_CONTROLLER_TRANSPORT_LAYER_MODE.getKey(),
+                    CpuBasedAdmissionControllerSettings.CPU_BASED_ADMISSION_CONTROLLER_TRANSPORT_LAYER_MODE.getKey(),
                     AdmissionControlMode.ENFORCED.getMode()
                 )
         );
@@ -159,7 +159,7 @@ public class AdmissionControlMultiNodeIT extends OpenSearchIntegTestCase {
         updateSettingsRequest.transientSettings(
             Settings.builder()
                 .put(
-                    CPUBasedAdmissionControllerSettings.CPU_BASED_ADMISSION_CONTROLLER_TRANSPORT_LAYER_MODE.getKey(),
+                    CpuBasedAdmissionControllerSettings.CPU_BASED_ADMISSION_CONTROLLER_TRANSPORT_LAYER_MODE.getKey(),
                     AdmissionControlMode.MONITOR.getMode()
                 )
         );
@@ -215,7 +215,7 @@ public class AdmissionControlMultiNodeIT extends OpenSearchIntegTestCase {
         updateSettingsRequest.transientSettings(
             Settings.builder()
                 .put(
-                    CPUBasedAdmissionControllerSettings.CPU_BASED_ADMISSION_CONTROLLER_TRANSPORT_LAYER_MODE.getKey(),
+                    CpuBasedAdmissionControllerSettings.CPU_BASED_ADMISSION_CONTROLLER_TRANSPORT_LAYER_MODE.getKey(),
                     AdmissionControlMode.DISABLED.getMode()
                 )
         );

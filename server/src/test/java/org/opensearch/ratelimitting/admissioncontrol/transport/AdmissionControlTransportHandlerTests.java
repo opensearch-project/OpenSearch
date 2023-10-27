@@ -48,12 +48,9 @@ public class AdmissionControlTransportHandlerTests extends OpenSearchTestCase {
             false,
             null
         );
-        try {
-            admissionControlTransportHandler.messageReceived(mock(TransportRequest.class), mock(TransportChannel.class), mock(Task.class));
-        } catch (OpenSearchRejectedExecutionException exception) {
-            assertEquals(0, handler.count);
-            handler.messageReceived(mock(TransportRequest.class), mock(TransportChannel.class), mock(Task.class));
-        }
+        admissionControlTransportHandler.messageReceived(mock(TransportRequest.class), mock(TransportChannel.class), mock(Task.class));
+        assertEquals(0, handler.count);
+        handler.messageReceived(mock(TransportRequest.class), mock(TransportChannel.class), mock(Task.class));
         assertEquals(1, handler.count);
     }
 

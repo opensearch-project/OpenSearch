@@ -12,10 +12,10 @@ import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.ratelimitting.admissioncontrol.controllers.AdmissionController;
-import org.opensearch.ratelimitting.admissioncontrol.controllers.CPUBasedAdmissionController;
+import org.opensearch.ratelimitting.admissioncontrol.controllers.CpuBasedAdmissionController;
 import org.opensearch.ratelimitting.admissioncontrol.enums.AdmissionControlActionType;
 import org.opensearch.ratelimitting.admissioncontrol.enums.AdmissionControlMode;
-import org.opensearch.ratelimitting.admissioncontrol.settings.CPUBasedAdmissionControllerSettings;
+import org.opensearch.ratelimitting.admissioncontrol.settings.CpuBasedAdmissionControllerSettings;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
@@ -67,8 +67,8 @@ public class AdmissionControlServiceTests extends OpenSearchTestCase {
         AdmissionControlSettings admissionControlSettings = admissionControlService.admissionControlSettings;
         List<AdmissionController> admissionControllerList = admissionControlService.getAdmissionControllers();
         assertEquals(admissionControllerList.size(), 1);
-        CPUBasedAdmissionController cpuBasedAdmissionController = (CPUBasedAdmissionController) admissionControlService
-            .getAdmissionController(CPUBasedAdmissionController.CPU_BASED_ADMISSION_CONTROLLER);
+        CpuBasedAdmissionController cpuBasedAdmissionController = (CpuBasedAdmissionController) admissionControlService
+            .getAdmissionController(CpuBasedAdmissionController.CPU_BASED_ADMISSION_CONTROLLER);
         assertEquals(
             admissionControlSettings.isTransportLayerAdmissionControlEnabled(),
             cpuBasedAdmissionController.isEnabledForTransportLayer(
@@ -91,7 +91,7 @@ public class AdmissionControlServiceTests extends OpenSearchTestCase {
         Settings newSettings = Settings.builder()
             .put(settings)
             .put(
-                CPUBasedAdmissionControllerSettings.CPU_BASED_ADMISSION_CONTROLLER_TRANSPORT_LAYER_MODE.getKey(),
+                CpuBasedAdmissionControllerSettings.CPU_BASED_ADMISSION_CONTROLLER_TRANSPORT_LAYER_MODE.getKey(),
                 AdmissionControlMode.ENFORCED.getMode()
             )
             .build();
@@ -119,14 +119,14 @@ public class AdmissionControlServiceTests extends OpenSearchTestCase {
         admissionControlService = new AdmissionControlService(Settings.EMPTY, clusterService, threadPool, null);
         admissionControlService.applyTransportAdmissionControl(this.action, null);
         assertEquals(
-            admissionControlService.getAdmissionController(CPUBasedAdmissionController.CPU_BASED_ADMISSION_CONTROLLER)
+            admissionControlService.getAdmissionController(CpuBasedAdmissionController.CPU_BASED_ADMISSION_CONTROLLER)
                 .getRejectionCount(AdmissionControlActionType.INDEXING.getType()),
             0
         );
 
         Settings settings = Settings.builder()
             .put(
-                CPUBasedAdmissionControllerSettings.CPU_BASED_ADMISSION_CONTROLLER_TRANSPORT_LAYER_MODE.getKey(),
+                CpuBasedAdmissionControllerSettings.CPU_BASED_ADMISSION_CONTROLLER_TRANSPORT_LAYER_MODE.getKey(),
                 AdmissionControlMode.MONITOR.getMode()
             )
             .build();
@@ -140,14 +140,14 @@ public class AdmissionControlServiceTests extends OpenSearchTestCase {
         admissionControlService = new AdmissionControlService(Settings.EMPTY, clusterService, threadPool, null);
         admissionControlService.applyTransportAdmissionControl(this.action, null);
         assertEquals(
-            admissionControlService.getAdmissionController(CPUBasedAdmissionController.CPU_BASED_ADMISSION_CONTROLLER)
+            admissionControlService.getAdmissionController(CpuBasedAdmissionController.CPU_BASED_ADMISSION_CONTROLLER)
                 .getRejectionCount(AdmissionControlActionType.INDEXING.getType()),
             0
         );
 
         Settings settings = Settings.builder()
             .put(
-                CPUBasedAdmissionControllerSettings.CPU_BASED_ADMISSION_CONTROLLER_TRANSPORT_LAYER_MODE.getKey(),
+                CpuBasedAdmissionControllerSettings.CPU_BASED_ADMISSION_CONTROLLER_TRANSPORT_LAYER_MODE.getKey(),
                 AdmissionControlMode.MONITOR.getMode()
             )
             .build();

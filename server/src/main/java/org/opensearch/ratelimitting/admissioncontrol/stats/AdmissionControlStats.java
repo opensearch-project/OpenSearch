@@ -19,10 +19,11 @@ import java.util.List;
 
 /**
  * Class for admission control stats used as part of node stats
+ * @opensearch.internal
  */
 public class AdmissionControlStats implements ToXContentFragment, Writeable {
 
-    List<AdmissionControllerStats> admissionControllerStatsList;
+    private final List<AdmissionControllerStats> admissionControllerStatsList;
 
     /**
      *
@@ -66,5 +67,20 @@ public class AdmissionControlStats implements ToXContentFragment, Writeable {
             }
         });
         return builder.endObject();
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj) {
+            return true;
+        }
+        if (obj == null || getClass() != obj.getClass()) return false;
+        AdmissionControlStats admissionControlStats = (AdmissionControlStats) obj;
+        return this.getAdmissionControllerStatsList().size() == admissionControlStats.getAdmissionControllerStatsList().size();
+    }
+
+    @Override
+    public int hashCode() {
+        return super.hashCode();
     }
 }

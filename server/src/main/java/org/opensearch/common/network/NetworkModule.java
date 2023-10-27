@@ -302,6 +302,13 @@ public final class NetworkModule {
 
         /**
          * Intercept the transport action and perform admission control if applicable
+         * @param action The action the request handler is associated with
+         * @param executor The executor the request handling will be executed on
+         * @param forceExecution Force execution on the executor queue and never reject it
+         * @param actualHandler The handler itself that implements the request handling
+         * @param admissionControlActionType Admission control based on resource usage limits of provided action type
+         * @return returns the actual TransportRequestHandler after intercepting all previous handlers
+         * @param <T>
          */
         @Override
         public <T extends TransportRequest> TransportRequestHandler<T> interceptHandler(

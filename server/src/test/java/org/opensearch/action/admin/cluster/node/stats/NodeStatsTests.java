@@ -67,7 +67,7 @@ import org.opensearch.node.NodeResourceUsageStats;
 import org.opensearch.node.NodesResourceUsageStats;
 import org.opensearch.node.ResponseCollectorService;
 import org.opensearch.ratelimitting.admissioncontrol.controllers.AdmissionController;
-import org.opensearch.ratelimitting.admissioncontrol.controllers.CPUBasedAdmissionController;
+import org.opensearch.ratelimitting.admissioncontrol.controllers.CpuBasedAdmissionController;
 import org.opensearch.ratelimitting.admissioncontrol.enums.AdmissionControlActionType;
 import org.opensearch.ratelimitting.admissioncontrol.stats.AdmissionControlStats;
 import org.opensearch.ratelimitting.admissioncontrol.stats.AdmissionControllerStats;
@@ -547,33 +547,14 @@ public class NodeStatsTests extends OpenSearchTestCase {
                 }
                 AdmissionControlStats admissionControlStats = nodeStats.getAdmissionControlStats();
                 AdmissionControlStats deserializedAdmissionControlStats = deserializedNodeStats.getAdmissionControlStats();
-                if (admissionControlStats == null) {
-                    assertNull(deserializedAdmissionControlStats);
-                } else {
-                    assertEquals(
-                        admissionControlStats.getAdmissionControllerStatsList().size(),
-                        deserializedAdmissionControlStats.getAdmissionControllerStatsList().size()
-                    );
-                    AdmissionControllerStats admissionControllerStats = admissionControlStats.getAdmissionControllerStatsList().get(0);
-                    AdmissionControllerStats deserializedAdmissionControllerStats = deserializedAdmissionControlStats
-                        .getAdmissionControllerStatsList()
-                        .get(0);
-                    assertEquals(
-                        admissionControllerStats.getAdmissionControllerName(),
-                        deserializedAdmissionControllerStats.getAdmissionControllerName()
-                    );
-                    assertEquals(1, (long) admissionControllerStats.getRejectionCount().get(AdmissionControlActionType.SEARCH.getType()));
-                    assertEquals(
-                        admissionControllerStats.getRejectionCount().get(AdmissionControlActionType.SEARCH.getType()),
-                        deserializedAdmissionControllerStats.getRejectionCount().get(AdmissionControlActionType.SEARCH.getType())
-                    );
-
-                    assertEquals(2, (long) admissionControllerStats.getRejectionCount().get(AdmissionControlActionType.INDEXING.getType()));
-                    assertEquals(
-                        admissionControllerStats.getRejectionCount().get(AdmissionControlActionType.INDEXING.getType()),
-                        deserializedAdmissionControllerStats.getRejectionCount().get(AdmissionControlActionType.INDEXING.getType())
-                    );
-                }
+                assertEquals(admissionControlStats, deserializedAdmissionControlStats);
+                AdmissionControllerStats admissionControllerStats = admissionControlStats.getAdmissionControllerStatsList().get(0);
+                AdmissionControllerStats deserializedAdmissionControllerStats = deserializedAdmissionControlStats
+                    .getAdmissionControllerStatsList()
+                    .get(0);
+                assertEquals(1, (long) admissionControllerStats.getRejectionCount().get(AdmissionControlActionType.SEARCH.getType()));
+                assertEquals(2, (long) admissionControllerStats.getRejectionCount().get(AdmissionControlActionType.INDEXING.getType()));
+                assertEquals(admissionControllerStats, deserializedAdmissionControllerStats);
             }
         }
     }
@@ -900,7 +881,7 @@ public class NodeStatsTests extends OpenSearchTestCase {
         AdmissionControlStats admissionControlStats = null;
         if (frequently()) {
             AdmissionController admissionController = new AdmissionController(
-                CPUBasedAdmissionController.CPU_BASED_ADMISSION_CONTROLLER,
+                CpuBasedAdmissionController.CPU_BASED_ADMISSION_CONTROLLER,
                 null,
                 null
             ) {
@@ -911,10 +892,7 @@ public class NodeStatsTests extends OpenSearchTestCase {
             };
             admissionController.addRejectionCount(AdmissionControlActionType.SEARCH.getType(), 1);
             admissionController.addRejectionCount(AdmissionControlActionType.INDEXING.getType(), 2);
-            AdmissionControllerStats stats = new AdmissionControllerStats(
-                admissionController,
-                CPUBasedAdmissionController.CPU_BASED_ADMISSION_CONTROLLER
-            );
+            AdmissionControllerStats stats = new AdmissionControllerStats(admissionController);
             List<AdmissionControllerStats> statsList = new ArrayList();
             statsList.add(stats);
             admissionControlStats = new AdmissionControlStats(statsList);

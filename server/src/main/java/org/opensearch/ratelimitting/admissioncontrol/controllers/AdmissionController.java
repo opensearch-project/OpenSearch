@@ -78,20 +78,20 @@ public abstract class AdmissionController {
      * Add rejection count to the rejection count metric tracked by the admission controller
      */
     public void addRejectionCount(String admissionControlActionType, long count) {
-        AtomicLong updatedCount = new AtomicLong(0);
-        if (this.rejectionCountMap.containsKey(admissionControlActionType)) {
-            updatedCount.addAndGet(this.rejectionCountMap.get(admissionControlActionType).get());
+        if (!this.rejectionCountMap.containsKey(admissionControlActionType)) {
+            this.rejectionCountMap.put(admissionControlActionType, new AtomicLong(0));
         }
-        updatedCount.addAndGet(count);
-        this.rejectionCountMap.put(admissionControlActionType, updatedCount);
+        this.rejectionCountMap.get(admissionControlActionType).getAndAdd(count);
     }
 
     /**
      * @return current value of the rejection count metric tracked by the admission-controller.
      */
     public long getRejectionCount(String admissionControlActionType) {
-        AtomicLong rejectionCount = this.rejectionCountMap.getOrDefault(admissionControlActionType, new AtomicLong());
-        return rejectionCount.get();
+        if (this.rejectionCountMap.containsKey(admissionControlActionType)) {
+            return this.rejectionCountMap.get(admissionControlActionType).get();
+        }
+        return 0;
     }
 
     /**

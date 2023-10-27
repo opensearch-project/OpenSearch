@@ -97,8 +97,7 @@ public class NodeService implements Closeable {
     private final FileCache fileCache;
     private final TaskCancellationMonitoringService taskCancellationMonitoringService;
     private final RepositoriesService repositoriesService;
-    AdmissionControlService admissionControlService;
-
+    private final AdmissionControlService admissionControlService;
     private final SegmentReplicationStatsTracker segmentReplicationStatsTracker;
 
     NodeService(

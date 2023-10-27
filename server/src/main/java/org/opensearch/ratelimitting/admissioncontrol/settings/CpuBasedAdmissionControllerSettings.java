@@ -18,13 +18,13 @@ import org.opensearch.ratelimitting.admissioncontrol.enums.AdmissionControlMode;
  * Settings related to cpu based admission controller.
  * @opensearch.internal
  */
-public class CPUBasedAdmissionControllerSettings {
+public class CpuBasedAdmissionControllerSettings {
 
     /**
-     * Default parameters for the CPUBasedAdmissionControllerSettings
+     * Default parameters for the CpuBasedAdmissionControllerSettings
      */
     public static class Defaults {
-        public static final long CPU_USAGE_LIMIT = 0;
+        public static final long CPU_USAGE_LIMIT = 95;
     }
 
     private AdmissionControlMode transportLayerMode;
@@ -63,7 +63,7 @@ public class CPUBasedAdmissionControllerSettings {
     );
 
     // currently limited to one setting will add further more settings in follow-up PR's
-    public CPUBasedAdmissionControllerSettings(ClusterSettings clusterSettings, Settings settings) {
+    public CpuBasedAdmissionControllerSettings(ClusterSettings clusterSettings, Settings settings) {
         this.transportLayerMode = CPU_BASED_ADMISSION_CONTROLLER_TRANSPORT_LAYER_MODE.get(settings);
         clusterSettings.addSettingsUpdateConsumer(CPU_BASED_ADMISSION_CONTROLLER_TRANSPORT_LAYER_MODE, this::setTransportLayerMode);
         this.searchCPULimit = SEARCH_CPU_USAGE_LIMIT.get(settings);
