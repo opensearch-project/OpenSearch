@@ -36,7 +36,7 @@ public interface SearchResponseProcessor extends Processor {
      * @param response the current {@link SearchResponse}, possibly modified by earlier processors
      * @param responseListener callback to be invoked on successful processing or on failure
      */
-    default void asyncProcessResponse(SearchRequest request, SearchResponse response, ActionListener<SearchResponse> responseListener) {
+    default void processResponseAsync(SearchRequest request, SearchResponse response, ActionListener<SearchResponse> responseListener) {
         try {
             responseListener.onResponse(processResponse(request, response));
         } catch (Exception e) {

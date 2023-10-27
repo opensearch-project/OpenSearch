@@ -147,7 +147,7 @@ class Pipeline {
             currentListener = ActionListener.wrap(r -> {
                 long start = relativeTimeSupplier.getAsLong();
                 beforeRequestProcessor(processor);
-                processor.asyncProcessRequest(r, ActionListener.wrap(rr -> {
+                processor.processRequestAsync(r, ActionListener.wrap(rr -> {
                     long took = TimeUnit.NANOSECONDS.toMillis(relativeTimeSupplier.getAsLong() - start);
                     afterRequestProcessor(processor, took);
                     nextListener.onResponse(rr);
@@ -219,7 +219,7 @@ class Pipeline {
             responseListener = ActionListener.wrap(r -> {
                 beforeResponseProcessor(processor);
                 final long start = relativeTimeSupplier.getAsLong();
-                processor.asyncProcessResponse(request, r, ActionListener.wrap(rr -> {
+                processor.processResponseAsync(request, r, ActionListener.wrap(rr -> {
                     long took = TimeUnit.NANOSECONDS.toMillis(relativeTimeSupplier.getAsLong() - start);
                     afterResponseProcessor(processor, took);
                     currentFinalListener.onResponse(rr);
