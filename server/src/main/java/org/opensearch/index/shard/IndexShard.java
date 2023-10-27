@@ -1998,10 +1998,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     /**
-    Returns true iff it is able to verify that there is at least one
-    remote segment metadata uploaded
+    Returns true iff it is able to verify that remote segment store
+    is in sync with local
      */
-    boolean isRemoteSync() {
+    boolean isRemoteSegmentStoreInSync() {
         assert indexSettings.isRemoteStoreEnabled();
         try {
             RemoteSegmentStoreDirectory directory = getRemoteDirectory();

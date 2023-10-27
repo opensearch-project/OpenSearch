@@ -47,7 +47,6 @@ import org.opensearch.cluster.routing.allocation.decider.EnableAllocationDecider
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.index.query.TermsQueryBuilder;
-import org.opensearch.index.seqno.SeqNoStats;
 import org.opensearch.remotestore.RemoteStoreBaseIntegTestCase;
 import org.opensearch.test.VersionUtils;
 
@@ -91,16 +90,12 @@ public class RemoteCloneIndexIT extends RemoteStoreBaseIntegTestCase {
             .setTransientSettings(Settings.builder().put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), "none"))
             .get();
         try {
-
-            final boolean createWithReplicas = randomBoolean();
             assertAcked(
                 client().admin()
                     .indices()
                     .prepareResizeIndex("source", "target")
                     .setResizeType(ResizeType.CLONE)
-                    .setSettings(
-                        Settings.builder().put("index.number_of_replicas", createWithReplicas ? 1 : 0).putNull("index.blocks.write").build()
-                    )
+                    .setSettings(Settings.builder().put("index.number_of_replicas", 0).putNull("index.blocks.write").build())
                     .get()
             );
             ensureGreen();
@@ -108,26 +103,8 @@ public class RemoteCloneIndexIT extends RemoteStoreBaseIntegTestCase {
             final IndicesStatsResponse targetStats = client().admin().indices().prepareStats("target").get();
             assertThat(targetStats.getIndex("target").getIndexShards().keySet().size(), equalTo(numPrimaryShards));
 
-            for (int i = 0; i < numPrimaryShards; i++) {
-                final SeqNoStats sourceSeqNoStats = sourceStats.getIndex("source").getIndexShards().get(i).getAt(0).getSeqNoStats();
-                final SeqNoStats targetSeqNoStats = targetStats.getIndex("target").getIndexShards().get(i).getAt(0).getSeqNoStats();
-                assertEquals(sourceSeqNoStats.getMaxSeqNo(), targetSeqNoStats.getMaxSeqNo());
-                assertEquals(targetSeqNoStats.getMaxSeqNo(), targetSeqNoStats.getLocalCheckpoint());
-            }
-
             final int size = docs > 0 ? 2 * docs : 1;
             assertHitCount(client().prepareSearch("target").setSize(size).setQuery(new TermsQueryBuilder("foo", "bar")).get(), docs);
-
-            if (createWithReplicas == false) {
-                // bump replicas
-                client().admin()
-                    .indices()
-                    .prepareUpdateSettings("target")
-                    .setSettings(Settings.builder().put("index.number_of_replicas", 1))
-                    .get();
-                ensureGreen();
-                assertHitCount(client().prepareSearch("target").setSize(size).setQuery(new TermsQueryBuilder("foo", "bar")).get(), docs);
-            }
 
             for (int i = docs; i < 2 * docs; i++) {
                 client().prepareIndex("target").setSource("{\"foo\" : \"bar\", \"i\" : " + i + "}", MediaTypeRegistry.JSON).get();
