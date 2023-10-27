@@ -25,7 +25,7 @@ import java.util.concurrent.atomic.AtomicLong;
  * @opensearch.internal
  */
 public class PersistedStateStats implements Writeable, ToXContentObject {
-    private String statsName;
+    private final String statsName;
     private AtomicLong totalTimeInMillis = new AtomicLong(0);
     private AtomicLong failedCount = new AtomicLong(0);
     private AtomicLong successCount = new AtomicLong(0);
@@ -37,6 +37,7 @@ public class PersistedStateStats implements Writeable, ToXContentObject {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        out.writeString(statsName);
         out.writeVLong(successCount.get());
         out.writeVLong(failedCount.get());
         out.writeVLong(totalTimeInMillis.get());
@@ -53,6 +54,7 @@ public class PersistedStateStats implements Writeable, ToXContentObject {
     }
 
     public PersistedStateStats(StreamInput in) throws IOException {
+        this.statsName = in.readString();
         this.successCount = new AtomicLong(in.readVLong());
         this.failedCount = new AtomicLong(in.readVLong());
         this.totalTimeInMillis = new AtomicLong(in.readVLong());
@@ -111,6 +113,10 @@ public class PersistedStateStats implements Writeable, ToXContentObject {
 
     protected void addToExtendedFields(String extendedField, AtomicLong extendedFieldValue) {
         this.extendedFields.put(extendedField, extendedFieldValue);
+    }
+
+    public String getStatsName() {
+        return statsName;
     }
 
     /**
