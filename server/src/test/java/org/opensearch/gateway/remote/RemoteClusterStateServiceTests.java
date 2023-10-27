@@ -743,10 +743,11 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
         final ClusterState clusterState = generateClusterStateWithGlobalMetadata().nodes(nodesWithLocalNodeClusterManager()).build();
         remoteClusterStateService.start();
 
+        long prevClusterStateVersion = 13L;
         final ClusterMetadataManifest expectedManifest = ClusterMetadataManifest.builder()
             .indices(List.of())
             .clusterTerm(1L)
-            .stateVersion(1L)
+            .stateVersion(prevClusterStateVersion)
             .stateUUID("state-uuid")
             .clusterUUID("cluster-uuid")
             .codecVersion(MANIFEST_CURRENT_CODEC_VERSION)
@@ -759,12 +760,20 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
         Metadata expactedMetadata = Metadata.builder().persistentSettings(Settings.builder().put("readonly", true).build()).build();
         mockBlobContainerForGlobalMetadata(mockBlobStoreObjects(), expectedManifest, expactedMetadata);
 
-        Metadata metadata = remoteClusterStateService.getLatestClusterState(
+        ClusterState newClusterState = remoteClusterStateService.getLatestClusterState(
             clusterState.getClusterName().value(),
             clusterState.metadata().clusterUUID()
-        ).getMetadata();
+        );
 
-        assertTrue(Metadata.isGlobalStateEquals(metadata, expactedMetadata));
+        assertTrue(Metadata.isGlobalStateEquals(newClusterState.getMetadata(), expactedMetadata));
+
+        long newClusterStateVersion = newClusterState.getVersion();
+        assert prevClusterStateVersion == newClusterStateVersion : String.format(
+            Locale.ROOT,
+            "ClusterState version is not restored. previousClusterVersion: [%s] is not equal to current [%s]",
+            prevClusterStateVersion,
+            newClusterStateVersion
+        );
     }
 
     public void testReadGlobalMetadataIOException() throws IOException {
