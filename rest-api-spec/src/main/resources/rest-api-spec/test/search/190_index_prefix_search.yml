@@ -10,12 +10,24 @@ setup:
                 index_prefixes:
                   min_chars: 2
                   max_chars: 5
-
+              text_with_pos_inc_gap:
+                type: text
+                text_with_pos_inc_gap: 201
+                index_prefixes:
+                  min_chars: 2
+                  max_chars: 5
   - do:
       index:
           index:  test
           id:     1
           body:   { text: some short words with a stupendously long one }
+
+  - do:
+      index:
+        index:  test
+        id:     2
+        body:   { text: sentence with UPPERCASE WORDS }
+
   - do:
       index:
         index:  test
@@ -25,9 +37,8 @@ setup:
   - do:
       index:
         index:  test
-        id:     2
-        body:   { text: sentence with UPPERCASE WORDS }
-
+        id:     4
+        body:   { text_with_pos_inc_gap: ["a", "b-12"] }
 
   - do:
       indices.refresh:
@@ -133,5 +144,18 @@ setup:
           query:
             match_phrase_prefix:
               text: "b-12"
+
+  - match: {hits.total: 1}
+
+---
+"search index prefixes with multiple value":
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          query:
+            match_phrase_prefix:
+              text_with_pos_inc_gap: "b-12"
 
   - match: {hits.total: 1}
