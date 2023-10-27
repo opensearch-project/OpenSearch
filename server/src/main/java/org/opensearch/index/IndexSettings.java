@@ -66,6 +66,7 @@ import java.util.function.UnaryOperator;
 
 import static org.opensearch.Version.V_2_7_0;
 import static org.opensearch.common.util.FeatureFlags.SEARCHABLE_SNAPSHOT_EXTENDED_COMPATIBILITY;
+import static org.opensearch.index.codec.fuzzy.FuzzySetParameters.DEFAULT_FALSE_POSITIVE_PROBABILITY;
 import static org.opensearch.index.mapper.MapperService.INDEX_MAPPING_DEPTH_LIMIT_SETTING;
 import static org.opensearch.index.mapper.MapperService.INDEX_MAPPING_FIELD_NAME_LENGTH_LIMIT_SETTING;
 import static org.opensearch.index.mapper.MapperService.INDEX_MAPPING_NESTED_DOCS_LIMIT_SETTING;
@@ -658,6 +659,22 @@ public final class IndexSettings {
         Property.Dynamic
     );
 
+    public static final Setting<Boolean> INDEX_DOC_ID_FUZZY_SET_ENABLED_SETTING = Setting.boolSetting(
+        "index.doc_id_fuzzy_set.enabled",
+        false,
+        Property.IndexScope,
+        Property.Dynamic
+    );
+
+    public static final Setting<Double> INDEX_DOC_ID_FUZZY_SET_FALSE_POSITIVE_PROBABILITY_SETTING = Setting.doubleSetting(
+        "index.doc_id_fuzzy_set.false_positive_probability",
+        DEFAULT_FALSE_POSITIVE_PROBABILITY,
+        0.01,
+        0.50,
+        Property.IndexScope,
+        Property.Dynamic
+    );
+
     public static final TimeValue DEFAULT_REMOTE_TRANSLOG_BUFFER_INTERVAL = new TimeValue(650, TimeUnit.MILLISECONDS);
     public static final TimeValue MINIMUM_REMOTE_TRANSLOG_BUFFER_INTERVAL = TimeValue.ZERO;
     public static final Setting<TimeValue> INDEX_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING = Setting.timeSetting(
@@ -786,6 +803,16 @@ public final class IndexSettings {
      * Specialized merge-on-flush policy if provided
      */
     private volatile UnaryOperator<MergePolicy> mergeOnFlushPolicy;
+
+    /**
+     * Is fuzzy set enabled for doc id
+     */
+    private volatile boolean enableFuzzySetForDocId;
+
+    /**
+     * False positive probability to use while creating fuzzy set.
+     */
+    private volatile double docIdFuzzySetFalsePositiveProbability;
 
     /**
      * Returns the default search fields for this index.
@@ -926,6 +953,10 @@ public final class IndexSettings {
          * Now this sortField (IndexSort) is stored in SegmentInfo and we need to maintain backward compatibility for them.
          */
         widenIndexSortType = IndexMetadata.SETTING_INDEX_VERSION_CREATED.get(settings).before(V_2_7_0);
+
+        enableFuzzySetForDocId = scopedSettings.get(INDEX_DOC_ID_FUZZY_SET_ENABLED_SETTING);
+        docIdFuzzySetFalsePositiveProbability = scopedSettings.get(INDEX_DOC_ID_FUZZY_SET_FALSE_POSITIVE_PROBABILITY_SETTING);
+
         scopedSettings.addSettingsUpdateConsumer(
             TieredMergePolicyProvider.INDEX_COMPOUND_FORMAT_SETTING,
             tieredMergePolicyProvider::setNoCFSRatio
@@ -1032,6 +1063,11 @@ public final class IndexSettings {
             this::setRemoteTranslogUploadBufferInterval
         );
         scopedSettings.addSettingsUpdateConsumer(INDEX_REMOTE_TRANSLOG_KEEP_EXTRA_GEN_SETTING, this::setRemoteTranslogKeepExtraGen);
+        scopedSettings.addSettingsUpdateConsumer(INDEX_DOC_ID_FUZZY_SET_ENABLED_SETTING, this::setEnableFuzzySetForDocId);
+        scopedSettings.addSettingsUpdateConsumer(
+            INDEX_DOC_ID_FUZZY_SET_FALSE_POSITIVE_PROBABILITY_SETTING,
+            this::setDocIdFuzzySetFalsePositiveProbability
+        );
     }
 
     private void setSearchIdleAfter(TimeValue searchIdleAfter) {
@@ -1800,5 +1836,21 @@ public final class IndexSettings {
      */
     public boolean shouldWidenIndexSortType() {
         return this.widenIndexSortType;
+    }
+
+    public boolean isEnableFuzzySetForDocId() {
+        return enableFuzzySetForDocId;
+    }
+
+    public void setEnableFuzzySetForDocId(boolean enableFuzzySetForDocId) {
+        this.enableFuzzySetForDocId = enableFuzzySetForDocId;
+    }
+
+    public double getDocIdFuzzySetFalsePositiveProbability() {
+        return docIdFuzzySetFalsePositiveProbability;
+    }
+
+    public void setDocIdFuzzySetFalsePositiveProbability(double docIdFuzzySetFalsePositiveProbability) {
+        this.docIdFuzzySetFalsePositiveProbability = docIdFuzzySetFalsePositiveProbability;
     }
 }
