@@ -187,6 +187,7 @@ import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.indices.recovery.RecoveryTarget;
 import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
 import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpointPublisher;
+import org.opensearch.indices.replication.common.ReplicationTimer;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.Repository;
 import org.opensearch.search.suggest.completion.CompletionStats;
@@ -698,7 +699,16 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                             if (indexSettings.isSegRepEnabled()) {
                                 // this Shard's engine was read only, we need to update its engine before restoring local history from xlog.
                                 assert newRouting.primary() && currentRouting.primary() == false;
+                                ReplicationTimer timer = new ReplicationTimer();
+                                timer.start();
+                                logger.debug(
+                                    "Resetting engine on promotion of shard [{}] to primary, startTime {}\n",
+                                    shardId,
+                                    timer.startTime()
+                                );
                                 resetEngineToGlobalCheckpoint();
+                                timer.stop();
+                                logger.info("Completed engine failover for shard [{}] in: {} ms", shardId, timer.time());
                                 // It is possible an engine can open with a SegmentInfos on a higher gen but the reader does not refresh to
                                 // trigger our refresh listener.
                                 // Force update the checkpoint post engine reset.

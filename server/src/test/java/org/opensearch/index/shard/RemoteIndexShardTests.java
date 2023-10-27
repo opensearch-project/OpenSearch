@@ -362,6 +362,7 @@ public class RemoteIndexShardTests extends SegmentReplicationIndexShardTests {
      * prevent FileAlreadyExistsException. It does so by only copying files in first round of segment replication without
      * committing locally so that in next round of segment replication those files are not considered for download again
      */
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/10885")
     public void testSegRepSucceedsOnPreviousCopiedFiles() throws Exception {
         try (ReplicationGroup shards = createGroup(1, getIndexSettings(), new NRTReplicationEngineFactory())) {
             shards.startAll();
@@ -453,6 +454,7 @@ public class RemoteIndexShardTests extends SegmentReplicationIndexShardTests {
      * blocking update of reader. Once this is done, it corrupts one segment file and ensure that file is deleted in next
      * round of segment replication by ensuring doc count.
      */
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/10885")
     public void testNoFailuresOnFileReads() throws Exception {
         try (ReplicationGroup shards = createGroup(1, getIndexSettings(), new NRTReplicationEngineFactory())) {
             shards.startAll();
