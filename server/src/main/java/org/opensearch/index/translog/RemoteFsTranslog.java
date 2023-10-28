@@ -103,6 +103,7 @@ public class RemoteFsTranslog extends Translog {
         try {
             download(translogTransferManager, location, logger);
             Checkpoint checkpoint = readCheckpoint(location);
+            logger.info("Downloaded data from remote translog till maxSeqNo = {}", checkpoint.maxSeqNo);
             this.readers.addAll(recoverFromFiles(checkpoint));
             if (readers.isEmpty()) {
                 String errorMsg = String.format(Locale.ROOT, "%s at least one reader must be recovered", shardId);
@@ -266,9 +267,11 @@ public class RemoteFsTranslog extends Translog {
     }
 
     private boolean prepareAndUpload(Long primaryTerm, Long generation) throws IOException {
+        long maxSeqNo = -1;
         try (Releasable ignored = writeLock.acquire()) {
             if (generation == null || generation == current.getGeneration()) {
                 try {
+                    maxSeqNo = getMaxSeqNo();
                     final TranslogReader reader = current.closeIntoReader();
                     readers.add(reader);
                     copyCheckpointTo(location.resolve(getCommitCheckpointFileName(current.getGeneration())));
@@ -300,17 +303,17 @@ public class RemoteFsTranslog extends Translog {
             // is not updated in remote translog except in primary to primary recovery.
             if (generation == null) {
                 if (closed.get() == false) {
-                    return upload(primaryTerm, current.getGeneration() - 1);
+                    return upload(primaryTerm, current.getGeneration() - 1, maxSeqNo);
                 } else {
-                    return upload(primaryTerm, current.getGeneration());
+                    return upload(primaryTerm, current.getGeneration(), maxSeqNo);
                 }
             } else {
-                return upload(primaryTerm, generation);
+                return upload(primaryTerm, generation, maxSeqNo);
             }
         }
     }
 
-    private boolean upload(Long primaryTerm, Long generation) throws IOException {
+    private boolean upload(long primaryTerm, long generation, long maxSeqNo) throws IOException {
         // During primary relocation (primary-primary peer recovery), both the old and the new primary have engine
         // created with the RemoteFsTranslog. Both primaries are equipped to upload the translogs. The primary mode check
         // below ensures that the real primary only is uploading. Before the primary mode is set as true for the new
@@ -334,7 +337,7 @@ public class RemoteFsTranslog extends Translog {
         ) {
             return translogTransferManager.transferSnapshot(
                 transferSnapshotProvider,
-                new RemoteFsTranslogTransferListener(generation, primaryTerm)
+                new RemoteFsTranslogTransferListener(generation, primaryTerm, maxSeqNo)
             );
         }
 
@@ -522,23 +525,26 @@ public class RemoteFsTranslog extends Translog {
         /**
          * Generation for the translog
          */
-        private final Long generation;
+        private final long generation;
 
         /**
          * Primary Term for the translog
          */
-        private final Long primaryTerm;
+        private final long primaryTerm;
 
-        RemoteFsTranslogTransferListener(Long generation, Long primaryTerm) {
+        private final long maxSeqNo;
+
+        RemoteFsTranslogTransferListener(long generation, long primaryTerm, long maxSeqNo) {
             this.generation = generation;
             this.primaryTerm = primaryTerm;
+            this.maxSeqNo = maxSeqNo;
         }
 
         @Override
         public void onUploadComplete(TransferSnapshot transferSnapshot) throws IOException {
             maxRemoteTranslogGenerationUploaded = generation;
             minRemoteGenReferenced = getMinFileGeneration();
-            logger.trace("uploaded translog for {} {} ", primaryTerm, generation);
+            logger.info("Successfully uploaded translog for primary term = {}, generation = {}, maxSeqNo = {}", primaryTerm, generation, maxSeqNo);
         }
 
         @Override
