@@ -350,6 +350,8 @@ public class RemoteRestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
         assertEquals(restoreSnapshotResponse1.status(), RestStatus.ACCEPTED);
         assertEquals(restoreSnapshotResponse2.status(), RestStatus.ACCEPTED);
         ensureGreen(indexName1, restoredIndexName2);
+
+        assertRemoteSegmentsAndTranslogUploaded(restoredIndexName2);
         assertDocsPresentInIndex(client, indexName1, numDocsInIndex1);
         assertDocsPresentInIndex(client, restoredIndexName2, numDocsInIndex2);
 
@@ -369,6 +371,29 @@ public class RemoteRestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
         indexDocuments(client, indexName1, numDocsInIndex1, numDocsInIndex1 + 2);
         ensureGreen(indexName1);
         assertDocsPresentInIndex(client, indexName1, numDocsInIndex1 + 2);
+    }
+
+    void assertRemoteSegmentsAndTranslogUploaded(String idx) throws IOException {
+        String indexUUID = client().admin().indices().prepareGetSettings(idx).get().getSetting(idx, IndexMetadata.SETTING_INDEX_UUID);
+
+        Path remoteTranslogMetadataPath = Path.of(String.valueOf(remoteRepoPath), indexUUID, "/0/translog/metadata");
+        Path remoteTranslogDataPath = Path.of(String.valueOf(remoteRepoPath), indexUUID, "/0/translog/data");
+        Path segmentMetadataPath = Path.of(String.valueOf(remoteRepoPath), indexUUID, "/0/segments/metadata");
+        Path segmentDataPath = Path.of(String.valueOf(remoteRepoPath), indexUUID, "/0/segments/data");
+
+        try (
+            Stream<Path> translogMetadata = Files.list(remoteTranslogMetadataPath);
+            Stream<Path> translogData = Files.list(remoteTranslogDataPath);
+            Stream<Path> segmentMetadata = Files.list(segmentMetadataPath);
+            Stream<Path> segmentData = Files.list(segmentDataPath);
+
+        ) {
+            assertTrue(translogData.count() > 0);
+            assertTrue(translogMetadata.count() > 0);
+            assertTrue(segmentMetadata.count() > 0);
+            assertTrue(segmentData.count() > 0);
+        }
+
     }
 
     public void testRemoteRestoreIndexRestoredFromSnapshot() throws IOException, ExecutionException, InterruptedException {
@@ -411,23 +436,7 @@ public class RemoteRestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
         ensureGreen(indexName1);
         assertDocsPresentInIndex(client(), indexName1, numDocsInIndex1);
 
-        // Make sure remote translog is empty
-        String indexUUID = client().admin()
-            .indices()
-            .prepareGetSettings(indexName1)
-            .get()
-            .getSetting(indexName1, IndexMetadata.SETTING_INDEX_UUID);
-
-        Path remoteTranslogMetadataPath = Path.of(String.valueOf(remoteRepoPath), indexUUID, "/0/translog/metadata");
-        Path remoteTranslogDataPath = Path.of(String.valueOf(remoteRepoPath), indexUUID, "/0/translog/data");
-
-        try (
-            Stream<Path> translogMetadata = Files.list(remoteTranslogMetadataPath);
-            Stream<Path> translogData = Files.list(remoteTranslogDataPath)
-        ) {
-            assertTrue(translogData.count() > 0);
-            assertTrue(translogMetadata.count() > 0);
-        }
+        assertRemoteSegmentsAndTranslogUploaded(indexName1);
 
         // Clear the local data before stopping the node. This will make sure that remote translog is empty.
         IndexShard indexShard = getIndexShard(primaryNodeName(indexName1), indexName1);

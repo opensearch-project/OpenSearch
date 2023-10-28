@@ -204,6 +204,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.NoSuchFileException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashSet;
@@ -2011,6 +2012,29 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         FilterDirectory byteSizeCachingStoreDirectory = (FilterDirectory) remoteStoreDirectory.getDelegate();
         final Directory remoteDirectory = byteSizeCachingStoreDirectory.getDelegate();
         return ((RemoteSegmentStoreDirectory) remoteDirectory);
+    }
+
+    /**
+    Returns true iff it is able to verify that remote segment store
+    is in sync with local
+     */
+    boolean isRemoteSegmentStoreInSync() {
+        assert indexSettings.isRemoteStoreEnabled();
+        try {
+            RemoteSegmentStoreDirectory directory = getRemoteDirectory();
+            if (directory.readLatestMetadataFile() != null) {
+                // verifying that all files except EXCLUDE_FILES are uploaded to the remote
+                Collection<String> uploadFiles = directory.getSegmentsUploadedToRemoteStore().keySet();
+                SegmentInfos segmentInfos = store.readLastCommittedSegmentsInfo();
+                Collection<String> localFiles = segmentInfos.files(true);
+                if (uploadFiles.containsAll(localFiles)) {
+                    return true;
+                }
+            }
+        } catch (IOException e) {
+            logger.error("Exception while reading latest metadata", e);
+        }
+        return false;
     }
 
     public void preRecovery() {
