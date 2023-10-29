@@ -506,18 +506,12 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
     }
 
     private void validateSegmentFilesFromAcquiredLock(IndexShard indexShard, long primaryTerm, long generation) throws IOException {
-        Store remoteStore = indexShard.remoteStore();
         Store store = indexShard.store();
         try {
-            remoteStore.incRef();
             store.incRef();
-            String metadataFilename = ((RemoteSegmentStoreDirectory) remoteStore.directory()).getMetadataFileForCommit(
-                primaryTerm,
-                generation
-            );
-            RemoteSegmentMetadata remoteSegmentMetadata = ((RemoteSegmentStoreDirectory) remoteStore.directory()).readMetadataFile(
-                metadataFilename
-            );
+            RemoteSegmentStoreDirectory remoteDirectory = indexShard.getRemoteDirectory();
+            String metadataFilename = remoteDirectory.getMetadataFileForCommit(primaryTerm, generation);
+            RemoteSegmentMetadata remoteSegmentMetadata = remoteDirectory.readMetadataFile(metadataFilename);
             Optional<String> segmentInfosFileName = remoteSegmentMetadata.getMetadata()
                 .keySet()
                 .stream()
@@ -536,7 +530,6 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
                 }
             }
         } finally {
-            remoteStore.decRef();
             store.decRef();
         }
     }
