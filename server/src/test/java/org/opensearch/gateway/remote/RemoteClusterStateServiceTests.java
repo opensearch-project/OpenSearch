@@ -665,7 +665,8 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
 
         remoteClusterStateService.start();
         assertEquals(
-            remoteClusterStateService.getLatestMetadata(clusterState.getClusterName().value(), clusterState.metadata().clusterUUID())
+            remoteClusterStateService.getLatestClusterState(clusterState.getClusterName().value(), clusterState.metadata().clusterUUID())
+                .getMetadata()
                 .getIndices()
                 .size(),
             0
@@ -694,8 +695,10 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
         remoteClusterStateService.start();
         Exception e = assertThrows(
             IllegalStateException.class,
-            () -> remoteClusterStateService.getLatestMetadata(clusterState.getClusterName().value(), clusterState.metadata().clusterUUID())
-                .getIndices()
+            () -> remoteClusterStateService.getLatestClusterState(
+                clusterState.getClusterName().value(),
+                clusterState.metadata().clusterUUID()
+            ).getMetadata().getIndices()
         );
         assertEquals(e.getMessage(), "Error while downloading IndexMetadata - " + uploadedIndexMetadata.getUploadedFilename());
     }
@@ -740,10 +743,11 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
         final ClusterState clusterState = generateClusterStateWithGlobalMetadata().nodes(nodesWithLocalNodeClusterManager()).build();
         remoteClusterStateService.start();
 
+        long prevClusterStateVersion = 13L;
         final ClusterMetadataManifest expectedManifest = ClusterMetadataManifest.builder()
             .indices(List.of())
             .clusterTerm(1L)
-            .stateVersion(1L)
+            .stateVersion(prevClusterStateVersion)
             .stateUUID("state-uuid")
             .clusterUUID("cluster-uuid")
             .codecVersion(MANIFEST_CURRENT_CODEC_VERSION)
@@ -756,12 +760,20 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
         Metadata expactedMetadata = Metadata.builder().persistentSettings(Settings.builder().put("readonly", true).build()).build();
         mockBlobContainerForGlobalMetadata(mockBlobStoreObjects(), expectedManifest, expactedMetadata);
 
-        Metadata metadata = remoteClusterStateService.getLatestMetadata(
+        ClusterState newClusterState = remoteClusterStateService.getLatestClusterState(
             clusterState.getClusterName().value(),
             clusterState.metadata().clusterUUID()
         );
 
-        assertTrue(Metadata.isGlobalStateEquals(metadata, expactedMetadata));
+        assertTrue(Metadata.isGlobalStateEquals(newClusterState.getMetadata(), expactedMetadata));
+
+        long newClusterStateVersion = newClusterState.getVersion();
+        assert prevClusterStateVersion == newClusterStateVersion : String.format(
+            Locale.ROOT,
+            "ClusterState version is not restored. previousClusterVersion: [%s] is not equal to current [%s]",
+            prevClusterStateVersion,
+            newClusterStateVersion
+        );
     }
 
     public void testReadGlobalMetadataIOException() throws IOException {
@@ -793,7 +805,10 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
         remoteClusterStateService.start();
         Exception e = assertThrows(
             IllegalStateException.class,
-            () -> remoteClusterStateService.getLatestMetadata(clusterState.getClusterName().value(), clusterState.metadata().clusterUUID())
+            () -> remoteClusterStateService.getLatestClusterState(
+                clusterState.getClusterName().value(),
+                clusterState.metadata().clusterUUID()
+            )
         );
         assertEquals(e.getMessage(), "Error while downloading Global Metadata - " + globalIndexMetadataName);
     }
@@ -824,16 +839,15 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
             .nodeId("nodeA")
             .opensearchVersion(VersionUtils.randomOpenSearchVersion(random()))
             .previousClusterUUID("prev-cluster-uuid")
-            .globalMetadataFileName("global-metadata-file")
             .codecVersion(ClusterMetadataManifest.CODEC_V0)
             .build();
 
         mockBlobContainer(mockBlobStoreObjects(), expectedManifest, Map.of(index.getUUID(), indexMetadata));
 
-        Map<String, IndexMetadata> indexMetadataMap = remoteClusterStateService.getLatestMetadata(
+        Map<String, IndexMetadata> indexMetadataMap = remoteClusterStateService.getLatestClusterState(
             clusterState.getClusterName().value(),
             clusterState.metadata().clusterUUID()
-        ).getIndices();
+        ).getMetadata().getIndices();
 
         assertEquals(indexMetadataMap.size(), 1);
         assertEquals(indexMetadataMap.get(index.getName()).getIndex().getName(), index.getName());
