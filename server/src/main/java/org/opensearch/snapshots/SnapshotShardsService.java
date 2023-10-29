@@ -36,6 +36,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.index.IndexCommit;
+import org.apache.lucene.index.SegmentInfos;
 import org.opensearch.Version;
 import org.opensearch.action.admin.indices.flush.FlushRequest;
 import org.opensearch.cluster.ClusterChangedEvent;
@@ -47,6 +48,7 @@ import org.opensearch.cluster.SnapshotsInProgress.State;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.ValidationException;
 import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.lifecycle.AbstractLifecycleComponent;
 import org.opensearch.common.settings.Settings;
@@ -63,6 +65,9 @@ import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexShardState;
 import org.opensearch.index.snapshots.IndexShardSnapshotStatus;
 import org.opensearch.index.snapshots.IndexShardSnapshotStatus.Stage;
+import org.opensearch.index.store.RemoteSegmentStoreDirectory;
+import org.opensearch.index.store.Store;
+import org.opensearch.index.store.remote.metadata.RemoteSegmentMetadata;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.repositories.IndexId;
 import org.opensearch.repositories.RepositoriesService;
@@ -78,10 +83,12 @@ import java.nio.file.NoSuchFileException;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
+import java.util.Optional;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
+import static org.apache.lucene.index.IndexFileNames.SEGMENTS;
 
 /**
  * This service runs on data nodes and controls currently running shard snapshots on these nodes. It is responsible for
@@ -405,31 +412,15 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
                     long startTime = threadPool.relativeTimeInMillis();
                     long primaryTerm = indexShard.getOperationPrimaryTerm();
                     // we flush first to make sure we get the latest writes snapshotted
-                    wrappedSnapshot = indexShard.acquireLastIndexCommitAndRefresh(true);
-                    IndexCommit snapshotIndexCommit = wrappedSnapshot.get();
-                    long commitGeneration = snapshotIndexCommit.getGeneration();
-                    try {
-                        indexShard.acquireLockOnCommitData(snapshot.getSnapshotId().getUUID(), primaryTerm, commitGeneration);
-                    } catch (NoSuchFileException e) {
-                        wrappedSnapshot.close();
-                        logger.warn(
-                            "Exception while acquiring lock on primaryTerm = {} and generation = {}",
-                            primaryTerm,
-                            commitGeneration
-                        );
-                        indexShard.flush(new FlushRequest(shardId.getIndexName()).force(true));
-                        wrappedSnapshot = indexShard.acquireLastIndexCommit(false);
-                        snapshotIndexCommit = wrappedSnapshot.get();
-                        commitGeneration = snapshotIndexCommit.getGeneration();
-                        indexShard.acquireLockOnCommitData(snapshot.getSnapshotId().getUUID(), primaryTerm, commitGeneration);
-                    }
+                    wrappedSnapshot = acquireLock(indexShard, shardId, snapshot, true);
+                    long commitGeneration = wrappedSnapshot.get().getGeneration();
                     try {
                         repository.snapshotRemoteStoreIndexShard(
                             indexShard.store(),
                             snapshot.getSnapshotId(),
                             indexId,
-                            snapshotIndexCommit,
-                            getShardStateId(indexShard, snapshotIndexCommit),
+                            wrappedSnapshot.get(),
+                            getShardStateId(indexShard, wrappedSnapshot.get()),
                             snapshotStatus,
                             primaryTerm,
                             startTime,
@@ -483,6 +474,70 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
             }
         } catch (Exception e) {
             listener.onFailure(e);
+        }
+    }
+
+    private GatedCloseable<IndexCommit> acquireLock(IndexShard indexShard, ShardId shardId, Snapshot snapshot, boolean retryOnFailure)
+        throws IOException {
+        GatedCloseable<IndexCommit> wrappedSnapshot = indexShard.acquireLastIndexCommitAndRefresh(true);
+        IndexCommit snapshotIndexCommit = wrappedSnapshot.get();
+        long commitGeneration = snapshotIndexCommit.getGeneration();
+        long primaryTerm = indexShard.getOperationPrimaryTerm();
+        try {
+            indexShard.acquireLockOnCommitData(snapshot.getSnapshotId().getUUID(), primaryTerm, commitGeneration);
+            // This flush is required to make sure we do not create any more medata files with the same primaryTerm and generation.
+            indexShard.flush(new FlushRequest(shardId.getIndexName()).force(true));
+            // We need to validate after flush so that the latest metadata file with given primary term and generation can be validated.
+            validateSegmentFilesFromAcquiredLock(indexShard, primaryTerm, commitGeneration);
+        } catch (NoSuchFileException | ValidationException e) {
+            logger.warn("Exception while acquiring/validating lock on primaryTerm = {} and generation = {}", primaryTerm, commitGeneration);
+            wrappedSnapshot.close();
+            if (e instanceof ValidationException) {
+                indexShard.releaseLockOnCommitData(snapshot.getSnapshotId().getUUID(), primaryTerm, commitGeneration);
+            }
+            indexShard.flush(new FlushRequest(shardId.getIndexName()).force(true));
+            if (retryOnFailure) {
+                return acquireLock(indexShard, shardId, snapshot, false);
+            } else {
+                throw e;
+            }
+        }
+        return wrappedSnapshot;
+    }
+
+    private void validateSegmentFilesFromAcquiredLock(IndexShard indexShard, long primaryTerm, long generation) throws IOException {
+        Store remoteStore = indexShard.remoteStore();
+        Store store = indexShard.store();
+        try {
+            remoteStore.incRef();
+            store.incRef();
+            String metadataFilename = ((RemoteSegmentStoreDirectory) remoteStore.directory()).getMetadataFileForCommit(
+                primaryTerm,
+                generation
+            );
+            RemoteSegmentMetadata remoteSegmentMetadata = ((RemoteSegmentStoreDirectory) remoteStore.directory()).readMetadataFile(
+                metadataFilename
+            );
+            Optional<String> segmentInfosFileName = remoteSegmentMetadata.getMetadata()
+                .keySet()
+                .stream()
+                .filter(f -> f.startsWith(SEGMENTS))
+                .findFirst();
+            if (segmentInfosFileName.isPresent()) {
+                SegmentInfos segmentInfos = SegmentInfos.readCommit(store.directory(), segmentInfosFileName.get());
+                if (remoteSegmentMetadata.getMetadata().keySet().containsAll(segmentInfos.files(true))) {
+                    logger.info("Acquired lock is valid for snapshot");
+                } else {
+                    ValidationException validationException = new ValidationException();
+                    validationException.addValidationError(
+                        "Remote store metadata file for the snapshot does not contain all the segments files referred in the segments_N file"
+                    );
+                    throw validationException;
+                }
+            }
+        } finally {
+            remoteStore.decRef();
+            store.decRef();
         }
     }
 

@@ -205,7 +205,7 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
         return remoteSegmentMetadata;
     }
 
-    private RemoteSegmentMetadata readMetadataFile(String metadataFilename) throws IOException {
+    public RemoteSegmentMetadata readMetadataFile(String metadataFilename) throws IOException {
         try (InputStream inputStream = remoteMetadataDirectory.getBlobStream(metadataFilename)) {
             byte[] metadataBytes = inputStream.readAllBytes();
             return metadataStreamWrapper.readStream(new ByteArrayIndexInput(metadataFilename, metadataBytes));
@@ -515,8 +515,7 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
         return mdLockManager.isAcquired(FileLockInfo.getLockInfoBuilder().withFileToLock(metadataFile).build());
     }
 
-    // Visible for testing
-    String getMetadataFileForCommit(long primaryTerm, long generation) throws IOException {
+    public String getMetadataFileForCommit(long primaryTerm, long generation) throws IOException {
         List<String> metadataFiles = remoteMetadataDirectory.listFilesByPrefixInLexicographicOrder(
             MetadataFilenameUtils.getMetadataFilePrefixForCommit(primaryTerm, generation),
             1
