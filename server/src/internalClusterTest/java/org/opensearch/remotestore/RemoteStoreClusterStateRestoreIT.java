@@ -30,6 +30,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ExecutionException;
@@ -85,6 +86,7 @@ public class RemoteStoreClusterStateRestoreIT extends BaseRemoteStoreRestoreIT {
         // Step - 1 index some data to generate files in remote directory
         Map<String, Long> indexStats = initialTestSetup(shardCount, replicaCount, dataNodeCount, 1);
         String prevClusterUUID = clusterService().state().metadata().clusterUUID();
+        long prevClusterStateVersion = clusterService().state().version();
 
         // Step - 2 Replace all nodes in the cluster with new nodes. This ensures new cluster state doesn't have previous index metadata
         resetCluster(dataNodeCount, clusterManagerNodeCount);
@@ -92,9 +94,17 @@ public class RemoteStoreClusterStateRestoreIT extends BaseRemoteStoreRestoreIT {
         String newClusterUUID = clusterService().state().metadata().clusterUUID();
         assert !Objects.equals(newClusterUUID, prevClusterUUID) : "cluster restart not successful. cluster uuid is same";
 
-        // Step - 3 Trigger full cluster restore and validate
+        // Step - 3 validate cluster state restored
+        long newClusterStateVersion = clusterService().state().version();
+        assert prevClusterStateVersion < newClusterStateVersion : String.format(
+            Locale.ROOT,
+            "ClusterState version is not restored. previousClusterVersion: [%s] is greater than current [%s]",
+            prevClusterStateVersion,
+            newClusterStateVersion
+        );
         validateMetadata(List.of(INDEX_NAME));
         verifyRedIndicesAndTriggerRestore(indexStats, INDEX_NAME, true);
+
     }
 
     /**
@@ -121,6 +131,7 @@ public class RemoteStoreClusterStateRestoreIT extends BaseRemoteStoreRestoreIT {
         // index some data to generate files in remote directory
         Map<String, Long> indexStats = initialTestSetup(shardCount, replicaCount, dataNodeCount, 1);
         String prevClusterUUID = clusterService().state().metadata().clusterUUID();
+        long prevClusterStateVersion = clusterService().state().version();
 
         // stop all nodes
         internalCluster().stopAllNodes();
@@ -156,6 +167,14 @@ public class RemoteStoreClusterStateRestoreIT extends BaseRemoteStoreRestoreIT {
         newClusterUUID = clusterService().state().metadata().clusterUUID();
         assert !Objects.equals(newClusterUUID, ClusterState.UNKNOWN_UUID) : "cluster restart not successful. cluster uuid is still unknown";
         assert !Objects.equals(newClusterUUID, prevClusterUUID) : "cluster restart not successful. cluster uuid is same";
+
+        long newClusterStateVersion = clusterService().state().version();
+        assert prevClusterStateVersion < newClusterStateVersion : String.format(
+            Locale.ROOT,
+            "ClusterState version is not restored. previousClusterVersion: [%s] is greater than current [%s]",
+            prevClusterStateVersion,
+            newClusterStateVersion
+        );
         validateMetadata(List.of(INDEX_NAME));
 
         // start data nodes to trigger index data recovery
@@ -180,6 +199,7 @@ public class RemoteStoreClusterStateRestoreIT extends BaseRemoteStoreRestoreIT {
         updateIndexBlock(true, secondIndexName);
 
         String prevClusterUUID = clusterService().state().metadata().clusterUUID();
+        long prevClusterStateVersion = clusterService().state().version();
 
         // Step - 2 Replace all nodes in the cluster with new nodes. This ensures new cluster state doesn't have previous index metadata
         resetCluster(dataNodeCount, clusterManagerNodeCount);
@@ -187,7 +207,14 @@ public class RemoteStoreClusterStateRestoreIT extends BaseRemoteStoreRestoreIT {
         String newClusterUUID = clusterService().state().metadata().clusterUUID();
         assert !Objects.equals(newClusterUUID, prevClusterUUID) : "cluster restart not successful. cluster uuid is same";
 
-        // Step - 3 Trigger full cluster restore
+        // Step - 3 validate cluster state restored
+        long newClusterStateVersion = clusterService().state().version();
+        assert prevClusterStateVersion < newClusterStateVersion : String.format(
+            Locale.ROOT,
+            "ClusterState version is not restored. previousClusterVersion: [%s] is greater than current [%s]",
+            prevClusterStateVersion,
+            newClusterStateVersion
+        );
         validateMetadata(List.of(INDEX_NAME, secondIndexName));
         verifyRedIndicesAndTriggerRestore(indexStats, INDEX_NAME, false);
         verifyRedIndicesAndTriggerRestore(indexStats2, secondIndexName, false);
@@ -239,6 +266,7 @@ public class RemoteStoreClusterStateRestoreIT extends BaseRemoteStoreRestoreIT {
 
         Map<String, Long> indexStats = initialTestSetup(shardCount, replicaCount, dataNodeCount, clusterManagerNodeCount);
         String prevClusterUUID = clusterService().state().metadata().clusterUUID();
+        long prevClusterStateVersion = clusterService().state().version();
         // Delete index metadata file in remote
         try {
             Files.move(
@@ -257,6 +285,14 @@ public class RemoteStoreClusterStateRestoreIT extends BaseRemoteStoreRestoreIT {
         ensureGreen(INDEX_NAME);
         String newClusterUUID = clusterService().state().metadata().clusterUUID();
         assert Objects.equals(newClusterUUID, prevClusterUUID) : "Full restart not successful. cluster uuid has changed";
+
+        long newClusterStateVersion = clusterService().state().version();
+        assert prevClusterStateVersion < newClusterStateVersion : String.format(
+            Locale.ROOT,
+            "ClusterState version is not restored. previousClusterVersion: [%s] is greater than current [%s]",
+            prevClusterStateVersion,
+            newClusterStateVersion
+        );
         validateCurrentMetadata();
         verifyRedIndicesAndTriggerRestore(indexStats, INDEX_NAME, true);
     }
@@ -309,6 +345,7 @@ public class RemoteStoreClusterStateRestoreIT extends BaseRemoteStoreRestoreIT {
         // Step - 1 index some data to generate files in remote directory
         Map<String, Long> indexStats = initialTestSetup(shardCount, replicaCount, dataNodeCount, 1);
         String prevClusterUUID = clusterService().state().metadata().clusterUUID();
+        long prevClusterStateVersion = clusterService().state().version();
 
         // Create global metadata - register a custom repo
         Path repoPath = registerCustomRepository();
@@ -328,8 +365,16 @@ public class RemoteStoreClusterStateRestoreIT extends BaseRemoteStoreRestoreIT {
         String newClusterUUID = clusterService().state().metadata().clusterUUID();
         assert !Objects.equals(newClusterUUID, prevClusterUUID) : "cluster restart not successful. cluster uuid is same";
 
-        // Step - 3 Trigger full cluster restore and validate
-        // validateCurrentMetadata();
+        // Step - 3 validate cluster state restored
+        long newClusterStateVersion = clusterService().state().version();
+        assert prevClusterStateVersion < newClusterStateVersion : String.format(
+            Locale.ROOT,
+            "ClusterState version is not restored. previousClusterVersion: [%s] is greater than current [%s]",
+            prevClusterStateVersion,
+            newClusterStateVersion
+        );
+
+        validateCurrentMetadata();
         assertEquals(Integer.valueOf(34), SETTING_CLUSTER_MAX_SHARDS_PER_NODE.get(clusterService().state().metadata().settings()));
         assertEquals(true, SETTING_READ_ONLY_SETTING.get(clusterService().state().metadata().settings()));
         assertTrue(clusterService().state().blocks().hasGlobalBlock(CLUSTER_READ_ONLY_BLOCK));
