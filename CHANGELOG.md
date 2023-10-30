@@ -15,7 +15,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 ### Removed
 
 ### Fixed
+- [BUG] Disable sort optimization for HALF_FLOAT ([#10999](https://github.com/opensearch-project/OpenSearch/pull/10999))
 
 ### Security
 
 [Unreleased 2.11]: https://github.com/opensearch-project/OpenSearch/compare/2.11...2.11
+
