@@ -268,6 +268,7 @@ public class RemoteFsTranslog extends Translog {
 
     private boolean prepareAndUpload(Long primaryTerm, Long generation) throws IOException {
         long maxSeqNo = -1;
+        boolean translogOpen = closed.get() == false;
         try (Releasable ignored = writeLock.acquire()) {
             if (generation == null || generation == current.getGeneration()) {
                 try {
@@ -277,7 +278,7 @@ public class RemoteFsTranslog extends Translog {
                     final TranslogReader reader = current.closeIntoReader();
                     readers.add(reader);
                     copyCheckpointTo(location.resolve(getCommitCheckpointFileName(current.getGeneration())));
-                    if (closed.get() == false) {
+                    if (translogOpen) {
                         logger.trace("Creating new writer for gen: [{}]", current.getGeneration() + 1);
                         current = createWriter(current.getGeneration() + 1);
                     }
@@ -304,7 +305,7 @@ public class RemoteFsTranslog extends Translog {
             // Writing remote in sync fashion doesn't hurt as global ckp update
             // is not updated in remote translog except in primary to primary recovery.
             if (generation == null) {
-                if (closed.get() == false) {
+                if (translogOpen) {
                     return upload(primaryTerm, current.getGeneration() - 1, maxSeqNo);
                 } else {
                     return upload(primaryTerm, current.getGeneration(), maxSeqNo);
