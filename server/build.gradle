@@ -257,6 +257,7 @@ tasks.named("processResources").configure {
 
 tasks.named("thirdPartyAudit").configure {
     ignoreMissingClasses(
+        *[
             // from com.fasterxml.jackson.dataformat.yaml.YAMLMapper (jackson-dataformat-yaml)
             'com.fasterxml.jackson.databind.ObjectMapper',
 
@@ -385,7 +386,17 @@ tasks.named("thirdPartyAudit").configure {
             'org.slf4j.Logger',
             'org.slf4j.LoggerFactory',
             'reactor.blockhound.BlockHound$Builder',
-            'reactor.blockhound.integration.BlockHoundIntegration'
+            'reactor.blockhound.integration.BlockHoundIntegration',
+            'com.google.common.geometry.S2LatLng'
+        ] + (BuildParams.runtimeJavaVersion < JavaVersion.VERSION_20) ? [] : [
+            'jdk.incubator.vector.ByteVector',
+            'jdk.incubator.vector.FloatVector',
+            'jdk.incubator.vector.IntVector',
+            'jdk.incubator.vector.ShortVector',
+            'jdk.incubator.vector.Vector',
+            'jdk.incubator.vector.VectorOperators',
+            'jdk.incubator.vector.VectorSpecies'
+        ]
     )
     ignoreViolations(
             'com.google.protobuf.MessageSchema',
