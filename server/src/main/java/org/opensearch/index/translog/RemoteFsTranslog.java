@@ -375,12 +375,14 @@ public class RemoteFsTranslog extends Translog {
     public void close() throws IOException {
         assert Translog.calledFromOutsideOrViaTragedyClose() : shardId
             + "Translog.close method is called from inside Translog, but not via closeOnTragicEvent method";
-        if (closed.compareAndSet(false, true)) {
-            try (ReleasableLock lock = writeLock.acquire()) {
-                sync();
-            } finally {
-                logger.debug("translog closed");
-                closeFilesIfNoPendingRetentionLocks();
+        try (ReleasableLock lock = writeLock.acquire()) {
+            if (closed.compareAndSet(false, true)) {
+                try {
+                    sync();
+                } finally {
+                    logger.debug("translog closed");
+                    closeFilesIfNoPendingRetentionLocks();
+                }
             }
         }
     }
