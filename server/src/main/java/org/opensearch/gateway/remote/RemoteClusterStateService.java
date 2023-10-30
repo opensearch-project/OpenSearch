@@ -622,7 +622,7 @@ public class RemoteClusterStateService implements Closeable {
         CountDownLatch latch = new CountDownLatch(1);
 
         LatchedActionListener completionListener = new LatchedActionListener<>(ActionListener.wrap(resp -> {
-            // no op on response
+            logger.trace(String.format(Locale.ROOT, "Manifest file uploaded successfully."));
         }, ex -> { exceptionReference.set(ex); }), latch);
 
         CLUSTER_METADATA_MANIFEST_FORMAT.writeAsyncWithUrgentPriority(
