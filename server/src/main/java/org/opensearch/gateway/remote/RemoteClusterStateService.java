@@ -767,16 +767,16 @@ public class RemoteClusterStateService implements Closeable {
     }
 
     /**
-     * Fetch latest metadata from remote cluster state including global metadata and index metadata
+     * Fetch latest ClusterState from remote, including global metadata, index metadata and cluster state version
      *
      * @param clusterUUID uuid of cluster state to refer to in remote
      * @param clusterName name of the cluster
      * @return {@link IndexMetadata}
      */
-    public Metadata getLatestMetadata(String clusterName, String clusterUUID) {
+    public ClusterState getLatestClusterState(String clusterName, String clusterUUID) {
         start();
         Optional<ClusterMetadataManifest> clusterMetadataManifest = getLatestClusterMetadataManifest(clusterName, clusterUUID);
-        if (!clusterMetadataManifest.isPresent()) {
+        if (clusterMetadataManifest.isEmpty()) {
             throw new IllegalStateException(
                 String.format(Locale.ROOT, "Latest cluster metadata manifest is not present for the provided clusterUUID: %s", clusterUUID)
             );
@@ -790,7 +790,10 @@ public class RemoteClusterStateService implements Closeable {
         Map<String, IndexMetadata> indexMetadataMap = new HashMap<>();
         indices.values().forEach(indexMetadata -> { indexMetadataMap.put(indexMetadata.getIndex().getName(), indexMetadata); });
 
-        return Metadata.builder(globalMetadata).indices(indexMetadataMap).build();
+        return ClusterState.builder(ClusterState.EMPTY_STATE)
+            .version(clusterMetadataManifest.get().getStateVersion())
+            .metadata(Metadata.builder(globalMetadata).indices(indexMetadataMap).build())
+            .build();
     }
 
     private Metadata getGlobalMetadata(String clusterName, String clusterUUID, ClusterMetadataManifest clusterMetadataManifest) {
