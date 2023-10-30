@@ -506,24 +506,51 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         ActionListener<SearchResponse> listener;
         try {
             searchRequest = searchPipelineService.resolvePipeline(originalSearchRequest);
-            listener = ActionListener.wrap(
-                r -> originalListener.onResponse(searchRequest.transformResponse(r)),
-                originalListener::onFailure
-            );
+            listener = searchRequest.transformResponseListener(originalListener);
         } catch (Exception e) {
             originalListener.onFailure(e);
             return;
         }
 
-        if (searchQueryMetricsEnabled) {
-            try {
-                searchQueryCategorizer.categorize(searchRequest.source());
-            } catch (Exception e) {
-                logger.error("Error while trying to categorize the query.", e);
+        ActionListener<SearchRequest> requestTransformListener = ActionListener.wrap(sr -> {
+            if (searchQueryMetricsEnabled) {
+                try {
+                    searchQueryCategorizer.categorize(sr.source());
+                } catch (Exception e) {
+                    logger.error("Error while trying to categorize the query.", e);
+                }
             }
-        }
 
-        ActionListener<SearchSourceBuilder> rewriteListener = ActionListener.wrap(source -> {
+            ActionListener<SearchSourceBuilder> rewriteListener = buildRewriteListener(
+                sr,
+                task,
+                timeProvider,
+                searchAsyncActionProvider,
+                listener,
+                searchRequestOperationsListener
+            );
+            if (sr.source() == null) {
+                rewriteListener.onResponse(sr.source());
+            } else {
+                Rewriteable.rewriteAndFetch(
+                    sr.source(),
+                    searchService.getRewriteContext(timeProvider::getAbsoluteStartMillis),
+                    rewriteListener
+                );
+            }
+        }, listener::onFailure);
+        searchRequest.transformRequest(requestTransformListener);
+    }
+
+    private ActionListener<SearchSourceBuilder> buildRewriteListener(
+        SearchRequest searchRequest,
+        Task task,
+        SearchTimeProvider timeProvider,
+        SearchAsyncActionProvider searchAsyncActionProvider,
+        ActionListener<SearchResponse> listener,
+        SearchRequestOperationsListener searchRequestOperationsListener
+    ) {
+        return ActionListener.wrap(source -> {
             if (source != searchRequest.source()) {
                 // only set it if it changed - we don't allow null values to be set but it might be already null. this way we catch
                 // situations when source is rewritten to null due to a bug
@@ -634,15 +661,6 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 }
             }
         }, listener::onFailure);
-        if (searchRequest.source() == null) {
-            rewriteListener.onResponse(searchRequest.source());
-        } else {
-            Rewriteable.rewriteAndFetch(
-                searchRequest.source(),
-                searchService.getRewriteContext(timeProvider::getAbsoluteStartMillis),
-                rewriteListener
-            );
-        }
     }
 
     static boolean shouldMinimizeRoundtrips(SearchRequest searchRequest) {
