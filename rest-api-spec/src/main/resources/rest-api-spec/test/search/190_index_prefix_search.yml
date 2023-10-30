@@ -12,7 +12,7 @@ setup:
                   max_chars: 5
               text_with_pos_inc_gap:
                 type: text
-                text_with_pos_inc_gap: 201
+                position_increment_gap: 201
                 index_prefixes:
                   min_chars: 2
                   max_chars: 5
@@ -32,13 +32,13 @@ setup:
       index:
         index:  test
         id:     3
-        body:   { text: ["a", "b-12"] }
+        body:   { text: ["foo", "b-12"] }
 
   - do:
       index:
         index:  test
         id:     4
-        body:   { text_with_pos_inc_gap: ["a", "b-12"] }
+        body:   { text_with_pos_inc_gap: ["foo", "b-12"] }
 
   - do:
       indices.refresh:
@@ -148,7 +148,7 @@ setup:
   - match: {hits.total: 1}
 
 ---
-"search index prefixes with multiple value":
+"search index prefixes with multiple value and custom position_increment_gap":
   - do:
       search:
         rest_total_hits_as_int: true
