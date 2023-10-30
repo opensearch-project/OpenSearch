@@ -370,7 +370,7 @@ tasks.named("thirdPartyAudit").configure {
             'com.google.protobuf.UnsafeUtil$JvmMemoryAccessor',
             'com.google.protobuf.UnsafeUtil$MemoryAccessor',
             'org.apache.logging.log4j.core.util.internal.UnsafeUtil',
-            'org.apache.logging.log4j.core.util.internal.UnsafeUtil$1'
+            'org.apache.logging.log4j.core.util.internal.UnsafeUtil$1',
             'reactor.core.publisher.Traces$SharedSecretsCallSiteSupplierFactory$TracingException'
     )
 }
