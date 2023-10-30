@@ -317,12 +317,19 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
 
         remoteClusterStateService.start();
         assertThrows(
-            RemoteClusterStateService.GlobalMetadataTransferException.class,
+            RemoteClusterStateService.RemoteStateTransferException.class,
             () -> remoteClusterStateService.writeFullMetadata(clusterState, randomAlphaOfLength(10))
         );
     }
 
     public void testTimeoutWhileWritingManifestFile() throws IOException {
+        // verify update metadata manifest upload timeout
+        int metadataManifestUploadTimeout = 2;
+        Settings newSettings = Settings.builder()
+            .put("cluster.remote_store.state.metadata_manifest.upload_timeout", metadataManifestUploadTimeout + "s")
+            .build();
+        clusterSettings.applySettings(newSettings);
+
         final ClusterState clusterState = generateClusterStateWithOneIndex().nodes(nodesWithLocalNodeClusterManager()).build();
         AsyncMultiStreamBlobContainer container = (AsyncMultiStreamBlobContainer) mockBlobStoreObjects(AsyncMultiStreamBlobContainer.class);
 
@@ -340,10 +347,12 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
         }).when(container).asyncBlobUpload(any(WriteContext.class), actionListenerArgumentCaptor.capture());
 
         remoteClusterStateService.start();
-        assertThrows(
-            RemoteClusterStateService.MetadataManifestTransferException.class,
-            () -> remoteClusterStateService.writeFullMetadata(clusterState, randomAlphaOfLength(10))
-        );
+        try {
+            remoteClusterStateService.writeFullMetadata(clusterState, randomAlphaOfLength(10));
+        } catch (Exception e) {
+            assertTrue(e instanceof RemoteClusterStateService.RemoteStateTransferException);
+            assertTrue(e.getMessage().contains("Timed out waiting for transfer of manifest file to complete"));
+        }
     }
 
     public void testWriteFullMetadataInParallelFailureForIndexMetadata() throws IOException {
@@ -362,7 +371,7 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
 
         remoteClusterStateService.start();
         assertThrows(
-            RemoteClusterStateService.IndexMetadataTransferException.class,
+            RemoteClusterStateService.RemoteStateTransferException.class,
             () -> remoteClusterStateService.writeFullMetadata(clusterState, randomAlphaOfLength(10))
         );
         assertEquals(0, remoteClusterStateService.getStats().getSuccessCount());

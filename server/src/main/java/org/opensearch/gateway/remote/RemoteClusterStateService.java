@@ -413,13 +413,13 @@ public class RemoteClusterStateService implements Closeable {
         try {
             if (latch.await(getGlobalMetadataUploadTimeout().millis(), TimeUnit.MILLISECONDS) == false) {
                 // TODO: We should add metrics where transfer is timing out. [Issue: #10687]
-                GlobalMetadataTransferException ex = new GlobalMetadataTransferException(
+                RemoteStateTransferException ex = new RemoteStateTransferException(
                     String.format(Locale.ROOT, "Timed out waiting for transfer of global metadata to complete")
                 );
                 throw ex;
             }
         } catch (InterruptedException ex) {
-            GlobalMetadataTransferException exception = new GlobalMetadataTransferException(
+            RemoteStateTransferException exception = new RemoteStateTransferException(
                 String.format(Locale.ROOT, "Timed out waiting for transfer of global metadata to complete - %s"),
                 ex
             );
@@ -427,7 +427,7 @@ public class RemoteClusterStateService implements Closeable {
             throw exception;
         }
         if (exceptionReference.get() != null) {
-            throw new GlobalMetadataTransferException(exceptionReference.get().getMessage(), exceptionReference.get());
+            throw new RemoteStateTransferException(exceptionReference.get().getMessage(), exceptionReference.get());
         }
         return result.get();
     }
@@ -452,7 +452,7 @@ public class RemoteClusterStateService implements Closeable {
                 );
                 result.add(uploadedIndexMetadata);
             }, ex -> {
-                assert ex instanceof IndexMetadataTransferException;
+                assert ex instanceof RemoteStateTransferException;
                 logger.error(
                     () -> new ParameterizedMessage("Exception during transfer of IndexMetadata to Remote {}", ex.getMessage()),
                     ex
@@ -469,7 +469,7 @@ public class RemoteClusterStateService implements Closeable {
 
         try {
             if (latch.await(getIndexMetadataUploadTimeout().millis(), TimeUnit.MILLISECONDS) == false) {
-                IndexMetadataTransferException ex = new IndexMetadataTransferException(
+                RemoteStateTransferException ex = new RemoteStateTransferException(
                     String.format(
                         Locale.ROOT,
                         "Timed out waiting for transfer of index metadata to complete - %s",
@@ -481,7 +481,7 @@ public class RemoteClusterStateService implements Closeable {
             }
         } catch (InterruptedException ex) {
             exceptionList.forEach(ex::addSuppressed);
-            IndexMetadataTransferException exception = new IndexMetadataTransferException(
+            RemoteStateTransferException exception = new RemoteStateTransferException(
                 String.format(
                     Locale.ROOT,
                     "Timed out waiting for transfer of index metadata to complete - %s",
@@ -493,7 +493,7 @@ public class RemoteClusterStateService implements Closeable {
             throw exception;
         }
         if (exceptionList.size() > 0) {
-            IndexMetadataTransferException exception = new IndexMetadataTransferException(
+            RemoteStateTransferException exception = new RemoteStateTransferException(
                 String.format(
                     Locale.ROOT,
                     "Exception during transfer of IndexMetadata to Remote %s",
@@ -532,7 +532,7 @@ public class RemoteClusterStateService implements Closeable {
                     indexMetadataContainer.path().buildAsString() + indexMetadataFilename
                 )
             ),
-            ex -> latchedActionListener.onFailure(new IndexMetadataTransferException(indexMetadata.getIndex().toString(), ex))
+            ex -> latchedActionListener.onFailure(new RemoteStateTransferException(indexMetadata.getIndex().toString(), ex))
         );
 
         INDEX_METADATA_FORMAT.writeAsyncWithUrgentPriority(
@@ -636,13 +636,13 @@ public class RemoteClusterStateService implements Closeable {
 
         try {
             if (latch.await(getMetadataManifestUploadTimeout().millis(), TimeUnit.MILLISECONDS) == false) {
-                MetadataManifestTransferException ex = new MetadataManifestTransferException(
+                RemoteStateTransferException ex = new RemoteStateTransferException(
                     String.format(Locale.ROOT, "Timed out waiting for transfer of manifest file to complete")
                 );
                 throw ex;
             }
         } catch (InterruptedException ex) {
-            MetadataManifestTransferException exception = new MetadataManifestTransferException(
+            RemoteStateTransferException exception = new RemoteStateTransferException(
                 String.format(Locale.ROOT, "Timed out waiting for transfer of manifest file to complete - %s"),
                 ex
             );
@@ -650,7 +650,7 @@ public class RemoteClusterStateService implements Closeable {
             throw exception;
         }
         if (exceptionReference.get() != null) {
-            throw new MetadataManifestTransferException(exceptionReference.get().getMessage(), exceptionReference.get());
+            throw new RemoteStateTransferException(exceptionReference.get().getMessage(), exceptionReference.get());
         }
         logger.debug(
             "Metadata manifest file [{}] written during [{}] phase. ",
@@ -1136,43 +1136,15 @@ public class RemoteClusterStateService implements Closeable {
     }
 
     /**
-     * Exception for IndexMetadata transfer failures to remote
+     * Exception for Remote state transfer.
      */
-    static class IndexMetadataTransferException extends RuntimeException {
+    static class RemoteStateTransferException extends RuntimeException {
 
-        public IndexMetadataTransferException(String errorDesc) {
+        public RemoteStateTransferException(String errorDesc) {
             super(errorDesc);
         }
 
-        public IndexMetadataTransferException(String errorDesc, Throwable cause) {
-            super(errorDesc, cause);
-        }
-    }
-
-    /**
-     * Exception for GlobalMetadata transfer failures to remote
-     */
-    static class GlobalMetadataTransferException extends RuntimeException {
-
-        public GlobalMetadataTransferException(String errorDesc) {
-            super(errorDesc);
-        }
-
-        public GlobalMetadataTransferException(String errorDesc, Throwable cause) {
-            super(errorDesc, cause);
-        }
-    }
-
-    /**
-     * Exception for metadata manifest transfer failures to remote
-     */
-    static class MetadataManifestTransferException extends RuntimeException {
-
-        public MetadataManifestTransferException(String errorDesc) {
-            super(errorDesc);
-        }
-
-        public MetadataManifestTransferException(String errorDesc, Throwable cause) {
+        public RemoteStateTransferException(String errorDesc, Throwable cause) {
             super(errorDesc, cause);
         }
     }
