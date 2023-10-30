@@ -232,6 +232,7 @@ public class SegmentReplicationTarget extends ReplicationTarget {
         return missingFiles;
     }
 
+    // pkg private for tests
     private boolean validateLocalChecksum(StoreFileMetadata file) {
         try (IndexInput indexInput = indexShard.store().directory().openInput(file.name(), IOContext.DEFAULT)) {
             String checksum = Store.digestToString(CodecUtil.retrieveChecksum(indexInput));
@@ -243,7 +244,15 @@ public class SegmentReplicationTarget extends ReplicationTarget {
                 return false;
             }
         } catch (IOException e) {
-            throw new UncheckedIOException("Error reading " + file, e);
+            logger.warn("Error reading " + file, e);
+            // Delete file on exceptions so that it can be re-downloaded. This is safe to do as this file is local only
+            // and not referenced by reader.
+            try {
+                indexShard.store().directory().deleteFile(file.name());
+            } catch (IOException ex) {
+                throw new UncheckedIOException("Error reading " + file, e);
+            }
+            return false;
         }
     }
 

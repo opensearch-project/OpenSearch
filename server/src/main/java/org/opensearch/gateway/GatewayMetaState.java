@@ -47,6 +47,7 @@ import org.opensearch.cluster.coordination.CoordinationState.PersistedState;
 import org.opensearch.cluster.coordination.InMemoryPersistedState;
 import org.opensearch.cluster.coordination.PersistedStateRegistry;
 import org.opensearch.cluster.coordination.PersistedStateRegistry.PersistedStateType;
+import org.opensearch.cluster.coordination.PersistedStateStats;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.IndexTemplateMetadata;
 import org.opensearch.cluster.metadata.Manifest;
@@ -615,6 +616,12 @@ public class GatewayMetaState implements Closeable {
             lastAcceptedState = clusterState;
         }
 
+        @Override
+        public PersistedStateStats getStats() {
+            // Note: These stats are not published yet, will come in future
+            return null;
+        }
+
         private PersistedClusterStateService.Writer getWriterSafe() {
             final PersistedClusterStateService.Writer writer = persistenceWriter.get();
             if (writer == null) {
@@ -688,24 +695,21 @@ public class GatewayMetaState implements Closeable {
             try {
                 final ClusterMetadataManifest manifest;
                 if (shouldWriteFullClusterState(clusterState)) {
-                    if (clusterState.metadata().clusterUUIDCommitted() == true) {
-                        final Optional<ClusterMetadataManifest> latestManifest = remoteClusterStateService.getLatestClusterMetadataManifest(
-                            clusterState.getClusterName().value(),
+                    final Optional<ClusterMetadataManifest> latestManifest = remoteClusterStateService.getLatestClusterMetadataManifest(
+                        clusterState.getClusterName().value(),
+                        clusterState.metadata().clusterUUID()
+                    );
+                    if (latestManifest.isPresent()) {
+                        // The previous UUID should not change for the current UUID. So fetching the latest manifest
+                        // from remote store and getting the previous UUID.
+                        previousClusterUUID = latestManifest.get().getPreviousClusterUUID();
+                    } else {
+                        // When the user starts the cluster with remote state disabled but later enables the remote state,
+                        // there will not be any manifest for the current cluster UUID.
+                        logger.error(
+                            "Latest manifest is not present in remote store for cluster UUID: {}",
                             clusterState.metadata().clusterUUID()
                         );
-                        if (latestManifest.isPresent()) {
-                            // The previous UUID should not change for the current UUID. So fetching the latest manifest
-                            // from remote store and getting the previous UUID.
-                            previousClusterUUID = latestManifest.get().getPreviousClusterUUID();
-                        } else {
-                            // When the user starts the cluster with remote state disabled but later enables the remote state,
-                            // there will not be any manifest for the current cluster UUID.
-                            logger.error(
-                                "Latest manifest is not present in remote store for cluster UUID: {}",
-                                clusterState.metadata().clusterUUID()
-                            );
-                            previousClusterUUID = ClusterState.UNKNOWN_UUID;
-                        }
                     }
                     manifest = remoteClusterStateService.writeFullMetadata(clusterState, previousClusterUUID);
                 } else {
@@ -717,8 +721,14 @@ public class GatewayMetaState implements Closeable {
                 lastAcceptedManifest = manifest;
                 lastAcceptedState = clusterState;
             } catch (Exception e) {
+                remoteClusterStateService.writeMetadataFailed();
                 handleExceptionOnWrite(e);
             }
+        }
+
+        @Override
+        public PersistedStateStats getStats() {
+            return remoteClusterStateService.getStats();
         }
 
         private boolean verifyManifestAndClusterState(ClusterMetadataManifest manifest, ClusterState clusterState) {

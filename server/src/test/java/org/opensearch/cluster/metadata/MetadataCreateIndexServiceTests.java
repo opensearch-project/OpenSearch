@@ -139,6 +139,7 @@ import static org.opensearch.indices.IndicesService.CLUSTER_DEFAULT_INDEX_REFRES
 import static org.opensearch.indices.IndicesService.CLUSTER_MINIMUM_INDEX_REFRESH_INTERVAL_SETTING;
 import static org.opensearch.indices.IndicesService.CLUSTER_REMOTE_INDEX_RESTRICT_ASYNC_DURABILITY_SETTING;
 import static org.opensearch.indices.IndicesService.CLUSTER_REPLICATION_TYPE_SETTING;
+import static org.opensearch.indices.IndicesService.CLUSTER_RESTRICT_INDEX_REPLICATION_TYPE_SETTING;
 import static org.opensearch.indices.ShardLimitValidatorTests.createTestShardLimitService;
 import static org.opensearch.node.Node.NODE_ATTRIBUTES;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY;
@@ -1177,6 +1178,8 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
             .put(AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_FORCE_GROUP_SETTING.getKey() + "zone.values", "a, b")
             .put(AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_FORCE_GROUP_SETTING.getKey() + "rack.values", "c, d, e")
             .put(AwarenessReplicaBalance.CLUSTER_ROUTING_ALLOCATION_AWARENESS_BALANCE_SETTING.getKey(), true)
+            .put(CLUSTER_RESTRICT_INDEX_REPLICATION_TYPE_SETTING.getKey(), true)
+            .put(SETTING_REPLICATION_TYPE, randomFrom(ReplicationType.values()))
             .build();
         ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         when(clusterService.getSettings()).thenReturn(settings);
@@ -1200,8 +1203,12 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
         );
 
         List<String> validationErrors = checkerService.getIndexSettingsValidationErrors(settings, false, Optional.empty());
-        assertThat(validationErrors.size(), is(1));
-        assertThat(validationErrors.get(0), is("expected total copies needs to be a multiple of total awareness attributes [3]"));
+        assertThat(validationErrors.size(), is(2));
+        assertThat(
+            validationErrors.get(0),
+            is("index setting [index.replication.type] is not allowed to be set as [cluster.restrict.index.replication_type=true]")
+        );
+        assertThat(validationErrors.get(1), is("expected total copies needs to be a multiple of total awareness attributes [3]"));
 
         settings = Settings.builder()
             .put(AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING.getKey(), "zone, rack")
@@ -1209,7 +1216,12 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
             .put(AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_FORCE_GROUP_SETTING.getKey() + "rack.values", "c, d, e")
             .put(AwarenessReplicaBalance.CLUSTER_ROUTING_ALLOCATION_AWARENESS_BALANCE_SETTING.getKey(), true)
             .put(SETTING_NUMBER_OF_REPLICAS, 2)
+            .put(CLUSTER_RESTRICT_INDEX_REPLICATION_TYPE_SETTING.getKey(), false)
+            .put(SETTING_REPLICATION_TYPE, randomFrom(ReplicationType.values()))
             .build();
+
+        clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
 
         validationErrors = checkerService.getIndexSettingsValidationErrors(settings, false, Optional.empty());
         assertThat(validationErrors.size(), is(0));

@@ -159,7 +159,7 @@ public class RemoteClusterStateService implements Closeable {
     private volatile TimeValue globalMetadataUploadTimeout;
 
     private final AtomicBoolean deleteStaleMetadataRunning = new AtomicBoolean(false);
-
+    private final RemotePersistenceStats remoteStateStats;
     public static final int INDEX_METADATA_CURRENT_CODEC_VERSION = 1;
     public static final int MANIFEST_CURRENT_CODEC_VERSION = ClusterMetadataManifest.CODEC_V1;
     public static final int GLOBAL_METADATA_CURRENT_CODEC_VERSION = 1;
@@ -193,6 +193,7 @@ public class RemoteClusterStateService implements Closeable {
         clusterSettings.addSettingsUpdateConsumer(SLOW_WRITE_LOGGING_THRESHOLD, this::setSlowWriteLoggingThreshold);
         clusterSettings.addSettingsUpdateConsumer(INDEX_METADATA_UPLOAD_TIMEOUT_SETTING, this::setIndexMetadataUploadTimeout);
         clusterSettings.addSettingsUpdateConsumer(GLOBAL_METADATA_UPLOAD_TIMEOUT_SETTING, this::setGlobalMetadataUploadTimeout);
+        this.remoteStateStats = new RemotePersistenceStats();
     }
 
     private BlobStoreTransferService getBlobStoreTransferService() {
@@ -233,6 +234,8 @@ public class RemoteClusterStateService implements Closeable {
             false
         );
         final long durationMillis = TimeValue.nsecToMSec(relativeTimeNanosSupplier.getAsLong() - startTimeNanos);
+        remoteStateStats.stateSucceeded();
+        remoteStateStats.stateTook(durationMillis);
         if (durationMillis >= slowWriteLoggingThreshold.getMillis()) {
             logger.warn(
                 "writing cluster state took [{}ms] which is above the warn threshold of [{}]; " + "wrote full state with [{}] indices",
@@ -241,9 +244,8 @@ public class RemoteClusterStateService implements Closeable {
                 allUploadedIndexMetadata.size()
             );
         } else {
-            // todo change to debug
             logger.info(
-                "writing cluster state took [{}ms]; " + "wrote full state with [{}] indices",
+                "writing cluster state took [{}ms]; " + "wrote full state with [{}] indices and global metadata",
                 durationMillis,
                 allUploadedIndexMetadata.size()
             );
@@ -282,6 +284,7 @@ public class RemoteClusterStateService implements Closeable {
         if (updateGlobalMetadata || previousManifest.getGlobalMetadataFileName() == null) {
             globalMetadataFile = writeGlobalMetadata(clusterState);
         } else {
+            logger.debug("Global metadata has not updated in cluster state, skipping upload of it");
             globalMetadataFile = previousManifest.getGlobalMetadataFileName();
         }
 
@@ -302,7 +305,7 @@ public class RemoteClusterStateService implements Closeable {
         for (final IndexMetadata indexMetadata : clusterState.metadata().indices().values()) {
             final Long previousVersion = previousStateIndexMetadataVersionByName.get(indexMetadata.getIndex().getName());
             if (previousVersion == null || indexMetadata.getVersion() != previousVersion) {
-                logger.trace(
+                logger.debug(
                     "updating metadata for [{}], changing version from [{}] to [{}]",
                     indexMetadata.getIndex(),
                     previousVersion,
@@ -334,21 +337,27 @@ public class RemoteClusterStateService implements Closeable {
         deleteStaleClusterMetadata(clusterState.getClusterName().value(), clusterState.metadata().clusterUUID(), RETAINED_MANIFESTS);
 
         final long durationMillis = TimeValue.nsecToMSec(relativeTimeNanosSupplier.getAsLong() - startTimeNanos);
+        remoteStateStats.stateSucceeded();
+        remoteStateStats.stateTook(durationMillis);
         if (durationMillis >= slowWriteLoggingThreshold.getMillis()) {
             logger.warn(
                 "writing cluster state took [{}ms] which is above the warn threshold of [{}]; "
-                    + "wrote  metadata for [{}] indices and skipped [{}] unchanged indices",
+                    + "wrote  metadata for [{}] indices and skipped [{}] unchanged indices, global metadata updated : [{}]",
                 durationMillis,
                 slowWriteLoggingThreshold,
                 numIndicesUpdated,
-                numIndicesUnchanged
+                numIndicesUnchanged,
+                updateGlobalMetadata
             );
         } else {
-            logger.trace(
-                "writing cluster state took [{}ms]; " + "wrote metadata for [{}] indices and skipped [{}] unchanged indices",
+            logger.info(
+                "writing cluster state for version [{}] took [{}ms]; "
+                    + "wrote metadata for [{}] indices and skipped [{}] unchanged indices, global metadata updated : [{}]",
+                manifest.getStateVersion(),
                 durationMillis,
                 numIndicesUpdated,
-                numIndicesUnchanged
+                numIndicesUnchanged,
+                updateGlobalMetadata
             );
         }
         return manifest;
@@ -364,6 +373,8 @@ public class RemoteClusterStateService implements Closeable {
     private String writeGlobalMetadata(ClusterState clusterState) throws IOException {
 
         AtomicReference<String> result = new AtomicReference<String>();
+        AtomicReference<Exception> exceptionReference = new AtomicReference<Exception>();
+
         final BlobContainer globalMetadataContainer = globalMetadataContainer(
             clusterState.getClusterName().value(),
             clusterState.metadata().clusterUUID()
@@ -376,9 +387,9 @@ public class RemoteClusterStateService implements Closeable {
         LatchedActionListener completionListener = new LatchedActionListener<>(ActionListener.wrap(resp -> {
             logger.trace(String.format(Locale.ROOT, "GlobalMetadata uploaded successfully."));
             result.set(globalMetadataContainer.path().buildAsString() + globalMetadataFilename);
-        }, ex -> { throw new GlobalMetadataTransferException(ex.getMessage(), ex); }), latch);
+        }, ex -> { exceptionReference.set(ex); }), latch);
 
-        GLOBAL_METADATA_FORMAT.writeAsync(
+        GLOBAL_METADATA_FORMAT.writeAsyncWithUrgentPriority(
             clusterState.metadata(),
             globalMetadataContainer,
             globalMetadataFilename,
@@ -403,7 +414,9 @@ public class RemoteClusterStateService implements Closeable {
             Thread.currentThread().interrupt();
             throw exception;
         }
-
+        if (exceptionReference.get() != null) {
+            throw new GlobalMetadataTransferException(exceptionReference.get().getMessage(), exceptionReference.get());
+        }
         return result.get();
     }
 
@@ -510,7 +523,7 @@ public class RemoteClusterStateService implements Closeable {
             ex -> latchedActionListener.onFailure(new IndexMetadataTransferException(indexMetadata.getIndex().toString(), ex))
         );
 
-        INDEX_METADATA_FORMAT.writeAsync(
+        INDEX_METADATA_FORMAT.writeAsyncWithUrgentPriority(
             indexMetadata,
             indexMetadataContainer,
             indexMetadataFilename,
@@ -595,6 +608,11 @@ public class RemoteClusterStateService implements Closeable {
             fileName,
             blobStoreRepository.getCompressor(),
             FORMAT_PARAMS
+        );
+        logger.debug(
+            "Metadata manifest file [{}] written during [{}] phase. ",
+            fileName,
+            uploadManifest.isCommitted() ? "commit" : "publish"
         );
     }
 
@@ -749,16 +767,16 @@ public class RemoteClusterStateService implements Closeable {
     }
 
     /**
-     * Fetch latest metadata from remote cluster state including global metadata and index metadata
+     * Fetch latest ClusterState from remote, including global metadata, index metadata and cluster state version
      *
      * @param clusterUUID uuid of cluster state to refer to in remote
      * @param clusterName name of the cluster
      * @return {@link IndexMetadata}
      */
-    public Metadata getLatestMetadata(String clusterName, String clusterUUID) {
+    public ClusterState getLatestClusterState(String clusterName, String clusterUUID) {
         start();
         Optional<ClusterMetadataManifest> clusterMetadataManifest = getLatestClusterMetadataManifest(clusterName, clusterUUID);
-        if (!clusterMetadataManifest.isPresent()) {
+        if (clusterMetadataManifest.isEmpty()) {
             throw new IllegalStateException(
                 String.format(Locale.ROOT, "Latest cluster metadata manifest is not present for the provided clusterUUID: %s", clusterUUID)
             );
@@ -772,7 +790,10 @@ public class RemoteClusterStateService implements Closeable {
         Map<String, IndexMetadata> indexMetadataMap = new HashMap<>();
         indices.values().forEach(indexMetadata -> { indexMetadataMap.put(indexMetadata.getIndex().getName(), indexMetadata); });
 
-        return Metadata.builder(globalMetadata).indices(indexMetadataMap).build();
+        return ClusterState.builder(ClusterState.EMPTY_STATE)
+            .version(clusterMetadataManifest.get().getStateVersion())
+            .metadata(Metadata.builder(globalMetadata).indices(indexMetadataMap).build())
+            .build();
     }
 
     private Metadata getGlobalMetadata(String clusterName, String clusterUUID, ClusterMetadataManifest clusterMetadataManifest) {
@@ -863,25 +884,31 @@ public class RemoteClusterStateService implements Closeable {
      * @return List of cluster UUIDs. The first element is the most recent cluster UUID in the chain
      */
     private List<String> createClusterChain(final Map<String, ClusterMetadataManifest> manifestsByClusterUUID, final String clusterName) {
-        final Map<String, String> clusterUUIDGraph = manifestsByClusterUUID.values()
+        final List<ClusterMetadataManifest> validClusterManifests = manifestsByClusterUUID.values()
             .stream()
-            .collect(Collectors.toMap(ClusterMetadataManifest::getClusterUUID, ClusterMetadataManifest::getPreviousClusterUUID));
-        final List<String> validClusterUUIDs = manifestsByClusterUUID.values()
-            .stream()
-            .filter(m -> !isInvalidClusterUUID(m) && !clusterUUIDGraph.containsValue(m.getClusterUUID()))
-            .map(ClusterMetadataManifest::getClusterUUID)
+            .filter(this::isValidClusterUUID)
             .collect(Collectors.toList());
-        if (validClusterUUIDs.isEmpty()) {
-            logger.info("There is no valid previous cluster UUID");
+        final Map<String, String> clusterUUIDGraph = validClusterManifests.stream()
+            .collect(Collectors.toMap(ClusterMetadataManifest::getClusterUUID, ClusterMetadataManifest::getPreviousClusterUUID));
+        final List<String> topLevelClusterUUIDs = validClusterManifests.stream()
+            .map(ClusterMetadataManifest::getClusterUUID)
+            .filter(clusterUUID -> !clusterUUIDGraph.containsValue(clusterUUID))
+            .collect(Collectors.toList());
+
+        if (topLevelClusterUUIDs.isEmpty()) {
+            // This can occur only when there are no valid cluster UUIDs
+            assert validClusterManifests.isEmpty() : "There are no top level cluster UUIDs even when there are valid cluster UUIDs";
+            logger.info("There is no valid previous cluster UUID. All cluster UUIDs evaluated are: {}", manifestsByClusterUUID.keySet());
             return Collections.emptyList();
         }
-        if (validClusterUUIDs.size() > 1) {
+        if (topLevelClusterUUIDs.size() > 1) {
+            logger.info("Top level cluster UUIDs: {}", topLevelClusterUUIDs);
             // If the valid cluster UUIDs are more that 1, it means there was some race condition where
             // more then 2 cluster manager nodes tried to become active cluster manager and published
             // 2 cluster UUIDs which followed the same previous UUID.
             final Map<String, ClusterMetadataManifest> manifestsByClusterUUIDTrimmed = trimClusterUUIDs(
                 manifestsByClusterUUID,
-                validClusterUUIDs,
+                topLevelClusterUUIDs,
                 clusterName
             );
             if (manifestsByClusterUUID.size() == manifestsByClusterUUIDTrimmed.size()) {
@@ -890,19 +917,20 @@ public class RemoteClusterStateService implements Closeable {
                         Locale.ROOT,
                         "The system has ended into multiple valid cluster states in the remote store. "
                             + "Please check their latest manifest to decide which one you want to keep. Valid Cluster UUIDs: - %s",
-                        validClusterUUIDs
+                        topLevelClusterUUIDs
                     )
                 );
             }
             return createClusterChain(manifestsByClusterUUIDTrimmed, clusterName);
         }
         final List<String> validChain = new ArrayList<>();
-        String currentUUID = validClusterUUIDs.get(0);
+        String currentUUID = topLevelClusterUUIDs.get(0);
         while (currentUUID != null && !ClusterState.UNKNOWN_UUID.equals(currentUUID)) {
             validChain.add(currentUUID);
             // Getting the previous cluster UUID of a cluster UUID from the clusterUUID Graph
             currentUUID = clusterUUIDGraph.get(currentUUID);
         }
+        logger.info("Known UUIDs found in remote store : [{}]", validChain);
         return validChain;
     }
 
@@ -923,11 +951,7 @@ public class RemoteClusterStateService implements Closeable {
             // Here we compare the manifest of current UUID to that of previous UUID
             // In case currentUUID's latest manifest is same as previous UUIDs latest manifest,
             // that means it was restored from previousUUID and no IndexMetadata update was performed on it.
-            if (ClusterState.UNKNOWN_UUID.equals(currentManifest.getPreviousClusterUUID())) {
-                if (currentManifest.getIndices().isEmpty()) {
-                    trimmedUUIDs.remove(clusterUUID);
-                }
-            } else {
+            if (!ClusterState.UNKNOWN_UUID.equals(currentManifest.getPreviousClusterUUID())) {
                 ClusterMetadataManifest previousManifest = trimmedUUIDs.get(currentManifest.getPreviousClusterUUID());
                 if (isMetadataEqual(currentManifest, previousManifest, clusterName)
                     && isGlobalMetadataEqual(currentManifest, previousManifest, clusterName)) {
@@ -966,8 +990,8 @@ public class RemoteClusterStateService implements Closeable {
         return Metadata.isGlobalResourcesMetadataEquals(firstGlobalMetadata, secondGlobalMetadata);
     }
 
-    private boolean isInvalidClusterUUID(ClusterMetadataManifest manifest) {
-        return !manifest.isClusterUUIDCommitted();
+    private boolean isValidClusterUUID(ClusterMetadataManifest manifest) {
+        return manifest.isClusterUUIDCommitted();
     }
 
     /**
@@ -1059,6 +1083,10 @@ public class RemoteClusterStateService implements Closeable {
         return Base64.getUrlEncoder().withoutPadding().encodeToString(content.getBytes(StandardCharsets.UTF_8));
     }
 
+    public void writeMetadataFailed() {
+        getStats().stateFailed();
+    }
+
     /**
      * Exception for IndexMetadata transfer failures to remote
      */
@@ -1093,7 +1121,7 @@ public class RemoteClusterStateService implements Closeable {
      * @param clusterName name of the cluster
      * @param clusterUUIDs clusteUUIDs for which the remote state needs to be purged
      */
-    private void deleteStaleUUIDsClusterMetadata(String clusterName, List<String> clusterUUIDs) {
+    void deleteStaleUUIDsClusterMetadata(String clusterName, List<String> clusterUUIDs) {
         clusterUUIDs.forEach(clusterUUID -> {
             getBlobStoreTransferService().deleteAsync(
                 ThreadPool.Names.REMOTE_PURGE,
@@ -1113,6 +1141,7 @@ public class RemoteClusterStateService implements Closeable {
                             ),
                             e
                         );
+                        remoteStateStats.cleanUpAttemptFailed();
                     }
                 }
             );
@@ -1217,7 +1246,7 @@ public class RemoteClusterStateService implements Closeable {
             });
 
             if (staleManifestPaths.isEmpty()) {
-                logger.info("No stale Remote Cluster Metadata files found");
+                logger.debug("No stale Remote Cluster Metadata files found");
                 return;
             }
 
@@ -1228,8 +1257,10 @@ public class RemoteClusterStateService implements Closeable {
             logger.error("Error while fetching Remote Cluster Metadata manifests", e);
         } catch (IOException e) {
             logger.error("Error while deleting stale Remote Cluster Metadata files", e);
+            remoteStateStats.cleanUpAttemptFailed();
         } catch (Exception e) {
             logger.error("Unexpected error while deleting stale Remote Cluster Metadata files", e);
+            remoteStateStats.cleanUpAttemptFailed();
         }
     }
 
@@ -1259,5 +1290,9 @@ public class RemoteClusterStateService implements Closeable {
             allClustersUUIDsInRemote.remove(committedManifest.getPreviousClusterUUID());
             deleteStaleUUIDsClusterMetadata(clusterName, new ArrayList<>(allClustersUUIDsInRemote));
         });
+    }
+
+    public RemotePersistenceStats getStats() {
+        return remoteStateStats;
     }
 }
