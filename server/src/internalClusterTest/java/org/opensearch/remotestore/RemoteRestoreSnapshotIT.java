@@ -589,4 +589,71 @@ public class RemoteRestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
         assertDocsPresentInIndex(client, restoredIndexName1, numDocsInIndex1 + 2);
     }
 
+    public void testRestoreShallowSnapshotIndexAfterSnapshot() throws ExecutionException, InterruptedException {
+        String indexName1 = "testindex1";
+        String snapshotRepoName = "test-restore-snapshot-repo";
+        String remoteStoreRepoNameUpdated = "test-rs-repo-updated" + TEST_REMOTE_STORE_REPO_SUFFIX;
+        String snapshotName1 = "test-restore-snapshot1";
+        Path absolutePath1 = randomRepoPath().toAbsolutePath();
+        Path absolutePath2 = randomRepoPath().toAbsolutePath();
+        String[] pathTokens = absolutePath1.toString().split("/");
+        String basePath = pathTokens[pathTokens.length - 1];
+        Arrays.copyOf(pathTokens, pathTokens.length - 1);
+        Path location = PathUtils.get(String.join("/", pathTokens));
+        pathTokens = absolutePath2.toString().split("/");
+        String basePath2 = pathTokens[pathTokens.length - 1];
+        Arrays.copyOf(pathTokens, pathTokens.length - 1);
+        Path location2 = PathUtils.get(String.join("/", pathTokens));
+        logger.info("Path 1 [{}]", absolutePath1);
+        logger.info("Path 2 [{}]", absolutePath2);
+        String restoredIndexName1 = indexName1 + "-restored";
+
+        createRepository(snapshotRepoName, "fs", getRepositorySettings(location, basePath, true));
+
+        Client client = client();
+        Settings indexSettings = Settings.builder()
+            .put(super.indexSettings())
+            .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            .build();
+        createIndex(indexName1, indexSettings);
+
+        int numDocsInIndex1 = randomIntBetween(2, 5);
+        indexDocuments(client, indexName1, numDocsInIndex1);
+
+        ensureGreen(indexName1);
+
+        logger.info("--> snapshot");
+        SnapshotInfo snapshotInfo1 = createSnapshot(snapshotRepoName, snapshotName1, new ArrayList<>(List.of(indexName1)));
+        assertThat(snapshotInfo1.successfulShards(), greaterThan(0));
+        assertThat(snapshotInfo1.successfulShards(), equalTo(snapshotInfo1.totalShards()));
+        assertThat(snapshotInfo1.state(), equalTo(SnapshotState.SUCCESS));
+
+        int extraNumDocsInIndex1 = randomIntBetween(20, 50);
+        indexDocuments(client, indexName1, extraNumDocsInIndex1);
+        refresh(indexName1);
+
+        client().admin().indices().close(Requests.closeIndexRequest(indexName1)).get();
+        createRepository(remoteStoreRepoNameUpdated, "fs", remoteRepoPath);
+        RestoreSnapshotResponse restoreSnapshotResponse2 = client.admin()
+            .cluster()
+            .prepareRestoreSnapshot(snapshotRepoName, snapshotName1)
+            .setWaitForCompletion(true)
+            .setIndices(indexName1)
+            .setRenamePattern(indexName1)
+            .setRenameReplacement(restoredIndexName1)
+            .setSourceRemoteStoreRepository(remoteStoreRepoNameUpdated)
+            .get();
+
+        assertTrue(restoreSnapshotResponse2.getRestoreInfo().failedShards() == 0);
+        ensureGreen(restoredIndexName1);
+        assertDocsPresentInIndex(client, restoredIndexName1, numDocsInIndex1);
+
+        // indexing some new docs and validating
+        indexDocuments(client, restoredIndexName1, numDocsInIndex1, numDocsInIndex1 + 2);
+        ensureGreen(restoredIndexName1);
+        assertDocsPresentInIndex(client, restoredIndexName1, numDocsInIndex1 + 2);
+    }
+
 }
