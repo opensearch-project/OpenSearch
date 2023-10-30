@@ -20,6 +20,7 @@ import org.apache.lucene.store.IndexInput;
 import org.opensearch.action.LatchedActionListener;
 import org.opensearch.action.bulk.BackoffPolicy;
 import org.opensearch.action.support.GroupedActionListener;
+import org.opensearch.cluster.routing.RecoverySource;
 import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.logging.Loggers;
 import org.opensearch.common.unit.TimeValue;
@@ -179,6 +180,9 @@ public final class RemoteStoreRefreshListener extends CloseableRetryableRefreshL
         return this.primaryTerm != indexShard.getOperationPrimaryTerm();
     }
 
+    /*
+     @return false if retry is needed
+     */
     private boolean syncSegments() {
         if (isReadyForUpload() == false) {
             // Following check is required to enable retry and make sure that we do not lose this refresh event
@@ -486,7 +490,9 @@ public final class RemoteStoreRefreshListener extends CloseableRetryableRefreshL
      * @return true iff primaryMode is true and index shard is not in closed state.
      */
     private boolean isReadyForUpload() {
-        boolean isReady = indexShard.getReplicationTracker().isPrimaryMode() && indexShard.state() != IndexShardState.CLOSED;
+        boolean isReady = (indexShard.getReplicationTracker().isPrimaryMode() && indexShard.state() != IndexShardState.CLOSED)
+            || isLocalOrSnapshotRecovery();
+
         if (isReady == false) {
             StringBuilder sb = new StringBuilder("Skipped syncing segments with");
             if (indexShard.getReplicationTracker() != null) {
@@ -498,9 +504,23 @@ public final class RemoteStoreRefreshListener extends CloseableRetryableRefreshL
             if (indexShard.getEngineOrNull() != null) {
                 sb.append(" engineType=").append(indexShard.getEngine().getClass().getSimpleName());
             }
+            if (isLocalOrSnapshotRecovery() == false) {
+                sb.append(" recoverySourceType=").append(indexShard.recoveryState().getRecoverySource().getType());
+                sb.append(" primary=").append(indexShard.shardRouting.primary());
+            }
             logger.trace(sb.toString());
         }
         return isReady;
+    }
+
+    private boolean isLocalOrSnapshotRecovery() {
+        // In this case when the primary mode is false, we need to upload segments to Remote Store
+        // This is required in case of snapshots/shrink/ split/clone where we need to durable persist
+        // all segments to remote before completing the recovery to ensure durability.
+
+        return (indexShard.state() == IndexShardState.RECOVERING && indexShard.shardRouting.primary())
+            && (indexShard.recoveryState().getRecoverySource().getType() == RecoverySource.Type.LOCAL_SHARDS
+                || indexShard.recoveryState().getRecoverySource().getType() == RecoverySource.Type.SNAPSHOT);
     }
 
     /**
