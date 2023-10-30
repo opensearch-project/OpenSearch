@@ -4893,8 +4893,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             remoteStore.incRef();
         }
         Map<String, RemoteSegmentStoreDirectory.UploadedSegmentMetadata> uploadedSegments = sourceRemoteDirectory
-            .initializeToSpecificCommit(primaryTerm, commitGeneration)
-            .getMetadata();
+            .getSegmentsUploadedToRemoteStore();
         final Directory storeDirectory = store.directory();
         store.incRef();
 
