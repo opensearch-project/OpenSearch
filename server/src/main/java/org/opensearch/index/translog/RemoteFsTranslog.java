@@ -271,7 +271,9 @@ public class RemoteFsTranslog extends Translog {
         try (Releasable ignored = writeLock.acquire()) {
             if (generation == null || generation == current.getGeneration()) {
                 try {
-                    maxSeqNo = getMaxSeqNo();
+                    if (closed.get() == false) {
+                        maxSeqNo = getMaxSeqNo();
+                    }
                     final TranslogReader reader = current.closeIntoReader();
                     readers.add(reader);
                     copyCheckpointTo(location.resolve(getCommitCheckpointFileName(current.getGeneration())));
