@@ -14,10 +14,13 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexOutput;
 import org.opensearch.index.store.RemoteBufferedOutputDirectory;
 
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.nio.file.NoSuchFileException;
 import java.util.Collection;
+import java.util.List;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 /**
  * A Class that implements Remote Store Lock Manager by creating lock files for the remote store files that needs to
@@ -68,6 +71,19 @@ public class RemoteStoreMetadataLockManager implements RemoteStoreLockManager {
             // Ignoring if the file to be deleted is not present.
             logger.info("No lock file found for acquirerId: {}", ((FileLockInfo) lockInfo).getAcquirerId());
         }
+    }
+
+    public String fetchLock(String filenamePrefix, String acquirerId) throws IOException {
+        Collection<String> lockFiles = lockDirectory.listFilesByPrefix(filenamePrefix);
+        List<String> lockFilesForAcquirer = lockFiles.stream()
+            .filter(lockFile -> acquirerId.equals(FileLockInfo.LockFileUtils.getAcquirerIdFromLock(lockFile)))
+            .map(FileLockInfo.LockFileUtils::getFileToLockNameFromLock)
+            .collect(Collectors.toList());
+        if (lockFilesForAcquirer.size() == 0) {
+            throw new FileNotFoundException("No lock file found for prefix: " + filenamePrefix + " and acquirerId: " + acquirerId);
+        }
+        assert lockFilesForAcquirer.size() == 1;
+        return lockFilesForAcquirer.get(0);
     }
 
     /**
