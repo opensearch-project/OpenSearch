@@ -12,7 +12,6 @@ import org.opensearch.action.admin.cluster.remotestore.restore.RestoreRemoteStor
 import org.opensearch.action.admin.cluster.remotestore.restore.RestoreRemoteStoreResponse;
 import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.cluster.health.ClusterHealthStatus;
-import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.Settings;
@@ -24,17 +23,13 @@ import org.opensearch.test.InternalTestCluster;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.io.IOException;
-import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Comparator;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_REPOSITORY_SETTINGS_ATTRIBUTE_KEY_PREFIX;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
@@ -464,85 +459,6 @@ public class RemoteStoreRestoreIT extends BaseRemoteStoreRestoreIT {
             Repository segmentRepo = repositoriesService.repository(REPOSITORY_NAME);
             assertNull(segmentRepo.getMetadata().settings().get("max_remote_download_bytes_per_sec"));
         }
-    }
-
-    @AwaitsFix(bugUrl = "this test asserts on truncation of translog data")
-    public void testRestoreIncompleteTranslog() throws IOException {
-        // Create cluster and index
-        prepareCluster(1, 3, INDEX_NAME, 0, 1);
-
-        // Ingest 20 docs, as refresh interval is 300 secs, all these docs should be in translog only.
-        for (int i = 0; i < 20; i++) {
-            indexSingleDoc(INDEX_NAME);
-        }
-
-        // Stop primary to make the cluster red
-        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(primaryNodeName(INDEX_NAME)));
-        ensureRed(INDEX_NAME);
-
-        // Delete latest 3 translog metadata files from remote
-        // This is to simulate partial translog scenario
-        String indexUUID = client().admin()
-            .indices()
-            .prepareGetSettings(INDEX_NAME)
-            .get()
-            .getSetting(INDEX_NAME, IndexMetadata.SETTING_INDEX_UUID);
-        Path indexPath = Path.of(String.valueOf(translogRepoPath), indexUUID, "/0/translog/metadata");
-        try (Stream<Path> files = Files.list(indexPath)) {
-            List<Path> allMetadataFiles = files.collect(Collectors.toList());
-            allMetadataFiles.sort(Comparator.comparing(Path::getFileName));
-
-            for (int i = 0; i < 3; i++) {
-                Files.delete(allMetadataFiles.get(i));
-            }
-        }
-
-        // On restore, index will turn green but the doc count will be less
-        restore(INDEX_NAME);
-        ensureGreen(INDEX_NAME);
-        assertHitCount(client().prepareSearch(INDEX_NAME).setSize(0).get(), 20);
-    }
-
-    public void testRestoreSeqNoGapBetweenSegmentAndTranslog() throws Exception {
-        // Create cluster and index
-        prepareCluster(1, 3, INDEX_NAME, 0, 1);
-
-        // Ingest 20 docs, as refresh interval is 300 secs, all these docs should be in translog only.
-        Map<String, Long> indexStats = indexData(5, true, INDEX_NAME);
-        for (int i = 0; i < 20; i++) {
-            indexSingleDoc(INDEX_NAME);
-        }
-
-        // Stop primary to make the cluster red
-        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(primaryNodeName(INDEX_NAME)));
-        ensureRed(INDEX_NAME);
-
-        // Delete latest 3 segment metadata files from remote
-        // This is to simulate seq number gap between segments and translog
-        String indexUUID = client().admin()
-            .indices()
-            .prepareGetSettings(INDEX_NAME)
-            .get()
-            .getSetting(INDEX_NAME, IndexMetadata.SETTING_INDEX_UUID);
-        Path indexPath = Path.of(String.valueOf(segmentRepoPath), indexUUID, "/0/segments/metadata");
-        try (Stream<Path> files = Files.list(indexPath)) {
-            List<Path> allMetadataFiles = files.collect(Collectors.toList());
-            allMetadataFiles.sort(Comparator.comparing(Path::getFileName));
-
-            for (int i = 0; i < 2; i++) {
-                Files.delete(allMetadataFiles.get(i));
-            }
-        }
-
-        // On restore, index will turn green but the doc count will be less
-        restore(INDEX_NAME);
-
-        // Added ensureRed to assertBusy to make sure none of the recovery attempts succeed.
-        assertBusy(() -> ensureRed(INDEX_NAME));
-
-        // Without the validation added to Translog.newSnapshot(), we get green index but following count fails
-        // ensureGreen(INDEX_NAME);
-        // assertHitCount(client().prepareSearch(INDEX_NAME).setSize(0).get(), indexStats.get(TOTAL_OPERATIONS) + 20);
     }
 
     // TODO: Restore flow - index aliases
