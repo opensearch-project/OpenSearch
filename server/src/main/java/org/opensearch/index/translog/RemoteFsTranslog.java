@@ -544,7 +544,12 @@ public class RemoteFsTranslog extends Translog {
         public void onUploadComplete(TransferSnapshot transferSnapshot) throws IOException {
             maxRemoteTranslogGenerationUploaded = generation;
             minRemoteGenReferenced = getMinFileGeneration();
-            logger.debug("Successfully uploaded translog for primary term = {}, generation = {}, maxSeqNo = {}", primaryTerm, generation, maxSeqNo);
+            logger.debug(
+                "Successfully uploaded translog for primary term = {}, generation = {}, maxSeqNo = {}",
+                primaryTerm,
+                generation,
+                maxSeqNo
+            );
         }
 
         @Override
