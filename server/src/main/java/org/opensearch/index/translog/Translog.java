@@ -652,8 +652,11 @@ public abstract class Translog extends AbstractIndexShardComponent implements In
                 .toArray(TranslogSnapshot[]::new);
             if (this instanceof RemoteFsTranslog
                 && fromSeqNo != 0
-                && Arrays.stream(snapshots).noneMatch(snapshot -> snapshot.getCheckpoint().minSeqNo == fromSeqNo)) {
-                throw new MissingHistoryOperationsException("No operation from from_seqno [" + fromSeqNo + "] found");
+                && Arrays.stream(snapshots)
+                    .noneMatch(
+                        snapshot -> snapshot.getCheckpoint().minSeqNo <= fromSeqNo || snapshot.getCheckpoint().maxSeqNo >= fromSeqNo
+                    )) {
+                logger.warn("No operation from from_seqno {} found", fromSeqNo);
             }
             final Snapshot snapshot = newMultiSnapshot(snapshots);
             return new SeqNoFilterSnapshot(snapshot, fromSeqNo, toSeqNo, requiredFullRange);
