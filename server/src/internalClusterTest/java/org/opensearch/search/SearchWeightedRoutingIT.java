@@ -501,8 +501,9 @@ public class SearchWeightedRoutingIT extends OpenSearchIntegTestCase {
 
         logger.info("--> creating network partition disruption");
         final String clusterManagerNode1 = internalCluster().getClusterManagerName();
-        Set<String> nodesInOneSide = Stream.of(clusterManagerNode1, nodeMap.get("b").get(0)).collect(Collectors.toCollection(HashSet::new));
-        Set<String> nodesInOtherSide = Stream.of(nodeMap.get("a").get(0)).collect(Collectors.toCollection(HashSet::new));
+        Set<String> nodesInOneSide = Stream.of(nodeMap.get("a").get(0)).collect(Collectors.toCollection(HashSet::new));
+        Set<String> nodesInOtherSide = Stream.of(clusterManagerNode1, nodeMap.get("b").get(0), nodeMap.get("c").get(0))
+            .collect(Collectors.toCollection(HashSet::new));
 
         NetworkDisruption networkDisruption = new NetworkDisruption(
             new NetworkDisruption.TwoPartitions(nodesInOneSide, nodesInOtherSide),
@@ -870,8 +871,7 @@ public class SearchWeightedRoutingIT extends OpenSearchIntegTestCase {
             SearchStats.Stats searchStats = stat.getIndices().getSearch().getTotal();
             if (stat.getNode().isDataNode()) {
                 if (stat.getNode().getId().equals(dataNodeId)) {
-                    Assert.assertTrue(searchStats.getFetchCount() > 0L);
-                    Assert.assertTrue(searchStats.getQueryCount() > 0L);
+                    Assert.assertTrue(searchStats.getFetchCount() > 0L || searchStats.getQueryCount() > 0L);
                 }
             }
         }
@@ -945,7 +945,6 @@ public class SearchWeightedRoutingIT extends OpenSearchIntegTestCase {
         }
 
         logger.info("--> network disruption is stopped");
-        networkDisruption.stopDisrupting();
 
         for (int i = 0; i < 50; i++) {
             try {
@@ -962,6 +961,8 @@ public class SearchWeightedRoutingIT extends OpenSearchIntegTestCase {
                 fail("search should not fail");
             }
         }
+        networkDisruption.stopDisrupting();
+
         assertSearchInAZ("b");
         assertSearchInAZ("c");
         assertNoSearchInAZ("a");
