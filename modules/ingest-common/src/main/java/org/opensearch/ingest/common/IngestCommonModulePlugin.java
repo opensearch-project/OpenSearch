@@ -107,6 +107,7 @@ public class IngestCommonModulePlugin extends Plugin implements ActionPlugin, In
         processors.put(HtmlStripProcessor.TYPE, new HtmlStripProcessor.Factory());
         processors.put(CsvProcessor.TYPE, new CsvProcessor.Factory());
         processors.put(CopyProcessor.TYPE, new CopyProcessor.Factory(parameters.scriptService));
+        processors.put(CommunityIDProcessor.TYPE, new CommunityIDProcessor.Factory());
         return Collections.unmodifiableMap(processors);
     }
 
