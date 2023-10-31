@@ -56,6 +56,8 @@ import org.opensearch.search.internal.ShardSearchRequest;
 import org.opensearch.search.suggest.SuggestTests;
 import org.opensearch.test.OpenSearchTestCase;
 
+import java.util.HashMap;
+
 import static java.util.Collections.emptyList;
 
 public class QuerySearchResultTests extends OpenSearchTestCase {
@@ -104,10 +106,13 @@ public class QuerySearchResultTests extends OpenSearchTestCase {
     }
 
     public void testSerialization() throws Exception {
-        for (int i = 0; i < 2; i++) {
+        HashMap<Boolean, Long> expectedValues = new HashMap<>(); // map contains whether to set took time, and if so, to what value
+        expectedValues.put(false, null);
+        expectedValues.put(true, 1000L);
+        for (Boolean doSetTookTime : expectedValues.keySet()) {
             QuerySearchResult querySearchResult = createTestInstance();
-            if (i == 0) {
-                querySearchResult.setTookTimeNanos(1000L); // test both an initialized and an uninitialized null value
+            if (doSetTookTime) {
+                querySearchResult.setTookTimeNanos(expectedValues.get(doSetTookTime));
             }
             QuerySearchResult deserialized = copyWriteable(querySearchResult, namedWriteableRegistry, QuerySearchResult::new);
             assertEquals(querySearchResult.getContextId().getId(), deserialized.getContextId().getId());
@@ -124,9 +129,7 @@ public class QuerySearchResultTests extends OpenSearchTestCase {
             }
             assertEquals(querySearchResult.terminatedEarly(), deserialized.terminatedEarly());
             assertEquals(querySearchResult.getTookTimeNanos(), deserialized.getTookTimeNanos());
-            if (i == 1) {
-                assertNull(deserialized.getTookTimeNanos());
-            }
+            assertEquals(expectedValues.get(doSetTookTime), querySearchResult.getTookTimeNanos());
         }
     }
 
