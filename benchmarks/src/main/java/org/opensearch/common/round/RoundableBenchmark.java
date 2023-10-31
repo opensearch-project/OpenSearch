@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.common;
+package org.opensearch.common.round;
 
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
@@ -27,13 +27,13 @@ import java.util.function.Supplier;
 @Warmup(iterations = 3, time = 1)
 @Measurement(iterations = 1, time = 1)
 @BenchmarkMode(Mode.Throughput)
-public class ArrayRoundingBenchmark {
+public class RoundableBenchmark {
 
     @Benchmark
-    public void round(Blackhole bh, Options opts) {
-        Rounding.Prepared rounding = opts.supplier.get();
+    public void floor(Blackhole bh, Options opts) {
+        Roundable roundable = opts.supplier.get();
         for (long key : opts.queries) {
-            bh.consume(rounding.round(key));
+            bh.consume(roundable.floor(key));
         }
     }
 
@@ -90,7 +90,7 @@ public class ArrayRoundingBenchmark {
         public String distribution;
 
         public long[] queries;
-        public Supplier<Rounding.Prepared> supplier;
+        public Supplier<Roundable> supplier;
 
         @Setup
         public void setup() {
@@ -130,10 +130,10 @@ public class ArrayRoundingBenchmark {
 
             switch (type) {
                 case "binary":
-                    supplier = () -> new Rounding.BinarySearchArrayRounding(values, size, null);
+                    supplier = () -> new BinarySearcher(values, size);
                     break;
                 case "linear":
-                    supplier = () -> new Rounding.BidirectionalLinearSearchArrayRounding(values, size, null);
+                    supplier = () -> new BidirectionalLinearSearcher(values, size);
                     break;
                 default:
                     throw new IllegalArgumentException("invalid type: " + type);
