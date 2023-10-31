@@ -258,7 +258,7 @@ public class RemoteSegmentTransferTracker extends RemoteTransferTracker {
     }
 
     public long getTimeMsLag() {
-        if (remoteRefreshTimeMs == localRefreshTimeMs) {
+        if (remoteRefreshTimeMs == localRefreshTimeMs || bytesLag == 0) {
             return 0;
         }
         return currentTimeMsUsingSystemNanos() - remoteRefreshStartTimeMs;

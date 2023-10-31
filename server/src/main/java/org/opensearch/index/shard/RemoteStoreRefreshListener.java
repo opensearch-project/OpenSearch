@@ -389,15 +389,21 @@ public final class RemoteStoreRefreshListener extends CloseableRetryableRefreshL
             // Initializing listener here to ensure that the stats increment operations are thread-safe
             UploadListener statsListener = createUploadListener();
             ActionListener<Void> aggregatedListener = ActionListener.wrap(resp -> {
-                statsListener.onSuccess(src);
-                batchUploadListener.onResponse(resp);
+                try {
+                    statsListener.onSuccess(src);
+                } finally {
+                    batchUploadListener.onResponse(resp);
+                }
             }, ex -> {
                 logger.warn(() -> new ParameterizedMessage("Exception: [{}] while uploading segment files", ex), ex);
-                if (ex instanceof CorruptIndexException) {
-                    indexShard.failShard(ex.getMessage(), ex);
+                try {
+                    if (ex instanceof CorruptIndexException) {
+                        indexShard.failShard(ex.getMessage(), ex);
+                    }
+                    statsListener.onFailure(src);
+                } finally {
+                    batchUploadListener.onFailure(ex);
                 }
-                statsListener.onFailure(src);
-                batchUploadListener.onFailure(ex);
             });
             statsListener.beforeUpload(src);
             remoteDirectory.copyFrom(storeDirectory, src, IOContext.DEFAULT, aggregatedListener);
@@ -532,14 +538,22 @@ public final class RemoteStoreRefreshListener extends CloseableRetryableRefreshL
             @Override
             public void beforeUpload(String file) {
                 // Start tracking the upload bytes started
-                segmentTracker.addUploadBytesStarted(segmentTracker.getLatestLocalFileNameLengthMap().get(file));
+                if (segmentTracker.getLatestLocalFileNameLengthMap().containsKey(file)) {
+                    segmentTracker.addUploadBytesStarted(segmentTracker.getLatestLocalFileNameLengthMap().get(file));
+                } else {
+                    logger.warn("beforeUpload {} missing from segment tracker", file);
+                }
                 uploadStartTime = System.currentTimeMillis();
             }
 
             @Override
             public void onSuccess(String file) {
                 // Track upload success
-                segmentTracker.addUploadBytesSucceeded(segmentTracker.getLatestLocalFileNameLengthMap().get(file));
+                if (segmentTracker.getLatestLocalFileNameLengthMap().containsKey(file)) {
+                    segmentTracker.addUploadBytesSucceeded(segmentTracker.getLatestLocalFileNameLengthMap().get(file));
+                } else {
+                    logger.warn("onSuccess {} missing from segment tracker", file);
+                }
                 segmentTracker.addToLatestUploadedFiles(file);
                 segmentTracker.addUploadTimeInMillis(Math.max(1, System.currentTimeMillis() - uploadStartTime));
             }
@@ -547,7 +561,11 @@ public final class RemoteStoreRefreshListener extends CloseableRetryableRefreshL
             @Override
             public void onFailure(String file) {
                 // Track upload failure
-                segmentTracker.addUploadBytesFailed(segmentTracker.getLatestLocalFileNameLengthMap().get(file));
+                if (segmentTracker.getLatestLocalFileNameLengthMap().containsKey(file)) {
+                    segmentTracker.addUploadBytesFailed(segmentTracker.getLatestLocalFileNameLengthMap().get(file));
+                } else {
+                    logger.warn("onFailure {} missing from segment tracker", file);
+                }
                 segmentTracker.addUploadTimeInMillis(Math.max(1, System.currentTimeMillis() - uploadStartTime));
             }
         };
