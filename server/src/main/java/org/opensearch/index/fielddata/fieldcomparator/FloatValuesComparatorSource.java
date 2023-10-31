@@ -61,7 +61,7 @@ import java.io.IOException;
  */
 public class FloatValuesComparatorSource extends IndexFieldData.XFieldComparatorSource {
 
-    protected final IndexNumericFieldData indexFieldData;
+    private final IndexNumericFieldData indexFieldData;
 
     public FloatValuesComparatorSource(
         IndexNumericFieldData indexFieldData,
@@ -78,7 +78,7 @@ public class FloatValuesComparatorSource extends IndexFieldData.XFieldComparator
         return SortField.Type.FLOAT;
     }
 
-    protected NumericDoubleValues getNumericDocValues(LeafReaderContext context, float missingValue) throws IOException {
+    private NumericDoubleValues getNumericDocValues(LeafReaderContext context, float missingValue) throws IOException {
         final SortedNumericDoubleValues values = indexFieldData.load(context).getDoubleValues();
         if (nested == null) {
             return FieldData.replaceMissing(sortMode.select(values), missingValue);
