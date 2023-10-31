@@ -14,5 +14,5 @@ package org.opensearch.common.cache.tier;
  * @param <V> Type of value
  */
 public interface DiskCachingTier<K, V> extends CachingTier<K, V> {
-
+    void close();
 }

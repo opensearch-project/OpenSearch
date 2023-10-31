@@ -454,5 +454,8 @@ public class TieredCacheSpilloverStrategyServiceTests extends OpenSearchTestCase
         public void onRemoval(RemovalNotification<K, V> notification) {
             this.removalListener.onRemoval(notification);
         }
+
+        @Override
+        public void close() {}
     }
 }

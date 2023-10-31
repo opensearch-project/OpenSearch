@@ -188,4 +188,8 @@ grant {
   permission java.io.FilePermission "/sys/fs/cgroup/memory", "read";
   permission java.io.FilePermission "/sys/fs/cgroup/memory/-", "read";
 
+  // For ehcache
+  permission java.lang.RuntimePermission "createClassLoader";
+  permission java.lang.RuntimePermission "accessClassInPackage.sun.misc";
+
 };
