@@ -320,3 +320,71 @@
   - length: { hits.hits: 1 }
   - match: { hits.hits.0._index: test }
   - match: { hits.hits.0._source.population: null }
+
+---
+"half float":
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            properties:
+              population:
+                type: half_float
+  - do:
+      bulk:
+        refresh: true
+        index: test
+        body: |
+          {"index":{}}
+          {"population": 184.4}
+          {"index":{}}
+          {"population": 194.4}
+
+  - do:
+      search:
+        index: test
+        rest_total_hits_as_int: true
+        body:
+          size: 1
+          sort: [ { population: asc } ]
+  - match: { hits.total: 2 }
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._index: test }
+  - match: { hits.hits.0._source.population: 184.4 }
+
+  # search_after with the sort
+  - do:
+      search:
+        index: test
+        rest_total_hits_as_int: true
+        body:
+          size: 1
+          sort: [ { population: asc } ]
+          search_after: [ 184.4 ]
+  - match: { hits.total: 2 }
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._index: test }
+  - match: { hits.hits.0._source.population: 194.4 }
+
+  # search_after with the sort with missing
+  - do:
+      bulk:
+        refresh: true
+        index: test
+        body: |
+          {"index":{}}
+          {"population": null}
+  - do:
+      search:
+        index: test
+        rest_total_hits_as_int: true
+        body:
+          "size": 5
+          "sort": [ { "population": { "order": "asc", "missing": "_last" } } ]
+          search_after: [ 200 ] # making it out of min/max so only missing value hit is qualified
+
+  - match: { hits.total: 3 }
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._index: test }
+  - match: { hits.hits.0._source.population: null }
