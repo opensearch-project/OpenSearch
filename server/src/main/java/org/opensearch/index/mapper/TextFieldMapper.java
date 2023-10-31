@@ -395,7 +395,7 @@ public class TextFieldMapper extends ParametrizedFieldMapper {
             );
         }
 
-        private TextFieldType buildFieldType(FieldType fieldType, BuilderContext context) {
+        protected TextFieldType buildFieldType(FieldType fieldType, BuilderContext context) {
             NamedAnalyzer indexAnalyzer = analyzers.getIndexAnalyzer();
             NamedAnalyzer searchAnalyzer = analyzers.getSearchAnalyzer();
             NamedAnalyzer searchQuoteAnalyzer = analyzers.getSearchQuoteAnalyzer();
@@ -420,7 +420,7 @@ public class TextFieldMapper extends ParametrizedFieldMapper {
             return ft;
         }
 
-        private PrefixFieldMapper buildPrefixMapper(BuilderContext context, FieldType fieldType, TextFieldType tft) {
+        protected PrefixFieldMapper buildPrefixMapper(BuilderContext context, FieldType fieldType, TextFieldType tft) {
             if (indexPrefixes.get() == null) {
                 return null;
             }
@@ -454,7 +454,7 @@ public class TextFieldMapper extends ParametrizedFieldMapper {
             return new PrefixFieldMapper(pft, prefixFieldType);
         }
 
-        private PhraseFieldMapper buildPhraseMapper(FieldType fieldType, TextFieldType parent) {
+        protected PhraseFieldMapper buildPhraseMapper(FieldType fieldType, TextFieldType parent) {
             if (indexPhrases.get() == false) {
                 return null;
             }
@@ -683,7 +683,7 @@ public class TextFieldMapper extends ParametrizedFieldMapper {
      *
      * @opensearch.internal
      */
-    private static final class PhraseFieldMapper extends FieldMapper {
+    protected static final class PhraseFieldMapper extends FieldMapper {
 
         PhraseFieldMapper(FieldType fieldType, PhraseFieldType mappedFieldType) {
             super(mappedFieldType.name(), fieldType, mappedFieldType, MultiFields.empty(), CopyTo.empty());
@@ -710,7 +710,7 @@ public class TextFieldMapper extends ParametrizedFieldMapper {
      *
      * @opensearch.internal
      */
-    private static final class PrefixFieldMapper extends FieldMapper {
+    protected static final class PrefixFieldMapper extends FieldMapper {
 
         protected PrefixFieldMapper(FieldType fieldType, PrefixFieldType mappedFieldType) {
             super(mappedFieldType.name(), fieldType, mappedFieldType, MultiFields.empty(), CopyTo.empty());
