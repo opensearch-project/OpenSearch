@@ -71,6 +71,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.OptionalLong;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
@@ -1229,6 +1230,14 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
         return this.latestReplicationCheckpoint;
     }
 
+    private boolean isPrimaryRelocation(String allocationId) {
+        Optional<ShardRouting> shardRouting = routingTable.shards()
+            .stream()
+            .filter(routing -> routing.allocationId().getId().equals(allocationId))
+            .findAny();
+        return shardRouting.isPresent() && shardRouting.get().primary();
+    }
+
     private void createReplicationLagTimers() {
         for (Map.Entry<String, CheckpointState> entry : checkpoints.entrySet()) {
             final String allocationId = entry.getKey();
@@ -1238,6 +1247,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
                 // it is possible for a shard to be in-sync but not yet removed from the checkpoints collection after a failover event.
                 if (cps.inSync
                     && replicationGroup.getUnavailableInSyncShards().contains(allocationId) == false
+                    && isPrimaryRelocation(allocationId) == false
                     && latestReplicationCheckpoint.isAheadOf(cps.visibleReplicationCheckpoint)) {
                     cps.checkpointTimers.computeIfAbsent(latestReplicationCheckpoint, ignored -> new SegmentReplicationLagTimer());
                     logger.trace(
@@ -1269,6 +1279,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
                 final CheckpointState cps = e.getValue();
                 if (cps.inSync
                     && replicationGroup.getUnavailableInSyncShards().contains(allocationId) == false
+                    && isPrimaryRelocation(e.getKey()) == false
                     && latestReplicationCheckpoint.isAheadOf(cps.visibleReplicationCheckpoint)
                     && cps.checkpointTimers.containsKey(latestReplicationCheckpoint)) {
                     cps.checkpointTimers.get(latestReplicationCheckpoint).start();
@@ -1293,6 +1304,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
                     entry -> entry.getKey().equals(this.shardAllocationId) == false
                         && entry.getValue().inSync
                         && replicationGroup.getUnavailableInSyncShards().contains(entry.getKey()) == false
+                        && isPrimaryRelocation(entry.getKey()) == false
                 )
                 .map(entry -> buildShardStats(entry.getKey(), entry.getValue()))
                 .collect(Collectors.toUnmodifiableSet());
