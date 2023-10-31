@@ -8,10 +8,15 @@
 
 package org.opensearch.common.round;
 
+import org.opensearch.common.annotation.InternalApi;
+
 /**
  * Factory class to create and return the fastest implementation of {@link Roundable}.
+ *
+ * @opensearch.internal
  */
-public class RoundableFactory {
+@InternalApi
+public final class RoundableFactory {
     /**
      * The maximum limit up to which linear search is used, otherwise binary search is used.
      * This is because linear search is much faster on small arrays.

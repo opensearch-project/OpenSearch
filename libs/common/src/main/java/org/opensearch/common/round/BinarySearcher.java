@@ -22,7 +22,7 @@ class BinarySearcher implements Roundable {
     private final long[] values;
     private final int size;
 
-    public BinarySearcher(long[] values, int size) {
+    BinarySearcher(long[] values, int size) {
         assert size > 0 : "at least one value must be present";
 
         this.values = values;

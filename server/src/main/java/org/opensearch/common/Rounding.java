@@ -444,7 +444,7 @@ public abstract class Rounding implements Writeable {
                 values = ArrayUtil.grow(values, i + 1);
                 values[i++] = rounded;
             }
-            return new ArrayRounding(values, i, this);
+            return new ArrayRounding(RoundableFactory.create(values, i), this);
         }
     }
 
@@ -456,8 +456,8 @@ public abstract class Rounding implements Writeable {
         private final Roundable roundable;
         private final Prepared delegate;
 
-        public ArrayRounding(long[] values, int size, Prepared delegate) {
-            this.roundable = RoundableFactory.create(values, size);
+        public ArrayRounding(Roundable roundable, Prepared delegate) {
+            this.roundable = roundable;
             this.delegate = delegate;
         }
 
