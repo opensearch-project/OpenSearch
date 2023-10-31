@@ -233,7 +233,6 @@ public class TextFieldMapperTests extends MapperTestCase {
             Map.of(),
             Map.of()
         );
-
     }
 
     @Override

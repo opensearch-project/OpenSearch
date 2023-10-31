@@ -242,7 +242,7 @@ public abstract class IndexNumericFieldData implements IndexFieldData<LeafNumeri
                 assert !targetNumericType.isFloatingPoint();
                 source = new IntValuesComparatorSource(this, missingValue, sortMode, nested);
         }
-        if (targetNumericType != getNumericType()) {
+        if (targetNumericType != getNumericType() || getNumericType() == NumericType.HALF_FLOAT) {
             source.disableSkipping(); // disable skipping logic for cast of sort field
         }
         return source;

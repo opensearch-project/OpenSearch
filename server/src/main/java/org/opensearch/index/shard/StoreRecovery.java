@@ -410,6 +410,11 @@ final class StoreRecovery {
                     indexUUID,
                     shardId
                 );
+                sourceRemoteDirectory.initializeToSpecificCommit(
+                    primaryTerm,
+                    commitGeneration,
+                    recoverySource.snapshot().getSnapshotId().getUUID()
+                );
                 indexShard.syncSegmentsFromGivenRemoteSegmentStore(true, sourceRemoteDirectory, primaryTerm, commitGeneration);
                 final Store store = indexShard.store();
                 if (indexShard.indexSettings.isRemoteTranslogStoreEnabled() == false) {
