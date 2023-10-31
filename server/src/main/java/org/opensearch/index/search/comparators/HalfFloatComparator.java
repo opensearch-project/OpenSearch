@@ -16,7 +16,7 @@ import org.apache.lucene.search.comparators.NumericComparator;
 import java.io.IOException;
 
 /**
- * The comparator for unsigned long numeric type.
+ * The comparator for unsigned half_float numeric type.
  * Comparator based on {@link Float#compare} for {@code numHits}. This comparator provides a
  * skipping functionality – an iterator that can skip over non-competitive documents.
  */
