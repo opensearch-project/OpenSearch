@@ -85,8 +85,13 @@ public class IndexNameExpressionResolver {
     public static final String SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY = "_system_index_access_allowed";
 
     private final DateMathExpressionResolver dateMathExpressionResolver = new DateMathExpressionResolver();
+    private final RangeExpressionResolver rangeExpressionResolver = new RangeExpressionResolver();
     private final WildcardExpressionResolver wildcardExpressionResolver = new WildcardExpressionResolver();
-    private final List<ExpressionResolver> expressionResolvers = List.of(dateMathExpressionResolver, wildcardExpressionResolver);
+    private final List<ExpressionResolver> expressionResolvers = List.of(
+        dateMathExpressionResolver,
+        rangeExpressionResolver,
+        wildcardExpressionResolver
+    );
 
     private final ThreadContext threadContext;
 
@@ -248,6 +253,11 @@ public class IndexNameExpressionResolver {
         List<String> expressions = Arrays.asList(indexExpressions);
         for (ExpressionResolver expressionResolver : expressionResolvers) {
             expressions = expressionResolver.resolve(context, expressions);
+            // breaks if there is no index expression
+            // empty expression has been replaced by MetaData.ALL before
+            if (expressions.isEmpty()) {
+                break;
+            }
         }
 
         if (expressions.isEmpty()) {
@@ -1133,7 +1143,7 @@ public class IndexNameExpressionResolver {
             }
         }
 
-        private static Set<String> expand(
+        static Set<String> expand(
             Context context,
             IndexMetadata.State excludeState,
             Map<String, IndexAbstraction> matches,
@@ -1360,4 +1370,86 @@ public class IndexNameExpressionResolver {
             return beforePlaceHolderSb.toString();
         }
     }
+
+    public static final class RangeExpressionResolver implements ExpressionResolver {
+
+        private static final String EXCLUSIVE_LEFT_BOUND = "(";
+        private static final String EXCLUSIVE_RIGHT_BOUND = ")";
+        private static final String INCLUSIVE_LEFT_BOUND = "[";
+        private static final String INCLUSIVE_RIGHT_BOUND = "]";
+        private static final String DELIMITER = "|";
+
+        @Override
+        public List<String> resolve(final Context context, List<String> expressions) {
+            List<String> result = new ArrayList<>(expressions.size());
+            IndicesOptions options = context.getOptions();
+
+            if (options.expandWildcardsClosed() == false && options.expandWildcardsOpen() == false) {
+                return expressions;
+            }
+            for (String expression : expressions) {
+                result.addAll(resolveExpression(expression, context));
+            }
+            return result;
+        }
+
+        Set<String> resolveExpression(String expression, final Context context) {
+            if (expression.contains(DELIMITER) == false) {
+                return Set.of(expression);
+            }
+            int rangeLeftExclusiveIndex = expression.indexOf(EXCLUSIVE_LEFT_BOUND);
+            int rangeLeftInclusiveIndex = expression.indexOf(INCLUSIVE_LEFT_BOUND);
+
+            if (rangeLeftExclusiveIndex == -1 && rangeLeftInclusiveIndex == -1) {
+                throw new OpenSearchParseException("Invalid range expression, can not find left range bound in expression: " + expression);
+            }
+
+            boolean leftInclusive;
+            int leftRangeIndex;
+            if (rangeLeftInclusiveIndex >= 0) {
+                leftInclusive = true;
+                leftRangeIndex = rangeLeftInclusiveIndex;
+            } else {
+                leftInclusive = false;
+                leftRangeIndex = rangeLeftExclusiveIndex;
+            }
+
+            String rightBound = expression.substring(expression.length() - 1);
+            boolean rightInclusive;
+            if (rightBound.equals(INCLUSIVE_RIGHT_BOUND)) {
+                rightInclusive = true;
+            } else if (rightBound.equals(EXCLUSIVE_RIGHT_BOUND)) {
+                rightInclusive = false;
+            } else {
+                throw new OpenSearchParseException(
+                    "Invalid range expression, right range bound is missing "
+                        + "or not in the end of expression(suffix is unsupported): "
+                        + expression
+                );
+            }
+
+            String indexPrefix = expression.substring(0, leftRangeIndex);
+
+            String innerExpression = expression.substring(leftRangeIndex + 1, expression.length() - 1);
+            String[] bounds = innerExpression.split("\\" + DELIMITER);
+            assert bounds.length == 2 || bounds.length == 1;
+            String indexLeftBound = indexPrefix + bounds[0] + (leftInclusive ? "" : "\0");
+            String indexRightBound;
+            if (bounds.length == 2) {
+                indexRightBound = indexPrefix + bounds[1] + (rightInclusive ? "\0" : "");
+            } else {
+                StringBuilder builder = new StringBuilder(indexPrefix);
+                char lastChar = builder.charAt(builder.length() - 1);
+                builder.setCharAt(builder.length() - 1, ++lastChar);
+                indexRightBound = builder.toString();
+            }
+
+            Metadata metadata = context.getState().metadata();
+            SortedMap<String, IndexAbstraction> aliasAndIndexLookup = metadata.getIndicesLookup();
+            SortedMap<String, IndexAbstraction> subMap = aliasAndIndexLookup.subMap(indexLeftBound, indexRightBound);
+            IndexMetadata.State excludeState = WildcardExpressionResolver.excludeState(context.getOptions());
+            return WildcardExpressionResolver.expand(context, excludeState, subMap, expression, context.options.expandWildcardsHidden());
+        }
+    }
+
 }
