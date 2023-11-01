@@ -10,7 +10,6 @@ package org.opensearch.identity.shiro;
 
 import org.apache.shiro.authc.AuthenticationToken;
 import org.apache.shiro.authc.UsernamePasswordToken;
-import org.junit.Before;
 import org.opensearch.identity.Subject;
 import org.opensearch.identity.noop.NoopSubject;
 import org.opensearch.identity.noop.NoopTokenManager;
@@ -19,6 +18,7 @@ import org.opensearch.identity.tokens.BasicAuthToken;
 import org.opensearch.identity.tokens.BearerAuthToken;
 import org.opensearch.identity.tokens.OnBehalfOfClaims;
 import org.opensearch.test.OpenSearchTestCase;
+import org.junit.Before;
 
 import java.util.Optional;
 
