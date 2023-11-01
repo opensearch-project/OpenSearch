@@ -69,7 +69,7 @@ public class SegmentReplicationTargetService implements IndexEventListener {
 
     private final ReplicationCollection<SegmentReplicationTarget> onGoingReplications;
 
-    private final Map<ShardId, SegmentReplicationTarget> completedReplications = ConcurrentCollections.newConcurrentMap();
+    private final Map<ShardId, SegmentReplicationState> completedReplications = ConcurrentCollections.newConcurrentMap();
 
     private final SegmentReplicationSourceFactory sourceFactory;
 
@@ -191,7 +191,7 @@ public class SegmentReplicationTargetService implements IndexEventListener {
      */
     @Nullable
     public SegmentReplicationState getlatestCompletedEventSegmentReplicationState(ShardId shardId) {
-        return Optional.ofNullable(completedReplications.get(shardId)).map(SegmentReplicationTarget::state).orElse(null);
+        return completedReplications.get(shardId);
     }
 
     /**
@@ -518,7 +518,7 @@ public class SegmentReplicationTargetService implements IndexEventListener {
                 logger.debug(() -> new ParameterizedMessage("Finished replicating {} marking as done.", target.description()));
                 onGoingReplications.markAsDone(replicationId);
                 if (target.state().getIndex().recoveredFileCount() != 0 && target.state().getIndex().recoveredBytes() != 0) {
-                    completedReplications.put(target.shardId(), target);
+                    completedReplications.put(target.shardId(), target.state());
                 }
             }
 
