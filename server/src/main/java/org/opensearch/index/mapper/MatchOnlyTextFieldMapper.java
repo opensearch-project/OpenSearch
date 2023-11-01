@@ -30,6 +30,10 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * A specialized type of TextFieldMapper which disables the positions and norms to save on storage and executes phrase queries, which requires
+ * positional data, in a slightly less efficient manner using the {@link  org.opensearch.index.query.SourceFieldMatchQuery}.
+ */
 public class MatchOnlyTextFieldMapper extends TextFieldMapper {
 
     public static final FieldType FIELD_TYPE = new FieldType();
@@ -51,14 +55,23 @@ public class MatchOnlyTextFieldMapper extends TextFieldMapper {
 
     public static final TypeParser PARSER = new TypeParser((n, c) -> new Builder(n, c.indexVersionCreated(), c.getIndexAnalyzers()));
 
-    protected MatchOnlyTextFieldMapper(String simpleName, FieldType fieldType, MatchOnlyTextFieldType mappedFieldType,
-                                       TextFieldMapper.PrefixFieldMapper prefixFieldMapper,
-                                       TextFieldMapper.PhraseFieldMapper phraseFieldMapper,
-                                       MultiFields multiFields, CopyTo copyTo, Builder builder) {
+    protected MatchOnlyTextFieldMapper(
+        String simpleName,
+        FieldType fieldType,
+        MatchOnlyTextFieldType mappedFieldType,
+        TextFieldMapper.PrefixFieldMapper prefixFieldMapper,
+        TextFieldMapper.PhraseFieldMapper phraseFieldMapper,
+        MultiFields multiFields,
+        CopyTo copyTo,
+        Builder builder
+    ) {
 
         super(simpleName, fieldType, mappedFieldType, prefixFieldMapper, phraseFieldMapper, multiFields, copyTo, builder);
     }
 
+    /**
+     * Builder class for constructing the MatchOnlyTextFieldMapper.
+     */
     public static class Builder extends TextFieldMapper.Builder {
 
         public Builder(String name, IndexAnalyzers indexAnalyzers) {
@@ -86,6 +99,11 @@ public class MatchOnlyTextFieldMapper extends TextFieldMapper {
         }
     }
 
+    /**
+     * The specific field type for MatchOnlyTextFieldMapper
+     *
+     * @opensearch.internal
+     */
     public static final class MatchOnlyTextFieldType extends TextFieldMapper.TextFieldType {
 
         @Override
@@ -101,36 +119,47 @@ public class MatchOnlyTextFieldMapper extends TextFieldMapper {
         public Query phraseQuery(TokenStream stream, int slop, boolean enablePosIncrements, QueryShardContext context) throws IOException {
             PhraseQuery phraseQuery = (PhraseQuery) super.phraseQuery(stream, slop, enablePosIncrements);
             BooleanQuery.Builder builder = new BooleanQuery.Builder();
-            for (Term term: phraseQuery.getTerms()) {
+            for (Term term : phraseQuery.getTerms()) {
                 builder.add(new TermQuery(term), BooleanClause.Occur.FILTER);
             }
-            return new SourceFieldMatchQuery(builder.build(), phraseQuery, this,
-                (SourceValueFetcher) this.valueFetcher(context, context.lookup(), null), context.lookup());
+            return new SourceFieldMatchQuery(
+                builder.build(),
+                phraseQuery,
+                this,
+                (SourceValueFetcher) this.valueFetcher(context, context.lookup(), null),
+                context.lookup()
+            );
         }
 
         @Override
-        public Query multiPhraseQuery(TokenStream stream, int slop, boolean enablePositionIncrements, QueryShardContext context) throws IOException {
+        public Query multiPhraseQuery(TokenStream stream, int slop, boolean enablePositionIncrements, QueryShardContext context)
+            throws IOException {
             MultiPhraseQuery multiPhraseQuery = (MultiPhraseQuery) super.multiPhraseQuery(stream, slop, enablePositionIncrements);
             BooleanQuery.Builder builder = new BooleanQuery.Builder();
             for (Term[] terms : multiPhraseQuery.getTermArrays()) {
                 BooleanQuery.Builder disjunctions = new BooleanQuery.Builder();
-                for (Term term: terms) {
+                for (Term term : terms) {
                     disjunctions.add(new TermQuery(term), BooleanClause.Occur.SHOULD);
                 }
                 builder.add(disjunctions.build(), BooleanClause.Occur.FILTER);
             }
-            return new SourceFieldMatchQuery(builder.build(), multiPhraseQuery, this,
-                (SourceValueFetcher) this.valueFetcher(context, context.lookup(), null), context.lookup());
+            return new SourceFieldMatchQuery(
+                builder.build(),
+                multiPhraseQuery,
+                this,
+                (SourceValueFetcher) this.valueFetcher(context, context.lookup(), null),
+                context.lookup()
+            );
         }
 
         @Override
         public Query phrasePrefixQuery(TokenStream stream, int slop, int maxExpansions, QueryShardContext context) throws IOException {
-            Query phrasePrefixQuery =  super.phrasePrefixQuery(stream, slop, maxExpansions);
+            Query phrasePrefixQuery = super.phrasePrefixQuery(stream, slop, maxExpansions);
             List<List<Term>> termArray = getTermsFromTokenStream(stream);
             BooleanQuery.Builder builder = new BooleanQuery.Builder();
             for (int i = 0; i < termArray.size(); i++) {
                 BooleanQuery.Builder disjunctions = new BooleanQuery.Builder();
-                for (Term term: termArray.get(i)) {
+                for (Term term : termArray.get(i)) {
                     if (i == termArray.size() - 1) {
                         MultiPhrasePrefixQuery mqb = new MultiPhrasePrefixQuery(name());
                         mqb.add(term);
@@ -141,8 +170,13 @@ public class MatchOnlyTextFieldMapper extends TextFieldMapper {
                 }
                 builder.add(disjunctions.build(), BooleanClause.Occur.FILTER);
             }
-            return new SourceFieldMatchQuery(builder.build(), phrasePrefixQuery, this,
-                (SourceValueFetcher) this.valueFetcher(context, context.lookup(), null), context.lookup());
+            return new SourceFieldMatchQuery(
+                builder.build(),
+                phrasePrefixQuery,
+                this,
+                (SourceValueFetcher) this.valueFetcher(context, context.lookup(), null),
+                context.lookup()
+            );
         }
 
         private List<List<Term>> getTermsFromTokenStream(TokenStream stream) throws IOException {
