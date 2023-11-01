@@ -421,7 +421,7 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
     }
 
     public void testInitializeExtension() throws Exception {
-        ExtensionsManager extensionsManager = new ExtensionsManager(Set.of());
+        ExtensionsManager extensionsManager = new ExtensionsManager(Set.of(), identityService);
 
         TransportService mockTransportService = spy(
             new TransportService(
@@ -513,7 +513,7 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
 
     public void testHandleRegisterRestActionsRequestRequiresDiscoveryNode() throws Exception {
 
-        ExtensionsManager extensionsManager = new ExtensionsManager(Set.of());
+        ExtensionsManager extensionsManager = new ExtensionsManager(Set.of(), identityService);
         initialize(extensionsManager);
 
         RegisterRestActionsRequest registerActionsRequest = new RegisterRestActionsRequest("uniqueId1", List.of(), List.of());
@@ -527,7 +527,7 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
 
     public void testHandleRegisterRestActionsRequestMultiple() throws Exception {
 
-        ExtensionsManager extensionsManager = new ExtensionsManager(Set.of());
+        ExtensionsManager extensionsManager = new ExtensionsManager(Set.of(), identityService);
         initialize(extensionsManager);
 
         List<String> actionsList = List.of("GET /foo foo", "PUT /bar bar", "POST /baz baz");

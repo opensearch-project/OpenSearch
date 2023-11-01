@@ -409,7 +409,7 @@ public class ExtensionsManager {
                 transportService.sendRequest(
                     extensionNode,
                     REQUEST_EXTENSION_ACTION_NAME,
-                    new InitializeExtensionRequest(transportService.getLocalNode(), extension, issueServiceAccount(extension)),
+                    new InitializeExtensionRequest(transportService.getLocalNode(), extensionNode, issueServiceAccount(extensionNode)),
                     initializeExtensionResponseHandler
                 );
             }
