@@ -714,10 +714,6 @@ public class MatchQuery {
         @Override
         protected Query analyzeMultiPhrase(String field, TokenStream stream, int slop) throws IOException {
             try {
-                if (fieldType instanceof MatchOnlyTextFieldMapper.MatchOnlyTextFieldType) {
-                    return ((MatchOnlyTextFieldMapper.MatchOnlyTextFieldType) fieldType)
-                        .multiPhraseQuery(stream, slop, enablePositionIncrements, context);
-                }
                 checkForPositions(field);
                 return fieldType.multiPhraseQuery(stream, slop, enablePositionIncrements, context);
             } catch (IllegalArgumentException | IllegalStateException e) {

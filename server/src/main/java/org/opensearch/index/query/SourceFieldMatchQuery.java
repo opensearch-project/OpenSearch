@@ -49,8 +49,13 @@ public class SourceFieldMatchQuery extends Query {
      * @param valueFetcher The source value fetcher.
      * @param lookup The search lookup.
      */
-    public SourceFieldMatchQuery(Query delegateQuery, Query filter, MappedFieldType fieldType,
-                                 SourceValueFetcher valueFetcher, SearchLookup lookup) {
+    public SourceFieldMatchQuery(
+        Query delegateQuery,
+        Query filter,
+        MappedFieldType fieldType,
+        SourceValueFetcher valueFetcher,
+        SearchLookup lookup
+    ) {
         this.delegateQuery = delegateQuery;
         this.filter = filter;
         this.fieldType = fieldType;
@@ -136,7 +141,6 @@ public class SourceFieldMatchQuery extends Query {
 
     @Override
     public String toString(String f) {
-        return "SourceFieldMatchQuery (delegate query: [ " + delegateQuery.toString(f) +
-            " ], filter query: [ " + filter.toString(f) + "])";
+        return "SourceFieldMatchQuery (delegate query: [ " + delegateQuery.toString(f) + " ], filter query: [ " + filter.toString(f) + "])";
     }
 }
