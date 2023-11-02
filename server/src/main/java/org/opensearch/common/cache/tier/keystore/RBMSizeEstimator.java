@@ -30,7 +30,9 @@
  * GitHub history for details.
  */
 
-package org.opensearch.indices;
+package org.opensearch.common.cache.tier.keystore;
+
+import org.opensearch.common.cache.tier.keystore.RBMIntKeyLookupStore;
 
 /**
  * A class used to estimate roaring bitmap memory sizes (and hash set sizes).
@@ -111,11 +113,15 @@ public class RBMSizeEstimator {
         return (long) ((long) Math.pow(numEntries, memValues[1]) * (long) Math.pow(10, memValues[2]) * memValues[0]);
     }
 
+    public static long getSizeInBytesWithModuloValue(int numEntries, RBMIntKeyLookupStore.KeystoreModuloValue moduloValue) {
+        double[] memValues = calculateMemoryCoefficients(moduloValue.getValue());
+        return (long) ((long) Math.pow(numEntries, memValues[1]) * (long) Math.pow(10, memValues[2]) * memValues[0]);
+    }
+
     public static int getNumEntriesFromSizeInBytesWithModulo(long sizeInBytes, int modulo) {
         double[] memValues = calculateMemoryCoefficients(modulo);
         return (int) Math.pow(sizeInBytes / (memValues[0] * Math.pow(10, memValues[2])), 1 / memValues[1]);
     }
-
 
     protected static long convertMBToBytes(double valMB) {
         return (long) (valMB * BYTES_IN_MB);
