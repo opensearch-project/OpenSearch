@@ -30,14 +30,15 @@
  * GitHub history for details.
  */
 
-package org.opensearch.indices;
+package org.opensearch.common.cache.tier.keystore;
 
 import org.opensearch.common.metrics.CounterMetric;
-import org.roaringbitmap.RoaringBitmap;
 
 import java.util.HashSet;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
+
+import org.roaringbitmap.RoaringBitmap;
 
 /**
  * This class implements KeyLookupStore<Integer> using a roaring bitmap with a modulo applied to values.
@@ -48,30 +49,29 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
  * The store estimates its memory footprint and will stop adding more values once it reaches its memory cap.
  */
 public class RBMIntKeyLookupStore implements KeyLookupStore<Integer> {
-    protected final int modulo;
-    protected class KeyStoreStats {
-        protected int size;
-        protected long memSizeCapInBytes;
-        protected CounterMetric numAddAttempts;
-        protected CounterMetric numCollisions;
-        protected boolean guaranteesNoFalseNegatives;
-        protected int maxNumEntries;
-        protected boolean atCapacity;
-        protected CounterMetric numRemovalAttempts;
-        protected CounterMetric numSuccessfulRemovals;
-        protected KeyStoreStats(long memSizeCapInBytes, int maxNumEntries) {
-            this.size = 0;
-            this.numAddAttempts = new CounterMetric();
-            this.numCollisions = new CounterMetric();
-            this.memSizeCapInBytes = memSizeCapInBytes;
-            this.maxNumEntries = maxNumEntries;
-            this.atCapacity = false;
-            this.numRemovalAttempts = new CounterMetric();
-            this.numSuccessfulRemovals = new CounterMetric();
+    /**
+     * An enum representing modulo values for use in the keystore
+     */
+    public enum KeystoreModuloValue {
+        NONE(0), // No modulo applied
+        TWO_TO_THIRTY_ONE((int) Math.pow(2, 31)),
+        TWO_TO_TWENTY_NINE((int) Math.pow(2, 29)), // recommended value
+        TWO_TO_TWENTY_EIGHT((int) Math.pow(2, 28)),
+        TWO_TO_TWENTY_SIX((int) Math.pow(2, 26));
+
+        private final int value;
+
+        private KeystoreModuloValue(int value) {
+            this.value = value;
+        }
+
+        public int getValue() {
+            return this.value;
         }
     }
 
-    protected KeyStoreStats stats;
+    protected final int modulo;
+    KeyStoreStats stats;
     protected RoaringBitmap rbm;
     private HashSet<Integer> collidedInts;
     protected RBMSizeEstimator sizeEstimator;
@@ -79,8 +79,13 @@ public class RBMIntKeyLookupStore implements KeyLookupStore<Integer> {
     protected final Lock readLock = lock.readLock();
     protected final Lock writeLock = lock.writeLock();
 
-    RBMIntKeyLookupStore(int modulo, long memSizeCapInBytes) {
-        this.modulo = modulo;
+    // Default constructor sets modulo = 2^28
+    public RBMIntKeyLookupStore(long memSizeCapInBytes) {
+        this(KeystoreModuloValue.TWO_TO_TWENTY_EIGHT, memSizeCapInBytes);
+    }
+
+    public RBMIntKeyLookupStore(KeystoreModuloValue moduloValue, long memSizeCapInBytes) {
+        this.modulo = moduloValue.getValue();
         sizeEstimator = new RBMSizeEstimator(modulo);
         this.stats = new KeyStoreStats(memSizeCapInBytes, calculateMaxNumEntries(memSizeCapInBytes));
         this.rbm = new RoaringBitmap();
@@ -94,11 +99,11 @@ public class RBMIntKeyLookupStore implements KeyLookupStore<Integer> {
         return sizeEstimator.getNumEntriesFromSizeInBytes(memSizeCapInBytes);
     }
 
-    protected final int transform(int value) {
+    private final int transform(int value) {
         return modulo == 0 ? value : value % modulo;
     }
 
-    protected void handleCollisions(int transformedValue) {
+    private void handleCollisions(int transformedValue) {
         stats.numCollisions.inc();
         collidedInts.add(transformedValue);
     }
@@ -108,18 +113,21 @@ public class RBMIntKeyLookupStore implements KeyLookupStore<Integer> {
         if (value == null) {
             return false;
         }
-        writeLock.lock();
         stats.numAddAttempts.inc();
+        if (stats.size.count() == stats.maxNumEntries) {
+            stats.atCapacity.set(true);
+            return false;
+        }
+        int transformedValue = transform(value);
+
+        writeLock.lock();
         try {
-            if (stats.size == stats.maxNumEntries) {
-                stats.atCapacity = true;
-                return false;
-            }
-            int transformedValue = transform(value);
-            boolean alreadyContained = contains(value);
+            boolean alreadyContained;
+            // saves calling transform() an additional time
+            alreadyContained = rbm.contains(transformedValue);
             if (!alreadyContained) {
                 rbm.add(transformedValue);
-                stats.size++;
+                stats.size.inc();
                 return true;
             }
             handleCollisions(transformedValue);
@@ -159,7 +167,7 @@ public class RBMIntKeyLookupStore implements KeyLookupStore<Integer> {
         int transformedValue = transform(value);
         readLock.lock();
         try {
-            if (!contains(value)) {
+            if (!rbm.contains(transformedValue)) { // saves additional transform() call
                 return false;
             }
             stats.numRemovalAttempts.inc();
@@ -172,7 +180,7 @@ public class RBMIntKeyLookupStore implements KeyLookupStore<Integer> {
         writeLock.lock();
         try {
             rbm.remove(transformedValue);
-            stats.size--;
+            stats.size.dec();
             stats.numSuccessfulRemovals.inc();
             return true;
         } finally {
@@ -184,14 +192,14 @@ public class RBMIntKeyLookupStore implements KeyLookupStore<Integer> {
     public int getSize() {
         readLock.lock();
         try {
-            return stats.size;
+            return (int) stats.size.count();
         } finally {
             readLock.unlock();
         }
     }
 
     @Override
-    public int getTotalAdds() {
+    public int getAddAttempts() {
         return (int) stats.numAddAttempts.count();
     }
 
@@ -199,7 +207,6 @@ public class RBMIntKeyLookupStore implements KeyLookupStore<Integer> {
     public int getCollisions() {
         return (int) stats.numCollisions.count();
     }
-
 
     @Override
     public boolean isCollision(Integer value1, Integer value2) {
@@ -211,7 +218,7 @@ public class RBMIntKeyLookupStore implements KeyLookupStore<Integer> {
 
     @Override
     public long getMemorySizeInBytes() {
-        return sizeEstimator.getSizeInBytes(stats.size) + RBMSizeEstimator.getHashsetMemSizeInBytes(collidedInts.size());
+        return sizeEstimator.getSizeInBytes((int) stats.size.count()) + RBMSizeEstimator.getHashsetMemSizeInBytes(collidedInts.size());
     }
 
     @Override
@@ -221,14 +228,14 @@ public class RBMIntKeyLookupStore implements KeyLookupStore<Integer> {
 
     @Override
     public boolean isFull() {
-        return stats.atCapacity;
+        return stats.atCapacity.get();
     }
 
     @Override
     public void regenerateStore(Integer[] newValues) throws Exception {
         rbm.clear();
         collidedInts = new HashSet<>();
-        stats.size = 0;
+        stats.size = new CounterMetric();
         stats.numAddAttempts = new CounterMetric();
         stats.numCollisions = new CounterMetric();
         stats.guaranteesNoFalseNegatives = true;
@@ -241,12 +248,11 @@ public class RBMIntKeyLookupStore implements KeyLookupStore<Integer> {
         }
     }
 
-
-
     @Override
     public void clear() throws Exception {
-        regenerateStore(new Integer[]{});
+        regenerateStore(new Integer[] {});
     }
+
     public int getNumRemovalAttempts() {
         return (int) stats.numRemovalAttempts.count();
     }

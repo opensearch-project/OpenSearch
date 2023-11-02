@@ -30,7 +30,7 @@
  * GitHub history for details.
  */
 
-package org.opensearch.indices;
+package org.opensearch.common.cache.tier.keystore;
 
 /**
  * An interface for objects that hold an in-memory record of hashes of keys in the disk cache.
@@ -85,14 +85,13 @@ public interface KeyLookupStore<T> {
      * Returns the number of times add() has been run, including unsuccessful attempts.
      * @return The number of adding attempts.
      */
-    int getTotalAdds();
+    int getAddAttempts();
 
     /**
      * Returns the number of times add() has returned false due to a collision.
      * @return The number of collisions.
      */
     int getCollisions();
-
 
     /**
      * Checks if two values would collide after being transformed by this store's transformation.
