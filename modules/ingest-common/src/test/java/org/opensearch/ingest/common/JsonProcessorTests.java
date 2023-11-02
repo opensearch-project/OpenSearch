@@ -56,7 +56,7 @@ public class JsonProcessorTests extends OpenSearchTestCase {
         String processorTag = randomAlphaOfLength(3);
         String randomField = randomAlphaOfLength(3);
         String randomTargetField = randomAlphaOfLength(2);
-        JsonProcessor jsonProcessor = new JsonProcessor(processorTag, null, randomField, randomTargetField, false);
+        JsonProcessor jsonProcessor = new JsonProcessor(processorTag, null, randomField, randomTargetField, false, false);
         Map<String, Object> document = new HashMap<>();
 
         Map<String, Object> randomJsonMap = RandomDocumentPicks.randomSource(random());
@@ -71,7 +71,7 @@ public class JsonProcessorTests extends OpenSearchTestCase {
     }
 
     public void testInvalidValue() {
-        JsonProcessor jsonProcessor = new JsonProcessor("tag", null, "field", "target_field", false);
+        JsonProcessor jsonProcessor = new JsonProcessor("tag", null, "field", "target_field", false, false);
         Map<String, Object> document = new HashMap<>();
         document.put("field", "blah blah");
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
@@ -86,7 +86,7 @@ public class JsonProcessorTests extends OpenSearchTestCase {
     }
 
     public void testByteArray() {
-        JsonProcessor jsonProcessor = new JsonProcessor("tag", null, "field", "target_field", false);
+        JsonProcessor jsonProcessor = new JsonProcessor("tag", null, "field", "target_field", false, false);
         Map<String, Object> document = new HashMap<>();
         document.put("field", new byte[] { 0, 1 });
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
@@ -99,7 +99,7 @@ public class JsonProcessorTests extends OpenSearchTestCase {
     }
 
     public void testNull() throws Exception {
-        JsonProcessor jsonProcessor = new JsonProcessor("tag", null, "field", "target_field", false);
+        JsonProcessor jsonProcessor = new JsonProcessor("tag", null, "field", "target_field", false, false);
         Map<String, Object> document = new HashMap<>();
         document.put("field", null);
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
@@ -108,7 +108,7 @@ public class JsonProcessorTests extends OpenSearchTestCase {
     }
 
     public void testBoolean() throws Exception {
-        JsonProcessor jsonProcessor = new JsonProcessor("tag", null, "field", "target_field", false);
+        JsonProcessor jsonProcessor = new JsonProcessor("tag", null, "field", "target_field", false, false);
         Map<String, Object> document = new HashMap<>();
         boolean value = true;
         document.put("field", value);
@@ -118,7 +118,7 @@ public class JsonProcessorTests extends OpenSearchTestCase {
     }
 
     public void testInteger() throws Exception {
-        JsonProcessor jsonProcessor = new JsonProcessor("tag", null, "field", "target_field", false);
+        JsonProcessor jsonProcessor = new JsonProcessor("tag", null, "field", "target_field", false, false);
         Map<String, Object> document = new HashMap<>();
         int value = 3;
         document.put("field", value);
@@ -128,7 +128,7 @@ public class JsonProcessorTests extends OpenSearchTestCase {
     }
 
     public void testDouble() throws Exception {
-        JsonProcessor jsonProcessor = new JsonProcessor("tag", null, "field", "target_field", false);
+        JsonProcessor jsonProcessor = new JsonProcessor("tag", null, "field", "target_field", false, false);
         Map<String, Object> document = new HashMap<>();
         double value = 3.0;
         document.put("field", value);
@@ -138,7 +138,7 @@ public class JsonProcessorTests extends OpenSearchTestCase {
     }
 
     public void testString() throws Exception {
-        JsonProcessor jsonProcessor = new JsonProcessor("tag", null, "field", "target_field", false);
+        JsonProcessor jsonProcessor = new JsonProcessor("tag", null, "field", "target_field", false, false);
         Map<String, Object> document = new HashMap<>();
         String value = "hello world";
         document.put("field", "\"" + value + "\"");
@@ -148,7 +148,7 @@ public class JsonProcessorTests extends OpenSearchTestCase {
     }
 
     public void testArray() throws Exception {
-        JsonProcessor jsonProcessor = new JsonProcessor("tag", null, "field", "target_field", false);
+        JsonProcessor jsonProcessor = new JsonProcessor("tag", null, "field", "target_field", false, false);
         Map<String, Object> document = new HashMap<>();
         List<Boolean> value = Arrays.asList(true, true, false);
         document.put("field", value.toString());
@@ -158,7 +158,7 @@ public class JsonProcessorTests extends OpenSearchTestCase {
     }
 
     public void testFieldMissing() {
-        JsonProcessor jsonProcessor = new JsonProcessor("tag", null, "field", "target_field", false);
+        JsonProcessor jsonProcessor = new JsonProcessor("tag", null, "field", "target_field", false, false);
         Map<String, Object> document = new HashMap<>();
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
 
@@ -169,7 +169,7 @@ public class JsonProcessorTests extends OpenSearchTestCase {
     public void testAddToRoot() throws Exception {
         String processorTag = randomAlphaOfLength(3);
         String randomTargetField = randomAlphaOfLength(2);
-        JsonProcessor jsonProcessor = new JsonProcessor(processorTag, null, "a", randomTargetField, true);
+        JsonProcessor jsonProcessor = new JsonProcessor(processorTag, null, "a", randomTargetField, true, false);
         Map<String, Object> document = new HashMap<>();
 
         String json = "{\"a\": 1, \"b\": 2}";
@@ -185,8 +185,32 @@ public class JsonProcessorTests extends OpenSearchTestCase {
         assertEquals("see", sourceAndMetadata.get("c"));
     }
 
+    public void testDuplicateKeys() throws Exception {
+        String processorTag = randomAlphaOfLength(3);
+        JsonProcessor lenientJsonProcessor = new JsonProcessor(processorTag, null, "a", null, true, true);
+
+        Map<String, Object> document = new HashMap<>();
+        String json = "{\"a\": 1, \"a\": 2}";
+        document.put("a", json);
+        document.put("c", "see");
+
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
+        lenientJsonProcessor.execute(ingestDocument);
+
+        Map<String, Object> sourceAndMetadata = ingestDocument.getSourceAndMetadata();
+        assertEquals(2, sourceAndMetadata.get("a"));
+        assertEquals("see", sourceAndMetadata.get("c"));
+
+        JsonProcessor strictJsonProcessor = new JsonProcessor(processorTag, null, "a", null, true, false);
+        Exception exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> strictJsonProcessor.execute(RandomDocumentPicks.randomIngestDocument(random(), document))
+        );
+        assertThat(exception.getMessage(), containsString("Duplicate field 'a'"));
+    }
+
     public void testAddBoolToRoot() {
-        JsonProcessor jsonProcessor = new JsonProcessor("tag", null, "field", "target_field", true);
+        JsonProcessor jsonProcessor = new JsonProcessor("tag", null, "field", "target_field", true, false);
         Map<String, Object> document = new HashMap<>();
         document.put("field", true);
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);

@@ -140,6 +140,11 @@ public class JsonToStringXContentParser extends AbstractXContentParser {
     }
 
     @Override
+    public void allowDuplicateKeys(boolean allowDuplicateKeys) {
+        throw new UnsupportedOperationException("Allowing duplicate keys is not possible for JsonToString");
+    }
+
+    @Override
     public Token nextToken() throws IOException {
         return this.parser.nextToken();
     }

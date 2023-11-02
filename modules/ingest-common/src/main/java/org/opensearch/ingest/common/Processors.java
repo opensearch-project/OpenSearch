@@ -49,11 +49,11 @@ public final class Processors {
     }
 
     public static Object json(Object fieldValue) {
-        return JsonProcessor.apply(fieldValue);
+        return JsonProcessor.apply(fieldValue, false);
     }
 
     public static void json(Map<String, Object> ctx, String field) {
-        JsonProcessor.apply(ctx, field);
+        JsonProcessor.apply(ctx, field, false);
     }
 
     public static String urlDecode(String value) {

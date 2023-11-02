@@ -37,6 +37,7 @@ import com.fasterxml.jackson.dataformat.smile.SmileFactory;
 
 import org.opensearch.common.xcontent.BaseXContentTestCase;
 import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.xcontent.XContentParser;
 
 import java.io.ByteArrayOutputStream;
 
@@ -51,5 +52,11 @@ public class SmileXContentTests extends BaseXContentTestCase {
         ByteArrayOutputStream os = new ByteArrayOutputStream();
         JsonGenerator generator = new SmileFactory().createGenerator(os);
         doTestBigInteger(generator, os);
+    }
+
+    public void testAllowsDuplicates() throws Exception {
+        try (XContentParser xParser = createParser(builder().startObject().endObject())) {
+            expectThrows(UnsupportedOperationException.class, () -> xParser.allowDuplicateKeys(true));
+        }
     }
 }

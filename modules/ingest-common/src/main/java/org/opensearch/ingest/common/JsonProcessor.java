@@ -60,12 +60,14 @@ public final class JsonProcessor extends AbstractProcessor {
     private final String field;
     private final String targetField;
     private final boolean addToRoot;
+    private final boolean allowDuplicateKeys;
 
-    JsonProcessor(String tag, String description, String field, String targetField, boolean addToRoot) {
+    JsonProcessor(String tag, String description, String field, String targetField, boolean addToRoot, boolean allowDuplicateKeys) {
         super(tag, description);
         this.field = field;
         this.targetField = targetField;
         this.addToRoot = addToRoot;
+        this.allowDuplicateKeys = allowDuplicateKeys;
     }
 
     public String getField() {
@@ -80,7 +82,7 @@ public final class JsonProcessor extends AbstractProcessor {
         return addToRoot;
     }
 
-    public static Object apply(Object fieldValue) {
+    public static Object apply(Object fieldValue, boolean allowDuplicateKeys) {
         BytesReference bytesRef = fieldValue == null ? new BytesArray("null") : new BytesArray(fieldValue.toString());
         try (
             InputStream stream = bytesRef.streamInput();
@@ -90,6 +92,7 @@ public final class JsonProcessor extends AbstractProcessor {
                 stream
             )
         ) {
+            parser.allowDuplicateKeys(allowDuplicateKeys);
             XContentParser.Token token = parser.nextToken();
             Object value = null;
             if (token == XContentParser.Token.VALUE_NULL) {
@@ -113,8 +116,8 @@ public final class JsonProcessor extends AbstractProcessor {
         }
     }
 
-    public static void apply(Map<String, Object> ctx, String fieldName) {
-        Object value = apply(ctx.get(fieldName));
+    public static void apply(Map<String, Object> ctx, String fieldName, boolean allowDuplicateKeys) {
+        Object value = apply(ctx.get(fieldName), allowDuplicateKeys);
         if (value instanceof Map) {
             @SuppressWarnings("unchecked")
             Map<String, Object> map = (Map<String, Object>) value;
@@ -127,9 +130,9 @@ public final class JsonProcessor extends AbstractProcessor {
     @Override
     public IngestDocument execute(IngestDocument document) throws Exception {
         if (addToRoot) {
-            apply(document.getSourceAndMetadata(), field);
+            apply(document.getSourceAndMetadata(), field, allowDuplicateKeys);
         } else {
-            document.setFieldValue(targetField, apply(document.getFieldValue(field, Object.class)));
+            document.setFieldValue(targetField, apply(document.getFieldValue(field, Object.class), allowDuplicateKeys));
         }
         return document;
     }
@@ -150,6 +153,7 @@ public final class JsonProcessor extends AbstractProcessor {
             String field = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "field");
             String targetField = ConfigurationUtils.readOptionalStringProperty(TYPE, processorTag, config, "target_field");
             boolean addToRoot = ConfigurationUtils.readBooleanProperty(TYPE, processorTag, config, "add_to_root", false);
+            boolean allowDuplicateKeys = ConfigurationUtils.readBooleanProperty(TYPE, processorTag, config, "allow_duplicate_keys", false);
 
             if (addToRoot && targetField != null) {
                 throw newConfigurationException(
@@ -164,7 +168,7 @@ public final class JsonProcessor extends AbstractProcessor {
                 targetField = field;
             }
 
-            return new JsonProcessor(processorTag, description, field, targetField, addToRoot);
+            return new JsonProcessor(processorTag, description, field, targetField, addToRoot, allowDuplicateKeys);
         }
     }
 }
