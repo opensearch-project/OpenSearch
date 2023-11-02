@@ -97,15 +97,13 @@ public class Regex {
      *
      * @param str - The input string to remove adjacent duplicate characters from
      * @param target - The target character to remove duplicates of
-     * @return
+     * @return - string with adjacent duplicates of the target character removed
      */
-    public static String removeDuplicates(String str, char target) {
+    static String removeDuplicates(String str, char target) {
         StringBuilder sb = new StringBuilder();
         for (char c : str.toCharArray()) {
             int size = sb.length();
-            if (size > 0 && c == target && sb.charAt(size - 1) == c) {
-                sb.deleteCharAt(size - 1);
-            } else {
+            if (size == 0 || c != target || sb.charAt(size - 1) != c) {
                 sb.append(c);
             }
         }
