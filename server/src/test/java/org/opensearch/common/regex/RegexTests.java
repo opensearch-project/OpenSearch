@@ -96,6 +96,7 @@ public class RegexTests extends OpenSearchTestCase {
         assertFalse(Regex.simpleMatch("fff**ddd", "fffabcdd"));
         assertTrue(Regex.simpleMatch("fff*******ddd", "fffabcddd"));
         assertTrue(Regex.simpleMatch("fff*******ddd", "FffAbcdDd", true));
+        assertFalse(Regex.simpleMatch("fff*******ddd", "FffAbcdDd", false));
         assertFalse(Regex.simpleMatch("fff******ddd", "fffabcdd"));
     }
 
@@ -124,10 +125,10 @@ public class RegexTests extends OpenSearchTestCase {
     }
 
     public void testRemoveDuplicates() {
-        assertEquals("*", Regex.removeDuplicates("***", '*'));
-        assertEquals("*abc*", Regex.removeDuplicates("**abc**", '*'));
-        assertEquals("a*b*c*", Regex.removeDuplicates("a*b**c****", '*'));
-        assertEquals("*abc", Regex.removeDuplicates("****abc", '*'));
-        assertEquals("*", Regex.removeDuplicates("*".repeat(100), '*'));
+        assertEquals("*", Regex.removeAdjacentDuplicates("***", '*'));
+        assertEquals("*abc*", Regex.removeAdjacentDuplicates("**abc**", '*'));
+        assertEquals("a*b*c*", Regex.removeAdjacentDuplicates("a*b**c****", '*'));
+        assertEquals("*abc", Regex.removeAdjacentDuplicates("****abc", '*'));
+        assertEquals("*", Regex.removeAdjacentDuplicates("*".repeat(100), '*'));
     }
 }
