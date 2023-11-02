@@ -80,8 +80,7 @@ public class RunTask extends DefaultTestClustersTask {
     @Option(option = "debug-jvm", description = "Run OpenSearch as a debug client, where it will try to connect to a debugging server at startup.")
     public void setDebug(boolean enabled) {
         if (debugServer != null && debugServer == true) {
-            throw new IllegalStateException(
-                    "Either --debug-jvm or --debug-server-jvm option should be specified (but not both)");
+            throw new IllegalStateException("Either --debug-jvm or --debug-server-jvm option should be specified (but not both)");
         }
         this.debug = enabled;
     }
@@ -89,8 +88,7 @@ public class RunTask extends DefaultTestClustersTask {
     @Option(option = "debug-server-jvm", description = "Run OpenSearch as a debug server that will accept connections from a debugging client.")
     public void setDebugServer(boolean enabled) {
         if (debug != null && debug == true) {
-            throw new IllegalStateException(
-                    "Either --debug-jvm or --debug-server-jvm option should be specified (but not both)");
+            throw new IllegalStateException("Either --debug-jvm or --debug-server-jvm option should be specified (but not both)");
         }
         this.debugServer = enabled;
     }
@@ -158,13 +156,15 @@ public class RunTask extends DefaultTestClustersTask {
         int transportPort = DEFAULT_TRANSPORT_PORT;
 
         Map<String, String> additionalSettings = System.getProperties()
-                .entrySet()
-                .stream()
-                .filter(entry -> entry.getKey().toString().startsWith(CUSTOM_SETTINGS_PREFIX))
-                .collect(
-                        Collectors.toMap(
-                                entry -> entry.getKey().toString().substring(CUSTOM_SETTINGS_PREFIX.length()),
-                                entry -> entry.getValue().toString()));
+            .entrySet()
+            .stream()
+            .filter(entry -> entry.getKey().toString().startsWith(CUSTOM_SETTINGS_PREFIX))
+            .collect(
+                Collectors.toMap(
+                    entry -> entry.getKey().toString().substring(CUSTOM_SETTINGS_PREFIX.length()),
+                    entry -> entry.getValue().toString()
+                )
+            );
         boolean singleNode = getClusters().stream().flatMap(c -> c.getNodes().stream()).count() == 1;
         final Function<OpenSearchNode, Path> getDataPath;
         if (singleNode) {
@@ -196,14 +196,14 @@ public class RunTask extends DefaultTestClustersTask {
                 }
                 if (debug) {
                     logger.lifecycle(
-                            "Running opensearch in debug mode (client), {} expecting running debug server on port {}",
-                            node,
-                            debugPort);
+                        "Running opensearch in debug mode (client), {} expecting running debug server on port {}",
+                        node,
+                        debugPort
+                    );
                     node.jvmArgs("-agentlib:jdwp=transport=dt_socket,server=n,suspend=y,address=" + debugPort);
                     debugPort += 1;
                 } else if (debugServer) {
-                    logger.lifecycle("Running opensearch in debug mode (server), {} running server with debug port {}",
-                            node, debugPort);
+                    logger.lifecycle("Running opensearch in debug mode (server), {} running server with debug port {}", node, debugPort);
                     node.jvmArgs("-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=" + debugPort);
                     debugPort += 1;
                 }
