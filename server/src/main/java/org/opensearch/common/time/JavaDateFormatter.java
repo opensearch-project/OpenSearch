@@ -36,6 +36,7 @@ import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.common.Strings;
 
 import java.text.ParsePosition;
+import java.time.DateTimeException;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeFormatterBuilder;
@@ -52,7 +53,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
-import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 
@@ -285,27 +285,54 @@ class JavaDateFormatter implements DateFormatter {
      * @throws DateTimeParseException when unable to parse with any parsers
      */
     private TemporalAccessor doParse(String input) {
-        if (parsers.size() > 1) {
-            Object object = null;
-            if (canCacheLastParsedFormatter && lastParsedformatter != null) {
-                ParsePosition pos = new ParsePosition(0);
-                object = lastParsedformatter.toFormat().parseObject(input, pos);
+        if (parsers.size() != 1) {
+            // Copy to local from volatile to avoid error in multi-threads,
+            // other threads may update lastParsedformatter
+            final DateTimeFormatter cachedFormatter = lastParsedformatter;
+            if (canCacheLastParsedFormatter && cachedFormatter != null) {
+                final ParsePosition pos = new ParsePosition(0);
+                Object object = tryParseObject(cachedFormatter, input, pos);
                 if (parsingSucceeded(object, input, pos)) {
                     return (TemporalAccessor) object;
                 }
             }
             for (DateTimeFormatter formatter : parsers) {
-                ParsePosition pos = new ParsePosition(0);
-                object = formatter.toFormat().parseObject(input, pos);
-                if (parsingSucceeded(object, input, pos)) {
-                    lastParsedformatter = formatter;
-                    return (TemporalAccessor) object;
+                if (formatter != cachedFormatter || !canCacheLastParsedFormatter) {
+                    final ParsePosition pos = new ParsePosition(0);
+                    Object object = tryParseObject(formatter, input, pos);
+                    if (parsingSucceeded(object, input, pos)) {
+                        if (canCacheLastParsedFormatter) {
+                            lastParsedformatter = formatter;
+                        }
+                        return (TemporalAccessor) object;
+                    }
                 }
             }
 
-            throw new DateTimeParseException("Failed to parse with all enclosed parsers", input, 0);
+            throw new DateTimeParseException("failed to parse date field [" + input + "] with format [" + format + "]", input, 0);
+        } else {
+            return parsers.get(0).parse(input);
         }
-        return this.parsers.get(0).parse(input);
+    }
+
+    /**
+     * Try to parse input with given formatter, return null if it fails to parse input.
+     * Because of JDK bug https://bugs.openjdk.org/browse/JDK-8319640,
+     * {@link java.text.Format#parseObject(String, ParsePosition)} may throw ${@link DateTimeException}
+     * rather than {@link DateTimeParseException}, causing early termination of the loop in {@link #doParse(String)},
+     * this method catches DateTimeException to avoid the exception is leaked to invoker.
+     *
+     * @param formatter formatter used to parse input.
+     * @param input input to parse
+     * @param pos initial ParsePosition
+     * @return parse result if there is {@link DateTimeException}
+     */
+    private Object tryParseObject(final DateTimeFormatter formatter, final String input, final ParsePosition pos) {
+        try {
+            return formatter.toFormat().parseObject(input, pos);
+        } catch (final DateTimeException ex) {
+            return null;
+        }
     }
 
     private boolean parsingSucceeded(Object object, String input, ParsePosition pos) {
@@ -318,9 +345,7 @@ class JavaDateFormatter implements DateFormatter {
         if (zoneId.equals(zone())) {
             return this;
         }
-        List<DateTimeFormatter> parsers = new CopyOnWriteArrayList<>(
-            this.parsers.stream().map(p -> p.withZone(zoneId)).collect(Collectors.toList())
-        );
+        List<DateTimeFormatter> parsers = this.parsers.stream().map(p -> p.withZone(zoneId)).collect(Collectors.toList());
         List<DateTimeFormatter> roundUpParsers = this.roundupParser.getParsers()
             .stream()
             .map(p -> p.withZone(zoneId))
@@ -334,9 +359,7 @@ class JavaDateFormatter implements DateFormatter {
         if (locale.equals(locale())) {
             return this;
         }
-        List<DateTimeFormatter> parsers = new CopyOnWriteArrayList<>(
-            this.parsers.stream().map(p -> p.withLocale(locale)).collect(Collectors.toList())
-        );
+        List<DateTimeFormatter> parsers = this.parsers.stream().map(p -> p.withLocale(locale)).collect(Collectors.toList());
         List<DateTimeFormatter> roundUpParsers = this.roundupParser.getParsers()
             .stream()
             .map(p -> p.withLocale(locale))

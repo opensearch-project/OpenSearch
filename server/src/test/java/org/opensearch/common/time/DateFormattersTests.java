@@ -683,4 +683,15 @@ public class DateFormattersTests extends OpenSearchTestCase {
             }
         }
     }
+
+    public void testToVerifyFixForDateTimeException() {
+        DateFormatter formatter = DateFormatter.forPattern("strict_date_optional_time||epoch_millis");
+        assertEquals(1522431028842L, Instant.from(formatter.parse("2018-03-30T17:30:28.842Z")).toEpochMilli());
+        assertEquals(1522431028842L, Instant.from(formatter.parse("1522431028842")).toEpochMilli());
+        assertThrows(IllegalArgumentException.class, () -> formatter.parse(""));
+        // text causes DateTimeException from DateTimeFormatter#parseObject for the pattern in this test,
+        // and causes parse failure.
+        assertThrows(IllegalArgumentException.class, () -> formatter.parse("2018-03-30T17-30-28.842Z"));
+    }
+
 }
