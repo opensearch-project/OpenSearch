@@ -44,7 +44,6 @@ import org.opensearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.action.search.SearchPhaseExecutionException;
 import org.opensearch.action.search.SearchResponse;
-import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.action.support.master.AcknowledgedResponse;
 import org.opensearch.common.FieldMemoryStats;
 import org.opensearch.common.settings.Settings;
@@ -1200,12 +1199,12 @@ public class CompletionSuggestSearchIT extends ParameterizedOpenSearchIntegTestC
         indexRandom(true, indexRequestBuilders);
 
         Arrays.sort(termIds, Comparator.comparingInt(o -> weights[(int) o]).reversed().thenComparingInt(a -> (int) a));
-        logger.info("Expected terms id ordered {}", (Object[])termIds);
+        logger.info("Expected terms id ordered {}", (Object[]) termIds);
         String[] expected = new String[numUnique];
         for (int i = 0; i < termIds.length; i++) {
             expected[i] = "suggestion-" + String.format(Locale.ENGLISH, "%03d", termIds[i]);
         }
-        logger.info("Expected suggestions field values {}", (Object[])expected);
+        logger.info("Expected suggestions field values {}", (Object[]) expected);
         CompletionSuggestionBuilder completionSuggestionBuilder = SuggestBuilders.completionSuggestion(FIELD)
             .prefix("sugg")
             .skipDuplicates(true)
