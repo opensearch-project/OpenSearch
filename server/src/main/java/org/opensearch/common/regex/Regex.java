@@ -99,7 +99,7 @@ public class Regex {
      * @param target - The target character to remove duplicates of
      * @return - string with adjacent duplicates of the target character removed
      */
-    static String removeDuplicates(String str, char target) {
+    static String removeAdjacentDuplicates(String str, char target) {
         StringBuilder sb = new StringBuilder();
         for (char c : str.toCharArray()) {
             int size = sb.length();
@@ -121,8 +121,7 @@ public class Regex {
      * @return whether the String matches the given pattern
      */
     public static boolean simpleMatch(String pattern, String str) {
-        String trimmedPattern = removeDuplicates(pattern, '*');
-        return simpleMatch(trimmedPattern, str, false);
+        return simpleMatch(pattern, str, false);
     }
 
     /**
@@ -143,7 +142,8 @@ public class Regex {
             pattern = Strings.toLowercaseAscii(pattern);
             str = Strings.toLowercaseAscii(str);
         }
-        return simpleMatchWithNormalizedStrings(pattern, str);
+        String trimmedPattern = removeAdjacentDuplicates(pattern, '*');
+        return simpleMatchWithNormalizedStrings(trimmedPattern, str);
     }
 
     private static boolean simpleMatchWithNormalizedStrings(String pattern, String str) {
