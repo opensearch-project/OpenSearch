@@ -53,6 +53,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicLong;
 
+import static org.opensearch.index.seqno.SequenceNumbers.NO_OPS_PERFORMED;
 import static org.opensearch.indices.replication.SegmentReplicationSourceService.Actions.UPDATE_VISIBLE_CHECKPOINT;
 
 /**
@@ -282,6 +283,12 @@ public class SegmentReplicationTargetService implements IndexEventListener {
                         }
                     }
                 });
+            } else if (replicaShard.isSegmentReplicationAllowed()) {
+                // if we didn't process the checkpoint because we are up to date,
+                // send our latest checkpoint to the primary to update tracking.
+                // replicationId is not used by the primary set to a default value.
+                final long replicationId = NO_OPS_PERFORMED;
+                updateVisibleCheckpoint(replicationId, replicaShard);
             }
         } else {
             logger.trace(
