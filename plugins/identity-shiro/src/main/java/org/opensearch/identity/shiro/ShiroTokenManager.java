@@ -10,13 +10,11 @@ package org.opensearch.identity.shiro;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.shiro.SecurityUtils;
 import org.apache.shiro.authc.AuthenticationToken;
 import org.apache.shiro.authc.UsernamePasswordToken;
 import org.opensearch.common.Randomness;
 import org.opensearch.identity.IdentityService;
 import org.opensearch.identity.Subject;
-import org.opensearch.identity.noop.NoopSubject;
 import org.opensearch.identity.tokens.AuthToken;
 import org.opensearch.identity.tokens.BasicAuthToken;
 import org.opensearch.identity.tokens.OnBehalfOfClaims;
@@ -86,20 +84,6 @@ class ShiroTokenManager implements TokenManager {
         BasicAuthToken token = new BasicAuthToken(header);
         shiroTokenPasswordMap.put(token, password);
         return token;
-    }
-
-    @Override
-    public Subject authenticateToken(AuthToken authToken) {
-        return new NoopSubject();
-    }
-
-    public boolean validateToken(AuthToken token) {
-        if (token instanceof BasicAuthToken) {
-            final BasicAuthToken basicAuthToken = (BasicAuthToken) token;
-            return basicAuthToken.getUser().equals(SecurityUtils.getSubject().toString())
-                && basicAuthToken.getPassword().equals(shiroTokenPasswordMap.get(basicAuthToken));
-        }
-        return false;
     }
 
     public String getTokenInfo(AuthToken token) {
