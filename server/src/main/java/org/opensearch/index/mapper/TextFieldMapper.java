@@ -449,7 +449,7 @@ public class TextFieldMapper extends ParametrizedFieldMapper {
                 pft.setStoreTermVectorOffsets(true);
             }
             PrefixFieldType prefixFieldType = new PrefixFieldType(tft, fullName + "._index_prefix", indexPrefixes.get());
-            prefixFieldType.setAnalyzer(analyzers.getIndexAnalyzer());
+            prefixFieldType.setAnalyzer(tft.indexAnalyzer());
             tft.setPrefixFieldType(prefixFieldType);
             return new PrefixFieldMapper(pft, prefixFieldType);
         }
@@ -621,12 +621,7 @@ public class TextFieldMapper extends ParametrizedFieldMapper {
                 new NamedAnalyzer(
                     delegate.name(),
                     AnalyzerScope.INDEX,
-                    new PrefixWrappedAnalyzer(
-                        delegate.analyzer(),
-                        minChars,
-                        maxChars,
-                        parentField.indexAnalyzer().getPositionIncrementGap(parentField.name())
-                    )
+                    new PrefixWrappedAnalyzer(delegate.analyzer(), minChars, maxChars, delegate.getPositionIncrementGap(name()))
                 )
             );
         }
