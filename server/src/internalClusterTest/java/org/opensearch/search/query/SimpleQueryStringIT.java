@@ -433,15 +433,10 @@ public class SimpleQueryStringIT extends ParameterizedOpenSearchIntegTestCase {
     }
 
     public void testSimpleQueryStringOnIndexMetaField() throws Exception {
-        assumeFalse(
-            "Concurrent search case muted pending fix: https://github.com/opensearch-project/OpenSearch/issues/11067",
-            internalCluster().clusterService().getClusterSettings().get(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING)
-        );
         client().prepareIndex("test").setId("1").setSource("foo", 123, "bar", "abc").get();
         client().prepareIndex("test").setId("2").setSource("foo", 234, "bar", "bcd").get();
 
         refresh();
-        indexRandomForConcurrentSearch("test");
 
         SearchResponse searchResponse = client().prepareSearch().setQuery(simpleQueryStringQuery("test").field("_index")).get();
         assertHitCount(searchResponse, 2L);

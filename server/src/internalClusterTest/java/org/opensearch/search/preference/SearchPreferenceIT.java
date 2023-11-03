@@ -160,17 +160,12 @@ public class SearchPreferenceIT extends ParameterizedOpenSearchIntegTestCase {
         assertThat(firstNodeId, not(equalTo(secondNodeId)));
     }
 
-    public void testSimplePreference() throws Exception {
-        assumeFalse(
-            "Concurrent search case muted pending fix: https://github.com/opensearch-project/OpenSearch/issues/11066",
-            internalCluster().clusterService().getClusterSettings().get(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING)
-        );
+    public void testSimplePreference() {
         client().admin().indices().prepareCreate("test").setSettings("{\"number_of_replicas\": 1}", MediaTypeRegistry.JSON).get();
         ensureGreen();
 
         client().prepareIndex("test").setSource("field1", "value1").get();
         refresh();
-        indexRandomForConcurrentSearch("test");
 
         SearchResponse searchResponse = client().prepareSearch().setQuery(matchAllQuery()).get();
         assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
@@ -269,17 +264,14 @@ public class SearchPreferenceIT extends ParameterizedOpenSearchIntegTestCase {
         assertThat(hitNodes.size(), greaterThan(1));
     }
 
-    public void testCustomPreferenceUnaffectedByOtherShardMovements() throws Exception {
+    public void testCustomPreferenceUnaffectedByOtherShardMovements() {
 
         /*
          * Custom preferences can be used to encourage searches to go to a consistent set of shard copies, meaning that other copies' data
          * is rarely touched and can be dropped from the filesystem cache. This works best if the set of shards searched doesn't change
          * unnecessarily, so this test verifies a consistent routing even as other shards are created/relocated/removed.
          */
-        assumeFalse(
-            "Concurrent search case muted pending fix: https://github.com/opensearch-project/OpenSearch/issues/11066",
-            internalCluster().clusterService().getClusterSettings().get(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING)
-        );
+
         assertAcked(
             prepareCreate("test").setSettings(
                 Settings.builder()
@@ -291,7 +283,6 @@ public class SearchPreferenceIT extends ParameterizedOpenSearchIntegTestCase {
         ensureGreen();
         client().prepareIndex("test").setSource("field1", "value1").get();
         refresh();
-        indexRandomForConcurrentSearch("test");
 
         final String customPreference = randomAlphaOfLength(10);
 

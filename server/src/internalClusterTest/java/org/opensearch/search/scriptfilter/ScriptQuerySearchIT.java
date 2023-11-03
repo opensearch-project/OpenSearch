@@ -144,10 +144,6 @@ public class ScriptQuerySearchIT extends ParameterizedOpenSearchIntegTestCase {
     }
 
     public void testCustomScriptBinaryField() throws Exception {
-        assumeFalse(
-            "Concurrent search case muted pending fix: https://github.com/opensearch-project/OpenSearch/issues/11070",
-            internalCluster().clusterService().getClusterSettings().get(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING)
-        );
         final byte[] randomBytesDoc1 = getRandomBytes(15);
         final byte[] randomBytesDoc2 = getRandomBytes(16);
 
@@ -165,7 +161,6 @@ public class ScriptQuerySearchIT extends ParameterizedOpenSearchIntegTestCase {
             .get();
         flush();
         refresh();
-        indexRandomForConcurrentSearch("my-index");
 
         SearchResponse response = client().prepareSearch()
             .setQuery(
@@ -202,10 +197,6 @@ public class ScriptQuerySearchIT extends ParameterizedOpenSearchIntegTestCase {
     }
 
     public void testCustomScriptBoost() throws Exception {
-        assumeFalse(
-            "Concurrent search case muted pending fix: https://github.com/opensearch-project/OpenSearch/issues/11070",
-            internalCluster().clusterService().getClusterSettings().get(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING)
-        );
         createIndex("test");
         client().prepareIndex("test")
             .setId("1")
@@ -222,7 +213,6 @@ public class ScriptQuerySearchIT extends ParameterizedOpenSearchIntegTestCase {
             .setSource(jsonBuilder().startObject().field("test", "value beck").field("num1", 3.0f).endObject())
             .get();
         refresh();
-        indexRandomForConcurrentSearch("test");
 
         logger.info("running doc['num1'].value > 1");
         SearchResponse response = client().prepareSearch()
@@ -270,10 +260,6 @@ public class ScriptQuerySearchIT extends ParameterizedOpenSearchIntegTestCase {
     }
 
     public void testDisallowExpensiveQueries() {
-        assumeFalse(
-            "Concurrent search case muted pending fix: https://github.com/opensearch-project/OpenSearch/issues/11070",
-            internalCluster().clusterService().getClusterSettings().get(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING)
-        );
         try {
             assertAcked(prepareCreate("test-index").setMapping("num1", "type=double"));
             int docCount = 10;
@@ -281,7 +267,6 @@ public class ScriptQuerySearchIT extends ParameterizedOpenSearchIntegTestCase {
                 client().prepareIndex("test-index").setId("" + i).setSource("num1", i).get();
             }
             refresh();
-            indexRandomForConcurrentSearch("test-index");
 
             // Execute with search.allow_expensive_queries = null => default value = false => success
             Script script = new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['num1'].value > 1", Collections.emptyMap());
@@ -308,8 +293,6 @@ public class ScriptQuerySearchIT extends ParameterizedOpenSearchIntegTestCase {
             assertAcked(client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
             resp = client().prepareSearch("test-index").setQuery(scriptQuery(script)).get();
             assertNoFailures(resp);
-        } catch (InterruptedException e) {
-            throw new RuntimeException(e);
         } finally {
             ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest();
             updateSettingsRequest.persistentSettings(Settings.builder().put("search.allow_expensive_queries", (String) null));
