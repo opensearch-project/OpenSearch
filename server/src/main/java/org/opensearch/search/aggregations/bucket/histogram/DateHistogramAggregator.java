@@ -127,17 +127,14 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
         // Create the filters for fast aggregation only if the query is instance
         // of point range query and there aren't any parent/sub aggregations
         if (parent() == null && subAggregators.length == 0) {
-            // TODO: Is there better way of getting aggregation field? Can this cause NPE?
-            final String fieldName = (((ValuesSource.Numeric.FieldData) valuesSource).indexFieldData).getFieldName();
+            final String fieldName = valuesSourceConfig.fieldContext().field();
             if (context.query() instanceof IndexOrDocValuesQuery) {
                 final IndexOrDocValuesQuery q = (IndexOrDocValuesQuery) context.query();
                 if (q.getIndexQuery() instanceof PointRangeQuery) {
                     final PointRangeQuery prq = (PointRangeQuery) q.getIndexQuery();
                     // Ensure that the query and aggregation are on the same field
-                    if (valuesSource != null && prq.getField().equals(fieldName)) {
-                        long low = NumericUtils.sortableBytesToLong(prq.getLowerPoint(), 0);
-                        long high = NumericUtils.sortableBytesToLong(prq.getUpperPoint(), 0);
-                        createFilterForAggregations(fieldName, low, high);
+                    if (prq.getField().equals(fieldName)) {
+                        createFilterForAggregations(fieldName, prq.getLowerPoint(), prq.getUpperPoint());
                     }
                 }
             }
@@ -159,9 +156,9 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
         }
 
         // Need to be declared as final and array for usage within the
-        // LeafCollector subclass later
+        // LeafBucketCollectorBase subclass below
         final boolean[] useOpt = new boolean[1];
-        useOpt[0] = true;
+        useOpt[0] = filters != null;
 
         SortedNumericDocValues values = valuesSource.longValues(ctx);
         return new LeafBucketCollectorBase(sub, values) {
@@ -169,7 +166,7 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
             public void collect(int doc, long owningBucketOrd) throws IOException {
                 // Try fast filter aggregation if the filters have been created
                 // Skip if tried before and gave incorrect/incomplete results
-                if (useOpt[0] && filters != null) {
+                if (useOpt[0]) {
                     useOpt[0] = tryFastFilterAggregation(ctx, owningBucketOrd);
                 }
 
@@ -296,7 +293,9 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
         return "Z".equals(zoneId.getDisplayName(TextStyle.FULL, Locale.ENGLISH));
     }
 
-    private void createFilterForAggregations(String field, long low, long high) throws IOException {
+    private void createFilterForAggregations(String field, byte[] lowerPoint, byte[] upperPoint) throws IOException {
+        final long low = NumericUtils.sortableBytesToLong(lowerPoint, 0);
+        final long high = NumericUtils.sortableBytesToLong(upperPoint, 0);
         long interval = Long.MAX_VALUE;
         if (rounding instanceof Rounding.TimeUnitRounding) {
             interval = (((Rounding.TimeUnitRounding) rounding).unit).extraLocalOffsetLookup();
@@ -310,6 +309,9 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
                 // Fast filter aggregation cannot be used if it needs time zone rounding
                 return;
             }
+        } else {
+            // Unexpected scenario, exit and fall back to original
+            return;
         }
 
         // Return if the interval ratio could not be figured out correctly
