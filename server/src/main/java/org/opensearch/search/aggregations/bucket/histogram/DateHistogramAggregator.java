@@ -75,6 +75,7 @@ import java.util.function.BiConsumer;
  */
 class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAggregator {
 
+    private static final int MAX_NUM_FILTER_BUCKETS = 1024;
     private final ValuesSource.Numeric valuesSource;
     private final DocValueFormat formatter;
     private final Rounding rounding;
@@ -328,7 +329,7 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
             roundedLow = preparedRounding.round(roundedLow);
         }
 
-        if (bucketCount > 0) {
+        if (bucketCount > 0 && bucketCount <= MAX_NUM_FILTER_BUCKETS) {
             int i = 0;
             filters = new Weight[bucketCount];
             while (i < bucketCount) {
