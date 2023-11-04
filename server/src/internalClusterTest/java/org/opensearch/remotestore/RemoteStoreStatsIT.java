@@ -581,21 +581,23 @@ public class RemoteStoreStatsIT extends RemoteStoreBaseIntegTestCase {
                 .getRemoteStoreStats();
             Arrays.stream(remoteStoreStats).forEach(statObject -> {
                 RemoteSegmentTransferTracker.Stats segmentStats = statObject.getSegmentStats();
+                RemoteTranslogTransferTracker.Stats translogStats = statObject.getTranslogStats();
                 if (statObject.getShardRouting().primary()) {
                     assertTrue(
                         segmentStats.totalUploadsSucceeded == 1
                             && segmentStats.totalUploadsStarted == segmentStats.totalUploadsSucceeded
                             && segmentStats.totalUploadsFailed == 0
                     );
+                    // On primary shard creation, we upload to remote translog post primary mode activation.
+                    // This changes upload stats to non-zero for primary shard.
+                    assertNonZeroTranslogUploadStatsNoFailures(translogStats);
                 } else {
                     assertTrue(
                         segmentStats.directoryFileTransferTrackerStats.transferredBytesStarted == 0
                             && segmentStats.directoryFileTransferTrackerStats.transferredBytesSucceeded == 0
                     );
+                    assertZeroTranslogUploadStats(translogStats);
                 }
-
-                RemoteTranslogTransferTracker.Stats translogStats = statObject.getTranslogStats();
-                assertZeroTranslogUploadStats(translogStats);
                 assertZeroTranslogDownloadStats(translogStats);
             });
         }, 5, TimeUnit.SECONDS);
@@ -651,6 +653,29 @@ public class RemoteStoreStatsIT extends RemoteStoreBaseIntegTestCase {
         ensureStableCluster(3, clusterManagerNode);
         ensureGreen(INDEX_NAME);
         logger.info("Test completed");
+    }
+
+    public void testZeroLagOnCreateIndex() throws InterruptedException {
+        setup();
+        String clusterManagerNode = internalCluster().getClusterManagerName();
+
+        int numOfShards = randomIntBetween(1, 3);
+        createIndex(INDEX_NAME, remoteStoreIndexSettings(1, numOfShards));
+        ensureGreen(INDEX_NAME);
+        long currentTimeNs = System.nanoTime();
+        while (currentTimeNs == System.nanoTime()) {
+            Thread.sleep(10);
+        }
+
+        for (int i = 0; i < numOfShards; i++) {
+            RemoteStoreStatsResponse response = client(clusterManagerNode).admin()
+                .cluster()
+                .prepareRemoteStoreStats(INDEX_NAME, String.valueOf(i))
+                .get();
+            for (RemoteStoreStats remoteStoreStats : response.getRemoteStoreStats()) {
+                assertEquals(0, remoteStoreStats.getSegmentStats().refreshTimeLagMs);
+            }
+        }
     }
 
     private void indexDocs() {

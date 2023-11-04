@@ -138,7 +138,7 @@ public class RemoteStoreRestoreService {
         String[] indexNames
     ) {
         Map<String, Tuple<Boolean, IndexMetadata>> indexMetadataMap = new HashMap<>();
-        Metadata remoteMetadata = null;
+        ClusterState remoteState = null;
         boolean metadataFromRemoteStore = (restoreClusterUUID == null
             || restoreClusterUUID.isEmpty()
             || restoreClusterUUID.isBlank()) == false;
@@ -149,8 +149,9 @@ public class RemoteStoreRestoreService {
                 if (currentState.metadata().clusterUUID().equals(restoreClusterUUID)) {
                     throw new IllegalArgumentException("clusterUUID to restore from should be different from current cluster UUID");
                 }
-                remoteMetadata = remoteClusterStateService.getLatestMetadata(currentState.getClusterName().value(), restoreClusterUUID);
-                remoteMetadata.getIndices().values().forEach(indexMetadata -> {
+                logger.info("Restoring cluster state from remote store from cluster UUID : [{}]", restoreClusterUUID);
+                remoteState = remoteClusterStateService.getLatestClusterState(currentState.getClusterName().value(), restoreClusterUUID);
+                remoteState.getMetadata().getIndices().values().forEach(indexMetadata -> {
                     indexMetadataMap.put(indexMetadata.getIndex().getName(), new Tuple<>(true, indexMetadata));
                 });
             } catch (Exception e) {
@@ -176,7 +177,7 @@ public class RemoteStoreRestoreService {
                 }
             }
         }
-        return executeRestore(currentState, indexMetadataMap, restoreAllShards, remoteMetadata);
+        return executeRestore(currentState, indexMetadataMap, restoreAllShards, remoteState);
     }
 
     /**
@@ -190,7 +191,7 @@ public class RemoteStoreRestoreService {
         ClusterState currentState,
         Map<String, Tuple<Boolean, IndexMetadata>> indexMetadataMap,
         boolean restoreAllShards,
-        Metadata remoteMetadata
+        ClusterState remoteState
     ) {
         final String restoreUUID = UUIDs.randomBase64UUID();
         List<String> indicesToBeRestored = new ArrayList<>();
@@ -240,8 +241,11 @@ public class RemoteStoreRestoreService {
             totalShards += updatedIndexMetadata.getNumberOfShards();
         }
 
-        if (remoteMetadata != null) {
-            restoreGlobalMetadata(mdBuilder, remoteMetadata);
+        if (remoteState != null) {
+            restoreGlobalMetadata(mdBuilder, remoteState.getMetadata());
+            // Restore ClusterState version
+            logger.info("Restoring ClusterState with Remote State version [{}]", remoteState.version());
+            builder.version(remoteState.version());
         }
 
         RestoreInfo restoreInfo = new RestoreInfo("remote_store", indicesToBeRestored, totalShards, totalShards);
