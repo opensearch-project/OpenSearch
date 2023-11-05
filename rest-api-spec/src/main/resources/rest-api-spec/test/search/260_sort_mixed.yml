@@ -188,6 +188,8 @@
   - match: { hits.hits.1._index: test_1 }
   - match: { hits.hits.1._source.counter: 223372036854775800 }
   - match: { hits.hits.1.sort.0: 223372036854775800  }
+  - match: { hits.hits.2._index: test_3 }
+  - match: { hits.hits.2._source.counter: 194.4 }
 
   - do:
       search:
