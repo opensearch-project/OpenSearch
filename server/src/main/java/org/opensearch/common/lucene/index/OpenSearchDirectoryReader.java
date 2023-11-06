@@ -84,8 +84,8 @@ public final class OpenSearchDirectoryReader extends FilterDirectoryReader {
      * @opensearch.internal
      */
     public class DelegatingCacheHelper implements CacheHelper {
-        CacheHelper cacheHelper;
-        DelegatingCacheKey serializableCacheKey;
+        private CacheHelper cacheHelper;
+        private DelegatingCacheKey serializableCacheKey;
 
         DelegatingCacheHelper(CacheHelper cacheHelper) {
             this.cacheHelper = cacheHelper;
@@ -112,7 +112,7 @@ public final class OpenSearchDirectoryReader extends FilterDirectoryReader {
      *  object itself for serialization purposes.
      */
     public class DelegatingCacheKey {
-        CacheKey cacheKey;
+        private CacheKey cacheKey;
         private final String uniqueId;
 
         DelegatingCacheKey(CacheKey cacheKey) {
