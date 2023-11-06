@@ -160,7 +160,7 @@ public class Regex {
                 // str.endsWith(pattern.substring(1)), but avoiding the construction of pattern.substring(1):
                 return str.regionMatches(str.length() - pattern.length() + 1, pattern, 1, pattern.length() - 1);
             } else if (nextIndex == 1) {
-                throw new IllegalArgumentException("Input pattern " + pattern + "contains duplicate adjacent wildcards (*).");
+                throw new IllegalArgumentException("Input pattern " + pattern + " contains duplicate adjacent wildcards (*).");
             }
             final String part = pattern.substring(1, nextIndex);
             int partIndex = str.indexOf(part);
