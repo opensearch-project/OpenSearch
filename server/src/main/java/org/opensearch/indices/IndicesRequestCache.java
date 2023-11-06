@@ -345,7 +345,7 @@ public final class IndicesRequestCache implements RemovalListener<IndicesRequest
                 return false;
             }
             CleanupKey that = (CleanupKey) o;
-            if (Objects.equals(readerCacheKeyId, that.readerCacheKeyId) == false) return false;
+            if (!Objects.equals(readerCacheKeyId, that.readerCacheKeyId)) return false;
             if (!entity.getCacheIdentity().equals(that.entity.getCacheIdentity())) return false;
             return true;
         }
