@@ -147,18 +147,10 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
                 final ConstantScoreQuery csq = (ConstantScoreQuery) context.query();
                 // Ensure that the constant score query is instance of match all query
                 if (csq.getQuery() instanceof MatchAllDocsQuery) {
-                    final List<LeafReaderContext> leaves = aggregationContext.searcher().getIndexReader().leaves();
-                    long min = Long.MAX_VALUE, max = Long.MIN_VALUE;
-                    // Since the query does not specify bounds for aggregation, we can
-                    // build the global min/max from local min/max within each segment
-                    for (LeafReaderContext leaf : leaves) {
-                        min = Math.min(min, NumericUtils.sortableBytesToLong(
-                            leaf.reader().getPointValues(fieldName).getMinPackedValue(), 0));
-                        max = Math.max(max, NumericUtils.sortableBytesToLong(
-                            leaf.reader().getPointValues(fieldName).getMaxPackedValue(), 0));
-                    }
-                    createFilterForAggregations(fieldName, min, max);
+                    findBoundsAndCreateFilters(fieldName, context);
                 }
+            } else if (context.query() instanceof MatchAllDocsQuery) {
+                findBoundsAndCreateFilters(fieldName, context);
             }
         }
     }
@@ -311,6 +303,20 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
         throw new CollectionTerminatedException();
     }
 
+    private void findBoundsAndCreateFilters(final String fieldName, final SearchContext context) throws IOException {
+        final List<LeafReaderContext> leaves = context.searcher().getIndexReader().leaves();
+        long min = Long.MAX_VALUE, max = Long.MIN_VALUE;
+        // Since the query does not specify bounds for aggregation, we can
+        // build the global min/max from local min/max within each segment
+        for (LeafReaderContext leaf : leaves) {
+            min = Math.min(min, NumericUtils.sortableBytesToLong(
+                leaf.reader().getPointValues(fieldName).getMinPackedValue(), 0));
+            max = Math.max(max, NumericUtils.sortableBytesToLong(
+                leaf.reader().getPointValues(fieldName).getMaxPackedValue(), 0));
+        }
+        createFilterForAggregations(fieldName, min, max);
+    }
+
     private boolean isUTCTimeZone(final ZoneId zoneId) {
         return "Z".equals(zoneId.getDisplayName(TextStyle.FULL, Locale.ENGLISH));
     }
@@ -333,9 +339,6 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
             // Unexpected scenario, exit and fall back to original
             return;
         }
-
-        // Return if the interval ratio could not be figured out correctly
-        if (interval == Long.MAX_VALUE) return;
 
         // Calculate the number of buckets using range and interval
         long roundedLow = preparedRounding.round(low);
