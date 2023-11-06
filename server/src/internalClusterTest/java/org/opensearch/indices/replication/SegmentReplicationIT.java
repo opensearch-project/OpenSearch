@@ -1066,9 +1066,14 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
 
         client(replica).prepareClearScroll().addScrollId(searchResponse.getScrollId()).get();
 
-        currentFiles = List.of(replicaShard.store().directory().listAll());
-        assertFalse("Files should be cleaned up post scroll clear request", currentFiles.containsAll(snapshottedSegments));
+        assertBusy(
+            () -> assertFalse(
+                "Files should be cleaned up post scroll clear request",
+                List.of(replicaShard.store().directory().listAll()).containsAll(snapshottedSegments)
+            )
+        );
         assertEquals(100, scrollHits);
+
     }
 
     /**
@@ -1327,9 +1332,12 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
         // delete the PIT
         DeletePitRequest deletePITRequest = new DeletePitRequest(pitResponse.getId());
         client().execute(DeletePitAction.INSTANCE, deletePITRequest).actionGet();
-
-        currentFiles = List.of(replicaShard.store().directory().listAll());
-        assertFalse("Files should be cleaned up", currentFiles.containsAll(snapshottedSegments));
+        assertBusy(
+            () -> assertFalse(
+                "Files should be cleaned up",
+                List.of(replicaShard.store().directory().listAll()).containsAll(snapshottedSegments)
+            )
+        );
     }
 
     /**
