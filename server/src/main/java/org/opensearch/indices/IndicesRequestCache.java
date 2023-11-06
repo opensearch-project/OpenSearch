@@ -366,7 +366,7 @@ public final class IndicesRequestCache implements RemovalListener<IndicesRequest
         for (Iterator<CleanupKey> iterator = keysToClean.iterator(); iterator.hasNext();) {
             CleanupKey cleanupKey = iterator.next();
             iterator.remove();
-            if (cleanupKey.readerCacheKeyId == null || cleanupKey.entity.isOpen() == false) {
+            if (cleanupKey.readerCacheKeyId == null || !cleanupKey.entity.isOpen()) {
                 // null indicates full cleanup, as does a closed shard
                 currentFullClean.add(cleanupKey.entity.getCacheIdentity());
             } else {
