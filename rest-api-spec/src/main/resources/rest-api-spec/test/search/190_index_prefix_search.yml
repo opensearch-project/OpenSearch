@@ -136,6 +136,9 @@ setup:
 
 ---
 "search index prefixes with multiple value":
+  - skip:
+      version: " - 2.11.99"
+      reason: "the position_increment_gap was fixed in 2.12"
   - do:
       search:
         rest_total_hits_as_int: true
@@ -149,6 +152,9 @@ setup:
 
 ---
 "search index prefixes with multiple value and custom position_increment_gap":
+  - skip:
+      version: " - 2.11.99"
+      reason: "the position_increment_gap was fixed in 2.12"
   - do:
       search:
         rest_total_hits_as_int: true
