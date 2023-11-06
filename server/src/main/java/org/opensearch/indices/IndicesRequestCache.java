@@ -299,7 +299,7 @@ public final class IndicesRequestCache implements RemovalListener<IndicesRequest
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Key key = (Key) o;
-            if (Objects.equals(readerCacheKeyId, key.readerCacheKeyId) == false) return false;
+            if (!Objects.equals(readerCacheKeyId, key.readerCacheKeyId)) return false;
             if (!entity.getCacheIdentity().equals(key.entity.getCacheIdentity())) return false;
             if (!value.equals(key.value)) return false;
             return true;
