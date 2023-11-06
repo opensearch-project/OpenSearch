@@ -34,6 +34,8 @@ package org.opensearch.common.cache.tier.keystore;
 
 import org.opensearch.common.metrics.CounterMetric;
 
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
@@ -73,7 +75,8 @@ public class RBMIntKeyLookupStore implements KeyLookupStore<Integer> {
     protected final int modulo;
     KeyStoreStats stats;
     protected RoaringBitmap rbm;
-    private HashSet<Integer> collidedInts;
+    private HashMap<Integer, CounterMetric> collidedIntCounters;
+    private HashMap<Integer, HashSet<Integer>> removalSets;
     protected RBMSizeEstimator sizeEstimator;
     protected final ReentrantReadWriteLock lock = new ReentrantReadWriteLock();
     protected final Lock readLock = lock.readLock();
@@ -89,7 +92,8 @@ public class RBMIntKeyLookupStore implements KeyLookupStore<Integer> {
         sizeEstimator = new RBMSizeEstimator(modulo);
         this.stats = new KeyStoreStats(memSizeCapInBytes, calculateMaxNumEntries(memSizeCapInBytes));
         this.rbm = new RoaringBitmap();
-        collidedInts = new HashSet<>();
+        this.collidedIntCounters = new HashMap<>();
+        this.removalSets = new HashMap<>();
     }
 
     protected int calculateMaxNumEntries(long memSizeCapInBytes) {
@@ -105,7 +109,14 @@ public class RBMIntKeyLookupStore implements KeyLookupStore<Integer> {
 
     private void handleCollisions(int transformedValue) {
         stats.numCollisions.inc();
-        collidedInts.add(transformedValue);
+        CounterMetric numCollisions = collidedIntCounters.get(transformedValue);
+        if (numCollisions == null) { // First time the transformedValue has had a collision
+            numCollisions = new CounterMetric();
+            numCollisions.inc(2);
+            collidedIntCounters.put(transformedValue, numCollisions); // Initialize the number of colliding keys to 2
+        } else {
+            numCollisions.inc();
+        }
     }
 
     @Override
@@ -130,6 +141,16 @@ public class RBMIntKeyLookupStore implements KeyLookupStore<Integer> {
                 stats.size.inc();
                 return true;
             }
+            // If the value is already pending removal, take it out of the removalList
+            HashSet<Integer> removalSet = removalSets.get(transformedValue);
+            if (removalSet != null) {
+                removalSet.remove(value);
+                // Don't increment the counter - this is handled by handleCollisions() later
+                if (removalSet.isEmpty()) {
+                    removalSets.remove(transformedValue);
+                }
+            }
+
             handleCollisions(transformedValue);
             return false;
         } finally {
@@ -159,6 +180,13 @@ public class RBMIntKeyLookupStore implements KeyLookupStore<Integer> {
         return Integer.valueOf(transform(value));
     }
 
+    /**
+     * Attempts to remove a value from the keystore. WARNING: Removing keys which have not been added to the keystore
+     * may cause undefined behavior, including future false negatives!!
+     * @param value The value to attempt to remove.
+     * @return true if the value was removed, false otherwise
+     * @throws Exception
+     */
     @Override
     public boolean remove(Integer value) throws Exception {
         if (value == null) {
@@ -170,22 +198,52 @@ public class RBMIntKeyLookupStore implements KeyLookupStore<Integer> {
             if (!rbm.contains(transformedValue)) { // saves additional transform() call
                 return false;
             }
+            // move below into write lock
             stats.numRemovalAttempts.inc();
-            if (collidedInts.contains(transformedValue)) {
-                return false;
-            }
         } finally {
             readLock.unlock();
         }
         writeLock.lock();
         try {
-            rbm.remove(transformedValue);
-            stats.size.dec();
-            stats.numSuccessfulRemovals.inc();
+            CounterMetric numCollisions = collidedIntCounters.get(transformedValue);
+            if (numCollisions != null) {
+                // This transformed value has had a collision before
+                HashSet<Integer> removalSet = removalSets.get(transformedValue);
+                if (removalSet == null) {
+                    // First time a removal has been attempted for this transformed value
+                    HashSet<Integer> newRemovalSet = new HashSet<>();
+                    newRemovalSet.add(value); // Add the key value, not the transformed value, to the list of attempted removals for this transformedValue
+                    removalSets.put(transformedValue, newRemovalSet);
+                    numCollisions.dec();
+                } else {
+                    if (removalSet.contains(value)) {
+                        return false; // We have already attempted to remove this value. Do nothing
+                    }
+                    removalSet.add(value);
+                    numCollisions.dec();
+                    // If numCollisions has reached zero, we can safely remove all values in removalList
+                    if (numCollisions.count() == 0) {
+                        removeFromRBM(transformedValue);
+                        collidedIntCounters.remove(transformedValue);
+                        removalSets.remove(transformedValue);
+                        return true;
+                    }
+                }
+                return false;
+            }
+            // Otherwise, there's not been a collision for this transformedValue, so we can safely remove
+            removeFromRBM(transformedValue);
             return true;
         } finally {
             writeLock.unlock();
         }
+    }
+
+    // Helper fn for remove()
+    private void removeFromRBM(int transformedValue) {
+        rbm.remove(transformedValue);
+        stats.size.dec();
+        stats.numSuccessfulRemovals.inc();
     }
 
     @Override
@@ -218,7 +276,7 @@ public class RBMIntKeyLookupStore implements KeyLookupStore<Integer> {
 
     @Override
     public long getMemorySizeInBytes() {
-        return sizeEstimator.getSizeInBytes((int) stats.size.count()) + RBMSizeEstimator.getHashsetMemSizeInBytes(collidedInts.size());
+        return sizeEstimator.getSizeInBytes((int) stats.size.count()); // + RBMSizeEstimator.getHashsetMemSizeInBytes(collidedInts.size());
     }
 
     @Override
@@ -234,7 +292,8 @@ public class RBMIntKeyLookupStore implements KeyLookupStore<Integer> {
     @Override
     public void regenerateStore(Integer[] newValues) throws Exception {
         rbm.clear();
-        collidedInts = new HashSet<>();
+        collidedIntCounters = new HashMap<>();
+        removalSets = new HashMap<>();
         stats.size = new CounterMetric();
         stats.numAddAttempts = new CounterMetric();
         stats.numCollisions = new CounterMetric();
@@ -265,6 +324,14 @@ public class RBMIntKeyLookupStore implements KeyLookupStore<Integer> {
         if (value == null) {
             return false;
         }
-        return collidedInts.contains(transform(value));
+        return collidedIntCounters.containsKey(transform(value));
+    }
+
+    CounterMetric getNumCollisionsForValue(int value) { // package private for testing
+        return collidedIntCounters.get(transform(value));
+    }
+
+    HashSet<Integer> getRemovalSetForValue(int value) {
+        return removalSets.get(transform(value));
     }
 }
