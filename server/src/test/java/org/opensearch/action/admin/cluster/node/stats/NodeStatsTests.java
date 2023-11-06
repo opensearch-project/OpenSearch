@@ -547,14 +547,33 @@ public class NodeStatsTests extends OpenSearchTestCase {
                 }
                 AdmissionControlStats admissionControlStats = nodeStats.getAdmissionControlStats();
                 AdmissionControlStats deserializedAdmissionControlStats = deserializedNodeStats.getAdmissionControlStats();
-                assertEquals(admissionControlStats, deserializedAdmissionControlStats);
-                AdmissionControllerStats admissionControllerStats = admissionControlStats.getAdmissionControllerStatsList().get(0);
-                AdmissionControllerStats deserializedAdmissionControllerStats = deserializedAdmissionControlStats
-                    .getAdmissionControllerStatsList()
-                    .get(0);
-                assertEquals(1, (long) admissionControllerStats.getRejectionCount().get(AdmissionControlActionType.SEARCH.getType()));
-                assertEquals(2, (long) admissionControllerStats.getRejectionCount().get(AdmissionControlActionType.INDEXING.getType()));
-                assertEquals(admissionControllerStats, deserializedAdmissionControllerStats);
+                if (admissionControlStats == null) {
+                    assertNull(deserializedAdmissionControlStats);
+                } else {
+                    assertEquals(
+                        admissionControlStats.getAdmissionControllerStatsList().size(),
+                        deserializedAdmissionControlStats.getAdmissionControllerStatsList().size()
+                    );
+                    AdmissionControllerStats admissionControllerStats = admissionControlStats.getAdmissionControllerStatsList().get(0);
+                    AdmissionControllerStats deserializedAdmissionControllerStats = deserializedAdmissionControlStats
+                        .getAdmissionControllerStatsList()
+                        .get(0);
+                    assertEquals(
+                        admissionControllerStats.getAdmissionControllerName(),
+                        deserializedAdmissionControllerStats.getAdmissionControllerName()
+                    );
+                    assertEquals(1, (long) admissionControllerStats.getRejectionCount().get(AdmissionControlActionType.SEARCH.getType()));
+                    assertEquals(
+                        admissionControllerStats.getRejectionCount().get(AdmissionControlActionType.SEARCH.getType()),
+                        deserializedAdmissionControllerStats.getRejectionCount().get(AdmissionControlActionType.SEARCH.getType())
+                    );
+
+                    assertEquals(2, (long) admissionControllerStats.getRejectionCount().get(AdmissionControlActionType.INDEXING.getType()));
+                    assertEquals(
+                        admissionControllerStats.getRejectionCount().get(AdmissionControlActionType.INDEXING.getType()),
+                        deserializedAdmissionControllerStats.getRejectionCount().get(AdmissionControlActionType.INDEXING.getType())
+                    );
+                }
             }
         }
     }

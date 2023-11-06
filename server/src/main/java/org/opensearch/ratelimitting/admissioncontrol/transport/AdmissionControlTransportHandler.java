@@ -63,8 +63,6 @@ public class AdmissionControlTransportHandler<T extends TransportRequest> implem
                 log.warn(openSearchRejectedExecutionException.getMessage());
                 channel.sendResponse(openSearchRejectedExecutionException);
                 return;
-            } catch (final Exception e) {
-                throw e;
             }
         }
         actualHandler.messageReceived(request, channel, task);

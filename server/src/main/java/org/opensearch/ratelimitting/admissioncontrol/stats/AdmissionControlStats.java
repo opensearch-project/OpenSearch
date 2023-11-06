@@ -59,28 +59,9 @@ public class AdmissionControlStats implements ToXContentFragment, Writeable {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject("admission_control");
-        this.admissionControllerStatsList.forEach(stats -> {
-            try {
-                builder.field(stats.getAdmissionControllerName(), stats);
-            } catch (IOException e) {
-                throw new RuntimeException(e);
-            }
-        });
-        return builder.endObject();
-    }
-
-    @Override
-    public boolean equals(Object obj) {
-        if (this == obj) {
-            return true;
+        for (AdmissionControllerStats admissionControllerStats : this.admissionControllerStatsList) {
+            builder.field(admissionControllerStats.getAdmissionControllerName(), admissionControllerStats);
         }
-        if (obj == null || getClass() != obj.getClass()) return false;
-        AdmissionControlStats admissionControlStats = (AdmissionControlStats) obj;
-        return this.getAdmissionControllerStatsList().size() == admissionControlStats.getAdmissionControllerStatsList().size();
-    }
-
-    @Override
-    public int hashCode() {
-        return super.hashCode();
+        return builder.endObject();
     }
 }

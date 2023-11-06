@@ -154,9 +154,6 @@ public final class NetworkModule {
         List<TransportInterceptor> transportInterceptors
     ) {
         this.settings = settings;
-        if (transportInterceptors != null) {
-            transportInterceptors.forEach(this::registerTransportInterceptor);
-        }
         for (NetworkPlugin plugin : plugins) {
             Map<String, Supplier<HttpServerTransport>> httpTransportFactory = plugin.getHttpTransports(
                 settings,
@@ -192,6 +189,10 @@ public final class NetworkModule {
             for (TransportInterceptor interceptor : pluginTransportInterceptors) {
                 registerTransportInterceptor(interceptor);
             }
+        }
+        // Adding last because interceptors are triggered from last to first order from the list
+        if (transportInterceptors != null) {
+            transportInterceptors.forEach(this::registerTransportInterceptor);
         }
     }
 

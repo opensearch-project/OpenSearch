@@ -14,11 +14,9 @@ import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.ratelimitting.admissioncontrol.controllers.AdmissionController;
-import org.opensearch.ratelimitting.admissioncontrol.enums.AdmissionControlActionType;
 
 import java.io.IOException;
 import java.util.Map;
-import java.util.Objects;
 
 /**
  * Class for admission controller ( such as CPU ) stats which includes rejection count for each action type
@@ -64,48 +62,13 @@ public class AdmissionControllerStats implements Writeable, ToXContentFragment {
         {
             builder.startObject("rejection_count");
             {
-                this.rejectionCount.forEach((actionType, count) -> {
-                    try {
-                        builder.field(actionType, count);
-                    } catch (IOException e) {
-                        throw new RuntimeException(e);
-                    }
-                });
+                for (Map.Entry<String, Long> rejectionCountEntry : this.rejectionCount.entrySet()) {
+                    builder.field(rejectionCountEntry.getKey(), rejectionCountEntry.getValue());
+                }
             }
             builder.endObject();
         }
         builder.endObject();
         return builder.endObject();
-    }
-
-    @Override
-    public boolean equals(Object obj) {
-        if (this == obj) {
-            return true;
-        }
-        if (obj == null || getClass() != obj.getClass()) return false;
-        AdmissionControllerStats admissionControllerStats = (AdmissionControllerStats) obj;
-        return Objects.equals(this.getAdmissionControllerName(), admissionControllerStats.getAdmissionControllerName())
-            && Objects.equals(
-                this.rejectionCount.containsKey(AdmissionControlActionType.SEARCH.getType()),
-                admissionControllerStats.rejectionCount.containsKey(AdmissionControlActionType.SEARCH.getType())
-            )
-            && Objects.equals(
-                this.rejectionCount.get(AdmissionControlActionType.SEARCH.getType()),
-                admissionControllerStats.rejectionCount.get(AdmissionControlActionType.SEARCH.getType())
-            )
-            && Objects.equals(
-                this.rejectionCount.containsKey(AdmissionControlActionType.INDEXING.getType()),
-                admissionControllerStats.rejectionCount.containsKey(AdmissionControlActionType.INDEXING.getType())
-            )
-            && Objects.equals(
-                this.rejectionCount.get(AdmissionControlActionType.INDEXING.getType()),
-                admissionControllerStats.rejectionCount.get(AdmissionControlActionType.INDEXING.getType())
-            );
-    }
-
-    @Override
-    public int hashCode() {
-        return super.hashCode();
     }
 }

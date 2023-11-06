@@ -38,7 +38,6 @@ import org.opensearch.ExceptionsHelper;
 import org.opensearch.OpenSearchException;
 import org.opensearch.action.ActionListenerResponseHandler;
 import org.opensearch.action.UnavailableShardsException;
-import org.opensearch.action.bulk.TransportShardBulkAction;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.ActiveShardCount;
 import org.opensearch.action.support.ChannelActionListener;
@@ -204,6 +203,40 @@ public abstract class TransportReplicationAction<
         boolean syncGlobalCheckpointAfterOperation,
         boolean forceExecutionOnPrimary
     ) {
+        this(
+            settings,
+            actionName,
+            transportService,
+            clusterService,
+            indicesService,
+            threadPool,
+            shardStateAction,
+            actionFilters,
+            requestReader,
+            replicaRequestReader,
+            executor,
+            syncGlobalCheckpointAfterOperation,
+            forceExecutionOnPrimary,
+            null
+        );
+    }
+
+    protected TransportReplicationAction(
+        Settings settings,
+        String actionName,
+        TransportService transportService,
+        ClusterService clusterService,
+        IndicesService indicesService,
+        ThreadPool threadPool,
+        ShardStateAction shardStateAction,
+        ActionFilters actionFilters,
+        Writeable.Reader<Request> requestReader,
+        Writeable.Reader<ReplicaRequest> replicaRequestReader,
+        String executor,
+        boolean syncGlobalCheckpointAfterOperation,
+        boolean forceExecutionOnPrimary,
+        AdmissionControlActionType admissionControlActionType
+    ) {
         super(actionName, actionFilters, transportService.getTaskManager());
         this.threadPool = threadPool;
         this.transportService = transportService;
@@ -221,27 +254,8 @@ public abstract class TransportReplicationAction<
 
         transportService.registerRequestHandler(actionName, ThreadPool.Names.SAME, requestReader, this::handleOperationRequest);
 
-        // Register only TransportShardBulkAction for admission control ( primary indexing action )
-        if (transportPrimaryAction.equals(TransportShardBulkAction.ACTION_NAME + PRIMARY_ACTION_SUFFIX)) {
-            transportService.registerRequestHandler(
-                transportPrimaryAction,
-                executor,
-                forceExecutionOnPrimary,
-                true,
-                AdmissionControlActionType.INDEXING,
-                in -> new ConcreteShardRequest<>(requestReader, in),
-                this::handlePrimaryRequest
-            );
-        } else {
-            transportService.registerRequestHandler(
-                transportPrimaryAction,
-                executor,
-                forceExecutionOnPrimary,
-                true,
-                in -> new ConcreteShardRequest<>(requestReader, in),
-                this::handlePrimaryRequest
-            );
-        }
+        // This method will register Primary Request Handler Based on AdmissionControlActionType
+        registerPrimaryRequestHandler(requestReader, admissionControlActionType);
 
         // we must never reject on because of thread pool capacity on replicas
         transportService.registerRequestHandler(
@@ -260,6 +274,38 @@ public abstract class TransportReplicationAction<
         ClusterSettings clusterSettings = clusterService.getClusterSettings();
         clusterSettings.addSettingsUpdateConsumer(REPLICATION_INITIAL_RETRY_BACKOFF_BOUND, (v) -> initialRetryBackoffBound = v);
         clusterSettings.addSettingsUpdateConsumer(REPLICATION_RETRY_TIMEOUT, (v) -> retryTimeout = v);
+    }
+
+    /**
+     *  This method will register handler as based on admissionControlActionType and AdmissionControlHandler will be
+     *  invoked for registered action
+     * @param requestReader instance of the request reader
+     * @param admissionControlActionType type of AdmissionControlActionType
+     */
+    private void registerPrimaryRequestHandler(
+        Writeable.Reader<Request> requestReader,
+        AdmissionControlActionType admissionControlActionType
+    ) {
+        if (admissionControlActionType != null) {
+            transportService.registerRequestHandler(
+                transportPrimaryAction,
+                executor,
+                forceExecutionOnPrimary,
+                true,
+                admissionControlActionType,
+                in -> new ConcreteShardRequest<>(requestReader, in),
+                this::handlePrimaryRequest
+            );
+        } else {
+            transportService.registerRequestHandler(
+                transportPrimaryAction,
+                executor,
+                forceExecutionOnPrimary,
+                true,
+                in -> new ConcreteShardRequest<>(requestReader, in),
+                this::handlePrimaryRequest
+            );
+        }
     }
 
     @Override
