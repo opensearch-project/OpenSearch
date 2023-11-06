@@ -1,0 +1,46 @@
+---
+"search on keyword fields with doc_values enabled":
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            properties:
+              "some_keyword":
+                type: "keyword"
+                index: true
+                doc_values: true
+
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - '{"index": {"_index": "test", "_id": "1" }}'
+          - '{ "some_keyword": "ingesting some random keyword data" }'
+          - '{ "index": { "_index": "test", "_id": "2" }}'
+          - '{ "some_keyword": "400" }'
+          - '{ "index": { "_index": "test", "_id": "3" } }'
+          - '{ "some_keyword": "5" }'
+
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            prefix:
+              some_keyword: "ing"
+
+  - match: { hits.hits.0._source.some_keyword: "ingesting some random keyword data" }
+
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            range: {
+              "some_keyword": {
+                "lt": 500
+              } }
+
+  - match: { hits.total.value: 2 }

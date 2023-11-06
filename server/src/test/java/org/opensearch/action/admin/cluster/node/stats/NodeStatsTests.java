@@ -368,6 +368,7 @@ public class NodeStatsTests extends OpenSearchTestCase {
                             .getPersistenceStats()
                             .get(0);
                         PersistedStateStats remoteStateStats = stateStats.getPersistenceStats().get(0);
+                        assertEquals(remoteStateStats.getStatsName(), deserializedRemoteStateStats.getStatsName());
                         assertEquals(remoteStateStats.getFailedCount(), deserializedRemoteStateStats.getFailedCount());
                         assertEquals(remoteStateStats.getSuccessCount(), deserializedRemoteStateStats.getSuccessCount());
                         assertEquals(remoteStateStats.getTotalTimeInMillis(), deserializedRemoteStateStats.getTotalTimeInMillis());

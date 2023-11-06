@@ -539,7 +539,7 @@ public class IndicesRequestCacheIT extends ParameterizedOpenSearchIntegTestCase 
         assertCacheState(client, "index", 0, 4);
     }
 
-    public void testCacheWithFilteredAlias() {
+    public void testCacheWithFilteredAlias() throws InterruptedException {
         Client client = client();
         Settings settings = Settings.builder()
             .put(IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING.getKey(), true)
@@ -561,6 +561,8 @@ public class IndicesRequestCacheIT extends ParameterizedOpenSearchIntegTestCase 
         ForceMergeResponse forceMergeResponse = client.admin().indices().prepareForceMerge("index").setFlush(true).get();
         OpenSearchAssertions.assertAllSuccessful(forceMergeResponse);
         refresh();
+
+        indexRandomForConcurrentSearch("index");
 
         assertCacheState(client, "index", 0, 0);
 

@@ -87,6 +87,8 @@ public class RemoteClusterStateService implements Closeable {
 
     public static final TimeValue GLOBAL_METADATA_UPLOAD_TIMEOUT_DEFAULT = TimeValue.timeValueMillis(20000);
 
+    public static final TimeValue METADATA_MANIFEST_UPLOAD_TIMEOUT_DEFAULT = TimeValue.timeValueMillis(20000);
+
     public static final Setting<TimeValue> INDEX_METADATA_UPLOAD_TIMEOUT_SETTING = Setting.timeSetting(
         "cluster.remote_store.state.index_metadata.upload_timeout",
         INDEX_METADATA_UPLOAD_TIMEOUT_DEFAULT,
@@ -97,6 +99,13 @@ public class RemoteClusterStateService implements Closeable {
     public static final Setting<TimeValue> GLOBAL_METADATA_UPLOAD_TIMEOUT_SETTING = Setting.timeSetting(
         "cluster.remote_store.state.global_metadata.upload_timeout",
         GLOBAL_METADATA_UPLOAD_TIMEOUT_DEFAULT,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
+    public static final Setting<TimeValue> METADATA_MANIFEST_UPLOAD_TIMEOUT_SETTING = Setting.timeSetting(
+        "cluster.remote_store.state.metadata_manifest.upload_timeout",
+        METADATA_MANIFEST_UPLOAD_TIMEOUT_DEFAULT,
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
@@ -157,6 +166,7 @@ public class RemoteClusterStateService implements Closeable {
 
     private volatile TimeValue indexMetadataUploadTimeout;
     private volatile TimeValue globalMetadataUploadTimeout;
+    private volatile TimeValue metadataManifestUploadTimeout;
 
     private final AtomicBoolean deleteStaleMetadataRunning = new AtomicBoolean(false);
     private final RemotePersistenceStats remoteStateStats;
@@ -190,9 +200,11 @@ public class RemoteClusterStateService implements Closeable {
         this.slowWriteLoggingThreshold = clusterSettings.get(SLOW_WRITE_LOGGING_THRESHOLD);
         this.indexMetadataUploadTimeout = clusterSettings.get(INDEX_METADATA_UPLOAD_TIMEOUT_SETTING);
         this.globalMetadataUploadTimeout = clusterSettings.get(GLOBAL_METADATA_UPLOAD_TIMEOUT_SETTING);
+        this.metadataManifestUploadTimeout = clusterSettings.get(METADATA_MANIFEST_UPLOAD_TIMEOUT_SETTING);
         clusterSettings.addSettingsUpdateConsumer(SLOW_WRITE_LOGGING_THRESHOLD, this::setSlowWriteLoggingThreshold);
         clusterSettings.addSettingsUpdateConsumer(INDEX_METADATA_UPLOAD_TIMEOUT_SETTING, this::setIndexMetadataUploadTimeout);
         clusterSettings.addSettingsUpdateConsumer(GLOBAL_METADATA_UPLOAD_TIMEOUT_SETTING, this::setGlobalMetadataUploadTimeout);
+        clusterSettings.addSettingsUpdateConsumer(METADATA_MANIFEST_UPLOAD_TIMEOUT_SETTING, this::setMetadataManifestUploadTimeout);
         this.remoteStateStats = new RemotePersistenceStats();
     }
 
@@ -401,13 +413,13 @@ public class RemoteClusterStateService implements Closeable {
         try {
             if (latch.await(getGlobalMetadataUploadTimeout().millis(), TimeUnit.MILLISECONDS) == false) {
                 // TODO: We should add metrics where transfer is timing out. [Issue: #10687]
-                GlobalMetadataTransferException ex = new GlobalMetadataTransferException(
+                RemoteStateTransferException ex = new RemoteStateTransferException(
                     String.format(Locale.ROOT, "Timed out waiting for transfer of global metadata to complete")
                 );
                 throw ex;
             }
         } catch (InterruptedException ex) {
-            GlobalMetadataTransferException exception = new GlobalMetadataTransferException(
+            RemoteStateTransferException exception = new RemoteStateTransferException(
                 String.format(Locale.ROOT, "Timed out waiting for transfer of global metadata to complete - %s"),
                 ex
             );
@@ -415,7 +427,7 @@ public class RemoteClusterStateService implements Closeable {
             throw exception;
         }
         if (exceptionReference.get() != null) {
-            throw new GlobalMetadataTransferException(exceptionReference.get().getMessage(), exceptionReference.get());
+            throw new RemoteStateTransferException(exceptionReference.get().getMessage(), exceptionReference.get());
         }
         return result.get();
     }
@@ -440,7 +452,7 @@ public class RemoteClusterStateService implements Closeable {
                 );
                 result.add(uploadedIndexMetadata);
             }, ex -> {
-                assert ex instanceof IndexMetadataTransferException;
+                assert ex instanceof RemoteStateTransferException;
                 logger.error(
                     () -> new ParameterizedMessage("Exception during transfer of IndexMetadata to Remote {}", ex.getMessage()),
                     ex
@@ -457,7 +469,7 @@ public class RemoteClusterStateService implements Closeable {
 
         try {
             if (latch.await(getIndexMetadataUploadTimeout().millis(), TimeUnit.MILLISECONDS) == false) {
-                IndexMetadataTransferException ex = new IndexMetadataTransferException(
+                RemoteStateTransferException ex = new RemoteStateTransferException(
                     String.format(
                         Locale.ROOT,
                         "Timed out waiting for transfer of index metadata to complete - %s",
@@ -469,7 +481,7 @@ public class RemoteClusterStateService implements Closeable {
             }
         } catch (InterruptedException ex) {
             exceptionList.forEach(ex::addSuppressed);
-            IndexMetadataTransferException exception = new IndexMetadataTransferException(
+            RemoteStateTransferException exception = new RemoteStateTransferException(
                 String.format(
                     Locale.ROOT,
                     "Timed out waiting for transfer of index metadata to complete - %s",
@@ -481,7 +493,7 @@ public class RemoteClusterStateService implements Closeable {
             throw exception;
         }
         if (exceptionList.size() > 0) {
-            IndexMetadataTransferException exception = new IndexMetadataTransferException(
+            RemoteStateTransferException exception = new RemoteStateTransferException(
                 String.format(
                     Locale.ROOT,
                     "Exception during transfer of IndexMetadata to Remote %s",
@@ -520,7 +532,7 @@ public class RemoteClusterStateService implements Closeable {
                     indexMetadataContainer.path().buildAsString() + indexMetadataFilename
                 )
             ),
-            ex -> latchedActionListener.onFailure(new IndexMetadataTransferException(indexMetadata.getIndex().toString(), ex))
+            ex -> latchedActionListener.onFailure(new RemoteStateTransferException(indexMetadata.getIndex().toString(), ex))
         );
 
         INDEX_METADATA_FORMAT.writeAsyncWithUrgentPriority(
@@ -601,14 +613,45 @@ public class RemoteClusterStateService implements Closeable {
 
     private void writeMetadataManifest(String clusterName, String clusterUUID, ClusterMetadataManifest uploadManifest, String fileName)
         throws IOException {
+        AtomicReference<String> result = new AtomicReference<String>();
+        AtomicReference<Exception> exceptionReference = new AtomicReference<Exception>();
+
         final BlobContainer metadataManifestContainer = manifestContainer(clusterName, clusterUUID);
-        CLUSTER_METADATA_MANIFEST_FORMAT.write(
+
+        // latch to wait until upload is not finished
+        CountDownLatch latch = new CountDownLatch(1);
+
+        LatchedActionListener completionListener = new LatchedActionListener<>(ActionListener.wrap(resp -> {
+            logger.trace(String.format(Locale.ROOT, "Manifest file uploaded successfully."));
+        }, ex -> { exceptionReference.set(ex); }), latch);
+
+        CLUSTER_METADATA_MANIFEST_FORMAT.writeAsyncWithUrgentPriority(
             uploadManifest,
             metadataManifestContainer,
             fileName,
             blobStoreRepository.getCompressor(),
+            completionListener,
             FORMAT_PARAMS
         );
+
+        try {
+            if (latch.await(getMetadataManifestUploadTimeout().millis(), TimeUnit.MILLISECONDS) == false) {
+                RemoteStateTransferException ex = new RemoteStateTransferException(
+                    String.format(Locale.ROOT, "Timed out waiting for transfer of manifest file to complete")
+                );
+                throw ex;
+            }
+        } catch (InterruptedException ex) {
+            RemoteStateTransferException exception = new RemoteStateTransferException(
+                String.format(Locale.ROOT, "Timed out waiting for transfer of manifest file to complete - %s"),
+                ex
+            );
+            Thread.currentThread().interrupt();
+            throw exception;
+        }
+        if (exceptionReference.get() != null) {
+            throw new RemoteStateTransferException(exceptionReference.get().getMessage(), exceptionReference.get());
+        }
         logger.debug(
             "Metadata manifest file [{}] written during [{}] phase. ",
             fileName,
@@ -668,12 +711,20 @@ public class RemoteClusterStateService implements Closeable {
         this.globalMetadataUploadTimeout = newGlobalMetadataUploadTimeout;
     }
 
+    private void setMetadataManifestUploadTimeout(TimeValue newMetadataManifestUploadTimeout) {
+        this.metadataManifestUploadTimeout = newMetadataManifestUploadTimeout;
+    }
+
     public TimeValue getIndexMetadataUploadTimeout() {
         return this.indexMetadataUploadTimeout;
     }
 
     public TimeValue getGlobalMetadataUploadTimeout() {
         return this.globalMetadataUploadTimeout;
+    }
+
+    public TimeValue getMetadataManifestUploadTimeout() {
+        return this.metadataManifestUploadTimeout;
     }
 
     static String getManifestFileName(long term, long version, boolean committed) {
@@ -767,16 +818,16 @@ public class RemoteClusterStateService implements Closeable {
     }
 
     /**
-     * Fetch latest metadata from remote cluster state including global metadata and index metadata
+     * Fetch latest ClusterState from remote, including global metadata, index metadata and cluster state version
      *
      * @param clusterUUID uuid of cluster state to refer to in remote
      * @param clusterName name of the cluster
      * @return {@link IndexMetadata}
      */
-    public Metadata getLatestMetadata(String clusterName, String clusterUUID) {
+    public ClusterState getLatestClusterState(String clusterName, String clusterUUID) {
         start();
         Optional<ClusterMetadataManifest> clusterMetadataManifest = getLatestClusterMetadataManifest(clusterName, clusterUUID);
-        if (!clusterMetadataManifest.isPresent()) {
+        if (clusterMetadataManifest.isEmpty()) {
             throw new IllegalStateException(
                 String.format(Locale.ROOT, "Latest cluster metadata manifest is not present for the provided clusterUUID: %s", clusterUUID)
             );
@@ -790,7 +841,10 @@ public class RemoteClusterStateService implements Closeable {
         Map<String, IndexMetadata> indexMetadataMap = new HashMap<>();
         indices.values().forEach(indexMetadata -> { indexMetadataMap.put(indexMetadata.getIndex().getName(), indexMetadata); });
 
-        return Metadata.builder(globalMetadata).indices(indexMetadataMap).build();
+        return ClusterState.builder(ClusterState.EMPTY_STATE)
+            .version(clusterMetadataManifest.get().getStateVersion())
+            .metadata(Metadata.builder(globalMetadata).indices(indexMetadataMap).build())
+            .build();
     }
 
     private Metadata getGlobalMetadata(String clusterName, String clusterUUID, ClusterMetadataManifest clusterMetadataManifest) {
@@ -1085,29 +1139,15 @@ public class RemoteClusterStateService implements Closeable {
     }
 
     /**
-     * Exception for IndexMetadata transfer failures to remote
+     * Exception for Remote state transfer.
      */
-    static class IndexMetadataTransferException extends RuntimeException {
+    static class RemoteStateTransferException extends RuntimeException {
 
-        public IndexMetadataTransferException(String errorDesc) {
+        public RemoteStateTransferException(String errorDesc) {
             super(errorDesc);
         }
 
-        public IndexMetadataTransferException(String errorDesc, Throwable cause) {
-            super(errorDesc, cause);
-        }
-    }
-
-    /**
-     * Exception for GlobalMetadata transfer failures to remote
-     */
-    static class GlobalMetadataTransferException extends RuntimeException {
-
-        public GlobalMetadataTransferException(String errorDesc) {
-            super(errorDesc);
-        }
-
-        public GlobalMetadataTransferException(String errorDesc, Throwable cause) {
+        public RemoteStateTransferException(String errorDesc, Throwable cause) {
             super(errorDesc, cause);
         }
     }

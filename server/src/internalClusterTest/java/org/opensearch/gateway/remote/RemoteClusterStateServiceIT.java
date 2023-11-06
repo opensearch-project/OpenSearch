@@ -90,10 +90,10 @@ public class RemoteClusterStateServiceIT extends RemoteStoreBaseIntegTestCase {
 
         assertEquals(10, repository.blobStore().blobContainer(baseMetadataPath.add("manifest")).listBlobsByPrefix("manifest").size());
 
-        Map<String, IndexMetadata> indexMetadataMap = remoteClusterStateService.getLatestMetadata(
+        Map<String, IndexMetadata> indexMetadataMap = remoteClusterStateService.getLatestClusterState(
             cluster().getClusterName(),
             getClusterState().metadata().clusterUUID()
-        ).getIndices();
+        ).getMetadata().getIndices();
         assertEquals(0, indexMetadataMap.values().stream().findFirst().get().getNumberOfReplicas());
         assertEquals(shardCount, indexMetadataMap.values().stream().findFirst().get().getNumberOfShards());
     }
@@ -115,16 +115,7 @@ public class RemoteClusterStateServiceIT extends RemoteStoreBaseIntegTestCase {
             .get();
 
         // assert cluster state stats
-        DiscoveryStats discoveryStats = nodesStatsResponse.getNodes().get(0).getDiscoveryStats();
-
-        assertNotNull(discoveryStats.getClusterStateStats());
-        assertTrue(discoveryStats.getClusterStateStats().getUpdateSuccess() > 1);
-        assertEquals(0, discoveryStats.getClusterStateStats().getUpdateFailed());
-        assertTrue(discoveryStats.getClusterStateStats().getUpdateTotalTimeInMillis() > 0);
-        // assert remote state stats
-        assertTrue(discoveryStats.getClusterStateStats().getPersistenceStats().get(0).getSuccessCount() > 1);
-        assertEquals(0, discoveryStats.getClusterStateStats().getPersistenceStats().get(0).getFailedCount());
-        assertTrue(discoveryStats.getClusterStateStats().getPersistenceStats().get(0).getTotalTimeInMillis() > 0);
+        assertClusterManagerClusterStateStats(nodesStatsResponse);
 
         NodesStatsResponse nodesStatsResponseDataNode = client().admin()
             .cluster()
@@ -135,6 +126,67 @@ public class RemoteClusterStateServiceIT extends RemoteStoreBaseIntegTestCase {
         DiscoveryStats dataNodeDiscoveryStats = nodesStatsResponseDataNode.getNodes().get(0).getDiscoveryStats();
         assertNotNull(dataNodeDiscoveryStats.getClusterStateStats());
         assertEquals(0, dataNodeDiscoveryStats.getClusterStateStats().getUpdateSuccess());
+
+        // call nodes/stats with nodeId filter
+        NodesStatsResponse nodesStatsNodeIdFilterResponse = client().admin()
+            .cluster()
+            .prepareNodesStats(dataNode)
+            .addMetric(NodesStatsRequest.Metric.DISCOVERY.metricName())
+            .setNodesIds(clusterManagerNode)
+            .get();
+
+        assertClusterManagerClusterStateStats(nodesStatsNodeIdFilterResponse);
+    }
+
+    private void assertClusterManagerClusterStateStats(NodesStatsResponse nodesStatsResponse) {
+        // assert cluster state stats
+        DiscoveryStats discoveryStats = nodesStatsResponse.getNodes().get(0).getDiscoveryStats();
+
+        assertNotNull(discoveryStats.getClusterStateStats());
+        assertTrue(discoveryStats.getClusterStateStats().getUpdateSuccess() > 1);
+        assertEquals(0, discoveryStats.getClusterStateStats().getUpdateFailed());
+        assertTrue(discoveryStats.getClusterStateStats().getUpdateTotalTimeInMillis() > 0);
+        // assert remote state stats
+        assertTrue(discoveryStats.getClusterStateStats().getPersistenceStats().get(0).getSuccessCount() > 1);
+        assertEquals(0, discoveryStats.getClusterStateStats().getPersistenceStats().get(0).getFailedCount());
+        assertTrue(discoveryStats.getClusterStateStats().getPersistenceStats().get(0).getTotalTimeInMillis() > 0);
+    }
+
+    public void testRemoteStateStatsFromAllNodes() {
+        int shardCount = randomIntBetween(1, 5);
+        int replicaCount = 1;
+        int dataNodeCount = shardCount * (replicaCount + 1);
+        int clusterManagerNodeCount = 3;
+        prepareCluster(clusterManagerNodeCount, dataNodeCount, INDEX_NAME, replicaCount, shardCount);
+        String[] allNodes = internalCluster().getNodeNames();
+        // call _nodes/stats/discovery from all the nodes
+        for (String node : allNodes) {
+            NodesStatsResponse nodesStatsResponse = client().admin()
+                .cluster()
+                .prepareNodesStats(node)
+                .addMetric(NodesStatsRequest.Metric.DISCOVERY.metricName())
+                .get();
+            validateNodesStatsResponse(nodesStatsResponse);
+        }
+
+        // call _nodes/stats/discovery from all the nodes with random nodeId filter
+        for (String node : allNodes) {
+            NodesStatsResponse nodesStatsResponse = client().admin()
+                .cluster()
+                .prepareNodesStats(node)
+                .addMetric(NodesStatsRequest.Metric.DISCOVERY.metricName())
+                .setNodesIds(allNodes[randomIntBetween(0, allNodes.length - 1)])
+                .get();
+            validateNodesStatsResponse(nodesStatsResponse);
+        }
+    }
+
+    private void validateNodesStatsResponse(NodesStatsResponse nodesStatsResponse) {
+        // _nodes/stats/discovery must never fail due to any exception
+        assertFalse(nodesStatsResponse.toString().contains("exception"));
+        assertNotNull(nodesStatsResponse.getNodes());
+        assertNotNull(nodesStatsResponse.getNodes().get(0));
+        assertNotNull(nodesStatsResponse.getNodes().get(0).getDiscoveryStats());
     }
 
     private void setReplicaCount(int replicaCount) {

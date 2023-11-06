@@ -1,0 +1,24 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * The OpenSearch Contributors require contributions made to
+ * this file be licensed under the Apache-2.0 license or a
+ * compatible open source license.
+ */
+
+grant codeBase "${codebase.netty-common}" {
+   // for reading the system-wide configuration for the backlog of established sockets
+   permission java.io.FilePermission "/proc/sys/net/core/somaxconn", "read";
+
+   // netty makes and accepts socket connections
+   permission java.net.SocketPermission "*", "accept,connect";
+
+   // Netty sets custom classloader for some of its internal threads
+   permission java.lang.RuntimePermission "*", "setContextClassLoader";
+};
+
+grant codeBase "${codebase.netty-transport}" {
+   // Netty NioEventLoop wants to change this, because of https://bugs.openjdk.java.net/browse/JDK-6427854
+   // the bug says it only happened rarely, and that its fixed, but apparently it still happens rarely!
+   permission java.util.PropertyPermission "sun.nio.ch.bugLevel", "write";
+};
