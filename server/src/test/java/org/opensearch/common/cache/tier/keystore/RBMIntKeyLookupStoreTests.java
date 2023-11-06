@@ -34,9 +34,11 @@ package org.opensearch.common.cache.tier.keystore;
 import org.opensearch.common.Randomness;
 import org.opensearch.common.cache.tier.keystore.RBMIntKeyLookupStore;
 import org.opensearch.common.cache.tier.keystore.RBMSizeEstimator;
+import org.opensearch.common.metrics.CounterMetric;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.Random;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
@@ -277,12 +279,10 @@ public class RBMIntKeyLookupStoreTests extends OpenSearchTestCase {
     }
 
     public void testMemoryCapValueInitialization() {
-        // double[] logModulos = new double[] { 0.0, 31.2, 30, 29, 28, 13 };
-        // 0, 31, 29, 28, 26
         RBMIntKeyLookupStore.KeystoreModuloValue[] mods = RBMIntKeyLookupStore.KeystoreModuloValue.values();
         double[] expectedMultipliers = new double[] { 1.2, 1.2, 1, 1, 1 };
         double[] expectedSlopes = new double[] { 0.637, 0.637, 0.619, 0.614, 0.629 };
-        double[] expectedIntercepts = new double[] { 3.091, 3.091, 2.993, 2.905, 2.603 }; // check the numbers closer later
+        double[] expectedIntercepts = new double[] { 3.091, 3.091, 2.993, 2.905, 2.603 };
         long memSizeCapInBytes = (long) 100.0 * RBMSizeEstimator.BYTES_IN_MB;
         double delta = 0.01;
         for (int i = 0; i < mods.length; i++) {
@@ -294,5 +294,107 @@ public class RBMIntKeyLookupStoreTests extends OpenSearchTestCase {
             assertEquals(expectedIntercepts[i], kls.sizeEstimator.intercept, delta);
         }
 
+    }
+
+    public void testRemovalLogic() throws Exception {
+        RBMIntKeyLookupStore.KeystoreModuloValue moduloValue = RBMIntKeyLookupStore.KeystoreModuloValue.TWO_TO_TWENTY_SIX;
+        int modulo = moduloValue.getValue();
+        RBMIntKeyLookupStore kls = new RBMIntKeyLookupStore(moduloValue, 0L);
+
+        // Test standard sequence: add K1, K2, K3 which all transform to C, then:
+        // Remove K3
+        // Remove K2, re-add it, re-remove it twice (duplicate should do nothing)
+        // Remove K1, which should finally actually remove everything
+        int c = -42;
+        int k1 = c + modulo;
+        int k2 = c + 2 * modulo;
+        int k3 = c + 3 * modulo;
+        kls.add(k1);
+        assertTrue(kls.contains(k1));
+        assertTrue(kls.contains(k3));
+        kls.add(k2);
+        CounterMetric numCollisions = kls.getNumCollisionsForValue(k2);
+        assertNotNull(numCollisions);
+        assertEquals(2, numCollisions.count());
+        kls.add(k3);
+        assertEquals(3, numCollisions.count());
+        assertEquals(1, kls.getSize());
+
+        boolean removed = kls.remove(k3);
+        assertFalse(removed);
+        HashSet<Integer> removalSet = kls.getRemovalSetForValue(k3);
+        assertEquals(1, removalSet.size());
+        assertTrue(removalSet.contains(k3));
+        assertEquals(2, numCollisions.count());
+        assertEquals(1, kls.getSize());
+
+        removed = kls.remove(k2);
+        assertFalse(removed);
+        assertEquals(2, removalSet.size());
+        assertTrue(removalSet.contains(k2));
+        assertEquals(1, numCollisions.count());
+        assertEquals(1, kls.getSize());
+
+        kls.add(k2);
+        assertEquals(1, removalSet.size());
+        assertFalse(removalSet.contains(k2));
+        assertEquals(2, numCollisions.count());
+        assertEquals(1, kls.getSize());
+
+        removed = kls.remove(k2);
+        assertFalse(removed);
+        assertEquals(2, removalSet.size());
+        assertTrue(removalSet.contains(k2));
+        assertEquals(1, numCollisions.count());
+        assertEquals(1, kls.getSize());
+
+        removed = kls.remove(k2);
+        assertFalse(removed);
+        assertEquals(2, removalSet.size());
+        assertTrue(removalSet.contains(k2));
+        assertEquals(1, numCollisions.count());
+        assertEquals(1, kls.getSize());
+
+        removed = kls.remove(k1);
+        assertTrue(removed);
+        assertNull(kls.getRemovalSetForValue(k1));
+        assertNull(kls.getNumCollisionsForValue(k1));
+        assertEquals(0, kls.getSize());
+    }
+
+    public void testRemovalLogicWithHashCollision() throws Exception {
+        RBMIntKeyLookupStore.KeystoreModuloValue moduloValue = RBMIntKeyLookupStore.KeystoreModuloValue.TWO_TO_TWENTY_SIX;
+        int modulo = moduloValue.getValue();
+        RBMIntKeyLookupStore kls = new RBMIntKeyLookupStore(moduloValue, 0L);
+
+        // Test adding K1 twice (maybe two keys hash to K1), then removing it twice.
+        // We expect it to be unable to remove the last one, but there should be no false negatives.
+        int c = 77;
+        int k1 = c + modulo;
+        int k2 = c + 2 * modulo;
+        kls.add(k1);
+        kls.add(k2);
+        CounterMetric numCollisions = kls.getNumCollisionsForValue(k1);
+        assertEquals(2, numCollisions.count());
+        kls.add(k1);
+        assertEquals(3, numCollisions.count());
+
+        boolean removed = kls.remove(k1);
+        assertFalse(removed);
+        HashSet<Integer> removalSet = kls.getRemovalSetForValue(k1);
+        assertTrue(removalSet.contains(k1));
+        assertEquals(2, numCollisions.count());
+
+        removed = kls.remove(k2);
+        assertFalse(removed);
+        assertTrue(removalSet.contains(k2));
+        assertEquals(1, numCollisions.count());
+
+        removed = kls.remove(k1);
+        assertFalse(removed);
+        assertTrue(removalSet.contains(k1));
+        assertEquals(1, numCollisions.count());
+        assertTrue(kls.contains(k1));
+        assertTrue(kls.contains(k2)); 
     }
 }
