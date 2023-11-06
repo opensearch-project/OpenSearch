@@ -47,7 +47,7 @@ public interface KeyLookupStore<T> {
      * @return true if the value was added, false if it wasn't added because of a
      * collision or if it was already present.
      */
-    boolean add(T value) throws Exception;
+    boolean add(T value);
 
     /**
      * Checks if the transformation of the value is in the keystore.
@@ -55,7 +55,7 @@ public interface KeyLookupStore<T> {
      * @return true if the value was found, false otherwise. Due to collisions, false positives are
      * possible, but there should be no false negatives unless forceRemove() is called.
      */
-    boolean contains(T value) throws Exception;
+    boolean contains(T value);
 
     /**
      * Returns the transformed version of the input value, that would be used to stored it in the keystore.
@@ -72,7 +72,7 @@ public interface KeyLookupStore<T> {
      * @param value The value to attempt to remove.
      * @return true if the value was removed, false if it wasn't.
      */
-    boolean remove(T value) throws Exception;
+    boolean remove(T value);
 
     /**
      * Returns the number of distinct values stored in the internal data structure.
@@ -123,10 +123,10 @@ public interface KeyLookupStore<T> {
      * Also resets all stats related to adding.
      * @param newValues The keys that should be in the reset structure.
      */
-    void regenerateStore(T[] newValues) throws Exception;
+    void regenerateStore(T[] newValues);
 
     /**
      * Deletes all keys and resets all stats related to adding.
      */
-    void clear() throws Exception;
+    void clear();
 }

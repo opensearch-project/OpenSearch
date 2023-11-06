@@ -120,7 +120,7 @@ public class RBMIntKeyLookupStore implements KeyLookupStore<Integer> {
     }
 
     @Override
-    public boolean add(Integer value) throws Exception {
+    public boolean add(Integer value) {
         if (value == null) {
             return false;
         }
@@ -159,7 +159,7 @@ public class RBMIntKeyLookupStore implements KeyLookupStore<Integer> {
     }
 
     @Override
-    public boolean contains(Integer value) throws Exception {
+    public boolean contains(Integer value) {
         if (value == null) {
             return false;
         }
@@ -185,10 +185,9 @@ public class RBMIntKeyLookupStore implements KeyLookupStore<Integer> {
      * may cause undefined behavior, including future false negatives!!
      * @param value The value to attempt to remove.
      * @return true if the value was removed, false otherwise
-     * @throws Exception
      */
     @Override
-    public boolean remove(Integer value) throws Exception {
+    public boolean remove(Integer value) {
         if (value == null) {
             return false;
         }
@@ -290,7 +289,7 @@ public class RBMIntKeyLookupStore implements KeyLookupStore<Integer> {
     }
 
     @Override
-    public void regenerateStore(Integer[] newValues) throws Exception {
+    public void regenerateStore(Integer[] newValues) {
         rbm.clear();
         collidedIntCounters = new HashMap<>();
         removalSets = new HashMap<>();
@@ -308,7 +307,7 @@ public class RBMIntKeyLookupStore implements KeyLookupStore<Integer> {
     }
 
     @Override
-    public void clear() throws Exception {
+    public void clear() {
         regenerateStore(new Integer[] {});
     }
 
