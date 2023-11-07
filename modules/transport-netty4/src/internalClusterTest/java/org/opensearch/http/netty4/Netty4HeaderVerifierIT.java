@@ -9,12 +9,12 @@
 package org.opensearch.http.netty4;
 
 import org.opensearch.OpenSearchNetty4IntegTestCase;
-import org.opensearch.core.common.transport.TransportAddress;
+import org.opensearch.common.transport.TransportAddress;
 import org.opensearch.http.HttpServerTransport;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.test.OpenSearchIntegTestCase.ClusterScope;
 import org.opensearch.test.OpenSearchIntegTestCase.Scope;
-import org.opensearch.transport.Netty4BlockingPlugin;
+import org.opensearch.transport.Netty4MarkedMessagePlugin;
 
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
@@ -28,11 +28,12 @@ import io.netty.handler.codec.http.FullHttpRequest;
 import io.netty.handler.codec.http.FullHttpResponse;
 import io.netty.handler.codec.http.HttpMethod;
 import io.netty.handler.codec.http.HttpVersion;
-import io.netty.handler.codec.http2.HttpConversionUtil;
 import io.netty.util.ReferenceCounted;
 
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.CoreMatchers.hasItems;
+import static org.junit.Assert.assertThat;
 import static io.netty.handler.codec.http.HttpHeaderNames.HOST;
 
 @ClusterScope(scope = Scope.TEST, supportsDedicatedMasters = false, numDataNodes = 1)
@@ -45,31 +46,33 @@ public class Netty4HeaderVerifierIT extends OpenSearchNetty4IntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Collections.singletonList(Netty4BlockingPlugin.class);
+        return Collections.singletonList(Netty4MarkedMessagePlugin.class);
     }
 
-    public void testThatNettyHttpServerRequestBlockedWithHeaderVerifier() throws Exception {
+    public void testThatNettyHttpServerRequestMarksMessageWithHeaderVerifier() throws Exception {
         HttpServerTransport httpServerTransport = internalCluster().getInstance(HttpServerTransport.class);
         TransportAddress[] boundAddresses = httpServerTransport.boundAddress().boundAddresses();
         TransportAddress transportAddress = randomFrom(boundAddresses);
 
-        final FullHttpRequest blockedRequest = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "/");
-        blockedRequest.headers().add("blockme", "Not Allowed");
-        blockedRequest.headers().add(HOST, "localhost");
-        blockedRequest.headers().add(HttpConversionUtil.ExtensionHeaderNames.SCHEME.text(), "http");
+        final FullHttpRequest markedRequest = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "/");
+        final String expectedMarkedHeaderValue = "Mark with" + randomAlphaOfLength(10);
+        markedRequest.headers().add("marked-message", expectedMarkedHeaderValue);
 
         final List<FullHttpResponse> responses = new ArrayList<>();
-        try (Netty4HttpClient nettyHttpClient = Netty4HttpClient.http2()) {
+        try (Netty4HttpClient nettyHttpClient = new Netty4HttpClient()) {
             try {
-                FullHttpResponse blockedResponse = nettyHttpClient.send(transportAddress.address(), blockedRequest);
-                responses.add(blockedResponse);
-                String blockedResponseContent = new String(ByteBufUtil.getBytes(blockedResponse.content()), StandardCharsets.UTF_8);
-                assertThat(blockedResponseContent, containsString("Hit header_verifier"));
-                assertThat(blockedResponse.status().code(), equalTo(401));
+                final FullHttpResponse markedResponse = nettyHttpClient.send(transportAddress.address(), markedRequest);
+                responses.add(markedResponse);
+                final String rootResponseContent = new String(ByteBufUtil.getBytes(markedResponse.content()), StandardCharsets.UTF_8);
+                assertThat(rootResponseContent, containsString("opensearch"));
+                assertThat(markedResponse.status().code(), equalTo(200));
+
+                assertThat(Netty4MarkedMessagePlugin.MESSAGE.get().headers().get("marked-message"), equalTo(expectedMarkedHeaderValue));
             } finally {
                 responses.forEach(ReferenceCounted::release);
             }
         }
+
     }
 
 }
