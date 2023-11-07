@@ -391,7 +391,7 @@
         body:
           size: 1
           sort: [ { population: asc } ]
-          search_after: [ 184.375 ] # this is ruonded sort value in sort result
+          search_after: [ 184.375 ] # this is rounded sort value in sort result
   - match: { hits.total: 5 }
   - length: { hits.hits: 1 }
   - match: { hits.hits.0._index: test }
