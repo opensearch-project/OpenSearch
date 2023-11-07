@@ -123,13 +123,14 @@ public class RemoteClustersIT extends AbstractMultiClusterRemoteTestCase {
             .build());
         assertTrue(cluster1Client().cluster().putSettings(request, RequestOptions.DEFAULT).isAcknowledged());
 
-        RemoteConnectionInfo rci = cluster1Client().cluster().remoteInfo(new RemoteInfoRequest(), RequestOptions.DEFAULT).getInfos().get(0);
-        logger.info("Connection info: {}", rci);
-        if (!rci.isConnected()) {
-            logger.info("Cluster health: {}", cluster1Client().cluster().health(new ClusterHealthRequest(), RequestOptions.DEFAULT));
-        }
-        assertBusy(() -> assertTrue(rci.isConnected()), 10, TimeUnit.SECONDS);
-
+        assertBusy(() -> {
+            RemoteConnectionInfo rci = cluster1Client().cluster().remoteInfo(new RemoteInfoRequest(), RequestOptions.DEFAULT).getInfos().get(0);
+            logger.info("Connection info: {}", rci);
+            if (!rci.isConnected()) {
+                logger.info("Cluster health: {}", cluster1Client().cluster().health(new ClusterHealthRequest(), RequestOptions.DEFAULT));
+            }
+            assertTrue(rci.isConnected());
+        }, 10, TimeUnit.SECONDS);
 
         assertEquals(2L, cluster1Client().search(
             new SearchRequest("haproxynosn:test2"), RequestOptions.DEFAULT).getHits().getTotalHits().value);
