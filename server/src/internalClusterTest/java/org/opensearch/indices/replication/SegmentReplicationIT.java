@@ -22,6 +22,7 @@ import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.StandardDirectoryReader;
 import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.BytesRef;
+import org.opensearch.action.admin.cluster.stats.ClusterStatsResponse;
 import org.opensearch.action.admin.indices.alias.Alias;
 import org.opensearch.action.admin.indices.flush.FlushRequest;
 import org.opensearch.action.admin.indices.stats.IndicesStatsRequest;
@@ -62,6 +63,7 @@ import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.IndexModule;
+import org.opensearch.index.ReplicationStats;
 import org.opensearch.index.SegmentReplicationPerGroupStats;
 import org.opensearch.index.SegmentReplicationPressureService;
 import org.opensearch.index.SegmentReplicationShardStats;
@@ -94,6 +96,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 import static java.util.Arrays.asList;
@@ -1063,9 +1066,14 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
 
         client(replica).prepareClearScroll().addScrollId(searchResponse.getScrollId()).get();
 
-        currentFiles = List.of(replicaShard.store().directory().listAll());
-        assertFalse("Files should be cleaned up post scroll clear request", currentFiles.containsAll(snapshottedSegments));
+        assertBusy(
+            () -> assertFalse(
+                "Files should be cleaned up post scroll clear request",
+                List.of(replicaShard.store().directory().listAll()).containsAll(snapshottedSegments)
+            )
+        );
         assertEquals(100, scrollHits);
+
     }
 
     /**
@@ -1324,9 +1332,12 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
         // delete the PIT
         DeletePitRequest deletePITRequest = new DeletePitRequest(pitResponse.getId());
         client().execute(DeletePitAction.INSTANCE, deletePITRequest).actionGet();
-
-        currentFiles = List.of(replicaShard.store().directory().listAll());
-        assertFalse("Files should be cleaned up", currentFiles.containsAll(snapshottedSegments));
+        assertBusy(
+            () -> assertFalse(
+                "Files should be cleaned up",
+                List.of(replicaShard.store().directory().listAll()).containsAll(snapshottedSegments)
+            )
+        );
     }
 
     /**
@@ -1775,5 +1786,59 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
         assertFalse(response.isExists());
         assertThat(response.getIndex(), equalTo(INDEX_NAME));
 
+    }
+
+    public void testReplicaAlreadyAtCheckpoint() throws Exception {
+        final List<String> nodes = new ArrayList<>();
+        final String primaryNode = internalCluster().startDataOnlyNode();
+        nodes.add(primaryNode);
+        final Settings settings = Settings.builder().put(indexSettings()).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build();
+        createIndex(INDEX_NAME, settings);
+        ensureGreen(INDEX_NAME);
+        // start a replica node, initially will be empty with no shard assignment.
+        final String replicaNode = internalCluster().startDataOnlyNode();
+        nodes.add(replicaNode);
+        final String replicaNode2 = internalCluster().startDataOnlyNode();
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareUpdateSettings(INDEX_NAME)
+                .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 2))
+        );
+        ensureGreen(INDEX_NAME);
+
+        // index a doc.
+        client().prepareIndex(INDEX_NAME).setId("1").setSource("foo", randomInt()).get();
+        refresh(INDEX_NAME);
+
+        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(primaryNode));
+        ensureYellowAndNoInitializingShards(INDEX_NAME);
+        IndexShard replica_1 = getIndexShard(replicaNode, INDEX_NAME);
+        IndexShard replica_2 = getIndexShard(replicaNode2, INDEX_NAME);
+        // wait until a replica is promoted & finishes engine flip, we don't care which one
+        AtomicReference<IndexShard> primary = new AtomicReference<>();
+        assertBusy(() -> {
+            assertTrue("replica should be promoted as a primary", replica_1.routingEntry().primary() || replica_2.routingEntry().primary());
+            primary.set(replica_1.routingEntry().primary() ? replica_1 : replica_2);
+        });
+
+        FlushRequest request = new FlushRequest(INDEX_NAME);
+        request.force(true);
+        primary.get().flush(request);
+
+        assertBusy(() -> {
+            assertEquals(
+                replica_1.getLatestReplicationCheckpoint().getSegmentInfosVersion(),
+                replica_2.getLatestReplicationCheckpoint().getSegmentInfosVersion()
+            );
+        });
+
+        assertBusy(() -> {
+            ClusterStatsResponse clusterStatsResponse = client().admin().cluster().prepareClusterStats().get();
+            ReplicationStats replicationStats = clusterStatsResponse.getIndicesStats().getSegments().getReplicationStats();
+            assertEquals(0L, replicationStats.maxBytesBehind);
+            assertEquals(0L, replicationStats.maxReplicationLag);
+            assertEquals(0L, replicationStats.totalBytesBehind);
+        });
     }
 }
