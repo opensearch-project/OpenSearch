@@ -127,7 +127,7 @@ public class QueryRescorerIT extends ParameterizedOpenSearchIntegTestCase {
                     new QueryRescorerBuilder(
                         functionScoreQuery(matchAllQuery(), ScoreFunctionBuilders.weightFactorFunction(100)).boostMode(
                             CombineFunction.REPLACE
-                        )
+                        ).queryName("test query")
                     ).setQueryWeight(0.0f).setRescoreQueryWeight(1.0f),
                     1
                 )

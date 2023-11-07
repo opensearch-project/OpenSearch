@@ -649,6 +649,30 @@ public abstract class StreamInput extends InputStream {
         return map;
     }
 
+    public <K, V> Map<K, V> readOrderedMap(Writeable.Reader<K> keyReader, Writeable.Reader<V> valueReader) throws IOException {
+        return readMap(keyReader, valueReader, (expectedSize) -> new LinkedHashMap<>(capacity(expectedSize)));
+    }
+
+    static int capacity(int expectedSize) {
+        assert expectedSize >= 0;
+        return expectedSize < 2 ? expectedSize + 1 : (int) (expectedSize / 0.75 + 1.0);
+    }
+
+    private <K, V> Map<K, V> readMap(Writeable.Reader<K> keyReader, Writeable.Reader<V> valueReader, IntFunction<Map<K, V>> constructor)
+    throws IOException {
+        int size = readArraySize();
+        if (size == 0) {
+            return Collections.emptyMap();
+        }
+        Map<K, V> map = constructor.apply(size);
+        for (int i = 0; i < size; i++) {
+            K key = keyReader.read(this);
+            V value = valueReader.read(this);
+            map.put(key, value);
+        }
+        return map;
+    }
+
     /**
      * Read a {@link Map} of {@code K}-type keys to {@code V}-type {@link List}s.
      * <pre><code>
