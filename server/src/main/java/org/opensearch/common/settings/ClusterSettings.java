@@ -348,6 +348,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 HttpTransportSettings.SETTING_HTTP_MAX_WARNING_HEADER_SIZE,
                 HttpTransportSettings.SETTING_HTTP_MAX_INITIAL_LINE_LENGTH,
                 HttpTransportSettings.SETTING_HTTP_READ_TIMEOUT,
+                HttpTransportSettings.SETTING_HTTP_CONNECT_TIMEOUT,
                 HttpTransportSettings.SETTING_HTTP_RESET_COOKIES,
                 HttpTransportSettings.OLD_SETTING_HTTP_TCP_NO_DELAY,
                 HttpTransportSettings.SETTING_HTTP_TCP_NO_DELAY,
@@ -691,8 +692,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 AdmissionControlSettings.ADMISSION_CONTROL_TRANSPORT_LAYER_MODE,
                 CPUBasedAdmissionControllerSettings.CPU_BASED_ADMISSION_CONTROLLER_TRANSPORT_LAYER_MODE,
                 CPUBasedAdmissionControllerSettings.INDEXING_CPU_USAGE_LIMIT,
-                CPUBasedAdmissionControllerSettings.SEARCH_CPU_USAGE_LIMIT,
-                IndicesService.CLUSTER_RESTRICT_INDEX_REPLICATION_TYPE_SETTING
+                CPUBasedAdmissionControllerSettings.SEARCH_CPU_USAGE_LIMIT
             )
         )
     );
