@@ -302,17 +302,6 @@ public class IndicesService extends AbstractLifecycleComponent
     );
 
     /**
-     * This setting is used to restrict creation of index where the 'index.replication.type' index setting is set.
-     * If disabled, the replication type can be specified.
-     */
-    public static final Setting<Boolean> CLUSTER_RESTRICT_INDEX_REPLICATION_TYPE_SETTING = Setting.boolSetting(
-        "cluster.restrict.index.replication_type",
-        false,
-        Property.NodeScope,
-        Property.Final
-    );
-
-    /**
      * The node's settings.
      */
     private final Settings settings;
