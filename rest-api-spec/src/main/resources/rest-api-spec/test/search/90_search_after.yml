@@ -357,6 +357,22 @@
         rest_total_hits_as_int: true
         body:
           size: 3
+          sort: [ { population: desc } ]
+  - match: { hits.total: 5 }
+  - length: { hits.hits: 3 }
+  - match: { hits.hits.0._index: test }
+  - match: { hits.hits.0._source.population: 194.4 }
+  - match: { hits.hits.1._index: test }
+  - match: { hits.hits.1._source.population: 184.4 }
+  - match: { hits.hits.2._index: test }
+  - match: { hits.hits.2._source.population: 174.4 }
+
+  - do:
+      search:
+        index: test
+        rest_total_hits_as_int: true
+        body:
+          size: 3
           sort: [ { population: asc } ]
   - match: { hits.total: 5 }
   - length: { hits.hits: 3 }
@@ -375,7 +391,7 @@
         body:
           size: 1
           sort: [ { population: asc } ]
-          search_after: [ 184.4 ]
+          search_after: [ 184.375 ] # this is ruonded sort value in sort result
   - match: { hits.total: 5 }
   - length: { hits.hits: 1 }
   - match: { hits.hits.0._index: test }
@@ -389,11 +405,11 @@
         body:
           size: 1
           sort: [ { population: desc } ]
-          search_after: [ 164.4 ]
+          search_after: [ 164.375 ] # this is rounded sort value in sort result
   - match: { hits.total: 5 }
   - length: { hits.hits: 1 }
   - match: { hits.hits.0._index: test }
-  - match: { hits.hits.0._source.population: 164.4 }
+  - match: { hits.hits.0._source.population: 144.4 }
 
   # search_after with the asc sort with missing
   - do:
