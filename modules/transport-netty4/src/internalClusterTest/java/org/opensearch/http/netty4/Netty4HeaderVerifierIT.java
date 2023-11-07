@@ -32,9 +32,7 @@ import io.netty.util.ReferenceCounted;
 
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
-import static org.hamcrest.CoreMatchers.hasItems;
 import static org.junit.Assert.assertThat;
-import static io.netty.handler.codec.http.HttpHeaderNames.HOST;
 
 @ClusterScope(scope = Scope.TEST, supportsDedicatedMasters = false, numDataNodes = 1)
 public class Netty4HeaderVerifierIT extends OpenSearchNetty4IntegTestCase {

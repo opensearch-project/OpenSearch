@@ -34,7 +34,7 @@ import io.netty.util.ReferenceCountUtil;
 
 public class Netty4MarkedMessagePlugin extends Netty4Plugin {
 
-    public static final AtomicReference<HttpMessage> MESSAGE = new AtomicReference<>(); 
+    public static final AtomicReference<HttpMessage> MESSAGE = new AtomicReference<>();
 
     public class Netty4BlockingHttpServerTransport extends Netty4HttpServerTransport {
 
@@ -48,16 +48,7 @@ public class Netty4MarkedMessagePlugin extends Netty4Plugin {
             ClusterSettings clusterSettings,
             SharedGroupFactory sharedGroupFactory
         ) {
-            super(
-                settings,
-                networkService,
-                bigArrays,
-                threadPool,
-                xContentRegistry,
-                dispatcher,
-                clusterSettings,
-                sharedGroupFactory
-            );
+            super(settings, networkService, bigArrays, threadPool, xContentRegistry, dispatcher, clusterSettings, sharedGroupFactory);
         }
 
         @Override
