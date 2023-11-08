@@ -394,7 +394,17 @@ public class CommonAnalysisModulePlugin extends Plugin implements AnalysisPlugin
         // TODO deprecate and remove in API
         tokenizers.put("lowercase", XLowerCaseTokenizerFactory::new);
         tokenizers.put("path_hierarchy", PathHierarchyTokenizerFactory::new);
-        tokenizers.put("PathHierarchy", PathHierarchyTokenizerFactory::new);
+        tokenizers.put("PathHierarchy", (IndexSettings indexSettings, Environment environment, String name, Settings settings) -> {
+            // TODO Remove "PathHierarchy" tokenizer name in 4.0 and throw exception
+            if (indexSettings.getIndexVersionCreated().onOrAfter(Version.V_3_0_0)) {
+                deprecationLogger.deprecate(
+                    "PathHierarchy_tokenizer_deprecation",
+                    "The [PathHierarchy] tokenizer name is deprecated and will be removed in a future version. "
+                        + "Please change the tokenizer name to [path_hierarchy] instead."
+                );
+            }
+            return new PathHierarchyTokenizerFactory(indexSettings, environment, name, settings);
+        });
         tokenizers.put("pattern", PatternTokenizerFactory::new);
         tokenizers.put("uax_url_email", UAX29URLEmailTokenizerFactory::new);
         tokenizers.put("whitespace", WhitespaceTokenizerFactory::new);
@@ -662,8 +672,17 @@ public class CommonAnalysisModulePlugin extends Plugin implements AnalysisPlugin
             }
             return new EdgeNGramTokenizer(NGramTokenizer.DEFAULT_MIN_NGRAM_SIZE, NGramTokenizer.DEFAULT_MAX_NGRAM_SIZE);
         }));
-        tokenizers.add(PreConfiguredTokenizer.singleton("PathHierarchy", PathHierarchyTokenizer::new));
-
+        tokenizers.add(PreConfiguredTokenizer.openSearchVersion("PathHierarchy", (version) -> {
+            // TODO Remove "PathHierarchy" tokenizer name in 4.0 and throw exception
+            if (version.onOrAfter(Version.V_3_0_0)) {
+                deprecationLogger.deprecate(
+                    "PathHierarchy_tokenizer_deprecation",
+                    "The [PathHierarchy] tokenizer name is deprecated and will be removed in a future version. "
+                        + "Please change the tokenizer name to [path_hierarchy] instead."
+                );
+            }
+            return new PathHierarchyTokenizer();
+        }));
         return tokenizers;
     }
 }
