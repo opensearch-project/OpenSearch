@@ -974,8 +974,7 @@ public class InnerHitsIT extends ParameterizedOpenSearchIntegTestCase {
         client().prepareIndex("index1").setId("1").setSource("nested_type", Collections.singletonMap("key", "value")).get();
         client().prepareIndex("index2").setId("3").setSource("key", "value").get();
         refresh();
-        indexRandomForConcurrentSearch("index1");
-        indexRandomForConcurrentSearch("index2");
+        indexRandomForConcurrentSearch("index1", "index2");
 
         SearchResponse response = client().prepareSearch("index1", "index2")
             .setQuery(
