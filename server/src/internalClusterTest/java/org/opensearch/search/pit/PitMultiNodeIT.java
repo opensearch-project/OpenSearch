@@ -98,6 +98,7 @@ public class PitMultiNodeIT extends ParameterizedOpenSearchIntegTestCase {
     public void testPit() throws Exception {
         CreatePitRequest request = new CreatePitRequest(TimeValue.timeValueDays(1), true);
         request.setIndices(new String[] { "index" });
+        indexRandomForConcurrentSearch("index");
         ActionFuture<CreatePitResponse> execute = client().execute(CreatePitAction.INSTANCE, request);
         CreatePitResponse pitResponse = execute.get();
         SearchResponse searchResponse = client().prepareSearch("index")
