@@ -153,6 +153,7 @@ public class SearchRedStateIndexIT extends ParameterizedOpenSearchIntegTestCase 
             client().prepareIndex("test").setId("" + i).setSource("field1", "value1").get();
         }
         refresh();
+        indexRandomForConcurrentSearch("test");
 
         internalCluster().stopRandomDataNode();
 
