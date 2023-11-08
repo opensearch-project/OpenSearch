@@ -820,17 +820,25 @@ public class FollowersCheckerTests extends OpenSearchSingleNodeTestCase {
         Setting<TimeValue> setting1 = FOLLOWER_CHECK_TIMEOUT_SETTING;
         Settings timeSettings1 = Settings.builder().put(setting1.getKey(), "61s").build();
 
-        assertThrows( "failed to parse value [61s] for setting [" + setting1.getKey() + "], must be <= [60000ms]", IllegalArgumentException.class, () -> {
-            client().admin().cluster().prepareUpdateSettings().setPersistentSettings(timeSettings1).execute().actionGet();
-        });
+        assertThrows(
+            "failed to parse value [61s] for setting [" + setting1.getKey() + "], must be <= [60000ms]",
+            IllegalArgumentException.class,
+            () -> {
+                client().admin().cluster().prepareUpdateSettings().setPersistentSettings(timeSettings1).execute().actionGet();
+            }
+        );
     }
 
     public void testFollowerCheckTimeoutMinValue() {
         Setting<TimeValue> setting1 = FOLLOWER_CHECK_TIMEOUT_SETTING;
         Settings timeSettings1 = Settings.builder().put(setting1.getKey(), "0s").build();
 
-        assertThrows("failed to parse value [0s] for setting [" + setting1.getKey() + "], must be >= [1ms]", IllegalArgumentException.class, () -> {
-            client().admin().cluster().prepareUpdateSettings().setPersistentSettings(timeSettings1).execute().actionGet();
-        });
+        assertThrows(
+            "failed to parse value [0s] for setting [" + setting1.getKey() + "], must be >= [1ms]",
+            IllegalArgumentException.class,
+            () -> {
+                client().admin().cluster().prepareUpdateSettings().setPersistentSettings(timeSettings1).execute().actionGet();
+            }
+        );
     }
 }
