@@ -50,7 +50,7 @@ jobs:
         run: ./gradlew publishJarsPublicationToMavenLocal -Pversion.suffix=snapshot-${{ steps.version.outputs.REVISION }}
 
       - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v2
+        uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ secrets.LUCENE_SNAPSHOTS_ROLE }}
           aws-region: us-west-2
