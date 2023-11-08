@@ -34,7 +34,13 @@ package org.opensearch.cluster.coordination;
 
 import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
+import org.opensearch.action.admin.cluster.settings.ClusterGetSettingsRequest;
+import org.opensearch.action.admin.cluster.settings.ClusterGetSettingsResponse;
 import org.opensearch.action.admin.cluster.settings.ClusterUpdateSettingsResponse;
+import org.opensearch.action.admin.indices.settings.get.GetSettingsAction;
+import org.opensearch.action.admin.indices.settings.get.GetSettingsRequest;
+import org.opensearch.action.admin.indices.settings.get.GetSettingsResponse;
+import org.opensearch.client.RequestOptions;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.coordination.LeaderChecker.LeaderCheckRequest;
 import org.opensearch.cluster.node.DiscoveryNode;
@@ -64,6 +70,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static java.util.Collections.checkedList;
 import static java.util.Collections.emptySet;
 import static org.opensearch.cluster.coordination.LeaderChecker.LEADER_CHECK_ACTION_NAME;
 import static org.opensearch.cluster.coordination.LeaderChecker.LEADER_CHECK_INTERVAL_SETTING;
@@ -568,10 +575,9 @@ public class LeaderCheckerTests extends OpenSearchSingleNodeTestCase {
         );
     }
 
-    public void testLeaderCheckTimeoutValue() {
+    public void testLeaderCheckTimeoutValueUpdate() {
         Setting<TimeValue> setting1 = LEADER_CHECK_TIMEOUT_SETTING;
         Settings timeSettings1 = Settings.builder().put(setting1.getKey(), "60s").build();
-
         try {
             ClusterUpdateSettingsResponse response = client().admin()
                 .cluster()
@@ -579,7 +585,6 @@ public class LeaderCheckerTests extends OpenSearchSingleNodeTestCase {
                 .setPersistentSettings(timeSettings1)
                 .execute()
                 .actionGet();
-
             assertAcked(response);
             assertEquals(timeValueSeconds(60), setting1.get(response.getPersistentSettings()));
         } finally {
@@ -593,21 +598,17 @@ public class LeaderCheckerTests extends OpenSearchSingleNodeTestCase {
         Setting<TimeValue> setting1 = LEADER_CHECK_TIMEOUT_SETTING;
         Settings timeSettings1 = Settings.builder().put(setting1.getKey(), "61s").build();
 
-        try {
+        assertThrows( "failed to parse value [61s] for setting [" + setting1.getKey() + "], must be <= [60000ms]", IllegalArgumentException.class, () -> {
             client().admin().cluster().prepareUpdateSettings().setPersistentSettings(timeSettings1).execute().actionGet();
-        } catch (IllegalArgumentException ex) {
-            assertEquals(ex.getMessage(), "failed to parse value [61s] for setting [" + setting1.getKey() + "], must be <= [60000ms]");
-        }
+        });
     }
 
     public void testLeaderCheckTimeoutMinValue() {
         Setting<TimeValue> setting1 = LEADER_CHECK_TIMEOUT_SETTING;
         Settings timeSettings1 = Settings.builder().put(setting1.getKey(), "0s").build();
 
-        try {
+        assertThrows("failed to parse value [0s] for setting [" + setting1.getKey() + "], must be >= [1ms]", IllegalArgumentException.class, () -> {
             client().admin().cluster().prepareUpdateSettings().setPersistentSettings(timeSettings1).execute().actionGet();
-        } catch (IllegalArgumentException ex) {
-            assertEquals(ex.getMessage(), "failed to parse value [0s] for setting [" + setting1.getKey() + "], must be >= [1ms]");
-        }
+        });
     }
 }
