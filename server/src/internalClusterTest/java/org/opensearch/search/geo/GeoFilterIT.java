@@ -266,6 +266,7 @@ public class GeoFilterIT extends ParameterizedOpenSearchIntegTestCase {
 
         client().prepareIndex("shapes").setId("1").setSource(data, MediaTypeRegistry.JSON).get();
         client().admin().indices().prepareRefresh().get();
+        indexRandomForConcurrentSearch("shapes");
 
         // Point in polygon
         SearchResponse result = client().prepareSearch()
@@ -427,6 +428,7 @@ public class GeoFilterIT extends ParameterizedOpenSearchIntegTestCase {
 
         client().admin().indices().prepareCreate("countries").setSettings(settings).setMapping(xContentBuilder).get();
         BulkResponse bulk = client().prepareBulk().add(bulkAction, 0, bulkAction.length, null, xContentBuilder.contentType()).get();
+        indexRandomForConcurrentSearch("countries");
 
         for (BulkItemResponse item : bulk.getItems()) {
             assertFalse("unable to index data", item.isFailed());
