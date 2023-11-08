@@ -116,6 +116,9 @@ import static org.opensearch.http.HttpTransportSettings.SETTING_HTTP_TCP_REUSE_A
 import static org.opensearch.http.HttpTransportSettings.SETTING_HTTP_TCP_SEND_BUFFER_SIZE;
 import static org.opensearch.http.HttpTransportSettings.SETTING_PIPELINING_MAX_EVENTS;
 
+/**
+ * The HTTP transport implementations based on Netty 4.
+ */
 public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
     private static final Logger logger = LogManager.getLogger(Netty4HttpServerTransport.class);
 
@@ -184,6 +187,17 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
     private volatile ServerBootstrap serverBootstrap;
     private volatile SharedGroupFactory.SharedGroup sharedGroup;
 
+    /**
+     * Creates new HTTP transport implementations based on Netty 4
+     * @param settings seetings
+     * @param networkService network service
+     * @param bigArrays big array allocator
+     * @param threadPool thread pool instance
+     * @param xContentRegistry XContent registry instance
+     * @param dispatcher dispatcher instance
+     * @param clusterSettings cluster settings
+     * @param sharedGroupFactory shared group factory
+     */
     public Netty4HttpServerTransport(
         Settings settings,
         NetworkService networkService,

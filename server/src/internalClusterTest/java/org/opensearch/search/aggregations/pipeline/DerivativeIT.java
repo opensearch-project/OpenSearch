@@ -693,6 +693,7 @@ public class DerivativeIT extends ParameterizedOpenSearchIntegTestCase {
         }
 
         refresh();
+        indexRandomForConcurrentSearch("movavg_npe");
 
         SearchResponse response = client().prepareSearch("movavg_npe")
             .addAggregation(
