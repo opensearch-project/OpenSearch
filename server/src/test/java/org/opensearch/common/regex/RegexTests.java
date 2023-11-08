@@ -105,7 +105,13 @@ public class RegexTests extends OpenSearchTestCase {
         assertFalse(Regex.simpleMatch("***xxxxxabcdxxxxx***", "xxxxxABCDxxxxx", false));
         assertTrue(Regex.simpleMatch("***xxxxxabcdxxxxx***", "xxxxxABCDxxxxx", true));
         assertTrue(Regex.simpleMatch("**stephenIsSuperCool**", "ItIsTrueThatStephenIsSuperCoolSoYouShouldLetThisIn", true));
-        assertTrue(Regex.simpleMatch("**w**X**y**Z**", "abcdeFGHIJKLMNOPqrstuvwabcdeFGHIJKLMNOPqrstuvwXabcdeFGHIJKLMNOPqrstuvwXyabcdeFGHIJKLMNOPqrstuvwXyZ", false));
+        assertTrue(
+            Regex.simpleMatch(
+                "**w**X**y**Z**",
+                "abcdeFGHIJKLMNOPqrstuvwabcdeFGHIJKLMNOPqrstuvwXabcdeFGHIJKLMNOPqrstuvwXyabcdeFGHIJKLMNOPqrstuvwXyZ",
+                false
+            )
+        );
     }
 
     public void testSimpleMatch() {
