@@ -36,10 +36,12 @@ import org.opensearch.action.admin.indices.stats.CommonStats;
 import org.opensearch.action.admin.indices.stats.CommonStatsFlags;
 import org.opensearch.action.search.SearchRequestStats;
 import org.opensearch.cluster.coordination.PendingClusterStateStats;
+import org.opensearch.cluster.coordination.PersistedStateStats;
 import org.opensearch.cluster.coordination.PublishClusterStateStats;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.routing.WeightedRoutingStats;
 import org.opensearch.cluster.service.ClusterManagerThrottlingStats;
+import org.opensearch.cluster.service.ClusterStateStats;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.metrics.OperationStats;
 import org.opensearch.core.common.io.stream.StreamInput;
@@ -47,8 +49,10 @@ import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.indices.breaker.AllCircuitBreakerStats;
 import org.opensearch.core.indices.breaker.CircuitBreakerStats;
 import org.opensearch.discovery.DiscoveryStats;
+import org.opensearch.gateway.remote.RemotePersistenceStats;
 import org.opensearch.http.HttpStats;
 import org.opensearch.index.ReplicationStats;
+import org.opensearch.index.SegmentReplicationRejectionStats;
 import org.opensearch.index.remote.RemoteSegmentStats;
 import org.opensearch.index.remote.RemoteTranslogTransferTracker;
 import org.opensearch.index.translog.RemoteTranslogStats;
@@ -71,6 +75,7 @@ import org.opensearch.transport.TransportStats;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -284,6 +289,10 @@ public class NodeStatsTests extends OpenSearchTestCase {
                     assertEquals(ioStats.getTotalReadOperations(), deserializedIoStats.getTotalReadOperations());
                     assertEquals(ioStats.getTotalWriteKilobytes(), deserializedIoStats.getTotalWriteKilobytes());
                     assertEquals(ioStats.getTotalWriteOperations(), deserializedIoStats.getTotalWriteOperations());
+                    assertEquals(ioStats.getTotalReadTime(), deserializedIoStats.getTotalReadTime());
+                    assertEquals(ioStats.getTotalWriteTime(), deserializedIoStats.getTotalWriteTime());
+                    assertEquals(ioStats.getTotalQueueSize(), deserializedIoStats.getTotalQueueSize());
+                    assertEquals(ioStats.getTotalIOTimeMillis(), deserializedIoStats.getTotalIOTimeMillis());
                     assertEquals(ioStats.getDevicesStats().length, deserializedIoStats.getDevicesStats().length);
                     for (int i = 0; i < ioStats.getDevicesStats().length; i++) {
                         FsInfo.DeviceStats deviceStats = ioStats.getDevicesStats()[i];
@@ -343,6 +352,26 @@ public class NodeStatsTests extends OpenSearchTestCase {
                         assertEquals(queueStats.getCommitted(), deserializedDiscoveryStats.getQueueStats().getCommitted());
                         assertEquals(queueStats.getTotal(), deserializedDiscoveryStats.getQueueStats().getTotal());
                         assertEquals(queueStats.getPending(), deserializedDiscoveryStats.getQueueStats().getPending());
+                    }
+                    ClusterStateStats stateStats = discoveryStats.getClusterStateStats();
+                    if (stateStats == null) {
+                        assertNull(deserializedDiscoveryStats.getClusterStateStats());
+                    } else {
+                        assertEquals(stateStats.getUpdateFailed(), deserializedDiscoveryStats.getClusterStateStats().getUpdateFailed());
+                        assertEquals(stateStats.getUpdateSuccess(), deserializedDiscoveryStats.getClusterStateStats().getUpdateSuccess());
+                        assertEquals(
+                            stateStats.getUpdateTotalTimeInMillis(),
+                            deserializedDiscoveryStats.getClusterStateStats().getUpdateTotalTimeInMillis()
+                        );
+                        assertEquals(1, deserializedDiscoveryStats.getClusterStateStats().getPersistenceStats().size());
+                        PersistedStateStats deserializedRemoteStateStats = deserializedDiscoveryStats.getClusterStateStats()
+                            .getPersistenceStats()
+                            .get(0);
+                        PersistedStateStats remoteStateStats = stateStats.getPersistenceStats().get(0);
+                        assertEquals(remoteStateStats.getStatsName(), deserializedRemoteStateStats.getStatsName());
+                        assertEquals(remoteStateStats.getFailedCount(), deserializedRemoteStateStats.getFailedCount());
+                        assertEquals(remoteStateStats.getSuccessCount(), deserializedRemoteStateStats.getSuccessCount());
+                        assertEquals(remoteStateStats.getTotalTimeInMillis(), deserializedRemoteStateStats.getTotalTimeInMillis());
                     }
                 }
                 IngestStats ingestStats = nodeStats.getIngestStats();
@@ -412,6 +441,17 @@ public class NodeStatsTests extends OpenSearchTestCase {
                         assertEquals(aResourceUsageStats.getCpuUtilizationPercent(), bResourceUsageStats.getCpuUtilizationPercent(), 0.0);
                         assertEquals(aResourceUsageStats.getTimestamp(), bResourceUsageStats.getTimestamp());
                     });
+                }
+                SegmentReplicationRejectionStats segmentReplicationRejectionStats = nodeStats.getSegmentReplicationRejectionStats();
+                SegmentReplicationRejectionStats deserializedSegmentReplicationRejectionStats = deserializedNodeStats
+                    .getSegmentReplicationRejectionStats();
+                if (segmentReplicationRejectionStats == null) {
+                    assertNull(deserializedSegmentReplicationRejectionStats);
+                } else {
+                    assertEquals(
+                        segmentReplicationRejectionStats.getTotalRejectionCount(),
+                        deserializedSegmentReplicationRejectionStats.getTotalRejectionCount()
+                    );
                 }
                 ScriptCacheStats scriptCacheStats = nodeStats.getScriptCacheStats();
                 ScriptCacheStats deserializedScriptCacheStats = deserializedNodeStats.getScriptCacheStats();
@@ -645,12 +685,20 @@ public class NodeStatsTests extends OpenSearchTestCase {
                         randomNonNegativeLong(),
                         randomNonNegativeLong(),
                         randomNonNegativeLong(),
+                        randomNonNegativeLong(),
+                        randomNonNegativeLong(),
+                        randomNonNegativeLong(),
+                        randomNonNegativeLong(),
                         null
                     );
                 deviceStatsArray[i] = new FsInfo.DeviceStats(
                     randomInt(),
                     randomInt(),
                     randomAlphaOfLengthBetween(3, 10),
+                    randomNonNegativeLong(),
+                    randomNonNegativeLong(),
+                    randomNonNegativeLong(),
+                    randomNonNegativeLong(),
                     randomNonNegativeLong(),
                     randomNonNegativeLong(),
                     randomNonNegativeLong(),
@@ -701,12 +749,16 @@ public class NodeStatsTests extends OpenSearchTestCase {
         ScriptStats scriptStats = frequently()
             ? new ScriptStats(randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong())
             : null;
+        ClusterStateStats stateStats = new ClusterStateStats();
+        RemotePersistenceStats remoteStateStats = new RemotePersistenceStats();
+        stateStats.setPersistenceStats(Arrays.asList(remoteStateStats));
         DiscoveryStats discoveryStats = frequently()
             ? new DiscoveryStats(
                 randomBoolean() ? new PendingClusterStateStats(randomInt(), randomInt(), randomInt()) : null,
                 randomBoolean()
                     ? new PublishClusterStateStats(randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong())
-                    : null
+                    : null,
+                randomBoolean() ? stateStats : null
             )
             : null;
         IngestStats ingestStats = null;
@@ -800,6 +852,11 @@ public class NodeStatsTests extends OpenSearchTestCase {
             }
             nodesResourceUsageStats = new NodesResourceUsageStats(resourceUsageStatsMap);
         }
+        SegmentReplicationRejectionStats segmentReplicationRejectionStats = null;
+        if (frequently()) {
+            segmentReplicationRejectionStats = new SegmentReplicationRejectionStats(randomNonNegativeLong());
+        }
+
         ClusterManagerThrottlingStats clusterManagerThrottlingStats = null;
         if (frequently()) {
             clusterManagerThrottlingStats = new ClusterManagerThrottlingStats();
@@ -840,6 +897,8 @@ public class NodeStatsTests extends OpenSearchTestCase {
             weightedRoutingStats,
             null,
             null,
+            null,
+            segmentReplicationRejectionStats,
             null
         );
     }

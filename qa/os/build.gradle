@@ -70,6 +70,11 @@ tasks.dependenciesInfo.enabled = false
 
 tasks.thirdPartyAudit.ignoreMissingClasses()
 
+tasks.thirdPartyAudit.ignoreViolations(
+  'org.apache.logging.log4j.core.util.internal.UnsafeUtil',
+  'org.apache.logging.log4j.core.util.internal.UnsafeUtil$1'
+)
+
 tasks.register('destructivePackagingTest') {
   dependsOn 'destructiveDistroTest'
 }

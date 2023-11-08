@@ -195,11 +195,16 @@ class S3BlobContainer extends AbstractBlobContainer implements AsyncMultiStreamB
             StreamContext streamContext = SocketAccess.doPrivileged(() -> writeContext.getStreamProvider(partSize));
             try (AmazonAsyncS3Reference amazonS3Reference = SocketAccess.doPrivileged(blobStore::asyncClientReference)) {
 
-                S3AsyncClient s3AsyncClient = writeContext.getWritePriority() == WritePriority.HIGH
-                    ? amazonS3Reference.get().priorityClient()
-                    : amazonS3Reference.get().client();
+                S3AsyncClient s3AsyncClient;
+                if (writeContext.getWritePriority() == WritePriority.URGENT) {
+                    s3AsyncClient = amazonS3Reference.get().urgentClient();
+                } else if (writeContext.getWritePriority() == WritePriority.HIGH) {
+                    s3AsyncClient = amazonS3Reference.get().priorityClient();
+                } else {
+                    s3AsyncClient = amazonS3Reference.get().client();
+                }
                 CompletableFuture<Void> completableFuture = blobStore.getAsyncTransferManager()
-                    .uploadObject(s3AsyncClient, uploadRequest, streamContext);
+                    .uploadObject(s3AsyncClient, uploadRequest, streamContext, blobStore.getStatsMetricPublisher());
                 completableFuture.whenComplete((response, throwable) -> {
                     if (throwable == null) {
                         completionListener.onResponse(response);
@@ -384,7 +389,7 @@ class S3BlobContainer extends AbstractBlobContainer implements AsyncMultiStreamB
         assert outstanding.isEmpty();
     }
 
-    private static DeleteObjectsRequest bulkDelete(String bucket, List<String> blobs) {
+    private DeleteObjectsRequest bulkDelete(String bucket, List<String> blobs) {
         return DeleteObjectsRequest.builder()
             .bucket(bucket)
             .delete(
@@ -393,6 +398,7 @@ class S3BlobContainer extends AbstractBlobContainer implements AsyncMultiStreamB
                     .quiet(true)
                     .build()
             )
+            .overrideConfiguration(o -> o.addMetricPublisher(blobStore.getStatsMetricPublisher().deleteObjectsMetricPublisher))
             .build();
     }
 

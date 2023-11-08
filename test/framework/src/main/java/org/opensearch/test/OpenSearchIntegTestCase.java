@@ -790,6 +790,30 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
     }
 
     /**
+     * Represent if it needs to trigger remote state restore or not.
+     * For tests with remote store enabled domain, it will be overridden to true.
+     *
+     * @return if needs to perform remote state restore or not
+     */
+    protected boolean triggerRemoteStateRestore() {
+        return false;
+    }
+
+    /**
+     * For tests with remote cluster state, it will reset the cluster and cluster state will be
+     * restored from remote.
+     */
+    protected void performRemoteStoreTestAction() {
+        if (triggerRemoteStateRestore()) {
+            String clusterUUIDBefore = clusterService().state().metadata().clusterUUID();
+            internalCluster().resetCluster();
+            String clusterUUIDAfter = clusterService().state().metadata().clusterUUID();
+            // assertion that UUID is changed post restore.
+            assertFalse(clusterUUIDBefore.equals(clusterUUIDAfter));
+        }
+    }
+
+    /**
      * Creates one or more indices and asserts that the indices are acknowledged. If one of the indices
      * already exists this method will fail and wipe all the indices created so far.
      */
@@ -1642,6 +1666,11 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
             }
         }
         assertThat(actualErrors, emptyIterable());
+
+        if (dummyDocuments) {
+            bogusIds.addAll(indexRandomForMultipleSlices(indicesArray));
+        }
+
         if (!bogusIds.isEmpty()) {
             // delete the bogus types again - it might trigger merges or at least holes in the segments and enforces deleted docs!
             for (List<String> doc : bogusIds) {
@@ -1657,6 +1686,52 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
                 client().admin().indices().prepareRefresh(indicesArray).setIndicesOptions(IndicesOptions.lenientExpandOpen()).get()
             );
         }
+    }
+
+    /*
+    * This method ingests bogus documents for the given indices such that multiple slices
+    * are formed. This is useful for testing with the concurrent search use-case as it creates
+    * multiple slices based on segment count.
+    * @param indices         the indices in which bogus documents should be ingested
+    * */
+    protected Set<List<String>> indexRandomForMultipleSlices(String... indices) throws InterruptedException {
+        Set<List<String>> bogusIds = new HashSet<>();
+        int refreshCount = randomIntBetween(2, 3);
+        for (String index : indices) {
+            int numDocs = getNumShards(index).totalNumShards * randomIntBetween(2, 10);
+            while (refreshCount-- > 0) {
+                final CopyOnWriteArrayList<Tuple<IndexRequestBuilder, Exception>> errors = new CopyOnWriteArrayList<>();
+                List<CountDownLatch> inFlightAsyncOperations = new ArrayList<>();
+                for (int i = 0; i < numDocs; i++) {
+                    String id = "bogus_doc_" + randomRealisticUnicodeOfLength(between(1, 10)) + dummmyDocIdGenerator.incrementAndGet();
+                    IndexRequestBuilder indexRequestBuilder = client().prepareIndex()
+                        .setIndex(index)
+                        .setId(id)
+                        .setSource("{}", MediaTypeRegistry.JSON)
+                        .setRouting(id);
+                    indexRequestBuilder.execute(
+                        new PayloadLatchedActionListener<>(indexRequestBuilder, newLatch(inFlightAsyncOperations), errors)
+                    );
+                    bogusIds.add(Arrays.asList(index, id));
+                }
+                for (CountDownLatch operation : inFlightAsyncOperations) {
+                    operation.await();
+                }
+                final List<Exception> actualErrors = new ArrayList<>();
+                for (Tuple<IndexRequestBuilder, Exception> tuple : errors) {
+                    Throwable t = ExceptionsHelper.unwrapCause(tuple.v2());
+                    if (t instanceof OpenSearchRejectedExecutionException) {
+                        logger.debug("Error indexing doc: " + t.getMessage() + ", reindexing.");
+                        tuple.v1().execute().actionGet(); // re-index if rejected
+                    } else {
+                        actualErrors.add(tuple.v2());
+                    }
+                }
+                assertThat(actualErrors, emptyIterable());
+                refresh(index);
+            }
+        }
+        return bogusIds;
     }
 
     private final AtomicInteger dummmyDocIdGenerator = new AtomicInteger();
@@ -1928,6 +2003,7 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
 
         // Enable tracer only when Telemetry Setting is enabled
         if (featureFlagSettings().getAsBoolean(FeatureFlags.TELEMETRY_SETTING.getKey(), false)) {
+            builder.put(TelemetrySettings.TRACER_FEATURE_ENABLED_SETTING.getKey(), true);
             builder.put(TelemetrySettings.TRACER_ENABLED_SETTING.getKey(), true);
         }
         if (FeatureFlags.CONCURRENT_SEGMENT_SEARCH_SETTING.get(featureFlagSettings)) {

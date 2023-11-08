@@ -430,10 +430,10 @@ public class InternalTranslogManager implements TranslogManager, Closeable {
      * @return if the translog should be flushed
      */
     public boolean shouldPeriodicallyFlush(long localCheckpointOfLastCommit, long flushThreshold) {
-        final long translogGenerationOfLastCommit = translog.getMinGenerationForSeqNo(
-            localCheckpointOfLastCommit + 1
-        ).translogFileGeneration;
-        if (translog.sizeInBytesByMinGen(translogGenerationOfLastCommit) < flushThreshold) {
+        // This is the minimum seqNo that is referred in translog and considered for calculating translog size
+        long minTranslogRefSeqNo = translog.getMinUnreferencedSeqNoInSegments(localCheckpointOfLastCommit + 1);
+        final long minReferencedTranslogGeneration = translog.getMinGenerationForSeqNo(minTranslogRefSeqNo).translogFileGeneration;
+        if (translog.sizeInBytesByMinGen(minReferencedTranslogGeneration) < flushThreshold) {
             return false;
         }
         /*
@@ -454,7 +454,7 @@ public class InternalTranslogManager implements TranslogManager, Closeable {
         final long translogGenerationOfNewCommit = translog.getMinGenerationForSeqNo(
             localCheckpointTrackerSupplier.get().getProcessedCheckpoint() + 1
         ).translogFileGeneration;
-        return translogGenerationOfLastCommit < translogGenerationOfNewCommit
+        return minReferencedTranslogGeneration < translogGenerationOfNewCommit
             || localCheckpointTrackerSupplier.get().getProcessedCheckpoint() == localCheckpointTrackerSupplier.get().getMaxSeqNo();
     }
 

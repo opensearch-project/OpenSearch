@@ -1853,10 +1853,12 @@ public final class InternalTestCluster extends TestCluster {
      */
     public void stopAllNodes() {
         try {
-            int totalDataNodes = numDataNodes();
-            while (totalDataNodes > 0) {
-                stopRandomDataNode();
-                totalDataNodes -= 1;
+            if (numDataAndClusterManagerNodes() != numClusterManagerNodes()) {
+                int totalDataNodes = numDataNodes();
+                while (totalDataNodes > 0) {
+                    stopRandomDataNode();
+                    totalDataNodes -= 1;
+                }
             }
             int totalClusterManagerNodes = numClusterManagerNodes();
             while (totalClusterManagerNodes > 1) {
@@ -1867,6 +1869,18 @@ public final class InternalTestCluster extends TestCluster {
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
+    }
+
+    /**
+     * Replace all nodes by stopping all current node and starting new node.
+     * Used for remote store test cases, where remote state is restored.
+     */
+    public void resetCluster() {
+        int totalClusterManagerNodes = numClusterManagerNodes();
+        int totalDataNodes = numDataNodes();
+        stopAllNodes();
+        startClusterManagerOnlyNodes(totalClusterManagerNodes);
+        startDataOnlyNodes(totalDataNodes);
     }
 
     private synchronized void startAndPublishNodesAndClients(List<NodeAndClient> nodeAndClients) {
@@ -2698,6 +2712,8 @@ public final class InternalTestCluster extends TestCluster {
                 CommonStatsFlags flags = new CommonStatsFlags(Flag.FieldData, Flag.QueryCache, Flag.Segments);
                 NodeStats stats = nodeService.stats(
                     flags,
+                    false,
+                    false,
                     false,
                     false,
                     false,

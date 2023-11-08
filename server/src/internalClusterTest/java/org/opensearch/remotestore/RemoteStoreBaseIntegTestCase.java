@@ -56,7 +56,7 @@ public class RemoteStoreBaseIntegTestCase extends OpenSearchIntegTestCase {
     protected static final String REPOSITORY_NAME = "test-remote-store-repo";
     protected static final String REPOSITORY_2_NAME = "test-remote-store-repo-2";
     protected static final int SHARD_COUNT = 1;
-    protected static final int REPLICA_COUNT = 1;
+    protected static int REPLICA_COUNT = 1;
     protected static final String TOTAL_OPERATIONS = "total-operations";
     protected static final String REFRESHED_OR_FLUSHED_OPERATIONS = "refreshed-or-flushed-operations";
     protected static final String MAX_SEQ_NO_TOTAL = "max-seq-no-total";
@@ -353,7 +353,13 @@ public class RemoteStoreBaseIntegTestCase extends OpenSearchIntegTestCase {
             // Validated that all the restricted settings are entact on all the nodes.
             repository.getRestrictedSystemRepositorySettings()
                 .stream()
-                .forEach(setting -> assertEquals(setting.get(actualRepository.settings()), setting.get(expectedRepository.settings())));
+                .forEach(
+                    setting -> assertEquals(
+                        String.format(Locale.ROOT, "Restricted Settings mismatch [%s]", setting.getKey()),
+                        setting.get(actualRepository.settings()),
+                        setting.get(expectedRepository.settings())
+                    )
+                );
         }
     }
 
