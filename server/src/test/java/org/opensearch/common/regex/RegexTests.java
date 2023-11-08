@@ -123,12 +123,4 @@ public class RegexTests extends OpenSearchTestCase {
             assertFalse("[" + pattern + "] should not match [" + matchingString + "]", Regex.simpleMatch(pattern, matchingString));
         }
     }
-
-    public void testRemoveDuplicates() {
-        assertEquals("*", Regex.removeAdjacentDuplicates("***", '*'));
-        assertEquals("*abc*", Regex.removeAdjacentDuplicates("**abc**", '*'));
-        assertEquals("a*b*c*", Regex.removeAdjacentDuplicates("a*b**c****", '*'));
-        assertEquals("*abc", Regex.removeAdjacentDuplicates("****abc", '*'));
-        assertEquals("*", Regex.removeAdjacentDuplicates("*".repeat(100), '*'));
-    }
 }

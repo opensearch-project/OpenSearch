@@ -94,23 +94,6 @@ public class Regex {
     }
 
     /**
-     *
-     * @param str - The input string to remove adjacent duplicate characters from
-     * @param target - The target character to remove duplicates of
-     * @return - string with adjacent duplicates of the target character removed
-     */
-    static String removeAdjacentDuplicates(String str, char target) {
-        StringBuilder sb = new StringBuilder();
-        for (char c : str.toCharArray()) {
-            int size = sb.length();
-            if (size == 0 || c != target || sb.charAt(size - 1) != c) {
-                sb.append(c);
-            }
-        }
-        return sb.toString();
-    }
-
-    /**
      * Match a String against the given pattern, supporting the following simple
      * pattern styles: "xxx*", "*xxx", "*xxx*" and "xxx*yyy" matches (with an
      * arbitrary number of pattern parts), as well as direct equality.
