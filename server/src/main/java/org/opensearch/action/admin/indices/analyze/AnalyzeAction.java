@@ -36,6 +36,7 @@ import org.opensearch.LegacyESVersion;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.ActionType;
 import org.opensearch.action.support.single.shard.SingleShardRequest;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.ParseField;
 import org.opensearch.core.action.ActionResponse;
 import org.opensearch.core.common.Strings;
@@ -63,8 +64,9 @@ import static org.opensearch.action.ValidateActions.addValidationError;
 /**
  * Transport action for analyzing text
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class AnalyzeAction extends ActionType<AnalyzeAction.Response> {
 
     public static final AnalyzeAction INSTANCE = new AnalyzeAction();
@@ -78,8 +80,9 @@ public class AnalyzeAction extends ActionType<AnalyzeAction.Response> {
      * A request to analyze a text associated with a specific index. Allow to provide
      * the actual analyzer name to perform the analysis with.
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public static class Request extends SingleShardRequest<Request> {
 
         private String[] text;
@@ -309,8 +312,9 @@ public class AnalyzeAction extends ActionType<AnalyzeAction.Response> {
     /**
      * Inner Response
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public static class Response extends ActionResponse implements ToXContentObject {
 
         private final DetailAnalyzeResponse detail;
@@ -428,8 +432,9 @@ public class AnalyzeAction extends ActionType<AnalyzeAction.Response> {
     /**
      * Inner Analyze Token
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public static class AnalyzeToken implements Writeable, ToXContentObject {
         private final String term;
         private final int startOffset;
@@ -566,8 +571,9 @@ public class AnalyzeAction extends ActionType<AnalyzeAction.Response> {
     /**
      * Inner Detail Analyze Response
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public static class DetailAnalyzeResponse implements Writeable, ToXContentFragment {
 
         private final boolean customAnalyzer;
@@ -733,8 +739,9 @@ public class AnalyzeAction extends ActionType<AnalyzeAction.Response> {
     /**
      * Inner Analyze Token List
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public static class AnalyzeTokenList implements Writeable, ToXContentObject {
         private final String name;
         private final AnalyzeToken[] tokens;
@@ -830,8 +837,9 @@ public class AnalyzeAction extends ActionType<AnalyzeAction.Response> {
     /**
      * Inner character filtered text
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public static class CharFilteredText implements Writeable, ToXContentObject {
         private final String name;
         private final String[] texts;

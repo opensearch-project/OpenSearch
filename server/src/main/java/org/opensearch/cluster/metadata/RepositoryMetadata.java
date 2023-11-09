@@ -33,6 +33,7 @@ package org.opensearch.cluster.metadata;
 
 import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
@@ -45,8 +46,9 @@ import java.util.Objects;
 /**
  * Metadata about registered repository
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class RepositoryMetadata implements Writeable {
 
     public static final Version REPO_GEN_IN_CS_VERSION = LegacyESVersion.V_7_6_0;

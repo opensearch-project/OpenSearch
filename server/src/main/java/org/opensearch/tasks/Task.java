@@ -32,9 +32,8 @@
 
 package org.opensearch.tasks;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.opensearch.ExceptionsHelper;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.action.ActionResponse;
 import org.opensearch.core.action.NotifyOnceListener;
 import org.opensearch.core.common.io.stream.NamedWriteable;
@@ -62,12 +61,10 @@ import java.util.concurrent.atomic.AtomicInteger;
 /**
  * Current task information
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class Task {
-
-    private static final Logger logger = LogManager.getLogger(Task.class);
-
     /**
      * The request header to mark tasks with specific ids
      */
@@ -501,7 +498,10 @@ public class Task {
      * <b>can</b> change this on version upgrade but we should be careful
      * because some statuses (reindex) have become defacto standardized because
      * they are used by systems like Kibana.
+     *
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public interface Status extends ToXContentObject, NamedWriteable {}
 
     /**

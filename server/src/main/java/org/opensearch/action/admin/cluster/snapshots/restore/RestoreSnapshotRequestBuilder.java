@@ -35,6 +35,7 @@ package org.opensearch.action.admin.cluster.snapshots.restore;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.action.support.clustermanager.ClusterManagerNodeOperationRequestBuilder;
 import org.opensearch.client.OpenSearchClient;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.XContentType;
 
@@ -44,8 +45,9 @@ import java.util.Map;
 /**
  * Restore snapshot request builder
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class RestoreSnapshotRequestBuilder extends ClusterManagerNodeOperationRequestBuilder<
     RestoreSnapshotRequest,
     RestoreSnapshotResponse,
