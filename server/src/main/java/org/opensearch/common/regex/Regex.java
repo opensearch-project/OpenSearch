@@ -146,7 +146,7 @@ public class Regex {
                 match++;
                 sIdx = match;
             } else {
-                // current pattern pointer is not wildcard, last pattern pointer was also not a wildcard
+                // current pattern pointer is not a wildcard, last pattern pointer was also not a wildcard
                 // characters do not match
                 return false;
             }
