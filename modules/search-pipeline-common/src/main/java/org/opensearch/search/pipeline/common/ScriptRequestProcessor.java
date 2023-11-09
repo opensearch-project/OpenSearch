@@ -27,6 +27,7 @@ import org.opensearch.search.pipeline.PipelinedRequestContext;
 import org.opensearch.search.pipeline.Processor;
 import org.opensearch.search.pipeline.SearchRequestProcessor;
 import org.opensearch.search.pipeline.StatefulSearchRequestProcessor;
+import org.opensearch.search.pipeline.common.helpers.BasicMap;
 import org.opensearch.search.pipeline.common.helpers.SearchRequestMap;
 
 import java.io.InputStream;
@@ -88,10 +89,31 @@ public final class ScriptRequestProcessor extends AbstractProcessor implements S
             searchScript = precompiledSearchScript;
         }
         // execute the script with the search request in context
-        searchScript.execute(
-            Map.of("_source", new SearchRequestMap(request), "request_context", requestContext.getGenericRequestContext())
-        );
+        searchScript.execute(Map.of("_source", new SearchRequestMap(request), "request_context", new RequestContextMap(requestContext)));
         return request;
+    }
+
+    private static class RequestContextMap extends BasicMap {
+        private final PipelinedRequestContext pipelinedRequestContext;
+
+        private RequestContextMap(PipelinedRequestContext pipelinedRequestContext) {
+            this.pipelinedRequestContext = pipelinedRequestContext;
+        }
+
+        @Override
+        public Object get(Object key) {
+            if (key instanceof String) {
+                return pipelinedRequestContext.getAttribute(key.toString());
+            }
+            return null;
+        }
+
+        @Override
+        public Object put(String key, Object value) {
+            Object originalValue = get(key);
+            pipelinedRequestContext.setAttribute(key, value);
+            return originalValue;
+        }
     }
 
     /**

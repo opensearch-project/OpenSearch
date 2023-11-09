@@ -29,7 +29,7 @@ public class OversampleRequestProcessorTests extends OpenSearchTestCase {
         PipelinedRequestContext context = new PipelinedRequestContext();
         SearchRequest transformedRequest = processor.processRequest(request, context);
         assertEquals(request, transformedRequest);
-        assertTrue(context.getGenericRequestContext().isEmpty());
+        assertNull(context.getAttribute("original_size"));
     }
 
     public void testBasicBehavior() {
@@ -42,8 +42,7 @@ public class OversampleRequestProcessorTests extends OpenSearchTestCase {
         PipelinedRequestContext context = new PipelinedRequestContext();
         SearchRequest transformedRequest = processor.processRequest(request, context);
         assertEquals(30, transformedRequest.source().size());
-        assertEquals(1, context.getGenericRequestContext().size());
-        assertEquals(10, context.getGenericRequestContext().get("original_size"));
+        assertEquals(10, context.getAttribute("original_size"));
     }
 
     public void testContextPrefix() {
@@ -58,7 +57,6 @@ public class OversampleRequestProcessorTests extends OpenSearchTestCase {
         PipelinedRequestContext context = new PipelinedRequestContext();
         SearchRequest transformedRequest = processor.processRequest(request, context);
         assertEquals(30, transformedRequest.source().size());
-        assertEquals(1, context.getGenericRequestContext().size());
-        assertEquals(10, context.getGenericRequestContext().get("foo.original_size"));
+        assertEquals(10, context.getAttribute("foo.original_size"));
     }
 }

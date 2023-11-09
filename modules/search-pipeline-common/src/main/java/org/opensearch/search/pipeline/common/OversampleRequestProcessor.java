@@ -50,7 +50,7 @@ public class OversampleRequestProcessor extends AbstractProcessor implements Sta
             if (originalSize == -1) {
                 originalSize = SearchService.DEFAULT_SIZE;
             }
-            requestContext.getGenericRequestContext().put(applyContextPrefix(contextPrefix, ORIGINAL_SIZE), originalSize);
+            requestContext.setAttribute(applyContextPrefix(contextPrefix, ORIGINAL_SIZE), originalSize);
             int newSize = (int) Math.ceil(originalSize * sampleFactor);
             request.source().size(newSize);
         }

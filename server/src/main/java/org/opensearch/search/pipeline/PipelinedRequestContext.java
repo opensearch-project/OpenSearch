@@ -15,9 +15,24 @@ import java.util.Map;
  * A holder for state that is passed through each processor in the pipeline.
  */
 public class PipelinedRequestContext {
-    private final Map<String, Object> genericRequestContext = new HashMap<>();
+    private final Map<String, Object> attributes = new HashMap<>();
 
-    public Map<String, Object> getGenericRequestContext() {
-        return genericRequestContext;
+    /**
+     * Set a generic attribute in the state for this request. Overwrites any existing value.
+     *
+     * @param name the name of the attribute to set
+     * @param value the value to set on the attribute
+     */
+    public void setAttribute(String name, Object value) {
+        attributes.put(name, value);
+    }
+
+    /**
+     * Retrieves a generic attribute value from the state for this request.
+     * @param name the name of the attribute
+     * @return the value of the attribute if previously set (and null otherwise)
+     */
+    public Object getAttribute(String name) {
+        return attributes.get(name);
     }
 }

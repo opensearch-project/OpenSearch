@@ -1383,9 +1383,9 @@ public class SearchPipelineServiceTests extends OpenSearchTestCase {
 
     private static class FakeStatefulRequestProcessor extends AbstractProcessor implements StatefulSearchRequestProcessor {
         private final String type;
-        private final Consumer<Map<String, Object>> stateConsumer;
+        private final Consumer<PipelinedRequestContext> stateConsumer;
 
-        public FakeStatefulRequestProcessor(String type, Consumer<Map<String, Object>> stateConsumer) {
+        public FakeStatefulRequestProcessor(String type, Consumer<PipelinedRequestContext> stateConsumer) {
             super(null, null, false);
             this.type = type;
             this.stateConsumer = stateConsumer;
@@ -1398,16 +1398,16 @@ public class SearchPipelineServiceTests extends OpenSearchTestCase {
 
         @Override
         public SearchRequest processRequest(SearchRequest request, PipelinedRequestContext requestContext) throws Exception {
-            stateConsumer.accept(requestContext.getGenericRequestContext());
+            stateConsumer.accept(requestContext);
             return request;
         }
     }
 
     private static class FakeStatefulResponseProcessor extends AbstractProcessor implements StatefulSearchResponseProcessor {
         private final String type;
-        private final Consumer<Map<String, Object>> stateConsumer;
+        private final Consumer<PipelinedRequestContext> stateConsumer;
 
-        public FakeStatefulResponseProcessor(String type, Consumer<Map<String, Object>> stateConsumer) {
+        public FakeStatefulResponseProcessor(String type, Consumer<PipelinedRequestContext> stateConsumer) {
             super(null, null, false);
             this.type = type;
             this.stateConsumer = stateConsumer;
@@ -1421,7 +1421,7 @@ public class SearchPipelineServiceTests extends OpenSearchTestCase {
         @Override
         public SearchResponse processResponse(SearchRequest request, SearchResponse response, PipelinedRequestContext requestContext)
             throws Exception {
-            stateConsumer.accept(requestContext.getGenericRequestContext());
+            stateConsumer.accept(requestContext);
             return response;
         }
     }
@@ -1429,12 +1429,15 @@ public class SearchPipelineServiceTests extends OpenSearchTestCase {
     public void testStatefulProcessors() throws Exception {
         AtomicReference<String> contextHolder = new AtomicReference<>();
         SearchPipelineService searchPipelineService = createWithProcessors(
-            Map.of("write_context", (pf, t, d, igf, cfg, ctx) -> new FakeStatefulRequestProcessor("write_context", (c) -> c.put("a", "b"))),
+            Map.of(
+                "write_context",
+                (pf, t, d, igf, cfg, ctx) -> new FakeStatefulRequestProcessor("write_context", (c) -> c.setAttribute("a", "b"))
+            ),
             Map.of(
                 "read_context",
                 (pf, t, d, igf, cfg, ctx) -> new FakeStatefulResponseProcessor(
                     "read_context",
-                    (c) -> contextHolder.set((String) c.get("a"))
+                    (c) -> contextHolder.set((String) c.getAttribute("a"))
                 )
             ),
             Collections.emptyMap()

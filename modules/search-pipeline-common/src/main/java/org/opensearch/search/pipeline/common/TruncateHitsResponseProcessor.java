@@ -53,7 +53,7 @@ public class TruncateHitsResponseProcessor extends AbstractProcessor implements 
         int size;
         if (targetSize < 0) { // No value specified in processor config. Use context value instead.
             String key = applyContextPrefix(contextPrefix, OversampleRequestProcessor.ORIGINAL_SIZE);
-            Object o = requestContext.getGenericRequestContext().get(key);
+            Object o = requestContext.getAttribute(key);
             if (o == null) {
                 throw new IllegalStateException("Must specify " + TARGET_SIZE + " unless an earlier processor set " + key);
             }
