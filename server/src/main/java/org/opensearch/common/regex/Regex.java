@@ -131,7 +131,7 @@ public class Regex {
     private static boolean simpleMatchWithNormalizedStrings(String pattern, String str) {
         int sIdx = 0, pIdx = 0, match = 0, wildcardIdx = -1;
         while (sIdx < str.length()) {
-            // Both chars matching, incrementing both pointers
+            // both chars matching, incrementing both pointers
             if (pIdx < pattern.length() && str.charAt(sIdx) == pattern.charAt(pIdx)) {
                 sIdx++;
                 pIdx++;
