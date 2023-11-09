@@ -83,7 +83,10 @@ public final class ConcurrentQueryProfileBreakdown extends ContextualProfileBrea
             // creates a new weight and breakdown map for each rewritten query. This new breakdown map captures the timing information for
             // the new rewritten query. The sliceCollectorsToLeaves is empty because this breakdown for rewritten query gets created later
             // in search leaf path which doesn't have collector. Also, this is not needed since this breakdown is per leaf and there is no
-            // concurrency involved. An empty sliceCollectorsToLeaves could also happen in the case of early termination.
+            // concurrency involved.
+            assert contexts.size() == 1 : "Unexpected size: "
+                + contexts.size()
+                + " of leaves breakdown in ConcurrentQueryProfileBreakdown of rewritten query for a leaf.";
             AbstractProfileBreakdown<QueryTimingType> breakdown = contexts.values().iterator().next();
             queryNodeTime = breakdown.toNodeTime() + createWeightTime;
             maxSliceNodeTime = 0L;
