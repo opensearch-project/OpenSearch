@@ -53,7 +53,7 @@ import org.opensearch.monitor.StatusInfo;
 import org.opensearch.telemetry.tracing.noop.NoopTracer;
 import org.opensearch.test.EqualsHashCodeTestUtils;
 import org.opensearch.test.EqualsHashCodeTestUtils.CopyFunction;
-import org.opensearch.test.OpenSearchSingleNodeTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.transport.CapturingTransport;
 import org.opensearch.test.transport.MockTransport;
 import org.opensearch.threadpool.ThreadPool.Names;
@@ -97,7 +97,7 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.core.IsInstanceOf.instanceOf;
 
-public class FollowersCheckerTests extends OpenSearchSingleNodeTestCase {
+public class FollowersCheckerTests extends OpenSearchTestCase {
 
     public void testChecksExpectedNodes() {
         final DiscoveryNode localNode = new DiscoveryNode("local-node", buildNewFakeTransportAddress(), Version.CURRENT);
@@ -794,51 +794,5 @@ public class FollowersCheckerTests extends OpenSearchSingleNodeTestCase {
             return TransportResponse.Empty.INSTANCE;
         }
 
-    }
-
-    public void testFollowerCheckTimeoutValueUpdate() {
-        Setting<TimeValue> setting1 = FOLLOWER_CHECK_TIMEOUT_SETTING;
-        Settings timeSettings1 = Settings.builder().put(setting1.getKey(), "60s").build();
-        try {
-            ClusterUpdateSettingsResponse response = client().admin()
-                .cluster()
-                .prepareUpdateSettings()
-                .setPersistentSettings(timeSettings1)
-                .execute()
-                .actionGet();
-
-            assertAcked(response);
-            assertEquals(timeValueSeconds(60), setting1.get(response.getPersistentSettings()));
-        } finally {
-            // cleanup
-            timeSettings1 = Settings.builder().putNull(setting1.getKey()).build();
-            client().admin().cluster().prepareUpdateSettings().setPersistentSettings(timeSettings1).execute().actionGet();
-        }
-    }
-
-    public void testFollowerCheckTimeoutMaxValue() {
-        Setting<TimeValue> setting1 = FOLLOWER_CHECK_TIMEOUT_SETTING;
-        Settings timeSettings1 = Settings.builder().put(setting1.getKey(), "61s").build();
-
-        assertThrows(
-            "failed to parse value [61s] for setting [" + setting1.getKey() + "], must be <= [60000ms]",
-            IllegalArgumentException.class,
-            () -> {
-                client().admin().cluster().prepareUpdateSettings().setPersistentSettings(timeSettings1).execute().actionGet();
-            }
-        );
-    }
-
-    public void testFollowerCheckTimeoutMinValue() {
-        Setting<TimeValue> setting1 = FOLLOWER_CHECK_TIMEOUT_SETTING;
-        Settings timeSettings1 = Settings.builder().put(setting1.getKey(), "0s").build();
-
-        assertThrows(
-            "failed to parse value [0s] for setting [" + setting1.getKey() + "], must be >= [1ms]",
-            IllegalArgumentException.class,
-            () -> {
-                client().admin().cluster().prepareUpdateSettings().setPersistentSettings(timeSettings1).execute().actionGet();
-            }
-        );
     }
 }

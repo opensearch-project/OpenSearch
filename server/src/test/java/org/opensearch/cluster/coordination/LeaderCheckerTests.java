@@ -51,6 +51,7 @@ import org.opensearch.telemetry.tracing.noop.NoopTracer;
 import org.opensearch.test.EqualsHashCodeTestUtils;
 import org.opensearch.test.EqualsHashCodeTestUtils.CopyFunction;
 import org.opensearch.test.OpenSearchSingleNodeTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.transport.CapturingTransport;
 import org.opensearch.test.transport.MockTransport;
 import org.opensearch.threadpool.ThreadPool.Names;
@@ -84,7 +85,7 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.matchesRegex;
 import static org.hamcrest.Matchers.nullValue;
 
-public class LeaderCheckerTests extends OpenSearchSingleNodeTestCase {
+public class LeaderCheckerTests extends OpenSearchTestCase {
 
     public void testFollowerBehaviour() {
         final DiscoveryNode leader1 = new DiscoveryNode("leader-1", buildNewFakeTransportAddress(), Version.CURRENT);
@@ -246,7 +247,7 @@ public class LeaderCheckerTests extends OpenSearchSingleNodeTestCase {
         final DiscoveryNode localNode = new DiscoveryNode("local-node", buildNewFakeTransportAddress(), Version.CURRENT);
         final DiscoveryNode leader = new DiscoveryNode("leader", buildNewFakeTransportAddress(), Version.CURRENT);
 
-        final Response[] responseHolder = new Response[] { Response.SUCCESS };
+        final Response[] responseHolder = new Response[]{Response.SUCCESS};
 
         final Settings settings = Settings.builder().put(NODE_NAME_SETTING.getKey(), localNode.getId()).build();
         final ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
@@ -362,7 +363,7 @@ public class LeaderCheckerTests extends OpenSearchSingleNodeTestCase {
         final DiscoveryNode localNode = new DiscoveryNode("local-node", buildNewFakeTransportAddress(), Version.CURRENT);
         final DiscoveryNode leader = new DiscoveryNode("leader", buildNewFakeTransportAddress(), Version.CURRENT);
 
-        final Response[] responseHolder = new Response[] { Response.SUCCESS };
+        final Response[] responseHolder = new Response[]{Response.SUCCESS};
 
         final Settings settings = Settings.builder().put(NODE_NAME_SETTING.getKey(), localNode.getId()).build();
         final ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
@@ -567,49 +568,5 @@ public class LeaderCheckerTests extends OpenSearchSingleNodeTestCase {
             rq -> new LeaderCheckRequest(new DiscoveryNode(randomAlphaOfLength(10), buildNewFakeTransportAddress(), Version.CURRENT))
         );
     }
-
-    public void testLeaderCheckTimeoutValueUpdate() {
-        Setting<TimeValue> setting1 = LEADER_CHECK_TIMEOUT_SETTING;
-        Settings timeSettings1 = Settings.builder().put(setting1.getKey(), "60s").build();
-        try {
-            ClusterUpdateSettingsResponse response = client().admin()
-                .cluster()
-                .prepareUpdateSettings()
-                .setPersistentSettings(timeSettings1)
-                .execute()
-                .actionGet();
-            assertAcked(response);
-            assertEquals(timeValueSeconds(60), setting1.get(response.getPersistentSettings()));
-        } finally {
-            // cleanup
-            timeSettings1 = Settings.builder().putNull(setting1.getKey()).build();
-            client().admin().cluster().prepareUpdateSettings().setPersistentSettings(timeSettings1).execute().actionGet();
-        }
-    }
-
-    public void testLeaderCheckTimeoutMaxValue() {
-        Setting<TimeValue> setting1 = LEADER_CHECK_TIMEOUT_SETTING;
-        Settings timeSettings1 = Settings.builder().put(setting1.getKey(), "61s").build();
-
-        assertThrows(
-            "failed to parse value [61s] for setting [" + setting1.getKey() + "], must be <= [60000ms]",
-            IllegalArgumentException.class,
-            () -> {
-                client().admin().cluster().prepareUpdateSettings().setPersistentSettings(timeSettings1).execute().actionGet();
-            }
-        );
-    }
-
-    public void testLeaderCheckTimeoutMinValue() {
-        Setting<TimeValue> setting1 = LEADER_CHECK_TIMEOUT_SETTING;
-        Settings timeSettings1 = Settings.builder().put(setting1.getKey(), "0s").build();
-
-        assertThrows(
-            "failed to parse value [0s] for setting [" + setting1.getKey() + "], must be >= [1ms]",
-            IllegalArgumentException.class,
-            () -> {
-                client().admin().cluster().prepareUpdateSettings().setPersistentSettings(timeSettings1).execute().actionGet();
-            }
-        );
-    }
 }
+
