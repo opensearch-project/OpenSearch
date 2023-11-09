@@ -160,7 +160,6 @@ public class Regex {
         return pIdx == pattern.length();
     }
 
-
     /**
      * Match a String against the given patterns, supporting the following simple
      * pattern styles: "xxx*", "*xxx", "*xxx*" and "xxx*yyy" matches (with an
