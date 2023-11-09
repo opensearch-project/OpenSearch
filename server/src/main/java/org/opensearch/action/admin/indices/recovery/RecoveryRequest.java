@@ -34,6 +34,7 @@ package org.opensearch.action.admin.indices.recovery;
 
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.action.support.broadcast.BroadcastRequest;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
@@ -43,8 +44,9 @@ import java.io.IOException;
 /**
  * Request for recovery information
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class RecoveryRequest extends BroadcastRequest<RecoveryRequest> {
 
     private boolean detailed = false;       // Provides extra details in the response

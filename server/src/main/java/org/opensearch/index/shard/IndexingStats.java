@@ -33,6 +33,7 @@
 package org.opensearch.index.shard;
 
 import org.opensearch.Version;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
@@ -50,22 +51,25 @@ import java.util.concurrent.atomic.AtomicLong;
 /**
  * Tracks indexing statistics
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class IndexingStats implements Writeable, ToXContentFragment {
 
     /**
      * Internal statistics for indexing
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public static class Stats implements Writeable, ToXContentFragment {
 
         /**
          * Tracks item level rest category class codes during indexing
          *
-         * @opensearch.internal
+         * @opensearch.api
          */
+        @PublicApi(since = "1.0.0")
         public static class DocStatusStats implements Writeable, ToXContentFragment {
 
             final AtomicLong[] docStatusCounter;

@@ -32,6 +32,7 @@
 
 package org.opensearch.action.fieldcaps;
 
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.core.ParseField;
 import org.opensearch.core.action.ActionResponse;
@@ -57,8 +58,10 @@ import java.util.stream.Collectors;
 /**
  * Response for {@link FieldCapabilitiesRequest} requests.
  *
- * @opensearch.internal
+ *
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class FieldCapabilitiesResponse extends ActionResponse implements ToXContentObject {
     private static final ParseField INDICES_FIELD = new ParseField("indices");
     private static final ParseField FIELDS_FIELD = new ParseField("fields");
