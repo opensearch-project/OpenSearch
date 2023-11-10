@@ -129,35 +129,35 @@ public class Regex {
     }
 
     private static boolean simpleMatchWithNormalizedStrings(String pattern, String str) {
-        final int firstIndex = pattern.indexOf('*');
-        if (firstIndex == -1) {
-            return pattern.equals(str);
+        int sIdx = 0, pIdx = 0, match = 0, wildcardIdx = -1;
+        while (sIdx < str.length()) {
+            // both chars matching, incrementing both pointers
+            if (pIdx < pattern.length() && str.charAt(sIdx) == pattern.charAt(pIdx)) {
+                sIdx++;
+                pIdx++;
+            } else if (pIdx < pattern.length() && pattern.charAt(pIdx) == '*') {
+                // wildcard found, only incrementing pattern pointer
+                wildcardIdx = pIdx;
+                match = sIdx;
+                pIdx++;
+            } else if (wildcardIdx != -1) {
+                // last pattern pointer was a wildcard, incrementing string pointer
+                pIdx = wildcardIdx + 1;
+                match++;
+                sIdx = match;
+            } else {
+                // current pattern pointer is not a wildcard, last pattern pointer was also not a wildcard
+                // characters do not match
+                return false;
+            }
         }
-        if (firstIndex == 0) {
-            if (pattern.length() == 1) {
-                return true;
-            }
-            final int nextIndex = pattern.indexOf('*', firstIndex + 1);
-            if (nextIndex == -1) {
-                // str.endsWith(pattern.substring(1)), but avoiding the construction of pattern.substring(1):
-                return str.regionMatches(str.length() - pattern.length() + 1, pattern, 1, pattern.length() - 1);
-            } else if (nextIndex == 1) {
-                // Double wildcard "**" - skipping the first "*"
-                return simpleMatchWithNormalizedStrings(pattern.substring(1), str);
-            }
-            final String part = pattern.substring(1, nextIndex);
-            int partIndex = str.indexOf(part);
-            while (partIndex != -1) {
-                if (simpleMatchWithNormalizedStrings(pattern.substring(nextIndex), str.substring(partIndex + part.length()))) {
-                    return true;
-                }
-                partIndex = str.indexOf(part, partIndex + 1);
-            }
-            return false;
+
+        // check for remaining characters in pattern
+        while (pIdx < pattern.length() && pattern.charAt(pIdx) == '*') {
+            pIdx++;
         }
-        return str.regionMatches(0, pattern, 0, firstIndex)
-            && (firstIndex == pattern.length() - 1 // only wildcard in pattern is at the end, so no need to look at the rest of the string
-                || simpleMatchWithNormalizedStrings(pattern.substring(firstIndex), str.substring(firstIndex)));
+
+        return pIdx == pattern.length();
     }
 
     /**
