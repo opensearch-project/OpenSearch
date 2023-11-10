@@ -101,6 +101,7 @@ import java.util.Collections;
 import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.hamcrest.CoreMatchers.equalTo;
@@ -945,6 +946,68 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
             Names.WRITE
         );
         latch.await();
+    }
+
+    public void testUpdateWithRetryOnConflict() throws IOException, InterruptedException {
+        IndexSettings indexSettings = new IndexSettings(indexMetadata(), Settings.EMPTY);
+        UpdateRequest writeRequest = new UpdateRequest("index", "id").doc(Requests.INDEX_CONTENT_TYPE, "field", "value");
+        writeRequest.retryOnConflict(3);
+        BulkItemRequest primaryRequest = new BulkItemRequest(0, writeRequest);
+
+        IndexRequest updateResponse = new IndexRequest("index").id("id").source(Requests.INDEX_CONTENT_TYPE, "field", "value");
+
+        Exception err = new VersionConflictEngineException(shardId, "id", "I'm conflicted <(;_;)>");
+        Engine.IndexResult conflictedResult = new Engine.IndexResult(err, 0);
+
+        IndexShard shard = mock(IndexShard.class);
+        when(shard.applyIndexOperationOnPrimary(anyLong(), any(), any(), anyLong(), anyLong(), anyLong(), anyBoolean())).thenAnswer(
+            ir -> conflictedResult
+        );
+        when(shard.indexSettings()).thenReturn(indexSettings);
+        when(shard.shardId()).thenReturn(shardId);
+        when(shard.mapperService()).thenReturn(mock(MapperService.class));
+
+        UpdateHelper updateHelper = mock(UpdateHelper.class);
+        when(updateHelper.prepare(any(), eq(shard), any())).thenReturn(
+            new UpdateHelper.Result(
+                updateResponse,
+                randomBoolean() ? DocWriteResponse.Result.CREATED : DocWriteResponse.Result.UPDATED,
+                Collections.singletonMap("field", "value"),
+                Requests.INDEX_CONTENT_TYPE
+            )
+        );
+
+        BulkItemRequest[] items = new BulkItemRequest[] { primaryRequest };
+        BulkShardRequest bulkShardRequest = new BulkShardRequest(shardId, RefreshPolicy.NONE, items);
+
+        final CountDownLatch latch = new CountDownLatch(1);
+        Runnable runnable = () -> TransportShardBulkAction.performOnPrimary(
+            bulkShardRequest,
+            shard,
+            updateHelper,
+            threadPool::absoluteTimeInMillis,
+            new NoopMappingUpdatePerformer(),
+            listener -> listener.onResponse(null),
+            new LatchedActionListener<>(
+                ActionTestUtils.assertNoFailureListener(
+                    result -> assertEquals(
+                        VersionConflictEngineException.class,
+                        result.replicaRequest().items()[0].getPrimaryResponse().getFailure().getCause().getClass()
+                    )
+                ),
+                latch
+            ),
+            threadPool,
+            Names.WRITE
+        );
+
+        // execute the runnable on a separate thread so that the infinite loop can be detected
+        Thread thread = new Thread(runnable);
+        thread.start();
+
+        // timeout the request in 10 seconds if there is an infinite loop
+        assertTrue(latch.await(10, TimeUnit.SECONDS));
+        assertEquals(items[0].getPrimaryResponse().getFailure().getCause().getClass(), VersionConflictEngineException.class);
     }
 
     public void testForceExecutionOnRejectionAfterMappingUpdate() throws Exception {
