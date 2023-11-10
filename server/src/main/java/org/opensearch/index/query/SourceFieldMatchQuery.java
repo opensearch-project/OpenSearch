@@ -69,8 +69,12 @@ public class SourceFieldMatchQuery extends Query {
     }
 
     @Override
-    public Query rewrite(IndexSearcher searcher) throws IOException {
-        return delegateQuery.rewrite(searcher);
+    public Query rewrite(IndexSearcher indexSearcher) throws IOException {
+        Query rewritten = indexSearcher.rewrite(delegateQuery);
+        if (rewritten == delegateQuery) {
+            return this;
+        }
+        return new SourceFieldMatchQuery(rewritten, filter, fieldType, valueFetcher, lookup);
     }
 
     @Override
@@ -96,7 +100,7 @@ public class SourceFieldMatchQuery extends Query {
                         for (Object value : values) {
                             memoryIndex.addField(fieldType.name(), (String) value, fieldType.indexAnalyzer());
                         }
-                        float score = memoryIndex.search(delegateQuery);
+                        float score = memoryIndex.search(filter);
                         return score > 0.0f;
                     }
 

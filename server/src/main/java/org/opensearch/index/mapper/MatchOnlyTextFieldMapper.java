@@ -22,13 +22,17 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.opensearch.Version;
 import org.opensearch.common.lucene.search.MultiPhrasePrefixQuery;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.analysis.IndexAnalyzers;
+import org.opensearch.index.analysis.NamedAnalyzer;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.index.query.SourceFieldMatchQuery;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 
 /**
  * A specialized type of TextFieldMapper which disables the positions and norms to save on storage and executes phrase queries, which requires
@@ -38,6 +42,7 @@ public class MatchOnlyTextFieldMapper extends TextFieldMapper {
 
     public static final FieldType FIELD_TYPE = new FieldType();
     public static final String CONTENT_TYPE = "match_only_text";
+    private final String indexOptions = FieldMapper.indexOptionToString(FIELD_TYPE.indexOptions());
 
     @Override
     protected String contentType() {
@@ -69,10 +74,17 @@ public class MatchOnlyTextFieldMapper extends TextFieldMapper {
         super(simpleName, fieldType, mappedFieldType, prefixFieldMapper, phraseFieldMapper, multiFields, copyTo, builder);
     }
 
+    @Override
+    public ParametrizedFieldMapper.Builder getMergeBuilder() {
+        return new Builder(simpleName(), this.indexCreatedVersion, this.indexAnalyzers).init(this);
+    }
+
     /**
      * Builder class for constructing the MatchOnlyTextFieldMapper.
      */
     public static class Builder extends TextFieldMapper.Builder {
+        final Parameter<String> indexOptions = TextParams.indexOptions(m -> ((MatchOnlyTextFieldMapper) m).indexOptions);
+        final Parameter<Boolean> norms = TextParams.norms(true, m -> ((MatchOnlyTextFieldMapper) m).fieldType.omitNorms() == false);
 
         public Builder(String name, IndexAnalyzers indexAnalyzers) {
             super(name, indexAnalyzers);
@@ -84,8 +96,9 @@ public class MatchOnlyTextFieldMapper extends TextFieldMapper {
 
         @Override
         public MatchOnlyTextFieldMapper build(BuilderContext context) {
+            // TODO - disable norms and index-options and validate
             FieldType fieldType = FIELD_TYPE;
-            MatchOnlyTextFieldType tft = new MatchOnlyTextFieldType(buildFieldType(fieldType, context));
+            MatchOnlyTextFieldType tft = buildFieldType(fieldType, context);
             return new MatchOnlyTextFieldMapper(
                 name,
                 fieldType,
@@ -95,6 +108,60 @@ public class MatchOnlyTextFieldMapper extends TextFieldMapper {
                 multiFieldsBuilder.build(this, context),
                 copyTo.build(),
                 this
+            );
+        }
+
+        @Override
+        protected MatchOnlyTextFieldType buildFieldType(FieldType fieldType, BuilderContext context) {
+            NamedAnalyzer indexAnalyzer = analyzers.getIndexAnalyzer();
+            NamedAnalyzer searchAnalyzer = analyzers.getSearchAnalyzer();
+            NamedAnalyzer searchQuoteAnalyzer = analyzers.getSearchQuoteAnalyzer();
+
+            if (fieldType.indexOptions().compareTo(IndexOptions.DOCS) != 0) {
+                throw new IllegalArgumentException("Cannot set position_increment_gap on field [" + name + "] without positions enabled");
+            }
+            if (positionIncrementGap.get() != POSITION_INCREMENT_GAP_USE_ANALYZER) {
+                indexAnalyzer = new NamedAnalyzer(indexAnalyzer, positionIncrementGap.get());
+                searchAnalyzer = new NamedAnalyzer(searchAnalyzer, positionIncrementGap.get());
+                searchQuoteAnalyzer = new NamedAnalyzer(searchQuoteAnalyzer, positionIncrementGap.get());
+            }
+            TextSearchInfo tsi = new TextSearchInfo(fieldType, similarity.getValue(), searchAnalyzer, searchQuoteAnalyzer);
+            MatchOnlyTextFieldType ft = new MatchOnlyTextFieldType(
+                buildFullName(context),
+                index.getValue(),
+                fieldType.stored(),
+                tsi,
+                meta.getValue()
+            );
+            ft.setIndexAnalyzer(indexAnalyzer);
+            ft.setEagerGlobalOrdinals(eagerGlobalOrdinals.getValue());
+            ft.setBoost(boost.getValue());
+            if (fieldData.getValue()) {
+                ft.setFielddata(true, freqFilter.getValue());
+            }
+            return ft;
+        }
+
+        @Override
+        protected List<Parameter<?>> getParameters() {
+            return Arrays.asList(
+                index,
+                store,
+                indexOptions,
+                norms,
+                termVectors,
+                analyzers.indexAnalyzer,
+                analyzers.searchAnalyzer,
+                analyzers.searchQuoteAnalyzer,
+                similarity,
+                positionIncrementGap,
+                fieldData,
+                freqFilter,
+                eagerGlobalOrdinals,
+                indexPhrases,
+                indexPrefixes,
+                boost,
+                meta
             );
         }
     }
@@ -111,8 +178,8 @@ public class MatchOnlyTextFieldMapper extends TextFieldMapper {
             return CONTENT_TYPE;
         }
 
-        public MatchOnlyTextFieldType(TextFieldMapper.TextFieldType tft) {
-            super(tft.name(), tft.isSearchable(), tft.isStored(), tft.getTextSearchInfo(), tft.meta());
+        public MatchOnlyTextFieldType(String name, boolean indexed, boolean stored, TextSearchInfo tsi, Map<String, String> meta) {
+            super(name, indexed, stored, tsi, meta);
         }
 
         @Override
@@ -197,5 +264,31 @@ public class MatchOnlyTextFieldMapper extends TextFieldMapper {
             termArray.add(List.copyOf(currentTerms));
             return termArray;
         }
+    }
+
+    @Override
+    protected void doXContentBody(XContentBuilder builder, boolean includeDefaults, Params params) throws IOException {
+        // this is a pain, but we have to do this to maintain BWC
+        builder.field("type", contentType());
+        Builder mapperBuilder = (MatchOnlyTextFieldMapper.Builder) getMergeBuilder();
+        mapperBuilder.boost.toXContent(builder, includeDefaults);
+        mapperBuilder.index.toXContent(builder, includeDefaults);
+        mapperBuilder.store.toXContent(builder, includeDefaults);
+        this.multiFields.toXContent(builder, params);
+        this.copyTo.toXContent(builder, params);
+        mapperBuilder.meta.toXContent(builder, includeDefaults);
+        mapperBuilder.indexOptions.toXContent(builder, includeDefaults);
+        mapperBuilder.termVectors.toXContent(builder, includeDefaults);
+        mapperBuilder.norms.toXContent(builder, includeDefaults);
+        mapperBuilder.analyzers.indexAnalyzer.toXContent(builder, includeDefaults);
+        mapperBuilder.analyzers.searchAnalyzer.toXContent(builder, includeDefaults);
+        mapperBuilder.analyzers.searchQuoteAnalyzer.toXContent(builder, includeDefaults);
+        mapperBuilder.similarity.toXContent(builder, includeDefaults);
+        mapperBuilder.eagerGlobalOrdinals.toXContent(builder, includeDefaults);
+        mapperBuilder.positionIncrementGap.toXContent(builder, includeDefaults);
+        mapperBuilder.fieldData.toXContent(builder, includeDefaults);
+        mapperBuilder.freqFilter.toXContent(builder, includeDefaults);
+        mapperBuilder.indexPrefixes.toXContent(builder, includeDefaults);
+        mapperBuilder.indexPhrases.toXContent(builder, includeDefaults);
     }
 }
