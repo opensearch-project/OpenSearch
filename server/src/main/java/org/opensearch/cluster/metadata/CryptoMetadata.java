@@ -10,6 +10,7 @@ package org.opensearch.cluster.metadata;
 
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.action.admin.cluster.crypto.CryptoSettings;
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
@@ -24,8 +25,9 @@ import java.util.Objects;
 /**
  * Metadata about encryption and decryption
  *
- * @opensearch.internal
+ * @opensearch.experimental
  */
+@ExperimentalApi
 public class CryptoMetadata implements Writeable {
     static final public String CRYPTO_METADATA_KEY = "crypto_metadata";
     static final public String KEY_PROVIDER_NAME_KEY = "key_provider_name";

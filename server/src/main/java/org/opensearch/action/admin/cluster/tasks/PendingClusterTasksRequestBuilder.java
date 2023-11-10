@@ -34,12 +34,14 @@ package org.opensearch.action.admin.cluster.tasks;
 
 import org.opensearch.action.support.clustermanager.ClusterManagerNodeReadOperationRequestBuilder;
 import org.opensearch.client.OpenSearchClient;
+import org.opensearch.common.annotation.PublicApi;
 
 /**
  * Transport request builder for getting pending cluster tasks
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class PendingClusterTasksRequestBuilder extends ClusterManagerNodeReadOperationRequestBuilder<
     PendingClusterTasksRequest,
     PendingClusterTasksResponse,

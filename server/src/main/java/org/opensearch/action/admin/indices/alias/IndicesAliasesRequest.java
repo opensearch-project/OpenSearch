@@ -39,6 +39,7 @@ import org.opensearch.action.AliasesRequest;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.action.support.master.AcknowledgedRequest;
 import org.opensearch.cluster.metadata.AliasAction;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.ParseField;
 import org.opensearch.core.common.ParsingException;
@@ -73,8 +74,9 @@ import static org.opensearch.core.xcontent.ObjectParser.fromList;
 /**
  * A request to add/remove aliases for one or more indices.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesRequest> implements ToXContentObject {
 
     private List<AliasActions> allAliasActions = new ArrayList<>();
@@ -100,8 +102,9 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
     /**
      * Request to take one or more actions on one or more indexes and alias combinations.
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public static class AliasActions implements AliasesRequest, Writeable, ToXContentObject {
 
         private static final ParseField INDEX = new ParseField("index");
@@ -123,8 +126,9 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
         /**
          * The type of request.
          *
-         * @opensearch.internal
+         * @opensearch.api
          */
+        @PublicApi(since = "1.0.0")
         public enum Type {
             ADD((byte) 0, AliasActions.ADD),
             REMOVE((byte) 1, AliasActions.REMOVE),

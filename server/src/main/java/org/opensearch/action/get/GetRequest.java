@@ -38,6 +38,7 @@ import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.RealtimeRequest;
 import org.opensearch.action.ValidateActions;
 import org.opensearch.action.support.single.shard.SingleShardRequest;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.lucene.uid.Versions;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.StreamInput;
@@ -61,8 +62,9 @@ import static org.opensearch.action.ValidateActions.addValidationError;
  * @see org.opensearch.client.Requests#getRequest(String)
  * @see org.opensearch.client.Client#get(GetRequest)
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class GetRequest extends SingleShardRequest<GetRequest> implements RealtimeRequest {
 
     private String id;
