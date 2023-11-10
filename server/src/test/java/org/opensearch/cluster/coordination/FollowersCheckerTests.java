@@ -757,7 +757,7 @@ public class FollowersCheckerTests extends OpenSearchTestCase {
             settingsBuilder.put(FOLLOWER_CHECK_INTERVAL_SETTING.getKey(), randomIntBetween(100, 100000) + "ms");
         }
         if (randomBoolean()) {
-            settingsBuilder.put(FOLLOWER_CHECK_TIMEOUT_SETTING.getKey(), randomIntBetween(1, 100000) + "ms");
+            settingsBuilder.put(FOLLOWER_CHECK_TIMEOUT_SETTING.getKey(), randomIntBetween(1, 60000) + "ms");
         }
         return settingsBuilder.build();
     }
