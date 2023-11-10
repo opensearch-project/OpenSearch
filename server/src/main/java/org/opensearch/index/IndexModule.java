@@ -496,8 +496,9 @@ public final class IndexModule {
     /**
      * Type of file system
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public enum Type {
         HYBRIDFS("hybridfs"),
         NIOFS("niofs"),

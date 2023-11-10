@@ -7,12 +7,17 @@
  */
 package org.opensearch.common.crypto;
 
+import org.opensearch.common.annotation.ExperimentalApi;
+
 import java.io.Closeable;
 import java.util.Map;
 
 /**
  * Master key provider responsible for management of master keys.
+ *
+ * @opensearch.experimental
  */
+@ExperimentalApi
 public interface MasterKeyProvider extends Closeable {
 
     /**
