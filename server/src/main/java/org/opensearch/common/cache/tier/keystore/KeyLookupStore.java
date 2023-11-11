@@ -103,7 +103,7 @@ public interface KeyLookupStore<T> {
 
     /**
      * Returns an estimate of the store's memory usage.
-     * @return The memory usage, in MB
+     * @return The memory usage
      */
     long getMemorySizeInBytes();
 
