@@ -32,10 +32,9 @@
 package org.opensearch.common.cache.tier.keystore;
 
 import org.opensearch.common.Randomness;
-import org.opensearch.common.cache.tier.keystore.RBMIntKeyLookupStore;
-import org.opensearch.common.cache.tier.keystore.RBMSizeEstimator;
 import org.opensearch.common.metrics.CounterMetric;
 import org.opensearch.test.OpenSearchTestCase;
+import org.roaringbitmap.RoaringBitmap;
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -45,8 +44,10 @@ import java.util.concurrent.Future;
 import java.util.concurrent.ThreadPoolExecutor;
 
 public class RBMIntKeyLookupStoreTests extends OpenSearchTestCase {
+
+    final int BYTES_IN_MB = 1048576;
     public void testInit() {
-        long memCap = 100 * RBMSizeEstimator.BYTES_IN_MB;
+        long memCap = 100 * BYTES_IN_MB;
         RBMIntKeyLookupStore kls = new RBMIntKeyLookupStore(memCap);
         assertEquals(0, kls.getSize());
         assertEquals(RBMIntKeyLookupStore.KeystoreModuloValue.TWO_TO_TWENTY_EIGHT.getValue(), kls.modulo);
@@ -129,16 +130,35 @@ public class RBMIntKeyLookupStoreTests extends OpenSearchTestCase {
     }
 
     public void testMemoryCapBlocksAdd() throws Exception {
-        RBMIntKeyLookupStore.KeystoreModuloValue moduloValue = RBMIntKeyLookupStore.KeystoreModuloValue.TWO_TO_TWENTY_NINE;
-        for (int maxEntries : new int[] { 2342000, 1000, 100000 }) {
-            long memSizeCapInBytes = RBMSizeEstimator.getSizeInBytesWithModuloValue(maxEntries, moduloValue);
-            RBMIntKeyLookupStore kls = new RBMIntKeyLookupStore(moduloValue, memSizeCapInBytes);
-            for (int j = 0; j < maxEntries + 1000; j++) {
-                kls.add(j);
+        // Now that we're using a modified version of rbm.getSizeInBytes(), which doesn't provide an inverse function,
+        // we have to test filling just an RBM with random test values first so that we can get the resulting memory cap limit
+        // to use with our modified size estimate.
+        // This is much noisier so the precision is lower.
+
+        // It is necessary to use randomly distributed integers for both parts of this test, as we would do with hashes in the cache,
+        // as that's what our size estimator is designed for.
+        // If we add a run of integers, our size estimator is not valid, especially for small RBMs.
+
+        int[] maxEntriesArr = new int[] { 1342000, 100000, 3000000};
+        long[] rbmReportedSizes = new long[4];
+        Random rand = Randomness.get();
+        for (int j = 0; j < maxEntriesArr.length; j++)  {
+            RoaringBitmap rbm = new RoaringBitmap();
+            for (int i = 0; i < maxEntriesArr[j]; i++) {
+                rbm.add(rand.nextInt());
             }
-            assertTrue(Math.abs(maxEntries - kls.getSize()) < (double) maxEntries / 25);
-            // exact cap varies a small amount bc of floating point, especially when we use bytes instead of MB for calculations
-            // precision gets much worse when we compose the two functions, as we do here, but this wouldn't happen in an actual use case
+            rbmReportedSizes[j] = rbm.getSizeInBytes();
+        }
+        RBMIntKeyLookupStore.KeystoreModuloValue moduloValue = RBMIntKeyLookupStore.KeystoreModuloValue.TWO_TO_TWENTY_NINE;
+        for (int i = 0; i < maxEntriesArr.length; i++) {
+            double multiplier = RBMIntKeyLookupStore.getRBMSizeMultiplier(maxEntriesArr[i], moduloValue.getValue());
+            long memSizeCapInBytes = (long) (rbmReportedSizes[i] * multiplier);
+            //long memSizeCapInBytes = RBMSizeEstimator.getSizeInBytesWithModuloValue(maxEntries, moduloValue);
+            RBMIntKeyLookupStore kls = new RBMIntKeyLookupStore(moduloValue, memSizeCapInBytes);
+            for (int j = 0; j < maxEntriesArr[i] + 5000; j++) {
+                kls.add(rand.nextInt());
+            }
+            assertTrue(Math.abs(maxEntriesArr[i] - kls.getSize()) < (double) maxEntriesArr[i] / 10);
         }
     }
 
@@ -205,7 +225,7 @@ public class RBMIntKeyLookupStoreTests extends OpenSearchTestCase {
     }
 
     public void testRemoveNoCollisions() throws Exception {
-        long memCap = 100L * RBMSizeEstimator.BYTES_IN_MB;
+        long memCap = 100L * BYTES_IN_MB;
         int numToAdd = 195000;
         RBMIntKeyLookupStore kls = new RBMIntKeyLookupStore(RBMIntKeyLookupStore.KeystoreModuloValue.NONE, memCap);
         // there should be no collisions for sequential positive numbers up to modulo
@@ -222,7 +242,7 @@ public class RBMIntKeyLookupStoreTests extends OpenSearchTestCase {
 
     public void testRemoveWithCollisions() throws Exception {
         int modulo = (int) Math.pow(2, 26);
-        long memCap = 100L * RBMSizeEstimator.BYTES_IN_MB;
+        long memCap = 100L * BYTES_IN_MB;
         RBMIntKeyLookupStore kls = new RBMIntKeyLookupStore(RBMIntKeyLookupStore.KeystoreModuloValue.TWO_TO_TWENTY_SIX, memCap);
         for (int i = 0; i < 10; i++) {
             kls.add(i);
@@ -276,24 +296,6 @@ public class RBMIntKeyLookupStoreTests extends OpenSearchTestCase {
         Integer[] newVals = new Integer[] { 1, 17, -2, null, -4, null };
         kls.regenerateStore(newVals);
         assertEquals(4, kls.getSize());
-    }
-
-    public void testMemoryCapValueInitialization() {
-        RBMIntKeyLookupStore.KeystoreModuloValue[] mods = RBMIntKeyLookupStore.KeystoreModuloValue.values();
-        double[] expectedMultipliers = new double[] { 1.2, 1.2, 1, 1, 1 };
-        double[] expectedSlopes = new double[] { 0.637, 0.637, 0.619, 0.614, 0.629 };
-        double[] expectedIntercepts = new double[] { 3.091, 3.091, 2.993, 2.905, 2.603 };
-        long memSizeCapInBytes = (long) 100.0 * RBMSizeEstimator.BYTES_IN_MB;
-        double delta = 0.01;
-        for (int i = 0; i < mods.length; i++) {
-            RBMIntKeyLookupStore.KeystoreModuloValue moduloValue = mods[i];
-            RBMIntKeyLookupStore kls = new RBMIntKeyLookupStore(moduloValue, memSizeCapInBytes);
-            assertEquals(kls.stats.memSizeCapInBytes, kls.getMemorySizeCapInBytes(), 1.0);
-            assertEquals(expectedMultipliers[i], kls.sizeEstimator.bufferMultiplier, delta);
-            assertEquals(expectedSlopes[i], kls.sizeEstimator.slope, delta);
-            assertEquals(expectedIntercepts[i], kls.sizeEstimator.intercept, delta);
-        }
-
     }
 
     public void testRemovalLogic() throws Exception {
@@ -395,6 +397,6 @@ public class RBMIntKeyLookupStoreTests extends OpenSearchTestCase {
         assertTrue(removalSet.contains(k1));
         assertEquals(1, numCollisions.count());
         assertTrue(kls.contains(k1));
-        assertTrue(kls.contains(k2)); 
+        assertTrue(kls.contains(k2));
     }
 }

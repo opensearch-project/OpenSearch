@@ -34,7 +34,6 @@ package org.opensearch.common.cache.tier.keystore;
 
 import org.opensearch.common.metrics.CounterMetric;
 
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.concurrent.locks.Lock;
@@ -77,10 +76,14 @@ public class RBMIntKeyLookupStore implements KeyLookupStore<Integer> {
     protected RoaringBitmap rbm;
     private HashMap<Integer, CounterMetric> collidedIntCounters;
     private HashMap<Integer, HashSet<Integer>> removalSets;
-    protected RBMSizeEstimator sizeEstimator;
     protected final ReentrantReadWriteLock lock = new ReentrantReadWriteLock();
     protected final Lock readLock = lock.readLock();
     protected final Lock writeLock = lock.writeLock();
+    private long mostRecentByteEstimate;
+    private final int REFRESH_SIZE_EST_INTERVAL = 10000;
+    // Refresh size estimate every X new elements. Refreshes use the RBM's internal size estimator, which takes ~0.01 ms,
+    // so we don't want to do it on every get(), and it doesn't matter much if there are +- 10000 keys in this store
+    // in terms of storage impact
 
     // Default constructor sets modulo = 2^28
     public RBMIntKeyLookupStore(long memSizeCapInBytes) {
@@ -89,18 +92,11 @@ public class RBMIntKeyLookupStore implements KeyLookupStore<Integer> {
 
     public RBMIntKeyLookupStore(KeystoreModuloValue moduloValue, long memSizeCapInBytes) {
         this.modulo = moduloValue.getValue();
-        sizeEstimator = new RBMSizeEstimator(modulo);
-        this.stats = new KeyStoreStats(memSizeCapInBytes, calculateMaxNumEntries(memSizeCapInBytes));
+        this.stats = new KeyStoreStats(memSizeCapInBytes);
         this.rbm = new RoaringBitmap();
         this.collidedIntCounters = new HashMap<>();
         this.removalSets = new HashMap<>();
-    }
-
-    protected int calculateMaxNumEntries(long memSizeCapInBytes) {
-        if (memSizeCapInBytes == 0) {
-            return Integer.MAX_VALUE;
-        }
-        return sizeEstimator.getNumEntriesFromSizeInBytes(memSizeCapInBytes);
+        this.mostRecentByteEstimate = 0L;
     }
 
     private final int transform(int value) {
@@ -125,7 +121,11 @@ public class RBMIntKeyLookupStore implements KeyLookupStore<Integer> {
             return false;
         }
         stats.numAddAttempts.inc();
-        if (stats.size.count() == stats.maxNumEntries) {
+
+        if (getSize() % REFRESH_SIZE_EST_INTERVAL == 0) {
+            mostRecentByteEstimate = getMemorySizeInBytes();
+        }
+        if (getMemorySizeCapInBytes() > 0 && mostRecentByteEstimate > getMemorySizeCapInBytes()) {
             stats.atCapacity.set(true);
             return false;
         }
@@ -273,9 +273,24 @@ public class RBMIntKeyLookupStore implements KeyLookupStore<Integer> {
         return transform(value1) == transform(value2);
     }
 
+     static double getRBMSizeMultiplier(int numEntries, int modulo) {
+        double x = Math.log10((double) numEntries / modulo);
+        if (x < -5) {
+            return 7.0;
+        }
+        if (x < -2.75) {
+            return -2.5 * x - 5.5;
+        }
+        if (x <= 0) {
+            return -3.0 / 22.0 * x + 1;
+        }
+        return 1;
+    }
+
     @Override
     public long getMemorySizeInBytes() {
-        return sizeEstimator.getSizeInBytes((int) stats.size.count()); // + RBMSizeEstimator.getHashsetMemSizeInBytes(collidedInts.size());
+        double multiplier = getRBMSizeMultiplier((int) stats.size.count(), modulo);
+        return (long) (rbm.getSizeInBytes() * multiplier);
     }
 
     @Override
