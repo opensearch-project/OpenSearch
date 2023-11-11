@@ -444,7 +444,6 @@ public final class RemoteShardsBalancer extends ShardsBalancer {
 
                 // Break out if all nodes in the queue have been checked for this shard
                 if (nodeQueue.stream().allMatch(rn -> nodesCheckedForShard.contains(rn.nodeId()))) {
-                    throttled = true;
                     break;
                 }
             }
