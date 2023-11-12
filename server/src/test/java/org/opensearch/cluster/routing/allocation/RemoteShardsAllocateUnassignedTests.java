@@ -95,7 +95,7 @@ public class RemoteShardsAllocateUnassignedTests extends RemoteShardsBalancerBas
     }
 
     /**
-     * Test remote unassigned shard allocation when deciders decide no.
+     * Test remote unassigned shard allocation when deciders make NO or THROTTLED decision.
      */
     public void testNoRemoteAllocation() {
         final int localOnlyNodes = 10;

@@ -406,7 +406,7 @@ public final class RemoteShardsBalancer extends ShardsBalancer {
                     allocation.metadata(),
                     allocation.routingTable()
                 );
-                ShardRouting initShard = routingNodes.initializeShard(shard, node.nodeId(), null, shardSize, allocation.changes());
+                routingNodes.initializeShard(shard, node.nodeId(), null, shardSize, allocation.changes());
                 nodeQueue.offer(node);
                 allocated = true;
                 break;
