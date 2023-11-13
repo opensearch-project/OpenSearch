@@ -34,14 +34,16 @@ package org.opensearch.index.fielddata;
 
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.search.DoubleValues;
+import org.opensearch.common.annotation.PublicApi;
 
 import java.io.IOException;
 
 /**
  * A per-document numeric value.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public abstract class NumericDoubleValues extends DoubleValues {
 
     /** Sole constructor. (For invocation by subclass

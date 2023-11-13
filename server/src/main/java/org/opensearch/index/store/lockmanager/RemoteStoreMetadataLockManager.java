@@ -12,6 +12,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexOutput;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.index.store.RemoteBufferedOutputDirectory;
 
 import java.io.FileNotFoundException;
@@ -28,8 +29,9 @@ import java.util.stream.Collectors;
  * It uses {@code LockFileInfo} instance to get the information about the lock file on which operations need to
  * be executed.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "2.8.0")
 public class RemoteStoreMetadataLockManager implements RemoteStoreLockManager {
     private static final Logger logger = LogManager.getLogger(RemoteStoreMetadataLockManager.class);
     private final RemoteBufferedOutputDirectory lockDirectory;
