@@ -135,6 +135,7 @@ public class RandomScoreFunctionIT extends ParameterizedOpenSearchIntegTestCase 
         }
         flush();
         refresh();
+        indexRandomForConcurrentSearch("test");
         int outerIters = scaledRandomIntBetween(10, 20);
         for (int o = 0; o < outerIters; o++) {
             final int seed = randomInt();
@@ -299,6 +300,7 @@ public class RandomScoreFunctionIT extends ParameterizedOpenSearchIntegTestCase 
         index("test", "type", "1", jsonBuilder().startObject().endObject());
         flush();
         refresh();
+        indexRandomForConcurrentSearch("test");
 
         int seed = 12345678;
 
@@ -318,6 +320,7 @@ public class RandomScoreFunctionIT extends ParameterizedOpenSearchIntegTestCase 
         index("test", "type", "1", jsonBuilder().startObject().endObject());
         flush();
         refresh();
+        indexRandomForConcurrentSearch("test");
 
         int seed = 12345678;
 
