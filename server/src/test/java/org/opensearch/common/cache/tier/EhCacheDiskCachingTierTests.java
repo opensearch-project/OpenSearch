@@ -74,7 +74,7 @@ public class EhCacheDiskCachingTierTests extends OpenSearchSingleNodeTestCase {
                 .setExpireAfterAccess(TimeValue.MAX_VALUE)
                 .setSettings(settings)
                 .setThreadPoolAlias("ehcacheTest")
-                .setMaximumWeightInBytes(CACHE_SIZE_IN_BYTES)
+                .setMaximumWeightInBytes(CACHE_SIZE_IN_BYTES * 2) // bigger so no evictions happen
                 .setStoragePath(env.nodePaths()[0].indicesPath.toString() + "/request_cache")
                 .setSettingPrefix(SETTING_PREFIX)
                 .setKeySerializer(new StringSerializer())
