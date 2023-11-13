@@ -44,14 +44,6 @@ import org.ehcache.expiry.ExpiryPolicy;
 import org.ehcache.impl.config.store.disk.OffHeapDiskStoreConfiguration;
 
 /**
- * This ehcache disk caching tier uses its value serializer outside ehcache.
- * Values are transformed to byte[] outside ehcache and then ehcache uses its bundled byte[] serializer.
- * The key serializer you pass to this class produces a byte[]. This serializer is passed to a wrapper which
- * implements Ehcache's serializer implementation and produces a BytesBuffer. The wrapper instance is then passed to ehcache.
- * This is done because to get keys on a disk tier, ehcache internally checks the equals() method of the serializer,
- * but ALSO requires newKey.equals(storedKey) (this isn't documented), which is the case for ByteBuffer but not byte[].
- * This limitation means that the key serializer must preserve the class of the key before/after serialization,
- * but the value serializer does not have to do this.
  * @param <K> The key type of cache entries
  * @param <V> The value type of cache entries
  */
@@ -293,7 +285,8 @@ public class EhCacheDiskCachingTier<K, V> implements DiskCachingTier<K, V> {
                             new RemovalNotification<>(
                                 event.getKey(),
                                 valueSerializer.deserialize(event.getOldValue()),
-                                RemovalReason.EVICTED
+                                RemovalReason.EVICTED,
+                                TierType.DISK
                             )
                         )
                     );
@@ -310,7 +303,8 @@ public class EhCacheDiskCachingTier<K, V> implements DiskCachingTier<K, V> {
                             new RemovalNotification<>(
                                 event.getKey(),
                                 valueSerializer.deserialize(event.getOldValue()),
-                                RemovalReason.INVALIDATED
+                                RemovalReason.INVALIDATED,
+                                TierType.DISK
                             )
                         )
                     );
