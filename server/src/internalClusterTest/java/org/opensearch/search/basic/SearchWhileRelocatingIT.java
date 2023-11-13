@@ -109,6 +109,7 @@ public class SearchWhileRelocatingIT extends ParameterizedOpenSearchIntegTestCas
                     )
             );
         }
+        indexRandomForConcurrentSearch("test");
         indexRandom(true, indexBuilders.toArray(new IndexRequestBuilder[0]));
         assertHitCount(client().prepareSearch().get(), (numDocs));
         final int numIters = scaledRandomIntBetween(5, 20);
