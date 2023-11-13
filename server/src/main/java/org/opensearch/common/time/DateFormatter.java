@@ -137,6 +137,10 @@ public interface DateFormatter {
      */
     DateMathParser toDateMathParser();
 
+    static DateFormatter forPattern(String input, String printPattern, Boolean canCacheFormatter) {
+        return forPattern(input, printPattern, canCacheFormatter, Version.CURRENT);
+    }
+
     static DateFormatter forPattern(String input, String printPattern, Boolean canCacheFormatter, final Version supportedVersion) {
 
         if (Strings.hasLength(input) == false) {
