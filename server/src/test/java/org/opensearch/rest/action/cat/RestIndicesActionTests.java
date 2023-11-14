@@ -46,10 +46,14 @@ import org.opensearch.common.UUIDs;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.index.IndexSettings;
+import org.opensearch.indices.SystemIndexDescriptor;
+import org.opensearch.indices.SystemIndices;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.rest.FakeRestRequest;
 
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -70,9 +74,15 @@ public class RestIndicesActionTests extends OpenSearchTestCase {
         final Map<String, ClusterIndexHealth> indicesHealths = new LinkedHashMap<>();
         final Map<String, IndexStats> indicesStats = new LinkedHashMap<>();
 
+        String systemIndexName = ".system-index";
+        List<String> indexNames = new ArrayList<>();
+        indexNames.add(systemIndexName);
         for (int i = 0; i < numIndices; i++) {
             String indexName = "index-" + i;
+            indexNames.add(indexName);
+        }
 
+        for (String indexName : indexNames) {
             Settings indexSettings = Settings.builder()
                 .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
                 .put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
@@ -137,17 +147,13 @@ public class RestIndicesActionTests extends OpenSearchTestCase {
             }
         }
 
-        final RestIndicesAction action = new RestIndicesAction();
+        final RestIndicesAction action = new RestIndicesAction(
+            new SystemIndices(Map.of("testplugin", List.of(new SystemIndexDescriptor(systemIndexName, "Example of a system index"))))
+        );
         final Table table = action.buildTable(new FakeRestRequest(), indicesSettings, indicesHealths, indicesStats, indicesMetadatas);
 
         // now, verify the table is correct
-        List<Table.Cell> headers = table.getHeaders();
-        assertThat(headers.get(0).value, equalTo("health"));
-        assertThat(headers.get(1).value, equalTo("status"));
-        assertThat(headers.get(2).value, equalTo("index"));
-        assertThat(headers.get(3).value, equalTo("uuid"));
-        assertThat(headers.get(4).value, equalTo("pri"));
-        assertThat(headers.get(5).value, equalTo("rep"));
+        verifyTableHeaders(table);
 
         final List<List<Table.Cell>> rows = table.getRows();
         assertThat(rows.size(), equalTo(indicesMetadatas.size()));
@@ -178,5 +184,35 @@ public class RestIndicesActionTests extends OpenSearchTestCase {
                 assertThat(row.get(5).value, nullValue());
             }
         }
+
+        final Table tableWithSystemIndexOnly = action.buildTable(
+            new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withParams(Map.of("system", "true")).build(),
+            indicesSettings,
+            indicesHealths,
+            indicesStats,
+            indicesMetadatas
+        );
+
+        // now, verify the table is correct
+        verifyTableHeaders(tableWithSystemIndexOnly);
+
+        final List<List<Table.Cell>> systemIndexRows = tableWithSystemIndexOnly.getRows();
+        assertThat(systemIndexRows.size(), equalTo(1));
+
+        for (final List<Table.Cell> row : systemIndexRows) {
+            final String indexName = (String) row.get(2).value;
+
+            assertThat(indexName, equalTo(".system-index"));
+        }
+    }
+
+    private void verifyTableHeaders(Table table) {
+        List<Table.Cell> headers = table.getHeaders();
+        assertThat(headers.get(0).value, equalTo("health"));
+        assertThat(headers.get(1).value, equalTo("status"));
+        assertThat(headers.get(2).value, equalTo("index"));
+        assertThat(headers.get(3).value, equalTo("uuid"));
+        assertThat(headers.get(4).value, equalTo("pri"));
+        assertThat(headers.get(5).value, equalTo("rep"));
     }
 }

@@ -59,6 +59,7 @@ import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.action.ActionResponse;
 import org.opensearch.core.common.Strings;
 import org.opensearch.index.IndexSettings;
+import org.opensearch.indices.SystemIndices;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.RestResponse;
 import org.opensearch.rest.action.RestResponseListener;
@@ -97,6 +98,12 @@ public class RestIndicesAction extends AbstractCatAction {
     private static final String DUPLICATE_PARAMETER_ERROR_MESSAGE =
         "Please only use one of the request parameters [master_timeout, cluster_manager_timeout].";
 
+    private final SystemIndices systemIndices;
+
+    public RestIndicesAction(SystemIndices systemIndices) {
+        this.systemIndices = systemIndices;
+    }
+
     @Override
     public List<Route> routes() {
         return unmodifiableList(asList(new Route(GET, "/_cat/indices"), new Route(GET, "/_cat/indices/{index}")));
@@ -123,6 +130,7 @@ public class RestIndicesAction extends AbstractCatAction {
         final String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
         final IndicesOptions indicesOptions = IndicesOptions.fromRequest(request, IndicesOptions.strictExpand());
         final boolean local = request.paramAsBoolean("local", false);
+        final boolean system = request.paramAsBoolean("system", false);
         TimeValue clusterManagerTimeout = request.paramAsTime("cluster_manager_timeout", DEFAULT_CLUSTER_MANAGER_NODE_TIMEOUT);
         // Remove the if condition and statements inside after removing MASTER_ROLE.
         if (request.hasParam("master_timeout")) {
@@ -716,6 +724,7 @@ public class RestIndicesAction extends AbstractCatAction {
     ) {
 
         final String healthParam = request.param("health");
+        final boolean systemParam = request.paramAsBoolean("system", false);
         final Table table = getTableWithHeader(request);
 
         indicesSettings.forEach((indexName, settings) -> {
@@ -751,6 +760,13 @@ public class RestIndicesAction extends AbstractCatAction {
                     skip = ClusterHealthStatus.RED != healthStatusFilter;
                 }
                 if (skip) {
+                    return;
+                }
+            }
+
+            if (systemParam) {
+                if (!systemIndices.isSystemIndex(indexName)) {
+                    // System filter is enabled but index is not a system index
                     return;
                 }
             }
