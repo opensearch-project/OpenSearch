@@ -50,7 +50,7 @@ import org.ehcache.impl.config.store.disk.OffHeapDiskStoreConfiguration;
 public class EhCacheDiskCachingTier<K, V> implements DiskCachingTier<K, V> {
 
     // A Cache manager can create many caches.
-    private final PersistentCacheManager cacheManager;
+    private static PersistentCacheManager cacheManager = null;
 
     // Disk cache
     private Cache<K, byte[]> cache;
@@ -118,8 +118,15 @@ public class EhCacheDiskCachingTier<K, V> implements DiskCachingTier<K, V> {
         this.DISK_WRITE_CONCURRENCY = Setting.intSetting(builder.settingPrefix + ".tiered.disk.ehcache.concurrency", 2, 1, 3);
         // Default value is 16 within Ehcache.
         this.DISK_SEGMENTS = Setting.intSetting(builder.settingPrefix + ".ehcache.disk.segments", 16, 1, 32);
-        this.cacheManager = buildCacheManager();
-        this.cache = buildCache(Duration.ofMillis(expireAfterAccess.getMillis()), builder);
+        if (cacheManager == null) {
+            cacheManager = buildCacheManager();
+            this.cache = buildCache(Duration.ofMillis(expireAfterAccess.getMillis()), builder);
+        }
+
+        // IndicesRequestCache gets 1%, of which we allocate 5% to the keystore = 0.05%
+        // TODO: how do we change this automatically based on INDICES_CACHE_QUERY_SIZE setting?
+        Setting<ByteSizeValue> keystoreSizeSetting = Setting.memorySizeSetting(builder.settingPrefix + ".tiered.disk.keystore_size", "0.05%");
+        this.keystore = new RBMIntKeyLookupStore(keystoreSizeSetting.get(this.settings).getBytes());
     }
 
     private PersistentCacheManager buildCacheManager() {
@@ -137,7 +144,7 @@ public class EhCacheDiskCachingTier<K, V> implements DiskCachingTier<K, V> {
     }
 
     private Cache<K, byte[]> buildCache(Duration expireAfterAccess, Builder<K, V> builder) {
-        return this.cacheManager.createCache(
+        return cacheManager.createCache(
             DISK_CACHE_ALIAS,
             CacheConfigurationBuilder.newCacheConfigurationBuilder(
                 keyType,
