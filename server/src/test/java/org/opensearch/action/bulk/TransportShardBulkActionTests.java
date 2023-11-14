@@ -88,6 +88,7 @@ import org.opensearch.index.shard.ShardNotFoundException;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.SystemIndices;
+import org.opensearch.telemetry.tracing.noop.NoopTracer;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.threadpool.ThreadPool.Names;
@@ -1074,7 +1075,8 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
             mock(IndexingPressureService.class),
             mock(SegmentReplicationPressureService.class),
             mock(RemoteStorePressureService.class),
-            mock(SystemIndices.class)
+            mock(SystemIndices.class),
+            NoopTracer.INSTANCE
         );
         action.handlePrimaryTermValidationRequest(
             new TransportShardBulkAction.PrimaryTermValidationRequest(aId + "-1", 1, shardId),
@@ -1105,7 +1107,8 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
             mock(IndexingPressureService.class),
             mock(SegmentReplicationPressureService.class),
             mock(RemoteStorePressureService.class),
-            mock(SystemIndices.class)
+            mock(SystemIndices.class),
+            NoopTracer.INSTANCE
         );
         action.handlePrimaryTermValidationRequest(
             new TransportShardBulkAction.PrimaryTermValidationRequest(aId, 1, shardId),
@@ -1136,7 +1139,8 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
             mock(IndexingPressureService.class),
             mock(SegmentReplicationPressureService.class),
             mock(RemoteStorePressureService.class),
-            mock(SystemIndices.class)
+            mock(SystemIndices.class),
+            NoopTracer.INSTANCE
         );
         action.handlePrimaryTermValidationRequest(
             new TransportShardBulkAction.PrimaryTermValidationRequest(aId, 1, shardId),
@@ -1178,7 +1182,8 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
             mock(IndexingPressureService.class),
             mock(SegmentReplicationPressureService.class),
             mock(RemoteStorePressureService.class),
-            mock(SystemIndices.class)
+            mock(SystemIndices.class),
+            NoopTracer.INSTANCE
         );
     }
 

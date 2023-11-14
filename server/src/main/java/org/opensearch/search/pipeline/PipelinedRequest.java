@@ -12,6 +12,7 @@ import org.opensearch.action.search.SearchPhaseContext;
 import org.opensearch.action.search.SearchPhaseResults;
 import org.opensearch.action.search.SearchRequest;
 import org.opensearch.action.search.SearchResponse;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.search.SearchPhaseResult;
 
 /**
@@ -27,8 +28,12 @@ public final class PipelinedRequest extends SearchRequest {
         this.pipeline = pipeline;
     }
 
-    public SearchResponse transformResponse(SearchResponse response) {
-        return pipeline.transformResponse(this, response);
+    public void transformRequest(ActionListener<SearchRequest> requestListener) {
+        pipeline.transformRequest(this, requestListener);
+    }
+
+    public ActionListener<SearchResponse> transformResponseListener(ActionListener<SearchResponse> responseListener) {
+        return pipeline.transformResponseListener(this, responseListener);
     }
 
     public <Result extends SearchPhaseResult> void transformSearchPhaseResults(

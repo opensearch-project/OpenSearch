@@ -8,9 +8,14 @@
 
 package org.opensearch.cluster.decommission;
 
+import org.opensearch.common.annotation.PublicApi;
+
 /**
  * An enumeration of the states during decommissioning
+ *
+ * @opensearch.api
  */
+@PublicApi(since = "2.4.0")
 public enum DecommissionStatus {
     /**
      * Decommission process is initiated, and to-be-decommissioned leader is excluded from voting config

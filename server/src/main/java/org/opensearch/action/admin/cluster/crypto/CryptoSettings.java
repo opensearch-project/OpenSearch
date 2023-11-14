@@ -9,6 +9,7 @@
 package org.opensearch.action.admin.cluster.crypto;
 
 import org.opensearch.action.ActionRequestValidationException;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.common.io.stream.StreamInput;
@@ -28,8 +29,9 @@ import static org.opensearch.common.settings.Settings.writeSettingsToStream;
 /**
  * Crypto settings supplied during a put repository request
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class CryptoSettings implements Writeable, ToXContentObject {
     private String keyProviderName;
     private String keyProviderType;

@@ -9,7 +9,6 @@
 package org.opensearch.telemetry.tracing.channels;
 
 import org.opensearch.Version;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.transport.TransportResponse;
 import org.opensearch.telemetry.tracing.Span;
@@ -20,6 +19,7 @@ import org.opensearch.transport.TcpTransportChannel;
 import org.opensearch.transport.TransportChannel;
 
 import java.io.IOException;
+import java.util.Optional;
 
 /**
  * Tracer wrapped {@link TransportChannel}
@@ -52,7 +52,7 @@ public class TraceableTcpTransportChannel extends BaseTcpTransportChannel {
      * @return transport channel
      */
     public static TransportChannel create(TcpTransportChannel delegate, final Span span, final Tracer tracer) {
-        if (FeatureFlags.isEnabled(FeatureFlags.TELEMETRY) == true) {
+        if (tracer.isRecording() == true) {
             delegate.getChannel().addCloseListener(new ActionListener<Void>() {
                 @Override
                 public void onResponse(Void unused) {
@@ -108,5 +108,10 @@ public class TraceableTcpTransportChannel extends BaseTcpTransportChannel {
     @Override
     public Version getVersion() {
         return delegate.getVersion();
+    }
+
+    @Override
+    public <T> Optional<T> get(String name, Class<T> clazz) {
+        return delegate.get(name, clazz);
     }
 }

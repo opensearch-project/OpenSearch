@@ -8,11 +8,14 @@
 
 package org.opensearch.core.tasks.resourcetracker;
 
+import org.opensearch.common.annotation.PublicApi;
+
 /**
  *  Different resource stats are defined.
  *
- *  @opensearch.internal
+ *  @opensearch.api
  */
+@PublicApi(since = "2.1.0")
 public enum ResourceStats {
     CPU("cpu_time_in_nanos"),
     MEMORY("memory_in_bytes");

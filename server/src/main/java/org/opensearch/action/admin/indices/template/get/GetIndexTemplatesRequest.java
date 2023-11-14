@@ -33,6 +33,7 @@ package org.opensearch.action.admin.indices.template.get;
 
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.support.clustermanager.ClusterManagerNodeReadRequest;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
@@ -44,8 +45,9 @@ import static org.opensearch.action.ValidateActions.addValidationError;
 /**
  * Request that allows to retrieve index templates
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class GetIndexTemplatesRequest extends ClusterManagerNodeReadRequest<GetIndexTemplatesRequest> {
 
     private String[] names;

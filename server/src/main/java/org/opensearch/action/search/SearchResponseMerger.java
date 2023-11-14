@@ -236,6 +236,7 @@ final class SearchResponseMerger {
             successfulShards,
             skippedShards,
             tookInMillis,
+            searchTimeProvider.getPhaseTook(),
             shardFailures,
             clusters,
             null

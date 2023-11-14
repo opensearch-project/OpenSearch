@@ -35,6 +35,7 @@ import org.opensearch.Version;
 import org.opensearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
 import org.opensearch.cluster.SnapshotsInProgress;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.time.DateFormatter;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.ParseField;
@@ -64,8 +65,9 @@ import java.util.stream.Collectors;
 /**
  * Information about a snapshot
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent, Writeable {
 
     public static final String CONTEXT_MODE_PARAM = "context_mode";
