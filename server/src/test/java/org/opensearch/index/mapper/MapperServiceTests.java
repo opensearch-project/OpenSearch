@@ -63,7 +63,9 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.is;
@@ -538,6 +540,28 @@ public class MapperServiceTests extends OpenSearchSingleNodeTestCase {
                 originalTokenFilters,
                 mapperService.fieldType("otherField").getTextSearchInfo().getSearchQuoteAnalyzer()
             )
+        );
+    }
+
+    public void testMapperDynamicAllowedIgnored() {
+        final List<Function<Settings.Builder, Settings.Builder>> scenarios = List.of(
+            (builder) -> builder.putNull(MapperService.INDEX_MAPPER_DYNAMIC_SETTING.getKey()),
+            (builder) -> builder.put(MapperService.INDEX_MAPPER_DYNAMIC_SETTING.getKey(), true),
+            (builder) -> builder.put(MapperService.INDEX_MAPPER_DYNAMIC_SETTING.getKey(), false)
+        );
+
+        for (int i = 0; i < scenarios.size(); i++) {
+            final Settings.Builder defaultSettingsBuilder = Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1);
+
+            final Settings settings = scenarios.get(i).apply(defaultSettingsBuilder).build();
+
+            createIndex("test" + i, settings).mapperService();
+        }
+
+        assertWarnings(
+            "[index.mapper.dynamic] setting was deprecated in OpenSearch and will be removed in a future release! See the breaking changes documentation for the next major version."
         );
     }
 
