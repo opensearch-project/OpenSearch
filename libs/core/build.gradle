@@ -104,16 +104,23 @@ tasks.named('forbiddenApisMain').configure {
 tasks.named("thirdPartyAudit").configure {
   ignoreMissingClasses(
     // from log4j
-    'org.osgi.framework.Bundle',
-    'org.osgi.framework.BundleActivator',
-    'org.osgi.framework.BundleContext',
-    'org.osgi.framework.BundleEvent',
-    'org.osgi.framework.FrameworkUtil',
-    'org.osgi.framework.ServiceReference',
-    'org.osgi.framework.ServiceRegistration',
-    'org.osgi.framework.SynchronousBundleListener',
-    'org.osgi.framework.wiring.BundleWire',
-    'org.osgi.framework.wiring.BundleWiring'
+    *[
+        'org.osgi.framework.Bundle',
+        'org.osgi.framework.BundleActivator',
+        'org.osgi.framework.BundleContext',
+        'org.osgi.framework.BundleEvent',
+        'org.osgi.framework.SynchronousBundleListener',
+        'org.osgi.framework.wiring.BundleWire',
+        'org.osgi.framework.wiring.BundleWiring',
+    ]  + (BuildParams.runtimeJavaVersion < JavaVersion.VERSION_20) ? [] : [
+       'jdk.incubator.vector.ByteVector',
+       'jdk.incubator.vector.FloatVector',
+       'jdk.incubator.vector.IntVector',
+       'jdk.incubator.vector.ShortVector',
+       'jdk.incubator.vector.Vector',
+       'jdk.incubator.vector.VectorOperators',
+       'jdk.incubator.vector.VectorSpecies'
+    ]
   )
 }
 

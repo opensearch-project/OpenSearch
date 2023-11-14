@@ -77,10 +77,19 @@ final class SystemJvmOptions {
                 // log4j 2
                 "-Dlog4j.shutdownHookEnabled=false",
                 "-Dlog4j2.disable.jmx=true",
-
+                // security manager
+                allowSecurityManagerOption(),
                 javaLocaleProviders()
             )
         ).stream().filter(e -> e.isEmpty() == false).collect(Collectors.toList());
+    }
+
+    private static String allowSecurityManagerOption() {
+        if (Runtime.version().feature() > 17) {
+            return "-Djava.security.manager=allow";
+        } else {
+            return "";
+        }
     }
 
     private static String maybeShowCodeDetailsInExceptionMessages() {
