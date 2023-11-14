@@ -44,6 +44,10 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
+import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
+
 public class KeyValueProcessorFactoryTests extends OpenSearchTestCase {
 
     private KeyValueProcessor.Factory factory;
@@ -60,12 +64,12 @@ public class KeyValueProcessorFactoryTests extends OpenSearchTestCase {
         config.put("value_split", "=");
         String processorTag = randomAlphaOfLength(10);
         KeyValueProcessor processor = factory.create(null, processorTag, null, config);
-        assertEquals(processor.getTag(), processorTag);
-        assertEquals(processor.getField().newInstance(Collections.emptyMap()).execute(), "field1");
-        assertEquals(processor.getFieldSplit(), "&");
-        assertEquals(processor.getValueSplit(), "=");
-        assertEquals(processor.getIncludeKeys(), null);
-        assertEquals(processor.getTargetField(), null);
+        assertThat(processor.getTag(), equalTo(processorTag));
+        assertThat(processor.getField().newInstance(Collections.emptyMap()).execute(), equalTo("field1"));
+        assertThat(processor.getFieldSplit(), equalTo("&"));
+        assertThat(processor.getValueSplit(), equalTo("="));
+        assertThat(processor.getIncludeKeys(), is(nullValue()));
+        assertThat(processor.getTargetField(), is(nullValue()));
         assertFalse(processor.isIgnoreMissing());
     }
 
@@ -80,13 +84,13 @@ public class KeyValueProcessorFactoryTests extends OpenSearchTestCase {
         config.put("ignore_missing", true);
         String processorTag = randomAlphaOfLength(10);
         KeyValueProcessor processor = factory.create(null, processorTag, null, config);
-        assertEquals(processor.getTag(), processorTag);
-        assertEquals(processor.getField().newInstance(Collections.emptyMap()).execute(), "field1");
-        assertEquals(processor.getFieldSplit(), "&");
-        assertEquals(processor.getValueSplit(), "=");
-        assertEquals(processor.getIncludeKeys(), Sets.newHashSet("a", "b"));
-        assertEquals(processor.getExcludeKeys(), Collections.emptySet());
-        assertEquals(processor.getTargetField().newInstance(Collections.emptyMap()).execute(), "target");
+        assertThat(processor.getTag(), equalTo(processorTag));
+        assertThat(processor.getField().newInstance(Collections.emptyMap()).execute(), equalTo("field1"));
+        assertThat(processor.getFieldSplit(), equalTo("&"));
+        assertThat(processor.getValueSplit(), equalTo("="));
+        assertThat(processor.getIncludeKeys(), equalTo(Sets.newHashSet("a", "b")));
+        assertThat(processor.getExcludeKeys(), equalTo(Collections.emptySet()));
+        assertThat(processor.getTargetField().newInstance(Collections.emptyMap()).execute(), equalTo("target"));
         assertTrue(processor.isIgnoreMissing());
     }
 
@@ -97,7 +101,7 @@ public class KeyValueProcessorFactoryTests extends OpenSearchTestCase {
             OpenSearchParseException.class,
             () -> factory.create(null, processorTag, null, config)
         );
-        assertEquals(exception.getMessage(), "[field] required property is missing");
+        assertThat(exception.getMessage(), equalTo("[field] required property is missing"));
     }
 
     public void testCreateWithMissingFieldSplit() {
@@ -108,7 +112,7 @@ public class KeyValueProcessorFactoryTests extends OpenSearchTestCase {
             OpenSearchParseException.class,
             () -> factory.create(null, processorTag, null, config)
         );
-        assertEquals(exception.getMessage(), "[field_split] required property is missing");
+        assertThat(exception.getMessage(), equalTo("[field_split] required property is missing"));
     }
 
     public void testCreateWithMissingValueSplit() {
@@ -120,6 +124,6 @@ public class KeyValueProcessorFactoryTests extends OpenSearchTestCase {
             OpenSearchParseException.class,
             () -> factory.create(null, processorTag, null, config)
         );
-        assertEquals(exception.getMessage(), "[value_split] required property is missing");
+        assertThat(exception.getMessage(), equalTo("[value_split] required property is missing"));
     }
 }
