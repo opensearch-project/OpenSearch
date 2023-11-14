@@ -50,6 +50,7 @@ import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.metadata.MetadataIndexAliasesService;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
+import org.opensearch.common.regex.Regex;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.index.Index;
@@ -59,6 +60,7 @@ import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
@@ -220,10 +222,23 @@ public class TransportIndicesAliasesAction extends TransportClusterManagerNodeAc
             // for DELETE we expand the aliases
             String[] indexAsArray = { concreteIndex };
             final Map<String, List<AliasMetadata>> aliasMetadata = metadata.findAliases(action, indexAsArray);
-            List<String> finalAliases = new ArrayList<>();
+            Set<String> finalAliases = new HashSet<>();
             for (final List<AliasMetadata> curAliases : aliasMetadata.values()) {
                 for (AliasMetadata aliasMeta : curAliases) {
                     finalAliases.add(aliasMeta.alias());
+                }
+            }
+
+            // if there is any non-existing aliases specified in the request and must_exist is true, throw exception in advance
+            if (action.mustExist() != null && action.mustExist()) {
+                if (finalAliases.isEmpty()) {
+                    throw new AliasesNotFoundException(action.aliases());
+                }
+                String[] nonExistingAliases = Arrays.stream(action.aliases())
+                    .filter(originalAlias -> finalAliases.stream().noneMatch(finalAlias -> Regex.simpleMatch(originalAlias, finalAlias)))
+                    .toArray(String[]::new);
+                if (nonExistingAliases.length != 0) {
+                    throw new AliasesNotFoundException(nonExistingAliases);
                 }
             }
             return finalAliases.toArray(new String[0]);
