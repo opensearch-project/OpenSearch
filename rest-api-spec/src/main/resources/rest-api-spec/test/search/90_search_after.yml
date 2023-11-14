@@ -447,3 +447,341 @@
   - length: { hits.hits: 1 }
   - match: { hits.hits.0._index: test }
   - match: { hits.hits.0._source.population: null }
+
+---
+"numeric skipping logic with competitive missing value":
+  - skip:
+      version: " - 2.12.99"
+      reason: newly added test, supported from 3.0.0
+
+# This test checks if skipping logic is skipped in case missing values are competitive
+# for all numeric type int, long, float, half_float, double, unsigned_long.
+# We are inserting 24 documents with some missing values and giving search after parameter
+# as missing value. The secondary sort field is on id which doesn't have missing value.
+# In case skipping logic is applied in Lucene, it will skipp all documents with primary sort field
+# missing value even though it should list sort by secondary field id with missing value primary field.
+# This test is addressing bugs like here https://github.com/opensearch-project/OpenSearch/issues/9537
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            properties:
+              halffloat:
+                type: half_float
+              long:
+                type: long
+              int:
+                type: integer
+              float:
+                type: float
+              double:
+                type: double
+              unsignedlong:
+                type: unsigned_long
+  - do:
+      bulk:
+        refresh: true
+        index: test
+        body: |
+          {"index":{}}
+          {"id": 1, "halffloat": 1, "long": 1, "int": 1, "float": 1, "double": 1, "unsignedlong": 1}
+          {"index":{}}
+          {"id": 2, "halffloat": 2, "long": 2, "int": 2, "float": 2, "double": 2, "unsignedlong": 2}
+          {"index":{}}
+          {"id": 3, "halffloat": 3, "long": 3, "int": 3, "float": 3, "double": 3, "unsignedlong": 3}
+          {"index":{}}
+          {"id": 4, "halffloat": 4, "long": 4, "int": 4, "float": 4, "double": 4, "unsignedlong": 4}
+          {"index":{}}
+          {"id": 5, "halffloat": 5, "long": 5, "int": 5, "float": 5, "double": 5, "unsignedlong": 5}
+          {"index":{}}
+          {"id": 6, "halffloat": 6, "long": 6, "int": 6, "float": 6, "double": 6, "unsignedlong": 6}
+          {"index":{}}
+          {"id": 7, "halffloat": 7, "long": 7, "int": 7, "float": 7, "double": 7, "unsignedlong": 7}
+          {"index":{}}
+          {"id": 8, "halffloat": 8, "long": 8, "int": 8, "float": 8, "double": 8, "unsignedlong": 8}
+          {"index":{}}
+          {"id": 9, "halffloat": 9, "long": 9, "int": 9, "float": 9, "double": 9, "unsignedlong": 9}
+          {"index":{}}
+          {"id": 10, "halffloat": 10, "long": 10, "int": 10, "float": 10, "double": 10, "unsignedlong": 10}
+          {"index":{}}
+          {"id": 11, "halffloat": 11, "long": 11, "int": 11, "float": 11, "double": 11, "unsignedlong": 11}
+          {"index":{}}
+          {"id": 12, "halffloat": 12, "long": 12, "int": 12, "float": 12, "double": 12, "unsignedlong": 12}
+          {"index":{}}
+          {"id": 13, "halffloat": 13, "long": 13, "int": 13, "float": 13, "double": 13, "unsignedlong": 13}
+          {"index":{}}
+          {"id": 14, "halffloat": 14, "long": 14, "int": 14, "float": 14, "double": 14, "unsignedlong": 14}
+          {"index":{}}
+          {"id": 15, "halffloat": 15, "long": 15, "int": 15, "float": 15, "double": 15, "unsignedlong": 15}
+          {"index":{}}
+          {"id": 16, "halffloat": 16, "long": 16, "int": 16, "float": 16, "double": 16, "unsignedlong": 16}
+          {"index":{}}
+          {"id": 17, "halffloat": 17, "long": 17, "int": 17, "float": 17, "double": 17, "unsignedlong": 17}
+          {"index":{}}
+          {"id": 18, "halffloat": 18, "long": 18, "int": 18, "float": 18, "double": 18, "unsignedlong": 18}
+          {"index":{}}
+          {"id": 19, "halffloat": 19, "long": 19, "int": 19, "float": 19, "double": 19, "unsignedlong": 19}
+          {"index":{}}
+          {"id": 20, "halffloat": 20, "long": 20, "int": 20, "float": 20, "double": 20, "unsignedlong": 20}
+          {"index":{}}
+          {"id": 21, "halffloat": null, "long": null, "int": null, "float": null, "double": null, "unsignedlong": null}
+          {"index":{}}
+          {"id": 22, "halffloat": null, "long": null, "int": null, "float": null, "double": null, "unsignedlong": null}
+          {"index":{}}
+          {"id": 23, "halffloat": null, "long": null, "int": null, "float": null, "double": null, "unsignedlong": null}
+          {"index":{}}
+          {"id": 24, "halffloat": null, "long": null, "int": null, "float": null, "double": null, "unsignedlong": null}
+
+  - do:
+      search:
+        index: test
+        rest_total_hits_as_int: true
+        body:
+          "size": 3
+          "sort": [ { "halffloat": { "order": "asc" } }, { "id": { "order": "asc" } } ]
+          search_after: [ 200, 0 ] # making it out of min/max so only missing value hit is qualified
+
+  - match: { hits.total: 24 }
+  - length: { hits.hits: 3 }
+  - match: { hits.hits.0._index: test }
+  - match: { hits.hits.0._source.halffloat: null }
+  - match: { hits.hits.0._source.id: 21 }
+  - match: { hits.hits.1._index: test }
+  - match: { hits.hits.1._source.halffloat: null }
+  - match: { hits.hits.1._source.id: 22 }
+  - match: { hits.hits.2._index: test }
+  - match: { hits.hits.2._source.halffloat: null }
+  - match: { hits.hits.2._source.id: 23 }
+
+  - do:
+      search:
+        index: test
+        rest_total_hits_as_int: true
+        body:
+          "size": 3
+          "sort": [ { "halffloat": { "order": "desc" } }, { "id": { "order": "desc" } } ]
+          search_after: [ 0, 25 ] # making it out of min/max so only missing value hit is qualified
+
+  - match: { hits.total: 24 }
+  - length: { hits.hits: 3 }
+  - match: { hits.hits.0._index: test }
+  - match: { hits.hits.0._source.halffloat: null }
+  - match: { hits.hits.0._source.id: 24 }
+  - match: { hits.hits.1._index: test }
+  - match: { hits.hits.1._source.halffloat: null }
+  - match: { hits.hits.1._source.id: 23 }
+  - match: { hits.hits.2._index: test }
+  - match: { hits.hits.2._source.halffloat: null }
+  - match: { hits.hits.2._source.id: 22 }
+
+  - do:
+      search:
+        index: test
+        rest_total_hits_as_int: true
+        body:
+          "size": 3
+          "sort": [ { "long": { "order": "asc" } }, { "id": { "order": "asc" } } ]
+          search_after: [ 200, 0 ] # making it out of min/max so only missing value hit is qualified
+
+  - match: { hits.total: 24 }
+  - length: { hits.hits: 3 }
+  - match: { hits.hits.0._index: test }
+  - match: { hits.hits.0._source.long: null }
+  - match: { hits.hits.0._source.id: 21 }
+  - match: { hits.hits.1._index: test }
+  - match: { hits.hits.1._source.long: null }
+  - match: { hits.hits.1._source.id: 22 }
+  - match: { hits.hits.2._index: test }
+  - match: { hits.hits.2._source.long: null }
+  - match: { hits.hits.2._source.id: 23 }
+
+  - do:
+      search:
+        index: test
+        rest_total_hits_as_int: true
+        body:
+          "size": 3
+          "sort": [ { "long": { "order": "desc" } }, { "id": { "order": "desc" } } ]
+          search_after: [ 0, 25 ] # making it out of min/max so only missing value hit is qualified
+
+  - match: { hits.total: 24 }
+  - length: { hits.hits: 3 }
+  - match: { hits.hits.0._index: test }
+  - match: { hits.hits.0._source.long: null }
+  - match: { hits.hits.0._source.id: 24 }
+  - match: { hits.hits.1._index: test }
+  - match: { hits.hits.1._source.long: null }
+  - match: { hits.hits.1._source.id: 23 }
+  - match: { hits.hits.2._index: test }
+  - match: { hits.hits.2._source.long: null }
+  - match: { hits.hits.2._source.id: 22 }
+
+  - do:
+      search:
+        index: test
+        rest_total_hits_as_int: true
+        body:
+          "size": 3
+          "sort": [ { "int": { "order": "asc" } }, { "id": { "order": "asc" } } ]
+          search_after: [ 200, 0 ] # making it out of min/max so only missing value hit is qualified
+
+  - match: { hits.total: 24 }
+  - length: { hits.hits: 3 }
+  - match: { hits.hits.0._index: test }
+  - match: { hits.hits.0._source.int: null }
+  - match: { hits.hits.0._source.id: 21 }
+  - match: { hits.hits.1._index: test }
+  - match: { hits.hits.1._source.int: null }
+  - match: { hits.hits.1._source.id: 22 }
+  - match: { hits.hits.2._index: test }
+  - match: { hits.hits.2._source.int: null }
+  - match: { hits.hits.2._source.id: 23 }
+
+  - do:
+      search:
+        index: test
+        rest_total_hits_as_int: true
+        body:
+          "size": 3
+          "sort": [ { "int": { "order": "desc" } }, { "id": { "order": "desc" } } ]
+          search_after: [ 0, 25 ] # making it out of min/max so only missing value hit is qualified
+
+  - match: { hits.total: 24 }
+  - length: { hits.hits: 3 }
+  - match: { hits.hits.0._index: test }
+  - match: { hits.hits.0._source.int: null }
+  - match: { hits.hits.0._source.id: 24 }
+  - match: { hits.hits.1._index: test }
+  - match: { hits.hits.1._source.int: null }
+  - match: { hits.hits.1._source.id: 23 }
+  - match: { hits.hits.2._index: test }
+  - match: { hits.hits.2._source.int: null }
+  - match: { hits.hits.2._source.id: 22 }
+
+  - do:
+      search:
+        index: test
+        rest_total_hits_as_int: true
+        body:
+          "size": 3
+          "sort": [ { "float": { "order": "asc" } }, { "id": { "order": "asc" } } ]
+          search_after: [ 200, 0 ] # making it out of min/max so only missing value hit is qualified
+
+  - match: { hits.total: 24 }
+  - length: { hits.hits: 3 }
+  - match: { hits.hits.0._index: test }
+  - match: { hits.hits.0._source.float: null }
+  - match: { hits.hits.0._source.id: 21 }
+  - match: { hits.hits.1._index: test }
+  - match: { hits.hits.1._source.float: null }
+  - match: { hits.hits.1._source.id: 22 }
+  - match: { hits.hits.2._index: test }
+  - match: { hits.hits.2._source.float: null }
+  - match: { hits.hits.2._source.id: 23 }
+
+  - do:
+      search:
+        index: test
+        rest_total_hits_as_int: true
+        body:
+          "size": 3
+          "sort": [ { "float": { "order": "desc" } }, { "id": { "order": "desc" } } ]
+          search_after: [ 0, 25 ] # making it out of min/max so only missing value hit is qualified
+
+  - match: { hits.total: 24 }
+  - length: { hits.hits: 3 }
+  - match: { hits.hits.0._index: test }
+  - match: { hits.hits.0._source.float: null }
+  - match: { hits.hits.0._source.id: 24 }
+  - match: { hits.hits.1._index: test }
+  - match: { hits.hits.1._source.float: null }
+  - match: { hits.hits.1._source.id: 23 }
+  - match: { hits.hits.2._index: test }
+  - match: { hits.hits.2._source.float: null }
+  - match: { hits.hits.2._source.id: 22 }
+
+  - do:
+      search:
+        index: test
+        rest_total_hits_as_int: true
+        body:
+          "size": 3
+          "sort": [ { "double": { "order": "asc" } }, { "id": { "order": "asc" } } ]
+          search_after: [ 200, 0 ] # making it out of min/max so only missing value hit is qualified
+
+  - match: { hits.total: 24 }
+  - length: { hits.hits: 3 }
+  - match: { hits.hits.0._index: test }
+  - match: { hits.hits.0._source.double: null }
+  - match: { hits.hits.0._source.id: 21 }
+  - match: { hits.hits.1._index: test }
+  - match: { hits.hits.1._source.double: null }
+  - match: { hits.hits.1._source.id: 22 }
+  - match: { hits.hits.2._index: test }
+  - match: { hits.hits.2._source.double: null }
+  - match: { hits.hits.2._source.id: 23 }
+
+  - do:
+      search:
+        index: test
+        rest_total_hits_as_int: true
+        body:
+          "size": 3
+          "sort": [ { "double": { "order": "desc" } }, { "id": { "order": "desc" } } ]
+          search_after: [ 0, 25 ] # making it out of min/max so only missing value hit is qualified
+
+  - match: { hits.total: 24 }
+  - length: { hits.hits: 3 }
+  - match: { hits.hits.0._index: test }
+  - match: { hits.hits.0._source.double: null }
+  - match: { hits.hits.0._source.id: 24 }
+  - match: { hits.hits.1._index: test }
+  - match: { hits.hits.1._source.double: null }
+  - match: { hits.hits.1._source.id: 23 }
+  - match: { hits.hits.2._index: test }
+  - match: { hits.hits.2._source.double: null }
+  - match: { hits.hits.2._source.id: 22 }
+
+  - do:
+      search:
+        index: test
+        rest_total_hits_as_int: true
+        body:
+          "size": 3
+          "sort": [ { "unsignedlong": { "order": "asc" } }, { "id": { "order": "asc" } } ]
+          search_after: [ 200, 0 ] # making it out of min/max so only missing value hit is qualified
+
+  - match: { hits.total: 24 }
+  - length: { hits.hits: 3 }
+  - match: { hits.hits.0._index: test }
+  - match: { hits.hits.0._source.unsignedlong: null }
+  - match: { hits.hits.0._source.id: 21 }
+  - match: { hits.hits.1._index: test }
+  - match: { hits.hits.1._source.unsignedlong: null }
+  - match: { hits.hits.1._source.id: 22 }
+  - match: { hits.hits.2._index: test }
+  - match: { hits.hits.2._source.unsignedlong: null }
+  - match: { hits.hits.2._source.id: 23 }
+
+  - do:
+      search:
+        index: test
+        rest_total_hits_as_int: true
+        body:
+          "size": 3
+          "sort": [ { "unsignedlong": { "order": "desc" } }, { "id": { "order": "desc" } } ]
+          search_after: [ 0, 25 ] # making it out of min/max so only missing value hit is qualified
+
+  - match: { hits.total: 24 }
+  - length: { hits.hits: 3 }
+  - match: { hits.hits.0._index: test }
+  - match: { hits.hits.0._source.unsignedlong: null }
+  - match: { hits.hits.0._source.id: 24 }
+  - match: { hits.hits.1._index: test }
+  - match: { hits.hits.1._source.unsignedlong: null }
+  - match: { hits.hits.1._source.id: 23 }
+  - match: { hits.hits.2._index: test }
+  - match: { hits.hits.2._source.unsignedlong: null }
+  - match: { hits.hits.2._source.id: 22 }
