@@ -40,6 +40,7 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.lease.Releasable;
+import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
@@ -97,7 +98,9 @@ public class LeaderChecker {
         "cluster.fault_detection.leader_check.timeout",
         TimeValue.timeValueMillis(10000),
         TimeValue.timeValueMillis(1),
-        Setting.Property.NodeScope
+        TimeValue.timeValueMillis(60000),
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
     );
 
     // the number of failed checks that must happen before the leader is considered to have failed.
@@ -111,7 +114,7 @@ public class LeaderChecker {
     private final Settings settings;
 
     private final TimeValue leaderCheckInterval;
-    private final TimeValue leaderCheckTimeout;
+    private TimeValue leaderCheckTimeout;
     private final int leaderCheckRetryCount;
     private final TransportService transportService;
     private final Consumer<Exception> onLeaderFailure;
@@ -123,6 +126,7 @@ public class LeaderChecker {
 
     LeaderChecker(
         final Settings settings,
+        final ClusterSettings clusterSettings,
         final TransportService transportService,
         final Consumer<Exception> onLeaderFailure,
         NodeHealthService nodeHealthService
@@ -134,6 +138,7 @@ public class LeaderChecker {
         this.transportService = transportService;
         this.onLeaderFailure = onLeaderFailure;
         this.nodeHealthService = nodeHealthService;
+        clusterSettings.addSettingsUpdateConsumer(LEADER_CHECK_TIMEOUT_SETTING, this::setLeaderCheckTimeout);
 
         transportService.registerRequestHandler(
             LEADER_CHECK_ACTION_NAME,
@@ -153,6 +158,10 @@ public class LeaderChecker {
                 handleDisconnectedNode(node);
             }
         });
+    }
+
+    private void setLeaderCheckTimeout(TimeValue leaderCheckTimeout) {
+        this.leaderCheckTimeout = leaderCheckTimeout;
     }
 
     public DiscoveryNode leader() {
