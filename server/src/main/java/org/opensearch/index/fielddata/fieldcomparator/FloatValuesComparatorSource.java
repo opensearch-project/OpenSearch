@@ -95,8 +95,6 @@ public class FloatValuesComparatorSource extends IndexFieldData.XFieldComparator
         assert indexFieldData == null || fieldname.equals(indexFieldData.getFieldName());
 
         final float fMissingValue = (Float) missingObject(missingValue, reversed);
-        // NOTE: it's important to pass null as a missing value in the constructor so that
-        // the comparator doesn't check docsWithField since we replace missing values in select()
         return new FloatComparator(numHits, fieldname, fMissingValue, reversed, enableSkipping && this.enableSkipping) {
             @Override
             public LeafFieldComparator getLeafComparator(LeafReaderContext context) throws IOException {
