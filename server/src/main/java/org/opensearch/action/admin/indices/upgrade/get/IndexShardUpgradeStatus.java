@@ -32,6 +32,7 @@
 
 package org.opensearch.action.admin.indices.upgrade.get;
 
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.index.shard.ShardId;
 
 import java.util.Arrays;
@@ -40,8 +41,9 @@ import java.util.Iterator;
 /**
  * Status for an Index Shard Upgrade
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class IndexShardUpgradeStatus implements Iterable<ShardUpgradeStatus> {
 
     private final ShardId shardId;

@@ -31,6 +31,7 @@
 
 package org.opensearch.index;
 
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.lucene.uid.Versions;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
@@ -42,8 +43,9 @@ import java.util.Locale;
 /**
  * Types of index versions
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public enum VersionType implements Writeable {
     INTERNAL((byte) 0) {
         @Override

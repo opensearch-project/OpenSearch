@@ -122,8 +122,9 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
     /**
      * The threadpool type.
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public enum ThreadPoolType {
         DIRECT("direct"),
         FIXED("fixed"),
@@ -734,8 +735,9 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
     /**
      * The thread pool information.
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public static class Info implements Writeable, ToXContentFragment {
 
         private final String name;

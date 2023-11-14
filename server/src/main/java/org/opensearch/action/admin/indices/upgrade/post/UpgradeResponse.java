@@ -34,6 +34,7 @@ package org.opensearch.action.admin.indices.upgrade.post;
 
 import org.opensearch.Version;
 import org.opensearch.action.support.broadcast.BroadcastResponse;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.core.action.support.DefaultShardOperationFailedException;
 import org.opensearch.core.common.io.stream.StreamInput;
@@ -47,8 +48,9 @@ import java.util.Map;
 /**
  * A response for the upgrade action.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class UpgradeResponse extends BroadcastResponse {
 
     private final Map<String, Tuple<Version, String>> versions;

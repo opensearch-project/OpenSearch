@@ -33,6 +33,7 @@
 package org.opensearch.action.admin.cluster.node.usage;
 
 import org.opensearch.action.support.nodes.BaseNodesRequest;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 
@@ -41,8 +42,9 @@ import java.io.IOException;
 /**
  * Transport request for collecting OpenSearch telemetry
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class NodesUsageRequest extends BaseNodesRequest<NodesUsageRequest> {
 
     private boolean restActions;

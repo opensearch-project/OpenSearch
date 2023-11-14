@@ -32,13 +32,15 @@
 
 package org.opensearch.cluster;
 
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.io.stream.Writeable;
 
 /**
  * Represents difference between states of cluster state parts
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public interface Diff<T> extends Writeable {
 
     /**
