@@ -287,6 +287,7 @@ public class SuggestSearchIT extends ParameterizedOpenSearchIntegTestCase {
             index("test", "type1", Integer.toString(i), "text", "abc" + i);
         }
         refresh();
+        indexRandomForConcurrentSearch("test");
 
         SearchResponse search = client().prepareSearch().setQuery(matchQuery("text", "spellchecker")).get();
         assertThat("didn't ask for suggestions but got some", search.getSuggest(), nullValue());

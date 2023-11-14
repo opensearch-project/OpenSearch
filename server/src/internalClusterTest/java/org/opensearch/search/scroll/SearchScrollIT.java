@@ -733,7 +733,7 @@ public class SearchScrollIT extends ParameterizedOpenSearchIntegTestCase {
      * Ensures that we always create and retain search contexts on every target shards for a scroll request
      * regardless whether that query can be written to match_no_docs on some target shards or not.
      */
-    public void testScrollRewrittenToMatchNoDocs() {
+    public void testScrollRewrittenToMatchNoDocs() throws InterruptedException {
         final int numShards = randomIntBetween(3, 5);
         assertAcked(
             client().admin()
@@ -746,6 +746,7 @@ public class SearchScrollIT extends ParameterizedOpenSearchIntegTestCase {
         client().prepareIndex("test").setId("2").setSource("created_date", "2020-01-02").get();
         client().prepareIndex("test").setId("3").setSource("created_date", "2020-01-03").get();
         client().admin().indices().prepareRefresh("test").get();
+        indexRandomForConcurrentSearch("test");
         SearchResponse resp = null;
         try {
             int totalHits = 0;

@@ -265,6 +265,10 @@ public class FieldSortIT extends ParameterizedOpenSearchIntegTestCase {
     }
 
     public void testTrackScores() throws Exception {
+        assumeFalse(
+            "Concurrent search case muted pending fix: https://github.com/opensearch-project/OpenSearch/issues/11189",
+            internalCluster().clusterService().getClusterSettings().get(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING)
+        );
         assertAcked(client().admin().indices().prepareCreate("test").setMapping("svalue", "type=keyword").get());
         ensureGreen();
         index(
@@ -278,6 +282,7 @@ public class FieldSortIT extends ParameterizedOpenSearchIntegTestCase {
             jsonBuilder().startObject().field("id", "2").field("svalue", "bbb").field("ivalue", 200).field("dvalue", 0.2).endObject()
         );
         refresh();
+        indexRandomForConcurrentSearch("test");
 
         SearchResponse searchResponse = client().prepareSearch().setQuery(matchAllQuery()).addSort("svalue", SortOrder.ASC).get();
 
