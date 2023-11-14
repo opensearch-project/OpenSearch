@@ -28,7 +28,9 @@ class BidirectionalLinearSearcher implements Roundable {
     private final long[] descending;
 
     BidirectionalLinearSearcher(long[] values, int size) {
-        assert size > 0 : "at least one value must be present";
+        if (size <= 0) {
+            throw new IllegalArgumentException("at least one value must be present");
+        }
 
         int len = (size + 1) >>> 1; // rounded-up to handle odd number of values
         ascending = new long[len];

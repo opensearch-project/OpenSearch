@@ -41,17 +41,17 @@ public class RoundableTests extends OpenSearchTestCase {
         }
     }
 
-    public void testAssertions() {
-        AssertionError exception;
+    public void testFailureCases() {
+        Throwable throwable;
 
-        exception = assertThrows(AssertionError.class, () -> new BinarySearcher(new long[0], 0));
-        assertEquals("at least one value must be present", exception.getMessage());
-        exception = assertThrows(AssertionError.class, () -> new BidirectionalLinearSearcher(new long[0], 0));
-        assertEquals("at least one value must be present", exception.getMessage());
+        throwable = assertThrows(IllegalArgumentException.class, () -> new BinarySearcher(new long[0], 0));
+        assertEquals("at least one value must be present", throwable.getMessage());
+        throwable = assertThrows(IllegalArgumentException.class, () -> new BidirectionalLinearSearcher(new long[0], 0));
+        assertEquals("at least one value must be present", throwable.getMessage());
 
-        exception = assertThrows(AssertionError.class, () -> new BinarySearcher(new long[] { 100 }, 1).floor(50));
-        assertEquals("key must be greater than or equal to 100", exception.getMessage());
-        exception = assertThrows(AssertionError.class, () -> new BidirectionalLinearSearcher(new long[] { 100 }, 1).floor(50));
-        assertEquals("key must be greater than or equal to 100", exception.getMessage());
+        throwable = assertThrows(AssertionError.class, () -> new BinarySearcher(new long[] { 100 }, 1).floor(50));
+        assertEquals("key must be greater than or equal to 100", throwable.getMessage());
+        throwable = assertThrows(AssertionError.class, () -> new BidirectionalLinearSearcher(new long[] { 100 }, 1).floor(50));
+        assertEquals("key must be greater than or equal to 100", throwable.getMessage());
     }
 }
