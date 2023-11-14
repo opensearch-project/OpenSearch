@@ -152,11 +152,11 @@ public class TextFieldMapper extends ParametrizedFieldMapper {
      *
      * @opensearch.internal
      */
-    private static final class PrefixConfig implements ToXContent {
+    protected static final class PrefixConfig implements ToXContent {
         final int minChars;
         final int maxChars;
 
-        private PrefixConfig(int minChars, int maxChars) {
+        PrefixConfig(int minChars, int maxChars) {
             this.minChars = minChars;
             this.maxChars = maxChars;
             if (minChars > maxChars) {
@@ -198,7 +198,7 @@ public class TextFieldMapper extends ParametrizedFieldMapper {
         }
     }
 
-    private static PrefixConfig parsePrefixConfig(String propName, ParserContext parserContext, Object propNode) {
+    static PrefixConfig parsePrefixConfig(String propName, ParserContext parserContext, Object propNode) {
         if (propNode == null) {
             return null;
         }

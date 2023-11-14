@@ -33,6 +33,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.function.Function;
 
 /**
@@ -92,6 +93,31 @@ public class MatchOnlyTextFieldMapper extends TextFieldMapper {
         }
 
         final Parameter<Boolean> norms = norms(m -> ((MatchOnlyTextFieldMapper) m).norms);
+        final Parameter<Boolean> indexPhrases = Parameter.boolParam(
+            "index_phrases",
+            false,
+            m -> ((MatchOnlyTextFieldType) m.mappedFieldType).indexPhrases,
+            false
+        ).setValidator(v -> {
+            if (v == true) {
+                throw new MapperParsingException("Index phrases cannot be enabled on for match_only_text field. Use text field instead");
+            }
+        });
+
+        final Parameter<PrefixConfig> indexPrefixes = new Parameter<>(
+            "index_prefixes",
+            false,
+            () -> null,
+            TextFieldMapper::parsePrefixConfig,
+            m -> Optional.ofNullable(((MatchOnlyTextFieldType) m.mappedFieldType).prefixFieldType)
+                .map(p -> new PrefixConfig(p.minChars, p.maxChars))
+                .orElse(null)
+        ).acceptsNull().setValidator( v -> {
+                if (v != null) {
+                    throw new MapperParsingException("Index prefixes cannot be enabled on for match_only_text field. Use text field instead");
+                }
+            }
+        );
 
         private static Parameter<Boolean> norms(Function<FieldMapper, Boolean> initializer) {
             return Parameter.boolParam("norms", false, initializer, false)
@@ -138,10 +164,15 @@ public class MatchOnlyTextFieldMapper extends TextFieldMapper {
                 throw new IllegalArgumentException("Cannot set position_increment_gap on field [" + name + "] without positions enabled");
             }
             if (positionIncrementGap.get() != POSITION_INCREMENT_GAP_USE_ANALYZER) {
+                if (fieldType.indexOptions().compareTo(IndexOptions.DOCS) < 0) {
+                    throw new IllegalArgumentException(
+                        "Cannot set position_increment_gap on field [" + name + "] without indexing enabled"
+                    );
+                }
                 // for index analyzer we don't set positionIncrementGap whereas for search analyzer its set because
                 // phrase queries, which make use of it, should work fine as they will directly work on the field value
                 // per matched document by reading from _source field.
-
+                indexAnalyzer = new NamedAnalyzer(indexAnalyzer, positionIncrementGap.get());
                 searchAnalyzer = new NamedAnalyzer(searchAnalyzer, positionIncrementGap.get());
                 searchQuoteAnalyzer = new NamedAnalyzer(searchQuoteAnalyzer, positionIncrementGap.get());
             }
@@ -192,7 +223,9 @@ public class MatchOnlyTextFieldMapper extends TextFieldMapper {
      * @opensearch.internal
      */
     public static final class MatchOnlyTextFieldType extends TextFieldMapper.TextFieldType {
+        private final boolean indexPhrases = false;
 
+        private PrefixFieldType prefixFieldType;
         @Override
         public String typeName() {
             return CONTENT_TYPE;

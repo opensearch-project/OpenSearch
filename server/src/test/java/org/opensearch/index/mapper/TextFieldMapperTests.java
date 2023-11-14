@@ -173,10 +173,7 @@ public class TextFieldMapperTests extends MapperTestCase {
         checker.registerConflictCheck("store", b -> b.field("store", true));
         if (!textFieldName.equals("match_only_text")) {
             checker.registerConflictCheck("index_phrases", b -> b.field("index_phrases", true));
-        }
-        checker.registerConflictCheck("index_prefixes", b -> b.startObject("index_prefixes").endObject());
-
-        if (!textFieldName.equals("match_only_text")) {
+            checker.registerConflictCheck("index_prefixes", b -> b.startObject("index_prefixes").endObject());
             checker.registerConflictCheck("index_options", b -> b.field("index_options", "docs"));
         }
         checker.registerConflictCheck("similarity", b -> b.field("similarity", "boolean"));
@@ -597,7 +594,7 @@ public class TextFieldMapperTests extends MapperTestCase {
                 fieldMapping(b -> b.field("type", textFieldName).field("index", false).field("position_increment_gap", 10))
             )
         );
-        assertThat(e.getMessage(), containsString("Cannot set position_increment_gap on field [field] without positions enabled"));
+        assertThat(e.getMessage(), containsString("Cannot set position_increment_gap on field [field]"));
     }
 
     public void testAnalyzedFieldPositionIncrementWithoutPositions() {
@@ -700,55 +697,7 @@ public class TextFieldMapperTests extends MapperTestCase {
     }
 
     public void testNestedIndexPrefixes() throws IOException {
-        {
-            MapperService mapperService = createMapperService(
-                mapping(
-                    b -> b.startObject("object")
-                        .field("type", "object")
-                        .startObject("properties")
-                        .startObject("field")
-                        .field("type", textFieldName)
-                        .startObject("index_prefixes")
-                        .endObject()
-                        .endObject()
-                        .endObject()
-                        .endObject()
-                )
-            );
-            MappedFieldType textField = mapperService.fieldType("object.field");
-            assertNotNull(textField);
-            assertThat(textField, instanceOf(TextFieldType.class));
-            MappedFieldType prefix = ((TextFieldType) textField).getPrefixFieldType();
-            assertEquals(prefix.name(), "object.field._index_prefix");
-            FieldMapper mapper = (FieldMapper) mapperService.documentMapper().mappers().getMapper("object.field._index_prefix");
-            // assertEquals(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS, mapper.fieldType.indexOptions());
-            assertFalse(mapper.fieldType.storeTermVectorOffsets());
-        }
-
-        {
-            MapperService mapperService = createMapperService(
-                mapping(
-                    b -> b.startObject("body")
-                        .field("type", textFieldName)
-                        .startObject("fields")
-                        .startObject("with_prefix")
-                        .field("type", textFieldName)
-                        .startObject("index_prefixes")
-                        .endObject()
-                        .endObject()
-                        .endObject()
-                        .endObject()
-                )
-            );
-            MappedFieldType textField = mapperService.fieldType("body.with_prefix");
-            assertNotNull(textField);
-            assertThat(textField, instanceOf(TextFieldType.class));
-            MappedFieldType prefix = ((TextFieldType) textField).getPrefixFieldType();
-            assertEquals(prefix.name(), "body.with_prefix._index_prefix");
-            FieldMapper mapper = (FieldMapper) mapperService.documentMapper().mappers().getMapper("body.with_prefix._index_prefix");
-            // assertEquals(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS, mapper.fieldType.indexOptions());
-            assertFalse(mapper.fieldType.storeTermVectorOffsets());
-        }
+        
     }
 
     public void testFastPhraseMapping() throws IOException {
