@@ -11,6 +11,7 @@ package org.opensearch.index.remote;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.common.CheckedFunction;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.logging.Loggers;
 import org.opensearch.common.util.Streak;
 import org.opensearch.common.util.concurrent.ConcurrentCollections;
@@ -36,8 +37,9 @@ import static org.opensearch.index.shard.RemoteStoreRefreshListener.EXCLUDE_FILE
 /**
  * Keeps track of remote refresh which happens in {@link org.opensearch.index.shard.RemoteStoreRefreshListener}. This consist of multiple critical metrics.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "2.10.0")
 public class RemoteSegmentTransferTracker extends RemoteTransferTracker {
 
     private final Logger logger;
@@ -391,8 +393,9 @@ public class RemoteSegmentTransferTracker extends RemoteTransferTracker {
     /**
      * Represents the tracker's state as seen in the stats API.
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "2.10.0")
     public static class Stats implements Writeable {
 
         public final ShardId shardId;

@@ -34,12 +34,14 @@ package org.opensearch.action.admin.indices.segments;
 
 import org.opensearch.action.support.broadcast.BroadcastOperationRequestBuilder;
 import org.opensearch.client.OpenSearchClient;
+import org.opensearch.common.annotation.PublicApi;
 
 /**
  * Transport request builder for retrieving indices segment information
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class IndicesSegmentsRequestBuilder extends BroadcastOperationRequestBuilder<
     IndicesSegmentsRequest,
     IndicesSegmentResponse,

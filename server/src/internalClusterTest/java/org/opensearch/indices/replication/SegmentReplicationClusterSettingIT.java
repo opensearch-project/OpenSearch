@@ -19,7 +19,6 @@ import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REPLICATION_TYPE;
-import static org.opensearch.indices.IndicesService.CLUSTER_RESTRICT_INDEX_REPLICATION_TYPE_SETTING;
 import static org.opensearch.indices.IndicesService.CLUSTER_SETTING_REPLICATION_TYPE;
 
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
@@ -122,32 +121,6 @@ public class SegmentReplicationClusterSettingIT extends OpenSearchIntegTestCase 
         IndicesService indicesService = internalCluster().getInstance(IndicesService.class, primaryNode);
         assertEquals(indicesService.indexService(index).getIndexSettings().isSegRepEnabled(), true);
         assertEquals(indicesService.indexService(anotherIndex).getIndexSettings().isSegRepEnabled(), false);
-    }
-
-    public void testIndexReplicationTypeWhenRestrictSettingTrue() {
-        testRestrictIndexReplicationTypeSetting(true, randomFrom(ReplicationType.values()));
-    }
-
-    public void testIndexReplicationTypeWhenRestrictSettingFalse() {
-        testRestrictIndexReplicationTypeSetting(false, randomFrom(ReplicationType.values()));
-    }
-
-    private void testRestrictIndexReplicationTypeSetting(boolean setRestrict, ReplicationType replicationType) {
-        String expectedExceptionMsg =
-            "Validation Failed: 1: index setting [index.replication.type] is not allowed to be set as [cluster.restrict.index.replication_type=true];";
-        String clusterManagerName = internalCluster().startNode(
-            Settings.builder().put(CLUSTER_RESTRICT_INDEX_REPLICATION_TYPE_SETTING.getKey(), setRestrict).build()
-        );
-        internalCluster().startDataOnlyNodes(1);
-
-        // Test create index fails
-        Settings indexSettings = Settings.builder().put(indexSettings()).put(SETTING_REPLICATION_TYPE, replicationType).build();
-        if (setRestrict) {
-            IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> createIndex(INDEX_NAME, indexSettings));
-            assertEquals(expectedExceptionMsg, exception.getMessage());
-        } else {
-            createIndex(INDEX_NAME, indexSettings);
-        }
     }
 
 }

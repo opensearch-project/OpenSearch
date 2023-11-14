@@ -33,6 +33,7 @@
 package org.opensearch.core.xcontent;
 
 import org.opensearch.common.CheckedFunction;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.ParseField;
 import org.opensearch.core.xcontent.ObjectParser.NamedObjectParser;
 import org.opensearch.core.xcontent.ObjectParser.ValueType;
@@ -47,8 +48,9 @@ import java.util.function.Function;
 /**
  * Superclass for {@link ObjectParser} and {@link ConstructingObjectParser}. Defines most of the "declare" methods so they can be shared.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public abstract class AbstractObjectParser<Value, Context> {
 
     /**

@@ -33,6 +33,7 @@
 package org.opensearch.core.xcontent;
 
 import org.opensearch.common.CheckedFunction;
+import org.opensearch.common.annotation.PublicApi;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -53,8 +54,9 @@ import java.util.function.Supplier;
  *          NamedXContentRegistry.EMPTY, ParserField."{\"key\" : \"value\"}");
  * </pre>
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public interface XContentParser extends Closeable {
 
     /**

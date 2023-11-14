@@ -38,6 +38,7 @@ import org.opensearch.action.CompositeIndicesRequest;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.action.support.IndicesOptions.WildcardStates;
 import org.opensearch.common.CheckedBiConsumer;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
 import org.opensearch.core.common.bytes.BytesReference;
@@ -71,8 +72,9 @@ import static org.opensearch.common.xcontent.support.XContentMapValues.nodeTimeV
 /**
  * A multi search API request.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class MultiSearchRequest extends ActionRequest implements CompositeIndicesRequest {
 
     public static final int MAX_CONCURRENT_SEARCH_REQUESTS_DEFAULT = 0;

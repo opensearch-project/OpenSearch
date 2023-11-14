@@ -34,6 +34,7 @@ package org.opensearch.search.suggest;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.opensearch.OpenSearchParseException;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.lucene.BytesRefs;
 import org.opensearch.core.ParseField;
 import org.opensearch.core.common.ParsingException;
@@ -54,8 +55,9 @@ import java.util.Objects;
 /**
  * Base class for the different suggestion implementations.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public abstract class SuggestionBuilder<T extends SuggestionBuilder<T>> implements NamedWriteable, ToXContentFragment {
 
     protected final String field;

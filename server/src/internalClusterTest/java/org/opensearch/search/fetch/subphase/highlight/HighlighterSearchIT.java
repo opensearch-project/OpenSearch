@@ -2013,10 +2013,6 @@ public class HighlighterSearchIT extends ParameterizedOpenSearchIntegTestCase {
     }
 
     public void testHighlightNoMatchSize() throws IOException, InterruptedException {
-        assumeFalse(
-            "Concurrent search case muted pending fix: https://github.com/opensearch-project/OpenSearch/issues/10900",
-            internalCluster().clusterService().getClusterSettings().get(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING)
-        );
         assertAcked(
             prepareCreate("test").setMapping(
                 "text",
@@ -2128,10 +2124,6 @@ public class HighlighterSearchIT extends ParameterizedOpenSearchIntegTestCase {
     }
 
     public void testHighlightNoMatchSizeWithMultivaluedFields() throws IOException, InterruptedException {
-        assumeFalse(
-            "Concurrent search case muted pending fix: https://github.com/opensearch-project/OpenSearch/issues/10900",
-            internalCluster().clusterService().getClusterSettings().get(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING)
-        );
         assertAcked(
             prepareCreate("test").setMapping(
                 "text",
@@ -2228,10 +2220,6 @@ public class HighlighterSearchIT extends ParameterizedOpenSearchIntegTestCase {
     }
 
     public void testHighlightNoMatchSizeNumberOfFragments() throws IOException, InterruptedException {
-        assumeFalse(
-            "Concurrent search case muted pending fix: https://github.com/opensearch-project/OpenSearch/issues/10900",
-            internalCluster().clusterService().getClusterSettings().get(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING)
-        );
         assertAcked(
             prepareCreate("test").setMapping(
                 "text",
@@ -3416,10 +3404,6 @@ public class HighlighterSearchIT extends ParameterizedOpenSearchIntegTestCase {
     }
 
     public void testHighlightQueryRewriteDatesWithNow() throws Exception {
-        assumeFalse(
-            "Concurrent search case muted pending fix: https://github.com/opensearch-project/OpenSearch/issues/10434",
-            internalCluster().clusterService().getClusterSettings().get(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING)
-        );
         assertAcked(
             client().admin()
                 .indices()

@@ -30,6 +30,13 @@
  * GitHub history for details.
  */
 
+/*
+ * This code is based on code from SFL4J 1.5.11
+ * Copyright (c) 2004-2007 QOS.ch
+ * All rights reserved.
+ * SPDX-License-Identifier: MIT
+ */
+
 package org.opensearch.core.common.logging;
 
 import java.util.HashSet;

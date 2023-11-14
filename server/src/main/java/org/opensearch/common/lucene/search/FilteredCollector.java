@@ -40,6 +40,7 @@ import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.Bits;
 import org.opensearch.common.lucene.Lucene;
+import org.opensearch.search.profile.query.ProfileWeight;
 
 import java.io.IOException;
 
@@ -64,6 +65,9 @@ public class FilteredCollector implements Collector {
 
     @Override
     public LeafCollector getLeafCollector(LeafReaderContext context) throws IOException {
+        if (filter instanceof ProfileWeight) {
+            ((ProfileWeight) filter).associateCollectorToLeaves(context, collector);
+        }
         final ScorerSupplier filterScorerSupplier = filter.scorerSupplier(context);
         final LeafCollector in = collector.getLeafCollector(context);
         final Bits bits = Lucene.asSequentialAccessBits(context.reader().maxDoc(), filterScorerSupplier);

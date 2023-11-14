@@ -33,6 +33,7 @@
 package org.opensearch.action.admin.indices.refresh;
 
 import org.opensearch.action.support.broadcast.BroadcastRequest;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.io.stream.StreamInput;
 
 import java.io.IOException;
@@ -46,8 +47,9 @@ import java.io.IOException;
  * @see org.opensearch.client.IndicesAdminClient#refresh(RefreshRequest)
  * @see RefreshResponse
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class RefreshRequest extends BroadcastRequest<RefreshRequest> {
 
     public RefreshRequest(String... indices) {
