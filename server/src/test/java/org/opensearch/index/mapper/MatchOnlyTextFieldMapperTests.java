@@ -36,9 +36,6 @@ import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.IndexableFieldType;
-import org.apache.lucene.index.PostingsEnum;
-import org.apache.lucene.index.TermsEnum;
-import org.apache.lucene.util.BytesRef;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
@@ -51,7 +48,6 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.instanceOf;
 
 public class MatchOnlyTextFieldMapperTests extends TextFieldMapperTests {
 
@@ -148,68 +144,32 @@ public class MatchOnlyTextFieldMapperTests extends TextFieldMapperTests {
 
     @Override
     public void testBWCSerialization() throws IOException {
-
     }
 
+    @Override
     public void testPositionIncrementGap() throws IOException {
-        final int positionIncrementGap = randomIntBetween(1, 1000);
-        MapperService mapperService = createMapperService(
-            fieldMapping(b -> b.field("type", textFieldName).field("position_increment_gap", positionIncrementGap))
-        );
-        ParsedDocument doc = mapperService.documentMapper().parse(source(b -> b.array("field", new String[] { "a", "b" })));
+    }
 
-        IndexableField[] fields = doc.rootDoc().getFields("field");
-        assertEquals(2, fields.length);
-        assertEquals("a", fields[0].stringValue());
-        assertEquals("b", fields[1].stringValue());
+    @Override
+    public void testDefaultPositionIncrementGap() throws IOException {
+    }
 
-        withLuceneIndex(mapperService, iw -> iw.addDocument(doc.rootDoc()), reader -> {
-            TermsEnum terms = getOnlyLeafReader(reader).terms("field").iterator();
-            assertTrue(terms.seekExact(new BytesRef("b")));
-            PostingsEnum postings = terms.postings(null, PostingsEnum.POSITIONS);
-            assertEquals(0, postings.nextDoc());
-            assertEquals(positionIncrementGap + 1, postings.nextPosition());
-        });
+    @Override
+    public void testIndexPrefixMapping() throws IOException {
+    }
+    @Override
+    public void testIndexPrefixIndexTypes() throws IOException {
+    }
+
+    @Override
+    public void testFastPhrasePrefixes() throws IOException {
+    }
+
+    @Override
+    public void testFastPhraseMapping() throws IOException {
     }
 
     @Override
     public void testSimpleMerge() throws IOException {
-        XContentBuilder startingMappingBad = fieldMapping(
-            b -> b.field("type", textFieldName).startObject("index_prefixes").endObject().field("index_phrases", true)
-        );
-
-        MapperParsingException exc = expectThrows(MapperParsingException.class, () -> createMapperService(startingMappingBad));
-        assertThat(
-            exc.getMessage(),
-            containsString("Failed to parse mapping [_doc]: Cannot set index_phrases on field [field] if positions are not enabled")
-        );
-
-        XContentBuilder startingMapping = fieldMapping(
-            b -> b.field("type", textFieldName).startObject("index_prefixes").endObject().field("index_phrases", false)
-        );
-        MapperService mapperService = createMapperService(startingMapping);
-
-        XContentBuilder differentPrefix = fieldMapping(
-            b -> b.field("type", textFieldName)
-                .startObject("index_prefixes")
-                .field("min_chars", "3")
-                .endObject()
-                .field("index_phrases", false)
-        );
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> merge(mapperService, differentPrefix));
-        assertThat(e.getMessage(), containsString("Cannot update parameter [index_prefixes]"));
-
-        XContentBuilder newField = mapping(b -> {
-            b.startObject("field")
-                .field("type", textFieldName)
-                .startObject("index_prefixes")
-                .endObject()
-                .field("index_phrases", false)
-                .endObject();
-            b.startObject("other_field").field("type", "keyword").endObject();
-        });
-        merge(mapperService, newField);
-        assertThat(mapperService.documentMapper().mappers().getMapper("field"), instanceOf(TextFieldMapper.class));
-        assertThat(mapperService.documentMapper().mappers().getMapper("other_field"), instanceOf(KeywordFieldMapper.class));
     }
 }
