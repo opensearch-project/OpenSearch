@@ -114,8 +114,7 @@ public final class IndicesRequestCache implements TieredCacheEventListener<Indic
     private final ByteSizeValue size;
     private final TimeValue expire;
     private final TieredCacheService<Key, BytesReference> tieredCacheService;
-
-    private final TieredCacheHandler<Key, BytesReference> tieredCacheHandler;
+    
 
     IndicesRequestCache(Settings settings, IndicesService indicesService) {
         this.size = INDICES_CACHE_QUERY_SIZE.get(settings);
@@ -138,7 +137,6 @@ public final class IndicesRequestCache implements TieredCacheEventListener<Indic
         long CACHE_SIZE_IN_BYTES = 1000000L;
         String SETTING_PREFIX = "indices.request.cache";
         String STORAGE_PATH = indicesService.getNodePaths()[0].indicesPath.toString() + "/request_cache";
-        System.out.println("Node paths length = " + indicesService.getNodePaths().length);
 
         EhCacheDiskCachingTier<Key, BytesReference> ehcacheDiskTier = new EhCacheDiskCachingTier.Builder<Key, BytesReference>()
             .setKeyType(Key.class)
@@ -154,9 +152,14 @@ public final class IndicesRequestCache implements TieredCacheEventListener<Indic
             .build();
 
         // Initialize tiered cache service. TODO: Enable Disk tier when tiered support is turned on.
-        tieredCacheService = new TieredCacheSpilloverStrategyService.Builder<Key, BytesReference>().setOnHeapCachingTier(
-            openSearchOnHeapCache
-        ).setTieredCacheEventListener(this).build();
+
+        tieredCacheService = new TieredCacheSpilloverStrategyService.Builder<Key, BytesReference, QuerySearchResult>()
+            .setOnHeapCachingTier(openSearchOnHeapCache)
+            .setOnDiskCachingTier(ehcacheDiskTier)
+            .setTieredCacheEventListener(this)
+            .withPreDiskCachingPolicyFunction(transformationFunction)
+            .build();
+        this.indicesService = indicesService;
     }
 
     @Override
