@@ -5,7 +5,7 @@
 # Policy settings
 MIN_SHARD_SIZE="25"
 MIN_INDEX_AGE="7d"
-MIN_DOC_COUNT="200000000"
+MIN_DOC_COUNT="600000000"
 ISM_INDEX_PATTERNS='["wazuh-alerts-*", "wazuh-archives-*", "-wazuh-alerts-4.x-sample*"]'
 ISM_PRIORITY="50"
 INDEXER_PASSWORD="admin"
