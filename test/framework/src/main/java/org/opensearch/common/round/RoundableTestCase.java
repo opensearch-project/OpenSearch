@@ -10,16 +10,22 @@ package org.opensearch.common.round;
 
 import org.opensearch.test.OpenSearchTestCase;
 
-public class RoundableTests extends OpenSearchTestCase {
+/**
+ * Base class for testing {@link Roundable} implementations.
+ */
+public abstract class RoundableTestCase extends OpenSearchTestCase {
+
+    public abstract Roundable newInstance(long[] values, int size);
 
     public void testFloor() {
-        int size = randomIntBetween(1, 256);
-        long[] values = new long[size];
-        for (int i = 1; i < values.length; i++) {
+        int size = randomIntBetween(1, 256); // number of values present in the array
+        int capacity = size + randomIntBetween(0, 20); // capacity of the array can be larger
+        long[] values = new long[capacity];
+        for (int i = 1; i < size; i++) {
             values[i] = values[i - 1] + (randomNonNegativeLong() % 200) + 1;
         }
 
-        Roundable[] impls = { new BinarySearcher(values, size), new BidirectionalLinearSearcher(values, size) };
+        Roundable roundable = newInstance(values, size);
 
         for (int i = 0; i < 100000; i++) {
             // Index of the expected round-down point.
@@ -35,23 +41,16 @@ public class RoundableTests extends OpenSearchTestCase {
             // round-down point, which will still floor to the same value.
             long key = expected + (randomNonNegativeLong() % delta);
 
-            for (Roundable roundable : impls) {
-                assertEquals(expected, roundable.floor(key));
-            }
+            assertEquals(expected, roundable.floor(key));
         }
     }
 
     public void testFailureCases() {
         Throwable throwable;
 
-        throwable = assertThrows(IllegalArgumentException.class, () -> new BinarySearcher(new long[0], 0));
+        throwable = assertThrows(IllegalArgumentException.class, () -> newInstance(new long[0], 0));
         assertEquals("at least one value must be present", throwable.getMessage());
-        throwable = assertThrows(IllegalArgumentException.class, () -> new BidirectionalLinearSearcher(new long[0], 0));
-        assertEquals("at least one value must be present", throwable.getMessage());
-
-        throwable = assertThrows(AssertionError.class, () -> new BinarySearcher(new long[] { 100 }, 1).floor(50));
-        assertEquals("key must be greater than or equal to 100", throwable.getMessage());
-        throwable = assertThrows(AssertionError.class, () -> new BidirectionalLinearSearcher(new long[] { 100 }, 1).floor(50));
+        throwable = assertThrows(AssertionError.class, () -> newInstance(new long[] { 100 }, 1).floor(50));
         assertEquals("key must be greater than or equal to 100", throwable.getMessage());
     }
 }

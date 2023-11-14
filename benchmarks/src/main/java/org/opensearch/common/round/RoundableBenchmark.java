@@ -20,6 +20,7 @@ import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.annotations.Warmup;
 import org.openjdk.jmh.infra.Blackhole;
 
+import java.lang.invoke.MethodHandles;
 import java.util.Random;
 import java.util.function.Supplier;
 
@@ -83,7 +84,7 @@ public class RoundableBenchmark {
             "256" })
         public Integer size;
 
-        @Param({ "binary", "linear" })
+        @Param({ "linear", "binary", "btree" })
         public String type;
 
         @Param({ "uniform", "skewed_edge", "skewed_center" })
@@ -93,7 +94,7 @@ public class RoundableBenchmark {
         public Supplier<Roundable> supplier;
 
         @Setup
-        public void setup() {
+        public void setup() throws ClassNotFoundException, IllegalAccessException {
             Random random = new Random(size);
             long[] values = new long[size];
             for (int i = 1; i < values.length; i++) {
@@ -134,6 +135,19 @@ public class RoundableBenchmark {
                     break;
                 case "linear":
                     supplier = () -> new BidirectionalLinearSearcher(values, size);
+                    break;
+                case "btree":
+                    // Not supported below Java 20.
+                    // Using MethodHandles to reflectively look up the class (if available) in order to
+                    // avoid setting up separate Java 20 sources with mostly duplicate code.
+                    Class<?> clz = MethodHandles.lookup().findClass("org.opensearch.common.round.BtreeSearcher");
+                    supplier = () -> {
+                        try {
+                            return (Roundable) clz.getDeclaredConstructor(long[].class, int.class).newInstance(values, size);
+                        } catch (Exception e) {
+                            throw new RuntimeException(e);
+                        }
+                    };
                     break;
                 default:
                     throw new IllegalArgumentException("invalid type: " + type);

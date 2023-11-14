@@ -41,6 +41,7 @@ import org.opensearch.common.round.Roundable;
 import org.opensearch.common.round.RoundableFactory;
 import org.opensearch.common.time.DateUtils;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
@@ -80,6 +81,8 @@ import java.util.concurrent.TimeUnit;
  */
 public abstract class Rounding implements Writeable {
     private static final Logger logger = LogManager.getLogger(Rounding.class);
+
+    private static final boolean IS_SIMD_ROUNDING_ENABLED = FeatureFlags.isEnabled(FeatureFlags.SIMD_ROUNDING_SETTING);
 
     /**
      * A Date Time Unit
@@ -444,7 +447,7 @@ public abstract class Rounding implements Writeable {
                 values = ArrayUtil.grow(values, i + 1);
                 values[i++] = rounded;
             }
-            return new ArrayRounding(RoundableFactory.create(values, i), this);
+            return new ArrayRounding(RoundableFactory.create(values, i, IS_SIMD_ROUNDING_ENABLED), this);
         }
     }
 

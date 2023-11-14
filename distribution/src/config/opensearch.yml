@@ -127,3 +127,8 @@ ${path.logs}
 # Once there is no observed impact on performance, this feature flag can be removed.
 #
 #opensearch.experimental.optimization.datetime_formatter_caching.enabled: false
+#
+#
+# Gates the usage of SIMD for rounding down numbers.
+# This is used extensively to round down timestamps in the date_histogram aggregation.
+#opensearch.experimental.simd.rounding.enabled: false
