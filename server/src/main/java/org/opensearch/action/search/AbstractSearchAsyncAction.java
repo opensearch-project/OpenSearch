@@ -694,9 +694,9 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                     searchContextId = null;
                 }
             }
+            onPhaseEnd();
             listener.onResponse(buildSearchResponse(internalSearchResponse, failures, scrollId, searchContextId));
         }
-        onPhaseEnd();
         setCurrentPhase(null);
     }
 
