@@ -155,7 +155,7 @@ public class HighlighterSearchIT extends ParameterizedOpenSearchIntegTestCase {
         return Arrays.asList(InternalSettingsPlugin.class, MockKeywordPlugin.class, MockAnalysisPlugin.class);
     }
 
-    public void testHighlightingWithKeywordIgnoreBoundaryScanner() throws IOException {
+    public void testHighlightingWithKeywordIgnoreBoundaryScanner() throws IOException, InterruptedException {
         XContentBuilder mappings = jsonBuilder();
         mappings.startObject();
         mappings.startObject("properties")
@@ -177,6 +177,7 @@ public class HighlighterSearchIT extends ParameterizedOpenSearchIntegTestCase {
             .setSource(jsonBuilder().startObject().array("tags", "foo baz", "foo baz", "foo baz", "foo bar").field("sort", 2).endObject())
             .get();
         refresh();
+        indexRandomForConcurrentSearch("test");
 
         for (BoundaryScannerType scanner : BoundaryScannerType.values()) {
             SearchResponse search = client().prepareSearch()
@@ -190,12 +191,13 @@ public class HighlighterSearchIT extends ParameterizedOpenSearchIntegTestCase {
         }
     }
 
-    public void testHighlightingWithStoredKeyword() throws IOException {
+    public void testHighlightingWithStoredKeyword() throws IOException, InterruptedException {
         XContentBuilder mappings = jsonBuilder();
         mappings.startObject();
         mappings.startObject("properties").startObject("text").field("type", "keyword").field("store", true).endObject().endObject();
         mappings.endObject();
         assertAcked(prepareCreate("test").setMapping(mappings));
+        indexRandomForConcurrentSearch("test");
         client().prepareIndex("test").setId("1").setSource(jsonBuilder().startObject().field("text", "foo").endObject()).get();
         refresh();
         SearchResponse search = client().prepareSearch()
@@ -205,7 +207,7 @@ public class HighlighterSearchIT extends ParameterizedOpenSearchIntegTestCase {
         assertHighlight(search, 0, "text", 0, equalTo("<em>foo</em>"));
     }
 
-    public void testHighlightingWithWildcardName() throws IOException {
+    public void testHighlightingWithWildcardName() throws IOException, InterruptedException {
         // test the kibana case with * as fieldname that will try highlight all fields including meta fields
         XContentBuilder mappings = jsonBuilder();
         mappings.startObject();
@@ -221,6 +223,7 @@ public class HighlighterSearchIT extends ParameterizedOpenSearchIntegTestCase {
         assertAcked(prepareCreate("test").setMapping(mappings));
         client().prepareIndex("test").setId("1").setSource(jsonBuilder().startObject().field("text", "text").endObject()).get();
         refresh();
+        indexRandomForConcurrentSearch("test");
         for (String type : ALL_TYPES) {
             SearchResponse search = client().prepareSearch()
                 .setQuery(constantScoreQuery(matchQuery("text", "text")))
@@ -230,7 +233,7 @@ public class HighlighterSearchIT extends ParameterizedOpenSearchIntegTestCase {
         }
     }
 
-    public void testFieldAlias() throws IOException {
+    public void testFieldAlias() throws IOException, InterruptedException {
         XContentBuilder mappings = jsonBuilder().startObject()
             .startObject("properties")
             .startObject("text")
@@ -248,7 +251,7 @@ public class HighlighterSearchIT extends ParameterizedOpenSearchIntegTestCase {
 
         client().prepareIndex("test").setId("1").setSource("text", "foo").get();
         refresh();
-
+        indexRandomForConcurrentSearch("test");
         for (String type : ALL_TYPES) {
             HighlightBuilder builder = new HighlightBuilder().field(new Field("alias").highlighterType(type))
                 .requireFieldMatch(randomBoolean());
@@ -257,7 +260,7 @@ public class HighlighterSearchIT extends ParameterizedOpenSearchIntegTestCase {
         }
     }
 
-    public void testFieldAliasWithSourceLookup() throws IOException {
+    public void testFieldAliasWithSourceLookup() throws IOException, InterruptedException {
         XContentBuilder mappings = jsonBuilder().startObject()
             .startObject("properties")
             .startObject("text")
@@ -276,7 +279,7 @@ public class HighlighterSearchIT extends ParameterizedOpenSearchIntegTestCase {
 
         client().prepareIndex("test").setId("1").setSource("text", "foo bar").get();
         refresh();
-
+        indexRandomForConcurrentSearch("test");
         for (String type : ALL_TYPES) {
             HighlightBuilder builder = new HighlightBuilder().field(new Field("alias").highlighterType(type))
                 .requireFieldMatch(randomBoolean());
@@ -285,7 +288,7 @@ public class HighlighterSearchIT extends ParameterizedOpenSearchIntegTestCase {
         }
     }
 
-    public void testFieldAliasWithWildcardField() throws IOException {
+    public void testFieldAliasWithWildcardField() throws IOException, InterruptedException {
         XContentBuilder mappings = jsonBuilder().startObject()
             .startObject("properties")
             .startObject("keyword")
@@ -301,13 +304,14 @@ public class HighlighterSearchIT extends ParameterizedOpenSearchIntegTestCase {
 
         client().prepareIndex("test").setId("1").setSource("keyword", "foo").get();
         refresh();
+        indexRandomForConcurrentSearch("test");
 
         HighlightBuilder builder = new HighlightBuilder().field(new Field("al*")).requireFieldMatch(false);
         SearchResponse search = client().prepareSearch().setQuery(matchQuery("alias", "foo")).highlighter(builder).get();
         assertHighlight(search, 0, "alias", 0, equalTo("<em>foo</em>"));
     }
 
-    public void testHighlightingWhenFieldsAreNotStoredThereIsNoSource() throws IOException {
+    public void testHighlightingWhenFieldsAreNotStoredThereIsNoSource() throws IOException, InterruptedException {
         XContentBuilder mappings = jsonBuilder();
         mappings.startObject();
         mappings.startObject("_source")
@@ -334,6 +338,7 @@ public class HighlighterSearchIT extends ParameterizedOpenSearchIntegTestCase {
             .setSource(jsonBuilder().startObject().field("unstored_text", "text").field("text", "text").endObject())
             .get();
         refresh();
+        indexRandomForConcurrentSearch("test");
         for (String type : ALL_TYPES) {
             SearchResponse search = client().prepareSearch()
                 .setQuery(constantScoreQuery(matchQuery("text", "text")))
@@ -350,7 +355,7 @@ public class HighlighterSearchIT extends ParameterizedOpenSearchIntegTestCase {
     }
 
     // see #3486
-    public void testHighTermFrequencyDoc() throws IOException {
+    public void testHighTermFrequencyDoc() throws IOException, InterruptedException {
         assertAcked(prepareCreate("test").setMapping("name", "type=text,term_vector=with_positions_offsets,store=" + randomBoolean()));
         StringBuilder builder = new StringBuilder();
         for (int i = 0; i < 6000; i++) {
@@ -358,6 +363,7 @@ public class HighlighterSearchIT extends ParameterizedOpenSearchIntegTestCase {
         }
         client().prepareIndex("test").setId("1").setSource("name", builder.toString()).get();
         refresh();
+        indexRandomForConcurrentSearch("test");
         SearchResponse search = client().prepareSearch()
             .setQuery(constantScoreQuery(matchQuery("name", "abc")))
             .highlighter(new HighlightBuilder().field("name"))
@@ -385,6 +391,7 @@ public class HighlighterSearchIT extends ParameterizedOpenSearchIntegTestCase {
             )
             .get();
         refresh();
+        indexRandomForConcurrentSearch("test");
         SearchResponse search = client().prepareSearch()
             .setQuery(matchQuery("long_term", "thisisaverylongwordandmakessurethisfails foo highlighed"))
             .highlighter(new HighlightBuilder().field("long_term", 18, 1).highlighterType("fvh"))
@@ -671,7 +678,7 @@ public class HighlighterSearchIT extends ParameterizedOpenSearchIntegTestCase {
         assertHighlight(search, 0, "titleTV", 1, 2, equalTo("<em>highlight</em> other text"));
     }
 
-    public void testGlobalHighlightingSettingsOverriddenAtFieldLevel() {
+    public void testGlobalHighlightingSettingsOverriddenAtFieldLevel() throws InterruptedException {
         createIndex("test");
         ensureGreen();
 
@@ -684,6 +691,7 @@ public class HighlighterSearchIT extends ParameterizedOpenSearchIntegTestCase {
             )
             .get();
         refresh();
+        indexRandomForConcurrentSearch("test");
 
         logger.info("--> highlighting and searching on field1 and field2 produces different tags");
         SearchSourceBuilder source = searchSource().query(termQuery("field1", "test"))
@@ -734,6 +742,7 @@ public class HighlighterSearchIT extends ParameterizedOpenSearchIntegTestCase {
             )
             .get();
         refresh();
+        indexRandomForConcurrentSearch("test");
 
         logger.info("--> highlighting and searching on field*");
         SearchSourceBuilder source = searchSource()
@@ -783,6 +792,7 @@ public class HighlighterSearchIT extends ParameterizedOpenSearchIntegTestCase {
             .setSource("field1", "The quick brown fox jumps over the lazy dog", "field2", "second field content")
             .get();
         refresh();
+        indexRandomForConcurrentSearch("test");
 
         // works using stored field
         SearchResponse searchResponse = client().prepareSearch("test")
@@ -823,6 +833,7 @@ public class HighlighterSearchIT extends ParameterizedOpenSearchIntegTestCase {
 
         client().prepareIndex("test").setSource("field1", "this is a test", "field2", "The quick brown fox jumps over the lazy dog").get();
         refresh();
+        indexRandomForConcurrentSearch("test");
 
         logger.info("--> highlighting and searching on field1");
         SearchSourceBuilder source = searchSource().query(termQuery("field1", "test"))
@@ -1025,6 +1036,7 @@ public class HighlighterSearchIT extends ParameterizedOpenSearchIntegTestCase {
         String value = new String(new char[1024 * 256 / pattern.length()]).replace("\0", pattern);
         client().prepareIndex("test").setSource("field1", value).get();
         refresh();
+        indexRandomForConcurrentSearch("test");
 
         logger.info("--> highlighting and searching on field1 with default phrase limit");
         SearchSourceBuilder source = searchSource().query(termQuery("field1", "t"))
@@ -1116,6 +1128,7 @@ public class HighlighterSearchIT extends ParameterizedOpenSearchIntegTestCase {
         );
         index("test", "type1", "3", "foo", "weird", "bar", "result");
         refresh();
+        indexRandomForConcurrentSearch("test");
 
         Field fooField = new Field("foo").numOfFragments(1)
             .order("score")
@@ -1408,6 +1421,7 @@ public class HighlighterSearchIT extends ParameterizedOpenSearchIntegTestCase {
         ensureGreen();
         client().prepareIndex("test").setId("1").setSource("title", "this is a test").get();
         refresh();
+        indexRandomForConcurrentSearch("test");
 
         // simple search on body with standard analyzer with a simple field query
         SearchResponse search = client().prepareSearch()
@@ -1453,6 +1467,7 @@ public class HighlighterSearchIT extends ParameterizedOpenSearchIntegTestCase {
 
         client().prepareIndex("test").setId("1").setSource("title", "this is a test").get();
         refresh();
+        indexRandomForConcurrentSearch("test");
 
         // simple search on body with standard analyzer with a simple field query
         SearchResponse search = client().prepareSearch()
@@ -1498,6 +1513,7 @@ public class HighlighterSearchIT extends ParameterizedOpenSearchIntegTestCase {
         ensureGreen();
         client().prepareIndex("test").setId("1").setSource("title", "this is a test").get();
         refresh();
+        indexRandomForConcurrentSearch("test");
 
         // simple search on body with standard analyzer with a simple field query
         SearchResponse search = client().prepareSearch()
@@ -1542,6 +1558,7 @@ public class HighlighterSearchIT extends ParameterizedOpenSearchIntegTestCase {
         ensureGreen();
         client().prepareIndex("test").setId("1").setSource("title", "this is a test").get();
         refresh();
+        indexRandomForConcurrentSearch("test");
 
         // simple search on body with standard analyzer with a simple field query
         SearchResponse search = client().prepareSearch()
@@ -1571,6 +1588,7 @@ public class HighlighterSearchIT extends ParameterizedOpenSearchIntegTestCase {
                 .setSource("title", "This is a test for the enabling fast vector highlighter");
         }
         indexRandom(true, indexRequestBuilders);
+        indexRandomForConcurrentSearch("test");
 
         SearchResponse search = client().prepareSearch()
             .setQuery(matchPhraseQuery("title", "this is a test"))
@@ -1608,6 +1626,7 @@ public class HighlighterSearchIT extends ParameterizedOpenSearchIntegTestCase {
                 .setSource("title", "This is a test for the workaround for the fast vector highlighting SOLR-3724");
         }
         indexRandom(true, indexRequestBuilders);
+        indexRandomForConcurrentSearch("test");
 
         SearchResponse search = client().prepareSearch()
             .setQuery(matchPhraseQuery("title", "test for the workaround"))
@@ -1669,6 +1688,7 @@ public class HighlighterSearchIT extends ParameterizedOpenSearchIntegTestCase {
             )
             .get();
         refresh();
+        indexRandomForConcurrentSearch("test");
 
         SearchResponse response = client().prepareSearch("test")
             .setQuery(QueryBuilders.matchQuery("tags", "tag"))
@@ -1686,11 +1706,12 @@ public class HighlighterSearchIT extends ParameterizedOpenSearchIntegTestCase {
         );
     }
 
-    public void testBoostingQuery() {
+    public void testBoostingQuery() throws InterruptedException {
         createIndex("test");
         ensureGreen();
         client().prepareIndex("test").setSource("field1", "this is a test", "field2", "The quick brown fox jumps over the lazy dog").get();
         refresh();
+        indexRandomForConcurrentSearch("test");
 
         logger.info("--> highlighting and searching on field1");
         SearchSourceBuilder source = searchSource().query(
@@ -1702,11 +1723,12 @@ public class HighlighterSearchIT extends ParameterizedOpenSearchIntegTestCase {
         assertHighlight(searchResponse, 0, "field2", 0, 1, equalTo("The quick <x>brown</x> fox jumps over the lazy dog"));
     }
 
-    public void testBoostingQueryTermVector() throws IOException {
+    public void testBoostingQueryTermVector() throws IOException, InterruptedException {
         assertAcked(prepareCreate("test").setMapping(type1TermVectorMapping()));
         ensureGreen();
         client().prepareIndex("test").setSource("field1", "this is a test", "field2", "The quick brown fox jumps over the lazy dog").get();
         refresh();
+        indexRandomForConcurrentSearch("test");
 
         logger.info("--> highlighting and searching on field1");
         SearchSourceBuilder source = searchSource().query(
@@ -1718,12 +1740,13 @@ public class HighlighterSearchIT extends ParameterizedOpenSearchIntegTestCase {
         assertHighlight(searchResponse, 0, "field2", 0, 1, equalTo("The quick <x>brown</x> fox jumps over the lazy dog"));
     }
 
-    public void testCommonTermsQuery() {
+    public void testCommonTermsQuery() throws InterruptedException {
         createIndex("test");
         ensureGreen();
 
         client().prepareIndex("test").setSource("field1", "this is a test", "field2", "The quick brown fox jumps over the lazy dog").get();
         refresh();
+        indexRandomForConcurrentSearch("test");
 
         logger.info("--> highlighting and searching on field1");
         SearchSourceBuilder source = searchSource().query(commonTermsQuery("field2", "quick brown").cutoffFrequency(100))
@@ -1733,12 +1756,13 @@ public class HighlighterSearchIT extends ParameterizedOpenSearchIntegTestCase {
         assertHighlight(searchResponse, 0, "field2", 0, 1, equalTo("The <x>quick</x> <x>brown</x> fox jumps over the lazy dog"));
     }
 
-    public void testCommonTermsTermVector() throws IOException {
+    public void testCommonTermsTermVector() throws IOException, InterruptedException {
         assertAcked(prepareCreate("test").setMapping(type1TermVectorMapping()));
         ensureGreen();
 
         client().prepareIndex("test").setSource("field1", "this is a test", "field2", "The quick brown fox jumps over the lazy dog").get();
         refresh();
+        indexRandomForConcurrentSearch("test");
         logger.info("--> highlighting and searching on field1");
         SearchSourceBuilder source = searchSource().query(commonTermsQuery("field2", "quick brown").cutoffFrequency(100))
             .highlighter(highlight().field("field2").order("score").preTags("<x>").postTags("</x>"));
@@ -1764,6 +1788,7 @@ public class HighlighterSearchIT extends ParameterizedOpenSearchIntegTestCase {
             )
             .get();
         refresh();
+        indexRandomForConcurrentSearch("test");
 
         SearchResponse response = client().prepareSearch("test")
             .setQuery(QueryBuilders.matchPhraseQuery("tags", "long tag"))
@@ -1816,12 +1841,13 @@ public class HighlighterSearchIT extends ParameterizedOpenSearchIntegTestCase {
         );
     }
 
-    public void testPlainHighlighterMultipleFields() {
+    public void testPlainHighlighterMultipleFields() throws InterruptedException {
         createIndex("test");
         ensureGreen();
 
         index("test", "type1", "1", "field1", "The <b>quick<b> brown fox", "field2", "The <b>slow<b> brown fox");
         refresh();
+        indexRandomForConcurrentSearch("test");
 
         SearchResponse response = client().prepareSearch("test")
             .setQuery(QueryBuilders.matchQuery("field1", "fox"))
@@ -1834,7 +1860,7 @@ public class HighlighterSearchIT extends ParameterizedOpenSearchIntegTestCase {
         assertHighlight(response, 0, "field2", 0, 1, equalTo("The <b>slow<b> brown <2>fox</2>"));
     }
 
-    public void testFastVectorHighlighterMultipleFields() {
+    public void testFastVectorHighlighterMultipleFields() throws InterruptedException {
         assertAcked(
             prepareCreate("test").setMapping(
                 "field1",
@@ -1847,6 +1873,7 @@ public class HighlighterSearchIT extends ParameterizedOpenSearchIntegTestCase {
 
         index("test", "type1", "1", "field1", "The <b>quick<b> brown fox", "field2", "The <b>slow<b> brown fox");
         refresh();
+        indexRandomForConcurrentSearch("test");
 
         SearchResponse response = client().prepareSearch("test")
             .setQuery(QueryBuilders.matchQuery("field1", "fox"))
@@ -1864,6 +1891,7 @@ public class HighlighterSearchIT extends ParameterizedOpenSearchIntegTestCase {
         ensureGreen();
         client().prepareIndex("test").setId("1").setSource(jsonBuilder().startObject().field("field", "highlight").endObject()).get();
         refresh();
+        indexRandomForConcurrentSearch("test");
 
         // This query used to fail when the field to highlight was absent
         SearchResponse response = client().prepareSearch("test")
@@ -1904,6 +1932,7 @@ public class HighlighterSearchIT extends ParameterizedOpenSearchIntegTestCase {
             .setSource("text", "opensearch test", "byte", 25, "short", 42, "int", 100, "long", -1, "float", 3.2f, "double", 42.42)
             .get();
         refresh();
+        indexRandomForConcurrentSearch("test");
 
         SearchResponse response = client().prepareSearch("test")
             .setQuery(QueryBuilders.matchQuery("text", "test"))
@@ -1926,6 +1955,7 @@ public class HighlighterSearchIT extends ParameterizedOpenSearchIntegTestCase {
         ensureGreen();
         client().prepareIndex("test").setId("1").setSource("text", "opensearch test").get();
         refresh();
+        indexRandomForConcurrentSearch("test");
 
         SearchResponse response = client().prepareSearch("test")
             .setQuery(QueryBuilders.matchQuery("text", "test"))
@@ -1935,7 +1965,7 @@ public class HighlighterSearchIT extends ParameterizedOpenSearchIntegTestCase {
         assertHitCount(response, 1L);
     }
 
-    public void testHighlightUsesHighlightQuery() throws IOException {
+    public void testHighlightUsesHighlightQuery() throws IOException, InterruptedException {
         assertAcked(
             prepareCreate("test").setMapping(
                 "text",
@@ -1946,6 +1976,7 @@ public class HighlighterSearchIT extends ParameterizedOpenSearchIntegTestCase {
 
         index("test", "type1", "1", "text", "Testing the highlight query feature");
         refresh();
+        indexRandomForConcurrentSearch("test");
 
         for (String type : ALL_TYPES) {
             HighlightBuilder.Field field = new HighlightBuilder.Field("text");
@@ -1981,7 +2012,7 @@ public class HighlighterSearchIT extends ParameterizedOpenSearchIntegTestCase {
         return "";
     }
 
-    public void testHighlightNoMatchSize() throws IOException {
+    public void testHighlightNoMatchSize() throws IOException, InterruptedException {
         assertAcked(
             prepareCreate("test").setMapping(
                 "text",
@@ -1993,6 +2024,7 @@ public class HighlighterSearchIT extends ParameterizedOpenSearchIntegTestCase {
         String text = "I am pretty long so some of me should get cut off. Second sentence";
         index("test", "type1", "1", "text", text);
         refresh();
+        indexRandomForConcurrentSearch("test");
 
         // When you don't set noMatchSize you don't get any results if there isn't anything to highlight.
         HighlightBuilder.Field field = new HighlightBuilder.Field("text").fragmentSize(21).numOfFragments(1).highlighterType("plain");
@@ -2091,7 +2123,7 @@ public class HighlighterSearchIT extends ParameterizedOpenSearchIntegTestCase {
         assertNotHighlighted(response, 0, "text");
     }
 
-    public void testHighlightNoMatchSizeWithMultivaluedFields() throws IOException {
+    public void testHighlightNoMatchSizeWithMultivaluedFields() throws IOException, InterruptedException {
         assertAcked(
             prepareCreate("test").setMapping(
                 "text",
@@ -2104,6 +2136,7 @@ public class HighlighterSearchIT extends ParameterizedOpenSearchIntegTestCase {
         String text2 = "I am short";
         index("test", "type1", "1", "text", new String[] { text1, text2 });
         refresh();
+        indexRandomForConcurrentSearch("test");
 
         // The no match fragment should come from the first value of a multi-valued field
         HighlightBuilder.Field field = new HighlightBuilder.Field("text").fragmentSize(21)
@@ -2186,7 +2219,7 @@ public class HighlighterSearchIT extends ParameterizedOpenSearchIntegTestCase {
         assertNotHighlighted(response, 0, "text");
     }
 
-    public void testHighlightNoMatchSizeNumberOfFragments() throws IOException {
+    public void testHighlightNoMatchSizeNumberOfFragments() throws IOException, InterruptedException {
         assertAcked(
             prepareCreate("test").setMapping(
                 "text",
@@ -2200,6 +2233,7 @@ public class HighlighterSearchIT extends ParameterizedOpenSearchIntegTestCase {
         String text3 = "This is the fifth sentence";
         index("test", "type1", "1", "text", new String[] { text1, text2, text3 });
         refresh();
+        indexRandomForConcurrentSearch("test");
 
         // The no match fragment should come from the first value of a multi-valued field
         HighlightBuilder.Field field = new HighlightBuilder.Field("text").fragmentSize(1)
@@ -2243,6 +2277,7 @@ public class HighlighterSearchIT extends ParameterizedOpenSearchIntegTestCase {
             .setSource("field1", "this is a test", "field2", "The quick brown fox jumps over the lazy quick dog")
             .get();
         refresh();
+        indexRandomForConcurrentSearch("test");
 
         logger.info("--> highlighting and searching on field1");
         SearchSourceBuilder source = searchSource().query(termQuery("field1", "test"))
@@ -2320,6 +2355,7 @@ public class HighlighterSearchIT extends ParameterizedOpenSearchIntegTestCase {
             "The <b>slow<b> brown fox. Second sentence."
         );
         refresh();
+        indexRandomForConcurrentSearch("test");
 
         SearchResponse response = client().prepareSearch("test")
             .setQuery(QueryBuilders.matchQuery("field1", "fox"))
@@ -2344,6 +2380,7 @@ public class HighlighterSearchIT extends ParameterizedOpenSearchIntegTestCase {
             )
             .get();
         refresh();
+        indexRandomForConcurrentSearch("test");
 
         logger.info("--> highlighting and searching on field1");
         SearchSourceBuilder source = searchSource().query(termQuery("field1", "fox"))
@@ -2376,6 +2413,7 @@ public class HighlighterSearchIT extends ParameterizedOpenSearchIntegTestCase {
             )
             .get();
         refresh();
+        indexRandomForConcurrentSearch("test");
 
         source = searchSource().query(termQuery("field1", "fox"))
             .highlighter(highlight().field(new Field("field1").numOfFragments(0).preTags("<field1>").postTags("</field1>")));
@@ -2412,7 +2450,7 @@ public class HighlighterSearchIT extends ParameterizedOpenSearchIntegTestCase {
         }
     }
 
-    public void testMultiMatchQueryHighlight() throws IOException {
+    public void testMultiMatchQueryHighlight() throws IOException, InterruptedException {
         XContentBuilder mapping = XContentFactory.jsonBuilder()
             .startObject()
             .startObject("properties")
@@ -2434,6 +2472,7 @@ public class HighlighterSearchIT extends ParameterizedOpenSearchIntegTestCase {
             .setSource("field1", "The quick brown fox jumps over", "field2", "The quick brown fox jumps over")
             .get();
         refresh();
+        indexRandomForConcurrentSearch("test");
         final int iters = scaledRandomIntBetween(20, 30);
         for (int i = 0; i < iters; i++) {
             String highlighterType = rarely() ? null : RandomPicks.randomFrom(random(), ALL_TYPES);
@@ -2479,6 +2518,7 @@ public class HighlighterSearchIT extends ParameterizedOpenSearchIntegTestCase {
             )
             .get();
         refresh();
+        indexRandomForConcurrentSearch("test");
 
         logger.info("--> highlighting and searching on field1");
         SearchSourceBuilder source = searchSource().query(termQuery("field1", "sentence"))
@@ -2565,6 +2605,7 @@ public class HighlighterSearchIT extends ParameterizedOpenSearchIntegTestCase {
         ensureGreen();
         client().prepareIndex("test").setId("1").setSource("title", "this is a test . Second sentence.").get();
         refresh();
+        indexRandomForConcurrentSearch("test");
 
         // simple search on body with standard analyzer with a simple field query
         SearchResponse searchResponse = client().prepareSearch()
@@ -2623,6 +2664,7 @@ public class HighlighterSearchIT extends ParameterizedOpenSearchIntegTestCase {
 
         client().prepareIndex("test").setId("1").setSource("title", "this is a test").get();
         refresh();
+        indexRandomForConcurrentSearch("test");
 
         // simple search on body with standard analyzer with a simple field query
         SearchResponse searchResponse = client().prepareSearch()
@@ -2672,13 +2714,14 @@ public class HighlighterSearchIT extends ParameterizedOpenSearchIntegTestCase {
         assertNoFailures(search);
     }
 
-    public void testPostingsHighlighterBoostingQuery() throws IOException {
+    public void testPostingsHighlighterBoostingQuery() throws IOException, InterruptedException {
         assertAcked(prepareCreate("test").setMapping(type1PostingsffsetsMapping()));
         ensureGreen();
         client().prepareIndex("test")
             .setSource("field1", "this is a test", "field2", "The quick brown fox jumps over the lazy dog! Second sentence.")
             .get();
         refresh();
+        indexRandomForConcurrentSearch("test");
 
         logger.info("--> highlighting and searching on field1");
         SearchSourceBuilder source = searchSource().query(
@@ -2689,7 +2732,7 @@ public class HighlighterSearchIT extends ParameterizedOpenSearchIntegTestCase {
         assertHighlight(searchResponse, 0, "field2", 0, 1, equalTo("The quick <x>brown</x> fox jumps over the lazy dog! Second sentence."));
     }
 
-    public void testPostingsHighlighterCommonTermsQuery() throws IOException {
+    public void testPostingsHighlighterCommonTermsQuery() throws IOException, InterruptedException {
         assertAcked(prepareCreate("test").setMapping(type1PostingsffsetsMapping()));
         ensureGreen();
 
@@ -2697,6 +2740,7 @@ public class HighlighterSearchIT extends ParameterizedOpenSearchIntegTestCase {
             .setSource("field1", "this is a test", "field2", "The quick brown fox jumps over the lazy dog! Second sentence.")
             .get();
         refresh();
+        indexRandomForConcurrentSearch("test");
 
         logger.info("--> highlighting and searching on field1");
         SearchSourceBuilder source = searchSource().query(commonTermsQuery("field2", "quick brown").cutoffFrequency(100))
@@ -2738,6 +2782,7 @@ public class HighlighterSearchIT extends ParameterizedOpenSearchIntegTestCase {
             .setSource("field1", "this is a test", "field2", "The quick brown fox jumps over the lazy dog! Second sentence.")
             .get();
         refresh();
+        indexRandomForConcurrentSearch("test");
         logger.info("--> highlighting and searching on field2");
 
         SearchSourceBuilder source = searchSource().query(prefixQuery("field2", "qui")).highlighter(highlight().field("field2"));
@@ -2760,6 +2805,7 @@ public class HighlighterSearchIT extends ParameterizedOpenSearchIntegTestCase {
             .setSource("field1", "this is a test", "field2", "The quick brown fox jumps over the lazy dog! Second sentence.")
             .get();
         refresh();
+        indexRandomForConcurrentSearch("test");
 
         logger.info("--> highlighting and searching on field2");
         SearchSourceBuilder source = searchSource().query(fuzzyQuery("field2", "quck")).highlighter(highlight().field("field2"));
@@ -2783,6 +2829,7 @@ public class HighlighterSearchIT extends ParameterizedOpenSearchIntegTestCase {
             .setSource("field1", "this is a test", "field2", "The quick brown fox jumps over the lazy dog! Second sentence.")
             .get();
         refresh();
+        indexRandomForConcurrentSearch("test");
 
         logger.info("--> highlighting and searching on field2");
         SearchSourceBuilder source = searchSource().query(regexpQuery("field2", "qu[a-l]+k")).highlighter(highlight().field("field2"));
@@ -2806,6 +2853,7 @@ public class HighlighterSearchIT extends ParameterizedOpenSearchIntegTestCase {
             .setSource("field1", "this is a test", "field2", "The quick brown fox jumps over the lazy dog! Second sentence.")
             .get();
         refresh();
+        indexRandomForConcurrentSearch("test");
 
         logger.info("--> highlighting and searching on field2");
         SearchSourceBuilder source = searchSource().query(wildcardQuery("field2", "qui*")).highlighter(highlight().field("field2"));
@@ -2840,6 +2888,7 @@ public class HighlighterSearchIT extends ParameterizedOpenSearchIntegTestCase {
 
         client().prepareIndex("test").setSource("field1", "this is a test", "field2", "aaab").get();
         refresh();
+        indexRandomForConcurrentSearch("test");
 
         logger.info("--> highlighting and searching on field2");
         SearchSourceBuilder source = searchSource().query(rangeQuery("field2").gte("aaaa").lt("zzzz"))
@@ -2857,6 +2906,7 @@ public class HighlighterSearchIT extends ParameterizedOpenSearchIntegTestCase {
             .setSource("field1", "this is a test", "field2", "The quick brown fox jumps over the lazy dog! Second sentence.")
             .get();
         refresh();
+        indexRandomForConcurrentSearch("test");
 
         logger.info("--> highlighting and searching on field2");
         SearchSourceBuilder source = searchSource().query(queryStringQuery("qui*").defaultField("field2"))
@@ -2878,6 +2928,7 @@ public class HighlighterSearchIT extends ParameterizedOpenSearchIntegTestCase {
 
         client().prepareIndex("test").setSource("field1", "The photography word will get highlighted").get();
         refresh();
+        indexRandomForConcurrentSearch("test");
 
         logger.info("--> highlighting and searching on field1");
         SearchSourceBuilder source = searchSource().query(constantScoreQuery(regexpQuery("field1", "pho[a-z]+")))
@@ -2892,6 +2943,7 @@ public class HighlighterSearchIT extends ParameterizedOpenSearchIntegTestCase {
 
         client().prepareIndex("test").setSource("field1", "The photography word will get highlighted").get();
         refresh();
+        indexRandomForConcurrentSearch("test");
 
         logger.info("--> highlighting and searching on field1");
         SearchSourceBuilder source = searchSource().query(
@@ -2909,6 +2961,7 @@ public class HighlighterSearchIT extends ParameterizedOpenSearchIntegTestCase {
 
         client().prepareIndex("test").setSource("field1", "The photography word will get highlighted").get();
         refresh();
+        indexRandomForConcurrentSearch("test");
 
         logger.info("--> highlighting and searching on field1");
         SearchSourceBuilder source = searchSource().query(
@@ -2924,6 +2977,7 @@ public class HighlighterSearchIT extends ParameterizedOpenSearchIntegTestCase {
 
         client().prepareIndex("test").setSource("field1", "The photography word will get highlighted").get();
         refresh();
+        indexRandomForConcurrentSearch("test");
 
         logger.info("--> highlighting and searching on field1");
         SearchSourceBuilder source = searchSource().query(
@@ -3028,7 +3082,7 @@ public class HighlighterSearchIT extends ParameterizedOpenSearchIntegTestCase {
      * because it doesn't support the concept of terms having a different weight based on position.
      * @param highlighterType highlighter to test
      */
-    private void phraseBoostTestCase(String highlighterType) {
+    private void phraseBoostTestCase(String highlighterType) throws InterruptedException {
         ensureGreen();
         StringBuilder text = new StringBuilder();
         text.append("words words junk junk junk junk junk junk junk junk highlight junk junk junk junk together junk\n");
@@ -3041,6 +3095,7 @@ public class HighlighterSearchIT extends ParameterizedOpenSearchIntegTestCase {
         }
         index("test", "type1", "1", "field1", text.toString());
         refresh();
+        indexRandomForConcurrentSearch("test");
 
         // Match queries
         phraseBoostTestCaseForClauses(
@@ -3109,7 +3164,7 @@ public class HighlighterSearchIT extends ParameterizedOpenSearchIntegTestCase {
         assertHighlight(response, 0, "field1", 0, 1, highlightedMatcher);
     }
 
-    public void testGeoFieldHighlightingWithDifferentHighlighters() throws IOException {
+    public void testGeoFieldHighlightingWithDifferentHighlighters() throws IOException, InterruptedException {
         // check that we do not get an exception for geo_point fields in case someone tries to highlight
         // it accidentially with a wildcard
         // see https://github.com/elastic/elasticsearch/issues/17537
@@ -3133,6 +3188,7 @@ public class HighlighterSearchIT extends ParameterizedOpenSearchIntegTestCase {
             .setSource(jsonBuilder().startObject().field("text", "Arbitrary text field which will should not cause a failure").endObject())
             .get();
         refresh();
+        indexRandomForConcurrentSearch("test");
         String highlighterType = randomFrom(ALL_TYPES);
         QueryBuilder query = QueryBuilders.boolQuery()
             .should(
@@ -3150,7 +3206,7 @@ public class HighlighterSearchIT extends ParameterizedOpenSearchIntegTestCase {
         assertThat(search.getHits().getAt(0).getHighlightFields().get("text").fragments().length, equalTo(1));
     }
 
-    public void testGeoFieldHighlightingWhenQueryGetsRewritten() throws IOException {
+    public void testGeoFieldHighlightingWhenQueryGetsRewritten() throws IOException, InterruptedException {
         // same as above but in this example the query gets rewritten during highlighting
         // see https://github.com/elastic/elasticsearch/issues/17537#issuecomment-244939633
         XContentBuilder mappings = jsonBuilder();
@@ -3177,6 +3233,7 @@ public class HighlighterSearchIT extends ParameterizedOpenSearchIntegTestCase {
             )
             .get();
         refresh();
+        indexRandomForConcurrentSearch("test");
 
         QueryBuilder query = QueryBuilders.functionScoreQuery(
             QueryBuilders.boolQuery()
@@ -3192,7 +3249,7 @@ public class HighlighterSearchIT extends ParameterizedOpenSearchIntegTestCase {
         assertThat(search.getHits().getTotalHits().value, equalTo(1L));
     }
 
-    public void testKeywordFieldHighlighting() throws IOException {
+    public void testKeywordFieldHighlighting() throws IOException, InterruptedException {
         // check that keyword highlighting works
         XContentBuilder mappings = jsonBuilder();
         mappings.startObject();
@@ -3205,6 +3262,7 @@ public class HighlighterSearchIT extends ParameterizedOpenSearchIntegTestCase {
             .setSource(jsonBuilder().startObject().field("keyword_field", "some text").endObject())
             .get();
         refresh();
+        indexRandomForConcurrentSearch("test");
         SearchResponse search = client().prepareSearch()
             .setSource(
                 new SearchSourceBuilder().query(QueryBuilders.matchQuery("keyword_field", "some text"))
@@ -3238,6 +3296,7 @@ public class HighlighterSearchIT extends ParameterizedOpenSearchIntegTestCase {
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
             .get();
 
+        indexRandomForConcurrentSearch("test");
         SearchResponse response = client().prepareSearch()
             .setQuery(matchQuery("foo_copy", "brown"))
             .highlighter(new HighlightBuilder().field(new Field("foo_copy")))
@@ -3287,7 +3346,7 @@ public class HighlighterSearchIT extends ParameterizedOpenSearchIntegTestCase {
             )
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
             .get();
-
+        indexRandomForConcurrentSearch("test");
         SearchResponse searchResponse = client().prepareSearch()
             .setQuery(nestedQuery("foo", matchQuery("foo.text", "brown cow"), ScoreMode.None))
             .highlighter(new HighlightBuilder().field(new Field("foo_text").highlighterType("fvh")).requireFieldMatch(false))
@@ -3305,6 +3364,7 @@ public class HighlighterSearchIT extends ParameterizedOpenSearchIntegTestCase {
             .setSource(jsonBuilder().startObject().field("text", "brown").endObject())
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
             .get();
+        indexRandomForConcurrentSearch("test");
 
         SearchResponse searchResponse = client().prepareSearch()
             .setQuery(new FunctionScoreQueryBuilder(QueryBuilders.prefixQuery("text", "bro")))
@@ -3322,6 +3382,7 @@ public class HighlighterSearchIT extends ParameterizedOpenSearchIntegTestCase {
             .setSource(jsonBuilder().startObject().field("text", "brown").field("enable", "yes").endObject())
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
             .get();
+        indexRandomForConcurrentSearch("test");
         FunctionScoreQueryBuilder.FilterFunctionBuilder filterBuilder = new FunctionScoreQueryBuilder.FilterFunctionBuilder(
             QueryBuilders.termQuery("enable", "yes"),
             new RandomScoreFunctionBuilder()
@@ -3343,10 +3404,6 @@ public class HighlighterSearchIT extends ParameterizedOpenSearchIntegTestCase {
     }
 
     public void testHighlightQueryRewriteDatesWithNow() throws Exception {
-        assumeFalse(
-            "Concurrent search case muted pending fix: https://github.com/opensearch-project/OpenSearch/issues/10434",
-            internalCluster().clusterService().getClusterSettings().get(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING)
-        );
         assertAcked(
             client().admin()
                 .indices()
@@ -3420,6 +3477,7 @@ public class HighlighterSearchIT extends ParameterizedOpenSearchIntegTestCase {
             )
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
             .get();
+        indexRandomForConcurrentSearch("test");
 
         for (String type : new String[] { "unified", "plain" }) {
             SearchResponse searchResponse = client().prepareSearch()
@@ -3477,6 +3535,7 @@ public class HighlighterSearchIT extends ParameterizedOpenSearchIntegTestCase {
             .setSource("keyword", "Hello World")
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
             .get();
+        indexRandomForConcurrentSearch("test");
 
         for (String highlighterType : new String[] { "unified", "plain" }) {
             SearchResponse searchResponse = client().prepareSearch()
@@ -3499,6 +3558,7 @@ public class HighlighterSearchIT extends ParameterizedOpenSearchIntegTestCase {
             .setSource("keyword", "Hello World")
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
             .get();
+        indexRandomForConcurrentSearch("test");
 
         for (String highlighterType : new String[] { "plain", "unified" }) {
             SearchResponse searchResponse = client().prepareSearch()

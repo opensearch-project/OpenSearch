@@ -32,6 +32,7 @@
 
 package org.opensearch.index.warmer;
 
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
@@ -44,8 +45,9 @@ import java.io.IOException;
 /**
  * Stats collected about the warmer
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class WarmerStats implements Writeable, ToXContentFragment {
 
     private long current;

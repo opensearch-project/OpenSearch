@@ -34,6 +34,7 @@ package org.opensearch.plugins;
 
 import org.opensearch.Version;
 import org.opensearch.bootstrap.JarHell;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
@@ -59,6 +60,7 @@ import java.util.stream.Collectors;
  *
  * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class PluginInfo implements Writeable, ToXContentObject {
 
     public static final String OPENSEARCH_PLUGIN_PROPERTIES = "plugin-descriptor.properties";

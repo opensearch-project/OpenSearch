@@ -154,6 +154,10 @@ dependencies {
   // jcraft
   api "com.jcraft:jzlib:${versions.jzlib}"
 
+  // reactor
+  api "io.projectreactor:reactor-core:${versions.reactor}"
+  api "org.reactivestreams:reactive-streams:${versions.reactivestreams}"
+
   // protobuf
   api "com.google.protobuf:protobuf-java:${versions.protobuf}"
   api "jakarta.annotation:jakarta.annotation-api:${versions.jakarta_annotation}"
@@ -366,11 +370,13 @@ tasks.named("thirdPartyAudit").configure {
             'com.google.protobuf.UnsafeUtil$JvmMemoryAccessor',
             'com.google.protobuf.UnsafeUtil$MemoryAccessor',
             'org.apache.logging.log4j.core.util.internal.UnsafeUtil',
-            'org.apache.logging.log4j.core.util.internal.UnsafeUtil$1'
+            'org.apache.logging.log4j.core.util.internal.UnsafeUtil$1',
+            'reactor.core.publisher.Traces$SharedSecretsCallSiteSupplierFactory$TracingException'
     )
 }
 
 tasks.named("dependencyLicenses").configure {
+    mapping from: /reactor-.*/, to: 'reactor'
     mapping from: /lucene-.*/, to: 'lucene'
     dependencies = project.configurations.runtimeClasspath.fileCollection {
         it.group.startsWith('org.opensearch') == false ||

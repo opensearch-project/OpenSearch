@@ -42,6 +42,7 @@ import org.opensearch.action.support.WriteRequest;
 import org.opensearch.action.support.replication.ReplicationRequest;
 import org.opensearch.action.support.single.instance.InstanceShardOperationRequest;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.lucene.uid.Versions;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
 import org.opensearch.common.xcontent.XContentHelper;
@@ -74,8 +75,9 @@ import static org.opensearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 /**
  * Transport request for updating an index
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
     implements
         DocWriteRequest<UpdateRequest>,

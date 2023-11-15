@@ -22,9 +22,9 @@ import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.StandardDirectoryReader;
 import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.BytesRef;
+import org.opensearch.action.admin.cluster.stats.ClusterStatsResponse;
 import org.opensearch.action.admin.indices.alias.Alias;
 import org.opensearch.action.admin.indices.flush.FlushRequest;
-import org.opensearch.action.admin.indices.recovery.RecoveryResponse;
 import org.opensearch.action.admin.indices.stats.IndicesStatsRequest;
 import org.opensearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.opensearch.action.get.GetResponse;
@@ -59,11 +59,11 @@ import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lucene.index.OpenSearchDirectoryReader;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.IndexModule;
+import org.opensearch.index.ReplicationStats;
 import org.opensearch.index.SegmentReplicationPerGroupStats;
 import org.opensearch.index.SegmentReplicationPressureService;
 import org.opensearch.index.SegmentReplicationShardStats;
@@ -73,7 +73,6 @@ import org.opensearch.index.engine.EngineConfig;
 import org.opensearch.index.engine.NRTReplicationReaderManager;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.indices.recovery.FileChunkRequest;
-import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.node.NodeClosedException;
@@ -85,7 +84,6 @@ import org.opensearch.test.BackgroundIndexer;
 import org.opensearch.test.InternalTestCluster;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.transport.MockTransportService;
-import org.opensearch.transport.TransportRequest;
 import org.opensearch.transport.TransportService;
 import org.junit.Before;
 
@@ -98,7 +96,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 import static java.util.Arrays.asList;
@@ -1068,9 +1066,14 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
 
         client(replica).prepareClearScroll().addScrollId(searchResponse.getScrollId()).get();
 
-        currentFiles = List.of(replicaShard.store().directory().listAll());
-        assertFalse("Files should be cleaned up post scroll clear request", currentFiles.containsAll(snapshottedSegments));
+        assertBusy(
+            () -> assertFalse(
+                "Files should be cleaned up post scroll clear request",
+                List.of(replicaShard.store().directory().listAll()).containsAll(snapshottedSegments)
+            )
+        );
         assertEquals(100, scrollHits);
+
     }
 
     /**
@@ -1329,9 +1332,12 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
         // delete the PIT
         DeletePitRequest deletePITRequest = new DeletePitRequest(pitResponse.getId());
         client().execute(DeletePitAction.INSTANCE, deletePITRequest).actionGet();
-
-        currentFiles = List.of(replicaShard.store().directory().listAll());
-        assertFalse("Files should be cleaned up", currentFiles.containsAll(snapshottedSegments));
+        assertBusy(
+            () -> assertFalse(
+                "Files should be cleaned up",
+                List.of(replicaShard.store().directory().listAll()).containsAll(snapshottedSegments)
+            )
+        );
     }
 
     /**
@@ -1782,134 +1788,57 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
 
     }
 
-    public void testSendCorruptBytesToReplica() throws Exception {
-        // this test stubs transport calls specific to node-node replication.
-        assumeFalse(
-            "Skipping the test as its not compatible with segment replication with remote store.",
-            segmentReplicationWithRemoteEnabled()
-        );
+    public void testReplicaAlreadyAtCheckpoint() throws Exception {
+        final List<String> nodes = new ArrayList<>();
         final String primaryNode = internalCluster().startDataOnlyNode();
-        createIndex(
-            INDEX_NAME,
-            Settings.builder()
-                .put(indexSettings())
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-                .put("index.refresh_interval", -1)
-                .build()
-        );
-        ensureYellow(INDEX_NAME);
+        nodes.add(primaryNode);
+        final Settings settings = Settings.builder().put(indexSettings()).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build();
+        createIndex(INDEX_NAME, settings);
+        ensureGreen(INDEX_NAME);
+        // start a replica node, initially will be empty with no shard assignment.
         final String replicaNode = internalCluster().startDataOnlyNode();
-        ensureGreen(INDEX_NAME);
-
-        MockTransportService primaryTransportService = ((MockTransportService) internalCluster().getInstance(
-            TransportService.class,
-            primaryNode
-        ));
-        CountDownLatch latch = new CountDownLatch(1);
-        AtomicBoolean failed = new AtomicBoolean(false);
-        primaryTransportService.addSendBehavior(
-            internalCluster().getInstance(TransportService.class, replicaNode),
-            (connection, requestId, action, request, options) -> {
-                if (action.equals(SegmentReplicationTargetService.Actions.FILE_CHUNK) && failed.getAndSet(true) == false) {
-                    FileChunkRequest req = (FileChunkRequest) request;
-                    logger.info("SENDING CORRUPT file chunk [{}] lastChunk: {}", req, req.lastChunk());
-                    TransportRequest corrupt = new FileChunkRequest(
-                        req.recoveryId(),
-                        ((FileChunkRequest) request).requestSeqNo(),
-                        ((FileChunkRequest) request).shardId(),
-                        ((FileChunkRequest) request).metadata(),
-                        ((FileChunkRequest) request).position(),
-                        new BytesArray("test"),
-                        false,
-                        0,
-                        0L
-                    );
-                    connection.sendRequest(requestId, action, corrupt, options);
-                    latch.countDown();
-                } else {
-                    connection.sendRequest(requestId, action, request, options);
-                }
-            }
+        nodes.add(replicaNode);
+        final String replicaNode2 = internalCluster().startDataOnlyNode();
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareUpdateSettings(INDEX_NAME)
+                .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 2))
         );
-        for (int i = 0; i < 100; i++) {
-            client().prepareIndex(INDEX_NAME)
-                .setId(String.valueOf(i))
-                .setSource(jsonBuilder().startObject().field("field", i).endObject())
-                .get();
-        }
-        final long originalRecoveryTime = getRecoveryStopTime(replicaNode);
-        assertNotEquals(originalRecoveryTime, 0);
-        refresh(INDEX_NAME);
-        latch.await();
-        assertTrue(failed.get());
-        waitForNewPeerRecovery(replicaNode, originalRecoveryTime);
-        // reset checkIndex to ensure our original shard doesn't throw
-        resetCheckIndexStatus();
-        waitForSearchableDocs(100, primaryNode, replicaNode);
-    }
-
-    public void testWipeSegmentBetweenSyncs() throws Exception {
-        internalCluster().startClusterManagerOnlyNode();
-        final String primaryNode = internalCluster().startDataOnlyNode();
-        createIndex(
-            INDEX_NAME,
-            Settings.builder()
-                .put(indexSettings())
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-                .put("index.refresh_interval", -1)
-                .build()
-        );
-        ensureYellow(INDEX_NAME);
-        final String replicaNode = internalCluster().startDataOnlyNode();
         ensureGreen(INDEX_NAME);
 
-        for (int i = 0; i < 10; i++) {
-            client().prepareIndex(INDEX_NAME)
-                .setId(String.valueOf(i))
-                .setSource(jsonBuilder().startObject().field("field", i).endObject())
-                .get();
-        }
+        // index a doc.
+        client().prepareIndex(INDEX_NAME).setId("1").setSource("foo", randomInt()).get();
         refresh(INDEX_NAME);
-        ensureGreen(INDEX_NAME);
-        final long originalRecoveryTime = getRecoveryStopTime(replicaNode);
 
-        final IndexShard indexShard = getIndexShard(replicaNode, INDEX_NAME);
-        waitForSearchableDocs(INDEX_NAME, 10, List.of(replicaNode));
-        indexShard.store().directory().deleteFile("_0.si");
-
-        for (int i = 11; i < 21; i++) {
-            client().prepareIndex(INDEX_NAME)
-                .setId(String.valueOf(i))
-                .setSource(jsonBuilder().startObject().field("field", i).endObject())
-                .get();
-        }
-        refresh(INDEX_NAME);
-        waitForNewPeerRecovery(replicaNode, originalRecoveryTime);
-        resetCheckIndexStatus();
-        waitForSearchableDocs(20, primaryNode, replicaNode);
-    }
-
-    private void waitForNewPeerRecovery(String replicaNode, long originalRecoveryTime) throws Exception {
+        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(primaryNode));
+        ensureYellowAndNoInitializingShards(INDEX_NAME);
+        IndexShard replica_1 = getIndexShard(replicaNode, INDEX_NAME);
+        IndexShard replica_2 = getIndexShard(replicaNode2, INDEX_NAME);
+        // wait until a replica is promoted & finishes engine flip, we don't care which one
+        AtomicReference<IndexShard> primary = new AtomicReference<>();
         assertBusy(() -> {
-            // assert we have a peer recovery after the original
-            final long time = getRecoveryStopTime(replicaNode);
-            assertNotEquals(time, 0);
-            assertNotEquals(originalRecoveryTime, time);
+            assertTrue("replica should be promoted as a primary", replica_1.routingEntry().primary() || replica_2.routingEntry().primary());
+            primary.set(replica_1.routingEntry().primary() ? replica_1 : replica_2);
+        });
 
-        }, 1, TimeUnit.MINUTES);
-    }
+        FlushRequest request = new FlushRequest(INDEX_NAME);
+        request.force(true);
+        primary.get().flush(request);
 
-    private long getRecoveryStopTime(String nodeName) {
-        final RecoveryResponse recoveryResponse = client().admin().indices().prepareRecoveries(INDEX_NAME).get();
-        final List<RecoveryState> recoveryStates = recoveryResponse.shardRecoveryStates().get(INDEX_NAME);
-        logger.info("Recovery states {}", recoveryResponse);
-        for (RecoveryState recoveryState : recoveryStates) {
-            if (recoveryState.getTargetNode().getName().equals(nodeName)) {
-                return recoveryState.getTimer().stopTime();
-            }
-        }
-        return 0L;
+        assertBusy(() -> {
+            assertEquals(
+                replica_1.getLatestReplicationCheckpoint().getSegmentInfosVersion(),
+                replica_2.getLatestReplicationCheckpoint().getSegmentInfosVersion()
+            );
+        });
+
+        assertBusy(() -> {
+            ClusterStatsResponse clusterStatsResponse = client().admin().cluster().prepareClusterStats().get();
+            ReplicationStats replicationStats = clusterStatsResponse.getIndicesStats().getSegments().getReplicationStats();
+            assertEquals(0L, replicationStats.maxBytesBehind);
+            assertEquals(0L, replicationStats.maxReplicationLag);
+            assertEquals(0L, replicationStats.totalBytesBehind);
+        });
     }
 }
