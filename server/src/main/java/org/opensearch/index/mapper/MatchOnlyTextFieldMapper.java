@@ -112,12 +112,11 @@ public class MatchOnlyTextFieldMapper extends TextFieldMapper {
             m -> Optional.ofNullable(((MatchOnlyTextFieldType) m.mappedFieldType).prefixFieldType)
                 .map(p -> new PrefixConfig(p.minChars, p.maxChars))
                 .orElse(null)
-        ).acceptsNull().setValidator( v -> {
-                if (v != null) {
-                    throw new MapperParsingException("Index prefixes cannot be enabled on for match_only_text field. Use text field instead");
-                }
+        ).acceptsNull().setValidator(v -> {
+            if (v != null) {
+                throw new MapperParsingException("Index prefixes cannot be enabled on for match_only_text field. Use text field instead");
             }
-        );
+        });
 
         private static Parameter<Boolean> norms(Function<FieldMapper, Boolean> initializer) {
             return Parameter.boolParam("norms", false, initializer, false)
@@ -226,6 +225,7 @@ public class MatchOnlyTextFieldMapper extends TextFieldMapper {
         private final boolean indexPhrases = false;
 
         private PrefixFieldType prefixFieldType;
+
         @Override
         public String typeName() {
             return CONTENT_TYPE;
@@ -242,13 +242,7 @@ public class MatchOnlyTextFieldMapper extends TextFieldMapper {
             for (Term term : phraseQuery.getTerms()) {
                 builder.add(new TermQuery(term), BooleanClause.Occur.FILTER);
             }
-            return new SourceFieldMatchQuery(
-                builder.build(),
-                phraseQuery,
-                this,
-                (SourceValueFetcher) this.valueFetcher(context, context.lookup(), null),
-                context.lookup()
-            );
+            return new SourceFieldMatchQuery(builder.build(), phraseQuery, this, context);
         }
 
         @Override
@@ -257,19 +251,17 @@ public class MatchOnlyTextFieldMapper extends TextFieldMapper {
             MultiPhraseQuery multiPhraseQuery = (MultiPhraseQuery) super.multiPhraseQuery(stream, slop, enablePositionIncrements);
             BooleanQuery.Builder builder = new BooleanQuery.Builder();
             for (Term[] terms : multiPhraseQuery.getTermArrays()) {
-                BooleanQuery.Builder disjunctions = new BooleanQuery.Builder();
-                for (Term term : terms) {
-                    disjunctions.add(new TermQuery(term), BooleanClause.Occur.SHOULD);
+                if (terms.length > 1) {
+                    BooleanQuery.Builder disjunctions = new BooleanQuery.Builder();
+                    for (Term term : terms) {
+                        disjunctions.add(new TermQuery(term), BooleanClause.Occur.SHOULD);
+                    }
+                    builder.add(disjunctions.build(), BooleanClause.Occur.FILTER);
+                } else {
+                    builder.add(new TermQuery(terms[0]), BooleanClause.Occur.FILTER);
                 }
-                builder.add(disjunctions.build(), BooleanClause.Occur.FILTER);
             }
-            return new SourceFieldMatchQuery(
-                builder.build(),
-                multiPhraseQuery,
-                this,
-                (SourceValueFetcher) this.valueFetcher(context, context.lookup(), null),
-                context.lookup()
-            );
+            return new SourceFieldMatchQuery(builder.build(), multiPhraseQuery, this, context);
         }
 
         @Override
@@ -290,13 +282,7 @@ public class MatchOnlyTextFieldMapper extends TextFieldMapper {
                 }
                 builder.add(disjunctions.build(), BooleanClause.Occur.FILTER);
             }
-            return new SourceFieldMatchQuery(
-                builder.build(),
-                phrasePrefixQuery,
-                this,
-                (SourceValueFetcher) this.valueFetcher(context, context.lookup(), null),
-                context.lookup()
-            );
+            return new SourceFieldMatchQuery(builder.build(), phrasePrefixQuery, this, context);
         }
 
         private List<List<Term>> getTermsFromTokenStream(TokenStream stream) throws IOException {
