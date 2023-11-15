@@ -47,11 +47,11 @@ import java.util.concurrent.ConcurrentHashMap;
  * thread-safe for concurrent segment search use case by keeping the {@link DoubleValues} per thread. Any update to the value happens in
  * thread specific {@link DoubleValuesSource} instance.
  */
-final class ReplaceableConstDoubleValueSource extends DoubleValuesSource {
+final class PerThreadReplaceableConstDoubleValueSource extends DoubleValuesSource {
     // Multiple slices can be processed by same thread but that will be sequential, so keeping per thread is fine
     final Map<Long, ReplaceableConstDoubleValues> perThreadDoubleValues;
 
-    ReplaceableConstDoubleValueSource() {
+    PerThreadReplaceableConstDoubleValueSource() {
         perThreadDoubleValues = new ConcurrentHashMap<>();
     }
 
