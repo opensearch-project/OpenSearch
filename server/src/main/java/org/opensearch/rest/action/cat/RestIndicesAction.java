@@ -59,6 +59,7 @@ import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.action.ActionResponse;
 import org.opensearch.core.common.Strings;
 import org.opensearch.index.IndexSettings;
+import org.opensearch.indices.SystemIndexDescriptor;
 import org.opensearch.indices.SystemIndices;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.RestResponse;
@@ -365,6 +366,11 @@ public class RestIndicesAction extends AbstractCatAction {
 
         table.addCell("store.size", "sibling:pri;alias:ss,storeSize;text-align:right;desc:store size of primaries & replicas");
         table.addCell("pri.store.size", "text-align:right;desc:store size of primaries");
+
+        final boolean systemParam = request.paramAsBoolean("system", false);
+        if (systemParam) {
+            table.addCell("desc", "alias:dsc;desc:description of system index");
+        }
 
         table.addCell("completion.size", "sibling:pri;alias:cs,completionSize;default:false;text-align:right;desc:size of completion");
         table.addCell("pri.completion.size", "default:false;text-align:right;desc:size of completion");
@@ -799,6 +805,11 @@ public class RestIndicesAction extends AbstractCatAction {
 
             table.addCell(totalStats.getStore() == null ? null : totalStats.getStore().size());
             table.addCell(primaryStats.getStore() == null ? null : primaryStats.getStore().size());
+
+            if (systemParam) {
+                SystemIndexDescriptor descriptor = systemIndices.findMatchingDescriptor(indexName);
+                table.addCell(descriptor == null ? null : descriptor.getDescription());
+            }
 
             table.addCell(totalStats.getCompletion() == null ? null : totalStats.getCompletion().getSize());
             table.addCell(primaryStats.getCompletion() == null ? null : primaryStats.getCompletion().getSize());
