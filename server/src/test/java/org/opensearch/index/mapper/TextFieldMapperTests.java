@@ -697,7 +697,7 @@ public class TextFieldMapperTests extends MapperTestCase {
     }
 
     public void testNestedIndexPrefixes() throws IOException {
-        
+
     }
 
     public void testFastPhraseMapping() throws IOException {

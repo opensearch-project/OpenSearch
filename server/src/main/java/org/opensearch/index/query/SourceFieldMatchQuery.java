@@ -39,6 +39,7 @@ public class SourceFieldMatchQuery extends Query {
     final private SearchLookup lookup;
     final private MappedFieldType fieldType;
     final private SourceValueFetcher valueFetcher;
+    final private QueryShardContext context;
 
     /**
      * Constructs a SourceFieldMatchQuery.
@@ -46,21 +47,15 @@ public class SourceFieldMatchQuery extends Query {
      * @param delegateQuery The parent query to use to find matches.
      * @param filter The query used to filter further by running against field value computed using _source field.
      * @param fieldType The mapped field type.
-     * @param valueFetcher The source value fetcher.
-     * @param lookup The search lookup.
+     * @param context The QueryShardContext to get lookup and valueFetcher
      */
-    public SourceFieldMatchQuery(
-        Query delegateQuery,
-        Query filter,
-        MappedFieldType fieldType,
-        SourceValueFetcher valueFetcher,
-        SearchLookup lookup
-    ) {
+    public SourceFieldMatchQuery(Query delegateQuery, Query filter, MappedFieldType fieldType, QueryShardContext context) {
         this.delegateQuery = delegateQuery;
         this.filter = filter;
         this.fieldType = fieldType;
-        this.valueFetcher = valueFetcher;
-        this.lookup = lookup;
+        this.context = context;
+        this.lookup = context.lookup();
+        this.valueFetcher = (SourceValueFetcher) fieldType.valueFetcher(context, lookup, null);
     }
 
     @Override
@@ -74,7 +69,7 @@ public class SourceFieldMatchQuery extends Query {
         if (rewritten == delegateQuery) {
             return this;
         }
-        return new SourceFieldMatchQuery(rewritten, filter, fieldType, valueFetcher, lookup);
+        return new SourceFieldMatchQuery(rewritten, filter, fieldType, context);
     }
 
     @Override
@@ -132,15 +127,14 @@ public class SourceFieldMatchQuery extends Query {
         }
         SourceFieldMatchQuery other = (SourceFieldMatchQuery) o;
         return Objects.equals(this.delegateQuery, other.delegateQuery)
-            && this.filter == other.filter
-            && Objects.equals(this.lookup, other.lookup)
+            && Objects.equals(this.filter, other.filter)
             && Objects.equals(this.fieldType, other.fieldType)
-            && Objects.equals(this.valueFetcher, other.valueFetcher);
+            && Objects.equals(this.context, other.context);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(classHash(), delegateQuery, filter, lookup, fieldType, valueFetcher);
+        return Objects.hash(classHash(), delegateQuery, filter, fieldType, context);
     }
 
     @Override

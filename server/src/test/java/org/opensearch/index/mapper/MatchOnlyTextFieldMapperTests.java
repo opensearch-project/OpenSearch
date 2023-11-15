@@ -36,9 +36,21 @@ import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.IndexableFieldType;
+import org.apache.lucene.index.Term;
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.MultiPhraseQuery;
+import org.apache.lucene.search.PhraseQuery;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.tests.analysis.MockSynonymAnalyzer;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.index.query.MatchPhraseQueryBuilder;
+import org.opensearch.index.query.QueryShardContext;
+import org.opensearch.index.query.SourceFieldMatchQuery;
+import org.opensearch.index.search.MatchQuery;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
@@ -48,6 +60,7 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.core.Is.is;
 
 public class MatchOnlyTextFieldMapperTests extends TextFieldMapperTests {
 
@@ -91,10 +104,10 @@ public class MatchOnlyTextFieldMapperTests extends TextFieldMapperTests {
         Map<String, IndexOptions> supportedOptions = new HashMap<>();
         supportedOptions.put("docs", IndexOptions.DOCS);
 
-        Map<String, IndexOptions> unSupportedOptions = new HashMap<>();
-        unSupportedOptions.put("freqs", IndexOptions.DOCS_AND_FREQS);
-        unSupportedOptions.put("positions", IndexOptions.DOCS_AND_FREQS_AND_POSITIONS);
-        unSupportedOptions.put("offsets", IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS);
+        Map<String, IndexOptions> unsupportedOptions = new HashMap<>();
+        unsupportedOptions.put("freqs", IndexOptions.DOCS_AND_FREQS);
+        unsupportedOptions.put("positions", IndexOptions.DOCS_AND_FREQS_AND_POSITIONS);
+        unsupportedOptions.put("offsets", IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS);
 
         for (String option : supportedOptions.keySet()) {
             XContentBuilder mapping = MediaTypeRegistry.JSON.contentBuilder().startObject().startObject("_doc").startObject("properties");
@@ -113,7 +126,7 @@ public class MatchOnlyTextFieldMapperTests extends TextFieldMapperTests {
             assertEquals(options, fields[0].fieldType().indexOptions());
         }
 
-        for (String option : unSupportedOptions.keySet()) {
+        for (String option : unsupportedOptions.keySet()) {
             XContentBuilder mapping = MediaTypeRegistry.JSON.contentBuilder().startObject().startObject("_doc").startObject("properties");
             mapping.startObject(option).field("type", textFieldName).field("index_options", option).endObject();
             mapping.endObject().endObject().endObject();
@@ -143,33 +156,111 @@ public class MatchOnlyTextFieldMapperTests extends TextFieldMapperTests {
     }
 
     @Override
-    public void testBWCSerialization() throws IOException {
-    }
+    public void testBWCSerialization() throws IOException {}
 
     @Override
-    public void testPositionIncrementGap() throws IOException {
-    }
+    public void testPositionIncrementGap() throws IOException {}
 
     @Override
-    public void testDefaultPositionIncrementGap() throws IOException {
-    }
+    public void testDefaultPositionIncrementGap() throws IOException {}
 
     @Override
-    public void testIndexPrefixMapping() throws IOException {
-    }
-    @Override
-    public void testIndexPrefixIndexTypes() throws IOException {
-    }
+    public void testIndexPrefixMapping() throws IOException {}
 
     @Override
-    public void testFastPhrasePrefixes() throws IOException {
-    }
+    public void testIndexPrefixIndexTypes() throws IOException {}
 
     @Override
-    public void testFastPhraseMapping() throws IOException {
-    }
+    public void testFastPhrasePrefixes() throws IOException {}
 
     @Override
-    public void testSimpleMerge() throws IOException {
+    public void testFastPhraseMapping() throws IOException {}
+
+    @Override
+    public void testSimpleMerge() throws IOException {}
+
+    public void testPhraseQuery() throws IOException {
+        MapperService mapperService = createMapperService(mapping(b -> {
+            b.startObject("field").field("type", textFieldName).field("analyzer", "my_stop_analyzer").endObject();
+            // "standard" will be replaced with MockSynonymAnalyzer
+            b.startObject("synfield").field("type", textFieldName).field("analyzer", "standard").endObject();
+        }));
+        QueryShardContext queryShardContext = createQueryShardContext(mapperService);
+
+        Query q = new MatchPhraseQueryBuilder("field", "two words").toQuery(queryShardContext);
+        Query expectedQuery = new SourceFieldMatchQuery(
+            new BooleanQuery.Builder().add(new TermQuery(new Term("field", "two")), BooleanClause.Occur.FILTER)
+                .add(new TermQuery(new Term("field", "words")), BooleanClause.Occur.FILTER)
+                .build(),
+            new PhraseQuery("field", "two", "words"),
+            mapperService.fieldType("field"),
+            queryShardContext
+        );
+
+        assertThat(q, is(expectedQuery));
+        Query q4 = new MatchPhraseQueryBuilder("field", "singleton").toQuery(queryShardContext);
+        assertThat(q4, is(new TermQuery(new Term("field", "singleton"))));
+
+        Query q2 = new MatchPhraseQueryBuilder("field", "three words here").toQuery(queryShardContext);
+        expectedQuery = new SourceFieldMatchQuery(
+            new BooleanQuery.Builder().add(new TermQuery(new Term("field", "three")), BooleanClause.Occur.FILTER)
+                .add(new TermQuery(new Term("field", "words")), BooleanClause.Occur.FILTER)
+                .add(new TermQuery(new Term("field", "here")), BooleanClause.Occur.FILTER)
+                .build(),
+            new PhraseQuery("field", "three", "words", "here"),
+            mapperService.fieldType("field"),
+            queryShardContext
+        );
+        assertThat(q2, is(expectedQuery));
+
+        Query q3 = new MatchPhraseQueryBuilder("field", "two words").slop(2).toQuery(queryShardContext);
+        expectedQuery = new SourceFieldMatchQuery(
+            new BooleanQuery.Builder().add(new TermQuery(new Term("field", "two")), BooleanClause.Occur.FILTER)
+                .add(new TermQuery(new Term("field", "words")), BooleanClause.Occur.FILTER)
+                .build(),
+            new PhraseQuery(2, "field", "two", "words"),
+            mapperService.fieldType("field"),
+            queryShardContext
+        );
+        assertThat(q3, is(expectedQuery));
+
+        Query q5 = new MatchPhraseQueryBuilder("field", "sparkle a stopword").toQuery(queryShardContext);
+        expectedQuery = new SourceFieldMatchQuery(
+            new BooleanQuery.Builder().add(new TermQuery(new Term("field", "sparkle")), BooleanClause.Occur.FILTER)
+                .add(new TermQuery(new Term("field", "stopword")), BooleanClause.Occur.FILTER)
+                .build(),
+            new PhraseQuery.Builder().add(new Term("field", "sparkle")).add(new Term("field", "stopword"), 2).build(),
+            mapperService.fieldType("field"),
+            queryShardContext
+        );
+        assertThat(q5, is(expectedQuery));
+
+        MatchQuery matchQuery = new MatchQuery(queryShardContext);
+        matchQuery.setAnalyzer(new MockSynonymAnalyzer());
+        Query q6 = matchQuery.parse(MatchQuery.Type.PHRASE, "synfield", "motor dogs");
+        expectedQuery = new SourceFieldMatchQuery(
+            new BooleanQuery.Builder().add(new TermQuery(new Term("synfield", "motor")), BooleanClause.Occur.FILTER)
+                .add(
+                    new BooleanQuery.Builder().add(new TermQuery(new Term("synfield", "dogs")), BooleanClause.Occur.SHOULD)
+                        .add(new TermQuery(new Term("synfield", "dog")), BooleanClause.Occur.SHOULD)
+                        .build(),
+                    BooleanClause.Occur.FILTER
+                )
+                .build(),
+            new MultiPhraseQuery.Builder().add(new Term("synfield", "motor"))
+                .add(new Term[] { new Term("synfield", "dogs"), new Term("synfield", "dog") }, 1)
+                .build(),
+            mapperService.fieldType("synfield"),
+            queryShardContext
+        );
+        assertThat(q6, is(expectedQuery));
+    }
+
+    public void testMultiPhraseQuery() {
+
+    }
+
+    public void testPrefixQuery() {
+
     }
 }
