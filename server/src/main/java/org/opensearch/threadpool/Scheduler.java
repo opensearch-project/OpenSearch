@@ -34,6 +34,7 @@ package org.opensearch.threadpool;
 
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.common.SuppressForbidden;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
@@ -154,7 +155,10 @@ public interface Scheduler {
 
     /**
      * This interface represents an object whose execution may be cancelled during runtime.
+     *
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     interface Cancellable {
 
         /**
@@ -171,7 +175,10 @@ public interface Scheduler {
 
     /**
      * A scheduled cancellable allow cancelling and reading the remaining delay of a scheduled task.
+     *
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     interface ScheduledCancellable extends Delayed, Cancellable {}
 
     /**

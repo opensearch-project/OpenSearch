@@ -32,6 +32,7 @@ import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
 import org.opensearch.indices.replication.common.ReplicationFailedException;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.test.CorruptionUtils;
+import org.opensearch.test.junit.annotations.TestLogging;
 import org.hamcrest.MatcherAssert;
 import org.junit.Assert;
 
@@ -297,31 +298,39 @@ public class RemoteIndexShardTests extends SegmentReplicationIndexShardTests {
         }
     }
 
+    @TestLogging(reason = "Getting trace logs from replication package", value = "org.opensearch.indices.replication:TRACE")
     public void testRepicaCleansUpOldCommitsWhenReceivingNew() throws Exception {
         final Path remotePath = createTempDir();
         try (ReplicationGroup shards = createGroup(1, getIndexSettings(), indexMapping, new NRTReplicationEngineFactory(), remotePath)) {
             shards.startAll();
             final IndexShard primary = shards.getPrimary();
             final IndexShard replica = shards.getReplicas().get(0);
+            final Store store = replica.store();
+            final SegmentInfos initialCommit = store.readLastCommittedSegmentsInfo();
             shards.indexDocs(1);
             flushShard(primary);
             replicateSegments(primary, shards.getReplicas());
+
             assertDocCount(primary, 1);
             assertDocCount(replica, 1);
-            assertEquals("segments_5", replica.store().readLastCommittedSegmentsInfo().getSegmentsFileName());
-            assertSingleSegmentFile(replica, "segments_5");
+            assertSingleSegmentFile(replica);
+            final SegmentInfos secondCommit = store.readLastCommittedSegmentsInfo();
+            assertTrue(secondCommit.getGeneration() > initialCommit.getGeneration());
 
             shards.indexDocs(1);
             primary.refresh("test");
             replicateSegments(primary, shards.getReplicas());
             assertDocCount(replica, 2);
-            assertSingleSegmentFile(replica, "segments_5");
+            assertSingleSegmentFile(replica);
+            assertEquals(store.readLastCommittedSegmentsInfo().getGeneration(), secondCommit.getGeneration());
 
             shards.indexDocs(1);
             flushShard(primary);
             replicateSegments(primary, shards.getReplicas());
             assertDocCount(replica, 3);
-            assertSingleSegmentFile(replica, "segments_6");
+            assertSingleSegmentFile(replica);
+            final SegmentInfos thirdCommit = store.readLastCommittedSegmentsInfo();
+            assertTrue(thirdCommit.getGeneration() > secondCommit.getGeneration());
 
             final Store.RecoveryDiff diff = Store.segmentReplicationDiff(primary.getSegmentMetadataMap(), replica.getSegmentMetadataMap());
             assertTrue(diff.missing.isEmpty());
@@ -571,11 +580,10 @@ public class RemoteIndexShardTests extends SegmentReplicationIndexShardTests {
         assertFalse(primary.hasRefreshPending());
     }
 
-    private void assertSingleSegmentFile(IndexShard shard, String fileName) throws IOException {
+    private void assertSingleSegmentFile(IndexShard shard) throws IOException {
         final Set<String> segmentsFileNames = Arrays.stream(shard.store().directory().listAll())
             .filter(file -> file.startsWith(IndexFileNames.SEGMENTS))
             .collect(Collectors.toSet());
         assertEquals("Expected a single segment file", 1, segmentsFileNames.size());
-        assertEquals(segmentsFileNames.stream().findFirst().get(), fileName);
     }
 }

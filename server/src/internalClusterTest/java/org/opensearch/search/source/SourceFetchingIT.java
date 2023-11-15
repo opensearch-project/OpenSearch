@@ -66,12 +66,13 @@ public class SourceFetchingIT extends ParameterizedOpenSearchIntegTestCase {
         return Settings.builder().put(super.featureFlagSettings()).put(FeatureFlags.CONCURRENT_SEGMENT_SEARCH, "true").build();
     }
 
-    public void testSourceDefaultBehavior() {
+    public void testSourceDefaultBehavior() throws InterruptedException {
         createIndex("test");
         ensureGreen();
 
         index("test", "type1", "1", "field", "value");
         refresh();
+        indexRandomForConcurrentSearch("test");
 
         SearchResponse response = client().prepareSearch("test").get();
         assertThat(response.getHits().getAt(0).getSourceAsString(), notNullValue());

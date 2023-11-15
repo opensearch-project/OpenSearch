@@ -1667,10 +1667,6 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
         }
         assertThat(actualErrors, emptyIterable());
 
-        if (dummyDocuments) {
-            bogusIds.addAll(indexRandomForMultipleSlices(indicesArray));
-        }
-
         if (!bogusIds.isEmpty()) {
             // delete the bogus types again - it might trigger merges or at least holes in the segments and enforces deleted docs!
             for (List<String> doc : bogusIds) {
@@ -1686,6 +1682,9 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
                 client().admin().indices().prepareRefresh(indicesArray).setIndicesOptions(IndicesOptions.lenientExpandOpen()).get()
             );
         }
+        if (dummyDocuments) {
+            indexRandomForMultipleSlices(indicesArray);
+        }
     }
 
     /*
@@ -1694,7 +1693,7 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
     * multiple slices based on segment count.
     * @param indices         the indices in which bogus documents should be ingested
     * */
-    protected Set<List<String>> indexRandomForMultipleSlices(String... indices) throws InterruptedException {
+    protected void indexRandomForMultipleSlices(String... indices) throws InterruptedException {
         Set<List<String>> bogusIds = new HashSet<>();
         int refreshCount = randomIntBetween(2, 3);
         for (String index : indices) {
@@ -1731,7 +1730,15 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
                 refresh(index);
             }
         }
-        return bogusIds;
+        for (List<String> doc : bogusIds) {
+            assertEquals(
+                "failed to delete a dummy doc [" + doc.get(0) + "][" + doc.get(1) + "]",
+                DocWriteResponse.Result.DELETED,
+                client().prepareDelete(doc.get(0), doc.get(1)).setRouting(doc.get(1)).get().getResult()
+            );
+        }
+        // refresh is called to make sure the bogus docs doesn't affect the search results
+        refresh();
     }
 
     private final AtomicInteger dummmyDocIdGenerator = new AtomicInteger();

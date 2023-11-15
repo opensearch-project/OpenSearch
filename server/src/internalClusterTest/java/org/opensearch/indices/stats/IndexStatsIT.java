@@ -169,7 +169,7 @@ public class IndexStatsIT extends ParameterizedOpenSearchIntegTestCase {
         return Settings.builder().put(indexSettings());
     }
 
-    public void testFieldDataStats() {
+    public void testFieldDataStats() throws InterruptedException {
         assertAcked(
             client().admin()
                 .indices()
@@ -182,6 +182,7 @@ public class IndexStatsIT extends ParameterizedOpenSearchIntegTestCase {
         client().prepareIndex("test").setId("1").setSource("field", "value1", "field2", "value1").execute().actionGet();
         client().prepareIndex("test").setId("2").setSource("field", "value2", "field2", "value2").execute().actionGet();
         client().admin().indices().prepareRefresh().execute().actionGet();
+        indexRandomForConcurrentSearch("test");
 
         NodesStatsResponse nodesStats = client().admin().cluster().prepareNodesStats("data:true").setIndices(true).execute().actionGet();
         assertThat(
@@ -305,6 +306,7 @@ public class IndexStatsIT extends ParameterizedOpenSearchIntegTestCase {
         client().prepareIndex("test").setId("1").setSource("field", "value1").execute().actionGet();
         client().prepareIndex("test").setId("2").setSource("field", "value2").execute().actionGet();
         client().admin().indices().prepareRefresh().execute().actionGet();
+        indexRandomForConcurrentSearch("test");
 
         NodesStatsResponse nodesStats = client().admin().cluster().prepareNodesStats("data:true").setIndices(true).execute().actionGet();
         assertThat(
