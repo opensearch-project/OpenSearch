@@ -45,14 +45,17 @@ import org.opensearch.cluster.block.ClusterBlockLevel;
 import org.opensearch.cluster.metadata.AliasAction;
 import org.opensearch.cluster.metadata.AliasMetadata;
 import org.opensearch.cluster.metadata.IndexAbstraction;
+import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.metadata.MetadataIndexAliasesService;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
+import org.opensearch.common.settings.Setting;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.index.Index;
+import org.opensearch.index.IndexModule;
 import org.opensearch.rest.action.admin.indices.AliasesNotFoundException;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
@@ -68,6 +71,7 @@ import java.util.Optional;
 import java.util.Set;
 
 import static java.util.Collections.unmodifiableList;
+import static org.opensearch.index.IndexModule.INDEX_STORE_TYPE_SETTING;
 
 /**
  * Add/remove aliases action
@@ -80,6 +84,12 @@ public class TransportIndicesAliasesAction extends TransportClusterManagerNodeAc
 
     private final MetadataIndexAliasesService indexAliasesService;
     private final RequestValidators<IndicesAliasesRequest> requestValidators;
+
+    private final Set<Setting<Boolean>> REMOTE_SNAPSHOT_SETTINGS_CHECKLIST = Set.of(
+        IndexMetadata.INDEX_READ_ONLY_SETTING,
+        IndexMetadata.INDEX_BLOCKS_METADATA_SETTING,
+        IndexMetadata.INDEX_BLOCKS_READ_ONLY_ALLOW_DELETE_SETTING
+    );
 
     @Inject
     public TransportIndicesAliasesAction(
@@ -121,7 +131,29 @@ public class TransportIndicesAliasesAction extends TransportClusterManagerNodeAc
         for (IndicesAliasesRequest.AliasActions aliasAction : request.aliasActions()) {
             Collections.addAll(indices, aliasAction.indices());
         }
-        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_WRITE, indices.toArray(new String[0]));
+
+        boolean allowSearchableSnapshotAliases = true;
+        for (String index : indices) {
+            if (state.blocks().indexBlocked(ClusterBlockLevel.METADATA_WRITE, index)) {
+                IndexMetadata indexMeta = state.metadata().index(index);
+                if (IndexModule.Type.REMOTE_SNAPSHOT.match(
+                    state.getMetadata().getIndexSafe(indexMeta.getIndex()).getSettings().get(INDEX_STORE_TYPE_SETTING.getKey())
+                )) {
+                    allowSearchableSnapshotAliases = allowSearchableSnapshotAliases
+                        && !REMOTE_SNAPSHOT_SETTINGS_CHECKLIST.stream()
+                            .anyMatch(booleanSetting -> booleanSetting.get(indexMeta.getSettings()));
+                } else {
+                    allowSearchableSnapshotAliases = false;
+                }
+            }
+            if (!allowSearchableSnapshotAliases) {
+                break;
+            }
+        }
+
+        return allowSearchableSnapshotAliases
+            ? null
+            : state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_WRITE, indices.toArray(new String[0]));
     }
 
     @Override
