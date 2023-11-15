@@ -12,6 +12,7 @@ INDEXER_PASSWORD="admin"
 INDEXER_HOSTNAME="localhost"
 
 POLICY_NAME="rollover_policy"
+LOG_FILE="/tmp/wazuh-indexer/ism-init.log"
 
 INDEXER_URL="https://${INDEXER_HOSTNAME}:9200"
 
@@ -84,15 +85,17 @@ function generate_rollover_template() {
 #########################################################################
 function load_templates() {
     # Note: the wazuh-template.json could also be loaded here.
+    echo "Will create index templates to configure the alias"
     for alias in "${aliases[@]}"; do
         generate_rollover_template "${alias}" |
             if ! curl -s -k ${C_AUTH} \
-                -X PUT "${INDEXER_URL}/_template/${alias}-rollover" -o /dev/null \
+                -X PUT "${INDEXER_URL}/_template/${alias}-rollover" \
+                -o "${LOG_FILE}" --create-dirs \
                 -H 'Content-Type: application/json' -d @-; then
-                echo "Error uploading ${alias} template"
+                echo "  ERROR: '${alias}' template creation failed"
                 return 1
             else
-                echo "${alias} template uploaded"
+                echo " SUCC: '${alias}' template created or updated"
             fi
     done
 }
@@ -106,29 +109,36 @@ function load_templates() {
 #   None.
 #########################################################################
 function upload_rollover_policy() {
+    echo "Will create the '${POLICY_NAME}' policy"
     policy_exists=$(
         curl -s -k ${C_AUTH} \
             -X GET "${INDEXER_URL}/_plugins/_ism/policies/${POLICY_NAME}" \
-            -o /dev/null \
+            -o "${LOG_FILE}" --create-dirs \
             -w "%{http_code}"
     )
 
     # Check if the ${POLICY_NAME} ISM policy was loaded (404 error if not found)
     if [[ "${policy_exists}" == "404" ]]; then
-        if ! curl -s -k ${C_AUTH} -o /dev/null \
-            -X PUT "${INDEXER_URL}/_plugins/_ism/policies/${POLICY_NAME}" \
-            -H 'Content-Type: application/json' \
-            -d "$(generate_rollover_policy)"; then
-            echo "Error uploading ${POLICY_NAME} policy"
-            return 1
+        policy_uploaded=$(
+            curl -s -k ${C_AUTH} \
+                -X PUT "${INDEXER_URL}/_plugins/_ism/policies/${POLICY_NAME}" \
+                -o "${LOG_FILE}" --create-dirs \
+                -H 'Content-Type: application/json' \
+                -d "$(generate_rollover_policy)" \
+                -w "%{http_code}"
+        )
+
+        if [[ "${policy_uploaded}" == "201" ]]; then
+            echo "  SUCC: '${POLICY_NAME}' policy created"
         else
-            echo "${POLICY_NAME} policy uploaded"
+            echo "  ERROR: '${POLICY_NAME}' policy not created => ${policy_uploaded}"
+            return 1
         fi
     else
         if [[ "${policy_exists}" == "200" ]]; then
-            echo "${POLICY_NAME} policy already exists"
+            echo "  INFO: policy '${POLICY_NAME}' already exists. Skipping policy creation"
         else
-            echo "Error checking if ${POLICY_NAME} exists"
+            echo "  ERROR: could not check if the policy '${POLICY_NAME}' exists => ${policy_exists}"
             return 1
         fi
     fi
@@ -155,9 +165,9 @@ function generate_write_index_alias() {
     cat <<-EOF
     {
         "aliases": {
-        "$1": {
-            "is_write_index": true
-        }
+            "$1": {
+                "is_write_index": true
+            }
         }
     }
 	EOF
@@ -169,14 +179,14 @@ function generate_write_index_alias() {
 #   1. The alias. String.
 #########################################################################
 function create_write_index() {
-    if ! curl -s -k ${C_AUTH} -o /dev/null \
-        -X PUT "$INDEXER_URL/%3C${1}-4.x-%7Bnow%2Fd%7D-000001%3E?pretty" \
+    if ! curl -s -k ${C_AUTH} -o "${LOG_FILE}" --create-dirs \
+        -X PUT "$INDEXER_URL/%3C${1}-4.x-%7Bnow%2Fd%7D-000001%3E" \
         -H 'Content-Type: application/json' \
         -d "$(generate_write_index_alias "${1}")"; then
-        echo "Error creating ${1} write index"
+        echo "  ERROR: creating '${1}' write index"
         exit 1
     else
-        echo "${1} write index created"
+        echo "  SUCC: '${1}' write index created"
     fi
 }
 
@@ -186,6 +196,7 @@ function create_write_index() {
 #   1. List of aliases to initialize.
 #########################################################################
 function create_indices() {
+    echo "Will create initial indices for the aliases"
     for alias in "${aliases[@]}"; do
         # Check if there are any write indices for the current alias
         write_index_exists=$(check_for_write_index "${alias}")
@@ -193,6 +204,8 @@ function create_indices() {
         # Create the write index if it does not exist
         if [[ -z $write_index_exists ]]; then
             create_write_index "${alias}"
+        else
+            echo "  INFO: '${alias}' write index already exists. Skipping write index creation"
         fi
     done
 }
@@ -320,9 +333,9 @@ function main() {
     # Upload the rollover policy
     # Create the initial write indices
     if load_templates && upload_rollover_policy && create_indices "${aliases[@]}"; then
-        echo "Indexer ISM initialization finished successfully"
+        echo "SUCC: Indexer ISM initialization finished successfully."
     else
-        echo "Indexer ISM initialization failed"
+        echo "ERROR: Indexer ISM initialization failed. Check ${LOG_FILE} for more information."
         exit 1
     fi
 }
