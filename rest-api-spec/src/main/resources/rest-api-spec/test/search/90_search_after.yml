@@ -324,8 +324,8 @@
 ---
 "half float":
   - skip:
-        version: " - 2.10.99"
-        reason: half_float was broken for 2.10 and earlier
+        version: " - 2.11.0"
+        reason: half_float was broken for 2.11.0 and earlier
 
   - do:
       indices.create:

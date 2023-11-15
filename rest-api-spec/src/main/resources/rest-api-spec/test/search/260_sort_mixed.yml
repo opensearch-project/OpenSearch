@@ -124,8 +124,8 @@
 ---
 "search across indices with mixed long and double and float numeric types":
   - skip:
-      version: " - 2.10.99"
-      reason: half float was broken before 2.11
+      version: " - 2.11.0"
+      reason: half float was broken before 2.11.1
 
   - do:
       indices.create:
