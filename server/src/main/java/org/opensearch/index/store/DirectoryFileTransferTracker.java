@@ -9,6 +9,7 @@
 package org.opensearch.index.store;
 
 import org.apache.lucene.store.Directory;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.util.MovingAverage;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
@@ -22,8 +23,9 @@ import java.util.concurrent.atomic.AtomicReference;
 /**
  * Tracks the amount of bytes transferred between two {@link Directory} instances
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "2.10.0")
 public class DirectoryFileTransferTracker {
     /**
      * Cumulative size of files (in bytes) attempted to be transferred over from the source {@link Directory}
@@ -166,8 +168,9 @@ public class DirectoryFileTransferTracker {
     /**
      * Represents the tracker's stats presentable to an API.
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "2.10.0")
     public static class Stats implements Writeable {
         public final long transferredBytesStarted;
         public final long transferredBytesFailed;

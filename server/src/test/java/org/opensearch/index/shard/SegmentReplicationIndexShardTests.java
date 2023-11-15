@@ -436,11 +436,15 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
             shards.startAll();
             final IndexShard primary = shards.getPrimary();
             shards.indexDocs(randomIntBetween(1, 10));
-            // ensure search idle conditions are met.
-            assertTrue(primary.isSearchIdle());
-            assertFalse(primary.scheduledRefresh());
-            assertTrue(primary.hasRefreshPending());
+            validateShardIdleWithNoReplicas(primary);
         }
+    }
+
+    protected void validateShardIdleWithNoReplicas(IndexShard primary) {
+        // ensure search idle conditions are met.
+        assertTrue(primary.isSearchIdle());
+        assertFalse(primary.scheduledRefresh());
+        assertTrue(primary.hasRefreshPending());
     }
 
     /**

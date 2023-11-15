@@ -42,7 +42,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
 
 import static org.opensearch.index.translog.transfer.FileSnapshot.TransferFileSnapshot;
@@ -156,14 +155,17 @@ public class TranslogTransferManager {
 
             try {
                 if (latch.await(TRANSFER_TIMEOUT_IN_MILLIS, TimeUnit.MILLISECONDS) == false) {
-                    Exception ex = new TimeoutException("Timed out waiting for transfer of snapshot " + transferSnapshot + " to complete");
+                    Exception ex = new TranslogUploadFailedException(
+                        "Timed out waiting for transfer of snapshot " + transferSnapshot + " to complete"
+                    );
                     exceptionList.forEach(ex::addSuppressed);
                     throw ex;
                 }
             } catch (InterruptedException ex) {
-                exceptionList.forEach(ex::addSuppressed);
+                Exception exception = new TranslogUploadFailedException("Failed to upload " + transferSnapshot, ex);
+                exceptionList.forEach(exception::addSuppressed);
                 Thread.currentThread().interrupt();
-                throw ex;
+                throw exception;
             }
             if (exceptionList.isEmpty()) {
                 TransferFileSnapshot tlogMetadata = prepareMetadata(transferSnapshot);

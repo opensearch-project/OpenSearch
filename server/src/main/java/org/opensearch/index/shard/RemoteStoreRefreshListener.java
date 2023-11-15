@@ -20,6 +20,7 @@ import org.apache.lucene.store.IndexInput;
 import org.opensearch.action.LatchedActionListener;
 import org.opensearch.action.bulk.BackoffPolicy;
 import org.opensearch.action.support.GroupedActionListener;
+import org.opensearch.cluster.routing.RecoverySource;
 import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.logging.Loggers;
 import org.opensearch.common.unit.TimeValue;
@@ -86,7 +87,7 @@ public final class RemoteStoreRefreshListener extends CloseableRetryableRefreshL
     private final RemoteSegmentStoreDirectory remoteDirectory;
     private final RemoteSegmentTransferTracker segmentTracker;
     private final Map<String, String> localSegmentChecksumMap;
-    private long primaryTerm;
+    private volatile long primaryTerm;
     private volatile Iterator<TimeValue> backoffDelayIterator;
     private final SegmentReplicationCheckpointPublisher checkpointPublisher;
 
@@ -123,14 +124,12 @@ public final class RemoteStoreRefreshListener extends CloseableRetryableRefreshL
 
     @Override
     protected void runAfterRefreshExactlyOnce(boolean didRefresh) {
-        if (shouldSync(didRefresh)) {
-            segmentTracker.updateLocalRefreshTimeAndSeqNo();
+        // We have 2 separate methods to check if sync needs to be done or not. This is required since we use the return boolean
+        // from isReadyForUpload to schedule refresh retries as the index shard or the primary mode are not in complete
+        // ready state.
+        if (shouldSync(didRefresh, true) && isReadyForUpload()) {
             try {
-                if (this.primaryTerm != indexShard.getOperationPrimaryTerm()) {
-                    logger.debug("primaryTerm update from={} to={}", primaryTerm, indexShard.getOperationPrimaryTerm());
-                    this.primaryTerm = indexShard.getOperationPrimaryTerm();
-                    this.remoteDirectory.init();
-                }
+                segmentTracker.updateLocalRefreshTimeAndSeqNo();
                 try (GatedCloseable<SegmentInfos> segmentInfosGatedCloseable = indexShard.getSegmentInfosSnapshot()) {
                     Collection<String> localSegmentsPostRefresh = segmentInfosGatedCloseable.get().files(true);
                     updateLocalSizeMapAndTracker(localSegmentsPostRefresh);
@@ -151,7 +150,7 @@ public final class RemoteStoreRefreshListener extends CloseableRetryableRefreshL
     @Override
     protected boolean performAfterRefreshWithPermit(boolean didRefresh) {
         boolean successful;
-        if (shouldSync(didRefresh)) {
+        if (shouldSync(didRefresh, false)) {
             successful = syncSegments();
         } else {
             successful = true;
@@ -159,21 +158,33 @@ public final class RemoteStoreRefreshListener extends CloseableRetryableRefreshL
         return successful;
     }
 
-    private boolean shouldSync(boolean didRefresh) {
-        // The third condition exists for uploading the zero state segments where the refresh has not changed the reader reference, but it
-        // is important to upload the zero state segments so that the restore does not break.
-        return this.primaryTerm != indexShard.getOperationPrimaryTerm()
-            || didRefresh
-            || remoteDirectory.getSegmentsUploadedToRemoteStore().isEmpty();
+    /**
+     * This checks if there is a sync required to remote.
+     *
+     * @param didRefresh             if the readers changed.
+     * @param skipPrimaryTermCheck consider change in primary term or not for should sync
+     * @return true if sync is needed
+     */
+    private boolean shouldSync(boolean didRefresh, boolean skipPrimaryTermCheck) {
+        boolean shouldSync = didRefresh // If the readers change, didRefresh is always true.
+            // The third condition exists for uploading the zero state segments where the refresh has not changed the reader
+            // reference, but it is important to upload the zero state segments so that the restore does not break.
+            || remoteDirectory.getSegmentsUploadedToRemoteStore().isEmpty()
+            // When the shouldSync is called the first time, then 1st condition on primary term is true. But after that
+            // we update the primary term and the same condition would not evaluate to true again in syncSegments.
+            // Below check ensures that if there is commit, then that gets picked up by both 1st and 2nd shouldSync call.
+            || isRefreshAfterCommitSafe();
+        if (shouldSync || skipPrimaryTermCheck) {
+            return shouldSync;
+        }
+        return this.primaryTerm != indexShard.getOperationPrimaryTerm();
     }
 
+    /*
+     @return false if retry is needed
+     */
     private boolean syncSegments() {
-        if (indexShard.getReplicationTracker().isPrimaryMode() == false || indexShard.state() == IndexShardState.CLOSED) {
-            logger.debug(
-                "Skipped syncing segments with primaryMode={} indexShardState={}",
-                indexShard.getReplicationTracker().isPrimaryMode(),
-                indexShard.state()
-            );
+        if (isReadyForUpload() == false) {
             // Following check is required to enable retry and make sure that we do not lose this refresh event
             // When primary shard is restored from remote store, the recovery happens first followed by changing
             // primaryMode to true. Due to this, the refresh that is triggered post replay of translog will not go through
@@ -189,6 +200,7 @@ public final class RemoteStoreRefreshListener extends CloseableRetryableRefreshL
 
         try {
             try {
+                initializeRemoteDirectoryOnTermUpdate();
                 // if a new segments_N file is present in local that is not uploaded to remote store yet, it
                 // is considered as a first refresh post commit. A cleanup of stale commit files is triggered.
                 // This is done to avoid delete post each refresh.
@@ -323,6 +335,19 @@ public final class RemoteStoreRefreshListener extends CloseableRetryableRefreshL
             && !remoteDirectory.containsFile(lastCommittedLocalSegmentFileName, getChecksumOfLocalFile(lastCommittedLocalSegmentFileName)));
     }
 
+    /**
+     * Returns if the current refresh has happened after a commit.
+     * @return true if this refresh has happened on account of a commit. If otherwise or exception, returns false.
+     */
+    private boolean isRefreshAfterCommitSafe() {
+        try {
+            return isRefreshAfterCommit();
+        } catch (Exception e) {
+            logger.info("Exception occurred in isRefreshAfterCommitSafe", e);
+        }
+        return false;
+    }
+
     void uploadMetadata(Collection<String> localSegmentsPostRefresh, SegmentInfos segmentInfos, ReplicationCheckpoint replicationCheckpoint)
         throws IOException {
         final long maxSeqNo = ((InternalEngine) indexShard.getEngine()).currentOngoingRefreshCheckpoint();
@@ -438,6 +463,64 @@ public final class RemoteStoreRefreshListener extends CloseableRetryableRefreshL
         } else {
             segmentTracker.incrementTotalUploadsFailed();
         }
+    }
+
+    /**
+     * On primary term update, we (re)initialise the remote segment directory to reflect the latest metadata file that
+     * has been uploaded to remote store successfully. This method also updates the segment tracker about the latest
+     * uploaded segment files onto remote store.
+     */
+    private void initializeRemoteDirectoryOnTermUpdate() throws IOException {
+        if (this.primaryTerm != indexShard.getOperationPrimaryTerm()) {
+            logger.trace("primaryTerm update from={} to={}", primaryTerm, indexShard.getOperationPrimaryTerm());
+            this.primaryTerm = indexShard.getOperationPrimaryTerm();
+            RemoteSegmentMetadata uploadedMetadata = this.remoteDirectory.init();
+
+            // During failover, the uploaded metadata would have names of files that have been uploaded to remote store.
+            // Here we update the tracker with latest remote uploaded files.
+            if (uploadedMetadata != null) {
+                segmentTracker.setLatestUploadedFiles(uploadedMetadata.getMetadata().keySet());
+            }
+        }
+    }
+
+    /**
+     * This checks for readiness of the index shard and primary mode. This has separated from shouldSync since we use the
+     * returned value of this method for scheduling retries in syncSegments method.
+     * @return true iff primaryMode is true and index shard is not in closed state.
+     */
+    private boolean isReadyForUpload() {
+        boolean isReady = (indexShard.getReplicationTracker().isPrimaryMode() && indexShard.state() != IndexShardState.CLOSED)
+            || isLocalOrSnapshotRecovery();
+
+        if (isReady == false) {
+            StringBuilder sb = new StringBuilder("Skipped syncing segments with");
+            if (indexShard.getReplicationTracker() != null) {
+                sb.append(" primaryMode=").append(indexShard.getReplicationTracker().isPrimaryMode());
+            }
+            if (indexShard.state() != null) {
+                sb.append(" indexShardState=").append(indexShard.state());
+            }
+            if (indexShard.getEngineOrNull() != null) {
+                sb.append(" engineType=").append(indexShard.getEngine().getClass().getSimpleName());
+            }
+            if (isLocalOrSnapshotRecovery() == false) {
+                sb.append(" recoverySourceType=").append(indexShard.recoveryState().getRecoverySource().getType());
+                sb.append(" primary=").append(indexShard.shardRouting.primary());
+            }
+            logger.trace(sb.toString());
+        }
+        return isReady;
+    }
+
+    private boolean isLocalOrSnapshotRecovery() {
+        // In this case when the primary mode is false, we need to upload segments to Remote Store
+        // This is required in case of snapshots/shrink/ split/clone where we need to durable persist
+        // all segments to remote before completing the recovery to ensure durability.
+
+        return (indexShard.state() == IndexShardState.RECOVERING && indexShard.shardRouting.primary())
+            && (indexShard.recoveryState().getRecoverySource().getType() == RecoverySource.Type.LOCAL_SHARDS
+                || indexShard.recoveryState().getRecoverySource().getType() == RecoverySource.Type.SNAPSHOT);
     }
 
     /**

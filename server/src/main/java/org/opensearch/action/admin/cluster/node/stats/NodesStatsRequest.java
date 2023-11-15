@@ -35,6 +35,7 @@ package org.opensearch.action.admin.cluster.node.stats;
 import org.opensearch.LegacyESVersion;
 import org.opensearch.action.admin.indices.stats.CommonStatsFlags;
 import org.opensearch.action.support.nodes.BaseNodesRequest;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 
@@ -49,8 +50,9 @@ import java.util.stream.Collectors;
 /**
  * A request to get node (cluster) level stats.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
 
     private CommonStatsFlags indices = new CommonStatsFlags();
@@ -246,6 +248,7 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
         TASK_CANCELLATION("task_cancellation"),
         SEARCH_PIPELINE("search_pipeline"),
         RESOURCE_USAGE_STATS("resource_usage_stats"),
+        SEGMENT_REPLICATION_BACKPRESSURE("segment_replication_backpressure"),
         REPOSITORIES("repositories");
 
         private String metricName;

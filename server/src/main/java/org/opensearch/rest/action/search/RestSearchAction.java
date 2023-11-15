@@ -180,6 +180,12 @@ public class RestSearchAction extends BaseRestHandler {
             searchRequest.allowPartialSearchResults(request.paramAsBoolean("allow_partial_search_results", null));
         }
 
+        if (request.hasParam("phase_took")) {
+            // only set if we have the parameter passed to override the cluster-level default
+            // else phaseTook = null
+            searchRequest.setPhaseTook(request.paramAsBoolean("phase_took", true));
+        }
+
         // do not allow 'query_and_fetch' or 'dfs_query_and_fetch' search types
         // from the REST layer. these modes are an internal optimization and should
         // not be specified explicitly by the user.

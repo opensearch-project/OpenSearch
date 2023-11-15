@@ -347,6 +347,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 HttpTransportSettings.SETTING_HTTP_MAX_WARNING_HEADER_SIZE,
                 HttpTransportSettings.SETTING_HTTP_MAX_INITIAL_LINE_LENGTH,
                 HttpTransportSettings.SETTING_HTTP_READ_TIMEOUT,
+                HttpTransportSettings.SETTING_HTTP_CONNECT_TIMEOUT,
                 HttpTransportSettings.SETTING_HTTP_RESET_COOKIES,
                 HttpTransportSettings.OLD_SETTING_HTTP_TCP_NO_DELAY,
                 HttpTransportSettings.SETTING_HTTP_TCP_NO_DELAY,
@@ -377,6 +378,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 TransportSearchAction.SHARD_COUNT_LIMIT_SETTING,
                 TransportSearchAction.SEARCH_CANCEL_AFTER_TIME_INTERVAL_SETTING,
                 TransportSearchAction.SEARCH_REQUEST_STATS_ENABLED,
+                TransportSearchAction.SEARCH_PHASE_TOOK_ENABLED,
                 TransportSearchAction.SEARCH_QUERY_METRICS_ENABLED_SETTING,
                 RemoteClusterService.REMOTE_CLUSTER_SKIP_UNAVAILABLE,
                 SniffConnectionStrategy.REMOTE_CONNECTIONS_PER_CLUSTER,
@@ -681,6 +683,9 @@ public final class ClusterSettings extends AbstractScopedSettings {
 
                 // Remote cluster state settings
                 RemoteClusterStateService.REMOTE_CLUSTER_STATE_ENABLED_SETTING,
+                RemoteClusterStateService.INDEX_METADATA_UPLOAD_TIMEOUT_SETTING,
+                RemoteClusterStateService.GLOBAL_METADATA_UPLOAD_TIMEOUT_SETTING,
+                RemoteClusterStateService.METADATA_MANIFEST_UPLOAD_TIMEOUT_SETTING,
                 RemoteStoreNodeService.REMOTE_STORE_COMPATIBILITY_MODE_SETTING,
                 IndicesService.CLUSTER_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING,
                 IndicesService.CLUSTER_REMOTE_INDEX_RESTRICT_ASYNC_DURABILITY_SETTING

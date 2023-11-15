@@ -33,6 +33,7 @@
 package org.opensearch.search.fetch.subphase;
 
 import org.opensearch.common.Booleans;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.xcontent.support.XContentMapValues;
 import org.opensearch.core.ParseField;
 import org.opensearch.core.common.ParsingException;
@@ -55,8 +56,9 @@ import java.util.function.Function;
 /**
  * Context used to fetch the {@code _source}.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class FetchSourceContext implements Writeable, ToXContentObject {
 
     public static final ParseField INCLUDES_FIELD = new ParseField("includes", "include");

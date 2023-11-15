@@ -33,9 +33,9 @@ package org.opensearch.search.aggregations.bucket;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
-import org.opensearch.action.admin.indices.refresh.RefreshRequest;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.action.search.SearchType;
+import org.opensearch.action.support.WriteRequest;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.index.query.TermQueryBuilder;
@@ -132,13 +132,14 @@ public class DiversifiedSamplerIT extends ParameterizedOpenSearchIntegTestCase {
             client().prepareIndex("test")
                 .setId("" + i)
                 .setSource("author", parts[5], "name", parts[2], "genre", parts[8], "price", Float.parseFloat(parts[3]))
+                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
                 .get();
             client().prepareIndex("idx_unmapped_author")
                 .setId("" + i)
                 .setSource("name", parts[2], "genre", parts[8], "price", Float.parseFloat(parts[3]))
+                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
                 .get();
         }
-        client().admin().indices().refresh(new RefreshRequest("test")).get();
     }
 
     public void testIssue10719() throws Exception {

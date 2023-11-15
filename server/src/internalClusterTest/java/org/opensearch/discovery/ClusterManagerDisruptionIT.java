@@ -39,6 +39,7 @@ import org.opensearch.action.bulk.BulkResponse;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.coordination.NoClusterManagerBlockService;
 import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.cluster.service.ClusterStateStats;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
@@ -57,7 +58,9 @@ import java.util.Set;
 
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.not;
+import static org.junit.Assume.assumeThat;
 
 /**
  * Tests relating to the loss of the cluster-manager.
@@ -70,6 +73,7 @@ public class ClusterManagerDisruptionIT extends AbstractDisruptionTestCase {
      */
     public void testClusterManagerNodeGCs() throws Exception {
         List<String> nodes = startCluster(3);
+        assumeThat("Thread::resume / Thread::suspend are not supported anymore", Runtime.version(), lessThan(Runtime.Version.parse("20")));
 
         String oldClusterManagerNode = internalCluster().getClusterManagerName();
         // a very long GC, but it's OK as we remove the disruption when it has had an effect
@@ -195,6 +199,8 @@ public class ClusterManagerDisruptionIT extends AbstractDisruptionTestCase {
                 }
 
             }
+            ClusterStateStats clusterStateStats = internalCluster().clusterService().getClusterManagerService().getClusterStateStats();
+            assertTrue(clusterStateStats.getUpdateFailed() > 0);
         });
     }
 

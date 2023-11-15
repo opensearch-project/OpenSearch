@@ -178,6 +178,7 @@ import org.opensearch.gateway.MetaStateService;
 import org.opensearch.gateway.TransportNodesListGatewayStartedShards;
 import org.opensearch.index.IndexingPressureService;
 import org.opensearch.index.SegmentReplicationPressureService;
+import org.opensearch.index.SegmentReplicationStatsTracker;
 import org.opensearch.index.analysis.AnalysisRegistry;
 import org.opensearch.index.remote.RemoteStorePressureService;
 import org.opensearch.index.remote.RemoteStoreStatsTrackerFactory;
@@ -2124,7 +2125,8 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                             shardStateAction,
                             actionFilters,
                             new IndexingPressureService(settings, clusterService),
-                            new SystemIndices(emptyMap())
+                            new SystemIndices(emptyMap()),
+                            NoopTracer.INSTANCE
                         )
                     ),
                     new GlobalCheckpointSyncAction(
@@ -2187,10 +2189,12 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                         clusterService,
                         mock(IndicesService.class),
                         mock(ShardStateAction.class),
+                        mock(SegmentReplicationStatsTracker.class),
                         mock(ThreadPool.class)
                     ),
                     mock(RemoteStorePressureService.class),
-                    new SystemIndices(emptyMap())
+                    new SystemIndices(emptyMap()),
+                    NoopTracer.INSTANCE
                 );
                 actions.put(
                     BulkAction.INSTANCE,
@@ -2214,7 +2218,8 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                         new AutoCreateIndex(settings, clusterSettings, indexNameExpressionResolver, new SystemIndices(emptyMap())),
                         new IndexingPressureService(settings, clusterService),
                         mock(IndicesService.class),
-                        new SystemIndices(emptyMap())
+                        new SystemIndices(emptyMap()),
+                        NoopTracer.INSTANCE
                     )
                 );
                 final RestoreService restoreService = new RestoreService(

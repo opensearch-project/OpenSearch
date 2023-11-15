@@ -64,6 +64,7 @@ public class AsyncTransferManagerTests extends OpenSearchTestCase {
         asyncTransferManager = new AsyncTransferManager(
             ByteSizeUnit.MB.toBytes(5),
             Executors.newSingleThreadExecutor(),
+            Executors.newSingleThreadExecutor(),
             Executors.newSingleThreadExecutor()
         );
         super.setUp();

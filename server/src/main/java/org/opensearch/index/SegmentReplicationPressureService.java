@@ -107,10 +107,11 @@ public class SegmentReplicationPressureService implements Closeable {
         ClusterService clusterService,
         IndicesService indicesService,
         ShardStateAction shardStateAction,
+        SegmentReplicationStatsTracker tracker,
         ThreadPool threadPool
     ) {
         this.indicesService = indicesService;
-        this.tracker = new SegmentReplicationStatsTracker(this.indicesService);
+        this.tracker = tracker;
 
         this.shardStateAction = shardStateAction;
         this.threadPool = threadPool;

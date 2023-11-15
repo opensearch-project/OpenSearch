@@ -293,6 +293,7 @@ public class SimpleNestedIT extends ParameterizedOpenSearchIntegTestCase {
         refresh();
         // check the numDocs
         assertDocumentCount("test", 7);
+        indexRandomForConcurrentSearch("test");
 
         // do some multi nested queries
         SearchResponse searchResponse = client().prepareSearch("test")
@@ -485,6 +486,7 @@ public class SimpleNestedIT extends ParameterizedOpenSearchIntegTestCase {
             )
             .setRefreshPolicy(IMMEDIATE)
             .get();
+        indexRandomForConcurrentSearch("test");
 
         SearchResponse searchResponse = client().prepareSearch("test")
             .setQuery(nestedQuery("nested1", termQuery("nested1.n_field1", "n_value1"), ScoreMode.Total))
@@ -968,6 +970,10 @@ public class SimpleNestedIT extends ParameterizedOpenSearchIntegTestCase {
 
     // https://github.com/elastic/elasticsearch/issues/31554
     public void testLeakingSortValues() throws Exception {
+        assumeFalse(
+            "Concurrent search case muted pending fix: https://github.com/opensearch-project/OpenSearch/issues/11065",
+            internalCluster().clusterService().getClusterSettings().get(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING)
+        );
         assertAcked(
             prepareCreate("test").setSettings(Settings.builder().put("number_of_shards", 1))
                 .setMapping(
@@ -1035,6 +1041,7 @@ public class SimpleNestedIT extends ParameterizedOpenSearchIntegTestCase {
             .get();
 
         refresh();
+        indexRandomForConcurrentSearch("test");
 
         SearchResponse searchResponse = client().prepareSearch()
             .setQuery(termQuery("_id", 2))
@@ -1627,6 +1634,7 @@ public class SimpleNestedIT extends ParameterizedOpenSearchIntegTestCase {
         client().prepareIndex("test").setId("1").setSource("field", "value").get();
         refresh();
         ensureSearchable("test");
+        indexRandomForConcurrentSearch("test");
 
         // No nested mapping yet, there shouldn't be anything in the fixed bit set cache
         ClusterStatsResponse clusterStatsResponse = client().admin().cluster().prepareClusterStats().get();

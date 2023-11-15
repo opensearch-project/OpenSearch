@@ -84,6 +84,7 @@ class S3BlobStore implements BlobStore {
     private final StatsMetricPublisher statsMetricPublisher = new StatsMetricPublisher();
 
     private final AsyncTransferManager asyncTransferManager;
+    private final AsyncExecutorContainer urgentExecutorBuilder;
     private final AsyncExecutorContainer priorityExecutorBuilder;
     private final AsyncExecutorContainer normalExecutorBuilder;
     private final boolean multipartUploadEnabled;
@@ -100,6 +101,7 @@ class S3BlobStore implements BlobStore {
         int bulkDeletesSize,
         RepositoryMetadata repositoryMetadata,
         AsyncTransferManager asyncTransferManager,
+        AsyncExecutorContainer urgentExecutorBuilder,
         AsyncExecutorContainer priorityExecutorBuilder,
         AsyncExecutorContainer normalExecutorBuilder
     ) {
@@ -116,6 +118,7 @@ class S3BlobStore implements BlobStore {
         this.asyncTransferManager = asyncTransferManager;
         this.normalExecutorBuilder = normalExecutorBuilder;
         this.priorityExecutorBuilder = priorityExecutorBuilder;
+        this.urgentExecutorBuilder = urgentExecutorBuilder;
     }
 
     @Override
@@ -139,7 +142,7 @@ class S3BlobStore implements BlobStore {
     }
 
     public AmazonAsyncS3Reference asyncClientReference() {
-        return s3AsyncService.client(repositoryMetadata, priorityExecutorBuilder, normalExecutorBuilder);
+        return s3AsyncService.client(repositoryMetadata, urgentExecutorBuilder, priorityExecutorBuilder, normalExecutorBuilder);
     }
 
     int getMaxRetries() {

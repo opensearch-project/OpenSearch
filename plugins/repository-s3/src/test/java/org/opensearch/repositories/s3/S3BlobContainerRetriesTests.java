@@ -221,8 +221,10 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
                 new AsyncTransferManager(
                     S3Repository.PARALLEL_MULTIPART_UPLOAD_MINIMUM_PART_SIZE_SETTING.getDefault(Settings.EMPTY).getBytes(),
                     asyncExecutorContainer.getStreamReader(),
+                    asyncExecutorContainer.getStreamReader(),
                     asyncExecutorContainer.getStreamReader()
                 ),
+                asyncExecutorContainer,
                 asyncExecutorContainer,
                 asyncExecutorContainer
             )

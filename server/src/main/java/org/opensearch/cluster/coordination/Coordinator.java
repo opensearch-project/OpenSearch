@@ -57,6 +57,7 @@ import org.opensearch.cluster.routing.allocation.AllocationService;
 import org.opensearch.cluster.service.ClusterApplier;
 import org.opensearch.cluster.service.ClusterApplier.ClusterApplyListener;
 import org.opensearch.cluster.service.ClusterManagerService;
+import org.opensearch.cluster.service.ClusterStateStats;
 import org.opensearch.common.Booleans;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.Priority;
@@ -261,9 +262,10 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
             this::handlePublishRequest,
             this::handleApplyCommit
         );
-        this.leaderChecker = new LeaderChecker(settings, transportService, this::onLeaderFailure, nodeHealthService);
+        this.leaderChecker = new LeaderChecker(settings, clusterSettings, transportService, this::onLeaderFailure, nodeHealthService);
         this.followersChecker = new FollowersChecker(
             settings,
+            clusterSettings,
             transportService,
             this::onFollowerCheckRequest,
             this::removeNode,
@@ -866,7 +868,16 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
 
     @Override
     public DiscoveryStats stats() {
-        return new DiscoveryStats(new PendingClusterStateStats(0, 0, 0), publicationHandler.stats());
+        ClusterStateStats clusterStateStats = clusterManagerService.getClusterStateStats();
+        ArrayList<PersistedStateStats> stats = new ArrayList<>();
+        Stream.of(PersistedStateRegistry.PersistedStateType.values()).forEach(stateType -> {
+            if (persistedStateRegistry.getPersistedState(stateType) != null
+                && persistedStateRegistry.getPersistedState(stateType).getStats() != null) {
+                stats.add(persistedStateRegistry.getPersistedState(stateType).getStats());
+            }
+        });
+        clusterStateStats.setPersistenceStats(stats);
+        return new DiscoveryStats(new PendingClusterStateStats(0, 0, 0), publicationHandler.stats(), clusterStateStats);
     }
 
     @Override

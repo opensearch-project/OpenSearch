@@ -37,6 +37,7 @@ import org.apache.lucene.store.AlreadyClosedException;
 import org.opensearch.Version;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.UUIDs;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.io.stream.ReleasableBytesStreamOutput;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lease.Releasables;
@@ -1566,8 +1567,9 @@ public abstract class Translog extends AbstractIndexShardComponent implements In
     /**
      * How to sync the translog
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public enum Durability {
 
         /**
@@ -2033,5 +2035,9 @@ public abstract class Translog extends AbstractIndexShardComponent implements In
         );
         writer.close();
         return uuid;
+    }
+
+    public long getMinUnreferencedSeqNoInSegments(long minUnrefCheckpointInLastCommit) {
+        return minUnrefCheckpointInLastCommit;
     }
 }
