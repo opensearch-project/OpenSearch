@@ -395,7 +395,19 @@ public class SearchQueryIT extends ParameterizedOpenSearchIntegTestCase {
         assertSecondHit(searchResponse, hasId("2"));
         assertThirdHit(searchResponse, hasId("3"));
 
-        searchResponse = client().prepareSearch().setQuery(commonTermsQuery("field1", "the huge fox").lowFreqMinimumShouldMatch("2")).get();
+        // cutoff frequency of 1 makes all terms high frequency so the query gets rewritten as a
+        // conjunction of all terms (the lowFreqMinimumShouldMatch parameter is effectively ignored)
+        searchResponse = client().prepareSearch()
+            .setQuery(commonTermsQuery("field1", "the huge fox").cutoffFrequency(1).lowFreqMinimumShouldMatch("2"))
+            .get();
+        assertHitCount(searchResponse, 1L);
+        assertFirstHit(searchResponse, hasId("2"));
+
+        // cutoff frequency of 100 makes all terms low frequency, so lowFreqMinimumShouldMatch=3
+        // means all terms must match
+        searchResponse = client().prepareSearch()
+            .setQuery(commonTermsQuery("field1", "the huge fox").cutoffFrequency(100).lowFreqMinimumShouldMatch("3"))
+            .get();
         assertHitCount(searchResponse, 1L);
         assertFirstHit(searchResponse, hasId("2"));
 
