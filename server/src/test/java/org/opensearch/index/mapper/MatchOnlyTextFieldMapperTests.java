@@ -322,24 +322,32 @@ public class MatchOnlyTextFieldMapperTests extends TextFieldMapperTests {
             assertThat(q, equalTo(expected));
         }
 
-        // {
-        // Query q = new MatchPhrasePrefixQueryBuilder("synfield", "three dog word").toQuery(queryShardContext);
-        // MultiPhrasePrefixQuery mqb = new MultiPhrasePrefixQuery("synfield");
-        // mqb.add(new Term[] {new Term("synfield", "dogs"), new Term("synfield", "dog")});
-        // MultiPhrasePrefixQuery mqbFilter = new MultiPhrasePrefixQuery("synfield");
-        // mqbFilter.add(new Term("synfield", "motor"));
-        // mqbFilter.add(new Term[] {new Term("synfield", "dogs"), new Term("synfield", "dog")});
-        // Query expected = new SourceFieldMatchQuery(
-        // new BooleanQuery.Builder().add(new TermQuery(new Term("synfield", "three")), BooleanClause.Occur.FILTER)
-        // .add(mqb, BooleanClause.Occur.FILTER)
-        // .add(new TermQuery(new Term("synfield", "word")), BooleanClause.Occur.FILTER)
-        // .build(),
-        // mqbFilter,
-        // mapperService.fieldType("synfield"),
-        // queryShardContext
-        // );
-        // assertThat(q, equalTo(mpq));
-        // }
+        {
+            MatchQuery matchQuery = new MatchQuery(queryShardContext);
+            matchQuery.setAnalyzer(new MockSynonymAnalyzer());
+            Query q = matchQuery.parse(MatchQuery.Type.PHRASE_PREFIX, "synfield", "three dogs word");
+            MultiPhrasePrefixQuery mqb = new MultiPhrasePrefixQuery("synfield");
+            mqb.add(new Term("synfield", "word"));
+            MultiPhrasePrefixQuery mqbFilter = new MultiPhrasePrefixQuery("synfield");
+            mqbFilter.add(new Term("synfield", "three"));
+            mqbFilter.add(new Term[] { new Term("synfield", "dogs"), new Term("synfield", "dog") });
+            mqbFilter.add(new Term("synfield", "word"));
+            Query expected = new SourceFieldMatchQuery(
+                new BooleanQuery.Builder().add(new TermQuery(new Term("synfield", "three")), BooleanClause.Occur.FILTER)
+                    .add(
+                        new BooleanQuery.Builder().add(new TermQuery(new Term("synfield", "dogs")), BooleanClause.Occur.SHOULD)
+                            .add(new TermQuery(new Term("synfield", "dog")), BooleanClause.Occur.SHOULD)
+                            .build(),
+                        BooleanClause.Occur.FILTER
+                    )
+                    .add(mqb, BooleanClause.Occur.FILTER)
+                    .build(),
+                mqbFilter,
+                mapperService.fieldType("synfield"),
+                queryShardContext
+            );
+            assertThat(q, equalTo(expected));
+        }
     }
 
     @Override
