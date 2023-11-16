@@ -44,9 +44,11 @@ import org.apache.lucene.search.PhraseQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.tests.analysis.MockSynonymAnalyzer;
+import org.opensearch.common.lucene.search.MultiPhrasePrefixQuery;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.index.query.MatchPhrasePrefixQueryBuilder;
 import org.opensearch.index.query.MatchPhraseQueryBuilder;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.index.query.SourceFieldMatchQuery;
@@ -172,6 +174,173 @@ public class MatchOnlyTextFieldMapperTests extends TextFieldMapperTests {
 
     @Override
     public void testFastPhrasePrefixes() throws IOException {}
+
+    public void testPhrasePrefixes() throws IOException {
+        MapperService mapperService = createMapperService(mapping(b -> {
+            b.startObject("field");
+            {
+                b.field("type", textFieldName);
+                b.field("analyzer", "my_stop_analyzer"); // "standard" will be replaced with MockSynonymAnalyzer
+            }
+            b.endObject();
+            b.startObject("synfield");
+            {
+                b.field("type", textFieldName);
+                b.field("analyzer", "standard"); // "standard" will be replaced with MockSynonymAnalyzer
+            }
+            b.endObject();
+        }));
+        QueryShardContext queryShardContext = createQueryShardContext(mapperService);
+
+        {
+            Query q = new MatchPhrasePrefixQueryBuilder("field", "two words").toQuery(queryShardContext);
+            MultiPhrasePrefixQuery mqb = new MultiPhrasePrefixQuery("field");
+            mqb.add(new Term("field", "words"));
+            MultiPhrasePrefixQuery mqbFilter = new MultiPhrasePrefixQuery("field");
+            mqbFilter.add(new Term("field", "two"));
+            mqbFilter.add(new Term("field", "words"));
+            Query expected = new SourceFieldMatchQuery(
+                new BooleanQuery.Builder().add(new TermQuery(new Term("field", "two")), BooleanClause.Occur.FILTER)
+                    .add(mqb, BooleanClause.Occur.FILTER)
+                    .build(),
+                mqbFilter,
+                mapperService.fieldType("field"),
+                queryShardContext
+            );
+            assertThat(q, equalTo(expected));
+        }
+
+        {
+            Query q = new MatchPhrasePrefixQueryBuilder("field", "three words here").toQuery(queryShardContext);
+            MultiPhrasePrefixQuery mqb = new MultiPhrasePrefixQuery("field");
+            mqb.add(new Term("field", "here"));
+            MultiPhrasePrefixQuery mqbFilter = new MultiPhrasePrefixQuery("field");
+            mqbFilter.add(new Term("field", "three"));
+            mqbFilter.add(new Term("field", "words"));
+            mqbFilter.add(new Term("field", "here"));
+            Query expected = new SourceFieldMatchQuery(
+                new BooleanQuery.Builder().add(new TermQuery(new Term("field", "three")), BooleanClause.Occur.FILTER)
+                    .add(new TermQuery(new Term("field", "words")), BooleanClause.Occur.FILTER)
+                    .add(mqb, BooleanClause.Occur.FILTER)
+                    .build(),
+                mqbFilter,
+                mapperService.fieldType("field"),
+                queryShardContext
+            );
+            assertThat(q, equalTo(expected));
+        }
+
+        {
+            Query q = new MatchPhrasePrefixQueryBuilder("field", "two words").slop(1).toQuery(queryShardContext);
+            MultiPhrasePrefixQuery mqb = new MultiPhrasePrefixQuery("field");
+            mqb.add(new Term("field", "words"));
+            MultiPhrasePrefixQuery mqbFilter = new MultiPhrasePrefixQuery("field");
+            mqbFilter.setSlop(1);
+            mqbFilter.add(new Term("field", "two"));
+            mqbFilter.add(new Term("field", "words"));
+            Query expected = new SourceFieldMatchQuery(
+                new BooleanQuery.Builder().add(new TermQuery(new Term("field", "two")), BooleanClause.Occur.FILTER)
+                    .add(mqb, BooleanClause.Occur.FILTER)
+                    .build(),
+                mqbFilter,
+                mapperService.fieldType("field"),
+                queryShardContext
+            );
+            assertThat(q, equalTo(expected));
+        }
+
+        {
+            Query q = new MatchPhrasePrefixQueryBuilder("field", "singleton").toQuery(queryShardContext);
+            MultiPhrasePrefixQuery mqb = new MultiPhrasePrefixQuery("field");
+            mqb.add(new Term("field", "singleton"));
+            Query expected = new SourceFieldMatchQuery(
+                new BooleanQuery.Builder().add(mqb, BooleanClause.Occur.FILTER).build(),
+                mqb,
+                mapperService.fieldType("field"),
+                queryShardContext
+            );
+            assertThat(q, is(expected));
+        }
+
+        {
+            Query q = new MatchPhrasePrefixQueryBuilder("field", "sparkle a stopword").toQuery(queryShardContext);
+            MultiPhrasePrefixQuery mqb = new MultiPhrasePrefixQuery("field");
+            mqb.add(new Term("field", "stopword"));
+            MultiPhrasePrefixQuery mqbFilter = new MultiPhrasePrefixQuery("field");
+            mqbFilter.add(new Term("field", "sparkle"));
+            mqbFilter.add(new Term[] { new Term("field", "stopword") }, 2);
+            Query expected = new SourceFieldMatchQuery(
+                new BooleanQuery.Builder().add(new TermQuery(new Term("field", "sparkle")), BooleanClause.Occur.FILTER)
+                    .add(mqb, BooleanClause.Occur.FILTER)
+                    .build(),
+                mqbFilter,
+                mapperService.fieldType("field"),
+                queryShardContext
+            );
+            assertThat(q, equalTo(expected));
+        }
+
+        {
+            MatchQuery matchQuery = new MatchQuery(queryShardContext);
+            matchQuery.setAnalyzer(new MockSynonymAnalyzer());
+            Query q = matchQuery.parse(MatchQuery.Type.PHRASE_PREFIX, "synfield", "motor dogs");
+            MultiPhrasePrefixQuery mqb = new MultiPhrasePrefixQuery("synfield");
+            mqb.add(new Term[] { new Term("synfield", "dogs"), new Term("synfield", "dog") });
+            MultiPhrasePrefixQuery mqbFilter = new MultiPhrasePrefixQuery("synfield");
+            mqbFilter.add(new Term("synfield", "motor"));
+            mqbFilter.add(new Term[] { new Term("synfield", "dogs"), new Term("synfield", "dog") });
+            Query expected = new SourceFieldMatchQuery(
+                new BooleanQuery.Builder().add(new TermQuery(new Term("synfield", "motor")), BooleanClause.Occur.FILTER)
+                    .add(mqb, BooleanClause.Occur.FILTER)
+                    .build(),
+                mqbFilter,
+                mapperService.fieldType("synfield"),
+                queryShardContext
+            );
+            assertThat(q, equalTo(expected));
+        }
+
+        {
+            MatchQuery matchQuery = new MatchQuery(queryShardContext);
+            matchQuery.setPhraseSlop(1);
+            matchQuery.setAnalyzer(new MockSynonymAnalyzer());
+            Query q = matchQuery.parse(MatchQuery.Type.PHRASE_PREFIX, "synfield", "two dogs");
+            MultiPhrasePrefixQuery mqb = new MultiPhrasePrefixQuery("synfield");
+            mqb.add(new Term[] { new Term("synfield", "dogs"), new Term("synfield", "dog") });
+            MultiPhrasePrefixQuery mqbFilter = new MultiPhrasePrefixQuery("synfield");
+            mqbFilter.add(new Term("synfield", "two"));
+            mqbFilter.add(new Term[] { new Term("synfield", "dogs"), new Term("synfield", "dog") });
+            mqbFilter.setSlop(1);
+            Query expected = new SourceFieldMatchQuery(
+                new BooleanQuery.Builder().add(new TermQuery(new Term("synfield", "two")), BooleanClause.Occur.FILTER)
+                    .add(mqb, BooleanClause.Occur.FILTER)
+                    .build(),
+                mqbFilter,
+                mapperService.fieldType("synfield"),
+                queryShardContext
+            );
+            assertThat(q, equalTo(expected));
+        }
+
+        // {
+        // Query q = new MatchPhrasePrefixQueryBuilder("synfield", "three dog word").toQuery(queryShardContext);
+        // MultiPhrasePrefixQuery mqb = new MultiPhrasePrefixQuery("synfield");
+        // mqb.add(new Term[] {new Term("synfield", "dogs"), new Term("synfield", "dog")});
+        // MultiPhrasePrefixQuery mqbFilter = new MultiPhrasePrefixQuery("synfield");
+        // mqbFilter.add(new Term("synfield", "motor"));
+        // mqbFilter.add(new Term[] {new Term("synfield", "dogs"), new Term("synfield", "dog")});
+        // Query expected = new SourceFieldMatchQuery(
+        // new BooleanQuery.Builder().add(new TermQuery(new Term("synfield", "three")), BooleanClause.Occur.FILTER)
+        // .add(mqb, BooleanClause.Occur.FILTER)
+        // .add(new TermQuery(new Term("synfield", "word")), BooleanClause.Occur.FILTER)
+        // .build(),
+        // mqbFilter,
+        // mapperService.fieldType("synfield"),
+        // queryShardContext
+        // );
+        // assertThat(q, equalTo(mpq));
+        // }
+    }
 
     @Override
     public void testFastPhraseMapping() throws IOException {}
