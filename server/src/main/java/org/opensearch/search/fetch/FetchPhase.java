@@ -44,6 +44,7 @@ import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.BitSet;
 import org.opensearch.common.CheckedBiConsumer;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.document.DocumentField;
 import org.opensearch.common.lucene.index.SequentialStoredFieldsLeafReader;
@@ -92,8 +93,9 @@ import static java.util.Collections.emptyMap;
  * Fetch phase of a search request, used to fetch the actual top matching documents to be returned to the client, identified
  * after reducing all of the matches returned by the query phase
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class FetchPhase {
     private static final Logger LOGGER = LogManager.getLogger(FetchPhase.class);
 

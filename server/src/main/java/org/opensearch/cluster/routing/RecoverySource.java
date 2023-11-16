@@ -251,8 +251,9 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
     /**
      * recovery from a snapshot
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public static class SnapshotRecoverySource extends RecoverySource {
 
         public static final String NO_API_RESTORE_UUID = "_no_api_";
@@ -424,8 +425,9 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
     /**
      * Recovery from remote store
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public static class RemoteStoreRecoverySource extends RecoverySource {
 
         private final String restoreUUID;

@@ -33,6 +33,7 @@
 package org.opensearch.index.mapper;
 
 import org.opensearch.common.Explicit;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.xcontent.support.XContentMapValues;
 import org.opensearch.core.xcontent.XContentBuilder;
 
@@ -43,15 +44,17 @@ import java.util.function.Function;
 /**
  * A mapper for a builtin field containing metadata about a document.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public abstract class MetadataFieldMapper extends ParametrizedFieldMapper {
 
     /**
      * Type parser for the field mapper
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public interface TypeParser extends Mapper.TypeParser {
 
         @Override
@@ -152,8 +155,9 @@ public abstract class MetadataFieldMapper extends ParametrizedFieldMapper {
     /**
      * Base builder for internal metadata fields
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public abstract static class Builder extends ParametrizedFieldMapper.Builder {
 
         protected Builder(String name) {

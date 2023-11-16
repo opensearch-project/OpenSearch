@@ -43,6 +43,7 @@ import org.opensearch.cluster.routing.RoutingTable;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.opensearch.cluster.routing.allocation.decider.Decision;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.snapshots.RestoreService.RestoreInProgressUpdater;
 import org.opensearch.snapshots.SnapshotShardSizeInfo;
@@ -60,8 +61,9 @@ import static java.util.Collections.unmodifiableSet;
  * of shards and holds the {@link AllocationDeciders} which are responsible
  *  for the current routing state.
  *
- *  @opensearch.internal
+ *  @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class RoutingAllocation {
 
     private final AllocationDeciders deciders;
@@ -317,8 +319,9 @@ public class RoutingAllocation {
     /**
      * Debug mode.
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public enum DebugMode {
         /**
          * debug mode is off
