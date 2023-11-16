@@ -35,7 +35,6 @@ package org.opensearch.index.search.stats;
 import org.opensearch.action.search.SearchPhase;
 import org.opensearch.action.search.SearchPhaseContext;
 import org.opensearch.action.search.SearchPhaseName;
-import org.opensearch.action.search.SearchRequestContext;
 import org.opensearch.action.search.SearchRequestStats;
 import org.opensearch.index.search.stats.SearchStats.Stats;
 import org.opensearch.test.OpenSearchTestCase;
@@ -86,7 +85,7 @@ public class SearchStatsTests extends OpenSearchTestCase {
             when(mockSearchPhase.getSearchPhaseName()).thenReturn(searchPhaseName);
             for (int iterator = 0; iterator < paramValue; iterator++) {
                 testRequestStats.onPhaseStart(ctx);
-                testRequestStats.onPhaseEnd(ctx, new SearchRequestContext());
+                testRequestStats.onPhaseEnd(ctx, null /* not needed */);
             }
         }
         searchStats1.setSearchRequestStats(testRequestStats);
