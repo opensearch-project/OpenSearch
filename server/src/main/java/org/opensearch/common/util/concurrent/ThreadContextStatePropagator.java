@@ -8,12 +8,17 @@
 
 package org.opensearch.common.util.concurrent;
 
+import org.opensearch.common.annotation.PublicApi;
+
 import java.util.Map;
 
 /**
  * The propagator for {@link ThreadContext} that helps to carry-over the state from one
  * thread to another (tasks, tracing context, etc).
+ *
+ * @opensearch.api
  */
+@PublicApi(since = "2.8.0")
 public interface ThreadContextStatePropagator {
     /**
      * Returns the list of transient headers that needs to be propagated from current context to new thread context.

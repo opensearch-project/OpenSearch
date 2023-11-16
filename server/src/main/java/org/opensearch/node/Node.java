@@ -1852,18 +1852,17 @@ public class Node implements Closeable {
 
         @Override
         public DiscoveryNode apply(BoundTransportAddress boundTransportAddress) {
+            final DiscoveryNode discoveryNode = DiscoveryNode.createLocal(
+                settings,
+                boundTransportAddress.publishAddress(),
+                persistentNodeId
+            );
+
             if (isRemoteStoreAttributePresent(settings)) {
-                localNode.set(
-                    DiscoveryNode.createRemoteNodeLocal(
-                        settings,
-                        boundTransportAddress.publishAddress(),
-                        persistentNodeId,
-                        remoteStoreNodeService
-                    )
-                );
-            } else {
-                localNode.set(DiscoveryNode.createLocal(settings, boundTransportAddress.publishAddress(), persistentNodeId));
+                remoteStoreNodeService.createAndVerifyRepositories(discoveryNode);
             }
+
+            localNode.set(discoveryNode);
             return localNode.get();
         }
 

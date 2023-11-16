@@ -42,6 +42,7 @@ import org.opensearch.cluster.routing.UnassignedInfo.AllocationStatus;
 import org.opensearch.cluster.routing.allocation.ExistingShardsAllocator;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.Randomness;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.core.Assertions;
 import org.opensearch.core.index.Index;
@@ -79,8 +80,9 @@ import java.util.stream.Stream;
  * <li> {@link #failShard} fails/cancels an assigned shard.
  * </ul>
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class RoutingNodes implements Iterable<RoutingNode> {
     private final Metadata metadata;
 
@@ -943,8 +945,9 @@ public class RoutingNodes implements Iterable<RoutingNode> {
     /**
      * Unassigned shard list.
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public static final class UnassignedShards implements Iterable<ShardRouting> {
 
         private final RoutingNodes nodes;
@@ -1044,8 +1047,9 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         /**
          * An unassigned iterator.
          *
-         * @opensearch.internal
+         * @opensearch.api
          */
+        @PublicApi(since = "1.0.0")
         public class UnassignedIterator implements Iterator<ShardRouting>, ExistingShardsAllocator.UnassignedAllocationHandler {
 
             private final ListIterator<ShardRouting> iterator;
