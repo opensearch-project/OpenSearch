@@ -34,6 +34,7 @@ package org.opensearch.action.admin.indices.rollover;
 
 import org.opensearch.cluster.AbstractDiffable;
 import org.opensearch.cluster.Diff;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.ParseField;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.StreamInput;
@@ -52,8 +53,9 @@ import java.util.Objects;
 /**
  * Class for holding Rollover related information within an index
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class RolloverInfo extends AbstractDiffable<RolloverInfo> implements Writeable, ToXContentFragment {
 
     public static final ParseField CONDITION_FIELD = new ParseField("met_conditions");

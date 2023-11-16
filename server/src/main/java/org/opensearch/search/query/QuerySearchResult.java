@@ -35,6 +35,7 @@ package org.opensearch.search.query;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.TotalHits;
 import org.opensearch.LegacyESVersion;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.io.stream.DelayableWriteable;
 import org.opensearch.common.lucene.search.TopDocsAndMaxScore;
 import org.opensearch.core.common.io.stream.StreamInput;
@@ -61,8 +62,9 @@ import static org.opensearch.common.lucene.Lucene.writeTopDocs;
 /**
  * The result of the query search
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public final class QuerySearchResult extends SearchPhaseResult {
 
     private int from;

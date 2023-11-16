@@ -41,6 +41,7 @@ import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.OpenSearchGenerationException;
 import org.opensearch.Version;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.common.bytes.BytesArray;
@@ -66,15 +67,17 @@ import java.util.stream.Stream;
 /**
  * The OpenSearch DocumentMapper
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class DocumentMapper implements ToXContentFragment {
 
     /**
      * Builder for the Document Field Mapper
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public static class Builder {
 
         private final Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper> metadataMappers = new LinkedHashMap<>();
@@ -241,7 +244,7 @@ public class DocumentMapper implements ToXContentFragment {
         return this.fieldMappers;
     }
 
-    public FieldTypeLookup fieldTypes() {
+    FieldTypeLookup fieldTypes() {
         return mappers().fieldTypes();
     }
 

@@ -62,6 +62,7 @@ import org.opensearch.ExceptionsHelper;
 import org.opensearch.action.index.IndexRequest;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.SetOnce;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lease.Releasables;
@@ -127,8 +128,9 @@ import static org.opensearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 /**
  * Base OpenSearch Engine class
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public abstract class Engine implements Closeable {
 
     public static final String SYNC_COMMIT_ID = "sync_id";  // TODO: remove sync_id in 3.0
@@ -471,8 +473,9 @@ public abstract class Engine implements Closeable {
      * Holds result meta data (e.g. translog location, updated version)
      * for an executed write {@link Operation}
      *
-     * @opensearch.internal
+     * @opensearch.api
      **/
+    @PublicApi(since = "1.0.0")
     public abstract static class Result {
         private final Operation.TYPE operationType;
         private final Result.Type resultType;
@@ -588,8 +591,9 @@ public abstract class Engine implements Closeable {
         /**
          * Type of the result
          *
-         * @opensearch.internal
+         * @opensearch.api
          */
+        @PublicApi(since = "1.0.0")
         public enum Type {
             SUCCESS,
             FAILURE,
@@ -600,8 +604,9 @@ public abstract class Engine implements Closeable {
     /**
      * Index result
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public static class IndexResult extends Result {
 
         private final boolean created;
@@ -637,8 +642,9 @@ public abstract class Engine implements Closeable {
     /**
      * The delete result
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public static class DeleteResult extends Result {
 
         private final boolean found;
@@ -674,8 +680,9 @@ public abstract class Engine implements Closeable {
     /**
      * A noop result
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public static class NoOpResult extends Result {
 
         NoOpResult(long term, long seqNo) {
@@ -837,8 +844,9 @@ public abstract class Engine implements Closeable {
     /**
      * Scope of the searcher
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public enum SearcherScope {
         EXTERNAL,
         INTERNAL
@@ -1426,8 +1434,9 @@ public abstract class Engine implements Closeable {
     /**
      * Event listener for the engine
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public interface EventListener {
         /**
          * Called when a fatal exception occurred
@@ -1438,8 +1447,9 @@ public abstract class Engine implements Closeable {
     /**
      * Supplier for the searcher
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public abstract static class SearcherSupplier implements Releasable {
         private final Function<Searcher, Searcher> wrapper;
         private final AtomicBoolean released = new AtomicBoolean(false);
@@ -1473,8 +1483,9 @@ public abstract class Engine implements Closeable {
     /**
      * The engine searcher
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public static final class Searcher extends IndexSearcher implements Releasable {
         private final String source;
         private final Closeable onClose;
@@ -1532,8 +1543,9 @@ public abstract class Engine implements Closeable {
         /**
          * type of operation (index, delete), subclasses use static types
          *
-         * @opensearch.internal
+         * @opensearch.api
          */
+        @PublicApi(since = "1.0.0")
         public enum TYPE {
             INDEX,
             DELETE,
@@ -1571,8 +1583,9 @@ public abstract class Engine implements Closeable {
         /**
          * Origin of the operation
          *
-         * @opensearch.internal
+         * @opensearch.api
          */
+        @PublicApi(since = "1.0.0")
         public enum Origin {
             PRIMARY,
             REPLICA,
@@ -1630,8 +1643,9 @@ public abstract class Engine implements Closeable {
     /**
      * Index operation
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public static class Index extends Operation {
 
         private final ParsedDocument doc;
@@ -1748,8 +1762,9 @@ public abstract class Engine implements Closeable {
     /**
      * Delete operation
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public static class Delete extends Operation {
 
         private final String id;
@@ -1836,8 +1851,9 @@ public abstract class Engine implements Closeable {
     /**
      * noop operation
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public static class NoOp extends Operation {
 
         private final String reason;
@@ -1886,8 +1902,9 @@ public abstract class Engine implements Closeable {
     /**
      * Get operation
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public static class Get {
         private final boolean realtime;
         private final Term uid;
@@ -1962,8 +1979,9 @@ public abstract class Engine implements Closeable {
     /**
      * The Get result
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public static class GetResult implements Releasable {
         private final boolean exists;
         private final long version;
@@ -2085,8 +2103,9 @@ public abstract class Engine implements Closeable {
      *
      * @see EngineConfig#getWarmer()
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public interface Warmer {
         /**
          * Called once a new top-level reader is opened.
