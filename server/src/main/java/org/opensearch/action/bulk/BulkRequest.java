@@ -45,6 +45,7 @@ import org.opensearch.action.support.WriteRequest;
 import org.opensearch.action.support.replication.ReplicationRequest;
 import org.opensearch.action.update.UpdateRequest;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.bytes.BytesArray;
@@ -71,8 +72,9 @@ import static org.opensearch.action.ValidateActions.addValidationError;
  * Note that we only support refresh on the bulk request not per item.
  * @see org.opensearch.client.Client#bulk(BulkRequest)
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class BulkRequest extends ActionRequest implements CompositeIndicesRequest, WriteRequest<BulkRequest>, Accountable {
 
     private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(BulkRequest.class);

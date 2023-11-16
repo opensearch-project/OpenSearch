@@ -97,6 +97,21 @@ public class RegexTests extends OpenSearchTestCase {
         assertTrue(Regex.simpleMatch("fff*******ddd", "fffabcddd"));
         assertTrue(Regex.simpleMatch("fff*******ddd", "FffAbcdDd", true));
         assertFalse(Regex.simpleMatch("fff******ddd", "fffabcdd"));
+        assertFalse(Regex.simpleMatch("fff*******ddd", "FffAbcdDd", false));
+        assertTrue(Regex.simpleMatch("abCDefGH******ddd", "abCDefGHddd", false));
+        assertTrue(Regex.simpleMatch("******", "a"));
+        assertTrue(Regex.simpleMatch("***WILDcard***", "aaaaaaaaWILDcardZZZZZZ", false));
+        assertFalse(Regex.simpleMatch("***xxxxx123456789xxxxxx***", "xxxxxabcdxxxxx", false));
+        assertFalse(Regex.simpleMatch("***xxxxxabcdxxxxx***", "xxxxxABCDxxxxx", false));
+        assertTrue(Regex.simpleMatch("***xxxxxabcdxxxxx***", "xxxxxABCDxxxxx", true));
+        assertTrue(Regex.simpleMatch("**stephenIsSuperCool**", "ItIsTrueThatStephenIsSuperCoolSoYouShouldLetThisIn", true));
+        assertTrue(
+            Regex.simpleMatch(
+                "**w**X**y**Z**",
+                "abcdeFGHIJKLMNOPqrstuvwabcdeFGHIJKLMNOPqrstuvwXabcdeFGHIJKLMNOPqrstuvwXyabcdeFGHIJKLMNOPqrstuvwXyZ",
+                false
+            )
+        );
     }
 
     public void testSimpleMatch() {

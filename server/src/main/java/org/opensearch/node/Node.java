@@ -502,7 +502,7 @@ public class Node implements Closeable {
                 for (ExtensionAwarePlugin extAwarePlugin : extensionAwarePlugins) {
                     additionalSettings.addAll(extAwarePlugin.getExtensionSettings());
                 }
-                this.extensionsManager = new ExtensionsManager(additionalSettings);
+                this.extensionsManager = new ExtensionsManager(additionalSettings, identityService);
             } else {
                 this.extensionsManager = new NoopExtensionsManager();
             }
@@ -944,7 +944,8 @@ public class Node implements Closeable {
                 transportService,
                 clusterService,
                 environment.settings(),
-                client
+                client,
+                identityService
             );
             final PersistedStateRegistry persistedStateRegistry = new PersistedStateRegistry();
             final GatewayMetaState gatewayMetaState = new GatewayMetaState();

@@ -32,6 +32,7 @@
 
 package org.opensearch.action.bulk;
 
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.xcontent.StatusToXContentObject;
 import org.opensearch.core.action.ActionResponse;
@@ -56,8 +57,9 @@ import static org.opensearch.core.xcontent.XContentParserUtils.throwUnknownToken
  * bulk requests. Each item holds the index/type/id is operated on, and if it failed or not (with the
  * failure message).
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class BulkResponse extends ActionResponse implements Iterable<BulkItemResponse>, StatusToXContentObject {
 
     private static final String ITEMS = "items";

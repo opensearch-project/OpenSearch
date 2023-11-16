@@ -19,6 +19,10 @@ import org.opensearch.core.xcontent.MediaType;
 import org.opensearch.extensions.DiscoveryExtensionNode;
 import org.opensearch.extensions.ExtensionsManager;
 import org.opensearch.http.HttpRequest;
+import org.opensearch.identity.IdentityService;
+import org.opensearch.identity.Subject;
+import org.opensearch.identity.tokens.OnBehalfOfClaims;
+import org.opensearch.identity.tokens.TokenManager;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.BytesRestResponse;
 import org.opensearch.rest.NamedRoute;
@@ -31,7 +35,6 @@ import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.security.Principal;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -54,19 +57,13 @@ public class RestSendToExtensionAction extends BaseRestHandler {
 
     private static final String SEND_TO_EXTENSION_ACTION = "send_to_extension_action";
     private static final Logger logger = LogManager.getLogger(RestSendToExtensionAction.class);
-    // To replace with user identity see https://github.com/opensearch-project/OpenSearch/pull/4247
-    private static final Principal DEFAULT_PRINCIPAL = new Principal() {
-        @Override
-        public String getName() {
-            return "OpenSearchUser";
-        }
-    };
 
     private final List<Route> routes;
     private final List<DeprecatedRoute> deprecatedRoutes;
     private final String pathPrefix;
     private final DiscoveryExtensionNode discoveryExtensionNode;
     private final TransportService transportService;
+    private final IdentityService identityService;
 
     private static final Set<String> allowList = Set.of("Content-Type");
     private static final Set<String> denyList = Set.of("Authorization", "Proxy-Authorization");
@@ -82,7 +79,8 @@ public class RestSendToExtensionAction extends BaseRestHandler {
         RegisterRestActionsRequest restActionsRequest,
         DiscoveryExtensionNode discoveryExtensionNode,
         TransportService transportService,
-        DynamicActionRegistry dynamicActionRegistry
+        DynamicActionRegistry dynamicActionRegistry,
+        IdentityService identityService
     ) {
         this.pathPrefix = "/_extensions/_" + restActionsRequest.getUniqueId();
         RestRequest.Method method;
@@ -147,6 +145,7 @@ public class RestSendToExtensionAction extends BaseRestHandler {
 
         this.discoveryExtensionNode = discoveryExtensionNode;
         this.transportService = transportService;
+        this.identityService = identityService;
     }
 
     @Override
@@ -240,11 +239,14 @@ public class RestSendToExtensionAction extends BaseRestHandler {
         };
 
         try {
+
             // Will be replaced with ExtensionTokenProcessor and PrincipalIdentifierToken classes from feature/identity
-            final String extensionTokenProcessor = "placeholder_token_processor";
-            final String requestIssuerIdentity = "placeholder_request_issuer_identity";
 
             Map<String, List<String>> filteredHeaders = filterHeaders(headers, allowList, denyList);
+
+            TokenManager tokenManager = identityService.getTokenManager();
+            Subject subject = this.identityService.getSubject();
+            OnBehalfOfClaims claims = new OnBehalfOfClaims(discoveryExtensionNode.getId(), subject.getPrincipal().getName());
 
             transportService.sendRequest(
                 discoveryExtensionNode,
@@ -259,7 +261,7 @@ public class RestSendToExtensionAction extends BaseRestHandler {
                     filteredHeaders,
                     contentType,
                     content,
-                    requestIssuerIdentity,
+                    tokenManager.issueOnBehalfOfToken(subject, claims).asAuthHeaderValue(),
                     httpVersion
                 ),
                 restExecuteOnExtensionResponseHandler

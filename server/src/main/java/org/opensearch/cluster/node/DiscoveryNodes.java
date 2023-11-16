@@ -38,6 +38,7 @@ import org.opensearch.cluster.AbstractDiffable;
 import org.opensearch.cluster.Diff;
 import org.opensearch.common.Booleans;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.regex.Regex;
 import org.opensearch.common.util.set.Sets;
 import org.opensearch.core.common.Strings;
@@ -63,8 +64,9 @@ import java.util.stream.StreamSupport;
  * This class holds all {@link DiscoveryNode} in the cluster and provides convenience methods to
  * access, modify merge / diff discovery nodes.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements Iterable<DiscoveryNode> {
 
     public static final DiscoveryNodes EMPTY_NODES = builder().build();
@@ -580,8 +582,9 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
     /**
      * Delta between nodes.
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public static class Delta {
 
         private final String localNodeId;
@@ -748,8 +751,9 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
     /**
      * Builder of a map of discovery nodes.
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public static class Builder {
 
         private final Map<String, DiscoveryNode> nodes;

@@ -48,6 +48,7 @@ import org.opensearch.cluster.metadata.MappingMetadata;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.UUIDs;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.lucene.uid.Versions;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.common.xcontent.XContentType;
@@ -90,8 +91,9 @@ import static org.opensearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
  * @see org.opensearch.client.Requests#indexRequest(String)
  * @see org.opensearch.client.Client#index(IndexRequest)
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implements DocWriteRequest<IndexRequest>, CompositeIndicesRequest {
 
     private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(IndexRequest.class);

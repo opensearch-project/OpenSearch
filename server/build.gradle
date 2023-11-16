@@ -154,6 +154,10 @@ dependencies {
   // jcraft
   api "com.jcraft:jzlib:${versions.jzlib}"
 
+  // reactor
+  api "io.projectreactor:reactor-core:${versions.reactor}"
+  api "org.reactivestreams:reactive-streams:${versions.reactivestreams}"
+
   // protobuf
   api "com.google.protobuf:protobuf-java:${versions.protobuf}"
   api "jakarta.annotation:jakarta.annotation-api:${versions.jakarta_annotation}"
@@ -253,6 +257,7 @@ tasks.named("processResources").configure {
 
 tasks.named("thirdPartyAudit").configure {
     ignoreMissingClasses(
+        *[
             // from com.fasterxml.jackson.dataformat.yaml.YAMLMapper (jackson-dataformat-yaml)
             'com.fasterxml.jackson.databind.ObjectMapper',
 
@@ -354,7 +359,44 @@ tasks.named("thirdPartyAudit").configure {
             'com.google.common.geometry.S2Projections',
             'com.google.common.geometry.S2Point',
             'com.google.common.geometry.S2$Metric',
+            'com.google.common.geometry.S2LatLng',
+            'io.micrometer.context.ContextAccessor',
+            'io.micrometer.context.ContextRegistry',
+            'io.micrometer.context.ContextSnapshot',
+            'io.micrometer.context.ContextSnapshot$Scope',
+            'io.micrometer.context.ContextSnapshotFactory',
+            'io.micrometer.context.ContextSnapshotFactory$Builder',
+            'io.micrometer.context.ThreadLocalAccessor',
+            'io.micrometer.core.instrument.Clock',
+            'io.micrometer.core.instrument.Counter',
+            'io.micrometer.core.instrument.Counter$Builder',
+            'io.micrometer.core.instrument.DistributionSummary',
+            'io.micrometer.core.instrument.DistributionSummary$Builder',
+            'io.micrometer.core.instrument.Meter',
+            'io.micrometer.core.instrument.MeterRegistry',
+            'io.micrometer.core.instrument.Metrics',
+            'io.micrometer.core.instrument.Tag',
+            'io.micrometer.core.instrument.Tags',
+            'io.micrometer.core.instrument.Timer',
+            'io.micrometer.core.instrument.Timer$Builder',
+            'io.micrometer.core.instrument.Timer$Sample',
+            'io.micrometer.core.instrument.binder.jvm.ExecutorServiceMetrics',
+            'io.micrometer.core.instrument.composite.CompositeMeterRegistry',
+            'io.micrometer.core.instrument.search.Search',
+            'org.slf4j.Logger',
+            'org.slf4j.LoggerFactory',
+            'reactor.blockhound.BlockHound$Builder',
+            'reactor.blockhound.integration.BlockHoundIntegration',
             'com.google.common.geometry.S2LatLng'
+        ] + (BuildParams.runtimeJavaVersion < JavaVersion.VERSION_20) ? [] : [
+            'jdk.incubator.vector.ByteVector',
+            'jdk.incubator.vector.FloatVector',
+            'jdk.incubator.vector.IntVector',
+            'jdk.incubator.vector.ShortVector',
+            'jdk.incubator.vector.Vector',
+            'jdk.incubator.vector.VectorOperators',
+            'jdk.incubator.vector.VectorSpecies'
+        ]
     )
     ignoreViolations(
             'com.google.protobuf.MessageSchema',
@@ -365,11 +407,13 @@ tasks.named("thirdPartyAudit").configure {
             'com.google.protobuf.UnsafeUtil$JvmMemoryAccessor',
             'com.google.protobuf.UnsafeUtil$MemoryAccessor',
             'org.apache.logging.log4j.core.util.internal.UnsafeUtil',
-            'org.apache.logging.log4j.core.util.internal.UnsafeUtil$1'
+            'org.apache.logging.log4j.core.util.internal.UnsafeUtil$1',
+            'reactor.core.publisher.Traces$SharedSecretsCallSiteSupplierFactory$TracingException'
     )
 }
 
 tasks.named("dependencyLicenses").configure {
+    mapping from: /reactor-.*/, to: 'reactor'
     mapping from: /lucene-.*/, to: 'lucene'
     dependencies = project.configurations.runtimeClasspath.fileCollection {
         it.group.startsWith('org.opensearch') == false ||

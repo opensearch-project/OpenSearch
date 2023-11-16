@@ -41,6 +41,7 @@ import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.action.support.clustermanager.ClusterManagerNodeReadRequest;
 import org.opensearch.cluster.health.ClusterHealthStatus;
 import org.opensearch.common.Priority;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
@@ -54,8 +55,9 @@ import static org.opensearch.action.ValidateActions.addValidationError;
 /**
  * Transport request for requesting cluster health
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class ClusterHealthRequest extends ClusterManagerNodeReadRequest<ClusterHealthRequest> implements IndicesRequest.Replaceable {
 
     private String[] indices;
@@ -358,8 +360,9 @@ public class ClusterHealthRequest extends ClusterManagerNodeReadRequest<ClusterH
     /**
      * The level of the health request.
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public enum Level {
         CLUSTER,
         INDICES,

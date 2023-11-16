@@ -8,6 +8,7 @@
 
 package org.opensearch.repositories;
 
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
@@ -19,8 +20,11 @@ import java.io.IOException;
 import java.util.List;
 
 /**
- * Encapsulates stats for multiple repositories*
+ * Encapsulates stats for multiple repositories
+ *
+ * @opensearch.api
  */
+@PublicApi(since = "2.11.0")
 public class RepositoriesStats implements Writeable, ToXContentObject {
 
     List<RepositoryStatsSnapshot> repositoryStatsSnapshots;
