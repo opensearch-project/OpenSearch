@@ -163,6 +163,7 @@ public class TextFieldTypeTests extends FieldTypeTestCase {
 
     public void testIndexPrefixes() {
         TextFieldType ft = createFieldType();
+        ft.setIndexAnalyzer(Lucene.STANDARD_ANALYZER);
         ft.setPrefixFieldType(new TextFieldMapper.PrefixFieldType(ft, "field._index_prefix", 2, 10));
 
         Query q = ft.prefixQuery("goin", CONSTANT_SCORE_REWRITE, false, randomMockShardContext());

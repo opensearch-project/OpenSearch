@@ -449,7 +449,6 @@ public class TextFieldMapper extends ParametrizedFieldMapper {
                 pft.setStoreTermVectorOffsets(true);
             }
             PrefixFieldType prefixFieldType = new PrefixFieldType(tft, fullName + "._index_prefix", indexPrefixes.get());
-            prefixFieldType.setAnalyzer(tft.indexAnalyzer());
             tft.setPrefixFieldType(prefixFieldType);
             return new PrefixFieldMapper(pft, prefixFieldType);
         }
@@ -596,17 +595,18 @@ public class TextFieldMapper extends ParametrizedFieldMapper {
 
         final int minChars;
         final int maxChars;
-        final TextFieldType parentField;
+        final TextFieldType parent;
 
         PrefixFieldType(TextFieldType parentField, String name, PrefixConfig config) {
             this(parentField, name, config.minChars, config.maxChars);
         }
 
-        PrefixFieldType(TextFieldType parentField, String name, int minChars, int maxChars) {
-            super(name, true, false, false, parentField.getTextSearchInfo(), Collections.emptyMap());
+        PrefixFieldType(TextFieldType parent, String name, int minChars, int maxChars) {
+            super(name, true, false, false, parent.getTextSearchInfo(), Collections.emptyMap());
             this.minChars = minChars;
             this.maxChars = maxChars;
-            this.parentField = parentField;
+            this.parent = parent;
+            setAnalyzer(parent.indexAnalyzer().name(), parent.indexAnalyzer());
         }
 
         @Override
@@ -616,12 +616,12 @@ public class TextFieldMapper extends ParametrizedFieldMapper {
             return SourceValueFetcher.toString(name(), context, format);
         }
 
-        void setAnalyzer(NamedAnalyzer delegate) {
+        void setAnalyzer(String name, NamedAnalyzer delegate) {
             setIndexAnalyzer(
                 new NamedAnalyzer(
-                    delegate.name(),
+                    name,
                     AnalyzerScope.INDEX,
-                    new PrefixWrappedAnalyzer(delegate.analyzer(), minChars, maxChars, delegate.getPositionIncrementGap(name()))
+                    new PrefixWrappedAnalyzer(delegate.analyzer(), minChars, maxChars, delegate.getPositionIncrementGap(name))
                 )
             );
         }
@@ -651,7 +651,7 @@ public class TextFieldMapper extends ParametrizedFieldMapper {
             Automaton automaton = Operations.concatenate(automata);
             AutomatonQuery query = AutomatonQueries.createAutomatonQuery(new Term(name(), value + "*"), automaton, method);
             return new BooleanQuery.Builder().add(query, BooleanClause.Occur.SHOULD)
-                .add(new TermQuery(new Term(parentField.name(), value)), BooleanClause.Occur.SHOULD)
+                .add(new TermQuery(new Term(parent.name(), value)), BooleanClause.Occur.SHOULD)
                 .build();
         }
 
