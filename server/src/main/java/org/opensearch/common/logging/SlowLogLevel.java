@@ -29,7 +29,7 @@
  * GitHub history for details.
  */
 
-package org.opensearch.index;
+package org.opensearch.common.logging;
 
 import java.util.Locale;
 
@@ -54,7 +54,7 @@ public enum SlowLogLevel {
         return valueOf(level.toUpperCase(Locale.ROOT));
     }
 
-    boolean isLevelEnabledFor(SlowLogLevel levelToBeUsed) {
+    public boolean isLevelEnabledFor(SlowLogLevel levelToBeUsed) {
         // example: this.info(2) tries to log with levelToBeUsed.warn(3) - should allow
         return this.specificity <= levelToBeUsed.specificity;
     }

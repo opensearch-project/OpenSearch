@@ -51,7 +51,7 @@ public final class SearchRequestStats implements SearchRequestOperationsListener
     }
 
     @Override
-    public void onPhaseEnd(SearchPhaseContext context) {
+    public void onPhaseEnd(SearchPhaseContext context, SearchRequestContext searchRequestContext) {
         StatsHolder phaseStats = phaseStatsMap.get(context.getCurrentPhase().getSearchPhaseName());
         phaseStats.current.dec();
         phaseStats.total.inc();
