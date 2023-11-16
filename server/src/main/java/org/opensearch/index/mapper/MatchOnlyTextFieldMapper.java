@@ -270,17 +270,21 @@ public class MatchOnlyTextFieldMapper extends TextFieldMapper {
             List<List<Term>> termArray = getTermsFromTokenStream(stream);
             BooleanQuery.Builder builder = new BooleanQuery.Builder();
             for (int i = 0; i < termArray.size(); i++) {
-                BooleanQuery.Builder disjunctions = new BooleanQuery.Builder();
-                for (Term term : termArray.get(i)) {
-                    if (i == termArray.size() - 1) {
-                        MultiPhrasePrefixQuery mqb = new MultiPhrasePrefixQuery(name());
-                        mqb.add(term);
-                        disjunctions.add(mqb, BooleanClause.Occur.SHOULD);
+                if (i == termArray.size() - 1) {
+                    MultiPhrasePrefixQuery mqb = new MultiPhrasePrefixQuery(name());
+                    mqb.add(termArray.get(i).toArray(new Term[0]));
+                    builder.add(mqb, BooleanClause.Occur.FILTER);
+                } else {
+                    if (termArray.get(i).size() > 1) {
+                        BooleanQuery.Builder disjunctions = new BooleanQuery.Builder();
+                        for (Term term : termArray.get(i)) {
+                            disjunctions.add(new TermQuery(term), BooleanClause.Occur.SHOULD);
+                        }
+                        builder.add(disjunctions.build(), BooleanClause.Occur.FILTER);
                     } else {
-                        disjunctions.add(new TermQuery(term), BooleanClause.Occur.SHOULD);
+                        builder.add(new TermQuery(termArray.get(i).get(0)), BooleanClause.Occur.FILTER);
                     }
                 }
-                builder.add(disjunctions.build(), BooleanClause.Occur.FILTER);
             }
             return new SourceFieldMatchQuery(builder.build(), phrasePrefixQuery, this, context);
         }
