@@ -119,7 +119,7 @@ class Pipeline {
 
     protected void onResponseProcessorFailed(Processor processor) {}
 
-    void transformRequest(SearchRequest request, ActionListener<SearchRequest> requestListener, PipelinedRequestContext requestContext)
+    void transformRequest(SearchRequest request, ActionListener<SearchRequest> requestListener, PipelineProcessingContext requestContext)
         throws SearchPipelineProcessingException {
         if (searchRequestProcessors.isEmpty()) {
             requestListener.onResponse(request);
@@ -179,7 +179,7 @@ class Pipeline {
 
     private ActionListener<SearchRequest> getTerminalSearchRequestActionListener(
         ActionListener<SearchRequest> requestListener,
-        PipelinedRequestContext requestContext
+        PipelineProcessingContext requestContext
     ) {
         final long pipelineStart = relativeTimeSupplier.getAsLong();
 
@@ -198,7 +198,7 @@ class Pipeline {
     ActionListener<SearchResponse> transformResponseListener(
         SearchRequest request,
         ActionListener<SearchResponse> responseListener,
-        PipelinedRequestContext requestContext
+        PipelineProcessingContext requestContext
     ) {
         if (searchResponseProcessors.isEmpty()) {
             // No response transformation necessary
@@ -266,7 +266,7 @@ class Pipeline {
         SearchPhaseContext context,
         String currentPhase,
         String nextPhase,
-        PipelinedRequestContext requestContext
+        PipelineProcessingContext requestContext
     ) throws SearchPipelineProcessingException {
         try {
             for (SearchPhaseResultsProcessor searchPhaseResultsProcessor : searchPhaseResultsProcessors) {

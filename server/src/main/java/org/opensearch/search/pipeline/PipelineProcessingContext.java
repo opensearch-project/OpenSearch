@@ -14,14 +14,14 @@ import java.util.Map;
 /**
  * A holder for state that is passed through each processor in the pipeline.
  */
-public class PipelinedRequestContext {
+public class PipelineProcessingContext {
     private final Map<String, Object> attributes = new HashMap<>();
 
     /**
      * Set a generic attribute in the state for this request. Overwrites any existing value.
      *
      * @param name the name of the attribute to set
-     * @param value the value to set on the attribute
+     * @param value the value to set on the attributen
      */
     public void setAttribute(String name, Object value) {
         attributes.put(name, value);

@@ -21,5 +21,5 @@ public interface StatefulSearchRequestProcessor extends SearchRequestProcessor {
     }
 
     @Override
-    SearchRequest processRequest(SearchRequest request, PipelinedRequestContext requestContext) throws Exception;
+    SearchRequest processRequest(SearchRequest request, PipelineProcessingContext requestContext) throws Exception;
 }

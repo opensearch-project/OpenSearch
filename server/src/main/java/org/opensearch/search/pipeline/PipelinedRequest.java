@@ -22,9 +22,9 @@ import org.opensearch.search.SearchPhaseResult;
  */
 public final class PipelinedRequest extends SearchRequest {
     private final Pipeline pipeline;
-    private final PipelinedRequestContext requestContext;
+    private final PipelineProcessingContext requestContext;
 
-    PipelinedRequest(Pipeline pipeline, SearchRequest transformedRequest, PipelinedRequestContext requestContext) {
+    PipelinedRequest(Pipeline pipeline, SearchRequest transformedRequest, PipelineProcessingContext requestContext) {
         super(transformedRequest);
         this.pipeline = pipeline;
         this.requestContext = requestContext;

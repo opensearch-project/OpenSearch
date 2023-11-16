@@ -10,7 +10,7 @@ package org.opensearch.search.pipeline.common;
 
 import org.opensearch.action.search.SearchRequest;
 import org.opensearch.search.builder.SearchSourceBuilder;
-import org.opensearch.search.pipeline.PipelinedRequestContext;
+import org.opensearch.search.pipeline.PipelineProcessingContext;
 import org.opensearch.search.pipeline.common.helpers.ContextUtils;
 import org.opensearch.test.OpenSearchTestCase;
 
@@ -26,7 +26,7 @@ public class OversampleRequestProcessorTests extends OpenSearchTestCase {
         OversampleRequestProcessor processor = factory.create(Collections.emptyMap(), null, null, false, config, null);
 
         SearchRequest request = new SearchRequest();
-        PipelinedRequestContext context = new PipelinedRequestContext();
+        PipelineProcessingContext context = new PipelineProcessingContext();
         SearchRequest transformedRequest = processor.processRequest(request, context);
         assertEquals(request, transformedRequest);
         assertNull(context.getAttribute("original_size"));
@@ -39,7 +39,7 @@ public class OversampleRequestProcessorTests extends OpenSearchTestCase {
 
         SearchSourceBuilder sourceBuilder = new SearchSourceBuilder().size(10);
         SearchRequest request = new SearchRequest().source(sourceBuilder);
-        PipelinedRequestContext context = new PipelinedRequestContext();
+        PipelineProcessingContext context = new PipelineProcessingContext();
         SearchRequest transformedRequest = processor.processRequest(request, context);
         assertEquals(30, transformedRequest.source().size());
         assertEquals(10, context.getAttribute("original_size"));
@@ -54,7 +54,7 @@ public class OversampleRequestProcessorTests extends OpenSearchTestCase {
 
         SearchSourceBuilder sourceBuilder = new SearchSourceBuilder().size(10);
         SearchRequest request = new SearchRequest().source(sourceBuilder);
-        PipelinedRequestContext context = new PipelinedRequestContext();
+        PipelineProcessingContext context = new PipelineProcessingContext();
         SearchRequest transformedRequest = processor.processRequest(request, context);
         assertEquals(30, transformedRequest.source().size());
         assertEquals(10, context.getAttribute("foo.original_size"));

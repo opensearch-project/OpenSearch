@@ -1383,9 +1383,9 @@ public class SearchPipelineServiceTests extends OpenSearchTestCase {
 
     private static class FakeStatefulRequestProcessor extends AbstractProcessor implements StatefulSearchRequestProcessor {
         private final String type;
-        private final Consumer<PipelinedRequestContext> stateConsumer;
+        private final Consumer<PipelineProcessingContext> stateConsumer;
 
-        public FakeStatefulRequestProcessor(String type, Consumer<PipelinedRequestContext> stateConsumer) {
+        public FakeStatefulRequestProcessor(String type, Consumer<PipelineProcessingContext> stateConsumer) {
             super(null, null, false);
             this.type = type;
             this.stateConsumer = stateConsumer;
@@ -1397,7 +1397,7 @@ public class SearchPipelineServiceTests extends OpenSearchTestCase {
         }
 
         @Override
-        public SearchRequest processRequest(SearchRequest request, PipelinedRequestContext requestContext) throws Exception {
+        public SearchRequest processRequest(SearchRequest request, PipelineProcessingContext requestContext) throws Exception {
             stateConsumer.accept(requestContext);
             return request;
         }
@@ -1405,9 +1405,9 @@ public class SearchPipelineServiceTests extends OpenSearchTestCase {
 
     private static class FakeStatefulResponseProcessor extends AbstractProcessor implements StatefulSearchResponseProcessor {
         private final String type;
-        private final Consumer<PipelinedRequestContext> stateConsumer;
+        private final Consumer<PipelineProcessingContext> stateConsumer;
 
-        public FakeStatefulResponseProcessor(String type, Consumer<PipelinedRequestContext> stateConsumer) {
+        public FakeStatefulResponseProcessor(String type, Consumer<PipelineProcessingContext> stateConsumer) {
             super(null, null, false);
             this.type = type;
             this.stateConsumer = stateConsumer;
@@ -1419,7 +1419,7 @@ public class SearchPipelineServiceTests extends OpenSearchTestCase {
         }
 
         @Override
-        public SearchResponse processResponse(SearchRequest request, SearchResponse response, PipelinedRequestContext requestContext)
+        public SearchResponse processResponse(SearchRequest request, SearchResponse response, PipelineProcessingContext requestContext)
             throws Exception {
             stateConsumer.accept(requestContext);
             return response;

@@ -12,7 +12,7 @@ import org.opensearch.action.search.SearchRequest;
 import org.opensearch.ingest.ConfigurationUtils;
 import org.opensearch.search.SearchService;
 import org.opensearch.search.pipeline.AbstractProcessor;
-import org.opensearch.search.pipeline.PipelinedRequestContext;
+import org.opensearch.search.pipeline.PipelineProcessingContext;
 import org.opensearch.search.pipeline.Processor;
 import org.opensearch.search.pipeline.SearchRequestProcessor;
 import org.opensearch.search.pipeline.StatefulSearchRequestProcessor;
@@ -44,7 +44,7 @@ public class OversampleRequestProcessor extends AbstractProcessor implements Sta
     }
 
     @Override
-    public SearchRequest processRequest(SearchRequest request, PipelinedRequestContext requestContext) {
+    public SearchRequest processRequest(SearchRequest request, PipelineProcessingContext requestContext) {
         if (request.source() != null) {
             int originalSize = request.source().size();
             if (originalSize == -1) {

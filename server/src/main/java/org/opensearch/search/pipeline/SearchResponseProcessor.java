@@ -40,7 +40,7 @@ public interface SearchResponseProcessor extends Processor {
      * @return the modified search response
      * @throws Exception implementation-specific processing exception
      */
-    default SearchResponse processResponse(SearchRequest request, SearchResponse response, PipelinedRequestContext requestContext)
+    default SearchResponse processResponse(SearchRequest request, SearchResponse response, PipelineProcessingContext requestContext)
         throws Exception {
         return processResponse(request, response);
     }
@@ -57,7 +57,7 @@ public interface SearchResponseProcessor extends Processor {
     default void processResponseAsync(
         SearchRequest request,
         SearchResponse response,
-        PipelinedRequestContext requestContext,
+        PipelineProcessingContext requestContext,
         ActionListener<SearchResponse> responseListener
     ) {
         try {
