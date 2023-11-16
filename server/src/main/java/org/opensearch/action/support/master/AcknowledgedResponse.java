@@ -31,6 +31,7 @@
 
 package org.opensearch.action.support.master;
 
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.ParseField;
 import org.opensearch.core.action.ActionResponse;
 import org.opensearch.core.common.io.stream.StreamInput;
@@ -49,8 +50,9 @@ import static org.opensearch.core.xcontent.ConstructingObjectParser.constructorA
 /**
  * A response that indicates that a request has been acknowledged
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class AcknowledgedResponse extends ActionResponse implements ToXContentObject {
 
     private static final ParseField ACKNOWLEDGED = new ParseField("acknowledged");

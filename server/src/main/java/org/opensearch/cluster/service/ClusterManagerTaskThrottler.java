@@ -12,6 +12,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.Version;
 import org.opensearch.cluster.ClusterStateTaskExecutor;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
@@ -133,7 +134,10 @@ public class ClusterManagerTaskThrottler implements TaskBatcherListener {
 
     /**
      * Class to store the throttling key for the tasks of cluster manager
+     *
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public static class ThrottlingKey {
         private String taskThrottlingKey;
         private boolean throttlingEnabled;

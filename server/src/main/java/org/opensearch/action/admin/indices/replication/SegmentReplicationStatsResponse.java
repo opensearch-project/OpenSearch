@@ -9,6 +9,7 @@
 package org.opensearch.action.admin.indices.replication;
 
 import org.opensearch.action.support.broadcast.BroadcastResponse;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.action.support.DefaultShardOperationFailedException;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.StreamInput;
@@ -24,8 +25,9 @@ import java.util.Map;
 /**
  * Stats Information regarding the Segment Replication state of indices and their associated shards.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class SegmentReplicationStatsResponse extends BroadcastResponse {
     private final Map<String, List<SegmentReplicationPerGroupStats>> replicationStats;
 

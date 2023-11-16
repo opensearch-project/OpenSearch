@@ -244,10 +244,6 @@ public class FieldCapabilitiesIT extends ParameterizedOpenSearchIntegTestCase {
     }
 
     public void testWithIndexFilter() throws InterruptedException {
-        assumeFalse(
-            "Concurrent search case muted pending fix: https://github.com/opensearch-project/OpenSearch/issues/10433",
-            internalCluster().clusterService().getClusterSettings().get(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING)
-        );
         assertAcked(prepareCreate("index-1").setMapping("timestamp", "type=date", "field1", "type=keyword"));
         assertAcked(prepareCreate("index-2").setMapping("timestamp", "type=date", "field1", "type=long"));
 

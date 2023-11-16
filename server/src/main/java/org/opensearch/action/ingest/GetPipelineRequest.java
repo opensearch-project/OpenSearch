@@ -34,6 +34,7 @@ package org.opensearch.action.ingest;
 
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.support.clustermanager.ClusterManagerNodeReadRequest;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
@@ -43,8 +44,9 @@ import java.io.IOException;
 /**
  * transport request to get a pipeline
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class GetPipelineRequest extends ClusterManagerNodeReadRequest<GetPipelineRequest> {
 
     private String[] ids;

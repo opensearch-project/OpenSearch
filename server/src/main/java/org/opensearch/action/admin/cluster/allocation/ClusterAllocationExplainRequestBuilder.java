@@ -34,12 +34,14 @@ package org.opensearch.action.admin.cluster.allocation;
 
 import org.opensearch.action.support.clustermanager.ClusterManagerNodeOperationRequestBuilder;
 import org.opensearch.client.OpenSearchClient;
+import org.opensearch.common.annotation.PublicApi;
 
 /**
  * Builder for requests to explain the allocation of a shard in the cluster
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class ClusterAllocationExplainRequestBuilder extends ClusterManagerNodeOperationRequestBuilder<
     ClusterAllocationExplainRequest,
     ClusterAllocationExplainResponse,
