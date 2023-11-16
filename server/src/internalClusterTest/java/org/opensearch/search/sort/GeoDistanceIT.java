@@ -192,6 +192,7 @@ public class GeoDistanceIT extends ParameterizedOpenSearchIntegTestCase {
             .get();
 
         client().admin().indices().prepareRefresh().get();
+        indexRandomForConcurrentSearch("test");
 
         // Order: Asc
         SearchResponse searchResponse = client().prepareSearch("test")
@@ -324,6 +325,7 @@ public class GeoDistanceIT extends ParameterizedOpenSearchIntegTestCase {
             .get();
 
         refresh();
+        indexRandomForConcurrentSearch("test");
 
         // Order: Asc
         SearchResponse searchResponse = client().prepareSearch("test")
@@ -668,6 +670,7 @@ public class GeoDistanceIT extends ParameterizedOpenSearchIntegTestCase {
             .get();
 
         refresh();
+        indexRandomForConcurrentSearch("test1", "test2");
 
         // Order: Asc
         SearchResponse searchResponse = client().prepareSearch("test1", "test2")

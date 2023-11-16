@@ -84,12 +84,13 @@ public class SourceFetchingIT extends ParameterizedOpenSearchIntegTestCase {
 
     }
 
-    public void testSourceFiltering() {
+    public void testSourceFiltering() throws InterruptedException {
         createIndex("test");
         ensureGreen();
 
         client().prepareIndex("test").setId("1").setSource("field1", "value", "field2", "value2").get();
         refresh();
+        indexRandomForConcurrentSearch("test");
 
         SearchResponse response = client().prepareSearch("test").setFetchSource(false).get();
         assertThat(response.getHits().getAt(0).getSourceAsString(), nullValue());
@@ -117,12 +118,13 @@ public class SourceFetchingIT extends ParameterizedOpenSearchIntegTestCase {
      * Test Case for #5132: Source filtering with wildcards broken when given multiple patterns
      * https://github.com/elastic/elasticsearch/issues/5132
      */
-    public void testSourceWithWildcardFiltering() {
+    public void testSourceWithWildcardFiltering() throws InterruptedException {
         createIndex("test");
         ensureGreen();
 
         client().prepareIndex("test").setId("1").setSource("field", "value").get();
         refresh();
+        indexRandomForConcurrentSearch("test");
 
         SearchResponse response = client().prepareSearch("test").setFetchSource(new String[] { "*.notexisting", "field" }, null).get();
         assertThat(response.getHits().getAt(0).getSourceAsString(), notNullValue());
