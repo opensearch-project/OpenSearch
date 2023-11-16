@@ -196,7 +196,7 @@ public class SearchQueryIT extends ParameterizedOpenSearchIntegTestCase {
     }
 
     // see https://github.com/elastic/elasticsearch/issues/3177
-    public void testIssue3177() {
+    public void testIssue3177() throws InterruptedException {
         createIndex("test");
         client().prepareIndex("test").setId("1").setSource("field1", "value1").get();
         client().prepareIndex("test").setId("2").setSource("field1", "value2").get();
@@ -205,6 +205,7 @@ public class SearchQueryIT extends ParameterizedOpenSearchIntegTestCase {
         waitForRelocation();
         forceMerge();
         refresh();
+        indexRandomForConcurrentSearch("test");
         assertHitCount(
             client().prepareSearch()
                 .setQuery(matchAllQuery())
@@ -868,11 +869,12 @@ public class SearchQueryIT extends ParameterizedOpenSearchIntegTestCase {
         assertFirstHit(searchResponse, hasId("1"));
     }
 
-    public void testMatchQueryZeroTermsQuery() {
+    public void testMatchQueryZeroTermsQuery() throws InterruptedException {
         assertAcked(prepareCreate("test").setMapping("field1", "type=text,analyzer=classic", "field2", "type=text,analyzer=classic"));
         client().prepareIndex("test").setId("1").setSource("field1", "value1").get();
         client().prepareIndex("test").setId("2").setSource("field1", "value2").get();
         refresh();
+        indexRandomForConcurrentSearch("test");
 
         BoolQueryBuilder boolQuery = boolQuery().must(matchQuery("field1", "a").zeroTermsQuery(MatchQuery.ZeroTermsQuery.NONE))
             .must(matchQuery("field1", "value1").zeroTermsQuery(MatchQuery.ZeroTermsQuery.NONE));
@@ -889,11 +891,12 @@ public class SearchQueryIT extends ParameterizedOpenSearchIntegTestCase {
         assertHitCount(searchResponse, 2L);
     }
 
-    public void testMultiMatchQueryZeroTermsQuery() {
+    public void testMultiMatchQueryZeroTermsQuery() throws InterruptedException {
         assertAcked(prepareCreate("test").setMapping("field1", "type=text,analyzer=classic", "field2", "type=text,analyzer=classic"));
         client().prepareIndex("test").setId("1").setSource("field1", "value1", "field2", "value2").get();
         client().prepareIndex("test").setId("2").setSource("field1", "value3", "field2", "value4").get();
         refresh();
+        indexRandomForConcurrentSearch("test");
 
         BoolQueryBuilder boolQuery = boolQuery().must(
             multiMatchQuery("a", "field1", "field2").zeroTermsQuery(MatchQuery.ZeroTermsQuery.NONE)
@@ -1916,11 +1919,12 @@ public class SearchQueryIT extends ParameterizedOpenSearchIntegTestCase {
         assertHitCount(searchResponse, 2L);
     }
 
-    public void testSearchEmptyDoc() {
+    public void testSearchEmptyDoc() throws InterruptedException {
         assertAcked(prepareCreate("test").setSettings("{\"index.analysis.analyzer.default.type\":\"keyword\"}", MediaTypeRegistry.JSON));
         client().prepareIndex("test").setId("1").setSource("{}", MediaTypeRegistry.JSON).get();
 
         refresh();
+        indexRandomForConcurrentSearch("test");
         assertHitCount(client().prepareSearch().setQuery(matchAllQuery()).get(), 1L);
     }
 
