@@ -1,0 +1,165 @@
+setup:
+    - skip:
+        features: [ "headers" ]
+---
+"search on number fields with doc_values enabled":
+  - do:
+      indices.create:
+        index:  test-iodvq
+        body:
+          mappings:
+            dynamic: false
+            properties:
+              byte:
+                type: byte
+                index: true
+                doc_values: true
+              double:
+                type: double
+                index: true
+                doc_values: true
+              float:
+                type: float
+                index: true
+                doc_values: true
+              half_float:
+                type: half_float
+                index: true
+                doc_values: true
+              integer:
+                type: integer
+                index: true
+                doc_values: true
+              long:
+                type: long
+                index: true
+                doc_values: true
+              short:
+                type: short
+                index: true
+                doc_values: true
+              unsigned_long:
+                type: unsigned_long
+                index: true
+                doc_values: true
+
+
+  - do:
+      headers:
+        Content-Type: application/json
+      index:
+        index:  "test-iodvq"
+        id:     1
+        body:
+          byte: 1
+          double: 1.0
+          float: 1.0
+          half_float: 1.0
+          integer: 1
+          long: 1
+          short: 1
+          unsigned_long: 1
+
+  - do:
+      headers:
+        Content-Type: application/json
+      index:
+        index:  "test-iodvq"
+        id:     2
+        body:
+          byte: 2
+          double: 1.0
+          float: 1.0
+          half_float: 1.0
+          integer: 1
+          long: 1
+          short: 1
+          unsigned_long: 1
+
+
+  - do:
+      headers:
+        Content-Type: application/json
+      index:
+        index:  "test-iodvq"
+        id:     3
+        body:
+          byte: 3
+          double: 1.0
+          float: 1.0
+          half_float: 1.0
+          integer: 1
+          long: 1
+          short: 1
+          unsigned_long: 1
+
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test-iodvq
+        body:
+          query:
+            term:
+              byte: 1
+
+  - match: {hits.total: 1}
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test-iodvq
+        body:
+          query:
+            term:
+              double: 1.0
+
+  - match: {hits.total: 3}
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test-iodvq
+        body:
+          query:
+            term:
+              float: 1.0
+
+  - match: {hits.total: 3}
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test-iodvq
+        body:
+          query:
+            term:
+              integer: 1
+
+  - match: {hits.total: 3}
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test-iodvq
+        body:
+          query:
+            term:
+              long: 1
+
+  - match: {hits.total: 3}
+
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test-iodvq
+        body:
+          query:
+            terms:
+              byte: [1, 2]
+
+  - match: {hits.total: 2}

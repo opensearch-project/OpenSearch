@@ -35,10 +35,14 @@ package org.opensearch.index.mapper;
 import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.core.exc.InputCoercionException;
 
+import org.apache.lucene.document.DoubleField;
 import org.apache.lucene.document.DoublePoint;
 import org.apache.lucene.document.Field;
+import org.apache.lucene.document.FloatField;
 import org.apache.lucene.document.FloatPoint;
+import org.apache.lucene.document.IntField;
 import org.apache.lucene.document.IntPoint;
+import org.apache.lucene.document.LongField;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.StoredField;
@@ -201,9 +205,14 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
             }
 
             @Override
-            public Query termQuery(String field, Object value) {
+            public Query termQuery(String field, Object value, Boolean hasDocValues) {
                 float v = parse(value, false);
-                return HalfFloatPoint.newExactQuery(field, v);
+                Query query = HalfFloatPoint.newExactQuery(field, v);
+                if (hasDocValues) {
+                    Query dvQuery = SortedNumericDocValuesField.newSlowExactQuery(field, HalfFloatPoint.halfFloatToSortableShort(v));
+                    query = new IndexOrDocValuesQuery(query, dvQuery);
+                }
+                return query;
             }
 
             @Override
@@ -212,7 +221,7 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
                 for (int i = 0; i < values.size(); ++i) {
                     v[i] = parse(values.get(i), false);
                 }
-                return HalfFloatPoint.newSetQuery(field, v);
+                return FloatField.newSetQuery(field, v);
             }
 
             @Override
@@ -309,9 +318,14 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
             }
 
             @Override
-            public Query termQuery(String field, Object value) {
+            public Query termQuery(String field, Object value, Boolean hasDocValues) {
                 float v = parse(value, false);
-                return FloatPoint.newExactQuery(field, v);
+                Query query = FloatPoint.newExactQuery(field, v);
+                if (hasDocValues) {
+                    Query dvQuery = SortedNumericDocValuesField.newSlowExactQuery(field, NumericUtils.floatToSortableInt(v));
+                    query = new IndexOrDocValuesQuery(query, dvQuery);
+                }
+                return query;
             }
 
             @Override
@@ -320,7 +334,7 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
                 for (int i = 0; i < values.size(); ++i) {
                     v[i] = parse(values.get(i), false);
                 }
-                return FloatPoint.newSetQuery(field, v);
+                return FloatField.newSetQuery(field, v);
             }
 
             @Override
@@ -406,9 +420,14 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
             }
 
             @Override
-            public Query termQuery(String field, Object value) {
+            public Query termQuery(String field, Object value, Boolean hasDocValues) {
                 double v = parse(value, false);
-                return DoublePoint.newExactQuery(field, v);
+                Query query = DoublePoint.newExactQuery(field, v);
+                if (hasDocValues) {
+                    Query dvQuery = SortedNumericDocValuesField.newSlowExactQuery(field, NumericUtils.doubleToSortableLong(v));
+                    query = new IndexOrDocValuesQuery(query, dvQuery);
+                }
+                return query;
             }
 
             @Override
@@ -417,7 +436,7 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
                 for (int i = 0; i < values.size(); ++i) {
                     v[i] = parse(values.get(i), false);
                 }
-                return DoublePoint.newSetQuery(field, v);
+                return DoubleField.newSetQuery(field, v);
             }
 
             @Override
@@ -504,8 +523,8 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
             }
 
             @Override
-            public Query termQuery(String field, Object value) {
-                return INTEGER.termQuery(field, value);
+            public Query termQuery(String field, Object value, Boolean hasDocValues) {
+                return INTEGER.termQuery(field, value, hasDocValues);
             }
 
             @Override
@@ -571,8 +590,8 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
             }
 
             @Override
-            public Query termQuery(String field, Object value) {
-                return INTEGER.termQuery(field, value);
+            public Query termQuery(String field, Object value, Boolean hasDocValues) {
+                return INTEGER.termQuery(field, value, hasDocValues);
             }
 
             @Override
@@ -638,12 +657,17 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
             }
 
             @Override
-            public Query termQuery(String field, Object value) {
+            public Query termQuery(String field, Object value, Boolean hasDocValues) {
                 if (hasDecimalPart(value)) {
                     return Queries.newMatchNoDocsQuery("Value [" + value + "] has a decimal part");
                 }
                 int v = parse(value, true);
-                return IntPoint.newExactQuery(field, v);
+                Query query = IntPoint.newExactQuery(field, v);
+                if (hasDocValues) {
+                    Query dvQuery = SortedNumericDocValuesField.newSlowExactQuery(field, v);
+                    query = new IndexOrDocValuesQuery(query, dvQuery);
+                }
+                return query;
             }
 
             @Override
@@ -664,7 +688,7 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
                 if (upTo != v.length) {
                     v = Arrays.copyOf(v, upTo);
                 }
-                return IntPoint.newSetQuery(field, v);
+                return IntField.newSetQuery(field, v);
             }
 
             @Override
@@ -752,12 +776,17 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
             }
 
             @Override
-            public Query termQuery(String field, Object value) {
+            public Query termQuery(String field, Object value, Boolean hasDocValues) {
                 if (hasDecimalPart(value)) {
                     return Queries.newMatchNoDocsQuery("Value [" + value + "] has a decimal part");
                 }
                 long v = parse(value, true);
-                return LongPoint.newExactQuery(field, v);
+                Query query = LongPoint.newExactQuery(field, v);
+                if (hasDocValues) {
+                    Query dvQuery = SortedNumericDocValuesField.newSlowExactQuery(field, v);
+                    query = new IndexOrDocValuesQuery(query, dvQuery);
+                }
+                return query;
             }
 
             @Override
@@ -778,7 +807,7 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
                 if (upTo != v.length) {
                     v = Arrays.copyOf(v, upTo);
                 }
-                return LongPoint.newSetQuery(field, v);
+                return LongField.newSetQuery(field, v);
             }
 
             @Override
@@ -841,12 +870,12 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
             }
 
             @Override
-            public Query termQuery(String field, Object value) {
+            public Query termQuery(String field, Object value, Boolean hasDocValues) {
                 if (hasDecimalPart(value)) {
                     return Queries.newMatchNoDocsQuery("Value [" + value + "] has a decimal part");
                 }
                 BigInteger v = parse(value, true);
-                return BigIntegerPoint.newExactQuery(field, v);
+                return UNSIGNED_LONG.rangeQuery(field, v, v, true, true, hasDocValues, null);
             }
 
             @Override
@@ -868,6 +897,7 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
                     v = Arrays.copyOf(v, upTo);
                 }
 
+                // TODO: replace this with IODVQ
                 return BigIntegerPoint.newSetQuery(field, v);
             }
 
@@ -941,7 +971,7 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
             return parser;
         }
 
-        public abstract Query termQuery(String field, Object value);
+        public abstract Query termQuery(String field, Object value, Boolean hasDocValues);
 
         public abstract Query termsQuery(String field, List<Object> values);
 
@@ -1226,8 +1256,8 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
 
         @Override
         public Query termQuery(Object value, QueryShardContext context) {
-            failIfNotIndexed();
-            Query query = type.termQuery(name(), value);
+            failIfNotIndexedAndNoDocValues();
+            Query query = type.termQuery(name(), value, hasDocValues());
             if (boost() != 1f) {
                 query = new BoostQuery(query, boost());
             }
@@ -1236,7 +1266,7 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
 
         @Override
         public Query termsQuery(List values, QueryShardContext context) {
-            failIfNotIndexed();
+            failIfNotIndexedAndNoDocValues();
             Query query = type.termsQuery(name(), values);
             if (boost() != 1f) {
                 query = new BoostQuery(query, boost());
@@ -1246,7 +1276,7 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
 
         @Override
         public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, QueryShardContext context) {
-            failIfNotIndexed();
+            failIfNotIndexedAndNoDocValues();
             Query query = type.rangeQuery(name(), lowerTerm, upperTerm, includeLower, includeUpper, hasDocValues(), context);
             if (boost() != 1f) {
                 query = new BoostQuery(query, boost());

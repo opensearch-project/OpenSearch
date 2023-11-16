@@ -199,9 +199,9 @@ public class ScaledFloatFieldMapper extends ParametrizedFieldMapper {
 
         @Override
         public Query termQuery(Object value, QueryShardContext context) {
-            failIfNotIndexed();
+            failIfNotIndexedAndNoDocValues();
             long scaledValue = Math.round(scale(value));
-            Query query = NumberFieldMapper.NumberType.LONG.termQuery(name(), scaledValue);
+            Query query = NumberFieldMapper.NumberType.LONG.termQuery(name(), scaledValue, hasDocValues());
             if (boost() != 1f) {
                 query = new BoostQuery(query, boost());
             }
@@ -210,7 +210,7 @@ public class ScaledFloatFieldMapper extends ParametrizedFieldMapper {
 
         @Override
         public Query termsQuery(List<?> values, QueryShardContext context) {
-            failIfNotIndexed();
+            failIfNotIndexedAndNoDocValues();
             List<Long> scaledValues = new ArrayList<>(values.size());
             for (Object value : values) {
                 long scaledValue = Math.round(scale(value));
@@ -225,7 +225,7 @@ public class ScaledFloatFieldMapper extends ParametrizedFieldMapper {
 
         @Override
         public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, QueryShardContext context) {
-            failIfNotIndexed();
+            failIfNotIndexedAndNoDocValues();
             Long lo = null;
             if (lowerTerm != null) {
                 double dValue = scale(lowerTerm);

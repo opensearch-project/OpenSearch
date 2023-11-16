@@ -132,6 +132,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Disable concurrent aggs for Diversified Sampler and Sampler aggs ([#11087](https://github.com/opensearch-project/OpenSearch/issues/11087))
 - Made leader/follower check timeout setting dynamic ([#10528](https://github.com/opensearch-project/OpenSearch/pull/10528))
 - Use iterative approach to evaluate Regex.simpleMatch ([#11060](https://github.com/opensearch-project/OpenSearch/pull/11060))
+- Update NumberFieldMapper to use IndexOrDocValuesQuery ([#11209](https://github.
+  com/opensearch-project/OpenSearch/pull/11209))
 
 ### Deprecated
 
