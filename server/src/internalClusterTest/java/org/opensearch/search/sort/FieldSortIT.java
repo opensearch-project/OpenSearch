@@ -154,7 +154,7 @@ public class FieldSortIT extends ParameterizedOpenSearchIntegTestCase {
         return Arrays.asList(InternalSettingsPlugin.class, CustomScriptPlugin.class);
     }
 
-    public void testIssue8226() {
+    public void testIssue8226() throws InterruptedException {
         int numIndices = between(5, 10);
         final boolean useMapping = randomBoolean();
         for (int i = 0; i < numIndices; i++) {
@@ -168,6 +168,9 @@ public class FieldSortIT extends ParameterizedOpenSearchIntegTestCase {
             }
         }
         refresh();
+        for (int i = 0; i < numIndices; i++) {
+            indexRandomForConcurrentSearch("test_" + i);
+        }
         // sort DESC
         SearchResponse searchResponse = client().prepareSearch()
             .addSort(new FieldSortBuilder("entry").order(SortOrder.DESC).unmappedType(useMapping ? null : "long"))
@@ -451,6 +454,7 @@ public class FieldSortIT extends ParameterizedOpenSearchIntegTestCase {
         client().prepareIndex("test").setId("3").setSource("field", 0).get();
 
         refresh();
+        indexRandomForConcurrentSearch("test");
 
         SearchResponse searchResponse = client().prepareSearch("test")
             .setQuery(QueryBuilders.functionScoreQuery(matchAllQuery(), ScoreFunctionBuilders.fieldValueFactorFunction("field")))
@@ -489,6 +493,7 @@ public class FieldSortIT extends ParameterizedOpenSearchIntegTestCase {
         client().prepareIndex("test").setId("3").setSource("field", 0).get();
 
         refresh();
+        indexRandomForConcurrentSearch("test");
 
         SearchResponse searchResponse = client().prepareSearch("test")
             .setQuery(functionScoreQuery(matchAllQuery(), fieldValueFactorFunction("field")))
@@ -536,7 +541,7 @@ public class FieldSortIT extends ParameterizedOpenSearchIntegTestCase {
         }
     }
 
-    public void testIssue2991() {
+    public void testIssue2991() throws InterruptedException {
         for (int i = 1; i < 4; i++) {
             try {
                 client().admin().indices().prepareDelete("test").get();
@@ -557,6 +562,7 @@ public class FieldSortIT extends ParameterizedOpenSearchIntegTestCase {
             client().prepareIndex("test").setId("2").setSource("tag", "beta").get();
 
             refresh();
+            indexRandomForConcurrentSearch("test");
             SearchResponse resp = client().prepareSearch("test")
                 .setSize(2)
                 .setQuery(matchAllQuery())
@@ -655,6 +661,7 @@ public class FieldSortIT extends ParameterizedOpenSearchIntegTestCase {
 
         }
         refresh();
+        indexRandomForConcurrentSearch("test");
 
         // STRING
         int size = 1 + random.nextInt(10);
@@ -927,6 +934,7 @@ public class FieldSortIT extends ParameterizedOpenSearchIntegTestCase {
 
         flush();
         refresh();
+        indexRandomForConcurrentSearch("test");
 
         // DOUBLE
         logger.info("--> sort with no missing (same as missing _last)");
@@ -1088,6 +1096,7 @@ public class FieldSortIT extends ParameterizedOpenSearchIntegTestCase {
 
         flush();
         refresh();
+        indexRandomForConcurrentSearch("test");
 
         // LONG
         logger.info("--> sort with no missing (same as missing _last)");
@@ -1207,7 +1216,7 @@ public class FieldSortIT extends ParameterizedOpenSearchIntegTestCase {
         assertThat(searchResponse.getHits().getAt(2).getId(), equalTo("3"));
     }
 
-    public void testSortMissingStrings() throws IOException {
+    public void testSortMissingStrings() throws IOException, InterruptedException {
         assertAcked(
             prepareCreate("test").setMapping(
                 XContentFactory.jsonBuilder()
@@ -1235,6 +1244,7 @@ public class FieldSortIT extends ParameterizedOpenSearchIntegTestCase {
 
         flush();
         refresh();
+        indexRandomForConcurrentSearch("test");
 
         // TODO: WTF?
         try {
@@ -1423,6 +1433,7 @@ public class FieldSortIT extends ParameterizedOpenSearchIntegTestCase {
             .get();
 
         refresh();
+        indexRandomForConcurrentSearch("test");
 
         SearchResponse searchResponse = client().prepareSearch()
             .setQuery(matchAllQuery())
@@ -1707,7 +1718,7 @@ public class FieldSortIT extends ParameterizedOpenSearchIntegTestCase {
         assertThat(searchResponse.getHits().getAt(2).getSortValues()[0], equalTo("03"));
     }
 
-    public void testSortOnRareField() throws IOException {
+    public void testSortOnRareField() throws IOException, InterruptedException {
         assertAcked(
             prepareCreate("test").setMapping(
                 XContentFactory.jsonBuilder()
@@ -1727,6 +1738,7 @@ public class FieldSortIT extends ParameterizedOpenSearchIntegTestCase {
             .get();
 
         refresh();
+        indexRandomForConcurrentSearch("test");
         SearchResponse searchResponse = client().prepareSearch()
             .setQuery(matchAllQuery())
             .setSize(3)
@@ -1822,6 +1834,7 @@ public class FieldSortIT extends ParameterizedOpenSearchIntegTestCase {
                 indexReqs[i] = client().prepareIndex("test").setId(Integer.toString(i)).setSource();
             }
             indexRandom(true, indexReqs);
+            indexRandomForConcurrentSearch("test");
 
             SortOrder order = randomFrom(SortOrder.values());
             SearchResponse searchResponse = client().prepareSearch()
@@ -1924,6 +1937,7 @@ public class FieldSortIT extends ParameterizedOpenSearchIntegTestCase {
             )
             .get();
         refresh();
+        indexRandomForConcurrentSearch("test");
 
         // We sort on nested field
         SearchResponse searchResponse = client().prepareSearch()
@@ -2109,6 +2123,7 @@ public class FieldSortIT extends ParameterizedOpenSearchIntegTestCase {
         builders.add(client().prepareIndex("old_index").setSource("distance", 50.5));
         builders.add(client().prepareIndex("new_index").setSource("route_length_miles", 100.2));
         indexRandom(true, true, builders);
+        indexRandomForConcurrentSearch("old_index", "new_index");
 
         SearchResponse response = client().prepareSearch()
             .setQuery(matchAllQuery())
@@ -2135,6 +2150,7 @@ public class FieldSortIT extends ParameterizedOpenSearchIntegTestCase {
         builders.add(client().prepareIndex("old_index").setSource(Collections.emptyMap()));
         builders.add(client().prepareIndex("new_index").setSource("route_length_miles", 100.2));
         indexRandom(true, true, builders);
+        indexRandomForConcurrentSearch("old_index", "new_index");
 
         SearchResponse response = client().prepareSearch()
             .setQuery(matchAllQuery())
@@ -2204,6 +2220,7 @@ public class FieldSortIT extends ParameterizedOpenSearchIntegTestCase {
         builders.add(client().prepareIndex("index_date").setSource("field", "2024-04-11T23:47:17"));
         builders.add(client().prepareIndex("index_date_nanos").setSource("field", "2024-04-11T23:47:16.854775807Z"));
         indexRandom(true, true, builders);
+        indexRandomForConcurrentSearch("index_date", "index_date_nanos");
 
         {
             SearchResponse response = client().prepareSearch()
@@ -2329,7 +2346,7 @@ public class FieldSortIT extends ParameterizedOpenSearchIntegTestCase {
         }
     }
 
-    public void testLongSortOptimizationCorrectResults() {
+    public void testLongSortOptimizationCorrectResults() throws InterruptedException {
         assertAcked(
             prepareCreate("test1").setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 2))
                 .setMapping("long_field", "type=long")
@@ -2346,6 +2363,7 @@ public class FieldSortIT extends ParameterizedOpenSearchIntegTestCase {
             bulkBuilder.add(client().prepareIndex("test1").setId(Integer.toString(i)).setSource(source, MediaTypeRegistry.JSON));
         }
         refresh();
+        indexRandomForConcurrentSearch("test1");
 
         // *** 1. sort DESC on long_field
         SearchResponse searchResponse = client().prepareSearch()
