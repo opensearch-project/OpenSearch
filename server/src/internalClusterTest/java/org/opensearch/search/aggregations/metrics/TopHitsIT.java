@@ -612,7 +612,6 @@ public class TopHitsIT extends ParameterizedOpenSearchIntegTestCase {
     }
 
     public void testFieldCollapsing() throws Exception {
-        indexRandomForConcurrentSearch("field-collapsing");
         SearchResponse response = client().prepareSearch("field-collapsing")
             .setSearchType(SearchType.DFS_QUERY_THEN_FETCH)
             .setQuery(matchQuery("text", "term rare"))
@@ -754,7 +753,6 @@ public class TopHitsIT extends ParameterizedOpenSearchIntegTestCase {
     }
 
     public void testTrackScores() throws Exception {
-        indexRandomForConcurrentSearch(3, "field-collapsing");
         boolean[] trackScores = new boolean[] { true, false };
         for (boolean trackScore : trackScores) {
             logger.info("Track score={}", trackScore);
