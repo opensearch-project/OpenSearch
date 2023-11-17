@@ -254,9 +254,7 @@ public abstract class MapperServiceTestCase extends OpenSearchTestCase {
         when(queryShardContext.lookup()).thenReturn(new SearchLookup(mapperService, (ft, s) -> {
             throw new UnsupportedOperationException("search lookup not available");
         }));
-        when(queryShardContext.getFieldType(any())).thenAnswer(
-            inv -> mapperService.fieldType(inv.getArguments()[0].toString())
-        );
+        when(queryShardContext.getFieldType(any())).thenAnswer(inv -> mapperService.fieldType(inv.getArguments()[0].toString()));
         return queryShardContext;
     }
 }
