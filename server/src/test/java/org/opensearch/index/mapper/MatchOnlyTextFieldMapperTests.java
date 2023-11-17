@@ -167,13 +167,35 @@ public class MatchOnlyTextFieldMapperTests extends TextFieldMapperTests {
     public void testDefaultPositionIncrementGap() throws IOException {}
 
     @Override
-    public void testIndexPrefixMapping() throws IOException {}
+    public void testIndexPrefixMapping() throws IOException {
+        MapperParsingException e = expectThrows(
+            MapperParsingException.class,
+            () -> createDocumentMapper(
+                fieldMapping(
+                    b -> b.field("type", textFieldName)
+                        .field("analyzer", "standard")
+                        .startObject("index_prefixes")
+                        .field("min_chars", 2)
+                        .field("max_chars", 10)
+                        .endObject()
+                )
+            )
+        );
+        assertEquals(
+            "Failed to parse mapping [_doc]: Index prefixes cannot be enabled on for match_only_text field. Use text field instead",
+            e.getMessage()
+        );
+    }
 
     @Override
-    public void testIndexPrefixIndexTypes() throws IOException {}
+    public void testIndexPrefixIndexTypes() throws IOException {
+        // not supported and asserted the expected behavior in testIndexPrefixMapping
+    }
 
     @Override
-    public void testFastPhrasePrefixes() throws IOException {}
+    public void testFastPhrasePrefixes() throws IOException {
+        // not supported and asserted the expected behavior in testIndexPrefixMapping
+    }
 
     public void testPhrasePrefixes() throws IOException {
         MapperService mapperService = createMapperService(mapping(b -> {
@@ -351,7 +373,21 @@ public class MatchOnlyTextFieldMapperTests extends TextFieldMapperTests {
     }
 
     @Override
-    public void testFastPhraseMapping() throws IOException {}
+    public void testFastPhraseMapping() throws IOException {
+        MapperParsingException e = expectThrows(MapperParsingException.class, () -> createMapperService(mapping(b -> {
+            b.startObject("field")
+                .field("type", textFieldName)
+                .field("analyzer", "my_stop_analyzer")
+                .field("index_phrases", true)
+                .endObject();
+            // "standard" will be replaced with MockSynonymAnalyzer
+            b.startObject("synfield").field("type", textFieldName).field("analyzer", "standard").field("index_phrases", true).endObject();
+        })));
+        assertEquals(
+            "Failed to parse mapping [_doc]: Index phrases cannot be enabled on for match_only_text field. Use text field instead",
+            e.getMessage()
+        );
+    }
 
     @Override
     public void testSimpleMerge() throws IOException {}
