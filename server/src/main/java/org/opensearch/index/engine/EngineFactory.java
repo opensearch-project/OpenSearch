@@ -31,12 +31,15 @@
 
 package org.opensearch.index.engine;
 
+import org.opensearch.common.annotation.PublicApi;
+
 /**
  * Simple Engine Factory
  *
- * @opensearch.internal
+ * @opensearch.api
  */
 @FunctionalInterface
+@PublicApi(since = "1.0.0")
 public interface EngineFactory {
 
     Engine newReadWriteEngine(EngineConfig config);

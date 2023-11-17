@@ -32,21 +32,25 @@
 
 package org.opensearch.index.snapshots;
 
+import org.opensearch.common.annotation.PublicApi;
+
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Represent shard snapshot status
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class IndexShardSnapshotStatus {
 
     /**
      * Snapshot stage
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public enum Stage {
         /**
          * Snapshot hasn't started yet
@@ -248,8 +252,9 @@ public class IndexShardSnapshotStatus {
     /**
      * Returns an immutable state of {@link IndexShardSnapshotStatus} at a given point in time.
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public static class Copy {
 
         private final Stage stage;

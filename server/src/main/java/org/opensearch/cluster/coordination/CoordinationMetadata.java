@@ -32,6 +32,7 @@
 package org.opensearch.cluster.coordination;
 
 import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.util.set.Sets;
 import org.opensearch.core.ParseField;
 import org.opensearch.core.common.io.stream.StreamInput;
@@ -55,8 +56,9 @@ import java.util.stream.Collectors;
 /**
  * Metadata for cluster coordination
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class CoordinationMetadata implements Writeable, ToXContentFragment {
 
     public static final CoordinationMetadata EMPTY_METADATA = builder().build();
@@ -214,8 +216,9 @@ public class CoordinationMetadata implements Writeable, ToXContentFragment {
     /**
      * Builder for coordination metadata.
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public static class Builder {
         private long term = 0;
         private VotingConfiguration lastCommittedConfiguration = VotingConfiguration.EMPTY_CONFIG;
@@ -266,8 +269,9 @@ public class CoordinationMetadata implements Writeable, ToXContentFragment {
     /**
      * Excluded nodes from voting config.
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public static class VotingConfigExclusion implements Writeable, ToXContentFragment {
         public static final String MISSING_VALUE_MARKER = "_absent_";
         private final String nodeId;
@@ -362,8 +366,9 @@ public class CoordinationMetadata implements Writeable, ToXContentFragment {
     /**
      * A collection of persistent node ids, denoting the voting configuration for cluster state changes.
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public static class VotingConfiguration implements Writeable, ToXContentFragment {
 
         public static final VotingConfiguration EMPTY_CONFIG = new VotingConfiguration(Collections.emptySet());

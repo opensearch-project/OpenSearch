@@ -54,6 +54,7 @@ import org.apache.lucene.util.BytesRef;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.geo.ShapeRelation;
 import org.opensearch.common.time.DateMathParser;
 import org.opensearch.common.unit.Fuzziness;
@@ -79,8 +80,9 @@ import java.util.function.Supplier;
 /**
  * This defines the core properties and functions to operate on a field.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public abstract class MappedFieldType {
 
     private final String name;
@@ -400,8 +402,9 @@ public abstract class MappedFieldType {
      * An enum used to describe the relation between the range of terms in a
      * shard when compared with a query range
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public enum Relation {
         WITHIN,
         INTERSECTS,

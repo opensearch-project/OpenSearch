@@ -32,6 +32,7 @@
 
 package org.opensearch.search.sort;
 
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.io.stream.NamedWriteable;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.common.io.stream.StreamInput;
@@ -46,8 +47,9 @@ import java.util.List;
 /**
  * A {@link Comparable}, {@link DocValueFormat} aware wrapper around a sort value.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public abstract class SortValue implements NamedWriteable, Comparable<SortValue> {
     /**
      * Get a {@linkplain SortValue} for a double.

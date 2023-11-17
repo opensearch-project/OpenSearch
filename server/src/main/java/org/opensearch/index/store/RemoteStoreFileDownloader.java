@@ -14,7 +14,7 @@ import org.apache.lucene.store.IOContext;
 import org.opensearch.action.support.GroupedActionListener;
 import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.common.Nullable;
-import org.opensearch.common.annotation.InternalApi;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.logging.Loggers;
 import org.opensearch.common.util.CancellableThreads;
 import org.opensearch.core.action.ActionListener;
@@ -32,8 +32,10 @@ import java.util.concurrent.ExecutionException;
  * Helper class to downloads files from a {@link RemoteSegmentStoreDirectory}
  * instance to a local {@link Directory} instance in parallel depending on thread
  * pool size and recovery settings.
+ *
+ * @opensearch.api
  */
-@InternalApi
+@PublicApi(since = "2.11.0")
 public final class RemoteStoreFileDownloader {
     private final Logger logger;
     private final ThreadPool threadPool;
