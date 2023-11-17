@@ -33,6 +33,7 @@
 package org.opensearch.ingest.common;
 
 import org.opensearch.core.common.Strings;
+import org.opensearch.index.VersionType;
 import org.opensearch.ingest.AbstractProcessor;
 import org.opensearch.ingest.ConfigurationUtils;
 import org.opensearch.ingest.IngestDocument;
@@ -68,11 +69,6 @@ public final class RemoveProcessor extends AbstractProcessor {
 
     @Override
     public IngestDocument execute(IngestDocument document) {
-        final Set<String> metadataFields = document.getMetadata()
-            .keySet()
-            .stream()
-            .map(IngestDocument.Metadata::getFieldName)
-            .collect(Collectors.toSet());
         fields.forEach(field -> {
             String path = document.renderTemplate(field);
             final boolean fieldPathIsNullOrEmpty = Strings.isNullOrEmpty(path);
@@ -85,10 +81,26 @@ public final class RemoveProcessor extends AbstractProcessor {
                     throw new IllegalArgumentException("field [" + path + "] doesn't exist");
                 }
             }
-            // ignore metadata fields such as _index, _id, etc.
-            if (!metadataFields.contains(path)) {
-                document.removeField(path);
+            // cannot remove _index, _version and _version_type.
+            if (path.equals(IngestDocument.Metadata.INDEX.getFieldName())
+                || path.equals(IngestDocument.Metadata.VERSION.getFieldName())
+                || path.equals(IngestDocument.Metadata.VERSION_TYPE.getFieldName())) {
+                throw new IllegalArgumentException("cannot remove metadata field [" + path + "]");
             }
+            // removing _id is disallowed when there's an external version specified in the request
+            if (path.equals(IngestDocument.Metadata.ID.getFieldName())
+                && !document.getFieldValue(IngestDocument.Metadata.VERSION_TYPE.getFieldName(), String.class)
+                    .equals(VersionType.INTERNAL.name().toLowerCase())) {
+                Long version = document.getFieldValue(IngestDocument.Metadata.VERSION.getFieldName(), Long.class);
+                String versionType = document.getFieldValue(IngestDocument.Metadata.VERSION_TYPE.getFieldName(), String.class);
+                throw new IllegalArgumentException(
+                    "cannot remove metadata field [_id] when specifying external version for the document, version: "
+                        + version
+                        + ", version_type: "
+                        + versionType
+                );
+            }
+            document.removeField(path);
         });
         return document;
     }

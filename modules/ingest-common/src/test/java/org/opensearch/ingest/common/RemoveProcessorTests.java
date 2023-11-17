@@ -32,6 +32,7 @@
 
 package org.opensearch.ingest.common;
 
+import org.opensearch.index.VersionType;
 import org.opensearch.ingest.IngestDocument;
 import org.opensearch.ingest.Processor;
 import org.opensearch.ingest.RandomDocumentPicks;
@@ -129,7 +130,6 @@ public class RemoveProcessorTests extends OpenSearchTestCase {
 
     public void testRemoveMetadataField() throws Exception {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
-        // ignore _if_seq_no
         List<String> metadataFields = ingestDocument.getMetadata()
             .keySet()
             .stream()
@@ -148,9 +148,35 @@ public class RemoveProcessorTests extends OpenSearchTestCase {
                 IllegalArgumentException.class,
                 () -> processor.execute(ingestDocument)
             );
-        } else {
-            // for other metadata fields such as _index, id, ignore the removing operation
-            assertThat(ingestDocument.hasField(metadataFieldName), equalTo(true));
+        } else if (metadataFieldName.equals(IngestDocument.Metadata.INDEX.getFieldName())
+            || metadataFieldName.equals(IngestDocument.Metadata.VERSION.getFieldName())
+            || metadataFieldName.equals(IngestDocument.Metadata.VERSION_TYPE.getFieldName())) {
+                // _index, _version and _version_type cannot be removed
+                assertThrows(
+                    "cannot remove metadata field [" + metadataFieldName + "]",
+                    IllegalArgumentException.class,
+                    () -> processor.execute(ingestDocument)
+                );
+            } else if (metadataFieldName.equals(IngestDocument.Metadata.ID.getFieldName())) {
+                Long version = ingestDocument.getFieldValue(IngestDocument.Metadata.VERSION.getFieldName(), Long.class);
+                String versionType = ingestDocument.getFieldValue(IngestDocument.Metadata.VERSION_TYPE.getFieldName(), String.class);
+                if (!versionType.equals(VersionType.INTERNAL.name().toLowerCase())) {
+                    assertThrows(
+                        "cannot remove metadata field [_id] when specifying external version for the document, version: "
+                            + version
+                            + ", version_type: "
+                            + versionType,
+                        IllegalArgumentException.class,
+                        () -> processor.execute(ingestDocument)
+                    );
+                } else {
+                    processor.execute(ingestDocument);
+                    assertThat(ingestDocument.hasField(metadataFieldName), equalTo(false));
+                }
+            } else if (metadataFieldName.equals(IngestDocument.Metadata.ROUTING.getFieldName())
+                && ingestDocument.hasField(IngestDocument.Metadata.ROUTING.getFieldName())) {
+                    processor.execute(ingestDocument);
+                    assertThat(ingestDocument.hasField(metadataFieldName), equalTo(false));
         }
     }
 }
