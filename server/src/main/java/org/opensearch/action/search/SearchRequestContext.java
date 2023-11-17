@@ -10,6 +10,7 @@ package org.opensearch.action.search;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.search.TotalHits;
+import org.opensearch.common.annotation.InternalApi;
 
 import java.util.EnumMap;
 import java.util.HashMap;
@@ -22,7 +23,8 @@ import java.util.Map;
  *
  * @opensearch.internal
  */
-public class SearchRequestContext {
+@InternalApi
+class SearchRequestContext {
     private final SearchRequestOperationsListener searchRequestOperationsListener;
     private long absoluteStartNanos;
     private final Map<String, Long> phaseTookMap;
@@ -32,11 +34,11 @@ public class SearchRequestContext {
     /**
      * This constructor is for testing only
      */
-    public SearchRequestContext() {
+    SearchRequestContext() {
         this(new SearchRequestOperationsListener.CompositeListener(List.of(), LogManager.getLogger()));
     }
 
-    public SearchRequestContext(SearchRequestOperationsListener searchRequestOperationsListener) {
+    SearchRequestContext(SearchRequestOperationsListener searchRequestOperationsListener) {
         this.searchRequestOperationsListener = searchRequestOperationsListener;
         this.absoluteStartNanos = System.nanoTime();
         this.phaseTookMap = new HashMap<>();
