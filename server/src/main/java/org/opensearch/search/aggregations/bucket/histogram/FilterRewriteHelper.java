@@ -30,6 +30,12 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.function.Function;
 
+/**
+ * Helpers functions to rewrite and optimize aggregations using
+ * range filter queries
+ *
+ * @opensearch.internal
+ */
 public class FilterRewriteHelper {
     private static final int MAX_NUM_FILTER_BUCKETS = 1024;
     private static final Map<Class, Function<Query, Query>> queryWrappers;
