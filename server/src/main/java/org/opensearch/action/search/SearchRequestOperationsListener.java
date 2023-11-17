@@ -10,17 +10,17 @@ package org.opensearch.action.search;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.opensearch.common.annotation.PublicApi;
+import org.opensearch.common.annotation.InternalApi;
 
 import java.util.List;
 
 /**
  * A listener for search, fetch and context events at the coordinator node level
  *
- * @opensearch.api
+ * @opensearch.internal
  */
-@PublicApi(since = "1.0.0")
-public interface SearchRequestOperationsListener {
+@InternalApi
+interface SearchRequestOperationsListener {
 
     void onPhaseStart(SearchPhaseContext context);
 
