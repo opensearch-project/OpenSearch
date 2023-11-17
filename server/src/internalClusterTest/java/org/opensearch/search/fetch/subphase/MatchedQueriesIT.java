@@ -91,6 +91,7 @@ public class MatchedQueriesIT extends ParameterizedOpenSearchIntegTestCase {
         client().prepareIndex("test").setId("2").setSource("name", "test2", "number", 2).get();
         client().prepareIndex("test").setId("3").setSource("name", "test3", "number", 3).get();
         refresh();
+        indexRandomForConcurrentSearch("test");
 
         SearchResponse searchResponse = client().prepareSearch()
             .setQuery(
@@ -141,6 +142,7 @@ public class MatchedQueriesIT extends ParameterizedOpenSearchIntegTestCase {
         client().prepareIndex("test").setId("2").setSource("name", "test").get();
         client().prepareIndex("test").setId("3").setSource("name", "test").get();
         refresh();
+        indexRandomForConcurrentSearch("test");
 
         SearchResponse searchResponse = client().prepareSearch()
             .setQuery(matchAllQuery())
@@ -192,6 +194,7 @@ public class MatchedQueriesIT extends ParameterizedOpenSearchIntegTestCase {
         client().prepareIndex("test").setId("2").setSource("name", "test", "title", "title2").get();
         client().prepareIndex("test").setId("3").setSource("name", "test", "title", "title3").get();
         refresh();
+        indexRandomForConcurrentSearch("test");
 
         SearchResponse searchResponse = client().prepareSearch()
             .setQuery(boolQuery().must(matchAllQuery()).filter(termsQuery("title", "title1", "title2", "title3").queryName("title")))
@@ -224,12 +227,13 @@ public class MatchedQueriesIT extends ParameterizedOpenSearchIntegTestCase {
         }
     }
 
-    public void testRegExpQuerySupportsName() {
+    public void testRegExpQuerySupportsName() throws InterruptedException {
         createIndex("test1");
         ensureGreen();
 
         client().prepareIndex("test1").setId("1").setSource("title", "title1").get();
         refresh();
+        indexRandomForConcurrentSearch("test1");
 
         SearchResponse searchResponse = client().prepareSearch()
             .setQuery(QueryBuilders.regexpQuery("title", "title1").queryName("regex"))
@@ -246,12 +250,13 @@ public class MatchedQueriesIT extends ParameterizedOpenSearchIntegTestCase {
         }
     }
 
-    public void testPrefixQuerySupportsName() {
+    public void testPrefixQuerySupportsName() throws InterruptedException {
         createIndex("test1");
         ensureGreen();
 
         client().prepareIndex("test1").setId("1").setSource("title", "title1").get();
         refresh();
+        indexRandomForConcurrentSearch("test1");
 
         SearchResponse searchResponse = client().prepareSearch()
             .setQuery(QueryBuilders.prefixQuery("title", "title").queryName("prefix"))
@@ -268,12 +273,13 @@ public class MatchedQueriesIT extends ParameterizedOpenSearchIntegTestCase {
         }
     }
 
-    public void testFuzzyQuerySupportsName() {
+    public void testFuzzyQuerySupportsName() throws InterruptedException {
         createIndex("test1");
         ensureGreen();
 
         client().prepareIndex("test1").setId("1").setSource("title", "title1").get();
         refresh();
+        indexRandomForConcurrentSearch("test1");
 
         SearchResponse searchResponse = client().prepareSearch()
             .setQuery(QueryBuilders.fuzzyQuery("title", "titel1").queryName("fuzzy"))
@@ -290,12 +296,13 @@ public class MatchedQueriesIT extends ParameterizedOpenSearchIntegTestCase {
         }
     }
 
-    public void testWildcardQuerySupportsName() {
+    public void testWildcardQuerySupportsName() throws InterruptedException {
         createIndex("test1");
         ensureGreen();
 
         client().prepareIndex("test1").setId("1").setSource("title", "title1").get();
         refresh();
+        indexRandomForConcurrentSearch("test1");
 
         SearchResponse searchResponse = client().prepareSearch()
             .setQuery(QueryBuilders.wildcardQuery("title", "titl*").queryName("wildcard"))
@@ -312,12 +319,13 @@ public class MatchedQueriesIT extends ParameterizedOpenSearchIntegTestCase {
         }
     }
 
-    public void testSpanFirstQuerySupportsName() {
+    public void testSpanFirstQuerySupportsName() throws InterruptedException {
         createIndex("test1");
         ensureGreen();
 
         client().prepareIndex("test1").setId("1").setSource("title", "title1 title2").get();
         refresh();
+        indexRandomForConcurrentSearch("test1");
 
         SearchResponse searchResponse = client().prepareSearch()
             .setQuery(QueryBuilders.spanFirstQuery(QueryBuilders.spanTermQuery("title", "title1"), 10).queryName("span"))
@@ -344,6 +352,7 @@ public class MatchedQueriesIT extends ParameterizedOpenSearchIntegTestCase {
         client().prepareIndex("test").setId("1").setSource("content", "Lorem ipsum dolor sit amet").get();
         client().prepareIndex("test").setId("2").setSource("content", "consectetur adipisicing elit").get();
         refresh();
+        indexRandomForConcurrentSearch("test");
 
         // Execute search at least two times to load it in cache
         int iter = scaledRandomIntBetween(2, 10);
@@ -378,6 +387,7 @@ public class MatchedQueriesIT extends ParameterizedOpenSearchIntegTestCase {
 
         client().prepareIndex("test").setId("1").setSource("content", "Lorem ipsum dolor sit amet").get();
         refresh();
+        indexRandomForConcurrentSearch("test");
 
         MatchQueryBuilder matchQueryBuilder = matchQuery("content", "amet").queryName("abc");
         BytesReference matchBytes = XContentHelper.toXContent(matchQueryBuilder, MediaTypeRegistry.JSON, false);
