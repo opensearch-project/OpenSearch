@@ -42,6 +42,10 @@ teardown:
 
 ---
 "Test KV Processor with template snippets":
+  - skip:
+      version: " - 2.11.99"
+      reason: "KV Processor with template snippets is only supported since 2.12.0"
+
   - do:
       ingest.put_pipeline:
         id: "1"
@@ -80,6 +84,10 @@ teardown:
 
 ---
 "Test KV Processor with non-existing field and without ignore_missing":
+  - skip:
+      version: " - 2.11.99"
+      reason: "KV Processor with template snippets is only supported since 2.12.0"
+
   - do:
       ingest.put_pipeline:
         id: "1"
@@ -141,6 +149,10 @@ teardown:
 
 ---
 "Test KV Processor with non-existing field and ignore_missing":
+  - skip:
+      version: " - 2.11.99"
+      reason: "KV Processor with template snippets is only supported since 2.12.0"
+
   - do:
       ingest.put_pipeline:
         id: "1"

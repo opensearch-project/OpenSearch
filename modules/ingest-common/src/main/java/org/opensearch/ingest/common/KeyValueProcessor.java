@@ -166,11 +166,11 @@ public final class KeyValueProcessor extends AbstractProcessor {
             final Function<String, String> valueTrimmer = buildTrimmer(trimValue);
 
             String path = document.renderTemplate(field);
-            final boolean filedPathNullOrEmpty = Strings.isNullOrEmpty(path);
-            if (filedPathNullOrEmpty || document.hasField(path, true) == false) {
+            final boolean fieldPathNullOrEmpty = Strings.isNullOrEmpty(path);
+            if (fieldPathNullOrEmpty || document.hasField(path, true) == false) {
                 if (ignoreMissing) {
                     return;
-                } else if (filedPathNullOrEmpty) {
+                } else if (fieldPathNullOrEmpty) {
                     throw new IllegalArgumentException("field path cannot be null nor empty");
                 } else {
                     throw new IllegalArgumentException("field [" + path + "] doesn't exist");
