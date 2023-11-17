@@ -65,7 +65,7 @@ public class FilterRewriteHelper {
      * Finds the min and max bounds for segments within the passed search context
      * and creates the weight filters using range queries within those bounds
      */
-    public static void findBoundsAndCreateFilters(
+    public static Weight[] findBoundsAndCreateFilters(
         final SearchContext context,
         final Rounding rounding,
         final Rounding.Prepared preparedRounding,
@@ -79,7 +79,8 @@ public class FilterRewriteHelper {
             min = Math.min(min, NumericUtils.sortableBytesToLong(leaf.reader().getPointValues(fieldName).getMinPackedValue(), 0));
             max = Math.max(max, NumericUtils.sortableBytesToLong(leaf.reader().getPointValues(fieldName).getMaxPackedValue(), 0));
         }
-        createFilterForAggregations(context, rounding, preparedRounding, fieldName, min, max);
+        
+        return createFilterForAggregations(context, rounding, preparedRounding, fieldName, min, max);
     }
 
     /**

@@ -127,8 +127,8 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
                 final PointRangeQuery prq = (PointRangeQuery) cq;
                 // Ensure that the query and aggregation are on the same field
                 if (prq.getField().equals(fieldName)) {
-                    FilterRewriteHelper.createFilterForAggregations(
-                        aggregationContext,
+                    filters = FilterRewriteHelper.createFilterForAggregations(
+                        context,
                         rounding,
                         preparedRounding,
                         fieldName,
@@ -137,7 +137,7 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
                     );
                 }
             } else if (cq instanceof MatchAllDocsQuery) {
-                FilterRewriteHelper.findBoundsAndCreateFilters(context, rounding, preparedRounding, fieldName);
+                filters = FilterRewriteHelper.findBoundsAndCreateFilters(context, rounding, preparedRounding, fieldName);
             }
         }
     }
