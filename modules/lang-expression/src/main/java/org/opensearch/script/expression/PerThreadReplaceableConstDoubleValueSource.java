@@ -39,20 +39,25 @@ import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.IndexSearcher;
 
 import java.io.IOException;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * A {@link DoubleValuesSource} which has a stub {@link DoubleValues} that holds a dynamically replaceable constant double.
+ * A {@link DoubleValuesSource} which has a stub {@link DoubleValues} that holds a dynamically replaceable constant double. This is made
+ * thread-safe for concurrent segment search use case by keeping the {@link DoubleValues} per thread. Any update to the value happens in
+ * thread specific {@link DoubleValuesSource} instance.
  */
-final class ReplaceableConstDoubleValueSource extends DoubleValuesSource {
-    final ReplaceableConstDoubleValues fv;
+final class PerThreadReplaceableConstDoubleValueSource extends DoubleValuesSource {
+    // Multiple slices can be processed by same thread but that will be sequential, so keeping per thread is fine
+    final Map<Long, ReplaceableConstDoubleValues> perThreadDoubleValues;
 
-    ReplaceableConstDoubleValueSource() {
-        fv = new ReplaceableConstDoubleValues();
+    PerThreadReplaceableConstDoubleValueSource() {
+        perThreadDoubleValues = new ConcurrentHashMap<>();
     }
 
     @Override
     public DoubleValues getValues(LeafReaderContext ctx, DoubleValues scores) throws IOException {
-        return fv;
+        return perThreadDoubleValues.computeIfAbsent(Thread.currentThread().getId(), threadId -> new ReplaceableConstDoubleValues());
     }
 
     @Override
@@ -62,7 +67,11 @@ final class ReplaceableConstDoubleValueSource extends DoubleValuesSource {
 
     @Override
     public Explanation explain(LeafReaderContext ctx, int docId, Explanation scoreExplanation) throws IOException {
-        if (fv.advanceExact(docId)) return Explanation.match((float) fv.doubleValue(), "ReplaceableConstDoubleValues");
+        final ReplaceableConstDoubleValues currentFv = perThreadDoubleValues.computeIfAbsent(
+            Thread.currentThread().getId(),
+            threadId -> new ReplaceableConstDoubleValues()
+        );
+        if (currentFv.advanceExact(docId)) return Explanation.match((float) currentFv.doubleValue(), "ReplaceableConstDoubleValues");
         else return Explanation.noMatch("ReplaceableConstDoubleValues");
     }
 
@@ -77,7 +86,11 @@ final class ReplaceableConstDoubleValueSource extends DoubleValuesSource {
     }
 
     public void setValue(double v) {
-        fv.setValue(v);
+        final ReplaceableConstDoubleValues currentFv = perThreadDoubleValues.computeIfAbsent(
+            Thread.currentThread().getId(),
+            threadId -> new ReplaceableConstDoubleValues()
+        );
+        currentFv.setValue(v);
     }
 
     @Override
