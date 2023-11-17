@@ -83,6 +83,10 @@ public class SourceFieldMatchQuery extends Query {
             public Scorer scorer(LeafReaderContext context) throws IOException {
 
                 Scorer scorer = weight.scorer(context);
+                if (scorer == null) {
+                    // none of the docs are matching
+                    return null;
+                }
                 DocIdSetIterator approximation = scorer.iterator();
                 LeafSearchLookup leafSearchLookup = lookup.getLeafSearchLookup(context);
                 TwoPhaseIterator twoPhase = new TwoPhaseIterator(approximation) {

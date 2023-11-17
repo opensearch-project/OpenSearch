@@ -432,12 +432,4 @@ public class MatchOnlyTextFieldMapperTests extends TextFieldMapperTests {
         );
         assertThat(q6, is(expectedQuery));
     }
-
-    public void testMultiPhraseQuery() {
-
-    }
-
-    public void testPrefixQuery() {
-
-    }
 }
