@@ -39,6 +39,7 @@ import org.apache.lucene.util.ArrayUtil;
 import org.opensearch.action.search.SearchShardTask;
 import org.opensearch.action.search.SearchType;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.unit.TimeValue;
@@ -91,8 +92,9 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * shards point in time snapshot (IndexReader / ContextIndexSearcher) and allows passing on
  * state from one query / fetch phase to another.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public abstract class SearchContext implements Releasable {
 
     public static final int DEFAULT_TERMINATE_AFTER = 0;

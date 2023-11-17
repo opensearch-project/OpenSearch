@@ -8,14 +8,16 @@
 
 package org.opensearch.search.aggregations.bucket;
 
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.search.aggregations.bucket.terms.TermsAggregator;
 
 /**
  * BucketCountThresholds type that holds the local (either shard level or request level) bucket count thresholds in minDocCount and requireSize fields.
  * Similar to {@link TermsAggregator.BucketCountThresholds} however only provides getters for the local members and no setters.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class LocalBucketCountThresholds {
 
     private final long minDocCount;

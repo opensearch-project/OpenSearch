@@ -40,6 +40,7 @@ import org.apache.lucene.index.IndexReader.CacheKey;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.util.Accountable;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.cache.Cache;
 import org.opensearch.common.cache.CacheBuilder;
 import org.opensearch.common.cache.RemovalListener;
@@ -67,8 +68,9 @@ import java.util.function.ToLongBiFunction;
 /**
  * The field data cache for multiple indices
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class IndicesFieldDataCache implements RemovalListener<IndicesFieldDataCache.Key, Accountable>, Releasable {
 
     private static final Logger logger = LogManager.getLogger(IndicesFieldDataCache.class);
@@ -252,8 +254,9 @@ public class IndicesFieldDataCache implements RemovalListener<IndicesFieldDataCa
     /**
      * Key for the indices field data cache
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public static class Key {
         public final IndexFieldCache indexCache;
         public final IndexReader.CacheKey readerKey;

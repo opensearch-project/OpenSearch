@@ -34,6 +34,7 @@ package org.opensearch.index.analysis;
 
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.OffsetAttribute;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.search.fetch.subphase.highlight.FastVectorHighlighter;
 
 import java.util.List;
@@ -42,8 +43,9 @@ import java.util.function.Function;
 /**
  * Base token filter factory used in analysis chain
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public interface TokenFilterFactory {
     String name();
 
