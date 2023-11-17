@@ -177,6 +177,6 @@ public class RemoveProcessorTests extends OpenSearchTestCase {
                 && ingestDocument.hasField(IngestDocument.Metadata.ROUTING.getFieldName())) {
                     processor.execute(ingestDocument);
                     assertThat(ingestDocument.hasField(metadataFieldName), equalTo(false));
-        }
+                }
     }
 }
