@@ -55,6 +55,14 @@ public class SourceFieldMatchQuery extends Query {
         this.fieldType = fieldType;
         this.context = context;
         this.lookup = context.lookup();
+        if (!context.documentMapper("").sourceMapper().enabled()) {
+            throw new IllegalArgumentException(
+                "SourceFieldMatchQuery error: unable to fetch fields from _source field: _source is disabled in the mappings "
+                    + "for index ["
+                    + context.index().getName()
+                    + "]"
+            );
+        }
         this.valueFetcher = (SourceValueFetcher) fieldType.valueFetcher(context, lookup, null);
     }
 
@@ -95,7 +103,12 @@ public class SourceFieldMatchQuery extends Query {
                     public boolean matches() {
                         leafSearchLookup.setDocument(approximation.docID());
                         List<Object> values = valueFetcher.fetchValues(leafSearchLookup.source());
+                        // Missing fields won't count as match. Can we use a default value for missing field?
+                        if (values.isEmpty()) {
+                            return false;
+                        }
                         MemoryIndex memoryIndex = new MemoryIndex();
+
                         for (Object value : values) {
                             memoryIndex.addField(fieldType.name(), (String) value, fieldType.indexAnalyzer());
                         }

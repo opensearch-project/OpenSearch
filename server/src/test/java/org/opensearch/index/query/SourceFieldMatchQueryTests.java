@@ -11,6 +11,7 @@ package org.opensearch.index.query;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
+import org.opensearch.core.index.Index;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.MapperServiceTestCase;
 import org.opensearch.index.mapper.ParsedDocument;
@@ -20,6 +21,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.when;
 
 public class SourceFieldMatchQueryTests extends MapperServiceTestCase {
@@ -35,6 +37,8 @@ public class SourceFieldMatchQueryTests extends MapperServiceTestCase {
 
         QueryShardContext queryShardContext = createQueryShardContext(mapperService);
         when(queryShardContext.sourcePath("desert")).thenReturn(Set.of("desert"));
+        when(queryShardContext.index()).thenReturn(new Index("test_index", "uuid"));
+        when(queryShardContext.documentMapper(anyString())).thenReturn(mapperService.documentMapper());
 
         String[] deserts = new String[] { "apple pie pie", "banana split pie", "chocolate cake" };
         List<ParsedDocument> docs = new ArrayList<>();
@@ -102,5 +106,27 @@ public class SourceFieldMatchQueryTests extends MapperServiceTestCase {
                 assertEquals(scoreDoc.score, 1.0, 0.00000000001);
             }
         });
+    }
+
+    public void testSourceDisabled() throws IOException {
+        MapperService mapperService = createMapperService(topMapping(b -> b.startObject("_source").field("enabled", false).endObject()));
+        QueryShardContext queryShardContext = createQueryShardContext(mapperService);
+        when(queryShardContext.sourcePath("desert")).thenReturn(Set.of("desert"));
+        when(queryShardContext.index()).thenReturn(new Index("test_index", "uuid"));
+        when(queryShardContext.documentMapper(anyString())).thenReturn(mapperService.documentMapper());
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> new SourceFieldMatchQuery(
+                QueryBuilders.matchQuery("desert", "apple").doToQuery(queryShardContext),  // Delegate query
+                QueryBuilders.matchQuery("desert", "pie").doToQuery(queryShardContext),    // Filter query
+                queryShardContext.getFieldType("desert"),
+                queryShardContext
+            )
+        );
+        assertEquals(
+            "SourceFieldMatchQuery error: unable to fetch fields from _source field: "
+                + "_source is disabled in the mappings for index [test_index]",
+            e.getMessage()
+        );
     }
 }
