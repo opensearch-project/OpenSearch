@@ -129,4 +129,39 @@ public class SourceFieldMatchQueryTests extends MapperServiceTestCase {
             e.getMessage()
         );
     }
+
+    public void testMissingField() throws IOException {
+        MapperService mapperService = createMapperService(mapping(b -> {
+            b.startObject("desert");
+            {
+                b.field("type", "match_only_text");
+            }
+            b.endObject();
+        }));
+        QueryShardContext queryShardContext = createQueryShardContext(mapperService);
+        when(queryShardContext.sourcePath("desert")).thenReturn(Set.of("desert"));
+        when(queryShardContext.index()).thenReturn(new Index("test_index", "uuid"));
+        when(queryShardContext.documentMapper(anyString())).thenReturn(mapperService.documentMapper());
+
+        String[] deserts = new String[] { "apple pie pie", "banana split pie", "chocolate cake" };
+        List<ParsedDocument> docs = new ArrayList<>();
+        for (String desert : deserts) {
+            docs.add(mapperService.documentMapper().parse(source(b -> b.field("desert", desert))));
+        }
+        SourceFieldMatchQuery matchDelegate = new SourceFieldMatchQuery(
+            QueryBuilders.matchQuery("desert", "apple").doToQuery(queryShardContext),  // Delegate query
+            QueryBuilders.matchQuery("username", "pie").doToQuery(queryShardContext),    // Filter query missing field
+            queryShardContext.getFieldType("desert"),
+            queryShardContext
+        );
+        withLuceneIndex(mapperService, iw -> {
+            for (ParsedDocument d : docs) {
+                iw.addDocument(d.rootDoc());
+            }
+        }, reader -> {
+            IndexSearcher searcher = newSearcher(reader);
+            TopDocs topDocs = searcher.search(matchDelegate, 10);
+            assertEquals(topDocs.totalHits.value, 0);
+        });
+    }
 }
