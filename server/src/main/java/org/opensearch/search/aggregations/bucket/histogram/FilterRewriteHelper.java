@@ -11,6 +11,7 @@ package org.opensearch.search.aggregations.bucket.histogram;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
+import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreMode;
@@ -63,14 +64,8 @@ public class FilterRewriteHelper {
 
     /**
      * Finds the min and max bounds for segments within the passed search context
-     * and creates the weight filters using range queries within those bounds
      */
-    public static Weight[] findBoundsAndCreateFilters(
-        final SearchContext context,
-        final Rounding rounding,
-        final Rounding.Prepared preparedRounding,
-        final String fieldName
-    ) throws IOException {
+    private static long[] getIndexBoundsFromLeaves(final SearchContext context, final String fieldName) throws IOException {
         final List<LeafReaderContext> leaves = context.searcher().getIndexReader().leaves();
         long min = Long.MAX_VALUE, max = Long.MIN_VALUE;
         // Since the query does not specify bounds for aggregation, we can
@@ -79,8 +74,29 @@ public class FilterRewriteHelper {
             min = Math.min(min, NumericUtils.sortableBytesToLong(leaf.reader().getPointValues(fieldName).getMinPackedValue(), 0));
             max = Math.max(max, NumericUtils.sortableBytesToLong(leaf.reader().getPointValues(fieldName).getMaxPackedValue(), 0));
         }
-        
-        return createFilterForAggregations(context, rounding, preparedRounding, fieldName, min, max);
+
+        return new long[] { min, max };
+    }
+
+    public static long[] getAggregationBounds(final SearchContext context, final String fieldName) throws IOException {
+        final Query cq = unwrapIntoConcreteQuery(context.query());
+        final long[] indexBounds = getIndexBoundsFromLeaves(context, fieldName);
+        if (cq instanceof PointRangeQuery) {
+            final PointRangeQuery prq = (PointRangeQuery) cq;
+            // Ensure that the query and aggregation are on the same field
+            if (prq.getField().equals(fieldName)) {
+                return new long[] {
+                    // Minimum bound for aggregation is the max between query and global
+                    Math.max(NumericUtils.sortableBytesToLong(prq.getLowerPoint(), 0), indexBounds[0]),
+                    // Maximum bound for aggregation is the min between query and global
+                    Math.min(NumericUtils.sortableBytesToLong(prq.getUpperPoint(), 0), indexBounds[1])
+                };
+            }
+        } else if (cq instanceof MatchAllDocsQuery) {
+            return indexBounds;
+        }
+
+        return null;
     }
 
     /**
@@ -123,12 +139,16 @@ public class FilterRewriteHelper {
 
         // Calculate the number of buckets using range and interval
         long roundedLow = preparedRounding.round(low);
+        long prevRounded = roundedLow;
         int bucketCount = 0;
         while (roundedLow < high) {
             bucketCount++;
             // Below rounding is needed as the interval could return in
             // non-rounded values for something like calendar month
             roundedLow = preparedRounding.round(roundedLow + interval);
+            if (prevRounded == roundedLow)
+                break;
+            prevRounded = roundedLow;
         }
 
         Weight[] filters = null;
@@ -139,13 +159,13 @@ public class FilterRewriteHelper {
             while (i < bucketCount) {
                 // Calculate the lower bucket bound
                 final byte[] lower = new byte[8];
-                NumericUtils.longToSortableBytes(Math.max(roundedLow, low), lower, 0);
+                NumericUtils.longToSortableBytes(i==0 ? low : roundedLow, lower, 0);
                 // Calculate the upper bucket bound
                 final byte[] upper = new byte[8];
                 roundedLow = preparedRounding.round(roundedLow + interval);
                 // Subtract -1 if the minimum is roundedLow as roundedLow itself
                 // is included in the next bucket
-                NumericUtils.longToSortableBytes(Math.min(roundedLow - 1, high), upper, 0);
+                NumericUtils.longToSortableBytes(i+1==bucketCount ? high : roundedLow - 1, upper, 0);
                 filters[i++] = context.searcher().createWeight(new PointRangeQuery(field, lower, upper, 1) {
                     @Override
                     protected String toString(int dimension, byte[] value) {

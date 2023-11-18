@@ -34,9 +34,7 @@ package org.opensearch.search.aggregations.bucket.histogram;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.CollectionTerminatedException;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.PointRangeQuery;
-import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.CollectionUtil;
@@ -122,22 +120,16 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
         // of point range query and there aren't any parent/sub aggregations
         if (parent() == null && subAggregators.length == 0) {
             final String fieldName = valuesSourceConfig.fieldContext().field();
-            final Query cq = FilterRewriteHelper.unwrapIntoConcreteQuery(context.query());
-            if (cq instanceof PointRangeQuery) {
-                final PointRangeQuery prq = (PointRangeQuery) cq;
-                // Ensure that the query and aggregation are on the same field
-                if (prq.getField().equals(fieldName)) {
-                    filters = FilterRewriteHelper.createFilterForAggregations(
-                        context,
-                        rounding,
-                        preparedRounding,
-                        fieldName,
-                        NumericUtils.sortableBytesToLong(prq.getLowerPoint(), 0),
-                        NumericUtils.sortableBytesToLong(prq.getUpperPoint(), 0)
-                    );
-                }
-            } else if (cq instanceof MatchAllDocsQuery) {
-                filters = FilterRewriteHelper.findBoundsAndCreateFilters(context, rounding, preparedRounding, fieldName);
+            final long[] bounds = FilterRewriteHelper.getAggregationBounds(context, fieldName);
+            if (bounds != null) {
+                filters = FilterRewriteHelper.createFilterForAggregations(
+                    context,
+                    rounding,
+                    preparedRounding,
+                    fieldName,
+                    bounds[0],
+                    bounds[1]
+                );
             }
         }
     }
