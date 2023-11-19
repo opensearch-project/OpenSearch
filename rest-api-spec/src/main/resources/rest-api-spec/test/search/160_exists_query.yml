@@ -45,6 +45,8 @@ setup:
                       type: keyword
                 text:
                   type: text
+                match_only_text:
+                  type: match_only_text
 
   - do:
       headers:
@@ -70,6 +72,7 @@ setup:
               inner1: "foo"
               inner2: "bar"
             text: "foo bar"
+            match_only_text: "foo bar"
 
   - do:
       headers:
@@ -94,6 +97,7 @@ setup:
             object:
               inner1: "foo"
             text: "foo bar"
+            match_only_text: "foo bar"
 
   - do:
       headers:
@@ -119,6 +123,7 @@ setup:
             object:
               inner2: "bar"
             text: "foo bar"
+            match_only_text: "foo bar"
 
   - do:
       index:
@@ -184,6 +189,8 @@ setup:
                       doc_values: false
                 text:
                   type: text
+                match_only_text:
+                  type: match_only_text
 
   - do:
       headers:
@@ -209,6 +216,7 @@ setup:
               inner1: "foo"
               inner2: "bar"
             text: "foo bar"
+            match_only_text: "foo bar"
 
   - do:
       headers:
@@ -233,6 +241,7 @@ setup:
             object:
               inner1: "foo"
             text: "foo bar"
+            match_only_text: "foo bar"
 
   - do:
       headers:
@@ -258,6 +267,7 @@ setup:
             object:
               inner2: "bar"
             text: "foo bar"
+            match_only_text: "foo bar"
 
   - do:
       index:
@@ -322,6 +332,8 @@ setup:
                       type: keyword
                 text:
                   type: text
+                match_only_text:
+                  type: match_only_text
 
   - do:
       indices.refresh:
@@ -534,7 +546,18 @@ setup:
                 field: text
 
   - match: {hits.total: 3}
+---
+"Test exists query on mapped match_only_text field":
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          query:
+            exists:
+              field: match_only_text
 
+  - match: {hits.total: 3}
 ---
 "Test exists query on _id field":
   - do:
@@ -821,6 +844,18 @@ setup:
   - match: {hits.total: 0}
 
 ---
+"Test exists query on unmapped match_only_text field":
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test-unmapped
+        body:
+          query:
+            exists:
+              field: match_only_text
+
+  - match: {hits.total: 0}
+---
 "Test exists query on binary field in empty index":
   - do:
       search:
@@ -1025,6 +1060,19 @@ setup:
             query:
               exists:
                 field: text
+
+  - match: {hits.total: 0}
+
+---
+"Test exists query on match_only_text field in empty index":
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test-empty
+        body:
+          query:
+            exists:
+              field: match_only_text
 
   - match: {hits.total: 0}
 
@@ -1234,5 +1282,18 @@ setup:
             query:
               exists:
                 field: text
+
+  - match: {hits.total: 3}
+
+---
+"Test exists query on mapped match_only_text field with no doc values":
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test-no-dv
+        body:
+          query:
+            exists:
+              field: match_only_text
 
   - match: {hits.total: 3}
