@@ -8,13 +8,12 @@
 
 package org.opensearch.cluster.metadata;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.Version;
 import org.opensearch.cluster.AbstractNamedDiffable;
 import org.opensearch.cluster.NamedDiff;
 import org.opensearch.cluster.routing.WeightedRouting;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
@@ -31,10 +30,10 @@ import java.util.Map;
 /**
  * Contains metadata for weighted routing
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class WeightedRoutingMetadata extends AbstractNamedDiffable<Metadata.Custom> implements Metadata.Custom {
-    private static final Logger logger = LogManager.getLogger(WeightedRoutingMetadata.class);
     public static final String TYPE = "weighted_shard_routing";
     public static final String AWARENESS = "awareness";
     public static final String VERSION = "_version";

@@ -39,6 +39,7 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.routing.RoutingNode;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.allocation.RoutingAllocation;
+import org.opensearch.common.annotation.PublicApi;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -47,8 +48,9 @@ import java.util.Collections;
  * A composite {@link AllocationDecider} combining the "decision" of multiple
  * {@link AllocationDecider} implementations into a single allocation decision.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class AllocationDeciders extends AllocationDecider {
 
     private static final Logger logger = LogManager.getLogger(AllocationDeciders.class);

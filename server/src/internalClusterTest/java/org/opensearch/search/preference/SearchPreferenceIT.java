@@ -160,12 +160,13 @@ public class SearchPreferenceIT extends ParameterizedOpenSearchIntegTestCase {
         assertThat(firstNodeId, not(equalTo(secondNodeId)));
     }
 
-    public void testSimplePreference() {
+    public void testSimplePreference() throws InterruptedException {
         client().admin().indices().prepareCreate("test").setSettings("{\"number_of_replicas\": 1}", MediaTypeRegistry.JSON).get();
         ensureGreen();
 
         client().prepareIndex("test").setSource("field1", "value1").get();
         refresh();
+        indexRandomForConcurrentSearch("test");
 
         SearchResponse searchResponse = client().prepareSearch().setQuery(matchAllQuery()).get();
         assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
@@ -264,7 +265,7 @@ public class SearchPreferenceIT extends ParameterizedOpenSearchIntegTestCase {
         assertThat(hitNodes.size(), greaterThan(1));
     }
 
-    public void testCustomPreferenceUnaffectedByOtherShardMovements() {
+    public void testCustomPreferenceUnaffectedByOtherShardMovements() throws InterruptedException {
 
         /*
          * Custom preferences can be used to encourage searches to go to a consistent set of shard copies, meaning that other copies' data
@@ -283,6 +284,7 @@ public class SearchPreferenceIT extends ParameterizedOpenSearchIntegTestCase {
         ensureGreen();
         client().prepareIndex("test").setSource("field1", "value1").get();
         refresh();
+        indexRandomForConcurrentSearch("test");
 
         final String customPreference = randomAlphaOfLength(10);
 
@@ -302,6 +304,7 @@ public class SearchPreferenceIT extends ParameterizedOpenSearchIntegTestCase {
             prepareCreate("test2").setSettings(Settings.builder().put(indexSettings()).put(SETTING_NUMBER_OF_REPLICAS, replicasInNewIndex))
         );
         ensureGreen();
+        indexRandomForConcurrentSearch("test2");
 
         assertSearchesSpecificNode("test", customPreference, nodeId);
 

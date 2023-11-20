@@ -137,7 +137,7 @@ public class CanMatchPreFilterSearchPhaseTests extends OpenSearchTestCase {
                 }
             },
             SearchResponse.Clusters.EMPTY,
-            null
+            new SearchRequestContext()
         );
 
         canMatchPhase.start();
@@ -229,7 +229,7 @@ public class CanMatchPreFilterSearchPhaseTests extends OpenSearchTestCase {
                 }
             },
             SearchResponse.Clusters.EMPTY,
-            null
+            new SearchRequestContext()
         );
 
         canMatchPhase.start();
@@ -320,7 +320,7 @@ public class CanMatchPreFilterSearchPhaseTests extends OpenSearchTestCase {
                 new ArraySearchPhaseResults<>(iter.size()),
                 randomIntBetween(1, 32),
                 SearchResponse.Clusters.EMPTY,
-                null
+                new SearchRequestContext()
             ) {
 
                 @Override
@@ -348,7 +348,7 @@ public class CanMatchPreFilterSearchPhaseTests extends OpenSearchTestCase {
                 }
             },
             SearchResponse.Clusters.EMPTY,
-            null
+            new SearchRequestContext()
         );
 
         canMatchPhase.start();
@@ -433,7 +433,7 @@ public class CanMatchPreFilterSearchPhaseTests extends OpenSearchTestCase {
                     }
                 },
                 SearchResponse.Clusters.EMPTY,
-                null
+                new SearchRequestContext()
             );
 
             canMatchPhase.start();
@@ -533,7 +533,7 @@ public class CanMatchPreFilterSearchPhaseTests extends OpenSearchTestCase {
                     }
                 },
                 SearchResponse.Clusters.EMPTY,
-                null
+                new SearchRequestContext()
             );
 
             canMatchPhase.start();

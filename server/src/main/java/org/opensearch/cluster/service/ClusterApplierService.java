@@ -51,6 +51,7 @@ import org.opensearch.common.Nullable;
 import org.opensearch.common.Priority;
 import org.opensearch.common.StopWatch;
 import org.opensearch.common.StopWatch.TimingHandle;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.lifecycle.AbstractLifecycleComponent;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
@@ -82,8 +83,9 @@ import static org.opensearch.common.util.concurrent.OpenSearchExecutors.daemonTh
 /**
  * Service that provides callbacks when cluster state changes
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class ClusterApplierService extends AbstractLifecycleComponent implements ClusterApplier {
     private static final Logger logger = LogManager.getLogger(ClusterApplierService.class);
 

@@ -8,6 +8,7 @@
 
 package org.opensearch.index.store.lockmanager;
 
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.index.store.RemoteBufferedOutputDirectory;
@@ -22,8 +23,9 @@ import java.util.function.Supplier;
 /**
  * Factory for remote store lock manager
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "2.8.0")
 public class RemoteStoreLockManagerFactory {
     private static final String SEGMENTS = "segments";
     private static final String LOCK_FILES = "lock_files";

@@ -39,6 +39,7 @@ import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.MappingMetadata;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.regex.Regex;
@@ -90,8 +91,9 @@ import static java.util.Collections.unmodifiableMap;
 /**
  * The core field mapping service
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class MapperService extends AbstractIndexComponent implements Closeable {
 
     /**
@@ -99,6 +101,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
      *
      * @opensearch.internal
      */
+    @PublicApi(since = "1.0.0")
     public enum MergeReason {
         /**
          * Pre-flight check before sending a mapping update to the cluster-manager

@@ -38,6 +38,7 @@ import org.opensearch.LegacyESVersion;
 import org.opensearch.OpenSearchException;
 import org.opensearch.common.LocalTimeOffset.Gap;
 import org.opensearch.common.LocalTimeOffset.Overlap;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.round.Roundable;
 import org.opensearch.common.round.RoundableFactory;
 import org.opensearch.common.time.DateUtils;
@@ -77,16 +78,18 @@ import java.util.concurrent.TimeUnit;
  * blog for some background reading. Its super interesting and the links are
  * a comedy gold mine. If you like time zones. Or hate them.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public abstract class Rounding implements Writeable {
     private static final Logger logger = LogManager.getLogger(Rounding.class);
 
     /**
      * A Date Time Unit
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public enum DateTimeUnit {
         WEEK_OF_WEEKYEAR((byte) 1, "week", IsoFields.WEEK_OF_WEEK_BASED_YEAR, true, TimeUnit.DAYS.toMillis(7)) {
             private final long extraLocalOffsetLookup = TimeUnit.DAYS.toMillis(7);
@@ -269,8 +272,9 @@ public abstract class Rounding implements Writeable {
     /**
      * A strategy for rounding milliseconds since epoch.
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public interface Prepared {
         /**
          * Rounds the given value.
@@ -360,8 +364,9 @@ public abstract class Rounding implements Writeable {
     /**
      * Builder for rounding
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public static class Builder {
 
         private final DateTimeUnit unit;
