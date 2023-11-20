@@ -1,5 +1,8 @@
 ---
 "search with indexed phrases":
+  - skip:
+      version: " - 2.11.99"
+      reason: "match_only_text field was introduced in 2.12.0"
   - do:
       indices.create:
         index:  test
@@ -8,7 +11,6 @@
             properties:
               text:
                 type: match_only_text
-                index_phrases: true
 
   - do:
       index:

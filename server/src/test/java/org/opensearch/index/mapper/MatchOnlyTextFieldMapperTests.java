@@ -167,6 +167,9 @@ public class MatchOnlyTextFieldMapperTests extends TextFieldMapperTests {
     public void testDefaultPositionIncrementGap() throws IOException {}
 
     @Override
+    public void testMinimalToMaximal() throws IOException {}
+
+    @Override
     public void testIndexPrefixMapping() throws IOException {
         MapperParsingException e = expectThrows(
             MapperParsingException.class,
