@@ -451,8 +451,8 @@
 ---
 "numeric skipping logic with competitive missing value":
   - skip:
-      version: " - 2.12.99"
-      reason: newly added test, supported from 3.0.0
+      version: " - 2.11.99"
+      reason: newly added test, supported from 2.12.0
 
 # This test checks if skipping logic is skipped in case missing values are competitive
 # for all numeric type int, long, float, half_float, double, unsigned_long.
