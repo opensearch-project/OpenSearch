@@ -135,48 +135,50 @@ public class RemoveProcessorTests extends OpenSearchTestCase {
             .stream()
             .map(IngestDocument.Metadata::getFieldName)
             .collect(Collectors.toList());
-        String metadataFieldName = metadataFields.get(randomIntBetween(0, metadataFields.size() - 1));
-        Map<String, Object> config = new HashMap<>();
-        config.put("field", metadataFieldName);
-        String processorTag = randomAlphaOfLength(10);
-        Processor processor = new RemoveProcessor.Factory(TestTemplateService.instance()).create(null, processorTag, null, config);
-        // _if_seq_no and _if_primary_term do not exist in the enriched document, removing them will throw IllegalArgumentException
-        if (metadataFieldName.equals(IngestDocument.Metadata.IF_SEQ_NO.getFieldName())
-            || metadataFieldName.equals(IngestDocument.Metadata.IF_PRIMARY_TERM.getFieldName())) {
-            assertThrows(
-                "field: [" + metadataFieldName + "] doesn't exist",
-                IllegalArgumentException.class,
-                () -> processor.execute(ingestDocument)
-            );
-        } else if (metadataFieldName.equals(IngestDocument.Metadata.INDEX.getFieldName())
-            || metadataFieldName.equals(IngestDocument.Metadata.VERSION.getFieldName())
-            || metadataFieldName.equals(IngestDocument.Metadata.VERSION_TYPE.getFieldName())) {
-                // _index, _version and _version_type cannot be removed
+
+        for (String metadataFieldName : metadataFields) {
+            Map<String, Object> config = new HashMap<>();
+            config.put("field", metadataFieldName);
+            String processorTag = randomAlphaOfLength(10);
+            Processor processor = new RemoveProcessor.Factory(TestTemplateService.instance()).create(null, processorTag, null, config);
+            // _if_seq_no and _if_primary_term do not exist in the enriched document, removing them will throw IllegalArgumentException
+            if (metadataFieldName.equals(IngestDocument.Metadata.IF_SEQ_NO.getFieldName())
+                || metadataFieldName.equals(IngestDocument.Metadata.IF_PRIMARY_TERM.getFieldName())) {
                 assertThrows(
-                    "cannot remove metadata field [" + metadataFieldName + "]",
+                    "field: [" + metadataFieldName + "] doesn't exist",
                     IllegalArgumentException.class,
                     () -> processor.execute(ingestDocument)
                 );
-            } else if (metadataFieldName.equals(IngestDocument.Metadata.ID.getFieldName())) {
-                Long version = ingestDocument.getFieldValue(IngestDocument.Metadata.VERSION.getFieldName(), Long.class);
-                String versionType = ingestDocument.getFieldValue(IngestDocument.Metadata.VERSION_TYPE.getFieldName(), String.class);
-                if (!versionType.equals(VersionType.toString(VersionType.INTERNAL))) {
+            } else if (metadataFieldName.equals(IngestDocument.Metadata.INDEX.getFieldName())
+                || metadataFieldName.equals(IngestDocument.Metadata.VERSION.getFieldName())
+                || metadataFieldName.equals(IngestDocument.Metadata.VERSION_TYPE.getFieldName())) {
+                    // _index, _version and _version_type cannot be removed
                     assertThrows(
-                        "cannot remove metadata field [_id] when specifying external version for the document, version: "
-                            + version
-                            + ", version_type: "
-                            + versionType,
+                        "cannot remove metadata field [" + metadataFieldName + "]",
                         IllegalArgumentException.class,
                         () -> processor.execute(ingestDocument)
                     );
-                } else {
-                    processor.execute(ingestDocument);
-                    assertThat(ingestDocument.hasField(metadataFieldName), equalTo(false));
-                }
-            } else if (metadataFieldName.equals(IngestDocument.Metadata.ROUTING.getFieldName())
-                && ingestDocument.hasField(IngestDocument.Metadata.ROUTING.getFieldName())) {
-                    processor.execute(ingestDocument);
-                    assertThat(ingestDocument.hasField(metadataFieldName), equalTo(false));
-                }
+                } else if (metadataFieldName.equals(IngestDocument.Metadata.ID.getFieldName())) {
+                    Long version = ingestDocument.getFieldValue(IngestDocument.Metadata.VERSION.getFieldName(), Long.class);
+                    String versionType = ingestDocument.getFieldValue(IngestDocument.Metadata.VERSION_TYPE.getFieldName(), String.class);
+                    if (!versionType.equals(VersionType.toString(VersionType.INTERNAL))) {
+                        assertThrows(
+                            "cannot remove metadata field [_id] when specifying external version for the document, version: "
+                                + version
+                                + ", version_type: "
+                                + versionType,
+                            IllegalArgumentException.class,
+                            () -> processor.execute(ingestDocument)
+                        );
+                    } else {
+                        processor.execute(ingestDocument);
+                        assertThat(ingestDocument.hasField(metadataFieldName), equalTo(false));
+                    }
+                } else if (metadataFieldName.equals(IngestDocument.Metadata.ROUTING.getFieldName())
+                    && ingestDocument.hasField(IngestDocument.Metadata.ROUTING.getFieldName())) {
+                        processor.execute(ingestDocument);
+                        assertThat(ingestDocument.hasField(metadataFieldName), equalTo(false));
+                    }
+        }
     }
 }
