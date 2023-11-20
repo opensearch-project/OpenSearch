@@ -10,8 +10,8 @@ package org.opensearch.telemetry.tracing;
 
 import org.opensearch.core.common.Strings;
 
+import java.util.Collection;
 import java.util.Collections;
-import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.function.BiConsumer;
@@ -51,7 +51,7 @@ public class OTelTracingContextPropagator implements TracingContextPropagator {
     }
 
     @Override
-    public Optional<Span> extractFromHeaders(Map<String, List<String>> headers) {
+    public Optional<Span> extractFromHeaders(Map<String, Collection<String>> headers) {
         Context context = openTelemetry.getPropagators().getTextMapPropagator().extract(Context.current(), headers, HEADER_TEXT_MAP_GETTER);
         return Optional.ofNullable(getPropagatedSpan(context));
     }
@@ -87,9 +87,9 @@ public class OTelTracingContextPropagator implements TracingContextPropagator {
         }
     };
 
-    private static final TextMapGetter<Map<String, List<String>>> HEADER_TEXT_MAP_GETTER = new TextMapGetter<>() {
+    private static final TextMapGetter<Map<String, Collection<String>>> HEADER_TEXT_MAP_GETTER = new TextMapGetter<>() {
         @Override
-        public Iterable<String> keys(Map<String, List<String>> headers) {
+        public Iterable<String> keys(Map<String, Collection<String>> headers) {
             if (headers != null) {
                 return headers.keySet();
             } else {
@@ -98,7 +98,7 @@ public class OTelTracingContextPropagator implements TracingContextPropagator {
         }
 
         @Override
-        public String get(Map<String, List<String>> headers, String key) {
+        public String get(Map<String, Collection<String>> headers, String key) {
             if (headers != null && headers.containsKey(key)) {
                 return Strings.collectionToCommaDelimitedString(headers.get(key));
             }
