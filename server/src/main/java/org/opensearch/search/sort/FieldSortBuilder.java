@@ -611,7 +611,8 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
      * and configurations return <code>null</code>.
      */
     public static MinAndMax<?> getMinMaxOrNull(QueryShardContext context, FieldSortBuilder sortBuilder) throws IOException {
-        return getMinMaxOrNullInternal(context.getIndexReader(), context, sortBuilder, null);
+        final SortAndFormats sort = SortBuilder.buildSort(Collections.singletonList(sortBuilder), context).get();
+        return getMinMaxOrNullInternal(context.getIndexReader(), context, sortBuilder, sort);
     }
 
     /**
@@ -634,9 +635,6 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
         FieldSortBuilder sortBuilder,
         SortAndFormats sort
     ) throws IOException {
-        if (sort == null) {
-            sort = SortBuilder.buildSort(Collections.singletonList(sortBuilder), context).get();
-        }
         SortField sortField = sort.sort.getSort()[0];
         if (sortField.getField() == null) {
             return null;
