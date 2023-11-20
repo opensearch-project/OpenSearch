@@ -282,7 +282,7 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
         /**
          * Configure a custom serializer for this parameter
          */
-        protected Parameter<T> setSerializer(Serializer<T> serializer, Function<T, String> conflictSerializer) {
+        public Parameter<T> setSerializer(Serializer<T> serializer, Function<T, String> conflictSerializer) {
             this.serializer = serializer;
             this.conflictSerializer = conflictSerializer;
             return this;
@@ -291,7 +291,7 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
         /**
          * Configure a custom serialization check for this parameter
          */
-        protected Parameter<T> setSerializerCheck(SerializerCheck<T> check) {
+        public Parameter<T> setSerializerCheck(SerializerCheck<T> check) {
             this.serializerCheck = check;
             return this;
         }
