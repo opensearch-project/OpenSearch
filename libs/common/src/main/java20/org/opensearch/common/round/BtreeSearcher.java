@@ -97,7 +97,9 @@ class BtreeSearcher implements Roundable {
     }
 
     private static int log2(int n) {
-        assert (n > 0) && ((n & (n - 1)) == 0) : n + " is not a positive power of 2";
+        if ((n <= 0) || ((n & (n - 1)) != 0)) {
+            throw new IllegalArgumentException(n + " is not a positive power of 2");
+        }
 
         int result = 0;
         while (n > 1) {

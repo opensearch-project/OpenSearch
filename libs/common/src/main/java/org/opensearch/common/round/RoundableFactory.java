@@ -29,7 +29,7 @@ public final class RoundableFactory {
     /**
      * Creates and returns the fastest implementation of {@link Roundable}.
      */
-    public static Roundable create(long[] values, int size, boolean useSimdIfAvailable) {
+    public static Roundable create(long[] values, int size) {
         if (size <= LINEAR_SEARCH_MAX_SIZE) {
             return new BidirectionalLinearSearcher(values, size);
         } else {

@@ -61,12 +61,6 @@ public class FeatureFlags {
     public static final String DATETIME_FORMATTER_CACHING = "opensearch.experimental.optimization.datetime_formatter_caching.enabled";
 
     /**
-     * Gates the usage of SIMD for rounding down numbers.
-     * This is used extensively to round down timestamps in the date_histogram aggregation.
-     */
-    public static final String SIMD_ROUNDING = "opensearch.experimental.simd.rounding.enabled";
-
-    /**
      * Should store the settings from opensearch.yml.
      */
     private static Settings settings;
@@ -128,6 +122,4 @@ public class FeatureFlags {
         true,
         Property.NodeScope
     );
-
-    public static final Setting<Boolean> SIMD_ROUNDING_SETTING = Setting.boolSetting(SIMD_ROUNDING, false, Property.NodeScope);
 }

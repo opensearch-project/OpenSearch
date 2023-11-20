@@ -34,19 +34,20 @@ public final class RoundableFactory {
 
     /**
      * Indicates whether the vectorized (SIMD) B-tree search implementation is supported.
-     * This is true when the platform has a minimum of 4 long vector lanes.
+     * This is true when the platform has a minimum of 4 long vector lanes and the feature flag is enabled.
      */
-    private static final boolean IS_BTREE_SEARCH_SUPPORTED = LONG_VECTOR_SPECIES.length() >= 4;
+    private static final boolean IS_BTREE_SEARCH_SUPPORTED = LONG_VECTOR_SPECIES.length() >= 4
+        && "true".equalsIgnoreCase(System.getProperty("opensearch.experimental.feature.simd.rounding.enabled"));
 
     private RoundableFactory() {}
 
     /**
      * Creates and returns the fastest implementation of {@link Roundable}.
      */
-    public static Roundable create(long[] values, int size, boolean useSimdIfAvailable) {
+    public static Roundable create(long[] values, int size) {
         if (size <= LINEAR_SEARCH_MAX_SIZE) {
             return new BidirectionalLinearSearcher(values, size);
-        } else if (IS_BTREE_SEARCH_SUPPORTED && useSimdIfAvailable) {
+        } else if (IS_BTREE_SEARCH_SUPPORTED) {
             return new BtreeSearcher(values, size, LONG_VECTOR_SPECIES);
         } else {
             return new BinarySearcher(values, size);
