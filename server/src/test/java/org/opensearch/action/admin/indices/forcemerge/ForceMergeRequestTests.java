@@ -37,15 +37,37 @@ public class ForceMergeRequestTests extends OpenSearchTestCase {
 
     public void testDescription() {
         ForceMergeRequest request = new ForceMergeRequest();
-        assertEquals("Force-merge indices [], maxSegments[-1], onlyExpungeDeletes[false], flush[true]", request.getDescription());
+        assertEquals(
+            "Force-merge indices [], maxSegments[-1], onlyExpungeDeletes[false], flush[true], primaryOnly[false]",
+            request.getDescription()
+        );
 
         request = new ForceMergeRequest("shop", "blog");
-        assertEquals("Force-merge indices [shop, blog], maxSegments[-1], onlyExpungeDeletes[false], flush[true]", request.getDescription());
+        assertEquals(
+            "Force-merge indices [shop, blog], maxSegments[-1], onlyExpungeDeletes[false], flush[true], primaryOnly[false]",
+            request.getDescription()
+        );
 
         request = new ForceMergeRequest();
         request.maxNumSegments(12);
         request.onlyExpungeDeletes(true);
         request.flush(false);
-        assertEquals("Force-merge indices [], maxSegments[12], onlyExpungeDeletes[true], flush[false]", request.getDescription());
+        request.primaryOnly(true);
+        assertEquals(
+            "Force-merge indices [], maxSegments[12], onlyExpungeDeletes[true], flush[false], primaryOnly[true]",
+            request.getDescription()
+        );
+    }
+
+    public void testToString() {
+        ForceMergeRequest request = new ForceMergeRequest();
+        assertEquals("ForceMergeRequest{maxNumSegments=-1, onlyExpungeDeletes=false, flush=true, primaryOnly=false}", request.toString());
+
+        request = new ForceMergeRequest();
+        request.maxNumSegments(12);
+        request.onlyExpungeDeletes(true);
+        request.flush(false);
+        request.primaryOnly(true);
+        assertEquals("ForceMergeRequest{maxNumSegments=12, onlyExpungeDeletes=true, flush=false, primaryOnly=true}", request.toString());
     }
 }
