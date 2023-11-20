@@ -65,6 +65,17 @@ jobs:
           role-to-assume: ${{ secrets.LUCENE_SNAPSHOTS_S3_ROLE }}
           aws-region: us-east-1
 
-      - name: Copy files to S3 with the aws CLI.
+      - name: Copy files to S3 with the aws CLI (New)
         run: |
           aws s3 cp ~/.m2/repository/org/apache/lucene/ s3://${{ steps.get_s3_bucket.outputs.LUCENE_SNAPSHOTS_BUCKET }}/snapshots/lucene/org/apache/lucene/  --recursive --no-progress
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.LUCENE_SNAPSHOTS_ROLE }}
+          aws-region: us-west-2
+
+        # We will remove this step once all the lucene snapshots old links are updated with the new one
+      - name: Copy files to S3 with the aws CLI (Old)
+        run: |
+          aws s3 cp ~/.m2/repository/org/apache/lucene/ s3://${{ secrets.LUCENE_SNAPSHOTS_BUCKET }}/snapshots/lucene/org/apache/lucene/  --recursive --no-progress
