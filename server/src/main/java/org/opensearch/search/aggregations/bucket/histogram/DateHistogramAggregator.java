@@ -42,6 +42,7 @@ import org.apache.lucene.util.NumericUtils;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.Rounding;
 import org.opensearch.common.lease.Releasables;
+import org.opensearch.index.mapper.DateFieldMapper;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.aggregations.Aggregator;
 import org.opensearch.search.aggregations.AggregatorFactories;
@@ -52,6 +53,7 @@ import org.opensearch.search.aggregations.LeafBucketCollector;
 import org.opensearch.search.aggregations.LeafBucketCollectorBase;
 import org.opensearch.search.aggregations.bucket.BucketsAggregator;
 import org.opensearch.search.aggregations.bucket.terms.LongKeyedBucketOrds;
+import org.opensearch.search.aggregations.support.FieldContext;
 import org.opensearch.search.aggregations.support.ValuesSource;
 import org.opensearch.search.aggregations.support.ValuesSourceConfig;
 import org.opensearch.search.internal.SearchContext;
@@ -84,6 +86,7 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
     private final LongBounds hardBounds;
     private Weight[] filters = null;
     private final LongKeyedBucketOrds bucketOrds;
+    private DateFieldMapper.DateFieldType fieldType;
 
     DateHistogramAggregator(
         String name,
@@ -119,17 +122,23 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
         // Create the filters for fast aggregation only if the query is instance
         // of point range query and there aren't any parent/sub aggregations
         if (parent() == null && subAggregators.length == 0) {
-            final String fieldName = valuesSourceConfig.fieldContext().field();
-            final long[] bounds = FilterRewriteHelper.getAggregationBounds(context, fieldName);
-            if (bounds != null) {
-                filters = FilterRewriteHelper.createFilterForAggregations(
-                    context,
-                    rounding,
-                    preparedRounding,
-                    fieldName,
-                    bounds[0],
-                    bounds[1]
-                );
+            final FieldContext fieldContext = valuesSourceConfig.fieldContext();
+            if (fieldContext != null) {
+                final String fieldName = fieldContext.field();
+                final long[] bounds = FilterRewriteHelper.getAggregationBounds(context, fieldName);
+                if (bounds != null) {
+                    assert fieldContext.fieldType() instanceof DateFieldMapper.DateFieldType;
+                    fieldType = (DateFieldMapper.DateFieldType) fieldContext.fieldType();
+                    filters = FilterRewriteHelper.createFilterForAggregations(
+                        context,
+                        rounding,
+                        preparedRounding,
+                        fieldName,
+                        fieldType,
+                        bounds[0],
+                        bounds[1]
+                    );
+                }
             }
         }
     }
@@ -272,7 +281,11 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
         for (i = 0; i < filters.length; i++) {
             long bucketOrd = bucketOrds.add(
                 owningBucketOrd,
-                preparedRounding.round(NumericUtils.sortableBytesToLong(((PointRangeQuery) filters[i].getQuery()).getLowerPoint(), 0))
+                preparedRounding.round(
+                    fieldType.convertNanosToMillis(
+                        NumericUtils.sortableBytesToLong(((PointRangeQuery) filters[i].getQuery()).getLowerPoint(), 0)
+                    )
+                )
             );
             if (bucketOrd < 0) { // already seen
                 bucketOrd = -1 - bucketOrd;

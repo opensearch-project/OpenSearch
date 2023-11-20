@@ -45,6 +45,7 @@ import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.util.IntArray;
 import org.opensearch.common.util.LongArray;
 import org.opensearch.core.common.util.ByteArray;
+import org.opensearch.index.mapper.DateFieldMapper;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.aggregations.Aggregator;
 import org.opensearch.search.aggregations.AggregatorFactories;
@@ -58,6 +59,7 @@ import org.opensearch.search.aggregations.bucket.DeferringBucketCollector;
 import org.opensearch.search.aggregations.bucket.MergingBucketsDeferringCollector;
 import org.opensearch.search.aggregations.bucket.histogram.AutoDateHistogramAggregationBuilder.RoundingInfo;
 import org.opensearch.search.aggregations.bucket.terms.LongKeyedBucketOrds;
+import org.opensearch.search.aggregations.support.FieldContext;
 import org.opensearch.search.aggregations.support.ValuesSource;
 import org.opensearch.search.aggregations.support.ValuesSourceConfig;
 import org.opensearch.search.internal.SearchContext;
@@ -269,6 +271,7 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
 
         private Weight[] filters = null;
         private final ValuesSource.Numeric valuesSource;
+        private DateFieldMapper.DateFieldType fieldType;
 
         FromSingle(
             String name,
@@ -300,11 +303,25 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
             // Create the filters for fast aggregation only if the query is instance
             // of point range query and there aren't any parent/sub aggregations
             if (parent() == null && subAggregators.length == 0) {
-                final String fieldName = valuesSourceConfig.fieldContext().field();
-                final long[] bounds = FilterRewriteHelper.getAggregationBounds(context, fieldName);
-                if (bounds != null) {
-                    final Rounding rounding = getMinimumRounding(bounds[0], bounds[1]);
-                    filters = FilterRewriteHelper.createFilterForAggregations(context, rounding, preparedRounding, fieldName, bounds[0], bounds[1]);
+                final FieldContext fieldContext = valuesSourceConfig.fieldContext();
+                if (fieldContext != null) {
+                    final String fieldName = fieldContext.field();
+                    final long[] bounds = FilterRewriteHelper.getAggregationBounds(context, fieldName);
+                    if (bounds != null) {
+                        assert fieldContext.fieldType() instanceof DateFieldMapper.DateFieldType;
+                        fieldType = (DateFieldMapper.DateFieldType) fieldContext.fieldType();
+                        // TODO: Use millis bound?
+                        final Rounding rounding = getMinimumRounding(bounds[0], bounds[1]);
+                        filters = FilterRewriteHelper.createFilterForAggregations(
+                            context,
+                            rounding,
+                            preparedRounding,
+                            fieldName,
+                            fieldType,
+                            bounds[0],
+                            bounds[1]
+                        );
+                    }
                 }
             }
         }
@@ -317,7 +334,7 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
             long bestDuration = (high - low) / targetBuckets;
             while (roundingIdx < roundingInfos.length - 1) {
                 final RoundingInfo curRoundingInfo = roundingInfos[roundingIdx];
-                final int temp = curRoundingInfo.innerIntervals[curRoundingInfo.innerIntervals.length-1];
+                final int temp = curRoundingInfo.innerIntervals[curRoundingInfo.innerIntervals.length - 1];
                 // If the interval duration is covered by the maximum inner interval,
                 // we can start with this outer interval for creating the buckets
                 if (bestDuration <= temp * curRoundingInfo.roughEstimateDurationMillis) {
@@ -345,7 +362,11 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
             for (i = 0; i < filters.length; i++) {
                 long bucketOrd = bucketOrds.add(
                     owningBucketOrd,
-                    preparedRounding.round(NumericUtils.sortableBytesToLong(((PointRangeQuery) filters[i].getQuery()).getLowerPoint(), 0))
+                    preparedRounding.round(
+                        fieldType.convertNanosToMillis(
+                            NumericUtils.sortableBytesToLong(((PointRangeQuery) filters[i].getQuery()).getLowerPoint(), 0)
+                        )
+                    )
                 );
                 if (bucketOrd < 0) { // already seen
                     bucketOrd = -1 - bucketOrd;
