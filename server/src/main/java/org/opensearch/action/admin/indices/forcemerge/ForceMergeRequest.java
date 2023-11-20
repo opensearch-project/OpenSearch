@@ -102,7 +102,7 @@ public class ForceMergeRequest extends BroadcastRequest<ForceMergeRequest> {
         maxNumSegments = in.readInt();
         onlyExpungeDeletes = in.readBoolean();
         flush = in.readBoolean();
-        shouldStoreResult = in.readBoolean();
+        primaryOnly = in.readBoolean();
         if (in.getVersion().onOrAfter(FORCE_MERGE_UUID_VERSION)) {
             forceMergeUUID = in.readString();
         } else if ((forceMergeUUID = in.readOptionalString()) == null) {
