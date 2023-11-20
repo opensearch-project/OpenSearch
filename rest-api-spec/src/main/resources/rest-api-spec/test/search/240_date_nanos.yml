@@ -169,8 +169,8 @@ setup:
 ---
 "date with nested sort now":
   - skip:
-      version: " - 2.12.99"
-      reason: fixed in 3.0.0
+      version: " - 2.11.99"
+      reason: fixed in 2.12.0
 
   # This tests cover scenario where nested sort have now() in date field type.
   # For this test, we have date field as nested field and we trigger asc/desc sort
