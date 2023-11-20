@@ -195,7 +195,7 @@ teardown:
         routing: abc
         pipeline: "my_pipeline"
         body: { message: "foo bar baz" }
-  - match: { acknowledged: true }
+  - match: { result: created }
 
   - do:
       ingest.put_pipeline:
@@ -214,7 +214,7 @@ teardown:
   - match: { acknowledged: true }
 
   - do:
-      catch: /cannot remove metadata field [_id] when specifying external version for the document/
+      catch: /cannot remove metadata field \[\_id\] when specifying external version for the document/
       index:
         index: test
         id: "test_id_10000"

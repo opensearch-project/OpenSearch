@@ -89,7 +89,7 @@ public final class RemoveProcessor extends AbstractProcessor {
             // removing _id is disallowed when there's an external version specified in the request
             if (path.equals(IngestDocument.Metadata.ID.getFieldName())
                 && !document.getFieldValue(IngestDocument.Metadata.VERSION_TYPE.getFieldName(), String.class)
-                    .equals(VersionType.INTERNAL.toString())) {
+                    .equals(VersionType.toString(VersionType.INTERNAL))) {
                 Long version = document.getFieldValue(IngestDocument.Metadata.VERSION.getFieldName(), Long.class);
                 String versionType = document.getFieldValue(IngestDocument.Metadata.VERSION_TYPE.getFieldName(), String.class);
                 throw new IllegalArgumentException(

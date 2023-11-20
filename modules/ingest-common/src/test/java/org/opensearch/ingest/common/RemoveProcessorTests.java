@@ -160,7 +160,7 @@ public class RemoveProcessorTests extends OpenSearchTestCase {
             } else if (metadataFieldName.equals(IngestDocument.Metadata.ID.getFieldName())) {
                 Long version = ingestDocument.getFieldValue(IngestDocument.Metadata.VERSION.getFieldName(), Long.class);
                 String versionType = ingestDocument.getFieldValue(IngestDocument.Metadata.VERSION_TYPE.getFieldName(), String.class);
-                if (!versionType.equals(VersionType.INTERNAL.toString())) {
+                if (!versionType.equals(VersionType.toString(VersionType.INTERNAL))) {
                     assertThrows(
                         "cannot remove metadata field [_id] when specifying external version for the document, version: "
                             + version
