@@ -263,8 +263,6 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
         private long min = Long.MAX_VALUE;
         private long max = Long.MIN_VALUE;
 
-        private final ValuesSource.Numeric valuesSource;
-
         FromSingle(
             String name,
             AggregatorFactories factories,
@@ -290,8 +288,6 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
 
             preparedRounding = prepareRounding(0);
             bucketOrds = new LongKeyedBucketOrds.FromSingle(context.bigArrays());
-
-            this.valuesSource = valuesSourceConfig.hasValues() ? (ValuesSource.Numeric) valuesSourceConfig.getValuesSource() : null;
         }
 
         @Override
@@ -474,7 +470,6 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
          * results. We keep this just to report to the profiler.
          */
         private int rebucketCount = 0;
-
 
         FromMany(
             String name,
