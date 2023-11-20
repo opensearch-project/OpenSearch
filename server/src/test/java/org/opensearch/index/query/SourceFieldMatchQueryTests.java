@@ -38,7 +38,6 @@ public class SourceFieldMatchQueryTests extends MapperServiceTestCase {
         QueryShardContext queryShardContext = createQueryShardContext(mapperService);
         when(queryShardContext.sourcePath("desert")).thenReturn(Set.of("desert"));
         when(queryShardContext.index()).thenReturn(new Index("test_index", "uuid"));
-        when(queryShardContext.documentMapper(anyString())).thenReturn(mapperService.documentMapper());
 
         String[] deserts = new String[] { "apple pie pie", "banana split pie", "chocolate cake" };
         List<ParsedDocument> docs = new ArrayList<>();
@@ -113,7 +112,6 @@ public class SourceFieldMatchQueryTests extends MapperServiceTestCase {
         QueryShardContext queryShardContext = createQueryShardContext(mapperService);
         when(queryShardContext.sourcePath("desert")).thenReturn(Set.of("desert"));
         when(queryShardContext.index()).thenReturn(new Index("test_index", "uuid"));
-        when(queryShardContext.documentMapper(anyString())).thenReturn(mapperService.documentMapper());
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
             () -> new SourceFieldMatchQuery(
@@ -141,7 +139,6 @@ public class SourceFieldMatchQueryTests extends MapperServiceTestCase {
         QueryShardContext queryShardContext = createQueryShardContext(mapperService);
         when(queryShardContext.sourcePath("desert")).thenReturn(Set.of("desert"));
         when(queryShardContext.index()).thenReturn(new Index("test_index", "uuid"));
-        when(queryShardContext.documentMapper(anyString())).thenReturn(mapperService.documentMapper());
 
         String[] deserts = new String[] { "apple pie pie", "banana split pie", "chocolate cake" };
         List<ParsedDocument> docs = new ArrayList<>();

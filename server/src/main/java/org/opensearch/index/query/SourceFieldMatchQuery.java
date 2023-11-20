@@ -45,7 +45,7 @@ public class SourceFieldMatchQuery extends Query {
      * Constructs a SourceFieldMatchQuery.
      *
      * @param delegateQuery The parent query to use to find matches.
-     * @param filter The query used to filter further by running against field value computed using _source field.
+     * @param filter The query used to filter further by running against field value fetched using _source field.
      * @param fieldType The mapped field type.
      * @param context The QueryShardContext to get lookup and valueFetcher
      */

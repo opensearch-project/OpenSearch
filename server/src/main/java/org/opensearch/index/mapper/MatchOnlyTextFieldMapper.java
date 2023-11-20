@@ -22,7 +22,6 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.opensearch.Version;
 import org.opensearch.common.lucene.search.MultiPhrasePrefixQuery;
-import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.analysis.IndexAnalyzers;
 import org.opensearch.index.analysis.NamedAnalyzer;
 import org.opensearch.index.query.QueryShardContext;
@@ -307,31 +306,5 @@ public class MatchOnlyTextFieldMapper extends TextFieldMapper {
             termArray.add(List.copyOf(currentTerms));
             return termArray;
         }
-    }
-
-    @Override
-    protected void doXContentBody(XContentBuilder builder, boolean includeDefaults, Params params) throws IOException {
-        // this is a pain, but we have to do this to maintain BWC
-        builder.field("type", contentType());
-        Builder mapperBuilder = (MatchOnlyTextFieldMapper.Builder) getMergeBuilder();
-        mapperBuilder.boost.toXContent(builder, includeDefaults);
-        mapperBuilder.index.toXContent(builder, includeDefaults);
-        mapperBuilder.store.toXContent(builder, includeDefaults);
-        this.multiFields.toXContent(builder, params);
-        this.copyTo.toXContent(builder, params);
-        mapperBuilder.meta.toXContent(builder, includeDefaults);
-        mapperBuilder.indexOptions.toXContent(builder, includeDefaults);
-        mapperBuilder.termVectors.toXContent(builder, includeDefaults);
-        mapperBuilder.norms.toXContent(builder, includeDefaults);
-        mapperBuilder.analyzers.indexAnalyzer.toXContent(builder, includeDefaults);
-        mapperBuilder.analyzers.searchAnalyzer.toXContent(builder, includeDefaults);
-        mapperBuilder.analyzers.searchQuoteAnalyzer.toXContent(builder, includeDefaults);
-        mapperBuilder.similarity.toXContent(builder, includeDefaults);
-        mapperBuilder.eagerGlobalOrdinals.toXContent(builder, includeDefaults);
-        mapperBuilder.positionIncrementGap.toXContent(builder, includeDefaults);
-        mapperBuilder.fieldData.toXContent(builder, includeDefaults);
-        mapperBuilder.freqFilter.toXContent(builder, includeDefaults);
-        mapperBuilder.indexPrefixes.toXContent(builder, includeDefaults);
-        mapperBuilder.indexPhrases.toXContent(builder, includeDefaults);
     }
 }
