@@ -7,6 +7,6 @@
  */
 
 /**
- * Contains No-op implementations
+ * Contains HTTP or TCP transport related tracer capabilities
  */
-package org.opensearch.telemetry.tracing.http;
+package org.opensearch.telemetry.tracing.transport;
