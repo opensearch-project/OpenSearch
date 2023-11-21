@@ -224,7 +224,7 @@ public abstract class RemoteShardsBalancerBaseTestCase extends OpenSearchAllocat
             @Override
             public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
                 if (RoutingPool.REMOTE_CAPABLE.equals(RoutingPool.getShardPool(shardRouting, allocation))) {
-                    return throttle? Decision.THROTTLE : Decision.NO;
+                    return throttle ? Decision.THROTTLE : Decision.NO;
                 } else {
                     return Decision.ALWAYS;
                 }
