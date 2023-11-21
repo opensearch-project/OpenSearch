@@ -44,23 +44,23 @@ class DefaultSpanScope implements SpanScope {
     public static SpanScope create(Span span, TracerContextStorage<String, Span> tracerContextStorage) {
         final SpanScope beforeSpanScope = spanScopeThreadLocal.get();
         SpanScope newSpanScope = new DefaultSpanScope(span, beforeSpanScope, tracerContextStorage);
-        spanScopeThreadLocal.set(newSpanScope);
         return newSpanScope;
     }
 
     @Override
     public void close() {
         detach();
-        spanScopeThreadLocal.set(previousSpanScope);
     }
 
     @Override
     public SpanScope attach() {
+        spanScopeThreadLocal.set(this);
         tracerContextStorage.put(TracerContextStorage.CURRENT_SPAN, this.span);
         return this;
     }
 
     private void detach() {
+        spanScopeThreadLocal.set(previousSpanScope);
         if (previousSpanScope != null) {
             tracerContextStorage.put(TracerContextStorage.CURRENT_SPAN, previousSpanScope.getSpan());
         } else {
