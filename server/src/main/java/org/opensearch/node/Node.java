@@ -628,15 +628,6 @@ public class Node implements Closeable {
             metricsRegistry = metricsRegistryFactory.getMetricsRegistry();
             resourcesToClose.add(tracer::close);
             resourcesToClose.add(metricsRegistry::close);
-            final IngestService ingestService = new IngestService(
-                clusterService,
-                threadPool,
-                this.environment,
-                scriptService,
-                analysisModule.getAnalysisRegistry(),
-                pluginsService.filterPlugins(IngestPlugin.class),
-                client
-            );
 
             final ClusterInfoService clusterInfoService = newClusterInfoService(settings, clusterService, threadPool, client);
             final UsageService usageService = new UsageService();
@@ -822,6 +813,18 @@ public class Node implements Closeable {
                 remoteStoreStatsTrackerFactory,
                 recoverySettings
             );
+
+            final IngestService ingestService = new IngestService(
+                clusterService,
+                threadPool,
+                this.environment,
+                scriptService,
+                analysisModule.getAnalysisRegistry(),
+                pluginsService.filterPlugins(IngestPlugin.class),
+                client,
+                indicesService
+            );
+
             final AliasValidator aliasValidator = new AliasValidator();
 
             final ShardLimitValidator shardLimitValidator = new ShardLimitValidator(settings, clusterService, systemIndices);
