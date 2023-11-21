@@ -44,6 +44,7 @@ import org.opensearch.script.TemplateScript;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 /**
@@ -87,11 +88,10 @@ public final class RemoveProcessor extends AbstractProcessor {
                 throw new IllegalArgumentException("cannot remove metadata field [" + path + "]");
             }
             // removing _id is disallowed when there's an external version specified in the request
+            String versionType = document.getFieldValue(IngestDocument.Metadata.VERSION_TYPE.getFieldName(), String.class);
             if (path.equals(IngestDocument.Metadata.ID.getFieldName())
-                && !document.getFieldValue(IngestDocument.Metadata.VERSION_TYPE.getFieldName(), String.class)
-                    .equals(VersionType.toString(VersionType.INTERNAL))) {
+                && !Objects.equals(versionType, VersionType.toString(VersionType.INTERNAL))) {
                 Long version = document.getFieldValue(IngestDocument.Metadata.VERSION.getFieldName(), Long.class);
-                String versionType = document.getFieldValue(IngestDocument.Metadata.VERSION_TYPE.getFieldName(), String.class);
                 throw new IllegalArgumentException(
                     "cannot remove metadata field [_id] when specifying external version for the document, version: "
                         + version
