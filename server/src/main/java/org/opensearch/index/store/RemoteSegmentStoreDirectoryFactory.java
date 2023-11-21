@@ -15,7 +15,6 @@ import org.opensearch.index.IndexSettings;
 import org.opensearch.index.shard.ShardPath;
 import org.opensearch.index.store.lockmanager.RemoteStoreLockManager;
 import org.opensearch.index.store.lockmanager.RemoteStoreLockManagerFactory;
-import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.plugins.IndexStorePlugin;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.Repository;
@@ -35,18 +34,12 @@ public class RemoteSegmentStoreDirectoryFactory implements IndexStorePlugin.Dire
     private static final String SEGMENTS = "segments";
 
     private final Supplier<RepositoriesService> repositoriesService;
-    private final RecoverySettings recoverySettings;
 
     private final ThreadPool threadPool;
 
-    public RemoteSegmentStoreDirectoryFactory(
-        Supplier<RepositoriesService> repositoriesService,
-        ThreadPool threadPool,
-        RecoverySettings recoverySettings
-    ) {
+    public RemoteSegmentStoreDirectoryFactory(Supplier<RepositoriesService> repositoriesService, ThreadPool threadPool) {
         this.repositoriesService = repositoriesService;
         this.threadPool = threadPool;
-        this.recoverySettings = recoverySettings;
     }
 
     @Override
@@ -78,7 +71,7 @@ public class RemoteSegmentStoreDirectoryFactory implements IndexStorePlugin.Dire
                 String.valueOf(shardId.id())
             );
 
-            return new RemoteSegmentStoreDirectory(dataDirectory, metadataDirectory, mdLockManager, threadPool, shardId, recoverySettings);
+            return new RemoteSegmentStoreDirectory(dataDirectory, metadataDirectory, mdLockManager, threadPool, shardId);
         } catch (RepositoryMissingException e) {
             throw new IllegalArgumentException("Repository should be created before creating index with remote_store enabled setting", e);
         }

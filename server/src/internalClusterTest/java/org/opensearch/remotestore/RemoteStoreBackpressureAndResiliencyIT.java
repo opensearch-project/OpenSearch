@@ -11,9 +11,9 @@ package org.opensearch.remotestore;
 import org.opensearch.action.admin.cluster.remotestore.stats.RemoteStoreStats;
 import org.opensearch.action.admin.cluster.remotestore.stats.RemoteStoreStatsResponse;
 import org.opensearch.action.admin.cluster.settings.ClusterUpdateSettingsResponse;
+import org.opensearch.action.admin.indices.flush.FlushResponse;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.util.concurrent.AbstractAsyncTask;
 import org.opensearch.common.util.concurrent.UncategorizedExecutionException;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.bytes.BytesReference;
@@ -21,6 +21,7 @@ import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.index.IndexService;
+import org.opensearch.index.IndexServiceTestUtils;
 import org.opensearch.index.remote.RemoteSegmentTransferTracker;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.indices.IndicesService;
@@ -55,7 +56,7 @@ public class RemoteStoreBackpressureAndResiliencyIT extends AbstractRemoteStoreM
     public void testWritesRejectedDueToTimeLagBreach() throws Exception {
         // Initially indexing happens with doc size of 1KB, then all remote store interactions start failing. Now, the
         // indexing happens with doc size of 1 byte leading to time lag limit getting exceeded and leading to rejections.
-        validateBackpressure(ByteSizeUnit.KB.toIntBytes(1), 20, ByteSizeUnit.BYTES.toIntBytes(1), 15, "time_lag");
+        validateBackpressure(ByteSizeUnit.KB.toIntBytes(1), 20, ByteSizeUnit.BYTES.toIntBytes(1), 3, "time_lag");
     }
 
     private void validateBackpressure(
@@ -132,11 +133,13 @@ public class RemoteStoreBackpressureAndResiliencyIT extends AbstractRemoteStoreM
         return matches.get(0).getSegmentStats();
     }
 
-    private void indexDocAndRefresh(BytesReference source, int iterations) {
+    private void indexDocAndRefresh(BytesReference source, int iterations) throws InterruptedException {
         for (int i = 0; i < iterations; i++) {
             client().prepareIndex(INDEX_NAME).setSource(source, MediaTypeRegistry.JSON).get();
             refresh(INDEX_NAME);
         }
+        Thread.sleep(250);
+        client().prepareIndex(INDEX_NAME).setSource(source, MediaTypeRegistry.JSON).get();
     }
 
     /**
@@ -172,7 +175,7 @@ public class RemoteStoreBackpressureAndResiliencyIT extends AbstractRemoteStoreM
 
         logger.info("Increasing the frequency of async trim task to ensure it runs in background while indexing");
         IndexService indexService = internalCluster().getInstance(IndicesService.class, dataNodeName).iterator().next();
-        ((AbstractAsyncTask) indexService.getTrimTranslogTask()).setInterval(TimeValue.timeValueMillis(100));
+        IndexServiceTestUtils.setTrimTranslogTaskInterval(indexService, TimeValue.timeValueMillis(100));
 
         logger.info("--> Indexing data");
         indexData(randomIntBetween(2, 5), true);
@@ -227,5 +230,33 @@ public class RemoteStoreBackpressureAndResiliencyIT extends AbstractRemoteStoreM
         translogRepo.setRandomControlIOExceptionRate(0d);
         client().admin().cluster().prepareReroute().setRetryFailed(true).get();
         ensureGreen(INDEX_NAME);
+    }
+
+    public void testFlushDuringRemoteUploadFailures() {
+        Path location = randomRepoPath().toAbsolutePath();
+        String dataNodeName = setup(location, 0d, "metadata", Long.MAX_VALUE);
+
+        logger.info("--> Indexing data");
+        indexData(randomIntBetween(1, 2), true);
+        logger.info("--> Indexing succeeded");
+        ensureGreen(INDEX_NAME);
+
+        MockRepository translogRepo = (MockRepository) internalCluster().getInstance(RepositoriesService.class, dataNodeName)
+            .repository(TRANSLOG_REPOSITORY_NAME);
+        logger.info("--> Failing all remote store interaction");
+        translogRepo.setRandomControlIOExceptionRate(1d);
+
+        Exception ex = assertThrows(UncategorizedExecutionException.class, () -> indexSingleDoc());
+        assertEquals("Failed execution", ex.getMessage());
+
+        FlushResponse flushResponse = client().admin().indices().prepareFlush(INDEX_NAME).setForce(true).execute().actionGet();
+        assertEquals(1, flushResponse.getFailedShards());
+        ensureGreen(INDEX_NAME);
+
+        logger.info("--> Stop failing all remote store interactions");
+        translogRepo.setRandomControlIOExceptionRate(0d);
+        flushResponse = client().admin().indices().prepareFlush(INDEX_NAME).setForce(true).execute().actionGet();
+        assertEquals(1, flushResponse.getSuccessfulShards());
+        assertEquals(0, flushResponse.getFailedShards());
     }
 }

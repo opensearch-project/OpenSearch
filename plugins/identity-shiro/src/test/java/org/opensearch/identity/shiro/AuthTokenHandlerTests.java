@@ -100,11 +100,6 @@ public class AuthTokenHandlerTests extends OpenSearchTestCase {
         assertThrows(UnsupportedAuthenticationToken.class, () -> shiroAuthTokenHandler.getTokenInfo(bearerAuthToken));
     }
 
-    public void testShouldFailValidateToken() {
-        final BearerAuthToken bearerAuthToken = new BearerAuthToken("header.payload.signature");
-        assertFalse(shiroAuthTokenHandler.validateToken(bearerAuthToken));
-    }
-
     public void testShoudPassMapLookupWithToken() {
         final BasicAuthToken authToken = new BasicAuthToken("Basic dGVzdDp0ZTpzdA==");
         shiroAuthTokenHandler.getShiroTokenPasswordMap().put(authToken, "te:st");

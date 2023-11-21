@@ -36,6 +36,7 @@ import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.SortedNumericSortField;
 import org.apache.lucene.search.SortedSetSortField;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.fielddata.IndexFieldData;
@@ -53,7 +54,7 @@ import java.util.function.Supplier;
 
 /**
  * Holds all the information that is used to build the sort order of an index.
- *
+ * <p>
  * The index sort settings are <b>final</b> and can be defined only at index creation.
  * These settings are divided in four lists that are merged during the initialization of this class:
  * <ul>
@@ -69,8 +70,10 @@ import java.util.function.Supplier;
  *     </li>
  * </ul>
  *
- * @opensearch.internal
-**/
+ *
+ * @opensearch.api
+ */
+@PublicApi(since = "1.0.0")
 public final class IndexSortConfig {
     /**
      * The list of field names

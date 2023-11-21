@@ -34,12 +34,14 @@ package org.opensearch.action.admin.cluster.node.info;
 
 import org.opensearch.action.support.nodes.NodesOperationRequestBuilder;
 import org.opensearch.client.OpenSearchClient;
+import org.opensearch.common.annotation.PublicApi;
 
 /**
  * Transport action for OpenSearch Node Information
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class NodesInfoRequestBuilder extends NodesOperationRequestBuilder<NodesInfoRequest, NodesInfoResponse, NodesInfoRequestBuilder> {
 
     public NodesInfoRequestBuilder(OpenSearchClient client, NodesInfoAction action) {

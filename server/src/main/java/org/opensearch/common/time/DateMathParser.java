@@ -32,6 +32,7 @@
 
 package org.opensearch.common.time;
 
+import org.opensearch.common.annotation.PublicApi;
 import org.joda.time.DateTimeZone;
 
 import java.time.Instant;
@@ -41,8 +42,9 @@ import java.util.function.LongSupplier;
 /**
  * An abstraction over date math parsing to allow different implementation for joda and java time.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public interface DateMathParser {
 
     /**
@@ -64,12 +66,12 @@ public interface DateMathParser {
 
     /**
      * Parse text, that potentially contains date math into the milliseconds since the epoch
-     *
+     * <p>
      * Examples are
-     *
+     * <p>
      * <code>2014-11-18||-2y</code> subtracts two years from the input date
      * <code>now/m</code>           rounds the current time to minute granularity
-     *
+     * <p>
      * Supported rounding units are
      * y    year
      * M    month

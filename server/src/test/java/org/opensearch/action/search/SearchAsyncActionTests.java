@@ -136,7 +136,7 @@ public class SearchAsyncActionTests extends OpenSearchTestCase {
             new ArraySearchPhaseResults<>(shardsIter.size()),
             request.getMaxConcurrentShardRequests(),
             SearchResponse.Clusters.EMPTY,
-            null
+            new SearchRequestContext()
         ) {
 
             @Override
@@ -255,7 +255,7 @@ public class SearchAsyncActionTests extends OpenSearchTestCase {
             new ArraySearchPhaseResults<>(shardsIter.size()),
             request.getMaxConcurrentShardRequests(),
             SearchResponse.Clusters.EMPTY,
-            null
+            new SearchRequestContext()
         ) {
 
             @Override
@@ -373,7 +373,7 @@ public class SearchAsyncActionTests extends OpenSearchTestCase {
             new ArraySearchPhaseResults<>(shardsIter.size()),
             request.getMaxConcurrentShardRequests(),
             SearchResponse.Clusters.EMPTY,
-            null
+            new SearchRequestContext()
         ) {
             TestSearchResponse response = new TestSearchResponse();
 
@@ -496,7 +496,7 @@ public class SearchAsyncActionTests extends OpenSearchTestCase {
             new ArraySearchPhaseResults<>(shardsIter.size()),
             request.getMaxConcurrentShardRequests(),
             SearchResponse.Clusters.EMPTY,
-            null
+            new SearchRequestContext()
         ) {
             TestSearchResponse response = new TestSearchResponse();
 
@@ -610,7 +610,7 @@ public class SearchAsyncActionTests extends OpenSearchTestCase {
             new ArraySearchPhaseResults<>(shardsIter.size()),
             request.getMaxConcurrentShardRequests(),
             SearchResponse.Clusters.EMPTY,
-            null
+            new SearchRequestContext()
         ) {
             @Override
             protected void executePhaseOnShard(

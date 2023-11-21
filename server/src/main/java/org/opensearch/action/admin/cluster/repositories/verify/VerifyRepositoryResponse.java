@@ -33,6 +33,7 @@
 package org.opensearch.action.admin.cluster.repositories.verify;
 
 import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.ParseField;
 import org.opensearch.core.action.ActionResponse;
 import org.opensearch.core.common.Strings;
@@ -54,8 +55,9 @@ import java.util.stream.Collectors;
 /**
  * Verify repository response
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class VerifyRepositoryResponse extends ActionResponse implements ToXContentObject {
 
     static final String NODES = "nodes";
@@ -64,8 +66,9 @@ public class VerifyRepositoryResponse extends ActionResponse implements ToXConte
     /**
      * Inner Node View
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public static class NodeView implements Writeable, ToXContentObject {
         private static final ObjectParser.NamedObjectParser<NodeView, Void> PARSER;
         static {

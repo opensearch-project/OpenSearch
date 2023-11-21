@@ -41,6 +41,7 @@ import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.lifecycle.LifecycleComponent;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.core.action.ActionListener;
@@ -75,14 +76,18 @@ import java.util.function.Function;
  * <li>When all shard calls return cluster-manager calls {@link #finalizeSnapshot} with possible list of failures</li>
  * </ul>
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public interface Repository extends LifecycleComponent {
 
     /**
      * An factory interface for constructing repositories.
      * See {@link org.opensearch.plugins.RepositoryPlugin}.
+     *
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     interface Factory {
         /**
          * Constructs a repository.

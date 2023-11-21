@@ -24,8 +24,7 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.Version;
 import org.opensearch.common.UUIDs;
-import org.opensearch.common.blobstore.AsyncMultiStreamBlobContainer;
-import org.opensearch.common.blobstore.stream.read.listener.ReadContextListener;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.io.VersionedCodecStreamWrapper;
 import org.opensearch.common.logging.Loggers;
@@ -36,9 +35,9 @@ import org.opensearch.index.remote.RemoteStoreUtils;
 import org.opensearch.index.store.lockmanager.FileLockInfo;
 import org.opensearch.index.store.lockmanager.RemoteStoreCommitLevelLockManager;
 import org.opensearch.index.store.lockmanager.RemoteStoreLockManager;
+import org.opensearch.index.store.lockmanager.RemoteStoreMetadataLockManager;
 import org.opensearch.index.store.remote.metadata.RemoteSegmentMetadata;
 import org.opensearch.index.store.remote.metadata.RemoteSegmentMetadataHandler;
-import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
 import org.opensearch.threadpool.ThreadPool;
 
@@ -46,7 +45,6 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.NoSuchFileException;
-import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -70,8 +68,9 @@ import java.util.stream.Collectors;
  * remote segment store also keeps track of refresh checkpoints as metadata in a separate path which is handled by
  * another instance of {@code RemoteDirectory}.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "2.3.0")
 public final class RemoteSegmentStoreDirectory extends FilterDirectory implements RemoteStoreCommitLevelLockManager {
 
     /**
@@ -92,8 +91,6 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
     private final RemoteStoreLockManager mdLockManager;
 
     private final ThreadPool threadPool;
-
-    private final RecoverySettings recoverySettings;
 
     /**
      * Keeps track of local segment filename to uploaded filename along with other attributes like checksum.
@@ -127,15 +124,13 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
         RemoteDirectory remoteMetadataDirectory,
         RemoteStoreLockManager mdLockManager,
         ThreadPool threadPool,
-        ShardId shardId,
-        RecoverySettings recoverySettings
+        ShardId shardId
     ) throws IOException {
         super(remoteDataDirectory);
         this.remoteDataDirectory = remoteDataDirectory;
         this.remoteMetadataDirectory = remoteMetadataDirectory;
         this.mdLockManager = mdLockManager;
         this.threadPool = threadPool;
-        this.recoverySettings = recoverySettings;
         this.logger = Loggers.getLogger(getClass(), shardId);
         init();
     }
@@ -168,8 +163,9 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
      *
      * @throws IOException if there were any failures in reading the metadata file
      */
-    public RemoteSegmentMetadata initializeToSpecificCommit(long primaryTerm, long commitGeneration) throws IOException {
-        String metadataFile = getMetadataFileForCommit(primaryTerm, commitGeneration);
+    public RemoteSegmentMetadata initializeToSpecificCommit(long primaryTerm, long commitGeneration, String acquirerId) throws IOException {
+        String metadataFilePrefix = MetadataFilenameUtils.getMetadataFilePrefixForCommit(primaryTerm, commitGeneration);
+        String metadataFile = ((RemoteStoreMetadataLockManager) mdLockManager).fetchLock(metadataFilePrefix, acquirerId);
         RemoteSegmentMetadata remoteSegmentMetadata = readMetadataFile(metadataFile);
         if (remoteSegmentMetadata != null) {
             this.segmentsUploadedToRemoteStore = new ConcurrentHashMap<>(remoteSegmentMetadata.getMetadata());
@@ -222,7 +218,10 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
 
     /**
      * Metadata of a segment that is uploaded to remote segment store.
+     *
+     * @opensearch.api
      */
+    @PublicApi(since = "2.3.0")
     public static class UploadedSegmentMetadata {
         // Visible for testing
         static final String SEPARATOR = "::";
@@ -470,70 +469,6 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
         } catch (Exception e) {
             logger.warn(() -> new ParameterizedMessage("Exception while uploading file {} to the remote segment store", src), e);
             listener.onFailure(e);
-        }
-    }
-
-    /**
-     * Copies an existing {@code source} file from this directory to a non-existent file (also
-     * named {@code source}) in either {@code destinationDirectory} or {@code destinationPath}.
-     * If the blob container backing this directory supports multipart downloads, the {@code source}
-     * file will be downloaded (potentially in multiple concurrent parts) directly to
-     * {@code destinationPath}. This method will return immediately and {@code fileCompletionListener}
-     * will be notified upon completion.
-     * <p>
-     * If multipart downloads are not supported, then {@code source} file will be copied to a file named
-     * {@code source} in a single part to {@code destinationDirectory}. The download will happen on the
-     * calling thread and {@code fileCompletionListener} will be notified synchronously before this
-     * method returns.
-     *
-     * @param source The source file name
-     * @param destinationDirectory The destination directory (if multipart is not supported)
-     * @param destinationPath The destination path (if multipart is supported)
-     * @param fileTransferTracker Tracker used for file transfer stats
-     * @param fileCompletionListener The listener to notify of completion
-     */
-    public void copyTo(
-        String source,
-        Directory destinationDirectory,
-        Path destinationPath,
-        DirectoryFileTransferTracker fileTransferTracker,
-        ActionListener<String> fileCompletionListener
-    ) {
-        final String blobName = getExistingRemoteFilename(source);
-        if (destinationPath != null && remoteDataDirectory.getBlobContainer() instanceof AsyncMultiStreamBlobContainer) {
-            long length = 0L;
-            try {
-                length = fileLength(source);
-            } catch (IOException ex) {
-                logger.error("Unable to fetch segment length for stats tracking", ex);
-            }
-            final long fileLength = length;
-            final long startTime = System.currentTimeMillis();
-            fileTransferTracker.addTransferredBytesStarted(fileLength);
-            final AsyncMultiStreamBlobContainer blobContainer = (AsyncMultiStreamBlobContainer) remoteDataDirectory.getBlobContainer();
-            final Path destinationFilePath = destinationPath.resolve(source);
-            final ActionListener<String> completionListener = ActionListener.wrap(response -> {
-                fileTransferTracker.addTransferredBytesSucceeded(fileLength, startTime);
-                fileCompletionListener.onResponse(response);
-            }, e -> {
-                fileTransferTracker.addTransferredBytesFailed(fileLength, startTime);
-                fileCompletionListener.onFailure(e);
-            });
-            final ReadContextListener readContextListener = new ReadContextListener(
-                blobName,
-                destinationFilePath,
-                completionListener,
-                threadPool,
-                remoteDataDirectory.getDownloadRateLimiter(),
-                recoverySettings.getMaxConcurrentRemoteStoreStreams()
-            );
-            blobContainer.readBlobAsync(blobName, readContextListener);
-        } else {
-            // Fallback to older mechanism of downloading the file
-            ActionListener.completeWith(fileCompletionListener, () -> {
-                destinationDirectory.copyFrom(this, source, source, IOContext.DEFAULT);
-                return source;
-            });
         }
     }
 

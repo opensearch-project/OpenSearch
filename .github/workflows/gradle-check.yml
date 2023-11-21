@@ -82,10 +82,7 @@ jobs:
         with:
           issue-number: ${{ env.pr_number }}
           body: |
-            ### Gradle Check (Jenkins) Run Completed with:
-            * **RESULT:** ${{ env.result }} :white_check_mark:
-            * **URL:** ${{ env.workflow_url }}
-            * **CommitID:** ${{ env.pr_from_sha }}
+            :white_check_mark: Gradle check result for ${{ env.pr_from_sha }}: [${{ env.result }}](${{ env.workflow_url }})
 
       - name: Extract Test Failure
         if: ${{ github.event_name == 'pull_request_target' && env.result != 'SUCCESS' }}
@@ -108,10 +105,8 @@ jobs:
         with:
           issue-number: ${{ env.pr_number }}
           body: |
-            ### Gradle Check (Jenkins) Run Completed with:
-            * **RESULT:** ${{ env.result }} :grey_exclamation: ${{ env.test_failures }}
-            * **URL:** ${{ env.workflow_url }}
-            * **CommitID:** ${{ env.pr_from_sha }}
+            :grey_exclamation: Gradle check result for ${{ env.pr_from_sha }}: [${{ env.result }}](${{ env.workflow_url }}) ${{ env.test_failures }}
+
             Please review all [flaky tests](https://github.com/opensearch-project/OpenSearch/blob/main/DEVELOPER_GUIDE.md#flaky-tests) that succeeded after retry and create an issue if one does not already exist to track the flaky failure.
 
       - name: Create Comment Failure
@@ -120,12 +115,9 @@ jobs:
         with:
           issue-number: ${{ env.pr_number }}
           body: |
-            ### Gradle Check (Jenkins) Run Completed with:
-            * **RESULT:** ${{ env.result }} :x: ${{ env.test_failures }}
-            * **URL:** ${{ env.workflow_url }}
-            * **CommitID:** ${{ env.pr_from_sha }}
-            Please examine the workflow log, locate, and copy-paste the failure(s) below, then iterate to green.
-            Is the failure [a flaky test](https://github.com/opensearch-project/OpenSearch/blob/main/DEVELOPER_GUIDE.md#flaky-tests) unrelated to your change?
+            :x: Gradle check result for ${{ env.pr_from_sha }}: [${{ env.result }}](${{ env.workflow_url }})
+
+            Please examine the workflow log, locate, and copy-paste the failure(s) below, then iterate to green. Is the failure [a flaky test](https://github.com/opensearch-project/OpenSearch/blob/main/DEVELOPER_GUIDE.md#flaky-tests) unrelated to your change?
 
       - name: Create Issue On Push Failure
         if: ${{ github.event_name == 'push' && failure() }}

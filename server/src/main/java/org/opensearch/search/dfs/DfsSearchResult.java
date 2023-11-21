@@ -36,6 +36,7 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.CollectionStatistics;
 import org.apache.lucene.search.TermStatistics;
 import org.apache.lucene.util.BytesRef;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.search.SearchPhaseResult;
@@ -51,8 +52,9 @@ import java.util.Map;
 /**
  * Result from a Distributed Frequency Search phase
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class DfsSearchResult extends SearchPhaseResult {
 
     private static final Term[] EMPTY_TERMS = new Term[0];

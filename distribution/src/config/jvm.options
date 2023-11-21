@@ -81,7 +81,7 @@ ${error.file}
 
 # JDK 20+ Incubating Vector Module for SIMD optimizations;
 # disabling may reduce performance on vector optimized lucene
-20:--add-modules=jdk.incubator.vector
+20-:--add-modules=jdk.incubator.vector
 
 # HDFS ForkJoinPool.common() support by SecurityManager
 -Djava.util.concurrent.ForkJoinPool.common.threadFactory=org.opensearch.secure_sm.SecuredForkJoinWorkerThreadFactory

@@ -175,7 +175,7 @@ public class AbstractSearchAsyncActionTests extends OpenSearchTestCase {
             results,
             request.getMaxConcurrentShardRequests(),
             SearchResponse.Clusters.EMPTY,
-            null
+            new SearchRequestContext()
         ) {
             @Override
             protected SearchPhase getNextPhase(final SearchPhaseResults<SearchPhaseResult> results, SearchPhaseContext context) {
@@ -688,7 +688,11 @@ public class AbstractSearchAsyncActionTests extends OpenSearchTestCase {
         );
         AtomicReference<Exception> exception = new AtomicReference<>();
         ActionListener<SearchResponse> listener = ActionListener.wrap(response -> fail("onResponse should not be called"), exception::set);
-
+        TransportSearchAction.SearchTimeProvider timeProvider = new TransportSearchAction.SearchTimeProvider(
+            0,
+            System.nanoTime(),
+            System::nanoTime
+        );
         return new SearchDfsQueryThenFetchAsyncAction(
             logger,
             null,
@@ -702,11 +706,11 @@ public class AbstractSearchAsyncActionTests extends OpenSearchTestCase {
             searchRequest,
             listener,
             shardsIter,
-            null,
+            timeProvider,
             null,
             task,
             SearchResponse.Clusters.EMPTY,
-            new SearchRequestOperationsListener.CompositeListener(searchRequestOperationsListeners, logger)
+            new SearchRequestContext(new SearchRequestOperationsListener.CompositeListener(searchRequestOperationsListeners, logger))
         );
     }
 
@@ -734,6 +738,11 @@ public class AbstractSearchAsyncActionTests extends OpenSearchTestCase {
         );
         AtomicReference<Exception> exception = new AtomicReference<>();
         ActionListener<SearchResponse> listener = ActionListener.wrap(response -> fail("onResponse should not be called"), exception::set);
+        TransportSearchAction.SearchTimeProvider timeProvider = new TransportSearchAction.SearchTimeProvider(
+            0,
+            System.nanoTime(),
+            System::nanoTime
+        );
         return new SearchQueryThenFetchAsyncAction(
             logger,
             null,
@@ -747,11 +756,11 @@ public class AbstractSearchAsyncActionTests extends OpenSearchTestCase {
             searchRequest,
             listener,
             shardsIter,
-            null,
+            timeProvider,
             null,
             task,
             SearchResponse.Clusters.EMPTY,
-            new SearchRequestOperationsListener.CompositeListener(searchRequestOperationsListeners, logger)
+            new SearchRequestContext(new SearchRequestOperationsListener.CompositeListener(searchRequestOperationsListeners, logger))
         ) {
             @Override
             ShardSearchFailure[] buildShardFailures() {

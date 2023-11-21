@@ -33,6 +33,7 @@
 package org.opensearch.search.aggregations.bucket.terms;
 
 import org.opensearch.OpenSearchException;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
@@ -67,8 +68,9 @@ public abstract class TermsAggregator extends DeferableBucketAggregator {
     /**
      * Bucket count thresholds
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public static class BucketCountThresholds implements Writeable, ToXContentFragment {
         private long minDocCount;
         private long shardMinDocCount;
@@ -244,10 +246,10 @@ public abstract class TermsAggregator extends DeferableBucketAggregator {
         partiallyBuiltBucketComparator = order == null ? null : order.partiallyBuiltBucketComparator(b -> b.bucketOrd, this);
         this.format = format;
         if (subAggsNeedScore() && descendsFromNestedAggregator(parent)) {
-            /**
-             * Force the execution to depth_first because we need to access the score of
-             * nested documents in a sub-aggregation and we are not able to generate this score
-             * while replaying deferred documents.
+            /*
+              Force the execution to depth_first because we need to access the score of
+              nested documents in a sub-aggregation and we are not able to generate this score
+              while replaying deferred documents.
              */
             this.collectMode = SubAggCollectionMode.DEPTH_FIRST;
         } else {

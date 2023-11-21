@@ -113,13 +113,6 @@ class S3BlobContainer extends AbstractBlobContainer implements AsyncMultiStreamB
 
     private static final Logger logger = LogManager.getLogger(S3BlobContainer.class);
 
-    /**
-     * Maximum number of deletes in a {@link DeleteObjectsRequest}.
-     *
-     * @see <a href="https://docs.aws.amazon.com/AmazonS3/latest/API/multiobjectdeleteapi.html">S3 Documentation</a>.
-     */
-    private static final int MAX_BULK_DELETES = 1000;
-
     private final S3BlobStore blobStore;
     private final String keyPath;
 
@@ -202,11 +195,16 @@ class S3BlobContainer extends AbstractBlobContainer implements AsyncMultiStreamB
             StreamContext streamContext = SocketAccess.doPrivileged(() -> writeContext.getStreamProvider(partSize));
             try (AmazonAsyncS3Reference amazonS3Reference = SocketAccess.doPrivileged(blobStore::asyncClientReference)) {
 
-                S3AsyncClient s3AsyncClient = writeContext.getWritePriority() == WritePriority.HIGH
-                    ? amazonS3Reference.get().priorityClient()
-                    : amazonS3Reference.get().client();
+                S3AsyncClient s3AsyncClient;
+                if (writeContext.getWritePriority() == WritePriority.URGENT) {
+                    s3AsyncClient = amazonS3Reference.get().urgentClient();
+                } else if (writeContext.getWritePriority() == WritePriority.HIGH) {
+                    s3AsyncClient = amazonS3Reference.get().priorityClient();
+                } else {
+                    s3AsyncClient = amazonS3Reference.get().client();
+                }
                 CompletableFuture<Void> completableFuture = blobStore.getAsyncTransferManager()
-                    .uploadObject(s3AsyncClient, uploadRequest, streamContext);
+                    .uploadObject(s3AsyncClient, uploadRequest, streamContext, blobStore.getStatsMetricPublisher());
                 completableFuture.whenComplete((response, throwable) -> {
                     if (throwable == null) {
                         completionListener.onResponse(response);
@@ -339,12 +337,12 @@ class S3BlobContainer extends AbstractBlobContainer implements AsyncMultiStreamB
             outstanding = new HashSet<>(blobNames);
         }
         try (AmazonS3Reference clientReference = blobStore.clientReference()) {
-            // S3 API only allows 1k blobs per delete so we split up the given blobs into requests of max. 1k deletes
+            // S3 API allows 1k blobs per delete so we split up the given blobs into requests of bulk size deletes
             final List<DeleteObjectsRequest> deleteRequests = new ArrayList<>();
             final List<String> partition = new ArrayList<>();
             for (String key : outstanding) {
                 partition.add(key);
-                if (partition.size() == MAX_BULK_DELETES) {
+                if (partition.size() == blobStore.getBulkDeletesSize()) {
                     deleteRequests.add(bulkDelete(blobStore.bucket(), partition));
                     partition.clear();
                 }
@@ -391,7 +389,7 @@ class S3BlobContainer extends AbstractBlobContainer implements AsyncMultiStreamB
         assert outstanding.isEmpty();
     }
 
-    private static DeleteObjectsRequest bulkDelete(String bucket, List<String> blobs) {
+    private DeleteObjectsRequest bulkDelete(String bucket, List<String> blobs) {
         return DeleteObjectsRequest.builder()
             .bucket(bucket)
             .delete(
@@ -400,6 +398,7 @@ class S3BlobContainer extends AbstractBlobContainer implements AsyncMultiStreamB
                     .quiet(true)
                     .build()
             )
+            .overrideConfiguration(o -> o.addMetricPublisher(blobStore.getStatsMetricPublisher().deleteObjectsMetricPublisher))
             .build();
     }
 

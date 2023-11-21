@@ -8,11 +8,15 @@
 
 package org.opensearch.search.aggregations;
 
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.search.internal.SearchContext;
 
 /**
  * Interface to define different stages of aggregation processing before and after document collection
+ *
+ * @opensearch.api
  */
+@PublicApi(since = "2.9.0")
 public interface AggregationProcessor {
 
     /**

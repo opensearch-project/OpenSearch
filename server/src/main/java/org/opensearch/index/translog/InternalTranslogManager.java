@@ -18,6 +18,7 @@ import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.engine.LifecycleAware;
 import org.opensearch.index.seqno.LocalCheckpointTracker;
 import org.opensearch.index.translog.listener.TranslogEventListener;
+import org.opensearch.index.translog.transfer.TranslogUploadFailedException;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -83,11 +84,14 @@ public class InternalTranslogManager implements TranslogManager, Closeable {
      * Rolls the translog generation and cleans unneeded.
      */
     @Override
-    public void rollTranslogGeneration() throws TranslogException {
+    public void rollTranslogGeneration() throws TranslogException, IOException {
         try (ReleasableLock ignored = readLock.acquire()) {
             engineLifeCycleAware.ensureOpen();
             translog.rollGeneration();
             translog.trimUnreferencedReaders();
+        } catch (TranslogUploadFailedException e) {
+            // Do not trigger the translogEventListener as it fails the Engine while this is only an issue with remote upload
+            throw e;
         } catch (AlreadyClosedException e) {
             translogEventListener.onFailure("translog roll generation failed", e);
             throw e;
@@ -426,10 +430,10 @@ public class InternalTranslogManager implements TranslogManager, Closeable {
      * @return if the translog should be flushed
      */
     public boolean shouldPeriodicallyFlush(long localCheckpointOfLastCommit, long flushThreshold) {
-        final long translogGenerationOfLastCommit = translog.getMinGenerationForSeqNo(
-            localCheckpointOfLastCommit + 1
-        ).translogFileGeneration;
-        if (translog.sizeInBytesByMinGen(translogGenerationOfLastCommit) < flushThreshold) {
+        // This is the minimum seqNo that is referred in translog and considered for calculating translog size
+        long minTranslogRefSeqNo = translog.getMinUnreferencedSeqNoInSegments(localCheckpointOfLastCommit + 1);
+        final long minReferencedTranslogGeneration = translog.getMinGenerationForSeqNo(minTranslogRefSeqNo).translogFileGeneration;
+        if (translog.sizeInBytesByMinGen(minReferencedTranslogGeneration) < flushThreshold) {
             return false;
         }
         /*
@@ -450,7 +454,7 @@ public class InternalTranslogManager implements TranslogManager, Closeable {
         final long translogGenerationOfNewCommit = translog.getMinGenerationForSeqNo(
             localCheckpointTrackerSupplier.get().getProcessedCheckpoint() + 1
         ).translogFileGeneration;
-        return translogGenerationOfLastCommit < translogGenerationOfNewCommit
+        return minReferencedTranslogGeneration < translogGenerationOfNewCommit
             || localCheckpointTrackerSupplier.get().getProcessedCheckpoint() == localCheckpointTrackerSupplier.get().getMaxSeqNo();
     }
 

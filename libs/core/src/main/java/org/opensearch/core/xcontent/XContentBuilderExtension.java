@@ -37,7 +37,7 @@ import java.util.function.Function;
 
 /**
  * This interface provides a way for non-JDK classes to plug in a way to serialize to xcontent.
- *
+ * <p>
  * It is <b>greatly</b> preferred that you implement {@link ToXContentFragment}
  * in the class for encoding, however, in some situations you may not own the
  * class, in which case you can add an implementation here for encoding it.
@@ -63,7 +63,7 @@ public interface XContentBuilderExtension {
      * Used for plugging in a human readable version of a class's encoding. It is assumed that
      * the human readable equivalent is <b>always</b> behind the {@code toString()} method, so
      * this transformer returns the raw value to be used.
-     *
+     * <p>
      * An example implementation:
      *
      * <pre>
@@ -79,7 +79,7 @@ public interface XContentBuilderExtension {
     /**
      * Used for plugging a transformer for a date or time type object into a String (or other
      * encodable object).
-     *
+     * <p>
      * For example:
      *
      * <pre>
