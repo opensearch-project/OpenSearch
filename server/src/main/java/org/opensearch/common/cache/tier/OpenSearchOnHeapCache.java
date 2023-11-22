@@ -31,7 +31,6 @@ public class OpenSearchOnHeapCache<K, V> implements OnHeapCachingTier<K, V>, Rem
     private TieredCacheRemovalListener<K, V> removalListener;
 
     private OpenSearchOnHeapCache(Builder<K, V> builder) {
-        Objects.requireNonNull(builder.weigher);
         CacheBuilder<K, V> cacheBuilder = CacheBuilder.<K, V>builder()
             .setMaximumWeight(builder.maxWeightInBytes)
             .weigher(builder.weigher)
@@ -123,6 +122,7 @@ public class OpenSearchOnHeapCache<K, V> implements OnHeapCachingTier<K, V>, Rem
         }
 
         public Builder<K, V> setWeigher(ToLongBiFunction<K, V> weigher) {
+            Objects.requireNonNull(weigher);
             this.weigher = weigher;
             return this;
         }
