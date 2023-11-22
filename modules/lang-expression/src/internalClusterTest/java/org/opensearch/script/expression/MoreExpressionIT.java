@@ -504,10 +504,6 @@ public class MoreExpressionIT extends ParameterizedOpenSearchIntegTestCase {
     }
 
     public void testSpecialValueVariable() throws Exception {
-        assumeFalse(
-            "Concurrent search case muted pending fix: https://github.com/opensearch-project/OpenSearch/issues/10079",
-            internalCluster().clusterService().getClusterSettings().get(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING)
-        );
         // i.e. _value for aggregations
         createIndex("test");
         ensureGreen("test");
