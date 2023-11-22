@@ -34,10 +34,7 @@ package org.opensearch.common;
 
 import org.opensearch.test.OpenSearchTestCase;
 
-import java.util.Locale;
-
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.nullValue;
 
 public class BooleansTests extends OpenSearchTestCase {
     private static final String[] NON_BOOLEANS = new String[] {
@@ -81,8 +78,23 @@ public class BooleansTests extends OpenSearchTestCase {
         assertFalse(Booleans.parseBoolean(null, Boolean.FALSE));
         assertTrue(Booleans.parseBoolean(null, Boolean.TRUE));
 
+        assertFalse(Booleans.parseBoolean("", false));
+        assertTrue(Booleans.parseBoolean("", true));
+        assertNull(Booleans.parseBoolean("", null));
+        assertFalse(Booleans.parseBoolean("", Boolean.FALSE));
+        assertTrue(Booleans.parseBoolean("", Boolean.TRUE));
+
+        assertFalse(Booleans.parseBoolean(" \t\n", false));
+        assertTrue(Booleans.parseBoolean(" \t\n", true));
+        assertNull(Booleans.parseBoolean(" \t\n", null));
+        assertFalse(Booleans.parseBoolean(" \t\n", Boolean.FALSE));
+        assertTrue(Booleans.parseBoolean(" \t\n", Boolean.TRUE));
+
         assertTrue(Booleans.parseBoolean("true", randomFrom(Boolean.TRUE, Boolean.FALSE, null)));
         assertFalse(Booleans.parseBoolean("false", randomFrom(Boolean.TRUE, Boolean.FALSE, null)));
+
+        assertTrue(Booleans.parseBoolean(new char[0], 0, 0, true));
+        assertFalse(Booleans.parseBoolean(new char[0], 0, 0, false));
     }
 
     public void testParseNonBooleanWithFallback() {
@@ -109,56 +121,12 @@ public class BooleansTests extends OpenSearchTestCase {
         }
     }
 
-    public void testIsBooleanLenient() {
-        String[] booleans = new String[] { "true", "false", "on", "off", "yes", "no", "0", "1" };
-        String[] notBooleans = new String[] { "11", "00", "sdfsdfsf", "F", "T" };
-        assertThat(Booleans.isBooleanLenient(null, 0, 1), is(false));
-
-        for (String b : booleans) {
-            String t = "prefix" + b + "suffix";
-            assertTrue(
-                "failed to recognize [" + b + "] as boolean",
-                Booleans.isBooleanLenient(t.toCharArray(), "prefix".length(), b.length())
-            );
-        }
-
-        for (String nb : notBooleans) {
-            String t = "prefix" + nb + "suffix";
-            assertFalse("recognized [" + nb + "] as boolean", Booleans.isBooleanLenient(t.toCharArray(), "prefix".length(), nb.length()));
-        }
-    }
-
-    public void testParseBooleanLenient() {
-        assertThat(Booleans.parseBooleanLenient(randomFrom("true", "on", "yes", "1"), randomBoolean()), is(true));
-        assertThat(Booleans.parseBooleanLenient(randomFrom("false", "off", "no", "0"), randomBoolean()), is(false));
-        assertThat(Booleans.parseBooleanLenient(randomFrom("true", "on", "yes").toUpperCase(Locale.ROOT), randomBoolean()), is(true));
-        assertThat(Booleans.parseBooleanLenient(null, false), is(false));
-        assertThat(Booleans.parseBooleanLenient(null, true), is(true));
-
-        assertThat(
-            Booleans.parseBooleanLenient(randomFrom("true", "on", "yes", "1"), randomFrom(Boolean.TRUE, Boolean.FALSE, null)),
-            is(true)
-        );
-        assertThat(
-            Booleans.parseBooleanLenient(randomFrom("false", "off", "no", "0"), randomFrom(Boolean.TRUE, Boolean.FALSE, null)),
-            is(false)
-        );
-        assertThat(
-            Booleans.parseBooleanLenient(
-                randomFrom("true", "on", "yes").toUpperCase(Locale.ROOT),
-                randomFrom(Boolean.TRUE, Boolean.FALSE, null)
-            ),
-            is(true)
-        );
-        assertThat(Booleans.parseBooleanLenient(null, Boolean.FALSE), is(false));
-        assertThat(Booleans.parseBooleanLenient(null, Boolean.TRUE), is(true));
-        assertThat(Booleans.parseBooleanLenient(null, null), nullValue());
-
-        char[] chars = randomFrom("true", "on", "yes", "1").toCharArray();
-        assertThat(Booleans.parseBooleanLenient(chars, 0, chars.length, randomBoolean()), is(true));
-        chars = randomFrom("false", "off", "no", "0").toCharArray();
-        assertThat(Booleans.parseBooleanLenient(chars, 0, chars.length, randomBoolean()), is(false));
-        chars = randomFrom("true", "on", "yes").toUpperCase(Locale.ROOT).toCharArray();
-        assertThat(Booleans.parseBooleanLenient(chars, 0, chars.length, randomBoolean()), is(true));
+    public void testParseBooleanStrict() {
+        assertTrue(Booleans.parseBooleanStrict("true", false));
+        assertFalse(Booleans.parseBooleanStrict("false", true));
+        assertTrue(Booleans.parseBooleanStrict(null, true));
+        assertFalse(Booleans.parseBooleanStrict("", false));
+        expectThrows(IllegalArgumentException.class, () -> Booleans.parseBooleanStrict("foobar", false));
+        expectThrows(IllegalArgumentException.class, () -> Booleans.parseBooleanStrict(" \t\n", false));
     }
 }
