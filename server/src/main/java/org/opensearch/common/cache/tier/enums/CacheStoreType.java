@@ -6,12 +6,12 @@
  * compatible open source license.
  */
 
-package org.opensearch.common.cache.tier;
+package org.opensearch.common.cache.tier.enums;
 
 /**
- * Tier types in cache.
+ * Cache store types in tiered cache.
  */
-public enum TierType {
+public enum CacheStoreType {
 
     ON_HEAP,
     DISK;

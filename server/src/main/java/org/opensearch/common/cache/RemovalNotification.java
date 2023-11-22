@@ -32,8 +32,6 @@
 
 package org.opensearch.common.cache;
 
-import org.opensearch.common.cache.tier.TierType;
-
 /**
  * Notification when an element is removed from the cache
  *
@@ -44,17 +42,11 @@ public class RemovalNotification<K, V> {
     private final K key;
     private final V value;
     private final RemovalReason removalReason;
-    private final TierType tierType;
 
     public RemovalNotification(K key, V value, RemovalReason removalReason) {
-        this(key, value, removalReason, TierType.ON_HEAP);
-    }
-
-    public RemovalNotification(K key, V value, RemovalReason removalReason, TierType tierType) {
         this.key = key;
         this.value = value;
         this.removalReason = removalReason;
-        this.tierType = tierType;
     }
 
     public K getKey() {
@@ -67,9 +59,5 @@ public class RemovalNotification<K, V> {
 
     public RemovalReason getRemovalReason() {
         return removalReason;
-    }
-
-    public TierType getTierType() {
-        return tierType;
     }
 }

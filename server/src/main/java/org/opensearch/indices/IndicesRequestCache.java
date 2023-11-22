@@ -42,11 +42,12 @@ import org.opensearch.common.CheckedSupplier;
 import org.opensearch.common.cache.RemovalNotification;
 import org.opensearch.common.cache.tier.OnHeapCachingTier;
 import org.opensearch.common.cache.tier.OpenSearchOnHeapCache;
-import org.opensearch.common.cache.tier.TierType;
-import org.opensearch.common.cache.tier.TieredCacheEventListener;
+import org.opensearch.common.cache.tier.enums.CacheStoreType;
+import org.opensearch.common.cache.tier.listeners.TieredCacheEventListener;
 import org.opensearch.common.cache.tier.TieredCacheLoader;
-import org.opensearch.common.cache.tier.TieredCacheService;
-import org.opensearch.common.cache.tier.TieredCacheSpilloverStrategyService;
+import org.opensearch.common.cache.tier.TieredCacheRemovalNotification;
+import org.opensearch.common.cache.tier.service.TieredCacheService;
+import org.opensearch.common.cache.tier.service.TieredCacheSpilloverStrategyService;
 import org.opensearch.common.lucene.index.OpenSearchDirectoryReader;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
@@ -139,23 +140,23 @@ public final class IndicesRequestCache implements TieredCacheEventListener<Indic
     }
 
     @Override
-    public void onMiss(Key key, TierType tierType) {
-        key.entity.onMiss(tierType);
+    public void onMiss(Key key, CacheStoreType cacheStoreType) {
+        key.entity.onMiss(cacheStoreType);
     }
 
     @Override
-    public void onRemoval(RemovalNotification<Key, BytesReference> notification) {
+    public void onRemoval(TieredCacheRemovalNotification<Key, BytesReference> notification) {
         notification.getKey().entity.onRemoval(notification);
     }
 
     @Override
-    public void onHit(Key key, BytesReference value, TierType tierType) {
-        key.entity.onHit(tierType);
+    public void onHit(Key key, BytesReference value, CacheStoreType cacheStoreType) {
+        key.entity.onHit(cacheStoreType);
     }
 
     @Override
-    public void onCached(Key key, BytesReference value, TierType tierType) {
-        key.entity.onCached(key, value, tierType);
+    public void onCached(Key key, BytesReference value, CacheStoreType cacheStoreType) {
+        key.entity.onCached(key, value, cacheStoreType);
     }
 
     BytesReference getOrCompute(
@@ -228,7 +229,7 @@ public final class IndicesRequestCache implements TieredCacheEventListener<Indic
         /**
          * Called after the value was loaded.
          */
-        void onCached(Key key, BytesReference value, TierType tierType);
+        void onCached(Key key, BytesReference value, CacheStoreType cacheStoreType);
 
         /**
          * Returns <code>true</code> iff the resource behind this entity is still open ie.
@@ -245,12 +246,12 @@ public final class IndicesRequestCache implements TieredCacheEventListener<Indic
         /**
          * Called each time this entity has a cache hit.
          */
-        void onHit(TierType tierType);
+        void onHit(CacheStoreType cacheStoreType);
 
         /**
          * Called each time this entity has a cache miss.
          */
-        void onMiss(TierType tierType);
+        void onMiss(CacheStoreType cacheStoreType);
 
         /**
          * Called when this entity instance is removed

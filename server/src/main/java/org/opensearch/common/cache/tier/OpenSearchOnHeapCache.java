@@ -12,6 +12,8 @@ import org.opensearch.common.cache.Cache;
 import org.opensearch.common.cache.CacheBuilder;
 import org.opensearch.common.cache.RemovalListener;
 import org.opensearch.common.cache.RemovalNotification;
+import org.opensearch.common.cache.tier.enums.CacheStoreType;
+import org.opensearch.common.cache.tier.listeners.TieredCacheRemovalListener;
 import org.opensearch.common.unit.TimeValue;
 
 import java.util.Objects;
@@ -26,7 +28,7 @@ import java.util.function.ToLongBiFunction;
 public class OpenSearchOnHeapCache<K, V> implements OnHeapCachingTier<K, V>, RemovalListener<K, V> {
 
     private final Cache<K, V> cache;
-    private RemovalListener<K, V> removalListener;
+    private TieredCacheRemovalListener<K, V> removalListener;
 
     private OpenSearchOnHeapCache(Builder<K, V> builder) {
         Objects.requireNonNull(builder.weigher);
@@ -41,7 +43,7 @@ public class OpenSearchOnHeapCache<K, V> implements OnHeapCachingTier<K, V>, Rem
     }
 
     @Override
-    public void setRemovalListener(RemovalListener<K, V> removalListener) {
+    public void setRemovalListener(TieredCacheRemovalListener<K, V> removalListener) {
         this.removalListener = removalListener;
     }
 
@@ -61,8 +63,8 @@ public class OpenSearchOnHeapCache<K, V> implements OnHeapCachingTier<K, V>, Rem
     }
 
     @Override
-    public TierType getTierType() {
-        return TierType.ON_HEAP;
+    public CacheStoreType getTierType() {
+        return CacheStoreType.ON_HEAP;
     }
 
     @Override
@@ -97,7 +99,8 @@ public class OpenSearchOnHeapCache<K, V> implements OnHeapCachingTier<K, V>, Rem
 
     @Override
     public void onRemoval(RemovalNotification<K, V> notification) {
-        removalListener.onRemoval(notification);
+        removalListener.onRemoval(new TieredCacheRemovalNotification<>(notification.getKey(), notification.getValue()
+            , notification.getRemovalReason(), CacheStoreType.ON_HEAP));
     }
 
     /**

@@ -37,7 +37,7 @@ import org.apache.lucene.search.Query;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.routing.allocation.DiskThresholdSettings;
 import org.opensearch.common.cache.RemovalNotification;
-import org.opensearch.common.cache.tier.TierType;
+import org.opensearch.common.cache.tier.enums.CacheStoreType;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.OpenSearchExecutors;
 import org.opensearch.core.common.bytes.BytesArray;
@@ -322,7 +322,7 @@ public class IndicesServiceCloseTests extends OpenSearchTestCase {
             }
 
             @Override
-            public void onCached(Key key, BytesReference value, TierType tierType) {}
+            public void onCached(Key key, BytesReference value, CacheStoreType tierType) {}
 
             @Override
             public boolean isOpen() {
@@ -335,10 +335,10 @@ public class IndicesServiceCloseTests extends OpenSearchTestCase {
             }
 
             @Override
-            public void onHit(TierType tierType) {}
+            public void onHit(CacheStoreType tierType) {}
 
             @Override
-            public void onMiss(TierType tierType) {}
+            public void onMiss(CacheStoreType tierType) {}
 
             @Override
             public void onRemoval(RemovalNotification<Key, BytesReference> notification) {}

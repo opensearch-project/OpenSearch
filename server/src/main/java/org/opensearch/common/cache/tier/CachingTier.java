@@ -8,7 +8,8 @@
 
 package org.opensearch.common.cache.tier;
 
-import org.opensearch.common.cache.RemovalListener;
+import org.opensearch.common.cache.tier.enums.CacheStoreType;
+import org.opensearch.common.cache.tier.listeners.TieredCacheRemovalListener;
 
 /**
  * Caching tier interface. Can be implemented/extended by concrete classes to provide different flavors of cache like
@@ -28,7 +29,7 @@ public interface CachingTier<K, V> {
 
     V compute(K key, TieredCacheLoader<K, V> loader) throws Exception;
 
-    void setRemovalListener(RemovalListener<K, V> removalListener);
+    void setRemovalListener(TieredCacheRemovalListener<K, V> removalListener);
 
     void invalidateAll();
 
@@ -36,7 +37,7 @@ public interface CachingTier<K, V> {
 
     int count();
 
-    TierType getTierType();
+    CacheStoreType getTierType();
 
     /**
      * Force any outstanding size-based and time-based evictions to occur

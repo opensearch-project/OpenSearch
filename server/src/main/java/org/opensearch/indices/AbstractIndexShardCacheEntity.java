@@ -34,7 +34,8 @@ package org.opensearch.indices;
 
 import org.opensearch.common.cache.RemovalNotification;
 import org.opensearch.common.cache.RemovalReason;
-import org.opensearch.common.cache.tier.TierType;
+import org.opensearch.common.cache.tier.enums.CacheStoreType;
+import org.opensearch.common.cache.tier.TieredCacheRemovalNotification;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.index.cache.request.ShardRequestCache;
 import org.opensearch.index.shard.IndexShard;
@@ -52,27 +53,35 @@ abstract class AbstractIndexShardCacheEntity implements IndicesRequestCache.Cach
     protected abstract ShardRequestCache stats();
 
     @Override
-    public final void onCached(IndicesRequestCache.Key key, BytesReference value, TierType tierType) {
-        stats().onCached(key, value, tierType);
+    public final void onCached(IndicesRequestCache.Key key, BytesReference value, CacheStoreType cacheStoreType) {
+        stats().onCached(key, value, cacheStoreType);
     }
 
     @Override
-    public final void onHit(TierType tierType) {
-        stats().onHit(tierType);
+    public final void onHit(CacheStoreType cacheStoreType) {
+        stats().onHit(cacheStoreType);
     }
 
     @Override
-    public final void onMiss(TierType tierType) {
-        stats().onMiss(tierType);
+    public final void onMiss(CacheStoreType cacheStoreType) {
+        stats().onMiss(cacheStoreType);
     }
 
     @Override
     public final void onRemoval(RemovalNotification<IndicesRequestCache.Key, BytesReference> notification) {
-        stats().onRemoval(
-            notification.getKey(),
-            notification.getValue(),
-            notification.getRemovalReason() == RemovalReason.EVICTED,
-            notification.getTierType()
-        );
+        if (notification instanceof TieredCacheRemovalNotification){
+            stats().onRemoval(
+                notification.getKey(),
+                notification.getValue(),
+                notification.getRemovalReason() == RemovalReason.EVICTED,
+                ((TieredCacheRemovalNotification<IndicesRequestCache.Key, BytesReference>) notification).getTierType()
+            );
+        } else {
+            stats().onRemoval(
+                notification.getKey(),
+                notification.getValue(),
+                notification.getRemovalReason() == RemovalReason.EVICTED
+            );
+        }
     }
 }

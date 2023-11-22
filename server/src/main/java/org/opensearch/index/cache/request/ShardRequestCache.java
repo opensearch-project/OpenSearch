@@ -33,7 +33,7 @@
 package org.opensearch.index.cache.request;
 
 import org.apache.lucene.util.Accountable;
-import org.opensearch.common.cache.tier.TierType;
+import org.opensearch.common.cache.tier.enums.CacheStoreType;
 import org.opensearch.common.metrics.CounterMetric;
 import org.opensearch.core.common.bytes.BytesReference;
 
@@ -46,39 +46,43 @@ import java.util.EnumMap;
  */
 public final class ShardRequestCache {
 
-    private EnumMap<TierType, StatsHolder> statsHolder = new EnumMap<>(TierType.class);
+    private EnumMap<CacheStoreType, StatsHolder> statsHolder = new EnumMap<>(CacheStoreType.class);
 
     public ShardRequestCache() {
-        for (TierType tierType : TierType.values()) {
-            statsHolder.put(tierType, new StatsHolder());
+        for (CacheStoreType cacheStoreType : CacheStoreType.values()) {
+            statsHolder.put(cacheStoreType, new StatsHolder());
         }
     }
 
     public RequestCacheStats stats() {
         // TODO: Change RequestCacheStats to support disk tier stats.
         return new RequestCacheStats(
-            statsHolder.get(TierType.ON_HEAP).totalMetric.count(),
-            statsHolder.get(TierType.ON_HEAP).evictionsMetric.count(),
-            statsHolder.get(TierType.ON_HEAP).hitCount.count(),
-            statsHolder.get(TierType.ON_HEAP).missCount.count()
+            statsHolder.get(CacheStoreType.ON_HEAP).totalMetric.count(),
+            statsHolder.get(CacheStoreType.ON_HEAP).evictionsMetric.count(),
+            statsHolder.get(CacheStoreType.ON_HEAP).hitCount.count(),
+            statsHolder.get(CacheStoreType.ON_HEAP).missCount.count()
         );
     }
 
-    public void onHit(TierType tierType) {
-        statsHolder.get(tierType).hitCount.inc();
+    public void onHit(CacheStoreType cacheStoreType) {
+        statsHolder.get(cacheStoreType).hitCount.inc();
     }
 
-    public void onMiss(TierType tierType) {
-        statsHolder.get(tierType).missCount.inc();
+    public void onMiss(CacheStoreType cacheStoreType) {
+        statsHolder.get(cacheStoreType).missCount.inc();
     }
 
-    public void onCached(Accountable key, BytesReference value, TierType tierType) {
-        statsHolder.get(tierType).totalMetric.inc(key.ramBytesUsed() + value.ramBytesUsed());
+    public void onCached(Accountable key, BytesReference value, CacheStoreType cacheStoreType) {
+        statsHolder.get(cacheStoreType).totalMetric.inc(key.ramBytesUsed() + value.ramBytesUsed());
     }
 
-    public void onRemoval(Accountable key, BytesReference value, boolean evicted, TierType tierType) {
+    public void onRemoval(Accountable key, BytesReference value, boolean evicted) {
+        onRemoval(key, value, evicted, CacheStoreType.ON_HEAP); // By default On heap cache.
+    }
+
+    public void onRemoval(Accountable key, BytesReference value, boolean evicted, CacheStoreType cacheStoreType) {
         if (evicted) {
-            statsHolder.get(tierType).evictionsMetric.inc();
+            statsHolder.get(cacheStoreType).evictionsMetric.inc();
         }
         long dec = 0;
         if (key != null) {
@@ -87,7 +91,7 @@ public final class ShardRequestCache {
         if (value != null) {
             dec += value.ramBytesUsed();
         }
-        statsHolder.get(tierType).totalMetric.dec(dec);
+        statsHolder.get(cacheStoreType).totalMetric.dec(dec);
     }
 
     static class StatsHolder {

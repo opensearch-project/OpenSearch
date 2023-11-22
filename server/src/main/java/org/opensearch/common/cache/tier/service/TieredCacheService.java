@@ -6,7 +6,11 @@
  * compatible open source license.
  */
 
-package org.opensearch.common.cache.tier;
+package org.opensearch.common.cache.tier.service;
+
+import org.opensearch.common.cache.tier.DiskCachingTier;
+import org.opensearch.common.cache.tier.OnHeapCachingTier;
+import org.opensearch.common.cache.tier.TieredCacheLoader;
 
 import java.util.Optional;
 
