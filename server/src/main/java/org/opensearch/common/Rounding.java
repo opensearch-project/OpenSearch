@@ -465,8 +465,8 @@ public abstract class Rounding implements Writeable {
     public static class TimeUnitRounding extends Rounding {
         static final byte ID = 1;
 
-        public final DateTimeUnit unit;
-        public final ZoneId timeZone;
+        private final DateTimeUnit unit;
+        private final ZoneId timeZone;
         private final boolean unitRoundsToMidnight;
 
         TimeUnitRounding(DateTimeUnit unit, ZoneId timeZone) {
@@ -488,6 +488,14 @@ public abstract class Rounding implements Writeable {
         @Override
         public byte id() {
             return ID;
+        }
+
+        public DateTimeUnit getUnit() {
+            return this.unit;
+        }
+
+        public ZoneId getTimeZone() {
+            return this.timeZone;
         }
 
         private LocalDateTime truncateLocalDateTime(LocalDateTime localDateTime) {
@@ -923,8 +931,8 @@ public abstract class Rounding implements Writeable {
     public static class TimeIntervalRounding extends Rounding {
         static final byte ID = 2;
 
-        public final long interval;
-        public final ZoneId timeZone;
+        private final long interval;
+        private final ZoneId timeZone;
 
         TimeIntervalRounding(long interval, ZoneId timeZone) {
             if (interval < 1) throw new IllegalArgumentException("Zero or negative time interval not supported");
@@ -945,6 +953,14 @@ public abstract class Rounding implements Writeable {
         @Override
         public byte id() {
             return ID;
+        }
+
+        public long getInterval() {
+            return this.interval;
+        }
+
+        public ZoneId getTimeZone() {
+            return this.timeZone;
         }
 
         @Override

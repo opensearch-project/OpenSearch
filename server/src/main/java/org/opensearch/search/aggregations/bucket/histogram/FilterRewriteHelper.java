@@ -128,14 +128,14 @@ public class FilterRewriteHelper {
     ) throws IOException {
         long interval;
         if (rounding instanceof Rounding.TimeUnitRounding) {
-            interval = (((Rounding.TimeUnitRounding) rounding).unit).extraLocalOffsetLookup();
-            if (!isUTCTimeZone(((Rounding.TimeUnitRounding) rounding).timeZone)) {
+            interval = (((Rounding.TimeUnitRounding) rounding).getUnit()).extraLocalOffsetLookup();
+            if (!isUTCTimeZone(((Rounding.TimeUnitRounding) rounding).getTimeZone())) {
                 // Fast filter aggregation cannot be used if it needs time zone rounding
                 return null;
             }
         } else if (rounding instanceof Rounding.TimeIntervalRounding) {
-            interval = ((Rounding.TimeIntervalRounding) rounding).interval;
-            if (!isUTCTimeZone(((Rounding.TimeIntervalRounding) rounding).timeZone)) {
+            interval = ((Rounding.TimeIntervalRounding) rounding).getInterval();
+            if (!isUTCTimeZone(((Rounding.TimeIntervalRounding) rounding).getTimeZone())) {
                 // Fast filter aggregation cannot be used if it needs time zone rounding
                 return null;
             }
