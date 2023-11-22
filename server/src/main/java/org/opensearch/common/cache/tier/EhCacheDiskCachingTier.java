@@ -125,8 +125,10 @@ public class EhCacheDiskCachingTier<K, V> implements DiskCachingTier<K, V> {
 
         // IndicesRequestCache gets 1%, of which we allocate 5% to the keystore = 0.05%
         // TODO: how do we change this automatically based on INDICES_CACHE_QUERY_SIZE setting?
-        Setting<ByteSizeValue> keystoreSizeSetting = Setting.memorySizeSetting(builder.settingPrefix + ".tiered.disk.keystore_size", "0.05%");
-        this.keystore = new RBMIntKeyLookupStore(keystoreSizeSetting.get(this.settings).getBytes());
+        //Setting<ByteSizeValue> keystoreSizeSetting = Setting.memorySizeSetting(builder.settingPrefix + ".tiered.disk.keystore_size", "0.05%");
+        //this.keystore = new RBMIntKeyLookupStore(keystoreSizeSetting.get(this.settings).getBytes());
+        long keystoreMaxWeight = builder.keystoreMaxWeightInBytes;
+        this.keystore = new RBMIntKeyLookupStore(keystoreMaxWeight);
     }
 
     private PersistentCacheManager buildCacheManager() {
@@ -413,6 +415,7 @@ public class EhCacheDiskCachingTier<K, V> implements DiskCachingTier<K, V> {
         private boolean isEventListenerModeSync;
         private Serializer<K, byte[]> keySerializer;
         private Serializer<V, byte[]> valueSerializer;
+        private long keystoreMaxWeightInBytes = 0;
 
         public Builder() {}
 
@@ -477,6 +480,11 @@ public class EhCacheDiskCachingTier<K, V> implements DiskCachingTier<K, V> {
 
         public EhCacheDiskCachingTier.Builder<K, V> setValueSerializer(Serializer<V, byte[]> valueSerializer) {
             this.valueSerializer = valueSerializer;
+            return this;
+        }
+
+        public EhCacheDiskCachingTier.Builder<K, V> setKeyStoreMaxWeightInBytes(long weight) {
+            this.keystoreMaxWeightInBytes = weight;
             return this;
         }
 
