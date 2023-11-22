@@ -1,0 +1,12 @@
+---
+_meta:
+  type: "actiongroups"
+  config_version: 2
+
+# ISM API permissions group
+manage_ism:
+  reserved: true
+  hidden: false
+  allowed_actions:
+  - "cluster:admin/opendistro/ism/*"
+  static: false
