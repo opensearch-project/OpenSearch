@@ -36,6 +36,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.RateLimiter;
 import org.apache.lucene.store.RateLimiter.SimpleRateLimiter;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
@@ -48,8 +49,9 @@ import org.opensearch.core.common.unit.ByteSizeValue;
 /**
  * Settings for the recovery mechanism
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class RecoverySettings {
 
     private static final Logger logger = LogManager.getLogger(RecoverySettings.class);

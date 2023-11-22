@@ -10,6 +10,7 @@ package org.opensearch.action.search;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.opensearch.common.annotation.InternalApi;
 
 import java.util.List;
 
@@ -18,13 +19,18 @@ import java.util.List;
  *
  * @opensearch.internal
  */
-public interface SearchRequestOperationsListener {
+@InternalApi
+interface SearchRequestOperationsListener {
 
     void onPhaseStart(SearchPhaseContext context);
 
-    void onPhaseEnd(SearchPhaseContext context);
+    void onPhaseEnd(SearchPhaseContext context, SearchRequestContext searchRequestContext);
 
     void onPhaseFailure(SearchPhaseContext context);
+
+    default void onRequestStart(SearchRequestContext searchRequestContext) {}
+
+    default void onRequestEnd(SearchPhaseContext context, SearchRequestContext searchRequestContext) {}
 
     /**
      * Holder of Composite Listeners
@@ -53,10 +59,10 @@ public interface SearchRequestOperationsListener {
         }
 
         @Override
-        public void onPhaseEnd(SearchPhaseContext context) {
+        public void onPhaseEnd(SearchPhaseContext context, SearchRequestContext searchRequestContext) {
             for (SearchRequestOperationsListener listener : listeners) {
                 try {
-                    listener.onPhaseEnd(context);
+                    listener.onPhaseEnd(context, searchRequestContext);
                 } catch (Exception e) {
                     logger.warn(() -> new ParameterizedMessage("onPhaseEnd listener [{}] failed", listener), e);
                 }
@@ -70,6 +76,28 @@ public interface SearchRequestOperationsListener {
                     listener.onPhaseFailure(context);
                 } catch (Exception e) {
                     logger.warn(() -> new ParameterizedMessage("onPhaseFailure listener [{}] failed", listener), e);
+                }
+            }
+        }
+
+        @Override
+        public void onRequestStart(SearchRequestContext searchRequestContext) {
+            for (SearchRequestOperationsListener listener : listeners) {
+                try {
+                    listener.onRequestStart(searchRequestContext);
+                } catch (Exception e) {
+                    logger.warn(() -> new ParameterizedMessage("onRequestStart listener [{}] failed", listener), e);
+                }
+            }
+        }
+
+        @Override
+        public void onRequestEnd(SearchPhaseContext context, SearchRequestContext searchRequestContext) {
+            for (SearchRequestOperationsListener listener : listeners) {
+                try {
+                    listener.onRequestEnd(context, searchRequestContext);
+                } catch (Exception e) {
+                    logger.warn(() -> new ParameterizedMessage("onRequestEnd listener [{}] failed", listener), e);
                 }
             }
         }

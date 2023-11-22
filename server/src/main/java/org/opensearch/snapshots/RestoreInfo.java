@@ -31,6 +31,7 @@
 
 package org.opensearch.snapshots;
 
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.ParseField;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.StreamInput;
@@ -53,8 +54,9 @@ import java.util.Objects;
  * <p>
  * Returned as part of {@link org.opensearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse}
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class RestoreInfo implements ToXContentObject, Writeable {
 
     private String name;

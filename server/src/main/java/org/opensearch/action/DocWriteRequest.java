@@ -38,6 +38,7 @@ import org.opensearch.action.index.IndexRequest;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.action.update.UpdateRequest;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.lucene.uid.Versions;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
@@ -55,8 +56,9 @@ import static org.opensearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
  * Generic interface to group ActionRequest, which perform writes to a single document
  * Action requests implementing this can be part of {@link org.opensearch.action.bulk.BulkRequest}
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public interface DocWriteRequest<T> extends IndicesRequest, Accountable {
 
     // Flag set for disallowing index auto creation for an individual write request.
@@ -169,7 +171,10 @@ public interface DocWriteRequest<T> extends IndicesRequest, Accountable {
 
     /**
      * Requested operation type to perform on the document
+     *
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     enum OpType {
         /**
          * Index the source. If there an existing document with the id, it will

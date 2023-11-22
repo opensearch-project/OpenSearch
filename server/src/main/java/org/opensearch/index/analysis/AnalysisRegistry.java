@@ -38,6 +38,7 @@ import org.apache.lucene.analysis.core.WhitespaceTokenizer;
 import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.env.Environment;
@@ -67,8 +68,9 @@ import static java.util.Collections.unmodifiableMap;
  * An internal registry for tokenizer, token filter, char filter and analyzer.
  * This class exists per node and allows to create per-index {@link IndexAnalyzers} via {@link #build(IndexSettings)}
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public final class AnalysisRegistry implements Closeable {
     public static final String INDEX_ANALYSIS_CHAR_FILTER = "index.analysis.char_filter";
     public static final String INDEX_ANALYSIS_FILTER = "index.analysis.filter";

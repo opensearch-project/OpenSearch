@@ -8,6 +8,7 @@
 
 package org.opensearch.action.search;
 
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.metrics.CounterMetric;
 import org.opensearch.common.metrics.MeanMetric;
@@ -19,8 +20,9 @@ import java.util.concurrent.TimeUnit;
 /**
  * Request level search stats to track coordinator level node search latencies
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "2.11.0")
 public final class SearchRequestStats implements SearchRequestOperationsListener {
     Map<SearchPhaseName, StatsHolder> phaseStatsMap = new EnumMap<>(SearchPhaseName.class);
 
@@ -49,7 +51,7 @@ public final class SearchRequestStats implements SearchRequestOperationsListener
     }
 
     @Override
-    public void onPhaseEnd(SearchPhaseContext context) {
+    public void onPhaseEnd(SearchPhaseContext context, SearchRequestContext searchRequestContext) {
         StatsHolder phaseStats = phaseStatsMap.get(context.getCurrentPhase().getSearchPhaseName());
         phaseStats.current.dec();
         phaseStats.total.inc();

@@ -42,6 +42,7 @@ import org.opensearch.cluster.routing.AllocationId;
 import org.opensearch.cluster.routing.IndexShardRoutingTable;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.common.SuppressForbidden;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.util.concurrent.ConcurrentCollections;
 import org.opensearch.core.action.ActionListener;
@@ -676,8 +677,9 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
     /**
     * The state of the lucene checkpoint
     *
-    * @opensearch.internal
+    * @opensearch.api
     */
+    @PublicApi(since = "1.0.0")
     public static class CheckpointState implements Writeable {
 
         /**
@@ -1897,8 +1899,9 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
      * Represents the sequence number component of the primary context. This is the knowledge on the primary of the in-sync and initializing
      * shards and their local checkpoints.
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public static class PrimaryContext implements Writeable {
 
         private final long clusterStateVersion;

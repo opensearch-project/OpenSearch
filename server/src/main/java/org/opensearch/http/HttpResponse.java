@@ -32,12 +32,15 @@
 
 package org.opensearch.http;
 
+import org.opensearch.common.annotation.PublicApi;
+
 /**
  * A basic http response abstraction. Http modules must implement this interface as the server package rest
  * handling needs to set http headers for a response.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public interface HttpResponse {
 
     void addHeader(String name, String value);

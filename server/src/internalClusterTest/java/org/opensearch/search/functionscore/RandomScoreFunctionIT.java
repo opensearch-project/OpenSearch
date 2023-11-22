@@ -135,6 +135,7 @@ public class RandomScoreFunctionIT extends ParameterizedOpenSearchIntegTestCase 
         }
         flush();
         refresh();
+        indexRandomForConcurrentSearch("test");
         int outerIters = scaledRandomIntBetween(10, 20);
         for (int o = 0; o < outerIters; o++) {
             final int seed = randomInt();
@@ -207,6 +208,7 @@ public class RandomScoreFunctionIT extends ParameterizedOpenSearchIntegTestCase 
                 .get();
         }
         refresh();
+        indexRandomForConcurrentSearch("test");
 
         Map<String, Object> params = new HashMap<>();
         params.put("factor", randomIntBetween(2, 4));
@@ -298,6 +300,7 @@ public class RandomScoreFunctionIT extends ParameterizedOpenSearchIntegTestCase 
         index("test", "type", "1", jsonBuilder().startObject().endObject());
         flush();
         refresh();
+        indexRandomForConcurrentSearch("test");
 
         int seed = 12345678;
 
@@ -317,6 +320,7 @@ public class RandomScoreFunctionIT extends ParameterizedOpenSearchIntegTestCase 
         index("test", "type", "1", jsonBuilder().startObject().endObject());
         flush();
         refresh();
+        indexRandomForConcurrentSearch("test");
 
         int seed = 12345678;
 
@@ -368,6 +372,7 @@ public class RandomScoreFunctionIT extends ParameterizedOpenSearchIntegTestCase 
         }
         flush();
         refresh();
+        indexRandomForConcurrentSearch("test");
         int iters = scaledRandomIntBetween(10, 20);
         for (int i = 0; i < iters; ++i) {
             SearchResponse searchResponse = client().prepareSearch()
@@ -390,6 +395,7 @@ public class RandomScoreFunctionIT extends ParameterizedOpenSearchIntegTestCase 
             index("test", "type", "" + i, jsonBuilder().startObject().endObject());
         }
         flushAndRefresh();
+        indexRandomForConcurrentSearch("test");
 
         assertNoFailures(
             client().prepareSearch()

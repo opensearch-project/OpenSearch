@@ -76,12 +76,13 @@ public class MetadataFetchingIT extends ParameterizedOpenSearchIntegTestCase {
         return Settings.builder().put(super.featureFlagSettings()).put(FeatureFlags.CONCURRENT_SEGMENT_SEARCH, "true").build();
     }
 
-    public void testSimple() {
+    public void testSimple() throws InterruptedException {
         assertAcked(prepareCreate("test"));
         ensureGreen();
 
         client().prepareIndex("test").setId("1").setSource("field", "value").get();
         refresh();
+        indexRandomForConcurrentSearch("test");
 
         SearchResponse response = client().prepareSearch("test").storedFields("_none_").setFetchSource(false).setVersion(true).get();
         assertThat(response.getHits().getAt(0).getId(), nullValue());
@@ -93,12 +94,12 @@ public class MetadataFetchingIT extends ParameterizedOpenSearchIntegTestCase {
         assertThat(response.getHits().getAt(0).getSourceAsString(), nullValue());
     }
 
-    public void testInnerHits() {
+    public void testInnerHits() throws InterruptedException {
         assertAcked(prepareCreate("test").setMapping("nested", "type=nested"));
         ensureGreen();
         client().prepareIndex("test").setId("1").setSource("field", "value", "nested", Collections.singletonMap("title", "foo")).get();
         refresh();
-
+        indexRandomForConcurrentSearch("test");
         SearchResponse response = client().prepareSearch("test")
             .storedFields("_none_")
             .setFetchSource(false)
@@ -119,12 +120,13 @@ public class MetadataFetchingIT extends ParameterizedOpenSearchIntegTestCase {
         assertThat(hits.getAt(0).getSourceAsString(), nullValue());
     }
 
-    public void testWithRouting() {
+    public void testWithRouting() throws InterruptedException {
         assertAcked(prepareCreate("test"));
         ensureGreen();
 
         client().prepareIndex("test").setId("1").setSource("field", "value").setRouting("toto").get();
         refresh();
+        indexRandomForConcurrentSearch("test");
 
         SearchResponse response = client().prepareSearch("test").storedFields("_none_").setFetchSource(false).get();
         assertThat(response.getHits().getAt(0).getId(), nullValue());
