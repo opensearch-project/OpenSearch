@@ -33,6 +33,7 @@
 package org.opensearch.index.cache.request;
 
 import org.apache.lucene.util.Accountable;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.cache.tier.enums.CacheStoreType;
 import org.opensearch.common.metrics.CounterMetric;
 import org.opensearch.core.common.bytes.BytesReference;
@@ -42,8 +43,9 @@ import java.util.EnumMap;
 /**
  * Tracks the portion of the request cache in use for a particular shard.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public final class ShardRequestCache {
 
     private EnumMap<CacheStoreType, StatsHolder> statsHolder = new EnumMap<>(CacheStoreType.class);

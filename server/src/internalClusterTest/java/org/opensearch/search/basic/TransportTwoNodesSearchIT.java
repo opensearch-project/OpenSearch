@@ -128,6 +128,7 @@ public class TransportTwoNodesSearchIT extends ParameterizedOpenSearchIntegTestC
             fullExpectedIds.add(Integer.toString(i));
         }
         refresh();
+        indexRandomForConcurrentSearch("test");
         return fullExpectedIds;
     }
 

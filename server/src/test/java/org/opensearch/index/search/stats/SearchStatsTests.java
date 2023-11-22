@@ -85,7 +85,7 @@ public class SearchStatsTests extends OpenSearchTestCase {
             when(mockSearchPhase.getSearchPhaseName()).thenReturn(searchPhaseName);
             for (int iterator = 0; iterator < paramValue; iterator++) {
                 testRequestStats.onPhaseStart(ctx);
-                testRequestStats.onPhaseEnd(ctx);
+                testRequestStats.onPhaseEnd(ctx, null /* not needed */);
             }
         }
         searchStats1.setSearchRequestStats(testRequestStats);

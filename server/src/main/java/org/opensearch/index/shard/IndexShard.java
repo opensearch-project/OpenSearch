@@ -78,6 +78,7 @@ import org.opensearch.common.CheckedFunction;
 import org.opensearch.common.CheckedRunnable;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.SetOnce;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.io.stream.BytesStreamOutput;
@@ -187,6 +188,7 @@ import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.indices.recovery.RecoveryTarget;
 import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
 import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpointPublisher;
+import org.opensearch.indices.replication.common.ReplicationTimer;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.Repository;
 import org.opensearch.search.suggest.completion.CompletionStats;
@@ -202,6 +204,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.NoSuchFileException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashSet;
@@ -237,8 +240,9 @@ import static org.opensearch.index.translog.Translog.TRANSLOG_UUID_KEY;
 /**
  * An OpenSearch index shard
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class IndexShard extends AbstractIndexShardComponent implements IndicesClusterStateService.Shard {
 
     private final ThreadPool threadPool;
@@ -698,7 +702,16 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                             if (indexSettings.isSegRepEnabled()) {
                                 // this Shard's engine was read only, we need to update its engine before restoring local history from xlog.
                                 assert newRouting.primary() && currentRouting.primary() == false;
+                                ReplicationTimer timer = new ReplicationTimer();
+                                timer.start();
+                                logger.debug(
+                                    "Resetting engine on promotion of shard [{}] to primary, startTime {}\n",
+                                    shardId,
+                                    timer.startTime()
+                                );
                                 resetEngineToGlobalCheckpoint();
+                                timer.stop();
+                                logger.info("Completed engine failover for shard [{}] in: {} ms", shardId, timer.time());
                                 // It is possible an engine can open with a SegmentInfos on a higher gen but the reader does not refresh to
                                 // trigger our refresh listener.
                                 // Force update the checkpoint post engine reset.
@@ -1994,6 +2007,29 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         FilterDirectory byteSizeCachingStoreDirectory = (FilterDirectory) remoteStoreDirectory.getDelegate();
         final Directory remoteDirectory = byteSizeCachingStoreDirectory.getDelegate();
         return ((RemoteSegmentStoreDirectory) remoteDirectory);
+    }
+
+    /**
+    Returns true iff it is able to verify that remote segment store
+    is in sync with local
+     */
+    boolean isRemoteSegmentStoreInSync() {
+        assert indexSettings.isRemoteStoreEnabled();
+        try {
+            RemoteSegmentStoreDirectory directory = getRemoteDirectory();
+            if (directory.readLatestMetadataFile() != null) {
+                // verifying that all files except EXCLUDE_FILES are uploaded to the remote
+                Collection<String> uploadFiles = directory.getSegmentsUploadedToRemoteStore().keySet();
+                SegmentInfos segmentInfos = store.readLastCommittedSegmentsInfo();
+                Collection<String> localFiles = segmentInfos.files(true);
+                if (uploadFiles.containsAll(localFiles)) {
+                    return true;
+                }
+            }
+        } catch (IOException e) {
+            logger.error("Exception while reading latest metadata", e);
+        }
+        return false;
     }
 
     public void preRecovery() {
@@ -4369,8 +4405,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      *
      * @see IndexShard#addShardFailureCallback(Consumer)
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public static final class ShardFailure {
         public final ShardRouting routing;
         public final String reason;
@@ -4874,8 +4911,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             remoteStore.incRef();
         }
         Map<String, RemoteSegmentStoreDirectory.UploadedSegmentMetadata> uploadedSegments = sourceRemoteDirectory
-            .initializeToSpecificCommit(primaryTerm, commitGeneration)
-            .getMetadata();
+            .getSegmentsUploadedToRemoteStore();
         final Directory storeDirectory = store.directory();
         store.incRef();
 

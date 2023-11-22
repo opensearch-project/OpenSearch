@@ -34,6 +34,7 @@ package org.opensearch.search.sort;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Scorable;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.lucene.ScorerAware;
@@ -94,14 +95,16 @@ import static java.util.Collections.emptyList;
  * of allocations and to play well with our paged arrays.
  * </p>
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public abstract class BucketedSort implements Releasable {
     /**
      * Callbacks for storing extra data along with competitive sorts.
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public interface ExtraData {
         /**
          * Swap the position of two bits of extra data.
@@ -121,9 +124,10 @@ public abstract class BucketedSort implements Releasable {
         /**
          * Loader for extra data
          *
-         * @opensearch.internal
+         * @opensearch.api
          */
         @FunctionalInterface
+        @PublicApi(since = "1.0.0")
         interface Loader {
             /**
              * Load extra data from a doc.
@@ -194,9 +198,10 @@ public abstract class BucketedSort implements Releasable {
      * Used with {@link BucketedSort#getValues(long, ResultBuilder)} to
      * build results from the sorting operation.
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
     @FunctionalInterface
+    @PublicApi(since = "1.0.0")
     public interface ResultBuilder<T> {
         T build(long index, SortValue sortValue);
     }
@@ -408,7 +413,10 @@ public abstract class BucketedSort implements Releasable {
 
     /**
      * Performs the actual collection against a {@linkplain LeafReaderContext}.
+     *
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public abstract class Leaf implements ScorerAware {
         private final LeafReaderContext ctx;
         private ExtraData.Loader loader = null;

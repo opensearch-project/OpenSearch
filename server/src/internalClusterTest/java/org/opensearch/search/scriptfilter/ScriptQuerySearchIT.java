@@ -161,6 +161,7 @@ public class ScriptQuerySearchIT extends ParameterizedOpenSearchIntegTestCase {
             .get();
         flush();
         refresh();
+        indexRandomForConcurrentSearch("my-index");
 
         SearchResponse response = client().prepareSearch()
             .setQuery(
@@ -213,6 +214,7 @@ public class ScriptQuerySearchIT extends ParameterizedOpenSearchIntegTestCase {
             .setSource(jsonBuilder().startObject().field("test", "value beck").field("num1", 3.0f).endObject())
             .get();
         refresh();
+        indexRandomForConcurrentSearch("test");
 
         logger.info("running doc['num1'].value > 1");
         SearchResponse response = client().prepareSearch()
@@ -259,7 +261,7 @@ public class ScriptQuerySearchIT extends ParameterizedOpenSearchIntegTestCase {
         assertThat(response.getHits().getAt(2).getFields().get("sNum1").getValues().get(0), equalTo(3.0));
     }
 
-    public void testDisallowExpensiveQueries() {
+    public void testDisallowExpensiveQueries() throws InterruptedException {
         try {
             assertAcked(prepareCreate("test-index").setMapping("num1", "type=double"));
             int docCount = 10;
@@ -267,6 +269,7 @@ public class ScriptQuerySearchIT extends ParameterizedOpenSearchIntegTestCase {
                 client().prepareIndex("test-index").setId("" + i).setSource("num1", i).get();
             }
             refresh();
+            indexRandomForConcurrentSearch("test-index");
 
             // Execute with search.allow_expensive_queries = null => default value = false => success
             Script script = new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['num1'].value > 1", Collections.emptyMap());

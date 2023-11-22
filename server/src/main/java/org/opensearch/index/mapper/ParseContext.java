@@ -36,6 +36,7 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.OpenSearchParseException;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.IndexSettings;
 
@@ -53,15 +54,17 @@ import java.util.Set;
 /**
  * Holds the context at parse time
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public abstract class ParseContext implements Iterable<ParseContext.Document> {
 
     /**
      * Fork of {@link org.apache.lucene.document.Document} with additional functionality.
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public static class Document implements Iterable<IndexableField> {
 
         private final Document parent;

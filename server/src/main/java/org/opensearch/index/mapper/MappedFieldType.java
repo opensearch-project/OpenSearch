@@ -54,6 +54,7 @@ import org.apache.lucene.util.BytesRef;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.geo.ShapeRelation;
 import org.opensearch.common.time.DateMathParser;
 import org.opensearch.common.unit.Fuzziness;
@@ -79,8 +80,9 @@ import java.util.function.Supplier;
 /**
  * This defines the core properties and functions to operate on a field.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public abstract class MappedFieldType {
 
     private final String name;
@@ -269,6 +271,21 @@ public abstract class MappedFieldType {
         );
     }
 
+    // Fuzzy Query with re-write method
+    public Query fuzzyQuery(
+        Object value,
+        Fuzziness fuzziness,
+        int prefixLength,
+        int maxExpansions,
+        boolean transpositions,
+        @Nullable MultiTermQuery.RewriteMethod method,
+        QueryShardContext context
+    ) {
+        throw new IllegalArgumentException(
+            "Can only use fuzzy queries on keyword and text fields - not on [" + name + "] which is of type [" + typeName() + "]"
+        );
+    }
+
     // Case sensitive form of prefix query
     public final Query prefixQuery(String value, @Nullable MultiTermQuery.RewriteMethod method, QueryShardContext context) {
         return prefixQuery(value, method, false, context);
@@ -385,8 +402,9 @@ public abstract class MappedFieldType {
      * An enum used to describe the relation between the range of terms in a
      * shard when compared with a query range
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public enum Relation {
         WITHIN,
         INTERSECTS,
@@ -430,6 +448,15 @@ public abstract class MappedFieldType {
         if (isIndexed == false) {
             // we throw an IAE rather than an ISE so that it translates to a 4xx code rather than 5xx code on the http layer
             throw new IllegalArgumentException("Cannot search on field [" + name() + "] since it is not indexed.");
+        }
+    }
+
+    protected final void failIfNotIndexedAndNoDocValues() {
+        // we fail if a field is both not indexed and does not have doc_values enabled
+        if (isIndexed == false && hasDocValues() == false) {
+            throw new IllegalArgumentException(
+                "Cannot search on field [" + name() + "] since it is both not indexed," + " and does not have doc_values enabled."
+            );
         }
     }
 

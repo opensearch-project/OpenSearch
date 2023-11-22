@@ -50,7 +50,7 @@ public class SearchRequestStatsTests extends OpenSearchTestCase {
             long startTime = System.nanoTime() - TimeUnit.MILLISECONDS.toNanos(tookTimeInMillis);
             when(mockSearchPhase.getStartTimeInNanos()).thenReturn(startTime);
             assertEquals(1, testRequestStats.getPhaseCurrent(searchPhaseName));
-            testRequestStats.onPhaseEnd(ctx);
+            testRequestStats.onPhaseEnd(ctx, new SearchRequestContext());
             assertEquals(0, testRequestStats.getPhaseCurrent(searchPhaseName));
             assertEquals(1, testRequestStats.getPhaseTotal(searchPhaseName));
             assertThat(testRequestStats.getPhaseMetric(searchPhaseName), greaterThanOrEqualTo(tookTimeInMillis));
@@ -102,7 +102,7 @@ public class SearchRequestStatsTests extends OpenSearchTestCase {
             for (int i = 0; i < numTasks; i++) {
                 threads[i] = new Thread(() -> {
                     phaser.arriveAndAwaitAdvance();
-                    testRequestStats.onPhaseEnd(ctx);
+                    testRequestStats.onPhaseEnd(ctx, new SearchRequestContext());
                     countDownLatch.countDown();
                 });
                 threads[i].start();
