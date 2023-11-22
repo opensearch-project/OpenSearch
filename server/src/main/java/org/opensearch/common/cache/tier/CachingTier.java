@@ -16,6 +16,8 @@ import org.opensearch.common.cache.tier.listeners.TieredCacheRemovalListener;
  * onHeap, disk etc.
  * @param <K> Type of key
  * @param <V> Type of value
+ *
+ * @opensearch.internal
  */
 public interface CachingTier<K, V> {
 

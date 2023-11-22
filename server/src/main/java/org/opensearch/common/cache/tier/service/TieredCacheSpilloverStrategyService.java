@@ -65,7 +65,7 @@ public class TieredCacheSpilloverStrategyService<K, V> implements TieredCacheSer
      */
     @Override
     public V computeIfAbsent(K key, TieredCacheLoader<K, V> loader) throws Exception {
-        CacheValue<V> cacheValue = getValueFromTierCache(true).apply(key);
+        CacheValue<V> cacheValue = getValueFromTieredCache(true).apply(key);
         if (cacheValue == null) {
             // Add the value to the onHeap cache. Any items if evicted will be moved to lower tier.
             V value = onHeapCachingTier.compute(key, loader);
@@ -77,7 +77,7 @@ public class TieredCacheSpilloverStrategyService<K, V> implements TieredCacheSer
 
     @Override
     public V get(K key) {
-        CacheValue<V> cacheValue = getValueFromTierCache(true).apply(key);
+        CacheValue<V> cacheValue = getValueFromTieredCache(true).apply(key);
         if (cacheValue == null) {
             return null;
         }
@@ -91,7 +91,7 @@ public class TieredCacheSpilloverStrategyService<K, V> implements TieredCacheSer
     @Override
     public void invalidate(K key) {
         // We don't need to track hits/misses in this case.
-        CacheValue<V> cacheValue = getValueFromTierCache(false).apply(key);
+        CacheValue<V> cacheValue = getValueFromTieredCache(false).apply(key);
         if (cacheValue != null) {
             switch (cacheValue.source) {
                 case ON_HEAP:
@@ -167,7 +167,7 @@ public class TieredCacheSpilloverStrategyService<K, V> implements TieredCacheSer
         }
     }
 
-    private Function<K, CacheValue<V>> getValueFromTierCache(boolean trackStats) {
+    private Function<K, CacheValue<V>> getValueFromTieredCache(boolean trackStats) {
         return key -> {
             for (CachingTier<K, V> cachingTier : cachingTierList) {
                 V value = cachingTier.get(key);
