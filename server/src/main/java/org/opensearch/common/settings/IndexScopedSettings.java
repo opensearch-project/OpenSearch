@@ -38,6 +38,7 @@ import org.opensearch.cluster.routing.allocation.ExistingShardsAllocator;
 import org.opensearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.opensearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider;
 import org.opensearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.logging.Loggers;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.util.FeatureFlags;
@@ -72,8 +73,9 @@ import java.util.function.Predicate;
  * Encapsulates all valid index level settings.
  * @see Property#IndexScope
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public final class IndexScopedSettings extends AbstractScopedSettings {
 
     public static final Predicate<String> INDEX_SETTINGS_KEY_PREDICATE = (s) -> s.startsWith(IndexMetadata.INDEX_SETTING_PREFIX);
@@ -221,6 +223,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
 
                 // Settings for remote translog
                 IndexSettings.INDEX_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING,
+                IndexSettings.INDEX_REMOTE_TRANSLOG_KEEP_EXTRA_GEN_SETTING,
 
                 // Settings for remote store enablement
                 IndexMetadata.INDEX_REMOTE_STORE_ENABLED_SETTING,

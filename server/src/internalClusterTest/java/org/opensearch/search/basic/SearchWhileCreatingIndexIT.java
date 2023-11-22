@@ -106,6 +106,7 @@ public class SearchWhileCreatingIndexIT extends ParameterizedOpenSearchIntegTest
         }
         client().prepareIndex("test").setId(id).setSource("field", "test").get();
         RefreshResponse refreshResponse = client().admin().indices().prepareRefresh("test").get();
+        indexRandomForConcurrentSearch("test");
         // at least one shard should be successful when refreshing
         assertThat(refreshResponse.getSuccessfulShards(), greaterThanOrEqualTo(1));
 

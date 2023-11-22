@@ -33,7 +33,6 @@
 package org.opensearch.common;
 
 import org.opensearch.common.collect.Tuple;
-import org.opensearch.common.rounding.DateTimeUnit;
 import org.opensearch.common.time.DateFormatter;
 import org.opensearch.common.time.DateFormatters;
 import org.opensearch.common.unit.TimeValue;
@@ -236,7 +235,7 @@ public class RoundingTests extends OpenSearchTestCase {
 
     /**
      * Randomized test on TimeUnitRounding. Test uses random
-     * {@link DateTimeUnit} and {@link ZoneId} and often (50% of the time)
+     * {@link org.opensearch.common.Rounding.DateTimeUnit} and {@link ZoneId} and often (50% of the time)
      * chooses test dates that are exactly on or close to offset changes (e.g.
      * DST) in the chosen time zone.
      * <p>
@@ -1141,28 +1140,6 @@ public class RoundingTests extends OpenSearchTestCase {
         long thirdQuarter = prepared.round(time("2015-07-01T00:00:00.000Z"));
         assertThat(prepared.roundingSize(thirdQuarter, Rounding.DateTimeUnit.DAY_OF_MONTH), closeTo(92.0, 0.000001));
         assertThat(prepared.roundingSize(thirdQuarter, Rounding.DateTimeUnit.HOUR_OF_DAY), closeTo(2208.0, 0.000001));
-    }
-
-    public void testArrayRoundingImplementations() {
-        int length = randomIntBetween(1, 256);
-        long[] values = new long[length];
-        for (int i = 1; i < values.length; i++) {
-            values[i] = values[i - 1] + (randomNonNegativeLong() % 100);
-        }
-
-        Rounding.Prepared binarySearchImpl = new Rounding.BinarySearchArrayRounding(values, length, null);
-        Rounding.Prepared linearSearchImpl = new Rounding.BidirectionalLinearSearchArrayRounding(values, length, null);
-
-        for (int i = 0; i < 100000; i++) {
-            long key = values[0] + (randomNonNegativeLong() % (100 + values[length - 1] - values[0]));
-            assertEquals(binarySearchImpl.round(key), linearSearchImpl.round(key));
-        }
-
-        AssertionError exception = expectThrows(AssertionError.class, () -> { binarySearchImpl.round(values[0] - 1); });
-        assertEquals("utcMillis must be after " + values[0], exception.getMessage());
-
-        exception = expectThrows(AssertionError.class, () -> { linearSearchImpl.round(values[0] - 1); });
-        assertEquals("utcMillis must be after " + values[0], exception.getMessage());
     }
 
     private void assertInterval(long rounded, long nextRoundingValue, Rounding rounding, int minutes, ZoneId tz) {

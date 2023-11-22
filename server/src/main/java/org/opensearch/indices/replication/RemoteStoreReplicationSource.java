@@ -15,6 +15,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.util.Version;
 import org.opensearch.common.concurrent.GatedCloseable;
+import org.opensearch.common.util.CancellableThreads;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexShardState;
@@ -24,11 +25,15 @@ import org.opensearch.index.store.StoreFileMetadata;
 import org.opensearch.index.store.remote.metadata.RemoteSegmentMetadata;
 import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 
 /**
@@ -42,6 +47,7 @@ public class RemoteStoreReplicationSource implements SegmentReplicationSource {
 
     private final IndexShard indexShard;
     private final RemoteSegmentStoreDirectory remoteDirectory;
+    private final CancellableThreads cancellableThreads = new CancellableThreads();
 
     public RemoteStoreReplicationSource(IndexShard indexShard) {
         this.indexShard = indexShard;
@@ -60,7 +66,7 @@ public class RemoteStoreReplicationSource implements SegmentReplicationSource {
         // TODO: Need to figure out a way to pass this information for segment metadata via remote store.
         try (final GatedCloseable<SegmentInfos> segmentInfosSnapshot = indexShard.getSegmentInfosSnapshot()) {
             final Version version = segmentInfosSnapshot.get().getCommitLuceneVersion();
-            RemoteSegmentMetadata mdFile = remoteDirectory.init();
+            final RemoteSegmentMetadata mdFile = getRemoteSegmentMetadata();
             // During initial recovery flow, the remote store might not
             // have metadata as primary hasn't uploaded anything yet.
             if (mdFile == null && indexShard.state().equals(IndexShardState.STARTED) == false) {
@@ -95,6 +101,7 @@ public class RemoteStoreReplicationSource implements SegmentReplicationSource {
         ReplicationCheckpoint checkpoint,
         List<StoreFileMetadata> filesToFetch,
         IndexShard indexShard,
+        BiConsumer<String, Long> fileProgressTracker,
         ActionListener<GetSegmentFilesResponse> listener
     ) {
         try {
@@ -104,34 +111,50 @@ public class RemoteStoreReplicationSource implements SegmentReplicationSource {
             }
             logger.debug("Downloading segment files from remote store {}", filesToFetch);
 
-            RemoteSegmentMetadata remoteSegmentMetadata = remoteDirectory.readLatestMetadataFile();
-            Collection<String> directoryFiles = List.of(indexShard.store().directory().listAll());
-            if (remoteSegmentMetadata != null) {
-                try {
-                    indexShard.store().incRef();
-                    indexShard.remoteStore().incRef();
-                    final Directory storeDirectory = indexShard.store().directory();
-                    final List<String> toDownloadSegmentNames = new ArrayList<>();
-                    for (StoreFileMetadata fileMetadata : filesToFetch) {
-                        String file = fileMetadata.name();
-                        assert directoryFiles.contains(file) == false : "Local store already contains the file " + file;
-                        toDownloadSegmentNames.add(file);
-                    }
-                    indexShard.getFileDownloader().download(remoteDirectory, storeDirectory, toDownloadSegmentNames);
-                    logger.debug("Downloaded segment files from remote store {}", filesToFetch);
-                } finally {
-                    indexShard.store().decRef();
-                    indexShard.remoteStore().decRef();
+            if (remoteMetadataExists()) {
+                final Directory storeDirectory = indexShard.store().directory();
+                final Collection<String> directoryFiles = List.of(storeDirectory.listAll());
+                final List<String> toDownloadSegmentNames = new ArrayList<>();
+                for (StoreFileMetadata fileMetadata : filesToFetch) {
+                    String file = fileMetadata.name();
+                    assert directoryFiles.contains(file) == false : "Local store already contains the file " + file;
+                    toDownloadSegmentNames.add(file);
                 }
+                indexShard.getFileDownloader()
+                    .downloadAsync(
+                        cancellableThreads,
+                        remoteDirectory,
+                        new ReplicationStatsDirectoryWrapper(storeDirectory, fileProgressTracker),
+                        toDownloadSegmentNames,
+                        ActionListener.map(listener, r -> new GetSegmentFilesResponse(filesToFetch))
+                    );
+            } else {
+                listener.onResponse(new GetSegmentFilesResponse(filesToFetch));
             }
-            listener.onResponse(new GetSegmentFilesResponse(filesToFetch));
-        } catch (Exception e) {
+        } catch (IOException | RuntimeException e) {
             listener.onFailure(e);
         }
     }
 
     @Override
+    public void cancel() {
+        this.cancellableThreads.cancel("Canceled by target");
+    }
+
+    @Override
     public String getDescription() {
         return "RemoteStoreReplicationSource";
+    }
+
+    private boolean remoteMetadataExists() throws IOException {
+        final AtomicBoolean metadataExists = new AtomicBoolean(false);
+        cancellableThreads.executeIO(() -> metadataExists.set(remoteDirectory.readLatestMetadataFile() != null));
+        return metadataExists.get();
+    }
+
+    private RemoteSegmentMetadata getRemoteSegmentMetadata() throws IOException {
+        AtomicReference<RemoteSegmentMetadata> mdFile = new AtomicReference<>();
+        cancellableThreads.executeIO(() -> mdFile.set(remoteDirectory.init()));
+        return mdFile.get();
     }
 }

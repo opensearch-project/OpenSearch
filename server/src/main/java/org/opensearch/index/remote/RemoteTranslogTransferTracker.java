@@ -8,6 +8,7 @@
 
 package org.opensearch.index.remote;
 
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.util.MovingAverage;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
@@ -22,8 +23,9 @@ import java.util.concurrent.atomic.AtomicReference;
 /**
  * Stores Remote Translog Store-related stats for a given IndexShard.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "2.10.0")
 public class RemoteTranslogTransferTracker extends RemoteTransferTracker {
     /**
      * Epoch timestamp of the last successful Remote Translog Store upload.
@@ -232,11 +234,69 @@ public class RemoteTranslogTransferTracker extends RemoteTransferTracker {
         );
     }
 
+    @Override
+    public String toString() {
+        return "RemoteTranslogTransferStats{"
+            + "lastSuccessfulUploadTimestamp="
+            + lastSuccessfulUploadTimestamp.get()
+            + ","
+            + "totalUploadsStarted="
+            + totalUploadsStarted.get()
+            + ","
+            + "totalUploadsSucceeded="
+            + totalUploadsSucceeded.get()
+            + ","
+            + "totalUploadsFailed="
+            + totalUploadsFailed.get()
+            + ","
+            + "uploadBytesStarted="
+            + uploadBytesStarted.get()
+            + ","
+            + "uploadBytesFailed="
+            + uploadBytesFailed.get()
+            + ","
+            + "totalUploadTimeInMillis="
+            + totalUploadTimeInMillis.get()
+            + ","
+            + "uploadBytesMovingAverage="
+            + uploadBytesMovingAverageReference.get().getAverage()
+            + ","
+            + "uploadBytesPerSecMovingAverage="
+            + uploadBytesPerSecMovingAverageReference.get().getAverage()
+            + ","
+            + "uploadTimeMovingAverage="
+            + uploadTimeMsMovingAverageReference.get().getAverage()
+            + ","
+            + "lastSuccessfulDownloadTimestamp="
+            + lastSuccessfulDownloadTimestamp.get()
+            + ","
+            + "totalDownloadsSucceeded="
+            + totalDownloadsSucceeded.get()
+            + ","
+            + "downloadBytesSucceeded="
+            + downloadBytesSucceeded.get()
+            + ","
+            + "totalDownloadTimeInMillis="
+            + totalDownloadTimeInMillis.get()
+            + ","
+            + "downloadBytesMovingAverage="
+            + downloadBytesMovingAverageReference.get().getAverage()
+            + ","
+            + "downloadBytesPerSecMovingAverage="
+            + downloadBytesPerSecMovingAverageReference.get().getAverage()
+            + ","
+            + "downloadTimeMovingAverage="
+            + downloadTimeMsMovingAverageReference.get().getAverage()
+            + ","
+            + "}";
+    }
+
     /**
      * Represents the tracker's state as seen in the stats API.
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "2.10.0")
     public static class Stats implements Writeable {
 
         final ShardId shardId;

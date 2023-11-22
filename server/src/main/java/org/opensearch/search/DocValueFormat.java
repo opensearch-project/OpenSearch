@@ -36,6 +36,7 @@ import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.Version;
 import org.opensearch.common.Numbers;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.network.InetAddresses;
 import org.opensearch.common.network.NetworkAddress;
 import org.opensearch.common.time.DateFormatter;
@@ -64,8 +65,9 @@ import java.util.function.LongSupplier;
 /**
  * A formatter for values as returned by the fielddata/doc-values APIs.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public interface DocValueFormat extends NamedWriteable {
     long MASK_2_63 = 0x8000000000000000L;
     BigInteger BIGINTEGER_2_64_MINUS_ONE = BigInteger.ONE.shiftLeft(64).subtract(BigInteger.ONE); // 2^64 -1
@@ -243,7 +245,7 @@ public interface DocValueFormat extends NamedWriteable {
         }
 
         public DateTime(StreamInput in) throws IOException {
-            if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
+            if (in.getVersion().onOrAfter(Version.V_2_12_0)) {
                 this.formatter = DateFormatter.forPattern(in.readString(), in.readOptionalString());
             } else {
                 this.formatter = DateFormatter.forPattern(in.readString());
@@ -265,12 +267,12 @@ public interface DocValueFormat extends NamedWriteable {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            if (out.getVersion().before(Version.V_3_0_0) && formatter.equals(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER)) {
+            if (out.getVersion().before(Version.V_2_12_0) && formatter.equals(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER)) {
                 out.writeString(DateFieldMapper.LEGACY_DEFAULT_DATE_TIME_FORMATTER.pattern()); // required for backwards compatibility
             } else {
                 out.writeString(formatter.pattern());
             }
-            if (out.getVersion().onOrAfter(Version.V_3_0_0)) {
+            if (out.getVersion().onOrAfter(Version.V_2_12_0)) {
                 out.writeOptionalString(formatter.printPattern());
             }
             out.writeString(timeZone.getId());

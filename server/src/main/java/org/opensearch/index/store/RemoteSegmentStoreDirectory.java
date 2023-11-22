@@ -24,6 +24,7 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.Version;
 import org.opensearch.common.UUIDs;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.io.VersionedCodecStreamWrapper;
 import org.opensearch.common.logging.Loggers;
@@ -34,6 +35,7 @@ import org.opensearch.index.remote.RemoteStoreUtils;
 import org.opensearch.index.store.lockmanager.FileLockInfo;
 import org.opensearch.index.store.lockmanager.RemoteStoreCommitLevelLockManager;
 import org.opensearch.index.store.lockmanager.RemoteStoreLockManager;
+import org.opensearch.index.store.lockmanager.RemoteStoreMetadataLockManager;
 import org.opensearch.index.store.remote.metadata.RemoteSegmentMetadata;
 import org.opensearch.index.store.remote.metadata.RemoteSegmentMetadataHandler;
 import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
@@ -66,8 +68,9 @@ import java.util.stream.Collectors;
  * remote segment store also keeps track of refresh checkpoints as metadata in a separate path which is handled by
  * another instance of {@code RemoteDirectory}.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "2.3.0")
 public final class RemoteSegmentStoreDirectory extends FilterDirectory implements RemoteStoreCommitLevelLockManager {
 
     /**
@@ -160,8 +163,9 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
      *
      * @throws IOException if there were any failures in reading the metadata file
      */
-    public RemoteSegmentMetadata initializeToSpecificCommit(long primaryTerm, long commitGeneration) throws IOException {
-        String metadataFile = getMetadataFileForCommit(primaryTerm, commitGeneration);
+    public RemoteSegmentMetadata initializeToSpecificCommit(long primaryTerm, long commitGeneration, String acquirerId) throws IOException {
+        String metadataFilePrefix = MetadataFilenameUtils.getMetadataFilePrefixForCommit(primaryTerm, commitGeneration);
+        String metadataFile = ((RemoteStoreMetadataLockManager) mdLockManager).fetchLock(metadataFilePrefix, acquirerId);
         RemoteSegmentMetadata remoteSegmentMetadata = readMetadataFile(metadataFile);
         if (remoteSegmentMetadata != null) {
             this.segmentsUploadedToRemoteStore = new ConcurrentHashMap<>(remoteSegmentMetadata.getMetadata());
@@ -214,7 +218,10 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
 
     /**
      * Metadata of a segment that is uploaded to remote segment store.
+     *
+     * @opensearch.api
      */
+    @PublicApi(since = "2.3.0")
     public static class UploadedSegmentMetadata {
         // Visible for testing
         static final String SEPARATOR = "::";

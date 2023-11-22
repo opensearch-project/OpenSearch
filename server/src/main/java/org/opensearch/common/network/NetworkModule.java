@@ -131,7 +131,7 @@ public final class NetworkModule {
 
     private final Map<String, Supplier<Transport>> transportFactories = new HashMap<>();
     private final Map<String, Supplier<HttpServerTransport>> transportHttpFactories = new HashMap<>();
-    private final List<TransportInterceptor> transportIntercetors = new ArrayList<>();
+    private final List<TransportInterceptor> transportInterceptors = new ArrayList<>();
 
     /**
      * Creates a network module that custom networking classes can be plugged into.
@@ -149,9 +149,13 @@ public final class NetworkModule {
         NetworkService networkService,
         HttpServerTransport.Dispatcher dispatcher,
         ClusterSettings clusterSettings,
-        Tracer tracer
+        Tracer tracer,
+        List<TransportInterceptor> transportInterceptors
     ) {
         this.settings = settings;
+        if (transportInterceptors != null) {
+            transportInterceptors.forEach(this::registerTransportInterceptor);
+        }
         for (NetworkPlugin plugin : plugins) {
             Map<String, Supplier<HttpServerTransport>> httpTransportFactory = plugin.getHttpTransports(
                 settings,
@@ -180,11 +184,11 @@ public final class NetworkModule {
             for (Map.Entry<String, Supplier<Transport>> entry : transportFactory.entrySet()) {
                 registerTransport(entry.getKey(), entry.getValue());
             }
-            List<TransportInterceptor> transportInterceptors = plugin.getTransportInterceptors(
+            List<TransportInterceptor> pluginTransportInterceptors = plugin.getTransportInterceptors(
                 namedWriteableRegistry,
                 threadPool.getThreadContext()
             );
-            for (TransportInterceptor interceptor : transportInterceptors) {
+            for (TransportInterceptor interceptor : pluginTransportInterceptors) {
                 registerTransportInterceptor(interceptor);
             }
         }
@@ -264,7 +268,7 @@ public final class NetworkModule {
      * Registers a new {@link TransportInterceptor}
      */
     private void registerTransportInterceptor(TransportInterceptor interceptor) {
-        this.transportIntercetors.add(Objects.requireNonNull(interceptor, "interceptor must not be null"));
+        this.transportInterceptors.add(Objects.requireNonNull(interceptor, "interceptor must not be null"));
     }
 
     /**
@@ -272,7 +276,7 @@ public final class NetworkModule {
      * @see #registerTransportInterceptor(TransportInterceptor)
      */
     public TransportInterceptor getTransportInterceptor() {
-        return new CompositeTransportInterceptor(this.transportIntercetors);
+        return new CompositeTransportInterceptor(this.transportInterceptors);
     }
 
     static final class CompositeTransportInterceptor implements TransportInterceptor {

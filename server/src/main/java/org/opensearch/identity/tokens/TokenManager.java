@@ -30,11 +30,4 @@ public interface TokenManager {
      * @return a new auth token
      */
     public AuthToken issueServiceAccountToken(final String audience);
-
-    /**
-     * Authenticates a provided authToken
-     * @param authToken: The authToken to authenticate
-     * @return The authenticated subject
-     */
-    public Subject authenticateToken(AuthToken authToken);
 }

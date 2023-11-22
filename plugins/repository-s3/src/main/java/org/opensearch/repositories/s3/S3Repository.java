@@ -234,6 +234,7 @@ class S3Repository extends MeteredBlobStoreRepository {
     private final AsyncTransferManager asyncUploadUtils;
     private final S3AsyncService s3AsyncService;
     private final boolean multipartUploadEnabled;
+    private final AsyncExecutorContainer urgentExecutorBuilder;
     private final AsyncExecutorContainer priorityExecutorBuilder;
     private final AsyncExecutorContainer normalExecutorBuilder;
     private final Path pluginConfigPath;
@@ -248,6 +249,7 @@ class S3Repository extends MeteredBlobStoreRepository {
         final ClusterService clusterService,
         final RecoverySettings recoverySettings,
         final AsyncTransferManager asyncUploadUtils,
+        final AsyncExecutorContainer urgentExecutorBuilder,
         final AsyncExecutorContainer priorityExecutorBuilder,
         final AsyncExecutorContainer normalExecutorBuilder,
         final S3AsyncService s3AsyncService,
@@ -260,6 +262,7 @@ class S3Repository extends MeteredBlobStoreRepository {
             clusterService,
             recoverySettings,
             asyncUploadUtils,
+            urgentExecutorBuilder,
             priorityExecutorBuilder,
             normalExecutorBuilder,
             s3AsyncService,
@@ -278,6 +281,7 @@ class S3Repository extends MeteredBlobStoreRepository {
         final ClusterService clusterService,
         final RecoverySettings recoverySettings,
         final AsyncTransferManager asyncUploadUtils,
+        final AsyncExecutorContainer urgentExecutorBuilder,
         final AsyncExecutorContainer priorityExecutorBuilder,
         final AsyncExecutorContainer normalExecutorBuilder,
         final S3AsyncService s3AsyncService,
@@ -290,6 +294,7 @@ class S3Repository extends MeteredBlobStoreRepository {
         this.multipartUploadEnabled = multipartUploadEnabled;
         this.pluginConfigPath = pluginConfigPath;
         this.asyncUploadUtils = asyncUploadUtils;
+        this.urgentExecutorBuilder = urgentExecutorBuilder;
         this.priorityExecutorBuilder = priorityExecutorBuilder;
         this.normalExecutorBuilder = normalExecutorBuilder;
 
@@ -352,6 +357,7 @@ class S3Repository extends MeteredBlobStoreRepository {
             bulkDeletesSize,
             metadata,
             asyncUploadUtils,
+            urgentExecutorBuilder,
             priorityExecutorBuilder,
             normalExecutorBuilder
         );
