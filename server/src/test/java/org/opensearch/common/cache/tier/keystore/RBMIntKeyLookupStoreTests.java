@@ -61,14 +61,22 @@ public class RBMIntKeyLookupStoreTests extends OpenSearchTestCase {
         for (int i = 0; i < 4; i++) { // after this we run into max value, but thats not a flaw with the class design
             int posValue = i * modulo + offset;
             kls.add(posValue);
+            assertEquals(offset, (int) kls.getInternalRepresentation(posValue));
             int negValue = -(i * modulo + offset);
             kls.add(negValue);
+            assertEquals(modulo - offset, (int) kls.getInternalRepresentation(negValue));
         }
         assertEquals(2, kls.getSize());
         int[] testVals = new int[] { 0, 1, -1, -23495, 23058, modulo, -modulo, Integer.MAX_VALUE, Integer.MIN_VALUE };
         for (int value : testVals) {
             assertTrue(kls.getInternalRepresentation(value) < modulo);
-            assertTrue(kls.getInternalRepresentation(value) > -modulo);
+            assertTrue(kls.getInternalRepresentation(value) >= 0);
+        }
+        RBMIntKeyLookupStore no_modulo_kls = new RBMIntKeyLookupStore(RBMIntKeyLookupStore.KeystoreModuloValue.NONE, 0L);
+        Random rand = Randomness.get();
+        for (int i = 0; i < 100; i++) {
+            int val = rand.nextInt();
+            assertEquals(val, (int) no_modulo_kls.getInternalRepresentation(val));
         }
     }
 
