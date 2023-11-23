@@ -1373,6 +1373,11 @@ public class IndexNameExpressionResolver {
         }
     }
 
+    /**
+     * A range expression resolver.
+     *
+     * @opensearch.internal
+     */
     public static final class RangeExpressionResolver implements ExpressionResolver {
 
         private static final String EXCLUSIVE_LEFT_BOUND = "(";
