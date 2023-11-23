@@ -187,11 +187,13 @@ final class CompositeAggregator extends BucketsAggregator {
 
         int num = Math.min(size, queue.size());
         final InternalComposite.InternalBucket[] buckets = new InternalComposite.InternalBucket[num];
+
         long[] bucketOrdsToCollect = new long[queue.size()];
         for (int i = 0; i < queue.size(); i++) {
-            bucketOrdsToCollect[i] = i;
+            bucketOrdsToCollect[i] = i; // TODO reading meaning queue is indexed with bucket key, and contains doccount
         }
         InternalAggregations[] subAggsForBuckets = buildSubAggsForBuckets(bucketOrdsToCollect);
+
         while (queue.size() > 0) {
             int slot = queue.pop();
             CompositeKey key = queue.toCompositeKey(slot);
@@ -207,6 +209,7 @@ final class CompositeAggregator extends BucketsAggregator {
                 aggs
             );
         }
+
         CompositeKey lastBucket = num > 0 ? buckets[num - 1].getRawKey() : null;
         return new InternalAggregation[] {
             new InternalComposite(
@@ -283,7 +286,7 @@ final class CompositeAggregator extends BucketsAggregator {
         for (int i = 0; i < end; i++) {
             CompositeValuesSourceConfig sourceConfig = sourceConfigs[i];
             SingleDimensionValuesSource<?> source = sources[i];
-            SortField indexSortField = indexSort.getSort()[i];
+            SortField indexSortField = indexSort.getSort()[i]; // TODO reading requiring the order should match
             if (source.fieldType == null
                 // TODO: can we handle missing bucket when using index sort optimization ?
                 || source.missingBucket
@@ -324,7 +327,8 @@ final class CompositeAggregator extends BucketsAggregator {
         if (indexSortPrefix == null) {
             return 0;
         }
-        if (indexSortPrefix.getSort()[0].getReverse() != (sources[0].reverseMul == -1)) {
+        if (indexSortPrefix.getSort()[0].getReverse() // TODO reading sort optimization is reversed
+            != (sources[0].reverseMul == -1)) { // TODO reading aggregation sort param is desc
             assert indexSortPrefix.getSort().length == 1;
             return -1;
         } else {
@@ -416,6 +420,7 @@ final class CompositeAggregator extends BucketsAggregator {
         for (int i = 0; i < formats.length; i++) {
             formats[i] = sources[i].format;
         }
+        // TODO reading sort and search after with criteria
         FieldDoc fieldDoc = SearchAfterBuilder.buildFieldDoc(
             new SortAndFormats(indexSortPrefix, formats),
             Arrays.copyOfRange(rawAfterKey.values(), 0, formats.length)
@@ -429,13 +434,12 @@ final class CompositeAggregator extends BucketsAggregator {
             .build();
         Weight weight = context.searcher().createWeight(context.searcher().rewrite(newQuery), ScoreMode.COMPLETE_NO_SCORES, 1f);
         Scorer scorer = weight.scorer(ctx);
+
         if (scorer != null) {
             DocIdSetIterator docIt = scorer.iterator();
-            final LeafBucketCollector inner = queue.getLeafCollector(
-                ctx,
-                getFirstPassCollector(docIdSetBuilder, indexSortPrefix.getSort().length)
-            );
+            final LeafBucketCollector inner = queue.getLeafCollector(ctx, getFirstPassCollector(docIdSetBuilder, indexSortPrefix.getSort().length));
             inner.setScorer(scorer);
+
             final Bits liveDocs = ctx.reader().getLiveDocs();
             while (docIt.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
                 if (liveDocs == null || liveDocs.get(docIt.docID())) {
@@ -449,13 +453,14 @@ final class CompositeAggregator extends BucketsAggregator {
     protected LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub) throws IOException {
         finishLeaf();
 
-        boolean fillDocIdSet = deferredCollectors != NO_OP_COLLECTOR;
+        boolean fillDocIdSet = deferredCollectors != NO_OP_COLLECTOR; // TODO reading subAggs are deferred
 
         Sort indexSortPrefix = buildIndexSortPrefix(ctx);
-        int sortPrefixLen = computeSortPrefixLen(indexSortPrefix);
+        int sortPrefixLen = computeSortPrefixLen(indexSortPrefix); // TODO reading asc index sort exists
 
+        // are there index sort enabled? sortPrefixLen
         SortedDocsProducer sortedDocsProducer = sortPrefixLen == 0
-            ? sources[0].createSortedDocsProducerOrNull(ctx.reader(), context.query())
+            ? sources[0].createSortedDocsProducerOrNull(ctx.reader(), context.query()) // TODO reading only using the first field
             : null;
         if (sortedDocsProducer != null) {
             // Visit documents sorted by the leading source of the composite definition and terminates
@@ -463,25 +468,26 @@ final class CompositeAggregator extends BucketsAggregator {
             // in the queue.
             DocIdSet docIdSet = sortedDocsProducer.processLeaf(context.query(), queue, ctx, fillDocIdSet);
             if (fillDocIdSet) {
-                entries.add(new Entry(ctx, docIdSet));
+                entries.add(new Entry(ctx, docIdSet)); // TODO reading add entries
             }
             // We can bypass search entirely for this segment, the processing is done in the previous call.
             // Throwing this exception will terminate the execution of the search for this root aggregation,
             // see {@link MultiCollector} for more details on how we handle early termination in aggregations.
             earlyTerminated = true;
             throw new CollectionTerminatedException();
-        } else {
+        } else { // TODO reading index sort not enabled
             if (fillDocIdSet) {
                 currentLeaf = ctx;
                 docIdSetBuilder = new RoaringDocIdSet.Builder(ctx.reader().maxDoc());
             }
             if (rawAfterKey != null && sortPrefixLen > 0) {
-                // We have an after key and index sort is applicable so we jump directly to the doc
+                // We have an after key and index sort is applicable, so we jump directly to the doc
                 // that is after the index sort prefix using the rawAfterKey and we start collecting
                 // document from there.
                 processLeafFromQuery(ctx, indexSortPrefix);
                 throw new CollectionTerminatedException();
             } else {
+                // rawAfterKey == null || sort order is reversed
                 final LeafBucketCollector inner = queue.getLeafCollector(ctx, getFirstPassCollector(docIdSetBuilder, sortPrefixLen));
                 return new LeafBucketCollector() {
                     @Override
@@ -506,7 +512,7 @@ final class CompositeAggregator extends BucketsAggregator {
                 try {
                     long docCount = docCountProvider.getDocCount(doc);
                     if (queue.addIfCompetitive(indexSortPrefix, docCount)) {
-                        if (builder != null && lastDoc != doc) {
+                        if (builder != null && lastDoc != doc) { // TODO reading how can lastDoc == doc?
                             builder.add(doc);
                             lastDoc = doc;
                         }
@@ -530,14 +536,18 @@ final class CompositeAggregator extends BucketsAggregator {
             Query query = context.query();
             weight = context.searcher().createWeight(context.searcher().rewrite(query), ScoreMode.COMPLETE, 1f);
         }
+
         deferredCollectors.preCollection();
-        for (Entry entry : entries) {
+
+        for (Entry entry : entries) { // TODO reading entry is the leaf
             DocIdSetIterator docIdSetIterator = entry.docIdSet.iterator();
             if (docIdSetIterator == null) {
                 continue;
             }
+
             final LeafBucketCollector subCollector = deferredCollectors.getLeafCollector(entry.context);
             final LeafBucketCollector collector = queue.getLeafCollector(entry.context, getSecondPassCollector(subCollector));
+
             DocIdSetIterator scorerIt = null;
             if (needsScores) {
                 Scorer scorer = weight.scorer(entry.context);
@@ -546,9 +556,10 @@ final class CompositeAggregator extends BucketsAggregator {
                     subCollector.setScorer(scorer);
                 }
             }
+
             int docID;
             while ((docID = docIdSetIterator.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS) {
-                if (needsScores) {
+                if (needsScores) { // TODO reading not sure what need score does here?
                     assert scorerIt != null && scorerIt.docID() < docID;
                     scorerIt.advance(docID);
                     // aggregations should only be replayed on matching documents
@@ -557,6 +568,7 @@ final class CompositeAggregator extends BucketsAggregator {
                 collector.collect(docID);
             }
         }
+
         deferredCollectors.postCollection();
     }
 
@@ -568,11 +580,11 @@ final class CompositeAggregator extends BucketsAggregator {
             @Override
             public void collect(int doc, long zeroBucket) throws IOException {
                 assert zeroBucket == 0;
-                Integer slot = queue.compareCurrent();
+                Integer slot = queue.compareCurrent(); // TODO reading queue will make sure current value presents through collection mechanism
                 if (slot != null) {
                     // The candidate key is a top bucket.
                     // We can defer the collection of this document/bucket to the sub collector
-                    subCollector.collect(doc, slot);
+                    subCollector.collect(doc, slot); // TODO reading slot is the same as owning bucket ordinal
                 }
             }
         };

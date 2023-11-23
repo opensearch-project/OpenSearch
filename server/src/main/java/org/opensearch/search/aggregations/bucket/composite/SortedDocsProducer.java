@@ -75,8 +75,10 @@ abstract class SortedDocsProducer {
     ) throws IOException {
         final int[] topCompositeCollected = new int[1];
         final boolean[] hasCollected = new boolean[1];
+
         final DocCountProvider docCountProvider = new DocCountProvider();
         docCountProvider.setLeafReaderContext(context);
+
         final LeafBucketCollector queueCollector = new LeafBucketCollector() {
             int lastDoc = -1;
 
@@ -89,10 +91,10 @@ abstract class SortedDocsProducer {
             @Override
             public void collect(int doc, long bucket) throws IOException {
                 hasCollected[0] = true;
-                long docCount = docCountProvider.getDocCount(doc);
+                long docCount = docCountProvider.getDocCount(doc); // TODO reading _doc_count can be >1
                 if (queue.addIfCompetitive(docCount)) {
                     topCompositeCollected[0]++;
-                    if (adder != null && doc != lastDoc) {
+                    if (adder != null && doc != lastDoc) { // TODO reading why doc can be == lastDoc?
                         if (remainingBits == 0) {
                             // the cost approximation was lower than the real size, we need to grow the adder
                             // by some numbers (128) to ensure that we can add the extra documents
@@ -106,13 +108,16 @@ abstract class SortedDocsProducer {
                 }
             }
         };
-        final Bits liveDocs = context.reader().getLiveDocs();
+
         final LeafBucketCollector collector = queue.getLeafCollector(leadSourceBucket, context, queueCollector);
+
+        final Bits liveDocs = context.reader().getLiveDocs();
         while (iterator.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
-            if (liveDocs == null || liveDocs.get(iterator.docID())) {
+            if (liveDocs == null || liveDocs.get(iterator.docID())) { // TODO reading doc exists
                 collector.collect(iterator.docID());
             }
         }
+
         if (queue.isFull() && hasCollected[0] && topCompositeCollected[0] == 0) {
             return true;
         }

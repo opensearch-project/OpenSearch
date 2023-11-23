@@ -108,7 +108,7 @@ final class CompositeValuesCollectorQueue extends PriorityQueue<Integer> impleme
 
     @Override
     protected boolean lessThan(Integer a, Integer b) {
-        return compare(a, b) > 0;
+        return compare(a, b) > 0; // TODO reading a > b is true, this is a max heap?
     }
 
     /**
@@ -123,7 +123,7 @@ final class CompositeValuesCollectorQueue extends PriorityQueue<Integer> impleme
      * the slot if the candidate is already in the queue or null if the candidate is not present.
      */
     Integer compareCurrent() {
-        return map.get(new Slot(CANDIDATE_SLOT));
+        return map.get(new Slot(CANDIDATE_SLOT)); // TODO reading this check the slot/bucket? of the current value
     }
 
     /**
@@ -152,7 +152,7 @@ final class CompositeValuesCollectorQueue extends PriorityQueue<Integer> impleme
      */
     private void copyCurrent(int slot, long value) {
         for (int i = 0; i < arrays.length; i++) {
-            arrays[i].copyCurrent(slot);
+            arrays[i].copyCurrent(slot); // TODO reading valueSource knows current value, set the value to this slot/index
         }
         docCounts = bigArrays.grow(docCounts, slot + 1);
         docCounts.set(slot, value);
@@ -165,11 +165,13 @@ final class CompositeValuesCollectorQueue extends PriorityQueue<Integer> impleme
         assert slot2 != CANDIDATE_SLOT;
         for (int i = 0; i < arrays.length; i++) {
             final int cmp;
+
             if (slot1 == CANDIDATE_SLOT) {
                 cmp = arrays[i].compareCurrent(slot2);
             } else {
                 cmp = arrays[i].compare(slot1, slot2);
             }
+
             if (cmp != 0) {
                 return cmp > 0 ? i + 1 : -(i + 1);
             }
@@ -202,7 +204,10 @@ final class CompositeValuesCollectorQueue extends PriorityQueue<Integer> impleme
     int hashCode(int slot) {
         int result = 1;
         for (int i = 0; i < arrays.length; i++) {
-            result = 31 * result + (slot == CANDIDATE_SLOT ? arrays[i].hashCodeCurrent() : arrays[i].hashCode(slot));
+            result = 31 * result + // TODO reading why 31 here? For each array, it multiplies the running result by 31. Multiplying by a prime number like 31 helps distribute the hash codes more evenly.
+                (slot == CANDIDATE_SLOT ?
+                    arrays[i].hashCodeCurrent() :
+                    arrays[i].hashCode(slot));
         }
         return result;
     }
@@ -251,13 +256,15 @@ final class CompositeValuesCollectorQueue extends PriorityQueue<Integer> impleme
         int last = arrays.length - 1;
         LeafBucketCollector collector = in;
         while (last > 0) {
-            collector = arrays[last--].getLeafCollector(context, collector);
+            collector = arrays[last--].getLeafCollector(context, collector); // TODO reading the pass-in collect will work after current
         }
+
         if (forceLeadSourceValue != null) {
             collector = arrays[last].getLeafCollector(forceLeadSourceValue, context, collector);
         } else {
             collector = arrays[last].getLeafCollector(context, collector);
         }
+
         return collector;
     }
 
@@ -279,14 +286,15 @@ final class CompositeValuesCollectorQueue extends PriorityQueue<Integer> impleme
      *
      * @throws CollectionTerminatedException if the current collection can be terminated early due to index sorting.
      */
-    boolean addIfCompetitive(int indexSortSourcePrefix, long inc) {
+    boolean addIfCompetitive(int indexSortSourcePrefix, long inc) { // TODO reading indexSortSourcePrefix can only be -1
         // checks if the candidate key is competitive
-        Integer topSlot = compareCurrent();
-        if (topSlot != null) {
+        Integer curSlot = compareCurrent();
+        if (curSlot != null) {
             // this key is already in the top N, skip it
-            docCounts.increment(topSlot, inc);
+            docCounts.increment(curSlot, inc);
             return true;
         }
+
         if (afterKeyIsSet) {
             int cmp = compareCurrentWithAfter();
             if (cmp <= 0) {
@@ -300,13 +308,14 @@ final class CompositeValuesCollectorQueue extends PriorityQueue<Integer> impleme
                 return false;
             }
         }
-        if (size() >= maxSize) {
-            // the tree map is full, check if the candidate key should be kept
+
+        if (size() >= maxSize) { // TODO reading when queue is full, can check competitiveness
+            // the tree map is full, check if the candidate key should be kept // TODO reading queue contain topN largest composite key/bucket/slot
             int cmp = compare(CANDIDATE_SLOT, top());
-            if (cmp > 0) {
-                if (cmp <= indexSortSourcePrefix) {
+            if (cmp > 0) { // TODO reading current large than queue
+                if (cmp <= indexSortSourcePrefix) { // TODO reading the way of comparing current and queue uses sorted fields
                     // index sort guarantees that there is no key greater or equal than the
-                    // current one in the subsequent documents so we can early terminate.
+                    // current one in the subsequent documents so we can early terminate. // TODO reading how to get the topN smallest items using heap?
                     throw new CollectionTerminatedException();
                 }
                 // the candidate key is not competitive, skip it.
@@ -322,7 +331,7 @@ final class CompositeValuesCollectorQueue extends PriorityQueue<Integer> impleme
             // and we recycle the deleted slot
             newSlot = slot;
         } else {
-            newSlot = size();
+            newSlot = size(); // TODO reading seems we don't care the number of slot here?
         }
         // move the candidate key to its new slot
         copyCurrent(newSlot, inc);

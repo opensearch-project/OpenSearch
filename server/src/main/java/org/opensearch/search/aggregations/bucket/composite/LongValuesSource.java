@@ -253,7 +253,8 @@ public class LongValuesSource extends SingleDimensionValuesSource<Long> {
     @Override
     SortedDocsProducer createSortedDocsProducerOrNull(IndexReader reader, Query query) {
         query = extractQuery(query);
-        if (checkIfSortedDocsIsApplicable(reader, fieldType) == false || checkMatchAllOrRangeQuery(query, fieldType.name()) == false) {
+        if (checkIfSortedDocsIsApplicable(reader, fieldType) == false
+            || checkMatchAllOrRangeQuery(query, fieldType.name()) == false) {
             return null;
         }
         final byte[] lowerPoint;
@@ -275,13 +276,11 @@ public class LongValuesSource extends SingleDimensionValuesSource<Long> {
                 case "long":
                     toBucketFunction = (value) -> rounding.applyAsLong(LongPoint.decodeDimension(value, 0));
                     break;
-
                 case "int":
                 case "short":
                 case "byte":
                     toBucketFunction = (value) -> rounding.applyAsLong(IntPoint.decodeDimension(value, 0));
                     break;
-
                 default:
                     return null;
             }

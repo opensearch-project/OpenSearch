@@ -68,6 +68,7 @@ class PointsSortedDocsProducer extends SortedDocsProducer {
             // no value for the field
             return DocIdSet.EMPTY;
         }
+
         long lowerBucket = Long.MIN_VALUE;
         Comparable lowerValue = queue.getLowerValueLeadSource();
         if (lowerValue != null) {
@@ -85,6 +86,7 @@ class PointsSortedDocsProducer extends SortedDocsProducer {
             }
             upperBucket = (Long) upperValue;
         }
+
         DocIdSetBuilder builder = fillDocIdSet ? new DocIdSetBuilder(context.reader().maxDoc(), values, field) : null;
         Visitor visitor = new Visitor(context, queue, builder, values.getBytesPerDimension(), lowerBucket, upperBucket);
         try {
@@ -146,10 +148,9 @@ class PointsSortedDocsProducer extends SortedDocsProducer {
             }
 
             long bucket = bucketFunction.applyAsLong(packedValue);
-            if (first == false && bucket != lastBucket) {
-                final DocIdSet docIdSet = bucketDocsBuilder.build();
-                if (processBucket(queue, context, docIdSet.iterator(), lastBucket, builder) &&
-                // lower bucket is inclusive
+            if (first == false && bucket != lastBucket) { // TODO reading process previous bucket when new bucket appears
+                if (processBucket(queue, context, bucketDocsBuilder.build().iterator(), lastBucket, builder) &&
+                    // lower bucket is inclusive
                     lowerBucket != lastBucket) {
                     // this bucket does not have any competitive composite buckets,
                     // we can early terminate the collection because the remaining buckets are guaranteed
@@ -168,7 +169,8 @@ class PointsSortedDocsProducer extends SortedDocsProducer {
 
         @Override
         public PointValues.Relation compare(byte[] minPackedValue, byte[] maxPackedValue) {
-            if ((upperPointQuery != null && Arrays.compareUnsigned(minPackedValue, 0, bytesPerDim, upperPointQuery, 0, bytesPerDim) > 0)
+            if ((upperPointQuery != null
+                && Arrays.compareUnsigned(minPackedValue, 0, bytesPerDim, upperPointQuery, 0, bytesPerDim) > 0)
                 || (lowerPointQuery != null
                     && Arrays.compareUnsigned(maxPackedValue, 0, bytesPerDim, lowerPointQuery, 0, bytesPerDim) < 0)) {
                 // does not match the query
@@ -182,13 +184,13 @@ class PointsSortedDocsProducer extends SortedDocsProducer {
                     return PointValues.Relation.CELL_OUTSIDE_QUERY;
                 }
             }
-
             if (upperBucket != Long.MAX_VALUE) {
                 long minBucket = bucketFunction.applyAsLong(minPackedValue);
                 if (minBucket > upperBucket) {
                     return PointValues.Relation.CELL_OUTSIDE_QUERY;
                 }
             }
+
             return PointValues.Relation.CELL_CROSSES_QUERY;
         }
 

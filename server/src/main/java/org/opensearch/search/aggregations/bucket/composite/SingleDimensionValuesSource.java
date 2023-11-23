@@ -185,7 +185,8 @@ public abstract class SingleDimensionValuesSource<T extends Comparable<T>> imple
             return false;
         }
 
-        if (reader.hasDeletions() && (reader.numDocs() == 0 || (double) reader.numDocs() / (double) reader.maxDoc() < 0.5)) {
+        if (reader.hasDeletions()
+            && (reader.numDocs() == 0 || (double) reader.numDocs() / (double) reader.maxDoc() < 0.5)) {
             // do not use the index if it has more than 50% of deleted docs
             return false;
         }
