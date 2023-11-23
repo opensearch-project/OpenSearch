@@ -23,7 +23,7 @@ import java.util.concurrent.TimeUnit;
  * @opensearch.api
  */
 @PublicApi(since = "2.11.0")
-public final class SearchRequestStats implements SearchRequestOperationsListener {
+public final class SearchRequestStats extends SearchRequestOperationsListener {
     Map<SearchPhaseName, StatsHolder> phaseStatsMap = new EnumMap<>(SearchPhaseName.class);
 
     @Inject
@@ -46,12 +46,12 @@ public final class SearchRequestStats implements SearchRequestOperationsListener
     }
 
     @Override
-    public void onPhaseStart(SearchPhaseContext context) {
+    void onPhaseStart(SearchPhaseContext context) {
         phaseStatsMap.get(context.getCurrentPhase().getSearchPhaseName()).current.inc();
     }
 
     @Override
-    public void onPhaseEnd(SearchPhaseContext context, SearchRequestContext searchRequestContext) {
+    void onPhaseEnd(SearchPhaseContext context, SearchRequestContext searchRequestContext) {
         StatsHolder phaseStats = phaseStatsMap.get(context.getCurrentPhase().getSearchPhaseName());
         phaseStats.current.dec();
         phaseStats.total.inc();
@@ -59,7 +59,7 @@ public final class SearchRequestStats implements SearchRequestOperationsListener
     }
 
     @Override
-    public void onPhaseFailure(SearchPhaseContext context) {
+    void onPhaseFailure(SearchPhaseContext context) {
         phaseStatsMap.get(context.getCurrentPhase().getSearchPhaseName()).current.dec();
     }
 
