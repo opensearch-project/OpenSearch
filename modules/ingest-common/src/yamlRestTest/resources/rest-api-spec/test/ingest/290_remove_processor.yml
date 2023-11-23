@@ -371,7 +371,7 @@ teardown:
       get:
         index: test
         id: 1
-  - match: { _source:  { bar: "zoo", zoo: "bar"}}
+  - match: { _source:  { foo1: "bar", foo2: "bar"}}
 
 ---
 "Test remove processor with both exclude_field and exclude_field_pattern":
