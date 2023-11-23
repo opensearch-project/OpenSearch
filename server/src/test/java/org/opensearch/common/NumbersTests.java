@@ -221,4 +221,25 @@ public class NumbersTests extends OpenSearchTestCase {
         assertEquals(random, Numbers.toUnsignedBigInteger(random.longValue()));
         assertEquals(Numbers.MAX_UNSIGNED_LONG_VALUE, Numbers.toUnsignedBigInteger(Numbers.MAX_UNSIGNED_LONG_VALUE.longValue()));
     }
+
+    public void testNextPowerOfTwo() {
+        // Negative values:
+        for (int i = 0; i < 1000; i++) {
+            long value = randomLongBetween(-500000, -1);
+            assertEquals(1, Numbers.nextPowerOfTwo(value));
+        }
+
+        // Zero value:
+        assertEquals(1, Numbers.nextPowerOfTwo(0L));
+
+        // Positive values:
+        for (int i = 0; i < 1000; i++) {
+            long value = randomLongBetween(1, 500000);
+            long nextPowerOfTwo = Numbers.nextPowerOfTwo(value);
+
+            assertTrue(nextPowerOfTwo > value); // must be strictly greater
+            assertTrue((nextPowerOfTwo >>> 1) <= value); // must be greater by no more than one power of two
+            assertEquals(0, nextPowerOfTwo & (nextPowerOfTwo - 1)); // must be a power of two
+        }
+    }
 }

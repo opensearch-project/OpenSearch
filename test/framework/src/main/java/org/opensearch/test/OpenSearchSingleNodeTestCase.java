@@ -73,6 +73,7 @@ import org.opensearch.search.SearchService;
 import org.opensearch.search.internal.SearchContext;
 import org.opensearch.telemetry.TelemetrySettings;
 import org.opensearch.test.telemetry.MockTelemetryPlugin;
+import org.opensearch.test.telemetry.tracing.StrictCheckSpanProcessor;
 import org.opensearch.transport.TransportSettings;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
@@ -190,6 +191,7 @@ public abstract class OpenSearchSingleNodeTestCase extends OpenSearchTestCase {
     @AfterClass
     public static void tearDownClass() throws Exception {
         stopNode();
+        StrictCheckSpanProcessor.validateTracingStateOnShutdown();
     }
 
     /**
@@ -252,6 +254,7 @@ public abstract class OpenSearchSingleNodeTestCase extends OpenSearchTestCase {
             .putList(INITIAL_CLUSTER_MANAGER_NODES_SETTING.getKey(), nodeName)
             .put(FeatureFlags.TELEMETRY_SETTING.getKey(), true)
             .put(TelemetrySettings.TRACER_ENABLED_SETTING.getKey(), true)
+            .put(TelemetrySettings.TRACER_FEATURE_ENABLED_SETTING.getKey(), true)
             .put(nodeSettings()) // allow test cases to provide their own settings or override these
             .put(featureFlagSettings);
         if (FeatureFlags.CONCURRENT_SEGMENT_SEARCH_SETTING.get(featureFlagSettings)) {
@@ -269,6 +272,7 @@ public abstract class OpenSearchSingleNodeTestCase extends OpenSearchTestCase {
             plugins.add(MockHttpTransport.TestPlugin.class);
         }
         plugins.add(MockScriptService.TestPlugin.class);
+
         plugins.add(MockTelemetryPlugin.class);
         Node node = new MockNode(settingsBuilder.build(), plugins, forbidPrivateIndexSettings());
         try {

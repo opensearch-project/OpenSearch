@@ -8,16 +8,23 @@
 
 package org.opensearch.telemetry.tracing.noop;
 
+import org.opensearch.common.annotation.InternalApi;
+import org.opensearch.telemetry.tracing.ScopedSpan;
+import org.opensearch.telemetry.tracing.Span;
 import org.opensearch.telemetry.tracing.SpanContext;
+import org.opensearch.telemetry.tracing.SpanCreationContext;
 import org.opensearch.telemetry.tracing.SpanScope;
 import org.opensearch.telemetry.tracing.Tracer;
-import org.opensearch.telemetry.tracing.attributes.Attributes;
+
+import java.util.Collection;
+import java.util.Map;
 
 /**
  * No-op implementation of Tracer
  *
  * @opensearch.internal
  */
+@InternalApi
 public class NoopTracer implements Tracer {
 
     /**
@@ -28,27 +35,37 @@ public class NoopTracer implements Tracer {
     private NoopTracer() {}
 
     @Override
-    public SpanScope startSpan(String spanName) {
-        return SpanScope.NO_OP;
-    }
-
-    @Override
-    public SpanScope startSpan(String spanName, Attributes attributes) {
-        return SpanScope.NO_OP;
-    }
-
-    @Override
-    public SpanScope startSpan(String spanName, SpanContext parentSpan, Attributes attributes) {
-        return SpanScope.NO_OP;
+    public Span startSpan(SpanCreationContext context) {
+        return NoopSpan.INSTANCE;
     }
 
     @Override
     public SpanContext getCurrentSpan() {
-        return null;
+        return new SpanContext(NoopSpan.INSTANCE);
+    }
+
+    @Override
+    public ScopedSpan startScopedSpan(SpanCreationContext spanCreationContext) {
+        return ScopedSpan.NO_OP;
+    }
+
+    @Override
+    public SpanScope withSpanInScope(Span span) {
+        return SpanScope.NO_OP;
+    }
+
+    @Override
+    public boolean isRecording() {
+        return false;
     }
 
     @Override
     public void close() {
 
+    }
+
+    @Override
+    public Span startSpan(SpanCreationContext spanCreationContext, Map<String, Collection<String>> header) {
+        return NoopSpan.INSTANCE;
     }
 }

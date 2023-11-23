@@ -32,6 +32,7 @@
 
 package org.opensearch.core.xcontent;
 
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.bytes.BytesReference;
 
 import java.io.ByteArrayOutputStream;
@@ -61,6 +62,7 @@ import java.util.function.Function;
 /**
  * A utility to build XContent (ie json).
  */
+@PublicApi(since = "1.0.0")
 public final class XContentBuilder implements Closeable, Flushable {
 
     /**
@@ -724,7 +726,7 @@ public final class XContentBuilder implements Closeable, Flushable {
 
     /**
      * Writes the binary content of the given byte array as UTF-8 bytes.
-     *
+     * <p>
      * Use {@link XContentParser#charBuffer()} to read the value back
      */
     public XContentBuilder utf8Value(byte[] bytes, int offset, int length) throws IOException {

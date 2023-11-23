@@ -10,7 +10,9 @@ package org.opensearch.common.blobstore.transfer;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.index.CorruptIndexException;
+import org.apache.lucene.store.IndexInput;
 import org.opensearch.common.CheckedTriFunction;
 import org.opensearch.common.SetOnce;
 import org.opensearch.common.StreamContext;
@@ -19,11 +21,13 @@ import org.opensearch.common.blobstore.stream.write.WritePriority;
 import org.opensearch.common.blobstore.transfer.stream.OffsetRangeInputStream;
 import org.opensearch.common.blobstore.transfer.stream.ResettableCheckedInputStream;
 import org.opensearch.common.io.InputStreamContainer;
+import org.opensearch.common.util.ByteUtils;
 
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Objects;
+import java.util.zip.CRC32;
 
 import com.jcraft.jzlib.JZlib;
 
@@ -243,5 +247,18 @@ public class RemoteTransferContainer implements Closeable {
         if (closeStreamException) {
             throw new IOException("Closure of some of the multi-part streams failed.");
         }
+    }
+
+    /**
+     * Compute final checksum for IndexInput container checksum footer added by {@link CodecUtil}
+     * @param indexInput IndexInput with checksum in footer
+     * @param checksumBytesLength length of checksum bytes
+     * @return final computed checksum of entire indexInput
+     */
+    public static long checksumOfChecksum(IndexInput indexInput, int checksumBytesLength) throws IOException {
+        long storedChecksum = CodecUtil.retrieveChecksum(indexInput);
+        CRC32 checksumOfChecksum = new CRC32();
+        checksumOfChecksum.update(ByteUtils.toByteArrayBE(storedChecksum));
+        return JZlib.crc32_combine(storedChecksum, checksumOfChecksum.getValue(), checksumBytesLength);
     }
 }

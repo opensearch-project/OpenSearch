@@ -44,6 +44,7 @@ import org.opensearch.common.SetOnce;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.transport.TransportAddress;
+import org.opensearch.telemetry.tracing.noop.NoopTracer;
 import org.opensearch.test.MockLogAppender;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.junit.annotations.TestLogging;
@@ -122,7 +123,8 @@ public class HandshakingTransportAddressConnectorTests extends OpenSearchTestCas
             TransportService.NOOP_TRANSPORT_INTERCEPTOR,
             address -> localNode,
             null,
-            emptySet()
+            emptySet(),
+            NoopTracer.INSTANCE
         );
 
         transportService.start();

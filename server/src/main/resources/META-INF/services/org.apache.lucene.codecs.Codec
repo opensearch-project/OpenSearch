@@ -1,2 +1,0 @@
-org.opensearch.index.codec.customcodecs.ZstdCodec
-org.opensearch.index.codec.customcodecs.ZstdNoDictCodec

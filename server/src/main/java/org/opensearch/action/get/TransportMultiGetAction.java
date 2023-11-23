@@ -38,6 +38,7 @@ import org.opensearch.action.support.HandledTransportAction;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.block.ClusterBlockLevel;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
+import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.routing.Preference;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
@@ -50,8 +51,6 @@ import org.opensearch.transport.TransportService;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
-
-import static org.opensearch.action.get.TransportGetAction.shouldForcePrimaryRouting;
 
 /**
  * Perform the multi get action.
@@ -76,6 +75,10 @@ public class TransportMultiGetAction extends HandledTransportAction<MultiGetRequ
         this.clusterService = clusterService;
         this.shardAction = shardAction;
         this.indexNameExpressionResolver = resolver;
+    }
+
+    protected static boolean shouldForcePrimaryRouting(Metadata metadata, boolean realtime, String preference, String indexName) {
+        return metadata.isSegmentReplicationEnabled(indexName) && realtime && preference == null;
     }
 
     @Override
@@ -112,7 +115,7 @@ public class TransportMultiGetAction extends HandledTransportAction<MultiGetRequ
 
             MultiGetShardRequest shardRequest = shardRequests.get(shardId);
             if (shardRequest == null) {
-                if (shouldForcePrimaryRouting(clusterState, request.realtime, request.preference, concreteSingleIndex)) {
+                if (shouldForcePrimaryRouting(clusterState.getMetadata(), request.realtime(), request.preference(), concreteSingleIndex)) {
                     request.preference(Preference.PRIMARY.type());
                 }
                 shardRequest = new MultiGetShardRequest(request, shardId.getIndexName(), shardId.getId());

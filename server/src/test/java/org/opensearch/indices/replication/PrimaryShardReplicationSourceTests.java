@@ -23,6 +23,7 @@ import org.opensearch.index.shard.IndexShardTestCase;
 import org.opensearch.index.store.StoreFileMetadata;
 import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
+import org.opensearch.telemetry.tracing.noop.NoopTracer;
 import org.opensearch.test.ClusterServiceUtils;
 import org.opensearch.test.transport.CapturingTransport;
 import org.opensearch.transport.TransportService;
@@ -68,7 +69,8 @@ public class PrimaryShardReplicationSourceTests extends IndexShardTestCase {
             TransportService.NOOP_TRANSPORT_INTERCEPTOR,
             boundAddress -> clusterService.localNode(),
             null,
-            Collections.emptySet()
+            Collections.emptySet(),
+            NoopTracer.INSTANCE
         );
         transportService.start();
         transportService.acceptIncomingRequests();
@@ -123,6 +125,7 @@ public class PrimaryShardReplicationSourceTests extends IndexShardTestCase {
             checkpoint,
             Arrays.asList(testMetadata),
             mock(IndexShard.class),
+            (fileName, bytesRecovered) -> {},
             mock(ActionListener.class)
         );
         CapturingTransport.CapturedRequest[] requestList = transport.getCapturedRequestsAndClear();
@@ -151,6 +154,7 @@ public class PrimaryShardReplicationSourceTests extends IndexShardTestCase {
             checkpoint,
             Arrays.asList(testMetadata),
             mock(IndexShard.class),
+            (fileName, bytesRecovered) -> {},
             mock(ActionListener.class)
         );
         CapturingTransport.CapturedRequest[] requestList = transport.getCapturedRequestsAndClear();
@@ -176,6 +180,7 @@ public class PrimaryShardReplicationSourceTests extends IndexShardTestCase {
             checkpoint,
             Arrays.asList(testMetadata),
             mock(IndexShard.class),
+            (fileName, bytesRecovered) -> {},
             new ActionListener<>() {
                 @Override
                 public void onResponse(GetSegmentFilesResponse getSegmentFilesResponse) {

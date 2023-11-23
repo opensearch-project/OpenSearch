@@ -9,10 +9,12 @@
 package org.opensearch;
 
 import org.opensearch.core.index.snapshots.IndexShardSnapshotException;
+import org.opensearch.crypto.CryptoRegistryException;
 
 import static org.opensearch.OpenSearchException.OpenSearchExceptionHandle;
 import static org.opensearch.OpenSearchException.OpenSearchExceptionHandleRegistry.registerExceptionHandle;
 import static org.opensearch.OpenSearchException.UNKNOWN_VERSION_ADDED;
+import static org.opensearch.Version.V_2_10_0;
 import static org.opensearch.Version.V_2_1_0;
 import static org.opensearch.Version.V_2_4_0;
 import static org.opensearch.Version.V_2_5_0;
@@ -1172,6 +1174,7 @@ public final class OpenSearchServerException {
                 V_2_7_0
             )
         );
+        registerExceptionHandle(new OpenSearchExceptionHandle(CryptoRegistryException.class, CryptoRegistryException::new, 171, V_2_10_0));
         registerExceptionHandle(
             new OpenSearchExceptionHandle(
                 org.opensearch.cluster.block.IndexCreateBlockException.class,

@@ -9,6 +9,7 @@
 package org.opensearch.index;
 
 import org.opensearch.common.Nullable;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
@@ -23,12 +24,17 @@ import java.io.IOException;
 /**
  * SegRep stats for a single shard.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "2.7.0")
 public class SegmentReplicationShardStats implements Writeable, ToXContentFragment {
     private final String allocationId;
     private final long checkpointsBehindCount;
     private final long bytesBehindCount;
+    // Total Replication lag observed.
+    private final long currentReplicationLagMillis;
+    // Total time taken for replicas to catch up. Similar to replication lag except this
+    // doesn't include time taken by primary to upload data to remote store.
     private final long currentReplicationTimeMillis;
     private final long lastCompletedReplicationTimeMillis;
 
@@ -40,12 +46,14 @@ public class SegmentReplicationShardStats implements Writeable, ToXContentFragme
         long checkpointsBehindCount,
         long bytesBehindCount,
         long currentReplicationTimeMillis,
+        long currentReplicationLagMillis,
         long lastCompletedReplicationTime
     ) {
         this.allocationId = allocationId;
         this.checkpointsBehindCount = checkpointsBehindCount;
         this.bytesBehindCount = bytesBehindCount;
         this.currentReplicationTimeMillis = currentReplicationTimeMillis;
+        this.currentReplicationLagMillis = currentReplicationLagMillis;
         this.lastCompletedReplicationTimeMillis = lastCompletedReplicationTime;
     }
 
@@ -55,6 +63,7 @@ public class SegmentReplicationShardStats implements Writeable, ToXContentFragme
         this.bytesBehindCount = in.readVLong();
         this.currentReplicationTimeMillis = in.readVLong();
         this.lastCompletedReplicationTimeMillis = in.readVLong();
+        this.currentReplicationLagMillis = in.readVLong();
     }
 
     public String getAllocationId() {
@@ -73,6 +82,19 @@ public class SegmentReplicationShardStats implements Writeable, ToXContentFragme
         return currentReplicationTimeMillis;
     }
 
+    /**
+     * Total Replication lag observed.
+     * @return currentReplicationLagMillis
+     */
+    public long getCurrentReplicationLagMillis() {
+        return currentReplicationLagMillis;
+    }
+
+    /**
+     * Total time taken for replicas to catch up. Similar to replication lag except this doesn't include time taken by
+     * primary to upload data to remote store.
+     * @return lastCompletedReplicationTimeMillis
+     */
     public long getLastCompletedReplicationTimeMillis() {
         return lastCompletedReplicationTimeMillis;
     }
@@ -93,6 +115,7 @@ public class SegmentReplicationShardStats implements Writeable, ToXContentFragme
         builder.field("checkpoints_behind", checkpointsBehindCount);
         builder.field("bytes_behind", new ByteSizeValue(bytesBehindCount).toString());
         builder.field("current_replication_time", new TimeValue(currentReplicationTimeMillis));
+        builder.field("current_replication_lag", new TimeValue(currentReplicationLagMillis));
         builder.field("last_completed_replication_time", new TimeValue(lastCompletedReplicationTimeMillis));
         if (currentReplicationState != null) {
             builder.startObject();
@@ -110,6 +133,7 @@ public class SegmentReplicationShardStats implements Writeable, ToXContentFragme
         out.writeVLong(bytesBehindCount);
         out.writeVLong(currentReplicationTimeMillis);
         out.writeVLong(lastCompletedReplicationTimeMillis);
+        out.writeVLong(currentReplicationLagMillis);
     }
 
     @Override
@@ -121,6 +145,8 @@ public class SegmentReplicationShardStats implements Writeable, ToXContentFragme
             + checkpointsBehindCount
             + ", bytesBehindCount="
             + bytesBehindCount
+            + ", currentReplicationLagMillis="
+            + currentReplicationLagMillis
             + ", currentReplicationTimeMillis="
             + currentReplicationTimeMillis
             + ", lastCompletedReplicationTimeMillis="

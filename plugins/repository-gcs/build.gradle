@@ -53,21 +53,21 @@ versions << [
 
 dependencies {
   api 'com.google.api:api-common:1.8.1'
-  api 'com.google.api:gax:2.27.0'
+  api 'com.google.api:gax:2.35.0'
   api 'com.google.api:gax-httpjson:0.103.1'
 
   api 'com.google.apis:google-api-services-storage:v1-rev20230617-2.0.0'
 
   api 'com.google.api-client:google-api-client:2.2.0'
 
-  api 'com.google.api.grpc:proto-google-common-protos:2.10.0'
+  api 'com.google.api.grpc:proto-google-common-protos:2.25.1'
   api 'com.google.api.grpc:proto-google-iam-v1:0.12.0'
 
   api "com.google.auth:google-auth-library-credentials:${versions.google_auth}"
   api "com.google.auth:google-auth-library-oauth2-http:${versions.google_auth}"
 
   api 'com.google.cloud:google-cloud-core:2.5.10'
-  api 'com.google.cloud:google-cloud-core-http:2.21.1'
+  api 'com.google.cloud:google-cloud-core-http:2.23.0'
   api 'com.google.cloud:google-cloud-storage:1.113.1'
 
   api 'com.google.code.gson:gson:2.10.1'
@@ -75,10 +75,10 @@ dependencies {
   runtimeOnly "com.google.guava:guava:${versions.guava}"
   api 'com.google.guava:failureaccess:1.0.1'
 
-  api 'com.google.http-client:google-http-client:1.43.2'
-  api 'com.google.http-client:google-http-client-appengine:1.43.2'
+  api 'com.google.http-client:google-http-client:1.43.3'
+  api 'com.google.http-client:google-http-client-appengine:1.43.3'
   api 'com.google.http-client:google-http-client-gson:1.43.3'
-  api 'com.google.http-client:google-http-client-jackson2:1.43.2'
+  api 'com.google.http-client:google-http-client-jackson2:1.43.3'
 
   api 'com.google.oauth-client:google-oauth-client:1.34.1'
 
@@ -86,7 +86,7 @@ dependencies {
   api "org.apache.logging.log4j:log4j-1.2-api:${versions.log4j}"
   api "commons-codec:commons-codec:${versions.commonscodec}"
   api 'org.threeten:threetenbp:1.4.4'
-  api 'io.grpc:grpc-api:1.57.1'
+  api 'io.grpc:grpc-api:1.57.2'
   api 'io.opencensus:opencensus-api:0.31.1'
   api 'io.opencensus:opencensus-contrib-http-util:0.31.1'
 
@@ -148,6 +148,7 @@ thirdPartyAudit {
     'com.google.appengine.api.urlfetch.HTTPResponse',
     'com.google.appengine.api.urlfetch.URLFetchService',
     'com.google.appengine.api.urlfetch.URLFetchServiceFactory',
+    'com.google.auth.oauth2.GdchCredentials',
     'com.google.protobuf.util.JsonFormat',
     'com.google.protobuf.util.JsonFormat$Parser',
     'com.google.protobuf.util.JsonFormat$Printer',

@@ -41,9 +41,9 @@ import org.opensearch.common.CheckedTriFunction;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.StreamContext;
 import org.opensearch.common.SuppressForbidden;
+import org.opensearch.common.blobstore.AsyncMultiStreamBlobContainer;
 import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.blobstore.BlobPath;
-import org.opensearch.common.blobstore.VerifyingMultiStreamBlobContainer;
 import org.opensearch.common.blobstore.stream.write.StreamContextSupplier;
 import org.opensearch.common.blobstore.stream.write.WriteContext;
 import org.opensearch.common.blobstore.stream.write.WritePriority;
@@ -95,6 +95,7 @@ import static org.opensearch.repositories.s3.S3ClientSettings.ENDPOINT_SETTING;
 import static org.opensearch.repositories.s3.S3ClientSettings.MAX_RETRIES_SETTING;
 import static org.opensearch.repositories.s3.S3ClientSettings.READ_TIMEOUT_SETTING;
 import static org.opensearch.repositories.s3.S3ClientSettings.REGION;
+import static org.opensearch.repositories.s3.S3Repository.BULK_DELETE_SIZE;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -161,7 +162,7 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
     }
 
     @Override
-    protected VerifyingMultiStreamBlobContainer createBlobContainer(
+    protected AsyncMultiStreamBlobContainer createBlobContainer(
         final @Nullable Integer maxRetries,
         final @Nullable TimeValue readTimeout,
         final @Nullable Boolean disableChunkedEncoding,
@@ -215,12 +216,15 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
                 bufferSize == null ? S3Repository.BUFFER_SIZE_SETTING.getDefault(Settings.EMPTY) : bufferSize,
                 S3Repository.CANNED_ACL_SETTING.getDefault(Settings.EMPTY),
                 S3Repository.STORAGE_CLASS_SETTING.getDefault(Settings.EMPTY),
+                BULK_DELETE_SIZE.get(Settings.EMPTY),
                 repositoryMetadata,
                 new AsyncTransferManager(
                     S3Repository.PARALLEL_MULTIPART_UPLOAD_MINIMUM_PART_SIZE_SETTING.getDefault(Settings.EMPTY).getBytes(),
                     asyncExecutorContainer.getStreamReader(),
+                    asyncExecutorContainer.getStreamReader(),
                     asyncExecutorContainer.getStreamReader()
                 ),
+                asyncExecutorContainer,
                 asyncExecutorContainer,
                 asyncExecutorContainer
             )
@@ -320,7 +324,7 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
             }
         });
 
-        final VerifyingMultiStreamBlobContainer blobContainer = createBlobContainer(maxRetries, null, true, null);
+        final AsyncMultiStreamBlobContainer blobContainer = createBlobContainer(maxRetries, null, true, null);
         List<InputStream> openInputStreams = new ArrayList<>();
         CountDownLatch countDownLatch = new CountDownLatch(1);
         AtomicReference<Exception> exceptionRef = new AtomicReference<>();

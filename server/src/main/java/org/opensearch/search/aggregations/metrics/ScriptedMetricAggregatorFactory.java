@@ -124,6 +124,11 @@ class ScriptedMetricAggregatorFactory extends AggregatorFactory {
         );
     }
 
+    @Override
+    protected boolean supportsConcurrentSegmentSearch() {
+        return true;
+    }
+
     private static Script deepCopyScript(Script script, SearchContext context, Map<String, Object> aggParams) {
         if (script != null) {
             Map<String, Object> params = mergeParams(aggParams, deepCopyParams(script.getParams(), context));

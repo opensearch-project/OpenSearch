@@ -9,6 +9,7 @@
 package org.opensearch.search.aggregations.bucket.terms;
 
 import org.opensearch.action.index.IndexRequestBuilder;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.core.common.Strings;
 import org.opensearch.index.fielddata.ScriptDocValues;
 import org.opensearch.plugins.Plugin;
@@ -36,6 +37,10 @@ public class BaseStringTermsTestCase extends AbstractTermsTestCase {
     protected static final String SINGLE_VALUED_FIELD_NAME = "s_value";
     protected static final String MULTI_VALUED_FIELD_NAME = "s_values";
     protected static Map<String, Map<String, Object>> expectedMultiSortBuckets;
+
+    public BaseStringTermsTestCase(Settings dynamicSettings) {
+        super(dynamicSettings);
+    }
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {

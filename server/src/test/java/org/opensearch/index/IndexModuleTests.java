@@ -87,6 +87,7 @@ import org.opensearch.index.engine.InternalEngineTests;
 import org.opensearch.index.fielddata.IndexFieldDataCache;
 import org.opensearch.index.mapper.ParsedDocument;
 import org.opensearch.index.mapper.Uid;
+import org.opensearch.index.remote.RemoteTranslogTransferTracker;
 import org.opensearch.index.shard.IndexEventListener;
 import org.opensearch.index.shard.IndexingOperationListener;
 import org.opensearch.index.shard.SearchOperationListener;
@@ -104,11 +105,13 @@ import org.opensearch.indices.analysis.AnalysisModule;
 import org.opensearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason;
 import org.opensearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.opensearch.indices.mapper.MapperRegistry;
+import org.opensearch.indices.recovery.DefaultRecoverySettings;
 import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.plugins.IndexStorePlugin;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.script.ScriptService;
 import org.opensearch.search.internal.ReaderContext;
+import org.opensearch.telemetry.tracing.noop.NoopTracer;
 import org.opensearch.test.ClusterServiceUtils;
 import org.opensearch.test.IndexSettingsModule;
 import org.opensearch.test.OpenSearchTestCase;
@@ -203,7 +206,8 @@ public class IndexModuleTests extends OpenSearchTestCase {
             TransportService.NOOP_TRANSPORT_INTERCEPTOR,
             boundAddress -> DiscoveryNode.createLocal(settings, boundAddress.publishAddress(), UUIDs.randomBase64UUID()),
             null,
-            Collections.emptySet()
+            Collections.emptySet(),
+            NoopTracer.INSTANCE
         );
         repositoriesService = new RepositoriesService(
             settings,
@@ -231,7 +235,8 @@ public class IndexModuleTests extends OpenSearchTestCase {
                 return new RemoteBlobStoreInternalTranslogFactory(
                     repositoriesServiceReference::get,
                     threadPool,
-                    indexSettings.getRemoteStoreTranslogRepository()
+                    indexSettings.getRemoteStoreTranslogRepository(),
+                    new RemoteTranslogTransferTracker(shardRouting.shardId(), 10)
                 );
             }
             return new InternalTranslogFactory();
@@ -255,7 +260,9 @@ public class IndexModuleTests extends OpenSearchTestCase {
             null,
             new RemoteSegmentStoreDirectoryFactory(() -> repositoriesService, threadPool),
             translogFactorySupplier,
-            () -> IndexSettings.DEFAULT_REFRESH_INTERVAL
+            () -> IndexSettings.DEFAULT_REFRESH_INTERVAL,
+            () -> IndexSettings.DEFAULT_REMOTE_TRANSLOG_BUFFER_INTERVAL,
+            DefaultRecoverySettings.INSTANCE
         );
     }
 

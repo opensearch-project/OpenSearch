@@ -32,10 +32,13 @@
 
 package org.opensearch.search.query;
 
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.opensearch.OpenSearchException;
 import org.opensearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.index.fielddata.ScriptDocValues;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.RangeQueryBuilder;
@@ -43,8 +46,9 @@ import org.opensearch.plugins.Plugin;
 import org.opensearch.script.MockScriptPlugin;
 import org.opensearch.script.Script;
 import org.opensearch.script.ScriptType;
-import org.opensearch.test.OpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedOpenSearchIntegTestCase;
 
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -54,6 +58,7 @@ import java.util.function.Function;
 import static org.opensearch.index.query.QueryBuilders.boolQuery;
 import static org.opensearch.index.query.QueryBuilders.matchQuery;
 import static org.opensearch.index.query.QueryBuilders.scriptScoreQuery;
+import static org.opensearch.search.SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertFirstHit;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertNoFailures;
@@ -62,7 +67,24 @@ import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertSecondHit;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertThirdHit;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.hasScore;
 
-public class ScriptScoreQueryIT extends OpenSearchIntegTestCase {
+public class ScriptScoreQueryIT extends ParameterizedOpenSearchIntegTestCase {
+
+    public ScriptScoreQueryIT(Settings dynamicSettings) {
+        super(dynamicSettings);
+    }
+
+    @ParametersFactory
+    public static Collection<Object[]> parameters() {
+        return Arrays.asList(
+            new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), false).build() },
+            new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), true).build() }
+        );
+    }
+
+    @Override
+    protected Settings featureFlagSettings() {
+        return Settings.builder().put(super.featureFlagSettings()).put(FeatureFlags.CONCURRENT_SEGMENT_SEARCH, "true").build();
+    }
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
@@ -87,13 +109,14 @@ public class ScriptScoreQueryIT extends OpenSearchIntegTestCase {
     // 1) only matched docs retrieved
     // 2) score is calculated based on a script with params
     // 3) min score applied
-    public void testScriptScore() {
+    public void testScriptScore() throws Exception {
         assertAcked(prepareCreate("test-index").setMapping("field1", "type=text", "field2", "type=double"));
         int docCount = 10;
         for (int i = 1; i <= docCount; i++) {
             client().prepareIndex("test-index").setId("" + i).setSource("field1", "text" + (i % 2), "field2", i).get();
         }
         refresh();
+        indexRandomForConcurrentSearch("test-index");
 
         Map<String, Object> params = new HashMap<>();
         params.put("param1", 0.1);
@@ -113,13 +136,14 @@ public class ScriptScoreQueryIT extends OpenSearchIntegTestCase {
         assertOrderedSearchHits(resp, "10", "8", "6");
     }
 
-    public void testScriptScoreBoolQuery() {
+    public void testScriptScoreBoolQuery() throws Exception {
         assertAcked(prepareCreate("test-index").setMapping("field1", "type=text", "field2", "type=double"));
         int docCount = 10;
         for (int i = 1; i <= docCount; i++) {
             client().prepareIndex("test-index").setId("" + i).setSource("field1", "text" + i, "field2", i).get();
         }
         refresh();
+        indexRandomForConcurrentSearch("test-index");
 
         Map<String, Object> params = new HashMap<>();
         params.put("param1", 0.1);
@@ -133,7 +157,7 @@ public class ScriptScoreQueryIT extends OpenSearchIntegTestCase {
     }
 
     // test that when the internal query is rewritten script_score works well
-    public void testRewrittenQuery() {
+    public void testRewrittenQuery() throws Exception {
         assertAcked(
             prepareCreate("test-index2").setSettings(Settings.builder().put("index.number_of_shards", 1))
                 .setMapping("field1", "type=date", "field2", "type=double")
@@ -142,6 +166,7 @@ public class ScriptScoreQueryIT extends OpenSearchIntegTestCase {
         client().prepareIndex("test-index2").setId("2").setSource("field1", "2019-10-01", "field2", 2).get();
         client().prepareIndex("test-index2").setId("3").setSource("field1", "2019-11-01", "field2", 3).get();
         refresh();
+        indexRandomForConcurrentSearch("test-index2");
 
         RangeQueryBuilder rangeQB = new RangeQueryBuilder("field1").from("2019-01-01"); // the query should be rewritten to from:null
         Map<String, Object> params = new HashMap<>();
@@ -152,7 +177,7 @@ public class ScriptScoreQueryIT extends OpenSearchIntegTestCase {
         assertOrderedSearchHits(resp, "3", "2", "1");
     }
 
-    public void testDisallowExpensiveQueries() {
+    public void testDisallowExpensiveQueries() throws Exception {
         try {
             assertAcked(prepareCreate("test-index").setMapping("field1", "type=text", "field2", "type=double"));
             int docCount = 10;
@@ -160,6 +185,7 @@ public class ScriptScoreQueryIT extends OpenSearchIntegTestCase {
                 client().prepareIndex("test-index").setId("" + i).setSource("field1", "text" + (i % 2), "field2", i).get();
             }
             refresh();
+            indexRandomForConcurrentSearch("test-index");
 
             Map<String, Object> params = new HashMap<>();
             params.put("param1", 0.1);

@@ -8,17 +8,20 @@
 
 package org.opensearch.telemetry.tracing;
 
+import org.opensearch.common.annotation.InternalApi;
 import org.opensearch.telemetry.TelemetrySettings;
-import org.opensearch.telemetry.tracing.attributes.Attributes;
 import org.opensearch.telemetry.tracing.noop.NoopTracer;
 
 import java.io.IOException;
+import java.util.Collection;
+import java.util.Map;
 
 /**
  * Wrapper implementation of Tracer. This delegates call to right tracer based on the tracer settings
  *
  * @opensearch.internal
  */
+@InternalApi
 final class WrappedTracer implements Tracer {
 
     private final Tracer defaultTracer;
@@ -36,13 +39,8 @@ final class WrappedTracer implements Tracer {
     }
 
     @Override
-    public SpanScope startSpan(String spanName) {
-        return startSpan(spanName, Attributes.EMPTY);
-    }
-
-    @Override
-    public SpanScope startSpan(String spanName, Attributes attributes) {
-        return startSpan(spanName, null, attributes);
+    public Span startSpan(SpanCreationContext context) {
+        return getDelegateTracer().startSpan(context);
     }
 
     @Override
@@ -52,9 +50,18 @@ final class WrappedTracer implements Tracer {
     }
 
     @Override
-    public SpanScope startSpan(String spanName, SpanContext parentSpan, Attributes attributes) {
-        Tracer delegateTracer = getDelegateTracer();
-        return delegateTracer.startSpan(spanName, parentSpan, attributes);
+    public ScopedSpan startScopedSpan(SpanCreationContext spanCreationContext) {
+        return getDelegateTracer().startScopedSpan(spanCreationContext);
+    }
+
+    @Override
+    public SpanScope withSpanInScope(Span span) {
+        return getDelegateTracer().withSpanInScope(span);
+    }
+
+    @Override
+    public boolean isRecording() {
+        return getDelegateTracer().isRecording();
     }
 
     @Override
@@ -65,5 +72,10 @@ final class WrappedTracer implements Tracer {
     // visible for testing
     Tracer getDelegateTracer() {
         return telemetrySettings.isTracingEnabled() ? defaultTracer : NoopTracer.INSTANCE;
+    }
+
+    @Override
+    public Span startSpan(SpanCreationContext spanCreationContext, Map<String, Collection<String>> headers) {
+        return defaultTracer.startSpan(spanCreationContext, headers);
     }
 }

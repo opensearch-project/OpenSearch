@@ -1274,7 +1274,8 @@ public class SearchServiceTests extends OpenSearchSingleNodeTestCase {
                         .get()
                         .getSetting(index, IndexSettings.INDEX_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey())
                 );
-                assertEquals(concurrentSearchEnabled, searchContext.isConcurrentSegmentSearchEnabled());
+                searchContext.evaluateRequestShouldUseConcurrentSearch();
+                assertEquals(concurrentSearchEnabled, searchContext.shouldUseConcurrentSearch());
                 // verify executor nullability with concurrent search enabled/disabled
                 if (concurrentSearchEnabled) {
                     assertNotNull(searchContext.searcher().getExecutor());
@@ -1328,7 +1329,8 @@ public class SearchServiceTests extends OpenSearchSingleNodeTestCase {
                 .get();
             try (DefaultSearchContext searchContext = service.createSearchContext(request, new TimeValue(System.currentTimeMillis()))) {
                 // verify concurrent search state in context
-                assertEquals(concurrentSearchSetting, searchContext.isConcurrentSegmentSearchEnabled());
+                searchContext.evaluateRequestShouldUseConcurrentSearch();
+                assertEquals(concurrentSearchSetting, searchContext.shouldUseConcurrentSearch());
                 // verify executor state in searcher
                 assertEquals(concurrentSearchSetting, (searchContext.searcher().getExecutor() != null));
 
@@ -1342,7 +1344,7 @@ public class SearchServiceTests extends OpenSearchSingleNodeTestCase {
                     .get();
 
                 // verify that concurrent segment search is still set to same expected value for the context
-                assertEquals(concurrentSearchSetting, searchContext.isConcurrentSegmentSearchEnabled());
+                assertEquals(concurrentSearchSetting, searchContext.shouldUseConcurrentSearch());
             }
         }
 
@@ -1754,7 +1756,7 @@ public class SearchServiceTests extends OpenSearchSingleNodeTestCase {
         MinAndMax<?> minMax = new MinAndMax<Long>(0L, 9L);
         FieldSortBuilder primarySort = new FieldSortBuilder("test");
         primarySort.order(SortOrder.ASC);
-        assertEquals(SearchService.canMatchSearchAfter(searchAfter, minMax, primarySort), false);
+        assertEquals(SearchService.canMatchSearchAfter(searchAfter, minMax, primarySort, SearchContext.TRACK_TOTAL_HITS_DISABLED), false);
     }
 
     /**
@@ -1767,7 +1769,7 @@ public class SearchServiceTests extends OpenSearchSingleNodeTestCase {
         MinAndMax<?> minMax = new MinAndMax<Long>(0L, 9L);
         FieldSortBuilder primarySort = new FieldSortBuilder("test");
         primarySort.order(SortOrder.ASC);
-        assertEquals(SearchService.canMatchSearchAfter(searchAfter, minMax, primarySort), true);
+        assertEquals(SearchService.canMatchSearchAfter(searchAfter, minMax, primarySort, SearchContext.TRACK_TOTAL_HITS_DISABLED), true);
     }
 
     /**
@@ -1780,7 +1782,7 @@ public class SearchServiceTests extends OpenSearchSingleNodeTestCase {
         MinAndMax<?> minMax = new MinAndMax<Long>(0L, 9L);
         FieldSortBuilder primarySort = new FieldSortBuilder("test");
         primarySort.order(SortOrder.ASC);
-        assertEquals(SearchService.canMatchSearchAfter(searchAfter, minMax, primarySort), true);
+        assertEquals(SearchService.canMatchSearchAfter(searchAfter, minMax, primarySort, SearchContext.TRACK_TOTAL_HITS_DISABLED), true);
     }
 
     /**
@@ -1793,7 +1795,7 @@ public class SearchServiceTests extends OpenSearchSingleNodeTestCase {
         MinAndMax<?> minMax = new MinAndMax<Long>(0L, 9L);
         FieldSortBuilder primarySort = new FieldSortBuilder("test");
         primarySort.order(SortOrder.DESC);
-        assertEquals(SearchService.canMatchSearchAfter(searchAfter, minMax, primarySort), true);
+        assertEquals(SearchService.canMatchSearchAfter(searchAfter, minMax, primarySort, SearchContext.TRACK_TOTAL_HITS_DISABLED), true);
     }
 
     /**
@@ -1806,7 +1808,7 @@ public class SearchServiceTests extends OpenSearchSingleNodeTestCase {
         MinAndMax<?> minMax = new MinAndMax<Long>(0L, 9L);
         FieldSortBuilder primarySort = new FieldSortBuilder("test");
         primarySort.order(SortOrder.DESC);
-        assertEquals(SearchService.canMatchSearchAfter(searchAfter, minMax, primarySort), false);
+        assertEquals(SearchService.canMatchSearchAfter(searchAfter, minMax, primarySort, SearchContext.TRACK_TOTAL_HITS_DISABLED), false);
     }
 
     /**
@@ -1819,7 +1821,7 @@ public class SearchServiceTests extends OpenSearchSingleNodeTestCase {
         MinAndMax<?> minMax = new MinAndMax<Long>(0L, 9L);
         FieldSortBuilder primarySort = new FieldSortBuilder("test");
         primarySort.order(SortOrder.DESC);
-        assertEquals(SearchService.canMatchSearchAfter(searchAfter, minMax, primarySort), true);
+        assertEquals(SearchService.canMatchSearchAfter(searchAfter, minMax, primarySort, SearchContext.TRACK_TOTAL_HITS_DISABLED), true);
     }
 
     /**
@@ -1833,9 +1835,24 @@ public class SearchServiceTests extends OpenSearchSingleNodeTestCase {
         FieldSortBuilder primarySort = new FieldSortBuilder("test");
         primarySort.order(SortOrder.DESC);
         // Should be false without missing values
-        assertEquals(SearchService.canMatchSearchAfter(searchAfter, minMax, primarySort), false);
+        assertEquals(SearchService.canMatchSearchAfter(searchAfter, minMax, primarySort, SearchContext.TRACK_TOTAL_HITS_DISABLED), false);
         primarySort.missing("_last");
         // Should be true with missing values
-        assertEquals(SearchService.canMatchSearchAfter(searchAfter, minMax, primarySort), true);
+        assertEquals(SearchService.canMatchSearchAfter(searchAfter, minMax, primarySort, SearchContext.TRACK_TOTAL_HITS_DISABLED), true);
+    }
+
+    /**
+     * Test for DESC order search_after query with track_total_hits=true.
+     * Min = 0L, Max = 9L, search_after = -1L
+     * With above min/max and search_after, it should not match, but since
+     * track_total_hits = true,
+     * Expected result is canMatch = true
+     */
+    public void testCanMatchSearchAfterDescLessThanMinWithTrackTotalhits() throws IOException {
+        FieldDoc searchAfter = new FieldDoc(0, 0, new Long[] { -1L });
+        MinAndMax<?> minMax = new MinAndMax<Long>(0L, 9L);
+        FieldSortBuilder primarySort = new FieldSortBuilder("test");
+        primarySort.order(SortOrder.DESC);
+        assertEquals(SearchService.canMatchSearchAfter(searchAfter, minMax, primarySort, 1000), true);
     }
 }

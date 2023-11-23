@@ -44,7 +44,7 @@ import static java.util.Collections.singletonMap;
 /**
  * Some tests rely on the keyword tokenizer, but this tokenizer isn't part of lucene-core and therefor not available
  * in some modules. What this test plugin does, is use the mock tokenizer and advertise that as the keyword tokenizer.
- *
+ * <p>
  * Most tests that need this test plugin use normalizers. When normalizers are constructed they try to resolve the
  * keyword tokenizer, but if the keyword tokenizer isn't available then constructing normalizers will fail.
  */

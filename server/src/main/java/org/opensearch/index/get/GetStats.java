@@ -32,6 +32,7 @@
 
 package org.opensearch.index.get;
 
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
@@ -46,6 +47,7 @@ import java.io.IOException;
  *
  * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class GetStats implements Writeable, ToXContentFragment {
 
     private long existsCount;

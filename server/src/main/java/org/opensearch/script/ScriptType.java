@@ -32,6 +32,7 @@
 
 package org.opensearch.script;
 
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.ParseField;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
@@ -45,8 +46,9 @@ import java.util.Locale;
  * It's also used to by {@link ScriptService} to determine whether or not a {@link Script} is
  * allowed to be executed based on both default and user-defined settings.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public enum ScriptType implements Writeable {
 
     /**

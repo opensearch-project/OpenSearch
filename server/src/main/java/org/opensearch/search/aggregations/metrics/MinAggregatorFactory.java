@@ -90,4 +90,9 @@ class MinAggregatorFactory extends ValuesSourceAggregatorFactory {
             .getAggregator(MinAggregationBuilder.REGISTRY_KEY, config)
             .build(name, config, searchContext, parent, metadata);
     }
+
+    @Override
+    protected boolean supportsConcurrentSegmentSearch() {
+        return true;
+    }
 }

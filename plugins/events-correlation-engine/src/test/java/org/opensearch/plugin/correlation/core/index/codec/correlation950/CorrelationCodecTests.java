@@ -51,6 +51,7 @@ public class CorrelationCodecTests extends OpenSearchTestCase {
      * test correlation vector index
      * @throws Exception Exception
      */
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/8329")
     public void testCorrelationVectorIndex() throws Exception {
         Function<MapperService, PerFieldCorrelationVectorsFormat> perFieldCorrelationVectorsProvider =
             mapperService -> new PerFieldCorrelationVectorsFormat(Optional.of(mapperService));

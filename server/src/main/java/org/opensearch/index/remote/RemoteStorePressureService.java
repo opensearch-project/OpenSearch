@@ -13,31 +13,21 @@ import org.apache.logging.log4j.Logger;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.concurrent.ConcurrentCollections;
 import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.core.index.shard.ShardId;
-import org.opensearch.index.shard.IndexEventListener;
-import org.opensearch.index.shard.IndexShard;
 
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
-import java.util.function.BiConsumer;
 
 /**
  * Service used to validate if the incoming indexing request should be rejected based on the {@link RemoteSegmentTransferTracker}.
  *
  * @opensearch.internal
  */
-public class RemoteStorePressureService implements IndexEventListener {
+public class RemoteStorePressureService {
 
     private static final Logger logger = LogManager.getLogger(RemoteStorePressureService.class);
-
-    /**
-     * Keeps map of remote-backed index shards and their corresponding backpressure tracker.
-     */
-    private final Map<ShardId, RemoteSegmentTransferTracker> trackerMap = ConcurrentCollections.newConcurrentMap();
 
     /**
      * Remote refresh segment pressure settings which is used for creation of the backpressure tracker and as well as rejection.
@@ -46,51 +36,21 @@ public class RemoteStorePressureService implements IndexEventListener {
 
     private final List<LagValidator> lagValidators;
 
+    private final RemoteStoreStatsTrackerFactory remoteStoreStatsTrackerFactory;
+
     @Inject
-    public RemoteStorePressureService(ClusterService clusterService, Settings settings) {
+    public RemoteStorePressureService(
+        ClusterService clusterService,
+        Settings settings,
+        RemoteStoreStatsTrackerFactory remoteStoreStatsTrackerFactory
+    ) {
         pressureSettings = new RemoteStorePressureSettings(clusterService, settings, this);
         lagValidators = Arrays.asList(
             new ConsecutiveFailureValidator(pressureSettings),
             new BytesLagValidator(pressureSettings),
             new TimeLagValidator(pressureSettings)
         );
-    }
-
-    /**
-     * Get {@code RemoteSegmentTransferTracker} only if the underlying Index has remote segments integration enabled.
-     *
-     * @param shardId shard id
-     * @return the tracker if index is remote-backed, else null.
-     */
-    public RemoteSegmentTransferTracker getRemoteRefreshSegmentTracker(ShardId shardId) {
-        return trackerMap.get(shardId);
-    }
-
-    @Override
-    public void afterIndexShardCreated(IndexShard indexShard) {
-        if (indexShard.indexSettings().isRemoteStoreEnabled() == false) {
-            return;
-        }
-        ShardId shardId = indexShard.shardId();
-        trackerMap.put(
-            shardId,
-            new RemoteSegmentTransferTracker(
-                shardId,
-                indexShard.store().getDirectoryFileTransferTracker(),
-                pressureSettings.getUploadBytesMovingAverageWindowSize(),
-                pressureSettings.getUploadBytesPerSecMovingAverageWindowSize(),
-                pressureSettings.getUploadTimeMovingAverageWindowSize()
-            )
-        );
-        logger.trace("Created tracker for shardId={}", shardId);
-    }
-
-    @Override
-    public void afterIndexShardClosed(ShardId shardId, IndexShard indexShard, Settings indexSettings) {
-        RemoteSegmentTransferTracker remoteSegmentTransferTracker = trackerMap.remove(shardId);
-        if (remoteSegmentTransferTracker != null) {
-            logger.trace("Deleted tracker for shardId={}", shardId);
-        }
+        this.remoteStoreStatsTrackerFactory = remoteStoreStatsTrackerFactory;
     }
 
     /**
@@ -108,7 +68,7 @@ public class RemoteStorePressureService implements IndexEventListener {
      * @param shardId shardId for which the validation needs to be done.
      */
     public void validateSegmentsUploadLag(ShardId shardId) {
-        RemoteSegmentTransferTracker remoteSegmentTransferTracker = getRemoteRefreshSegmentTracker(shardId);
+        RemoteSegmentTransferTracker remoteSegmentTransferTracker = remoteStoreStatsTrackerFactory.getRemoteSegmentTransferTracker(shardId);
         // condition 1 - This will be null for non-remote backed indexes
         // condition 2 - This will be zero if the remote store is
         if (remoteSegmentTransferTracker == null || remoteSegmentTransferTracker.getRefreshSeqNoLag() == 0) {
@@ -121,22 +81,6 @@ public class RemoteStorePressureService implements IndexEventListener {
                 throw new OpenSearchRejectedExecutionException(lagValidator.rejectionMessage(remoteSegmentTransferTracker, shardId));
             }
         }
-    }
-
-    void updateUploadBytesMovingAverageWindowSize(int updatedSize) {
-        updateMovingAverageWindowSize(RemoteSegmentTransferTracker::updateUploadBytesMovingAverageWindowSize, updatedSize);
-    }
-
-    void updateUploadBytesPerSecMovingAverageWindowSize(int updatedSize) {
-        updateMovingAverageWindowSize(RemoteSegmentTransferTracker::updateUploadBytesPerSecMovingAverageWindowSize, updatedSize);
-    }
-
-    void updateUploadTimeMsMovingAverageWindowSize(int updatedSize) {
-        updateMovingAverageWindowSize(RemoteSegmentTransferTracker::updateUploadTimeMsMovingAverageWindowSize, updatedSize);
-    }
-
-    void updateMovingAverageWindowSize(BiConsumer<RemoteSegmentTransferTracker, Integer> biConsumer, int updatedSize) {
-        trackerMap.values().forEach(tracker -> biConsumer.accept(tracker, updatedSize));
     }
 
     /**
@@ -189,18 +133,18 @@ public class RemoteStorePressureService implements IndexEventListener {
             if (pressureTracker.getRefreshSeqNoLag() <= 1) {
                 return true;
             }
-            if (pressureTracker.isUploadBytesAverageReady() == false) {
+            if (pressureTracker.isUploadBytesMovingAverageReady() == false) {
                 logger.trace("upload bytes moving average is not ready");
                 return true;
             }
-            double dynamicBytesLagThreshold = pressureTracker.getUploadBytesAverage() * pressureSettings.getBytesLagVarianceFactor();
+            double dynamicBytesLagThreshold = pressureTracker.getUploadBytesMovingAverage() * pressureSettings.getBytesLagVarianceFactor();
             long bytesLag = pressureTracker.getBytesLag();
             return bytesLag <= dynamicBytesLagThreshold;
         }
 
         @Override
         public String rejectionMessage(RemoteSegmentTransferTracker pressureTracker, ShardId shardId) {
-            double dynamicBytesLagThreshold = pressureTracker.getUploadBytesAverage() * pressureSettings.getBytesLagVarianceFactor();
+            double dynamicBytesLagThreshold = pressureTracker.getUploadBytesMovingAverage() * pressureSettings.getBytesLagVarianceFactor();
             return String.format(
                 Locale.ROOT,
                 "rejected execution on primary shard:%s due to remote segments lagging behind local segments."
@@ -235,18 +179,19 @@ public class RemoteStorePressureService implements IndexEventListener {
             if (pressureTracker.getRefreshSeqNoLag() <= 1) {
                 return true;
             }
-            if (pressureTracker.isUploadTimeMsAverageReady() == false) {
-                logger.trace("upload time moving average is not ready");
+            if (pressureTracker.isUploadTimeMovingAverageReady() == false) {
                 return true;
             }
             long timeLag = pressureTracker.getTimeMsLag();
-            double dynamicTimeLagThreshold = pressureTracker.getUploadTimeMsAverage() * pressureSettings.getUploadTimeLagVarianceFactor();
+            double dynamicTimeLagThreshold = pressureTracker.getUploadTimeMovingAverage() * pressureSettings
+                .getUploadTimeLagVarianceFactor();
             return timeLag <= dynamicTimeLagThreshold;
         }
 
         @Override
         public String rejectionMessage(RemoteSegmentTransferTracker pressureTracker, ShardId shardId) {
-            double dynamicTimeLagThreshold = pressureTracker.getUploadTimeMsAverage() * pressureSettings.getUploadTimeLagVarianceFactor();
+            double dynamicTimeLagThreshold = pressureTracker.getUploadTimeMovingAverage() * pressureSettings
+                .getUploadTimeLagVarianceFactor();
             return String.format(
                 Locale.ROOT,
                 "rejected execution on primary shard:%s due to remote segments lagging behind local segments."

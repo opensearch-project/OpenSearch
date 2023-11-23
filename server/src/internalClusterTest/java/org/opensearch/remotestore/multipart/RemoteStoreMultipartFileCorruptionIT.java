@@ -16,7 +16,6 @@ import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.remotestore.RemoteStoreBaseIntegTestCase;
 import org.opensearch.remotestore.multipart.mocks.MockFsRepositoryPlugin;
-import org.junit.Before;
 
 import java.util.Collection;
 import java.util.stream.Collectors;
@@ -29,11 +28,6 @@ public class RemoteStoreMultipartFileCorruptionIT extends RemoteStoreBaseIntegTe
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Stream.concat(super.nodePlugins().stream(), Stream.of(MockFsRepositoryPlugin.class)).collect(Collectors.toList());
-    }
-
-    @Before
-    public void setup() {
-        setupRepo();
     }
 
     protected Settings remoteStoreIndexSettings() {

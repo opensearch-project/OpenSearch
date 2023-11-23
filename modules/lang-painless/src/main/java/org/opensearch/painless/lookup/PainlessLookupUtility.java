@@ -42,13 +42,13 @@ import java.util.Objects;
 /**
  * PainlessLookupUtility contains methods shared by {@link PainlessLookupBuilder}, {@link PainlessLookup}, and other classes within
  * Painless for conversion between type names and types along with some other various utility methods.
- *
+ * <p>
  * The following terminology is used for variable names throughout the lookup package:
- *
+ * <p>
  * A class is a set of methods and fields under a specific class name. A type is either a class or an array under a specific type name.
  * Note the distinction between class versus type is class means that no array classes will be be represented whereas type allows array
  * classes to be represented. The set of available classes will always be a subset of the available types.
- *
+ * <p>
  * Under ambiguous circumstances most variable names are prefixed with asm, java, or painless. If the variable value is the same for asm,
  * java, and painless, no prefix is used. Target is used as a prefix to represent if a constructor, method, or field is being
  * called/accessed on that specific class.  Parameter is often a postfix used to represent if a type is used as a parameter to a

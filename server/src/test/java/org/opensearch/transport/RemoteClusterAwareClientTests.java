@@ -41,6 +41,7 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.core.action.ActionListener;
+import org.opensearch.telemetry.tracing.noop.NoopTracer;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.transport.MockTransportService;
 import org.opensearch.threadpool.TestThreadPool;
@@ -81,7 +82,14 @@ public class RemoteClusterAwareClientTests extends OpenSearchTestCase {
             Collections.shuffle(knownNodes, random());
             Settings.Builder builder = Settings.builder();
             builder.putList("cluster.remote.cluster1.seeds", seedTransport.getLocalDiscoNode().getAddress().toString());
-            try (MockTransportService service = MockTransportService.createNewService(builder.build(), Version.CURRENT, threadPool, null)) {
+            try (
+                MockTransportService service = MockTransportService.createNewService(
+                    builder.build(),
+                    Version.CURRENT,
+                    threadPool,
+                    NoopTracer.INSTANCE
+                )
+            ) {
                 service.start();
                 service.acceptIncomingRequests();
 
@@ -121,7 +129,14 @@ public class RemoteClusterAwareClientTests extends OpenSearchTestCase {
             Collections.shuffle(knownNodes, random());
             Settings.Builder builder = Settings.builder();
             builder.putList("cluster.remote.cluster1.seeds", seedTransport.getLocalDiscoNode().getAddress().toString());
-            try (MockTransportService service = MockTransportService.createNewService(builder.build(), Version.CURRENT, threadPool, null)) {
+            try (
+                MockTransportService service = MockTransportService.createNewService(
+                    builder.build(),
+                    Version.CURRENT,
+                    threadPool,
+                    NoopTracer.INSTANCE
+                )
+            ) {
                 service.start();
                 service.acceptIncomingRequests();
 

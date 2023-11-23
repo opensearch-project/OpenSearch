@@ -10,6 +10,7 @@ package org.opensearch.index.remote;
 
 import org.opensearch.Version;
 import org.opensearch.action.admin.cluster.remotestore.stats.RemoteStoreStats;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
@@ -20,13 +21,15 @@ import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.shard.IndexShard;
 
 import java.io.IOException;
+import java.util.Objects;
 
 /**
  * Tracks remote store segment download and upload stats
  * Used for displaying remote store stats in IndicesStats/NodeStats API
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "2.10.0")
 public class RemoteSegmentStats implements Writeable, ToXContentFragment {
     /**
      * Cumulative bytes attempted to be uploaded to remote store
@@ -67,6 +70,18 @@ public class RemoteSegmentStats implements Writeable, ToXContentFragment {
      * Used to check for data freshness in the remote store
      */
     private long totalRefreshBytesLag;
+    /**
+     * Total time spent in uploading segments to remote store
+     */
+    private long totalUploadTime;
+    /**
+     * Total time spent in downloading segments from remote store
+     */
+    private long totalDownloadTime;
+    /**
+     * Total rejections due to remote store upload backpressure
+     */
+    private long totalRejections;
 
     public RemoteSegmentStats() {}
 
@@ -79,18 +94,11 @@ public class RemoteSegmentStats implements Writeable, ToXContentFragment {
         downloadBytesSucceeded = in.readLong();
         maxRefreshTimeLag = in.readLong();
         maxRefreshBytesLag = in.readLong();
-        /* TODO:
-          Adding version checks here since the base PR of adding remote store stats
-          in SegmentStats has already been merged and backported to 2.x branch.
-
-          Since this is a new field that is being added, we need to have this check in place
-          to ensure BWCs don't break.
-
-          This would have to be removed after the new field addition PRs are also backported to 2.x.
-          If possible we would need to ensure that all field addition PRs are backported at once
-         */
-        if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
-            totalRefreshBytesLag = in.readLong();
+        totalRefreshBytesLag = in.readLong();
+        totalUploadTime = in.readLong();
+        totalDownloadTime = in.readLong();
+        if (in.getVersion().onOrAfter(Version.V_2_12_0)) {
+            totalRejections = in.readVLong();
         }
     }
 
@@ -115,9 +123,13 @@ public class RemoteSegmentStats implements Writeable, ToXContentFragment {
         // Aggregations would be performed on the add method
         this.maxRefreshBytesLag = trackerStats.bytesLag;
         this.totalRefreshBytesLag = trackerStats.bytesLag;
+        this.totalUploadTime = trackerStats.totalUploadTimeInMs;
+        this.totalDownloadTime = trackerStats.directoryFileTransferTrackerStats.totalTransferTimeInMs;
+        this.totalRejections = trackerStats.rejectionCount;
     }
 
     // Getter and setters. All are visible for testing
+    // Setters are only used for testing
     public long getUploadBytesStarted() {
         return uploadBytesStarted;
     }
@@ -190,6 +202,30 @@ public class RemoteSegmentStats implements Writeable, ToXContentFragment {
         this.totalRefreshBytesLag += totalRefreshBytesLag;
     }
 
+    public long getTotalUploadTime() {
+        return totalUploadTime;
+    }
+
+    public void addTotalUploadTime(long totalUploadTime) {
+        this.totalUploadTime += totalUploadTime;
+    }
+
+    public long getTotalDownloadTime() {
+        return totalDownloadTime;
+    }
+
+    public void addTotalDownloadTime(long totalDownloadTime) {
+        this.totalDownloadTime += totalDownloadTime;
+    }
+
+    public long getTotalRejections() {
+        return totalRejections;
+    }
+
+    public void addTotalRejections(long totalRejections) {
+        this.totalRejections += totalRejections;
+    }
+
     /**
      * Adds existing stats. Used for stats roll-ups at index or node level
      *
@@ -206,6 +242,9 @@ public class RemoteSegmentStats implements Writeable, ToXContentFragment {
             this.maxRefreshTimeLag = Math.max(this.maxRefreshTimeLag, existingStats.getMaxRefreshTimeLag());
             this.maxRefreshBytesLag = Math.max(this.maxRefreshBytesLag, existingStats.getMaxRefreshBytesLag());
             this.totalRefreshBytesLag += existingStats.getTotalRefreshBytesLag();
+            this.totalUploadTime += existingStats.getTotalUploadTime();
+            this.totalDownloadTime += existingStats.getTotalDownloadTime();
+            this.totalRejections += existingStats.totalRejections;
         }
     }
 
@@ -219,61 +258,66 @@ public class RemoteSegmentStats implements Writeable, ToXContentFragment {
         out.writeLong(downloadBytesSucceeded);
         out.writeLong(maxRefreshTimeLag);
         out.writeLong(maxRefreshBytesLag);
-        /* TODO:
-          Adding version checks here since the base PR of adding remote store stats
-          in SegmentStats has already been merged and backported to 2.x branch.
-
-          Since this is a new field that is being added, we need to have this check in place
-          to ensure BWCs don't break.
-
-          This would have to be removed after the new field addition PRs are also backported to 2.x.
-          If possible we would need to ensure that all field addition PRs are backported at once
-         */
-        if (out.getVersion().onOrAfter(Version.V_3_0_0)) {
-            out.writeLong(totalRefreshBytesLag);
+        out.writeLong(totalRefreshBytesLag);
+        out.writeLong(totalUploadTime);
+        out.writeLong(totalDownloadTime);
+        if (out.getVersion().onOrAfter(Version.V_2_12_0)) {
+            out.writeVLong(totalRejections);
         }
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(Fields.REMOTE_STORE);
+
         builder.startObject(Fields.UPLOAD);
         buildUploadStats(builder);
-        builder.endObject();
+        builder.endObject(); // UPLOAD
+
         builder.startObject(Fields.DOWNLOAD);
         buildDownloadStats(builder);
-        builder.endObject();
-        builder.endObject();
+        builder.endObject(); // DOWNLOAD
+
+        builder.endObject(); // REMOTE_STORE
+
         return builder;
     }
 
     private void buildUploadStats(XContentBuilder builder) throws IOException {
-        builder.startObject(Fields.TOTAL_UPLOADS);
+        builder.startObject(Fields.TOTAL_UPLOAD_SIZE);
         builder.humanReadableField(Fields.STARTED_BYTES, Fields.STARTED, new ByteSizeValue(uploadBytesStarted));
         builder.humanReadableField(Fields.SUCCEEDED_BYTES, Fields.SUCCEEDED, new ByteSizeValue(uploadBytesSucceeded));
         builder.humanReadableField(Fields.FAILED_BYTES, Fields.FAILED, new ByteSizeValue(uploadBytesFailed));
-        builder.endObject();
+        builder.endObject(); // TOTAL_UPLOAD_SIZE
+
         builder.startObject(Fields.REFRESH_SIZE_LAG);
         builder.humanReadableField(Fields.TOTAL_BYTES, Fields.TOTAL, new ByteSizeValue(totalRefreshBytesLag));
         builder.humanReadableField(Fields.MAX_BYTES, Fields.MAX, new ByteSizeValue(maxRefreshBytesLag));
-        builder.endObject();
+        builder.endObject(); // REFRESH_SIZE_LAG
+
         builder.humanReadableField(Fields.MAX_REFRESH_TIME_LAG_IN_MILLIS, Fields.MAX_REFRESH_TIME_LAG, new TimeValue(maxRefreshTimeLag));
+        builder.humanReadableField(Fields.TOTAL_TIME_SPENT_IN_MILLIS, Fields.TOTAL_TIME_SPENT, new TimeValue(totalUploadTime));
+
+        builder.startObject(Fields.PRESSURE);
+        builder.field(Fields.TOTAL_REJECTIONS, totalRejections);
+        builder.endObject(); // PRESSURE
     }
 
     private void buildDownloadStats(XContentBuilder builder) throws IOException {
-        builder.startObject(Fields.TOTAL_DOWNLOADS);
+        builder.startObject(Fields.TOTAL_DOWNLOAD_SIZE);
         builder.humanReadableField(Fields.STARTED_BYTES, Fields.STARTED, new ByteSizeValue(downloadBytesStarted));
         builder.humanReadableField(Fields.SUCCEEDED_BYTES, Fields.SUCCEEDED, new ByteSizeValue(downloadBytesSucceeded));
         builder.humanReadableField(Fields.FAILED_BYTES, Fields.FAILED, new ByteSizeValue(downloadBytesFailed));
         builder.endObject();
+        builder.humanReadableField(Fields.TOTAL_TIME_SPENT_IN_MILLIS, Fields.TOTAL_TIME_SPENT, new TimeValue(totalDownloadTime));
     }
 
     static final class Fields {
         static final String REMOTE_STORE = "remote_store";
         static final String UPLOAD = "upload";
         static final String DOWNLOAD = "download";
-        static final String TOTAL_UPLOADS = "total_uploads";
-        static final String TOTAL_DOWNLOADS = "total_downloads";
+        static final String TOTAL_UPLOAD_SIZE = "total_upload_size";
+        static final String TOTAL_DOWNLOAD_SIZE = "total_download_size";
         static final String MAX_REFRESH_TIME_LAG = "max_refresh_time_lag";
         static final String MAX_REFRESH_TIME_LAG_IN_MILLIS = "max_refresh_time_lag_in_millis";
         static final String REFRESH_SIZE_LAG = "refresh_size_lag";
@@ -287,5 +331,47 @@ public class RemoteSegmentStats implements Writeable, ToXContentFragment {
         static final String TOTAL_BYTES = "total_bytes";
         static final String MAX = "max";
         static final String MAX_BYTES = "max_bytes";
+        static final String TOTAL_TIME_SPENT = "total_time_spent";
+        static final String TOTAL_TIME_SPENT_IN_MILLIS = "total_time_spent_in_millis";
+        static final String PRESSURE = "pressure";
+        static final String TOTAL_REJECTIONS = "total_rejections";
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+
+        RemoteSegmentStats that = (RemoteSegmentStats) o;
+        return uploadBytesStarted == that.uploadBytesStarted
+            && uploadBytesFailed == that.uploadBytesFailed
+            && uploadBytesSucceeded == that.uploadBytesSucceeded
+            && downloadBytesStarted == that.downloadBytesStarted
+            && downloadBytesFailed == that.downloadBytesFailed
+            && downloadBytesSucceeded == that.downloadBytesSucceeded
+            && maxRefreshTimeLag == that.maxRefreshTimeLag
+            && maxRefreshBytesLag == that.maxRefreshBytesLag
+            && totalRefreshBytesLag == that.totalRefreshBytesLag
+            && totalUploadTime == that.totalUploadTime
+            && totalDownloadTime == that.totalDownloadTime
+            && totalRejections == that.totalRejections;
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(
+            uploadBytesStarted,
+            uploadBytesFailed,
+            uploadBytesSucceeded,
+            downloadBytesStarted,
+            downloadBytesFailed,
+            downloadBytesSucceeded,
+            maxRefreshTimeLag,
+            maxRefreshBytesLag,
+            totalRefreshBytesLag,
+            totalUploadTime,
+            totalDownloadTime,
+            totalRejections
+        );
     }
 }

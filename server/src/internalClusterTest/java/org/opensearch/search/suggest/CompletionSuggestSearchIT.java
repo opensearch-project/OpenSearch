@@ -31,6 +31,7 @@
 
 package org.opensearch.search.suggest;
 
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 
 import org.apache.lucene.analysis.TokenStreamToAutomaton;
@@ -47,6 +48,7 @@ import org.opensearch.action.support.master.AcknowledgedResponse;
 import org.opensearch.common.FieldMemoryStats;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.Fuzziness;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.mapper.MapperParsingException;
@@ -63,7 +65,7 @@ import org.opensearch.search.suggest.completion.context.CategoryContextMapping;
 import org.opensearch.search.suggest.completion.context.ContextMapping;
 import org.opensearch.search.suggest.completion.context.GeoContextMapping;
 import org.opensearch.test.InternalSettingsPlugin;
-import org.opensearch.test.OpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedOpenSearchIntegTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -77,10 +79,12 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.opensearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
+import static org.opensearch.action.support.WriteRequest.RefreshPolicy.WAIT_UNTIL;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.opensearch.core.common.util.CollectionUtils.iterableAsArrayList;
+import static org.opensearch.search.SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAllSuccessful;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.hasId;
@@ -96,7 +100,24 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 
 @SuppressCodecs("*") // requires custom completion format
-public class CompletionSuggestSearchIT extends OpenSearchIntegTestCase {
+public class CompletionSuggestSearchIT extends ParameterizedOpenSearchIntegTestCase {
+    public CompletionSuggestSearchIT(Settings settings) {
+        super(settings);
+    }
+
+    @ParametersFactory
+    public static Collection<Object[]> parameters() {
+        return Arrays.asList(
+            new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), false).build() },
+            new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), true).build() }
+        );
+    }
+
+    @Override
+    protected Settings featureFlagSettings() {
+        return Settings.builder().put(super.featureFlagSettings()).put(FeatureFlags.CONCURRENT_SEGMENT_SEARCH, "true").build();
+    }
+
     private final String INDEX = RandomStrings.randomAsciiOfLength(random(), 10).toLowerCase(Locale.ROOT);
     private final String FIELD = RandomStrings.randomAsciiOfLength(random(), 10).toLowerCase(Locale.ROOT);
     private final CompletionMappingBuilder completionMappingBuilder = new CompletionMappingBuilder();
@@ -1151,6 +1172,7 @@ public class CompletionSuggestSearchIT extends OpenSearchIntegTestCase {
         createIndexAndMapping(mapping);
         int numDocs = randomIntBetween(10, 100);
         int numUnique = randomIntBetween(1, numDocs);
+        logger.info("Suggestion duplicate parameters: numDocs {} numUnique {}", numDocs, numUnique);
         List<IndexRequestBuilder> indexRequestBuilders = new ArrayList<>();
         int[] weights = new int[numUnique];
         Integer[] termIds = new Integer[numUnique];
@@ -1160,8 +1182,10 @@ public class CompletionSuggestSearchIT extends OpenSearchIntegTestCase {
             int weight = randomIntBetween(0, 100);
             weights[id] = Math.max(weight, weights[id]);
             String suggestion = "suggestion-" + String.format(Locale.ENGLISH, "%03d", id);
+            logger.info("Creating {}, id {}, weight {}", suggestion, i, id, weight);
             indexRequestBuilders.add(
                 client().prepareIndex(INDEX)
+                    .setRefreshPolicy(WAIT_UNTIL)
                     .setSource(
                         jsonBuilder().startObject()
                             .startObject(FIELD)
@@ -1175,10 +1199,12 @@ public class CompletionSuggestSearchIT extends OpenSearchIntegTestCase {
         indexRandom(true, indexRequestBuilders);
 
         Arrays.sort(termIds, Comparator.comparingInt(o -> weights[(int) o]).reversed().thenComparingInt(a -> (int) a));
+        logger.info("Expected terms id ordered {}", (Object[]) termIds);
         String[] expected = new String[numUnique];
         for (int i = 0; i < termIds.length; i++) {
             expected[i] = "suggestion-" + String.format(Locale.ENGLISH, "%03d", termIds[i]);
         }
+        logger.info("Expected suggestions field values {}", (Object[]) expected);
         CompletionSuggestionBuilder completionSuggestionBuilder = SuggestBuilders.completionSuggestion(FIELD)
             .prefix("sugg")
             .skipDuplicates(true)
@@ -1187,6 +1213,7 @@ public class CompletionSuggestSearchIT extends OpenSearchIntegTestCase {
         SearchResponse searchResponse = client().prepareSearch(INDEX)
             .suggest(new SuggestBuilder().addSuggestion("suggestions", completionSuggestionBuilder))
             .get();
+        logger.info("Search Response with Suggestions {}", searchResponse);
         assertSuggestions(searchResponse, true, "suggestions", expected);
     }
 

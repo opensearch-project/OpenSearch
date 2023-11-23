@@ -64,7 +64,7 @@ import org.apache.lucene.util.BitSetIterator;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.CombinedBitSet;
 import org.apache.lucene.util.SparseFixedBitSet;
-import org.opensearch.cluster.metadata.DataStream;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lucene.search.TopDocsAndMaxScore;
 import org.opensearch.search.DocValueFormat;
@@ -92,8 +92,9 @@ import java.util.concurrent.Executor;
 /**
  * Context-aware extension of {@link IndexSearcher}.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class ContextIndexSearcher extends IndexSearcher implements Releasable {
 
     private static final Logger logger = LogManager.getLogger(ContextIndexSearcher.class);
@@ -268,10 +269,11 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
 
     @Override
     protected void search(List<LeafReaderContext> leaves, Weight weight, Collector collector) throws IOException {
-        if (shouldReverseLeafReaderContexts()) {
-            // reverse the segment search order if this flag is true.
-            // Certain queries can benefit if we reverse the segment read order,
-            // for example time series based queries if searched for desc sort order.
+        // Time series based workload by default traverses segments in desc order i.e. latest to the oldest order.
+        // This is actually beneficial for search queries to start search on latest segments first for time series workload.
+        // That can slow down ASC order queries on timestamp workload. So to avoid that slowdown, we will reverse leaf
+        // reader order here.
+        if (searchContext.shouldUseTimeSeriesDescSortOptimization()) {
             for (int i = leaves.size() - 1; i >= 0; i--) {
                 searchLeaf(leaves.get(i), weight, collector);
             }
@@ -285,7 +287,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
 
     /**
      * Lower-level search API.
-     *
+     * <p>
      * {@link LeafCollector#collect(int)} is called for every matching document in
      * the provided <code>ctx</code>.
      */
@@ -299,6 +301,9 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         final LeafCollector leafCollector;
         try {
             cancellable.checkCancelled();
+            if (weight instanceof ProfileWeight) {
+                ((ProfileWeight) weight).associateCollectorToLeaves(ctx, collector);
+            }
             weight = wrapWeight(weight);
             // See please https://github.com/apache/lucene/pull/964
             collector.setWeight(weight);
@@ -502,39 +507,25 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
     }
 
     private boolean canMatchSearchAfter(LeafReaderContext ctx) throws IOException {
-        if (searchContext.request() != null && searchContext.request().source() != null) {
+        if (searchContext.searchAfter() != null && searchContext.request() != null && searchContext.request().source() != null) {
             // Only applied on primary sort field and primary search_after.
             FieldSortBuilder primarySortField = FieldSortBuilder.getPrimaryFieldSortOrNull(searchContext.request().source());
             if (primarySortField != null) {
                 MinAndMax<?> minMax = FieldSortBuilder.getMinMaxOrNullForSegment(
                     this.searchContext.getQueryShardContext(),
                     ctx,
-                    primarySortField
+                    primarySortField,
+                    searchContext.sort()
                 );
-                return SearchService.canMatchSearchAfter(searchContext.searchAfter(), minMax, primarySortField);
+                return SearchService.canMatchSearchAfter(
+                    searchContext.searchAfter(),
+                    minMax,
+                    primarySortField,
+                    searchContext.trackTotalHitsUpTo()
+                );
             }
         }
         return true;
-    }
-
-    private boolean shouldReverseLeafReaderContexts() {
-        // Time series based workload by default traverses segments in desc order i.e. latest to the oldest order.
-        // This is actually beneficial for search queries to start search on latest segments first for time series workload.
-        // That can slow down ASC order queries on timestamp workload. So to avoid that slowdown, we will reverse leaf
-        // reader order here.
-        if (searchContext.indexShard().isTimeSeriesDescSortOptimizationEnabled()) {
-            // Only reverse order for asc order sort queries
-            if (searchContext.sort() != null
-                && searchContext.sort().sort != null
-                && searchContext.sort().sort.getSort() != null
-                && searchContext.sort().sort.getSort().length > 0
-                && searchContext.sort().sort.getSort()[0].getReverse() == false
-                && searchContext.sort().sort.getSort()[0].getField() != null
-                && searchContext.sort().sort.getSort()[0].getField().equals(DataStream.TIMESERIES_FIELDNAME)) {
-                return true;
-            }
-        }
-        return false;
     }
 
     // package-private for testing

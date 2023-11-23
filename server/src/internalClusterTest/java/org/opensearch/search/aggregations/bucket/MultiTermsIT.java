@@ -9,6 +9,7 @@
 package org.opensearch.search.aggregations.bucket;
 
 import org.opensearch.action.search.SearchResponse;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.script.Script;
 import org.opensearch.script.ScriptType;
 import org.opensearch.search.aggregations.bucket.terms.BaseStringTermsTestCase;
@@ -32,6 +33,10 @@ import static org.hamcrest.core.IsNull.notNullValue;
  */
 @OpenSearchIntegTestCase.SuiteScopeTestCase
 public class MultiTermsIT extends BaseStringTermsTestCase {
+
+    public MultiTermsIT(Settings dynamicSettings) {
+        super(dynamicSettings);
+    }
 
     // the main purpose of this test is to make sure we're not allocating 2GB of memory per shard
     public void testSizeIsZero() {

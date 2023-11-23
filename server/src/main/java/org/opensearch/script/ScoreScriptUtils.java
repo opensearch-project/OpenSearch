@@ -48,6 +48,9 @@ import java.time.ZoneId;
 import java.time.ZonedDateTime;
 
 import static org.opensearch.common.util.BitMixer.mix32;
+import static org.opensearch.index.query.functionscore.TermFrequencyFunctionFactory.TermFrequencyFunctionName.SUM_TOTAL_TERM_FREQ;
+import static org.opensearch.index.query.functionscore.TermFrequencyFunctionFactory.TermFrequencyFunctionName.TERM_FREQ;
+import static org.opensearch.index.query.functionscore.TermFrequencyFunctionFactory.TermFrequencyFunctionName.TOTAL_TERM_FREQ;
 
 /**
  * Utilities for scoring scripts
@@ -68,6 +71,69 @@ public final class ScoreScriptUtils {
      */
     public static double sigmoid(double value, double k, double a) {
         return Math.pow(value, a) / (Math.pow(k, a) + Math.pow(value, a));
+    }
+
+    /**
+     * Retrieves the term frequency within a field for a specific term.
+     *
+     * @opensearch.internal
+     */
+    public static final class TermFreq {
+        private final ScoreScript scoreScript;
+
+        public TermFreq(ScoreScript scoreScript) {
+            this.scoreScript = scoreScript;
+        }
+
+        public int termFreq(String field, String term) {
+            try {
+                return (int) scoreScript.getTermFrequency(TERM_FREQ, field, term);
+            } catch (Exception e) {
+                throw ExceptionsHelper.convertToOpenSearchException(e);
+            }
+        }
+    }
+
+    /**
+     * Retrieves the total term frequency within a field for a specific term.
+     *
+     * @opensearch.internal
+     */
+    public static final class TotalTermFreq {
+        private final ScoreScript scoreScript;
+
+        public TotalTermFreq(ScoreScript scoreScript) {
+            this.scoreScript = scoreScript;
+        }
+
+        public long totalTermFreq(String field, String term) {
+            try {
+                return (long) scoreScript.getTermFrequency(TOTAL_TERM_FREQ, field, term);
+            } catch (Exception e) {
+                throw ExceptionsHelper.convertToOpenSearchException(e);
+            }
+        }
+    }
+
+    /**
+     * Retrieves the sum of total term frequencies within a field.
+     *
+     * @opensearch.internal
+     */
+    public static final class SumTotalTermFreq {
+        private final ScoreScript scoreScript;
+
+        public SumTotalTermFreq(ScoreScript scoreScript) {
+            this.scoreScript = scoreScript;
+        }
+
+        public long sumTotalTermFreq(String field) {
+            try {
+                return (long) scoreScript.getTermFrequency(SUM_TOTAL_TERM_FREQ, field, null);
+            } catch (Exception e) {
+                throw ExceptionsHelper.convertToOpenSearchException(e);
+            }
+        }
     }
 
     /**
@@ -277,11 +343,14 @@ public final class ScoreScriptUtils {
     /**
      * Limitations: since script functions don't have access to DateFieldMapper,
      * decay functions on dates are limited to dates in the default format and default time zone,
+     * Further, since script module gets initialized before the featureflags are loaded,
+     * we cannot use the feature flag to gate the usage of the new default date format.
      * Also, using calculations with <code>now</code> are not allowed.
      *
      */
     private static final ZoneId defaultZoneId = ZoneId.of("UTC");
-    private static final DateMathParser dateParser = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.toDateMathParser();
+    // ToDo: use new default date formatter once feature flag is removed
+    private static final DateMathParser dateParser = DateFieldMapper.LEGACY_DEFAULT_DATE_TIME_FORMATTER.toDateMathParser();
 
     /**
      * Linear date decay

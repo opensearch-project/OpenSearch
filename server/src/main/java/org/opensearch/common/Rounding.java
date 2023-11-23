@@ -37,6 +37,9 @@ import org.apache.lucene.util.ArrayUtil;
 import org.opensearch.OpenSearchException;
 import org.opensearch.common.LocalTimeOffset.Gap;
 import org.opensearch.common.LocalTimeOffset.Overlap;
+import org.opensearch.common.annotation.PublicApi;
+import org.opensearch.common.round.Roundable;
+import org.opensearch.common.round.RoundableFactory;
 import org.opensearch.common.time.DateUtils;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.common.io.stream.StreamInput;
@@ -58,7 +61,6 @@ import java.time.temporal.TemporalField;
 import java.time.temporal.TemporalQueries;
 import java.time.zone.ZoneOffsetTransition;
 import java.time.zone.ZoneRules;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
@@ -75,16 +77,18 @@ import java.util.concurrent.TimeUnit;
  * blog for some background reading. Its super interesting and the links are
  * a comedy gold mine. If you like time zones. Or hate them.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public abstract class Rounding implements Writeable {
     private static final Logger logger = LogManager.getLogger(Rounding.class);
 
     /**
      * A Date Time Unit
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public enum DateTimeUnit {
         WEEK_OF_WEEKYEAR((byte) 1, "week", IsoFields.WEEK_OF_WEEK_BASED_YEAR, true, TimeUnit.DAYS.toMillis(7)) {
             private final long extraLocalOffsetLookup = TimeUnit.DAYS.toMillis(7);
@@ -267,8 +271,9 @@ public abstract class Rounding implements Writeable {
     /**
      * A strategy for rounding milliseconds since epoch.
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public interface Prepared {
         /**
          * Rounds the given value.
@@ -358,8 +363,9 @@ public abstract class Rounding implements Writeable {
     /**
      * Builder for rounding
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public static class Builder {
 
         private final DateTimeUnit unit;
@@ -413,6 +419,14 @@ public abstract class Rounding implements Writeable {
 
     private abstract class PreparedRounding implements Prepared {
         /**
+         * The maximum limit up to which array-based prepared rounding is used.
+         * 128 is a power of two that isn't huge. We might be able to do
+         * better if the limit was based on the actual type of prepared
+         * rounding but this'll do for now.
+         */
+        private static final int DEFAULT_ARRAY_ROUNDING_MAX_THRESHOLD = 128;
+
+        /**
          * Attempt to build a {@link Prepared} implementation that relies on pre-calcuated
          * "round down" points. If there would be more than {@code max} points then return
          * the original implementation, otherwise return the new, faster implementation.
@@ -435,7 +449,36 @@ public abstract class Rounding implements Writeable {
                 values = ArrayUtil.grow(values, i + 1);
                 values[i++] = rounded;
             }
-            return new ArrayRounding(values, i, this);
+            return new ArrayRounding(RoundableFactory.create(values, i), this);
+        }
+    }
+
+    /**
+     * ArrayRounding is an implementation of {@link Prepared} which uses
+     * pre-calculated round-down points to speed up lookups.
+     */
+    private static class ArrayRounding implements Prepared {
+        private final Roundable roundable;
+        private final Prepared delegate;
+
+        public ArrayRounding(Roundable roundable, Prepared delegate) {
+            this.roundable = roundable;
+            this.delegate = delegate;
+        }
+
+        @Override
+        public long round(long utcMillis) {
+            return roundable.floor(utcMillis);
+        }
+
+        @Override
+        public long nextRoundingValue(long utcMillis) {
+            return delegate.nextRoundingValue(utcMillis);
+        }
+
+        @Override
+        public double roundingSize(long utcMillis, DateTimeUnit timeUnit) {
+            return delegate.roundingSize(utcMillis, timeUnit);
         }
     }
 
@@ -521,12 +564,11 @@ public abstract class Rounding implements Writeable {
 
         @Override
         public Prepared prepare(long minUtcMillis, long maxUtcMillis) {
-            /*
-             * 128 is a power of two that isn't huge. We might be able to do
-             * better if the limit was based on the actual type of prepared
-             * rounding but this'll do for now.
-             */
-            return prepareOffsetOrJavaTimeRounding(minUtcMillis, maxUtcMillis).maybeUseArray(minUtcMillis, maxUtcMillis, 128);
+            return prepareOffsetOrJavaTimeRounding(minUtcMillis, maxUtcMillis).maybeUseArray(
+                minUtcMillis,
+                maxUtcMillis,
+                PreparedRounding.DEFAULT_ARRAY_ROUNDING_MAX_THRESHOLD
+            );
         }
 
         private TimeUnitPreparedRounding prepareOffsetOrJavaTimeRounding(long minUtcMillis, long maxUtcMillis) {
@@ -1324,45 +1366,6 @@ public abstract class Rounding implements Writeable {
                 return new OffsetRounding(in);
             default:
                 throw new OpenSearchException("unknown rounding id [" + id + "]");
-        }
-    }
-
-    /**
-     * Implementation of {@link Prepared} using pre-calculated "round down" points.
-     *
-     * @opensearch.internal
-     */
-    private static class ArrayRounding implements Prepared {
-        private final long[] values;
-        private final int max;
-        private final Prepared delegate;
-
-        private ArrayRounding(long[] values, int max, Prepared delegate) {
-            this.values = values;
-            this.max = max;
-            this.delegate = delegate;
-        }
-
-        @Override
-        public long round(long utcMillis) {
-            assert values[0] <= utcMillis : "utcMillis must be after " + values[0];
-            int idx = Arrays.binarySearch(values, 0, max, utcMillis);
-            assert idx != -1 : "The insertion point is before the array! This should have tripped the assertion above.";
-            assert -1 - idx <= values.length : "This insertion point is after the end of the array.";
-            if (idx < 0) {
-                idx = -2 - idx;
-            }
-            return values[idx];
-        }
-
-        @Override
-        public long nextRoundingValue(long utcMillis) {
-            return delegate.nextRoundingValue(utcMillis);
-        }
-
-        @Override
-        public double roundingSize(long utcMillis, DateTimeUnit timeUnit) {
-            return delegate.roundingSize(utcMillis, timeUnit);
         }
     }
 }

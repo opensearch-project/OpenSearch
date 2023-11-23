@@ -33,7 +33,6 @@
 package org.opensearch.common;
 
 import org.opensearch.common.collect.Tuple;
-import org.opensearch.common.rounding.DateTimeUnit;
 import org.opensearch.common.time.DateFormatter;
 import org.opensearch.common.time.DateFormatters;
 import org.opensearch.common.unit.TimeValue;
@@ -236,10 +235,10 @@ public class RoundingTests extends OpenSearchTestCase {
 
     /**
      * Randomized test on TimeUnitRounding. Test uses random
-     * {@link DateTimeUnit} and {@link ZoneId} and often (50% of the time)
+     * {@link org.opensearch.common.Rounding.DateTimeUnit} and {@link ZoneId} and often (50% of the time)
      * chooses test dates that are exactly on or close to offset changes (e.g.
      * DST) in the chosen time zone.
-     *
+     * <p>
      * It rounds the test date down and up and performs various checks on the
      * rounding unit interval that is defined by this. Assumptions tested are
      * described in

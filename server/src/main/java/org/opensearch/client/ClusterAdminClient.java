@@ -157,6 +157,7 @@ import org.opensearch.action.search.GetSearchPipelineResponse;
 import org.opensearch.action.search.PutSearchPipelineRequest;
 import org.opensearch.action.support.master.AcknowledgedResponse;
 import org.opensearch.common.action.ActionFuture;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.tasks.TaskId;
@@ -167,8 +168,9 @@ import org.opensearch.core.xcontent.MediaType;
  *
  * @see AdminClient#cluster()
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public interface ClusterAdminClient extends OpenSearchClient {
 
     /**

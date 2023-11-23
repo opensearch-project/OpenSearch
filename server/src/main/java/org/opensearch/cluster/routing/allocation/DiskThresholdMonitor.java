@@ -380,9 +380,21 @@ public class DiskThresholdMonitor {
         if ((state.getBlocks().hasGlobalBlockWithId(Metadata.CLUSTER_CREATE_INDEX_BLOCK.id()) == false)
             && nodes.size() > 0
             && nodesOverHighThreshold.size() == nodes.size()) {
+            logger.warn(
+                "Putting index create block on cluster as all nodes are breaching high disk watermark. "
+                    + "Number of nodes above high watermark: {}.",
+                nodesOverHighThreshold.size()
+            );
             setIndexCreateBlock(listener, true);
         } else if (state.getBlocks().hasGlobalBlockWithId(Metadata.CLUSTER_CREATE_INDEX_BLOCK.id())
-            && diskThresholdSettings.isCreateIndexBlockAutoReleaseEnabled()) {
+            && diskThresholdSettings.isCreateIndexBlockAutoReleaseEnabled()
+            && nodesOverHighThreshold.size() < nodes.size()) {
+                logger.warn(
+                    "Removing index create block on cluster as all nodes are no longer breaching high disk watermark. "
+                        + "Number of nodes above high watermark: {}. Total numbers of nodes: {}.",
+                    nodesOverHighThreshold.size(),
+                    nodes.size()
+                );
                 setIndexCreateBlock(listener, false);
             } else {
                 listener.onResponse(null);

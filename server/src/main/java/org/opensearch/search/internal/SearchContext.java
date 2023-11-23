@@ -39,6 +39,7 @@ import org.apache.lucene.util.ArrayUtil;
 import org.opensearch.action.search.SearchShardTask;
 import org.opensearch.action.search.SearchType;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.unit.TimeValue;
@@ -91,8 +92,9 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * shards point in time snapshot (IndexReader / ContextIndexSearcher) and allows passing on
  * state from one query / fetch phase to another.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public abstract class SearchContext implements Releasable {
 
     public static final int DEFAULT_TERMINATE_AFTER = 0;
@@ -286,7 +288,7 @@ public abstract class SearchContext implements Releasable {
 
     /**
      * Indicates if the current index should perform frequent low level search cancellation check.
-     *
+     * <p>
      * Enabling low-level checks will make long running searches to react to the cancellation request faster. However,
      * since it will produce more cancellation checks it might slow the search performance down.
      */
@@ -399,7 +401,7 @@ public abstract class SearchContext implements Releasable {
     /**
      * Returns concurrent segment search status for the search context
      */
-    public boolean isConcurrentSegmentSearchEnabled() {
+    public boolean shouldUseConcurrentSearch() {
         return false;
     }
 
@@ -407,7 +409,7 @@ public abstract class SearchContext implements Releasable {
      * Returns local bucket count thresholds based on concurrent segment search status
      */
     public LocalBucketCountThresholds asLocalBucketCountThresholds(TermsAggregator.BucketCountThresholds bucketCountThresholds) {
-        if (isConcurrentSegmentSearchEnabled()) {
+        if (shouldUseConcurrentSearch()) {
             return new LocalBucketCountThresholds(0, ArrayUtil.MAX_ARRAY_LENGTH - 1);
         } else {
             return new LocalBucketCountThresholds(bucketCountThresholds.getShardMinDocCount(), bucketCountThresholds.getShardSize());
@@ -487,4 +489,6 @@ public abstract class SearchContext implements Releasable {
     public abstract BucketCollectorProcessor bucketCollectorProcessor();
 
     public abstract int getTargetMaxSliceCount();
+
+    public abstract boolean shouldUseTimeSeriesDescSortOptimization();
 }

@@ -40,6 +40,7 @@ import org.opensearch.cluster.metadata.IndexTemplateMetadata;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.node.DiscoveryNodeRole;
 import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.inject.Module;
 import org.opensearch.common.lifecycle.LifecycleComponent;
 import org.opensearch.common.settings.Setting;
@@ -89,6 +90,7 @@ import java.util.function.UnaryOperator;
  *
  * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public abstract class Plugin implements Closeable {
 
     /**
@@ -119,7 +121,7 @@ public abstract class Plugin implements Closeable {
 
     /**
      * Returns components added by this plugin.
-     *
+     * <p>
      * Any components returned that implement {@link LifecycleComponent} will have their lifecycle managed.
      * Note: To aid in the migration away from guice, all objects returned as components will be bound in guice
      * to themselves.

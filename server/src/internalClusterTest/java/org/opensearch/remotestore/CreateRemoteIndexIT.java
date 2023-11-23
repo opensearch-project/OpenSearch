@@ -13,12 +13,9 @@ import org.opensearch.action.admin.indices.get.GetIndexResponse;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.indices.replication.common.ReplicationType;
-import org.opensearch.test.FeatureFlagSetter;
 import org.opensearch.test.OpenSearchIntegTestCase;
-import org.junit.After;
 import org.junit.Before;
 
 import java.util.Locale;
@@ -28,53 +25,15 @@ import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_STORE
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REPLICATION_TYPE;
 import static org.opensearch.index.IndexSettings.INDEX_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING;
-import static org.opensearch.remotestore.RemoteStoreBaseIntegTestCase.remoteStoreClusterSettings;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.containsString;
 
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST)
-public class CreateRemoteIndexIT extends OpenSearchIntegTestCase {
-
-    @After
-    public void teardown() {
-        assertAcked(clusterAdmin().prepareDeleteRepository("my-segment-repo-1"));
-        assertAcked(clusterAdmin().prepareDeleteRepository("my-translog-repo-1"));
-        assertAcked(clusterAdmin().prepareDeleteRepository("my-custom-repo"));
-    }
-
-    @Override
-    protected Settings nodeSettings(int nodeOriginal) {
-        Settings settings = super.nodeSettings(nodeOriginal);
-        Settings.Builder builder = Settings.builder()
-            .put(remoteStoreClusterSettings("my-segment-repo-1", "my-translog-repo-1"))
-            .put(settings);
-        return builder.build();
-    }
-
-    @Override
-    protected Settings featureFlagSettings() {
-        return Settings.builder().put(super.featureFlagSettings()).put(FeatureFlags.REMOTE_STORE, "true").build();
-    }
+public class CreateRemoteIndexIT extends RemoteStoreBaseIntegTestCase {
 
     @Before
-    public void setup() {
-        FeatureFlagSetter.set(FeatureFlags.REMOTE_STORE);
-        internalCluster().startClusterManagerOnlyNode();
-        assertAcked(
-            clusterAdmin().preparePutRepository("my-segment-repo-1")
-                .setType("fs")
-                .setSettings(Settings.builder().put("location", randomRepoPath().toAbsolutePath()))
-        );
-        assertAcked(
-            clusterAdmin().preparePutRepository("my-translog-repo-1")
-                .setType("fs")
-                .setSettings(Settings.builder().put("location", randomRepoPath().toAbsolutePath()))
-        );
-        assertAcked(
-            clusterAdmin().preparePutRepository("my-custom-repo")
-                .setType("fs")
-                .setSettings(Settings.builder().put("location", randomRepoPath().toAbsolutePath()))
-        );
+    public void setup() throws Exception {
+        internalCluster().startNodes(2);
     }
 
     public void testDefaultRemoteStoreNoUserOverride() throws Exception {
@@ -91,8 +50,8 @@ public class CreateRemoteIndexIT extends OpenSearchIntegTestCase {
         verifyRemoteStoreIndexSettings(
             indexSettings,
             "true",
-            "my-segment-repo-1",
-            "my-translog-repo-1",
+            REPOSITORY_NAME,
+            REPOSITORY_2_NAME,
             ReplicationType.SEGMENT.toString(),
             IndexSettings.DEFAULT_REMOTE_TRANSLOG_BUFFER_INTERVAL
         );

@@ -55,6 +55,7 @@ import org.opensearch.cluster.action.index.MappingUpdatedAction;
 import org.opensearch.cluster.coordination.ClusterBootstrapService;
 import org.opensearch.cluster.coordination.NoClusterManagerBlockService;
 import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.cluster.metadata.RepositoriesMetadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodeRole;
 import org.opensearch.cluster.node.DiscoveryNodes;
@@ -1318,6 +1319,12 @@ public final class InternalTestCluster extends TestCluster {
                         assertTrue("Expected node to exist: " + expectedNode + debugString, discoveryNodes.nodeExists(expectedNode));
                     }
                 });
+                states.forEach(cs -> {
+                    if (cs.nodes().getNodes().values().stream().findFirst().get().isRemoteStoreNode()) {
+                        RepositoriesMetadata repositoriesMetadata = cs.metadata().custom(RepositoriesMetadata.TYPE);
+                        assertTrue(repositoriesMetadata != null && !repositoriesMetadata.repositories().isEmpty());
+                    }
+                });
             }, 30, TimeUnit.SECONDS);
         } catch (AssertionError ae) {
             throw new IllegalStateException("cluster failed to form", ae);
@@ -1809,7 +1816,7 @@ public final class InternalTestCluster extends TestCluster {
     /**
      * Stops any of the current nodes but not the cluster-manager node.
      */
-    public synchronized void stopRandomNonClusterManagerNode() throws IOException {
+    public synchronized void stopRandomNodeNotCurrentClusterManager() throws IOException {
         NodeAndClient nodeAndClient = getRandomNodeAndClient(new NodeNamePredicate(getClusterManagerName()).negate());
         if (nodeAndClient != null) {
             logger.info(
@@ -1834,11 +1841,46 @@ public final class InternalTestCluster extends TestCluster {
     /**
      * Stops any of the current nodes but not the cluster-manager node.
      *
-     * @deprecated As of 2.2, because supporting inclusive language, replaced by {@link #stopRandomNonClusterManagerNode()}
+     * @deprecated As of 2.2, because supporting inclusive language, replaced by {@link #stopRandomNodeNotCurrentClusterManager()}
      */
     @Deprecated
-    public synchronized void stopRandomNonMasterNode() throws IOException {
-        stopRandomNonClusterManagerNode();
+    public synchronized void stopRandomNodeNotCurrentMaster() throws IOException {
+        stopRandomNodeNotCurrentClusterManager();
+    }
+
+    /**
+     * Stops all running nodes in cluster
+     */
+    public void stopAllNodes() {
+        try {
+            if (numDataAndClusterManagerNodes() != numClusterManagerNodes()) {
+                int totalDataNodes = numDataNodes();
+                while (totalDataNodes > 0) {
+                    stopRandomDataNode();
+                    totalDataNodes -= 1;
+                }
+            }
+            int totalClusterManagerNodes = numClusterManagerNodes();
+            while (totalClusterManagerNodes > 1) {
+                stopRandomNodeNotCurrentClusterManager();
+                totalClusterManagerNodes -= 1;
+            }
+            stopCurrentClusterManagerNode();
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    /**
+     * Replace all nodes by stopping all current node and starting new node.
+     * Used for remote store test cases, where remote state is restored.
+     */
+    public void resetCluster() {
+        int totalClusterManagerNodes = numClusterManagerNodes();
+        int totalDataNodes = numDataNodes();
+        stopAllNodes();
+        startClusterManagerOnlyNodes(totalClusterManagerNodes);
+        startDataOnlyNodes(totalDataNodes);
     }
 
     private synchronized void startAndPublishNodesAndClients(List<NodeAndClient> nodeAndClients) {
@@ -2670,6 +2712,9 @@ public final class InternalTestCluster extends TestCluster {
                 CommonStatsFlags flags = new CommonStatsFlags(Flag.FieldData, Flag.QueryCache, Flag.Segments);
                 NodeStats stats = nodeService.stats(
                     flags,
+                    false,
+                    false,
+                    false,
                     false,
                     false,
                     false,

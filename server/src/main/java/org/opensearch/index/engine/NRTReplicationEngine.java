@@ -13,6 +13,7 @@ import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.SoftDeletesDirectoryReaderWrapper;
 import org.apache.lucene.search.ReferenceManager;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.lucene.index.OpenSearchDirectoryReader;
@@ -24,6 +25,7 @@ import org.opensearch.index.seqno.LocalCheckpointTracker;
 import org.opensearch.index.seqno.SeqNoStats;
 import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.translog.Translog;
+import org.opensearch.index.translog.TranslogCorruptedException;
 import org.opensearch.index.translog.TranslogDeletionPolicy;
 import org.opensearch.index.translog.TranslogException;
 import org.opensearch.index.translog.TranslogManager;
@@ -39,6 +41,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.BiFunction;
 
 import static org.opensearch.index.seqno.SequenceNumbers.MAX_SEQ_NO;
@@ -48,8 +52,9 @@ import static org.opensearch.index.seqno.SequenceNumbers.MAX_SEQ_NO;
  * is enabled.  This Engine does not create an IndexWriter, rather it refreshes a {@link NRTReplicationReaderManager}
  * with new Segments when received from an external source.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class NRTReplicationEngine extends Engine {
 
     private volatile SegmentInfos lastCommittedSegmentInfos;
@@ -57,6 +62,7 @@ public class NRTReplicationEngine extends Engine {
     private final CompletionStatsCache completionStatsCache;
     private final LocalCheckpointTracker localCheckpointTracker;
     private final WriteOnlyTranslogManager translogManager;
+    private final Lock flushLock = new ReentrantLock();
     protected final ReplicaFileTracker replicaFileTracker;
 
     private volatile long lastReceivedPrimaryGen = SequenceNumbers.NO_OPS_PERFORMED;
@@ -68,6 +74,7 @@ public class NRTReplicationEngine extends Engine {
         store.incRef();
         NRTReplicationReaderManager readerManager = null;
         WriteOnlyTranslogManager translogManagerRef = null;
+        boolean success = false;
         try {
             this.replicaFileTracker = new ReplicaFileTracker(store::deleteQuiet);
             this.lastCommittedSegmentInfos = store.readLastCommittedSegmentsInfo();
@@ -121,9 +128,17 @@ public class NRTReplicationEngine extends Engine {
                 engineConfig.getPrimaryModeSupplier()
             );
             this.translogManager = translogManagerRef;
-        } catch (IOException e) {
-            IOUtils.closeWhileHandlingException(store::decRef, readerManager, translogManagerRef);
+            success = true;
+        } catch (IOException | TranslogCorruptedException e) {
             throw new EngineCreationFailureException(shardId, "failed to create engine", e);
+        } finally {
+            if (success == false) {
+                IOUtils.closeWhileHandlingException(readerManager, translogManagerRef);
+                if (isClosed.get() == false) {
+                    // failure, we need to dec the store reference
+                    store.decRef();
+                }
+            }
         }
     }
 
@@ -156,7 +171,7 @@ public class NRTReplicationEngine extends Engine {
             // a lower gen from a newly elected primary shard that is behind this shard's last commit gen.
             // In that case we still commit into the next local generation.
             if (incomingGeneration != this.lastReceivedPrimaryGen) {
-                commitSegmentInfos();
+                flush(false, true);
                 translogManager.getDeletionPolicy().setLocalCheckpointOfSafeCommit(maxSeqNo);
                 translogManager.rollTranslogGeneration();
             }
@@ -167,7 +182,7 @@ public class NRTReplicationEngine extends Engine {
 
     /**
      * Persist the latest live SegmentInfos.
-     *
+     * <p>
      * This method creates a commit point from the latest SegmentInfos.
      *
      * @throws IOException - When there is an IO error committing the SegmentInfos.
@@ -184,7 +199,7 @@ public class NRTReplicationEngine extends Engine {
         translogManager.syncTranslog();
     }
 
-    protected void commitSegmentInfos() throws IOException {
+    private void commitSegmentInfos() throws IOException {
         commitSegmentInfos(getLatestSegmentInfos());
     }
 
@@ -351,7 +366,28 @@ public class NRTReplicationEngine extends Engine {
     }
 
     @Override
-    public void flush(boolean force, boolean waitIfOngoing) throws EngineException {}
+    public void flush(boolean force, boolean waitIfOngoing) throws EngineException {
+        ensureOpen();
+        // readLock is held here to wait/block any concurrent close that acquires the writeLock.
+        try (final ReleasableLock lock = readLock.acquire()) {
+            ensureOpen();
+            if (flushLock.tryLock() == false) {
+                if (waitIfOngoing == false) {
+                    return;
+                }
+                flushLock.lock();
+            }
+            // we are now locked.
+            try {
+                commitSegmentInfos();
+            } catch (IOException e) {
+                maybeFailEngine("flush", e);
+                throw new FlushFailedEngineException(shardId, e);
+            } finally {
+                flushLock.unlock();
+            }
+        }
+    }
 
     @Override
     public void forceMerge(
@@ -365,6 +401,9 @@ public class NRTReplicationEngine extends Engine {
 
     @Override
     public GatedCloseable<IndexCommit> acquireLastIndexCommit(boolean flushFirst) throws EngineException {
+        if (flushFirst) {
+            flush(false, true);
+        }
         try {
             final IndexCommit indexCommit = Lucene.getIndexCommit(lastCommittedSegmentInfos, store.directory());
             return new GatedCloseable<>(indexCommit, () -> {});
@@ -401,13 +440,29 @@ public class NRTReplicationEngine extends Engine {
                     latestSegmentInfos.counter = latestSegmentInfos.counter + SI_COUNTER_INCREMENT;
                     latestSegmentInfos.changed();
                 }
-                commitSegmentInfos(latestSegmentInfos);
-                IOUtils.close(readerManager, translogManager, store::decRef);
+                try {
+                    commitSegmentInfos(latestSegmentInfos);
+                } catch (IOException e) {
+                    // mark the store corrupted unless we are closing as result of engine failure.
+                    // in this case Engine#failShard will handle store corruption.
+                    if (failEngineLock.isHeldByCurrentThread() == false && store.isMarkedCorrupted() == false) {
+                        try {
+                            store.markStoreCorrupted(e);
+                        } catch (IOException ex) {
+                            logger.warn("Unable to mark store corrupted", ex);
+                        }
+                    }
+                }
+                IOUtils.close(readerManager, translogManager);
             } catch (Exception e) {
-                logger.warn("failed to close engine", e);
+                logger.error("failed to close engine", e);
             } finally {
-                logger.debug("engine closed [{}]", reason);
-                closedLatch.countDown();
+                try {
+                    store.decRef();
+                    logger.debug("engine closed [{}]", reason);
+                } finally {
+                    closedLatch.countDown();
+                }
             }
         }
     }

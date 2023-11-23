@@ -31,14 +31,16 @@
 
 package org.opensearch.action.ingest;
 
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.core.xcontent.ToXContentObject;
 
 /**
  * Interface to simulate a document result
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public interface SimulateDocumentResult extends Writeable, ToXContentObject {
 
 }

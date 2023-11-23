@@ -125,6 +125,7 @@ import org.opensearch.index.mapper.Uid;
 import org.opensearch.index.mapper.VersionFieldMapper;
 import org.opensearch.index.remote.RemoteSegmentStats;
 import org.opensearch.index.remote.RemoteSegmentTransferTracker;
+import org.opensearch.index.remote.RemoteTranslogTransferTracker;
 import org.opensearch.index.seqno.ReplicationTracker;
 import org.opensearch.index.seqno.RetentionLease;
 import org.opensearch.index.seqno.RetentionLeaseSyncer;
@@ -137,6 +138,7 @@ import org.opensearch.index.store.StoreStats;
 import org.opensearch.index.store.StoreUtils;
 import org.opensearch.index.translog.InternalTranslogFactory;
 import org.opensearch.index.translog.RemoteBlobStoreInternalTranslogFactory;
+import org.opensearch.index.translog.RemoteTranslogStats;
 import org.opensearch.index.translog.TestTranslog;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.index.translog.TranslogStats;
@@ -1778,7 +1780,7 @@ public class IndexShardTests extends IndexShardTestCase {
             }
         };
 
-        try (Store store = createStore(shardId, new IndexSettings(metadata, Settings.EMPTY), directory)) {
+        try (Store store = createStore(shardId, new IndexSettings(metadata, Settings.EMPTY), directory, shardPath)) {
             IndexShard shard = newShard(
                 shardRouting,
                 shardPath,
@@ -1821,9 +1823,12 @@ public class IndexShardTests extends IndexShardTestCase {
                 .put(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, true)
                 .build()
         );
-        RemoteSegmentTransferTracker remoteRefreshSegmentTracker = shard.getRemoteStorePressureService()
-            .getRemoteRefreshSegmentTracker(shard.shardId);
-        populateSampleRemoteStoreStats(remoteRefreshSegmentTracker);
+        RemoteSegmentTransferTracker remoteSegmentTransferTracker = shard.getRemoteStoreStatsTrackerFactory()
+            .getRemoteSegmentTransferTracker(shard.shardId);
+        RemoteTranslogTransferTracker remoteTranslogTransferTracker = shard.getRemoteStoreStatsTrackerFactory()
+            .getRemoteTranslogTransferTracker(shard.shardId);
+        populateSampleRemoteSegmentStats(remoteSegmentTransferTracker);
+        populateSampleRemoteTranslogStats(remoteTranslogTransferTracker);
         ShardStats shardStats = new ShardStats(
             shard.routingEntry(),
             shard.shardPath(),
@@ -1833,9 +1838,9 @@ public class IndexShardTests extends IndexShardTestCase {
             shard.getRetentionLeaseStats()
         );
         RemoteSegmentStats remoteSegmentStats = shardStats.getStats().getSegments().getRemoteSegmentStats();
-        assertEquals(remoteRefreshSegmentTracker.getUploadBytesStarted(), remoteSegmentStats.getUploadBytesStarted());
-        assertEquals(remoteRefreshSegmentTracker.getUploadBytesSucceeded(), remoteSegmentStats.getUploadBytesSucceeded());
-        assertEquals(remoteRefreshSegmentTracker.getUploadBytesFailed(), remoteSegmentStats.getUploadBytesFailed());
+        assertRemoteSegmentStats(remoteSegmentTransferTracker, remoteSegmentStats);
+        RemoteTranslogStats remoteTranslogStats = shardStats.getStats().getTranslog().getRemoteTranslogStats();
+        assertRemoteTranslogStats(remoteTranslogTransferTracker, remoteTranslogStats);
         closeShards(shard);
     }
 
@@ -2740,6 +2745,7 @@ public class IndexShardTests extends IndexShardTestCase {
             AllocationId.newRelocation(routing.allocationId())
         );
         IndexShardTestCase.updateRoutingEntry(indexShard, routing);
+        indexDoc(indexShard, "_doc", "0");
         assertTrue(indexShard.isSyncNeeded());
         try {
             indexShard.relocated(routing.getTargetRelocatingShard().allocationId().getId(), primaryContext -> {}, () -> {});
@@ -2844,6 +2850,7 @@ public class IndexShardTests extends IndexShardTestCase {
         indexDoc(source, "_doc", "1");
         indexDoc(source, "_doc", "2");
         source.refresh("test");
+        assertTrue("At lease one remote sync should have been completed", source.isRemoteSegmentStoreInSync());
         assertDocs(source, "1", "2");
         indexDoc(source, "_doc", "3");
         source.refresh("test");
@@ -4901,9 +4908,46 @@ public class IndexShardTests extends IndexShardTestCase {
         closeShards(shard);
     }
 
-    private void populateSampleRemoteStoreStats(RemoteSegmentTransferTracker tracker) {
-        tracker.addUploadBytesStarted(10L);
+    private void populateSampleRemoteSegmentStats(RemoteSegmentTransferTracker tracker) {
+        tracker.addUploadBytesStarted(30L);
         tracker.addUploadBytesSucceeded(10L);
         tracker.addUploadBytesFailed(10L);
+        tracker.incrementRejectionCount();
+        tracker.incrementRejectionCount();
+    }
+
+    private void populateSampleRemoteTranslogStats(RemoteTranslogTransferTracker tracker) {
+        tracker.incrementTotalUploadsStarted();
+        tracker.incrementTotalUploadsStarted();
+        tracker.incrementTotalUploadsStarted();
+        tracker.incrementTotalUploadsSucceeded();
+        tracker.incrementTotalUploadsFailed();
+        int bytesStarted = randomIntBetween(100, 1000);
+        tracker.addUploadBytesStarted(bytesStarted);
+        tracker.addUploadBytesSucceeded(randomIntBetween(1, bytesStarted / 2));
+        tracker.addUploadBytesFailed(randomIntBetween(1, bytesStarted / 2));
+    }
+
+    private static void assertRemoteTranslogStats(
+        RemoteTranslogTransferTracker remoteTranslogTransferTracker,
+        RemoteTranslogStats remoteTranslogStats
+    ) {
+        assertEquals(remoteTranslogTransferTracker.getTotalUploadsStarted(), remoteTranslogStats.getTotalUploadsStarted());
+        assertEquals(remoteTranslogTransferTracker.getTotalUploadsSucceeded(), remoteTranslogStats.getTotalUploadsSucceeded());
+        assertEquals(remoteTranslogTransferTracker.getTotalUploadsFailed(), remoteTranslogStats.getTotalUploadsFailed());
+        assertEquals(remoteTranslogTransferTracker.getUploadBytesStarted(), remoteTranslogStats.getUploadBytesStarted());
+        assertEquals(remoteTranslogTransferTracker.getUploadBytesSucceeded(), remoteTranslogStats.getUploadBytesSucceeded());
+        assertEquals(remoteTranslogTransferTracker.getUploadBytesFailed(), remoteTranslogStats.getUploadBytesFailed());
+    }
+
+    private static void assertRemoteSegmentStats(
+        RemoteSegmentTransferTracker remoteSegmentTransferTracker,
+        RemoteSegmentStats remoteSegmentStats
+    ) {
+        assertEquals(remoteSegmentTransferTracker.getUploadBytesStarted(), remoteSegmentStats.getUploadBytesStarted());
+        assertEquals(remoteSegmentTransferTracker.getUploadBytesSucceeded(), remoteSegmentStats.getUploadBytesSucceeded());
+        assertEquals(remoteSegmentTransferTracker.getUploadBytesFailed(), remoteSegmentStats.getUploadBytesFailed());
+        assertTrue(remoteSegmentStats.getTotalRejections() > 0);
+        assertEquals(remoteSegmentTransferTracker.getRejectionCount(), remoteSegmentStats.getTotalRejections());
     }
 }

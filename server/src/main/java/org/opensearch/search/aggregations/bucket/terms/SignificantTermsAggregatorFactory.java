@@ -306,6 +306,11 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
         );
     }
 
+    @Override
+    protected boolean supportsConcurrentSegmentSearch() {
+        return true;
+    }
+
     /**
      * The execution mode for the significant terms agg
      *

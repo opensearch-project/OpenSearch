@@ -32,19 +32,22 @@
 
 package org.opensearch.common;
 
+import org.opensearch.common.annotation.PublicApi;
+
 import java.util.Objects;
 
 /**
  * Holds a value that is either:
  * a) set implicitly e.g. through some default value
  * b) set explicitly e.g. from a user selection
- *
+ * <p>
  * When merging conflicting configuration settings such as
  * field mapping settings it is preferable to preserve an explicit
  * choice rather than a choice made only made implicitly by defaults.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class Explicit<T> {
 
     private final T value;

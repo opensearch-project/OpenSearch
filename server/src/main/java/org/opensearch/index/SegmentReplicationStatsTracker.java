@@ -33,6 +33,14 @@ public class SegmentReplicationStatsTracker {
         rejectionCount = ConcurrentCollections.newConcurrentMap();
     }
 
+    public SegmentReplicationRejectionStats getTotalRejectionStats() {
+        return new SegmentReplicationRejectionStats(this.rejectionCount.values().stream().mapToInt(AtomicInteger::get).sum());
+    }
+
+    protected Map<ShardId, AtomicInteger> getRejectionCount() {
+        return rejectionCount;
+    }
+
     public SegmentReplicationStats getStats() {
         Map<ShardId, SegmentReplicationPerGroupStats> stats = new HashMap<>();
         for (IndexService indexService : indicesService) {
@@ -59,7 +67,7 @@ public class SegmentReplicationStatsTracker {
     public SegmentReplicationPerGroupStats getStatsForShard(IndexShard indexShard) {
         return new SegmentReplicationPerGroupStats(
             indexShard.shardId(),
-            indexShard.getReplicationStats(),
+            indexShard.getReplicationStatsForTrackedReplicas(),
             Optional.ofNullable(rejectionCount.get(indexShard.shardId())).map(AtomicInteger::get).orElse(0)
         );
     }

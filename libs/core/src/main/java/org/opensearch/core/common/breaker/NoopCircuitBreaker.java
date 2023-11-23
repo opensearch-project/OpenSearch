@@ -33,65 +33,120 @@
 package org.opensearch.core.common.breaker;
 
 /**
- * A CircuitBreaker that doesn't increment or adjust, and all operations are
- * basically noops
- *
+ * A {@link CircuitBreaker} that doesn't increment or adjust, and all operations are
+ * basically noops.
+ * It never trips, limit is always -1, always returns 0 for all metrics.
  * @opensearch.internal
  */
 public class NoopCircuitBreaker implements CircuitBreaker {
-    public static final int LIMIT = -1;
 
+    /** The limit of this breaker is always -1 */
+    public static final int LIMIT = -1;
+    /** Name of this breaker */
     private final String name;
 
+    /**
+     * Creates a new NoopCircuitBreaker (that never trip) with the given name
+     * @param name the name of this breaker
+     */
     public NoopCircuitBreaker(String name) {
         this.name = name;
     }
 
+    /**
+     * This is a noop, a noop breaker never trip
+     * @param fieldName name of this noop breaker
+     * @param bytesNeeded bytes needed
+     */
     @Override
     public void circuitBreak(String fieldName, long bytesNeeded) {
         // noop
     }
 
+    /**
+     * This is a noop, always return 0 and never throw/trip
+     * @param bytes number of bytes to add
+     * @param label string label describing the bytes being added
+     * @return always return 0
+     * @throws CircuitBreakingException never thrown
+     */
     @Override
     public double addEstimateBytesAndMaybeBreak(long bytes, String label) throws CircuitBreakingException {
         return 0;
     }
 
+    /**
+     * This is a noop, nothing is added, always return 0
+     * @param bytes number of bytes to add (ignored)
+     * @return always return 0
+     */
     @Override
     public long addWithoutBreaking(long bytes) {
         return 0;
     }
 
+    /**
+     * This is a noop, always return 0
+     * @return always return 0
+     */
     @Override
     public long getUsed() {
         return 0;
     }
 
+    /**
+     * A noop breaker have a constant limit of -1
+     * @return always return -1
+     */
     @Override
     public long getLimit() {
         return LIMIT;
     }
 
+    /**
+     * A noop breaker have no overhead, always return 0
+     * @return always return 0
+     */
     @Override
     public double getOverhead() {
         return 0;
     }
 
+    /**
+     * A noop breaker never trip, always return 0
+     * @return always return 0
+     */
     @Override
     public long getTrippedCount() {
         return 0;
     }
 
+    /**
+     * return the name of this breaker
+     * @return the name of this breaker
+     */
     @Override
     public String getName() {
         return this.name;
     }
 
+    /**
+     * A noop breaker {@link Durability} is always {@link Durability#PERMANENT}
+     * @return always return {@link Durability#PERMANENT }
+     */
     @Override
     public Durability getDurability() {
         return Durability.PERMANENT;
     }
 
+    /**
+     * Limit and overhead are constant for a noop breaker.
+     * this is a noop.
+     * @param limit the desired limit (ignored)
+     * @param overhead the desired overhead (ignored)
+     */
     @Override
-    public void setLimitAndOverhead(long limit, double overhead) {}
+    public void setLimitAndOverhead(long limit, double overhead) {
+        // noop
+    }
 }

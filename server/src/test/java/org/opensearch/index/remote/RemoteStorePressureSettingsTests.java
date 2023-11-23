@@ -15,10 +15,6 @@ import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
 
-import java.util.concurrent.atomic.AtomicInteger;
-
-import static org.mockito.ArgumentMatchers.anyInt;
-import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 
 public class RemoteStorePressureSettingsTests extends OpenSearchTestCase {
@@ -52,7 +48,7 @@ public class RemoteStorePressureSettingsTests extends OpenSearchTestCase {
         );
 
         // Check remote refresh segment pressure enabled is false
-        assertFalse(pressureSettings.isRemoteRefreshSegmentPressureEnabled());
+        assertTrue(pressureSettings.isRemoteRefreshSegmentPressureEnabled());
 
         // Check bytes lag variance threshold default value
         assertEquals(10.0, pressureSettings.getBytesLagVarianceFactor(), 0.0d);
@@ -62,15 +58,6 @@ public class RemoteStorePressureSettingsTests extends OpenSearchTestCase {
 
         // Check minimum consecutive failures limit default value
         assertEquals(5, pressureSettings.getMinConsecutiveFailuresLimit());
-
-        // Check upload bytes moving average window size default value
-        assertEquals(20, pressureSettings.getUploadBytesMovingAverageWindowSize());
-
-        // Check upload bytes per sec moving average window size default value
-        assertEquals(20, pressureSettings.getUploadBytesPerSecMovingAverageWindowSize());
-
-        // Check upload time moving average window size default value
-        assertEquals(20, pressureSettings.getUploadTimeMovingAverageWindowSize());
     }
 
     public void testGetConfiguredSettings() {
@@ -79,9 +66,6 @@ public class RemoteStorePressureSettingsTests extends OpenSearchTestCase {
             .put(RemoteStorePressureSettings.BYTES_LAG_VARIANCE_FACTOR.getKey(), 50.0)
             .put(RemoteStorePressureSettings.UPLOAD_TIME_LAG_VARIANCE_FACTOR.getKey(), 60.0)
             .put(RemoteStorePressureSettings.MIN_CONSECUTIVE_FAILURES_LIMIT.getKey(), 121)
-            .put(RemoteStorePressureSettings.UPLOAD_BYTES_MOVING_AVERAGE_WINDOW_SIZE.getKey(), 102)
-            .put(RemoteStorePressureSettings.UPLOAD_BYTES_PER_SEC_MOVING_AVERAGE_WINDOW_SIZE.getKey(), 103)
-            .put(RemoteStorePressureSettings.UPLOAD_TIME_MOVING_AVERAGE_WINDOW_SIZE.getKey(), 104)
             .build();
         RemoteStorePressureSettings pressureSettings = new RemoteStorePressureSettings(
             clusterService,
@@ -100,15 +84,6 @@ public class RemoteStorePressureSettingsTests extends OpenSearchTestCase {
 
         // Check minimum consecutive failures limit configured value
         assertEquals(121, pressureSettings.getMinConsecutiveFailuresLimit());
-
-        // Check upload bytes moving average window size configured value
-        assertEquals(102, pressureSettings.getUploadBytesMovingAverageWindowSize());
-
-        // Check upload bytes per sec moving average window size configured value
-        assertEquals(103, pressureSettings.getUploadBytesPerSecMovingAverageWindowSize());
-
-        // Check upload time moving average window size configured value
-        assertEquals(104, pressureSettings.getUploadTimeMovingAverageWindowSize());
     }
 
     public void testUpdateAfterGetDefaultSettings() {
@@ -123,9 +98,6 @@ public class RemoteStorePressureSettingsTests extends OpenSearchTestCase {
             .put(RemoteStorePressureSettings.BYTES_LAG_VARIANCE_FACTOR.getKey(), 50.0)
             .put(RemoteStorePressureSettings.UPLOAD_TIME_LAG_VARIANCE_FACTOR.getKey(), 60.0)
             .put(RemoteStorePressureSettings.MIN_CONSECUTIVE_FAILURES_LIMIT.getKey(), 121)
-            .put(RemoteStorePressureSettings.UPLOAD_BYTES_MOVING_AVERAGE_WINDOW_SIZE.getKey(), 102)
-            .put(RemoteStorePressureSettings.UPLOAD_BYTES_PER_SEC_MOVING_AVERAGE_WINDOW_SIZE.getKey(), 103)
-            .put(RemoteStorePressureSettings.UPLOAD_TIME_MOVING_AVERAGE_WINDOW_SIZE.getKey(), 104)
             .build();
         clusterService.getClusterSettings().applySettings(newSettings);
 
@@ -140,15 +112,6 @@ public class RemoteStorePressureSettingsTests extends OpenSearchTestCase {
 
         // Check minimum consecutive failures limit updated
         assertEquals(121, pressureSettings.getMinConsecutiveFailuresLimit());
-
-        // Check upload bytes moving average window size updated
-        assertEquals(102, pressureSettings.getUploadBytesMovingAverageWindowSize());
-
-        // Check upload bytes per sec moving average window size updated
-        assertEquals(103, pressureSettings.getUploadBytesPerSecMovingAverageWindowSize());
-
-        // Check upload time moving average window size updated
-        assertEquals(104, pressureSettings.getUploadTimeMovingAverageWindowSize());
     }
 
     public void testUpdateAfterGetConfiguredSettings() {
@@ -157,9 +120,6 @@ public class RemoteStorePressureSettingsTests extends OpenSearchTestCase {
             .put(RemoteStorePressureSettings.BYTES_LAG_VARIANCE_FACTOR.getKey(), 50.0)
             .put(RemoteStorePressureSettings.UPLOAD_TIME_LAG_VARIANCE_FACTOR.getKey(), 60.0)
             .put(RemoteStorePressureSettings.MIN_CONSECUTIVE_FAILURES_LIMIT.getKey(), 121)
-            .put(RemoteStorePressureSettings.UPLOAD_BYTES_MOVING_AVERAGE_WINDOW_SIZE.getKey(), 102)
-            .put(RemoteStorePressureSettings.UPLOAD_BYTES_PER_SEC_MOVING_AVERAGE_WINDOW_SIZE.getKey(), 103)
-            .put(RemoteStorePressureSettings.UPLOAD_TIME_MOVING_AVERAGE_WINDOW_SIZE.getKey(), 104)
             .build();
         RemoteStorePressureSettings pressureSettings = new RemoteStorePressureSettings(
             clusterService,
@@ -171,9 +131,6 @@ public class RemoteStorePressureSettingsTests extends OpenSearchTestCase {
             .put(RemoteStorePressureSettings.BYTES_LAG_VARIANCE_FACTOR.getKey(), 40.0)
             .put(RemoteStorePressureSettings.UPLOAD_TIME_LAG_VARIANCE_FACTOR.getKey(), 50.0)
             .put(RemoteStorePressureSettings.MIN_CONSECUTIVE_FAILURES_LIMIT.getKey(), 111)
-            .put(RemoteStorePressureSettings.UPLOAD_BYTES_MOVING_AVERAGE_WINDOW_SIZE.getKey(), 112)
-            .put(RemoteStorePressureSettings.UPLOAD_BYTES_PER_SEC_MOVING_AVERAGE_WINDOW_SIZE.getKey(), 113)
-            .put(RemoteStorePressureSettings.UPLOAD_TIME_MOVING_AVERAGE_WINDOW_SIZE.getKey(), 114)
             .build();
 
         clusterService.getClusterSettings().applySettings(newSettings);
@@ -189,59 +146,5 @@ public class RemoteStorePressureSettingsTests extends OpenSearchTestCase {
 
         // Check minimum consecutive failures limit updated
         assertEquals(111, pressureSettings.getMinConsecutiveFailuresLimit());
-
-        // Check upload bytes moving average window size updated
-        assertEquals(112, pressureSettings.getUploadBytesMovingAverageWindowSize());
-
-        // Check upload bytes per sec moving average window size updated
-        assertEquals(113, pressureSettings.getUploadBytesPerSecMovingAverageWindowSize());
-
-        // Check upload time moving average window size updated
-        assertEquals(114, pressureSettings.getUploadTimeMovingAverageWindowSize());
-    }
-
-    public void testUpdateTriggeredInRemotePressureServiceOnUpdateSettings() {
-
-        int toUpdateVal1 = 1121, toUpdateVal2 = 1123, toUpdateVal3 = 1125;
-
-        AtomicInteger updatedUploadBytesWindowSize = new AtomicInteger();
-        AtomicInteger updatedUploadBytesPerSecWindowSize = new AtomicInteger();
-        AtomicInteger updatedUploadTimeWindowSize = new AtomicInteger();
-
-        RemoteStorePressureService pressureService = mock(RemoteStorePressureService.class);
-
-        // Upload bytes
-        doAnswer(invocation -> {
-            updatedUploadBytesWindowSize.set(invocation.getArgument(0));
-            return null;
-        }).when(pressureService).updateUploadBytesMovingAverageWindowSize(anyInt());
-
-        // Upload bytes per sec
-        doAnswer(invocation -> {
-            updatedUploadBytesPerSecWindowSize.set(invocation.getArgument(0));
-            return null;
-        }).when(pressureService).updateUploadBytesPerSecMovingAverageWindowSize(anyInt());
-
-        // Upload time
-        doAnswer(invocation -> {
-            updatedUploadTimeWindowSize.set(invocation.getArgument(0));
-            return null;
-        }).when(pressureService).updateUploadTimeMsMovingAverageWindowSize(anyInt());
-
-        RemoteStorePressureSettings pressureSettings = new RemoteStorePressureSettings(clusterService, Settings.EMPTY, pressureService);
-        Settings newSettings = Settings.builder()
-            .put(RemoteStorePressureSettings.UPLOAD_BYTES_MOVING_AVERAGE_WINDOW_SIZE.getKey(), toUpdateVal1)
-            .put(RemoteStorePressureSettings.UPLOAD_BYTES_PER_SEC_MOVING_AVERAGE_WINDOW_SIZE.getKey(), toUpdateVal2)
-            .put(RemoteStorePressureSettings.UPLOAD_TIME_MOVING_AVERAGE_WINDOW_SIZE.getKey(), toUpdateVal3)
-            .build();
-        clusterService.getClusterSettings().applySettings(newSettings);
-
-        // Assertions
-        assertEquals(toUpdateVal1, pressureSettings.getUploadBytesMovingAverageWindowSize());
-        assertEquals(toUpdateVal1, updatedUploadBytesWindowSize.get());
-        assertEquals(toUpdateVal2, pressureSettings.getUploadBytesPerSecMovingAverageWindowSize());
-        assertEquals(toUpdateVal2, updatedUploadBytesPerSecWindowSize.get());
-        assertEquals(toUpdateVal3, pressureSettings.getUploadTimeMovingAverageWindowSize());
-        assertEquals(toUpdateVal3, updatedUploadTimeWindowSize.get());
     }
 }

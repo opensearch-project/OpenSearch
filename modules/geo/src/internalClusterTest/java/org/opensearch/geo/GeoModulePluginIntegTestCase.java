@@ -8,25 +8,49 @@
 
 package org.opensearch.geo;
 
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.geometry.utils.StandardValidator;
 import org.opensearch.geometry.utils.WellKnownText;
 import org.opensearch.index.mapper.GeoShapeFieldMapper;
 import org.opensearch.plugins.Plugin;
-import org.opensearch.test.OpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedOpenSearchIntegTestCase;
 import org.opensearch.test.TestGeoShapeFieldMapperPlugin;
 
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+
+import static org.opensearch.search.SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING;
 
 /**
  * This is the base class for all the Geo related integration tests. Use this class to add the features and settings
  * for the test cluster on which integration tests are running.
  */
-public abstract class GeoModulePluginIntegTestCase extends OpenSearchIntegTestCase {
+public abstract class GeoModulePluginIntegTestCase extends ParameterizedOpenSearchIntegTestCase {
 
     protected static final double GEOHASH_TOLERANCE = 1E-5D;
 
     protected static final WellKnownText WKT = new WellKnownText(true, new StandardValidator(true));
+
+    public GeoModulePluginIntegTestCase(Settings dynamicSettings) {
+        super(dynamicSettings);
+    }
+
+    @ParametersFactory
+    public static Collection<Object[]> parameters() {
+        return Arrays.asList(
+            new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), false).build() },
+            new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), true).build() }
+        );
+    }
+
+    @Override
+    protected Settings featureFlagSettings() {
+        return Settings.builder().put(super.featureFlagSettings()).put(FeatureFlags.CONCURRENT_SEGMENT_SEARCH, "true").build();
+    }
 
     /**
      * Returns a collection of plugins that should be loaded on each node for doing the integration tests. As this

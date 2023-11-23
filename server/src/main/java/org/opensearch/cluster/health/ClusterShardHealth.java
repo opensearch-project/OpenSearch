@@ -37,6 +37,7 @@ import org.opensearch.cluster.routing.RecoverySource;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.UnassignedInfo;
 import org.opensearch.cluster.routing.UnassignedInfo.AllocationStatus;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.ParseField;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.StreamInput;
@@ -58,8 +59,9 @@ import static org.opensearch.core.xcontent.XContentParserUtils.ensureExpectedTok
 /**
  * Cluster shard health information
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public final class ClusterShardHealth implements Writeable, ToXContentFragment {
     private static final String STATUS = "status";
     private static final String ACTIVE_SHARDS = "active_shards";
@@ -219,13 +221,13 @@ public final class ClusterShardHealth implements Writeable, ToXContentFragment {
 
     /**
      * Checks if an inactive primary shard should cause the cluster health to go RED.
-     *
+     * <p>
      * An inactive primary shard in an index should cause the cluster health to be RED to make it visible that some of the existing data is
      * unavailable. In case of index creation, snapshot restore or index shrinking, which are unexceptional events in the cluster lifecycle,
      * cluster health should not turn RED for the time where primaries are still in the initializing state but go to YELLOW instead.
      * However, in case of exceptional events, for example when the primary shard cannot be assigned to a node or initialization fails at
      * some point, cluster health should still turn RED.
-     *
+     * <p>
      * NB: this method should *not* be called on active shards nor on non-primary shards.
      */
     public static ClusterHealthStatus getInactivePrimaryHealth(final ShardRouting shardRouting) {

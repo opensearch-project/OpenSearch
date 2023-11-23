@@ -44,7 +44,7 @@ import org.gradle.api.tasks.CacheableTask;
  * conventional configured tasks of {@link RestIntegTestTask}
  */
 @CacheableTask
-public class RestIntegTestTask extends StandaloneRestIntegTestTask implements TestSuiteConventionMappings {
+public abstract class RestIntegTestTask extends StandaloneRestIntegTestTask implements TestSuiteConventionMappings {
     @SuppressWarnings("rawtypes")
     @Override
     public Task configure(Closure closure) {

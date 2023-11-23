@@ -38,6 +38,7 @@ import org.opensearch.OpenSearchParseException;
 import org.opensearch.Version;
 import org.opensearch.common.Booleans;
 import org.opensearch.common.SetOnce;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.logging.LogConfigurator;
 import org.opensearch.common.unit.MemorySizeValue;
@@ -79,6 +80,7 @@ import java.util.ListIterator;
 import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.TimeUnit;
@@ -88,17 +90,19 @@ import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static org.opensearch.common.settings.AbstractScopedSettings.ARCHIVED_SETTINGS_PREFIX;
 import static org.opensearch.common.unit.TimeValue.parseTimeValue;
 import static org.opensearch.core.common.unit.ByteSizeValue.parseBytesSizeValue;
 
 /**
  * An immutable settings implementation.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public final class Settings implements ToXContentFragment {
 
-    public static final Settings EMPTY = new Builder().build();
+    public static final Settings EMPTY = new Settings(Collections.emptyMap(), null);
 
     /** The raw settings from the full key to raw string value. */
     private final Map<String, Object> settings;
@@ -749,11 +753,12 @@ public final class Settings implements ToXContentFragment {
      * settings implementation. Use {@link Settings#builder()} in order to
      * construct it.
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public static class Builder {
 
-        public static final Settings EMPTY_SETTINGS = new Builder().build();
+        public static final Settings EMPTY_SETTINGS = Settings.EMPTY;
 
         // we use a sorted map for consistent serialization when using getAsMap()
         private final Map<String, Object> map = new TreeMap<>();
@@ -1207,8 +1212,14 @@ public final class Settings implements ToXContentFragment {
                 String value = propertyPlaceholder.replacePlaceholders(Settings.toString(entry.getValue()), placeholderResolver);
                 // if the values exists and has length, we should maintain it in the map
                 // otherwise, the replace process resolved into removing it
-                if (Strings.hasLength(value)) {
-                    entry.setValue(value);
+                if (Strings.hasLength(value) == true) {
+                    // try to parse the value as a list first
+                    final Optional<List<String>> optList = tryParseableStringToList(value);
+                    if (optList.isPresent()) {
+                        entry.setValue(optList.get());
+                    } else {
+                        entry.setValue(value);
+                    }
                 } else {
                     entryItr.remove();
                 }
@@ -1217,8 +1228,8 @@ public final class Settings implements ToXContentFragment {
         }
 
         /**
-         * Checks that all settings in the builder start with the specified prefix.
-         *
+         * Checks that all settings(except archived settings and wildcards) in the builder start with the specified prefix.
+         * <p>
          * If a setting doesn't start with the prefix, the builder appends the prefix to such setting.
          */
         public Builder normalizePrefix(String prefix) {
@@ -1227,7 +1238,7 @@ public final class Settings implements ToXContentFragment {
             while (iterator.hasNext()) {
                 Map.Entry<String, Object> entry = iterator.next();
                 String key = entry.getKey();
-                if (key.startsWith(prefix) == false && key.endsWith("*") == false) {
+                if (key.startsWith(prefix) == false && key.endsWith("*") == false && key.startsWith(ARCHIVED_SETTINGS_PREFIX) == false) {
                     replacements.put(prefix + key, entry.getValue());
                     iterator.remove();
                 }
@@ -1243,6 +1254,34 @@ public final class Settings implements ToXContentFragment {
         public Settings build() {
             processLegacyLists(map);
             return new Settings(map, secureSettings.get());
+        }
+
+        /**
+         * Tries to parse the placeholder value as a list (fe [], ["a", "b", "c"])
+         * @param parsableString placeholder value to parse
+         * @return the {@link Optional} result of the parsing attempt
+         */
+        private static Optional<List<String>> tryParseableStringToList(String parsableString) {
+            // fromXContent doesn't use named xcontent or deprecation.
+            try (
+                XContentParser xContentParser = MediaTypeRegistry.JSON.xContent()
+                    .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, parsableString)
+            ) {
+                XContentParser.Token token = xContentParser.nextToken();
+                if (token != XContentParser.Token.START_ARRAY) {
+                    return Optional.empty();
+                }
+                ArrayList<String> list = new ArrayList<>();
+                while ((token = xContentParser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                    if (token != XContentParser.Token.VALUE_STRING) {
+                        return Optional.empty();
+                    }
+                    list.add(xContentParser.text());
+                }
+                return Optional.of(list);
+            } catch (IOException e) {
+                return Optional.empty();
+            }
         }
     }
 

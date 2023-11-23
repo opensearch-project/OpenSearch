@@ -88,11 +88,15 @@ import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.MapperService.MergeReason;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.index.shard.IndexSettingProvider;
+import org.opensearch.index.translog.Translog;
 import org.opensearch.indices.IndexCreationException;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.InvalidIndexNameException;
 import org.opensearch.indices.ShardLimitValidator;
 import org.opensearch.indices.SystemIndices;
+import org.opensearch.indices.replication.common.ReplicationType;
+import org.opensearch.node.Node;
+import org.opensearch.node.remotestore.RemoteStoreNodeAttribute;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -131,10 +135,8 @@ import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_STORE
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REPLICATION_TYPE;
 import static org.opensearch.cluster.metadata.Metadata.DEFAULT_REPLICA_COUNT_SETTING;
-import static org.opensearch.indices.IndicesService.CLUSTER_REMOTE_SEGMENT_STORE_REPOSITORY_SETTING;
-import static org.opensearch.indices.IndicesService.CLUSTER_REMOTE_STORE_ENABLED_SETTING;
-import static org.opensearch.indices.IndicesService.CLUSTER_REMOTE_TRANSLOG_REPOSITORY_SETTING;
 import static org.opensearch.indices.IndicesService.CLUSTER_REPLICATION_TYPE_SETTING;
+import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.isRemoteStoreAttributePresent;
 
 /**
  * Service responsible for submitting create index requests
@@ -752,7 +754,7 @@ public class MetadataCreateIndexService {
     /**
      * Parses the provided mappings json and the inheritable mappings from the templates (if any)
      * into a map.
-     *
+     * <p>
      * The template mappings are applied in the order they are encountered in the list (clients
      * should make sure the lower index, closer to the head of the list, templates have the highest
      * {@link IndexTemplateMetadata#order()}). This merging makes no distinction between field
@@ -790,7 +792,7 @@ public class MetadataCreateIndexService {
      * Validates and creates the settings for the new index based on the explicitly configured settings via the
      * {@link CreateIndexClusterStateUpdateRequest}, inherited from templates and, if recovering from another index (ie. split, shrink,
      * clone), the resize settings.
-     *
+     * <p>
      * The template mappings are applied in the order they are encountered in the list (clients should make sure the lower index, closer
      * to the head of the list, templates have the highest {@link IndexTemplateMetadata#order()})
      *
@@ -921,38 +923,50 @@ public class MetadataCreateIndexService {
         validateTranslogRetentionSettings(indexSettings);
         validateStoreTypeSettings(indexSettings);
         validateRefreshIntervalSettings(request.settings(), clusterSettings);
+        validateTranslogDurabilitySettings(request.settings(), clusterSettings, settings);
 
         return indexSettings;
     }
 
     /**
-     * Updates index settings to set replication strategy by default based on cluster level settings
+     * Updates index settings to set replication strategy by default based on cluster level settings or remote store
+     * node attributes
      * @param settingsBuilder index settings builder to be updated with relevant settings
      * @param requestSettings settings passed in during index create request
      * @param clusterSettings cluster level settings
      */
     private static void updateReplicationStrategy(Settings.Builder settingsBuilder, Settings requestSettings, Settings clusterSettings) {
-        if (CLUSTER_REPLICATION_TYPE_SETTING.exists(clusterSettings) && INDEX_REPLICATION_TYPE_SETTING.exists(requestSettings) == false) {
-            settingsBuilder.put(SETTING_REPLICATION_TYPE, CLUSTER_REPLICATION_TYPE_SETTING.get(clusterSettings));
-            return;
-        }
-        if (INDEX_REPLICATION_TYPE_SETTING.exists(requestSettings) == true) {
+        if (INDEX_REPLICATION_TYPE_SETTING.exists(requestSettings)) {
             settingsBuilder.put(SETTING_REPLICATION_TYPE, INDEX_REPLICATION_TYPE_SETTING.get(requestSettings));
-            return;
+        } else if (CLUSTER_REPLICATION_TYPE_SETTING.exists(clusterSettings)) {
+            settingsBuilder.put(SETTING_REPLICATION_TYPE, CLUSTER_REPLICATION_TYPE_SETTING.get(clusterSettings));
+        } else if (isRemoteStoreAttributePresent(clusterSettings)) {
+            settingsBuilder.put(SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT);
+        } else {
+            settingsBuilder.put(SETTING_REPLICATION_TYPE, CLUSTER_REPLICATION_TYPE_SETTING.getDefault(clusterSettings));
         }
-        settingsBuilder.put(SETTING_REPLICATION_TYPE, CLUSTER_REPLICATION_TYPE_SETTING.getDefault(clusterSettings));
     }
 
     /**
-     * Updates index settings to enable remote store by default based on cluster level settings
+     * Updates index settings to enable remote store by default based on node attributes
      * @param settingsBuilder index settings builder to be updated with relevant settings
      * @param clusterSettings cluster level settings
      */
     private static void updateRemoteStoreSettings(Settings.Builder settingsBuilder, Settings clusterSettings) {
-        if (CLUSTER_REMOTE_STORE_ENABLED_SETTING.get(clusterSettings) == true) {
+        if (isRemoteStoreAttributePresent(clusterSettings)) {
             settingsBuilder.put(SETTING_REMOTE_STORE_ENABLED, true)
-                .put(SETTING_REMOTE_SEGMENT_STORE_REPOSITORY, CLUSTER_REMOTE_SEGMENT_STORE_REPOSITORY_SETTING.get(clusterSettings))
-                .put(SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY, CLUSTER_REMOTE_TRANSLOG_REPOSITORY_SETTING.get(clusterSettings));
+                .put(
+                    SETTING_REMOTE_SEGMENT_STORE_REPOSITORY,
+                    clusterSettings.get(
+                        Node.NODE_ATTRIBUTES.getKey() + RemoteStoreNodeAttribute.REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY
+                    )
+                )
+                .put(
+                    SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY,
+                    clusterSettings.get(
+                        Node.NODE_ATTRIBUTES.getKey() + RemoteStoreNodeAttribute.REMOTE_STORE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEY
+                    )
+                );
         }
     }
 
@@ -995,7 +1009,7 @@ public class MetadataCreateIndexService {
     /**
      * Validate and resolve the aliases explicitly set for the index, together with the ones inherited from the specified
      * templates.
-     *
+     * <p>
      * The template mappings are applied in the order they are encountered in the list (clients should make sure the lower index, closer
      * to the head of the list, templates have the highest {@link IndexTemplateMetadata#order()})
      *
@@ -1479,7 +1493,7 @@ public class MetadataCreateIndexService {
     /**
      * Validates {@code index.refresh_interval} is equal or below the {@code cluster.minimum.index.refresh_interval}.
      *
-     * @param requestSettings settings passed in during index create request
+     * @param requestSettings settings passed in during index create/update request
      * @param clusterSettings cluster setting
      */
     static void validateRefreshIntervalSettings(Settings requestSettings, ClusterSettings clusterSettings) {
@@ -1497,5 +1511,28 @@ public class MetadataCreateIndexService {
                     + "]"
             );
         }
+    }
+
+    /**
+     * Validates {@code index.translog.durability} is not async if the {@code cluster.remote_store.index.restrict.async-durability} is set to true.
+     *
+     * @param requestSettings settings passed in during index create/update request
+     * @param clusterSettings cluster setting
+     */
+    static void validateTranslogDurabilitySettings(Settings requestSettings, ClusterSettings clusterSettings, Settings settings) {
+        if (isRemoteStoreAttributePresent(settings) == false
+            || IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.exists(requestSettings) == false
+            || clusterSettings.get(IndicesService.CLUSTER_REMOTE_INDEX_RESTRICT_ASYNC_DURABILITY_SETTING) == false) {
+            return;
+        }
+        Translog.Durability durability = IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.get(requestSettings);
+        if (durability.equals(Translog.Durability.ASYNC)) {
+            throw new IllegalArgumentException(
+                "index setting [index.translog.durability=async] is not allowed as cluster setting ["
+                    + IndicesService.CLUSTER_REMOTE_INDEX_RESTRICT_ASYNC_DURABILITY_SETTING.getKey()
+                    + "=true]"
+            );
+        }
+
     }
 }

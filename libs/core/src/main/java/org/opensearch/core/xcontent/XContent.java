@@ -32,6 +32,8 @@
 
 package org.opensearch.core.xcontent;
 
+import org.opensearch.common.annotation.PublicApi;
+
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -41,7 +43,10 @@ import java.util.Set;
 
 /**
  * A generic abstraction on top of handling content, inspired by JSON and pull parsing.
+ *
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public interface XContent {
     /**
      * The type this content handles and produces.

@@ -34,14 +34,20 @@ package org.opensearch.snapshots;
 
 import org.opensearch.OpenSearchCorruptionException;
 import org.opensearch.OpenSearchParseException;
+import org.opensearch.common.blobstore.AsyncMultiStreamBlobContainer;
 import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.blobstore.BlobMetadata;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.blobstore.BlobStore;
+import org.opensearch.common.blobstore.fs.FsBlobContainer;
 import org.opensearch.common.blobstore.fs.FsBlobStore;
+import org.opensearch.common.blobstore.stream.read.ReadContext;
+import org.opensearch.common.blobstore.stream.write.WriteContext;
+import org.opensearch.common.blobstore.stream.write.WritePriority;
 import org.opensearch.common.compress.DeflateCompressor;
 import org.opensearch.common.io.Streams;
 import org.opensearch.common.io.stream.BytesStreamOutput;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.compress.CompressorRegistry;
@@ -56,10 +62,17 @@ import org.opensearch.test.OpenSearchTestCase;
 import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.file.Path;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+
+import org.mockito.ArgumentCaptor;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 
 public class BlobStoreFormatTests extends OpenSearchTestCase {
 
@@ -112,6 +125,84 @@ public class BlobStoreFormatTests extends OpenSearchTestCase {
             builder.field("text", getText());
             return builder;
         }
+    }
+
+    public void testBlobStoreAsyncOperations() throws IOException, InterruptedException {
+        BlobStore blobStore = createTestBlobStore();
+        MockFsVerifyingBlobContainer mockBlobContainer = new MockFsVerifyingBlobContainer(
+            (FsBlobStore) blobStore,
+            BlobPath.cleanPath(),
+            null
+        );
+        MockFsVerifyingBlobContainer spyContainer = spy(mockBlobContainer);
+        ChecksumBlobStoreFormat<BlobObj> checksumSMILE = new ChecksumBlobStoreFormat<>(BLOB_CODEC, "%s", BlobObj::fromXContent);
+        ArgumentCaptor<ActionListener<Void>> actionListenerArgumentCaptor = ArgumentCaptor.forClass(ActionListener.class);
+        ArgumentCaptor<WriteContext> writeContextArgumentCaptor = ArgumentCaptor.forClass(WriteContext.class);
+        CountDownLatch latch = new CountDownLatch(2);
+
+        // Write blobs in different formats
+        checksumSMILE.writeAsync(
+            new BlobObj("checksum smile"),
+            spyContainer,
+            "check-smile",
+            CompressorRegistry.none(),
+            getVoidActionListener(latch),
+            ChecksumBlobStoreFormat.SNAPSHOT_ONLY_FORMAT_PARAMS
+        );
+        checksumSMILE.writeAsync(
+            new BlobObj("checksum smile compressed"),
+            spyContainer,
+            "check-smile-comp",
+            CompressorRegistry.getCompressor(DeflateCompressor.NAME),
+            getVoidActionListener(latch),
+            ChecksumBlobStoreFormat.SNAPSHOT_ONLY_FORMAT_PARAMS
+        );
+
+        latch.await();
+
+        verify(spyContainer, times(2)).asyncBlobUpload(writeContextArgumentCaptor.capture(), actionListenerArgumentCaptor.capture());
+        assertEquals(2, writeContextArgumentCaptor.getAllValues().size());
+        writeContextArgumentCaptor.getAllValues()
+            .forEach(writeContext -> assertEquals(WritePriority.NORMAL, writeContext.getWritePriority()));
+        // Assert that all checksum blobs can be read
+        assertEquals(checksumSMILE.read(mockBlobContainer.getDelegate(), "check-smile", xContentRegistry()).getText(), "checksum smile");
+        assertEquals(
+            checksumSMILE.read(mockBlobContainer.getDelegate(), "check-smile-comp", xContentRegistry()).getText(),
+            "checksum smile compressed"
+        );
+    }
+
+    public void testBlobStorePriorityAsyncOperation() throws IOException, InterruptedException {
+        BlobStore blobStore = createTestBlobStore();
+        MockFsVerifyingBlobContainer mockBlobContainer = new MockFsVerifyingBlobContainer(
+            (FsBlobStore) blobStore,
+            BlobPath.cleanPath(),
+            null
+        );
+        MockFsVerifyingBlobContainer spyContainer = spy(mockBlobContainer);
+        ChecksumBlobStoreFormat<BlobObj> checksumSMILE = new ChecksumBlobStoreFormat<>(BLOB_CODEC, "%s", BlobObj::fromXContent);
+
+        ArgumentCaptor<ActionListener<Void>> actionListenerArgumentCaptor = ArgumentCaptor.forClass(ActionListener.class);
+        ArgumentCaptor<WriteContext> writeContextArgumentCaptor = ArgumentCaptor.forClass(WriteContext.class);
+        CountDownLatch latch = new CountDownLatch(1);
+
+        // Write blobs in different formats
+        checksumSMILE.writeAsyncWithUrgentPriority(
+            new BlobObj("cluster state diff"),
+            spyContainer,
+            "cluster-state-diff",
+            CompressorRegistry.none(),
+            getVoidActionListener(latch),
+            ChecksumBlobStoreFormat.SNAPSHOT_ONLY_FORMAT_PARAMS
+        );
+        latch.await();
+
+        verify(spyContainer).asyncBlobUpload(writeContextArgumentCaptor.capture(), actionListenerArgumentCaptor.capture());
+        assertEquals(WritePriority.URGENT, writeContextArgumentCaptor.getValue().getWritePriority());
+        assertEquals(
+            checksumSMILE.read(mockBlobContainer.getDelegate(), "cluster-state-diff", xContentRegistry()).getText(),
+            "cluster state diff"
+        );
     }
 
     public void testBlobStoreOperations() throws IOException {
@@ -168,6 +259,24 @@ public class BlobStoreFormatTests extends OpenSearchTestCase {
         }
     }
 
+    private ActionListener<Void> getVoidActionListener(CountDownLatch latch) {
+        ActionListener<Void> actionListener = new ActionListener<>() {
+            @Override
+            public void onResponse(Void unused) {
+                logger.info("---> Async write succeeded");
+                latch.countDown();
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                logger.info("---> Failure in async write");
+                throw new RuntimeException("async write should not fail");
+            }
+        };
+
+        return actionListener;
+    }
+
     protected BlobStore createTestBlobStore() throws IOException {
         return new FsBlobStore(randomIntBetween(1, 8) * 1024, createTempDir(), false);
     }
@@ -194,6 +303,37 @@ public class BlobStoreFormatTests extends OpenSearchTestCase {
                 checksumOutput.write(buffer);
                 return checksumOutput.getChecksum();
             }
+        }
+    }
+
+    public static class MockFsVerifyingBlobContainer extends FsBlobContainer implements AsyncMultiStreamBlobContainer {
+
+        private BlobContainer delegate;
+
+        public MockFsVerifyingBlobContainer(FsBlobStore blobStore, BlobPath blobPath, Path path) {
+            super(blobStore, blobPath, path);
+            delegate = blobStore.blobContainer(BlobPath.cleanPath());
+        }
+
+        @Override
+        public void asyncBlobUpload(WriteContext writeContext, ActionListener<Void> completionListener) throws IOException {
+            InputStream inputStream = writeContext.getStreamProvider(Integer.MAX_VALUE).provideStream(0).getInputStream();
+            delegate.writeBlob(writeContext.getFileName(), inputStream, writeContext.getFileSize(), true);
+            completionListener.onResponse(null);
+        }
+
+        @Override
+        public void readBlobAsync(String blobName, ActionListener<ReadContext> listener) {
+            throw new RuntimeException("read not supported");
+        }
+
+        @Override
+        public boolean remoteIntegrityCheckSupported() {
+            return false;
+        }
+
+        public BlobContainer getDelegate() {
+            return delegate;
         }
     }
 }

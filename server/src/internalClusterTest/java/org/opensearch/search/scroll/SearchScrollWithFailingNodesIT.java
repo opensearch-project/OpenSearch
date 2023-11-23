@@ -32,26 +32,50 @@
 
 package org.opensearch.search.scroll;
 
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.test.OpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedOpenSearchIntegTestCase;
 
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
 import java.util.List;
 
 import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.opensearch.index.query.QueryBuilders.matchAllQuery;
+import static org.opensearch.search.SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAllSuccessful;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.lessThan;
 
-@OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0, numClientNodes = 0)
-public class SearchScrollWithFailingNodesIT extends OpenSearchIntegTestCase {
+@OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 2, numClientNodes = 0)
+public class SearchScrollWithFailingNodesIT extends ParameterizedOpenSearchIntegTestCase {
+    public SearchScrollWithFailingNodesIT(Settings settings) {
+        super(settings);
+    }
+
+    @ParametersFactory
+    public static Collection<Object[]> parameters() {
+        return Arrays.asList(
+            new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), false).build() },
+            new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), true).build() }
+        );
+    }
+
+    @Override
+    protected Settings featureFlagSettings() {
+        return Settings.builder().put(super.featureFlagSettings()).put(FeatureFlags.CONCURRENT_SEGMENT_SEARCH, "true").build();
+    }
+
     @Override
     protected int numberOfShards() {
         return 2;
@@ -63,8 +87,6 @@ public class SearchScrollWithFailingNodesIT extends OpenSearchIntegTestCase {
     }
 
     public void testScanScrollWithShardExceptions() throws Exception {
-        internalCluster().startNode();
-        internalCluster().startNode();
         assertAcked(
             prepareCreate("test")
                 // Enforces that only one shard can only be allocated to a single node
@@ -97,7 +119,7 @@ public class SearchScrollWithFailingNodesIT extends OpenSearchIntegTestCase {
         assertThat(numHits, equalTo(100L));
         clearScroll("_all");
 
-        internalCluster().stopRandomNonClusterManagerNode();
+        internalCluster().stopRandomDataNode();
 
         searchResponse = client().prepareSearch().setQuery(matchAllQuery()).setSize(10).setScroll(TimeValue.timeValueMinutes(1)).get();
         assertThat(searchResponse.getSuccessfulShards(), lessThan(searchResponse.getTotalShards()));

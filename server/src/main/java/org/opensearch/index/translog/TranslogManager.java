@@ -8,20 +8,23 @@
 
 package org.opensearch.index.translog;
 
+import org.opensearch.common.annotation.PublicApi;
+
 import java.io.IOException;
 import java.util.stream.Stream;
 
 /**
  * The interface that orchestrates Translog operations and manages the {@link Translog} and interfaces with the Engine
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public interface TranslogManager {
 
     /**
      * Rolls the translog generation and cleans unneeded.
      */
-    void rollTranslogGeneration() throws TranslogException;
+    void rollTranslogGeneration() throws TranslogException, IOException;
 
     /**
      * Performs recovery from the transaction log up to {@code recoverUpToSeqNo} (inclusive).

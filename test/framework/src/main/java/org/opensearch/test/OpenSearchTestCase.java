@@ -65,6 +65,7 @@ import org.opensearch.Version;
 import org.opensearch.bootstrap.BootstrapForTesting;
 import org.opensearch.client.Requests;
 import org.opensearch.cluster.ClusterModule;
+import org.opensearch.cluster.coordination.PersistedStateRegistry;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.CheckedRunnable;
@@ -174,6 +175,8 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import reactor.core.scheduler.Schedulers;
+
 import static java.util.Collections.emptyMap;
 import static org.opensearch.core.common.util.CollectionUtils.arrayAsArrayList;
 import static org.hamcrest.Matchers.empty;
@@ -224,6 +227,7 @@ public abstract class OpenSearchTestCase extends LuceneTestCase {
 
     @Override
     public void tearDown() throws Exception {
+        Schedulers.shutdownNow();
         FeatureFlagSetter.clear();
         super.tearDown();
     }
@@ -1541,6 +1545,13 @@ public abstract class OpenSearchTestCase extends LuceneTestCase {
      */
     protected NamedWriteableRegistry writableRegistry() {
         return new NamedWriteableRegistry(ClusterModule.getNamedWriteables());
+    }
+
+    /**
+     * The {@link PersistedStateRegistry} to use for this test. Subclasses should override and use liberally.
+     */
+    protected PersistedStateRegistry persistedStateRegistry() {
+        return new PersistedStateRegistry();
     }
 
     /**

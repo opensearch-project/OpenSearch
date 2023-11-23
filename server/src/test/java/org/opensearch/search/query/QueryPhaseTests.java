@@ -1209,7 +1209,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
         IndexShard indexShard = mock(IndexShard.class);
         when(searchContext.indexShard()).thenReturn(indexShard);
         when(searchContext.bucketCollectorProcessor()).thenReturn(SearchContext.NO_OP_BUCKET_COLLECTOR_PROCESSOR);
-        when(searchContext.isConcurrentSegmentSearchEnabled()).thenReturn(executor != null);
+        when(searchContext.shouldUseConcurrentSearch()).thenReturn(executor != null);
         if (executor != null) {
             when(searchContext.getTargetMaxSliceCount()).thenReturn(randomIntBetween(0, 2));
         } else {
@@ -1232,7 +1232,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
         IndexShard indexShard = mock(IndexShard.class);
         when(searchContext.indexShard()).thenReturn(indexShard);
         when(searchContext.bucketCollectorProcessor()).thenReturn(SearchContext.NO_OP_BUCKET_COLLECTOR_PROCESSOR);
-        when(searchContext.isConcurrentSegmentSearchEnabled()).thenReturn(executor != null);
+        when(searchContext.shouldUseConcurrentSearch()).thenReturn(executor != null);
         if (executor != null) {
             when(searchContext.getTargetMaxSliceCount()).thenReturn(randomIntBetween(0, 2));
         } else {

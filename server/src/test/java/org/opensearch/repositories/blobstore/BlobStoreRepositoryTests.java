@@ -41,7 +41,6 @@ import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.env.Environment;
@@ -103,11 +102,6 @@ public class BlobStoreRepositoryTests extends BlobStoreRepositoryHelperTests {
                 }
             );
         }
-    }
-
-    @Override
-    protected Settings featureFlagSettings() {
-        return Settings.builder().put(super.featureFlagSettings()).put(FeatureFlags.REMOTE_STORE, "true").build();
     }
 
     public void testRetrieveSnapshots() throws Exception {
@@ -258,7 +252,7 @@ public class BlobStoreRepositoryTests extends BlobStoreRepositoryHelperTests {
         );
     }
 
-    public void testFsRepositoryCompressDeprecated() {
+    public void testFsRepositoryCompressDeprecatedIgnored() {
         final Path location = OpenSearchIntegTestCase.randomRepoPath(node().settings());
         final Settings settings = Settings.builder().put(node().settings()).put("location", location).build();
         final RepositoryMetadata metadata = new RepositoryMetadata("test-repo", REPO_TYPE, settings);
@@ -271,10 +265,7 @@ public class BlobStoreRepositoryTests extends BlobStoreRepositoryHelperTests {
 
         new FsRepository(metadata, useCompressEnvironment, null, BlobStoreTestUtil.mockClusterService(), null);
 
-        assertWarnings(
-            "[repositories.fs.compress] setting was deprecated in OpenSearch and will be removed in a future release!"
-                + " See the breaking changes documentation for the next major version."
-        );
+        assertNoDeprecationWarnings();
     }
 
     private static void writeIndexGen(BlobStoreRepository repository, RepositoryData repositoryData, long generation) throws Exception {

@@ -40,6 +40,7 @@ import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.routing.RecoverySource.RemoteStoreRecoverySource;
 import org.opensearch.cluster.routing.RecoverySource.SnapshotRecoverySource;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.util.iterable.Iterables;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
@@ -66,8 +67,9 @@ import static org.opensearch.cluster.metadata.MetadataIndexStateService.isIndexV
  *
  * @see IndexRoutingTable
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<RoutingTable> {
 
     public static final RoutingTable EMPTY_ROUTING_TABLE = builder().build();
@@ -433,8 +435,9 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
     /**
      * Builder for the routing table. Note that build can only be called one time.
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public static class Builder {
 
         private long version;
@@ -575,10 +578,11 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
         public Builder addAsRemoteStoreRestore(
             IndexMetadata indexMetadata,
             RemoteStoreRecoverySource recoverySource,
-            Map<ShardId, ShardRouting> activeInitializingShards
+            Map<ShardId, IndexShardRoutingTable> indexShardRoutingTableMap,
+            boolean forceRecoveryPrimary
         ) {
             IndexRoutingTable.Builder indexRoutingBuilder = new IndexRoutingTable.Builder(indexMetadata.getIndex())
-                .initializeAsRemoteStoreRestore(indexMetadata, recoverySource, activeInitializingShards);
+                .initializeAsRemoteStoreRestore(indexMetadata, recoverySource, indexShardRoutingTableMap, forceRecoveryPrimary);
             add(indexRoutingBuilder);
             return this;
         }

@@ -41,7 +41,9 @@ import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.lifecycle.LifecycleComponent;
+import org.opensearch.common.settings.Setting;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.mapper.MapperService;
@@ -55,6 +57,8 @@ import org.opensearch.snapshots.SnapshotInfo;
 
 import java.io.IOException;
 import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -72,14 +76,18 @@ import java.util.function.Function;
  * <li>When all shard calls return cluster-manager calls {@link #finalizeSnapshot} with possible list of failures</li>
  * </ul>
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public interface Repository extends LifecycleComponent {
 
     /**
      * An factory interface for constructing repositories.
      * See {@link org.opensearch.plugins.RepositoryPlugin}.
+     *
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     interface Factory {
         /**
          * Constructs a repository.
@@ -199,6 +207,16 @@ public interface Repository extends LifecycleComponent {
     long getRestoreThrottleTimeInNanos();
 
     /**
+     * Returns restore throttle time in nanoseconds
+     */
+    long getRemoteUploadThrottleTimeInNanos();
+
+    /**
+     * Returns restore throttle time in nanoseconds
+     */
+    long getRemoteDownloadThrottleTimeInNanos();
+
+    /**
      * Returns stats on the repository usage
      */
     default RepositoryStats stats() {
@@ -236,6 +254,13 @@ public interface Repository extends LifecycleComponent {
      * @return true if the repository is read/only
      */
     boolean isReadOnly();
+
+    /**
+     * Returns true if the repository is managed by the system directly and doesn't allow managing the lifetime of the
+     * repository through external APIs
+     * @return true if the repository is system managed
+     */
+    boolean isSystemRepository();
 
     /**
      * Creates a snapshot of the shard based on the index commit point.
@@ -324,6 +349,14 @@ public interface Repository extends LifecycleComponent {
         RecoveryState recoveryState,
         ActionListener<Void> listener
     );
+
+    /**
+     * Returns the list of restricted system repository settings that cannot be mutated post repository creation.
+     * @return list of settings
+     */
+    default List<Setting<?>> getRestrictedSystemRepositorySettings() {
+        return Collections.emptyList();
+    }
 
     /**
      * Returns Snapshot Shard Metadata for remote store interop enabled snapshot.
@@ -423,4 +456,22 @@ public interface Repository extends LifecycleComponent {
     default Map<String, Object> adaptUserMetadata(Map<String, Object> userMetadata) {
         return userMetadata;
     }
+
+    /**
+     * Checks if the repository can be reloaded inplace or not
+     * @return true if the repository can be reloaded inplace, false otherwise
+     */
+    default boolean isReloadable() {
+        return false;
+    }
+
+    /**
+     * Reload the repository inplace
+     */
+    default void reload(RepositoryMetadata repositoryMetadata) {}
+
+    /**
+     * Validate the repository metadata
+     */
+    default void validateMetadata(RepositoryMetadata repositoryMetadata) {}
 }

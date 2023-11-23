@@ -200,7 +200,7 @@ public class MustacheScriptEngineTests extends OpenSearchTestCase {
 
     /**
      * From https://www.ietf.org/rfc/rfc4627.txt:
-     *
+     * <p>
      * All Unicode characters may be placed within the
      * quotation marks except for the characters that must be escaped:
      * quotation mark, reverse solidus, and the control characters (U+0000

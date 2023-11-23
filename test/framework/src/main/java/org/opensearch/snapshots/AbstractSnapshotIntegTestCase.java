@@ -331,6 +331,12 @@ public abstract class AbstractSnapshotIntegTestCase extends OpenSearchIntegTestC
         );
     }
 
+    public static void blockNodeOnAnySegmentFile(String repository, String nodeName) {
+        ((MockRepository) internalCluster().getInstance(RepositoriesService.class, nodeName).repository(repository)).blockOnSegmentFiles(
+            true
+        );
+    }
+
     public static void blockDataNode(String repository, String nodeName) {
         ((MockRepository) internalCluster().getInstance(RepositoriesService.class, nodeName).repository(repository)).blockOnDataFiles(true);
     }
@@ -480,11 +486,12 @@ public abstract class AbstractSnapshotIntegTestCase extends OpenSearchIntegTestC
 
     protected SnapshotInfo createFullSnapshot(String repoName, String snapshotName) {
         logger.info("--> creating full snapshot [{}] in [{}]", snapshotName, repoName);
-        CreateSnapshotResponse createSnapshotResponse = clusterAdmin().prepareCreateSnapshot(repoName, snapshotName)
-            .setIncludeGlobalState(true)
+        final CreateSnapshotResponse response = client().admin()
+            .cluster()
+            .prepareCreateSnapshot(repoName, snapshotName)
             .setWaitForCompletion(true)
             .get();
-        final SnapshotInfo snapshotInfo = createSnapshotResponse.getSnapshotInfo();
+        final SnapshotInfo snapshotInfo = response.getSnapshotInfo();
         assertThat(snapshotInfo.successfulShards(), is(snapshotInfo.totalShards()));
         assertThat(snapshotInfo.state(), is(SnapshotState.SUCCESS));
         return snapshotInfo;
@@ -498,8 +505,8 @@ public abstract class AbstractSnapshotIntegTestCase extends OpenSearchIntegTestC
             .setIndices(indices.toArray(Strings.EMPTY_ARRAY))
             .setWaitForCompletion(true)
             .get();
+        SnapshotInfo snapshotInfo = response.getSnapshotInfo();
 
-        final SnapshotInfo snapshotInfo = response.getSnapshotInfo();
         assertThat(snapshotInfo.state(), is(SnapshotState.SUCCESS));
         assertThat(snapshotInfo.successfulShards(), greaterThan(0));
         assertThat(snapshotInfo.failedShards(), equalTo(0));

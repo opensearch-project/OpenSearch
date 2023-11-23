@@ -37,6 +37,7 @@ import org.opensearch.common.CheckedConsumer;
 import org.opensearch.common.CheckedFunction;
 import org.opensearch.common.CheckedRunnable;
 import org.opensearch.common.CheckedSupplier;
+import org.opensearch.common.annotation.PublicApi;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -48,6 +49,7 @@ import java.util.function.Consumer;
  *
  * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public interface ActionListener<Response> {
     /**
      * Handle action response. This response may constitute a failure or a
@@ -152,9 +154,9 @@ public interface ActionListener<Response> {
     /**
      * Creates a listener that wraps another listener, mapping response values via the given mapping function and passing along
      * exceptions to the delegate.
-     *
+     * <p>
      * Notice that it is considered a bug if the listener's onResponse or onFailure fails. onResponse failures will not call onFailure.
-     *
+     * <p>
      * If the function fails, the listener's onFailure handler will be called. The principle is that the mapped listener will handle
      * exceptions from the mapping function {@code fn} but it is the responsibility of {@code delegate} to handle its own exceptions
      * inside `onResponse` and `onFailure`.
@@ -332,7 +334,7 @@ public interface ActionListener<Response> {
     /**
      * Completes the given listener with the result from the provided supplier accordingly.
      * This method is mainly used to complete a listener with a block of synchronous code.
-     *
+     * <p>
      * If the supplier fails, the listener's onFailure handler will be called.
      * It is the responsibility of {@code delegate} to handle its own exceptions inside `onResponse` and `onFailure`.
      */

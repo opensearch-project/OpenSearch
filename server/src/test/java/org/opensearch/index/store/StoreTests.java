@@ -84,6 +84,8 @@ import org.opensearch.index.engine.Engine;
 import org.opensearch.index.seqno.ReplicationTracker;
 import org.opensearch.index.seqno.RetentionLease;
 import org.opensearch.index.seqno.SequenceNumbers;
+import org.opensearch.index.shard.ShardPath;
+import org.opensearch.index.translog.Translog;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.indices.store.TransportNodesListShardStoreMetadata;
 import org.opensearch.test.DummyShardLock;
@@ -797,7 +799,7 @@ public class StoreTests extends OpenSearchTestCase {
             assertEquals(shardId, theLock.getShardId());
             assertEquals(lock, theLock);
             count.incrementAndGet();
-        });
+        }, null);
         assertEquals(count.get(), 0);
 
         final int iters = randomIntBetween(1, 10);
@@ -806,6 +808,26 @@ public class StoreTests extends OpenSearchTestCase {
         }
 
         assertEquals(count.get(), 1);
+    }
+
+    public void testStoreShardPath() {
+        final ShardId shardId = new ShardId("index", "_na_", 1);
+        final Settings settings = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, org.opensearch.Version.CURRENT)
+            .put(Store.INDEX_STORE_STATS_REFRESH_INTERVAL_SETTING.getKey(), TimeValue.timeValueMinutes(0))
+            .build();
+        final Path path = createTempDir().resolve(shardId.getIndex().getUUID()).resolve(String.valueOf(shardId.id()));
+        final ShardPath shardPath = new ShardPath(false, path, path, shardId);
+        final Store store = new Store(
+            shardId,
+            IndexSettingsModule.newIndexSettings("index", settings),
+            StoreTests.newDirectory(random()),
+            new DummyShardLock(shardId),
+            Store.OnClose.EMPTY,
+            shardPath
+        );
+        assertEquals(shardPath, store.shardPath());
+        store.close();
     }
 
     public void testStoreStats() throws IOException {
@@ -1164,6 +1186,42 @@ public class StoreTests extends OpenSearchTestCase {
         // loose check for equality
         assertEquals(segmentInfos.getSegmentsFileName(), metadataSnapshot.getSegmentsFile().name());
         store.close();
+    }
+
+    public void testCreateEmptyStore() throws IOException {
+        final ShardId shardId = new ShardId("index", "_na_", 1);
+        Store store = new Store(shardId, INDEX_SETTINGS, new NIOFSDirectory(createTempDir()), new DummyShardLock(shardId));
+        store.createEmpty(Version.LATEST);
+        SegmentInfos segmentInfos = Lucene.readSegmentInfos(store.directory());
+        assertFalse(segmentInfos.getUserData().containsKey(Translog.TRANSLOG_UUID_KEY));
+        testDefaultUserData(segmentInfos);
+        store.close();
+    }
+
+    public void testCreateEmptyStoreWithTranlogUUID() throws IOException {
+        final ShardId shardId = new ShardId("index", "_na_", 1);
+        Store store = new Store(shardId, INDEX_SETTINGS, new NIOFSDirectory(createTempDir()), new DummyShardLock(shardId));
+        store.createEmpty(Version.LATEST, "dummy-translog-UUID");
+        SegmentInfos segmentInfos = Lucene.readSegmentInfos(store.directory());
+        assertEquals("dummy-translog-UUID", segmentInfos.getUserData().get(Translog.TRANSLOG_UUID_KEY));
+        testDefaultUserData(segmentInfos);
+        store.close();
+    }
+
+    public void testCreateEmptyWithNullTranlogUUID() throws IOException {
+        final ShardId shardId = new ShardId("index", "_na_", 1);
+        Store store = new Store(shardId, INDEX_SETTINGS, new NIOFSDirectory(createTempDir()), new DummyShardLock(shardId));
+        store.createEmpty(Version.LATEST, null);
+        SegmentInfos segmentInfos = Lucene.readSegmentInfos(store.directory());
+        assertFalse(segmentInfos.getUserData().containsKey(Translog.TRANSLOG_UUID_KEY));
+        testDefaultUserData(segmentInfos);
+        store.close();
+    }
+
+    private void testDefaultUserData(SegmentInfos segmentInfos) {
+        assertEquals("-1", segmentInfos.getUserData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY));
+        assertEquals("-1", segmentInfos.getUserData().get(SequenceNumbers.MAX_SEQ_NO));
+        assertEquals("-1", segmentInfos.getUserData().get(Engine.MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID));
     }
 
     public void testGetSegmentMetadataMap() throws IOException {

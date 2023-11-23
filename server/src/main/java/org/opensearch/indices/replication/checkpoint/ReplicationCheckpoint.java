@@ -10,20 +10,25 @@ package org.opensearch.indices.replication.checkpoint;
 
 import org.opensearch.Version;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.seqno.SequenceNumbers;
+import org.opensearch.index.store.StoreFileMetadata;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.Map;
 import java.util.Objects;
 
 /**
  * Represents a Replication Checkpoint which is sent to a replica shard.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "2.2.0")
 public class ReplicationCheckpoint implements Writeable, Comparable<ReplicationCheckpoint> {
 
     private final ShardId shardId;
@@ -32,6 +37,7 @@ public class ReplicationCheckpoint implements Writeable, Comparable<ReplicationC
     private final long segmentInfosVersion;
     private final long length;
     private final String codec;
+    private final Map<String, StoreFileMetadata> metadataMap;
 
     public static ReplicationCheckpoint empty(ShardId shardId) {
         return empty(shardId, "");
@@ -48,19 +54,29 @@ public class ReplicationCheckpoint implements Writeable, Comparable<ReplicationC
         segmentInfosVersion = SequenceNumbers.NO_OPS_PERFORMED;
         length = 0L;
         this.codec = codec;
+        this.metadataMap = Collections.emptyMap();
     }
 
     public ReplicationCheckpoint(ShardId shardId, long primaryTerm, long segmentsGen, long segmentInfosVersion, String codec) {
-        this(shardId, primaryTerm, segmentsGen, segmentInfosVersion, 0L, codec);
+        this(shardId, primaryTerm, segmentsGen, segmentInfosVersion, 0L, codec, Collections.emptyMap());
     }
 
-    public ReplicationCheckpoint(ShardId shardId, long primaryTerm, long segmentsGen, long segmentInfosVersion, long length, String codec) {
+    public ReplicationCheckpoint(
+        ShardId shardId,
+        long primaryTerm,
+        long segmentsGen,
+        long segmentInfosVersion,
+        long length,
+        String codec,
+        Map<String, StoreFileMetadata> metadataMap
+    ) {
         this.shardId = shardId;
         this.primaryTerm = primaryTerm;
         this.segmentsGen = segmentsGen;
         this.segmentInfosVersion = segmentInfosVersion;
         this.length = length;
         this.codec = codec;
+        this.metadataMap = metadataMap;
     }
 
     public ReplicationCheckpoint(StreamInput in) throws IOException {
@@ -74,6 +90,11 @@ public class ReplicationCheckpoint implements Writeable, Comparable<ReplicationC
         } else {
             length = 0L;
             codec = null;
+        }
+        if (in.getVersion().onOrAfter(Version.V_2_10_0)) {
+            this.metadataMap = in.readMap(StreamInput::readString, StoreFileMetadata::new);
+        } else {
+            this.metadataMap = Collections.emptyMap();
         }
     }
 
@@ -135,6 +156,9 @@ public class ReplicationCheckpoint implements Writeable, Comparable<ReplicationC
             out.writeLong(length);
             out.writeString(codec);
         }
+        if (out.getVersion().onOrAfter(Version.V_2_10_0)) {
+            out.writeMap(metadataMap, StreamOutput::writeString, (valueOut, fc) -> fc.writeTo(valueOut));
+        }
     }
 
     @Override
@@ -167,6 +191,10 @@ public class ReplicationCheckpoint implements Writeable, Comparable<ReplicationC
         return other == null
             || primaryTerm > other.getPrimaryTerm()
             || (primaryTerm == other.getPrimaryTerm() && segmentInfosVersion > other.getSegmentInfosVersion());
+    }
+
+    public Map<String, StoreFileMetadata> getMetadataMap() {
+        return metadataMap;
     }
 
     @Override

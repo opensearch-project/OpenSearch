@@ -67,24 +67,24 @@ public class TransportGetActionTests extends OpenSearchTestCase {
 
     public void testShouldForcePrimaryRouting() {
 
-        ClusterState clusterState = clusterState(ReplicationType.SEGMENT);
+        Metadata metadata = clusterState(ReplicationType.SEGMENT).getMetadata();
 
         // should return false since preference is set for request
-        assertFalse(TransportGetAction.shouldForcePrimaryRouting(clusterState, true, Preference.REPLICA.type(), "index1"));
+        assertFalse(TransportGetAction.shouldForcePrimaryRouting(metadata, true, Preference.REPLICA.type(), "index1"));
 
         // should return false since request is not realtime
-        assertFalse(TransportGetAction.shouldForcePrimaryRouting(clusterState, false, null, "index1"));
+        assertFalse(TransportGetAction.shouldForcePrimaryRouting(metadata, false, null, "index1"));
 
         // should return true since segment replication is enabled
-        assertTrue(TransportGetAction.shouldForcePrimaryRouting(clusterState, true, null, "index1"));
+        assertTrue(TransportGetAction.shouldForcePrimaryRouting(metadata, true, null, "index1"));
 
         // should return false since index doesn't exist
-        assertFalse(TransportGetAction.shouldForcePrimaryRouting(clusterState, true, null, "index3"));
+        assertFalse(TransportGetAction.shouldForcePrimaryRouting(metadata, true, null, "index3"));
 
-        clusterState = clusterState(ReplicationType.DOCUMENT);
+        metadata = clusterState(ReplicationType.DOCUMENT).getMetadata();
 
         // should fail since document replication enabled
-        assertFalse(TransportGetAction.shouldForcePrimaryRouting(clusterState, true, null, "index1"));
+        assertFalse(TransportGetAction.shouldForcePrimaryRouting(metadata, true, null, "index1"));
 
     }
 

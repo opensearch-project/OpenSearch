@@ -9,9 +9,9 @@
 package org.opensearch.index.translog.transfer;
 
 import org.opensearch.action.LatchedActionListener;
+import org.opensearch.common.blobstore.AsyncMultiStreamBlobContainer;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.blobstore.BlobStore;
-import org.opensearch.common.blobstore.VerifyingMultiStreamBlobContainer;
 import org.opensearch.common.blobstore.stream.write.WriteContext;
 import org.opensearch.common.blobstore.stream.write.WritePriority;
 import org.opensearch.core.action.ActionListener;
@@ -60,7 +60,7 @@ public class BlobStoreTransferServiceMockRepositoryTests extends OpenSearchTestC
             0L
         );
 
-        VerifyingMultiStreamBlobContainer blobContainer = mock(VerifyingMultiStreamBlobContainer.class);
+        AsyncMultiStreamBlobContainer blobContainer = mock(AsyncMultiStreamBlobContainer.class);
         Mockito.doAnswer(invocation -> {
             ActionListener<Void> completionListener = invocation.getArgument(1);
             completionListener.onResponse(null);
@@ -107,7 +107,7 @@ public class BlobStoreTransferServiceMockRepositoryTests extends OpenSearchTestC
             0L
         );
 
-        VerifyingMultiStreamBlobContainer blobContainer = mock(VerifyingMultiStreamBlobContainer.class);
+        AsyncMultiStreamBlobContainer blobContainer = mock(AsyncMultiStreamBlobContainer.class);
         doThrow(new IOException()).when(blobContainer).asyncBlobUpload(any(WriteContext.class), any());
         when(blobStore.blobContainer(any(BlobPath.class))).thenReturn(blobContainer);
 
@@ -146,7 +146,7 @@ public class BlobStoreTransferServiceMockRepositoryTests extends OpenSearchTestC
             0L
         );
 
-        VerifyingMultiStreamBlobContainer blobContainer = mock(VerifyingMultiStreamBlobContainer.class);
+        AsyncMultiStreamBlobContainer blobContainer = mock(AsyncMultiStreamBlobContainer.class);
         Mockito.doAnswer(invocation -> {
             ActionListener<Void> completionListener = invocation.getArgument(1);
             completionListener.onFailure(new Exception("Test exception"));

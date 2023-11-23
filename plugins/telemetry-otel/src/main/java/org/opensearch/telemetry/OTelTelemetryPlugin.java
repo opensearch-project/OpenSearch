@@ -8,27 +8,35 @@
 
 package org.opensearch.telemetry;
 
+import org.opensearch.common.concurrent.RefCountedReleasable;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.plugins.TelemetryPlugin;
-import org.opensearch.telemetry.metrics.MetricsTelemetry;
 import org.opensearch.telemetry.tracing.OTelResourceProvider;
 import org.opensearch.telemetry.tracing.OTelTelemetry;
-import org.opensearch.telemetry.tracing.OTelTracingTelemetry;
 
 import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
+
+import io.opentelemetry.sdk.OpenTelemetrySdk;
 
 /**
  * Telemetry plugin based on Otel
  */
 public class OTelTelemetryPlugin extends Plugin implements TelemetryPlugin {
 
+    /**
+     * Instrumentation scope name.
+     */
+    public static final String INSTRUMENTATION_SCOPE_NAME = "org.opensearch.telemetry";
+
     static final String OTEL_TRACER_NAME = "otel";
 
     private final Settings settings;
+
+    private RefCountedReleasable<OpenTelemetrySdk> refCountedOpenTelemetry;
 
     /**
      * Creates Otel plugin
@@ -44,13 +52,23 @@ public class OTelTelemetryPlugin extends Plugin implements TelemetryPlugin {
             OTelTelemetrySettings.TRACER_EXPORTER_BATCH_SIZE_SETTING,
             OTelTelemetrySettings.TRACER_EXPORTER_DELAY_SETTING,
             OTelTelemetrySettings.TRACER_EXPORTER_MAX_QUEUE_SIZE_SETTING,
-            OTelTelemetrySettings.OTEL_TRACER_SPAN_EXPORTER_CLASS_SETTING
+            OTelTelemetrySettings.OTEL_TRACER_SPAN_EXPORTER_CLASS_SETTING,
+            OTelTelemetrySettings.OTEL_METRICS_EXPORTER_CLASS_SETTING
         );
     }
 
     @Override
-    public Optional<Telemetry> getTelemetry(TelemetrySettings settings) {
-        return Optional.of(telemetry());
+    public Optional<Telemetry> getTelemetry(TelemetrySettings telemetrySettings) {
+        initializeOpenTelemetrySdk(telemetrySettings);
+        return Optional.of(telemetry(telemetrySettings));
+    }
+
+    private void initializeOpenTelemetrySdk(TelemetrySettings telemetrySettings) {
+        if (refCountedOpenTelemetry != null) {
+            return;
+        }
+        OpenTelemetrySdk openTelemetrySdk = OTelResourceProvider.get(telemetrySettings, settings);
+        refCountedOpenTelemetry = new RefCountedReleasable<>("openTelemetry", openTelemetrySdk, openTelemetrySdk::close);
     }
 
     @Override
@@ -58,9 +76,15 @@ public class OTelTelemetryPlugin extends Plugin implements TelemetryPlugin {
         return OTEL_TRACER_NAME;
     }
 
-    private Telemetry telemetry() {
-        return new OTelTelemetry(new OTelTracingTelemetry(OTelResourceProvider.get(settings)), new MetricsTelemetry() {
-        });
+    private Telemetry telemetry(TelemetrySettings telemetrySettings) {
+        return new OTelTelemetry(refCountedOpenTelemetry);
+    }
+
+    @Override
+    public void close() {
+        if (refCountedOpenTelemetry != null) {
+            refCountedOpenTelemetry.close();
+        }
     }
 
 }

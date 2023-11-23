@@ -1256,7 +1256,7 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
 
             final ClusterNode newNode = cluster1.new ClusterNode(
                 nextNodeIndex.getAndIncrement(), nodeInOtherCluster.getLocalNode(), n -> cluster1.new MockPersistedState(
-                    n, nodeInOtherCluster.persistedState, Function.identity(), Function.identity()
+                    n, nodeInOtherCluster.persistedStateRegistry, Function.identity(), Function.identity()
                 ), nodeInOtherCluster.nodeSettings, () -> new StatusInfo(StatusInfo.Status.HEALTHY, "healthy-info")
             );
 

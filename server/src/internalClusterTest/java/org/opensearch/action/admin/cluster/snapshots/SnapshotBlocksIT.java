@@ -53,7 +53,7 @@ import static org.hamcrest.Matchers.hasSize;
 
 /**
  * This class tests that snapshot operations (Create, Delete, Restore) are blocked when the cluster is read-only.
- *
+ * <p>
  * The @NodeScope TEST is needed because this class updates the cluster setting "cluster.blocks.read_only".
  */
 @ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST)

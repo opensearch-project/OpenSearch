@@ -41,6 +41,7 @@ import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.similarities.Similarity;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.unit.MemorySizeValue;
@@ -49,6 +50,7 @@ import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.indices.breaker.CircuitBreakerService;
 import org.opensearch.index.IndexSettings;
+import org.opensearch.index.codec.CodecAliases;
 import org.opensearch.index.codec.CodecService;
 import org.opensearch.index.codec.CodecSettings;
 import org.opensearch.index.mapper.ParsedDocument;
@@ -74,8 +76,9 @@ import java.util.function.Supplier;
  * Once {@link Engine} has been created with this object, changes to this
  * object will affect the {@link Engine} instance.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public final class EngineConfig {
     private final ShardId shardId;
     private final IndexSettings indexSettings;
@@ -133,18 +136,26 @@ public final class EngineConfig {
             case "lz4":
             case "best_compression":
             case "zlib":
-            case "zstd":
-            case "zstd_no_dict":
             case "lucene_default":
                 return s;
             default:
-                if (Codec.availableCodecs().contains(s) == false) { // we don't error message the not officially supported ones
-                    throw new IllegalArgumentException(
-                        "unknown value for [index.codec] must be one of [default, lz4, best_compression, zlib, zstd, zstd_no_dict] but was: "
-                            + s
-                    );
+                if (Codec.availableCodecs().contains(s)) {
+                    return s;
                 }
-                return s;
+
+                for (String codecName : Codec.availableCodecs()) {
+                    Codec codec = Codec.forName(codecName);
+                    if (codec instanceof CodecAliases) {
+                        CodecAliases codecWithAlias = (CodecAliases) codec;
+                        if (codecWithAlias.aliases().contains(s)) {
+                            return s;
+                        }
+                    }
+                }
+
+                throw new IllegalArgumentException(
+                    "unknown value for [index.codec] must be one of [default, lz4, best_compression, zlib] but was: " + s
+                );
         }
     }, Property.IndexScope, Property.NodeScope);
 
@@ -181,9 +192,6 @@ public final class EngineConfig {
 
     private static void doValidateCodecSettings(final String codec) {
         switch (codec) {
-            case "zstd":
-            case "zstd_no_dict":
-                return;
             case "best_compression":
             case "zlib":
             case "lucene_default":
@@ -196,6 +204,18 @@ public final class EngineConfig {
                     if (luceneCodec instanceof CodecSettings
                         && ((CodecSettings) luceneCodec).supports(INDEX_CODEC_COMPRESSION_LEVEL_SETTING)) {
                         return;
+                    }
+                }
+                for (String codecName : Codec.availableCodecs()) {
+                    Codec availableCodec = Codec.forName(codecName);
+                    if (availableCodec instanceof CodecAliases) {
+                        CodecAliases availableCodecWithAlias = (CodecAliases) availableCodec;
+                        if (availableCodecWithAlias.aliases().contains(codec)) {
+                            if (availableCodec instanceof CodecSettings
+                                && ((CodecSettings) availableCodec).supports(INDEX_CODEC_COMPRESSION_LEVEL_SETTING)) {
+                                return;
+                            }
+                        }
                     }
                 }
         }
@@ -238,6 +258,7 @@ public final class EngineConfig {
         this.codecService = builder.codecService;
         this.eventListener = builder.eventListener;
         codecName = builder.indexSettings.getValue(INDEX_CODEC_SETTING);
+
         // We need to make the indexing buffer for this shard at least as large
         // as the amount of memory that is available for all engines on the
         // local node so that decisions to flush segments to disk are made by
@@ -493,8 +514,9 @@ public final class EngineConfig {
      * A supplier supplies tombstone documents which will be used in soft-update methods.
      * The returned document consists only _uid, _seqno, _term and _version fields; other metadata fields are excluded.
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public interface TombstoneDocSupplier {
         /**
          * Creates a tombstone document for a delete operation.

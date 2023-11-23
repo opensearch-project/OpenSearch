@@ -62,7 +62,7 @@ import java.util.List;
  * {@link Nested} inputs.
  */
 @CacheableTask
-public class StandaloneRestIntegTestTask extends Test implements TestClustersAware, FileSystemOperationsAware {
+public abstract class StandaloneRestIntegTestTask extends Test implements TestClustersAware, FileSystemOperationsAware {
 
     private Collection<OpenSearchCluster> clusters = new HashSet<>();
     private Closure<Void> beforeStart;

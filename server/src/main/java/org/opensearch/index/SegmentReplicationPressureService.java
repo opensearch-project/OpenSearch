@@ -42,7 +42,8 @@ public class SegmentReplicationPressureService implements Closeable {
     private volatile boolean isSegmentReplicationBackpressureEnabled;
     private volatile int maxCheckpointsBehind;
     private volatile double maxAllowedStaleReplicas;
-    private volatile TimeValue maxReplicationTime;
+    private volatile TimeValue replicationTimeLimitBackpressure;
+    private volatile TimeValue replicationTimeLimitFailReplica;
 
     private static final Logger logger = LogManager.getLogger(SegmentReplicationPressureService.class);
 
@@ -65,9 +66,19 @@ public class SegmentReplicationPressureService implements Closeable {
         Setting.Property.NodeScope
     );
 
-    public static final Setting<TimeValue> MAX_REPLICATION_TIME_SETTING = Setting.positiveTimeSetting(
+    // Time limit on max allowed replica staleness after which backpressure kicks in on primary.
+    public static final Setting<TimeValue> MAX_REPLICATION_TIME_BACKPRESSURE_SETTING = Setting.positiveTimeSetting(
         "segrep.pressure.time.limit",
         TimeValue.timeValueMinutes(5),
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
+    // Time limit on max allowed replica staleness after which we start failing the replica shard.
+    // Defaults to 0(disabled)
+    public static final Setting<TimeValue> MAX_REPLICATION_LIMIT_STALE_REPLICA_SETTING = Setting.positiveTimeSetting(
+        "segrep.replication.time.limit",
+        TimeValue.timeValueMinutes(0),
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
@@ -87,7 +98,7 @@ public class SegmentReplicationPressureService implements Closeable {
     private final SegmentReplicationStatsTracker tracker;
     private final ShardStateAction shardStateAction;
 
-    private final AsyncFailStaleReplicaTask failStaleReplicaTask;
+    private volatile AsyncFailStaleReplicaTask failStaleReplicaTask;
 
     @Inject
     public SegmentReplicationPressureService(
@@ -95,10 +106,11 @@ public class SegmentReplicationPressureService implements Closeable {
         ClusterService clusterService,
         IndicesService indicesService,
         ShardStateAction shardStateAction,
+        SegmentReplicationStatsTracker tracker,
         ThreadPool threadPool
     ) {
         this.indicesService = indicesService;
-        this.tracker = new SegmentReplicationStatsTracker(this.indicesService);
+        this.tracker = tracker;
         this.shardStateAction = shardStateAction;
         this.threadPool = threadPool;
 
@@ -112,8 +124,11 @@ public class SegmentReplicationPressureService implements Closeable {
         this.maxCheckpointsBehind = MAX_INDEXING_CHECKPOINTS.get(settings);
         clusterSettings.addSettingsUpdateConsumer(MAX_INDEXING_CHECKPOINTS, this::setMaxCheckpointsBehind);
 
-        this.maxReplicationTime = MAX_REPLICATION_TIME_SETTING.get(settings);
-        clusterSettings.addSettingsUpdateConsumer(MAX_REPLICATION_TIME_SETTING, this::setMaxReplicationTime);
+        this.replicationTimeLimitBackpressure = MAX_REPLICATION_TIME_BACKPRESSURE_SETTING.get(settings);
+        clusterSettings.addSettingsUpdateConsumer(MAX_REPLICATION_TIME_BACKPRESSURE_SETTING, this::setReplicationTimeLimitBackpressure);
+
+        this.replicationTimeLimitFailReplica = MAX_REPLICATION_LIMIT_STALE_REPLICA_SETTING.get(settings);
+        clusterSettings.addSettingsUpdateConsumer(MAX_REPLICATION_LIMIT_STALE_REPLICA_SETTING, this::setReplicationTimeLimitFailReplica);
 
         this.maxAllowedStaleReplicas = MAX_ALLOWED_STALE_SHARDS.get(settings);
         clusterSettings.addSettingsUpdateConsumer(MAX_ALLOWED_STALE_SHARDS, this::setMaxAllowedStaleReplicas);
@@ -137,7 +152,7 @@ public class SegmentReplicationPressureService implements Closeable {
     }
 
     private void validateReplicationGroup(IndexShard shard) {
-        final Set<SegmentReplicationShardStats> replicaStats = shard.getReplicationStats();
+        final Set<SegmentReplicationShardStats> replicaStats = shard.getReplicationStatsForTrackedReplicas();
         final Set<SegmentReplicationShardStats> staleReplicas = getStaleReplicas(replicaStats);
         if (staleReplicas.isEmpty() == false) {
             // inSyncIds always considers the primary id, so filter it out.
@@ -157,7 +172,7 @@ public class SegmentReplicationPressureService implements Closeable {
     private Set<SegmentReplicationShardStats> getStaleReplicas(final Set<SegmentReplicationShardStats> replicas) {
         return replicas.stream()
             .filter(entry -> entry.getCheckpointsBehindCount() > maxCheckpointsBehind)
-            .filter(entry -> entry.getCurrentReplicationTimeMillis() > maxReplicationTime.millis())
+            .filter(entry -> entry.getCurrentReplicationTimeMillis() > replicationTimeLimitBackpressure.millis())
             .collect(Collectors.toSet());
     }
 
@@ -185,8 +200,21 @@ public class SegmentReplicationPressureService implements Closeable {
         this.maxAllowedStaleReplicas = maxAllowedStaleReplicas;
     }
 
-    public void setMaxReplicationTime(TimeValue maxReplicationTime) {
-        this.maxReplicationTime = maxReplicationTime;
+    public void setReplicationTimeLimitFailReplica(TimeValue replicationTimeLimitFailReplica) {
+        this.replicationTimeLimitFailReplica = replicationTimeLimitFailReplica;
+        updateAsyncFailReplicaTask();
+    }
+
+    private synchronized void updateAsyncFailReplicaTask() {
+        try {
+            failStaleReplicaTask.close();
+        } finally {
+            failStaleReplicaTask = new AsyncFailStaleReplicaTask(this);
+        }
+    }
+
+    public void setReplicationTimeLimitBackpressure(TimeValue replicationTimeLimitBackpressure) {
+        this.replicationTimeLimitBackpressure = replicationTimeLimitBackpressure;
     }
 
     @Override
@@ -209,12 +237,13 @@ public class SegmentReplicationPressureService implements Closeable {
 
         @Override
         protected boolean mustReschedule() {
-            return true;
+            return pressureService.shouldScheduleAsyncFailTask();
         }
 
         @Override
         protected void runInternal() {
-            if (pressureService.isSegmentReplicationBackpressureEnabled) {
+            // Do not fail the replicas if time limit is set to 0 (i.e. disabled).
+            if (pressureService.shouldScheduleAsyncFailTask()) {
                 final SegmentReplicationStats stats = pressureService.tracker.getStats();
 
                 // Find the shardId in node which is having stale replicas with highest current replication time.
@@ -240,7 +269,7 @@ public class SegmentReplicationPressureService implements Closeable {
                         }
                         final IndexShard primaryShard = indexService.getShard(shardId.getId());
                         for (SegmentReplicationShardStats staleReplica : staleReplicas) {
-                            if (staleReplica.getCurrentReplicationTimeMillis() > 2 * pressureService.maxReplicationTime.millis()) {
+                            if (staleReplica.getCurrentReplicationTimeMillis() > pressureService.replicationTimeLimitFailReplica.millis()) {
                                 pressureService.shardStateAction.remoteShardFailed(
                                     shardId,
                                     staleReplica.getAllocationId(),
@@ -280,6 +309,10 @@ public class SegmentReplicationPressureService implements Closeable {
             return "fail_stale_replica";
         }
 
+    }
+
+    boolean shouldScheduleAsyncFailTask() {
+        return TimeValue.ZERO.equals(replicationTimeLimitFailReplica) == false;
     }
 
 }

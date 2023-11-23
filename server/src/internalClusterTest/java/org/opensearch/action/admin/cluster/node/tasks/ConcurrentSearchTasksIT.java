@@ -30,7 +30,7 @@ import static org.hamcrest.Matchers.notNullValue;
 
 /**
  * Integration tests for task management API with Concurrent Segment Search
- *
+ * <p>
  * The way the test framework bootstraps the test cluster makes it difficult to parameterize the feature flag.
  * Once concurrent search is moved behind a cluster setting we can parameterize these tests behind the setting.
  */
@@ -72,7 +72,7 @@ public class ConcurrentSearchTasksIT extends AbstractTasksIT {
 
     /**
      * Tests the number of threads that worked on a search task.
-     *
+     * <p>
      * Currently, we try to control concurrency by creating an index with 7 segments and rely on
      * the way concurrent search creates leaf slices from segments. Once more concurrency controls are introduced
      * we should improve this test to use those methods.
@@ -108,8 +108,9 @@ public class ConcurrentSearchTasksIT extends AbstractTasksIT {
             assertEquals(mainTaskInfo.getTaskId(), taskInfo.getParentTaskId());
 
             Map<Long, List<ThreadResourceInfo>> threadStats = getThreadStats(SearchAction.NAME + "[*]", taskInfo.getTaskId());
-            // Concurrent search forks each slice of 5 segments to different thread
-            assertEquals((int) Math.ceil(getSegmentCount(INDEX_NAME) / 5.0), threadStats.size());
+            // Concurrent search forks each slice of 5 segments to different thread (see please
+            // https://github.com/apache/lucene/issues/12498)
+            assertEquals((int) Math.ceil(getSegmentCount(INDEX_NAME) / 5.0) + 1, threadStats.size());
 
             // assert that all task descriptions have non-zero length
             MatcherAssert.assertThat(taskInfo.getDescription().length(), greaterThan(0));

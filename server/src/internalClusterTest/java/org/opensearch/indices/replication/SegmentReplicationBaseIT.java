@@ -18,7 +18,6 @@ import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.IndexModule;
@@ -198,14 +197,14 @@ public class SegmentReplicationBaseIT extends OpenSearchIntegTestCase {
     protected IndexShard getIndexShard(String node, String indexName) {
         final Index index = resolveIndex(indexName);
         IndicesService indicesService = internalCluster().getInstance(IndicesService.class, node);
-        IndexService indexService = indicesService.indexServiceSafe(index);
+        IndexService indexService = indicesService.indexService(index);
+        assertNotNull(indexService);
         final Optional<Integer> shardId = indexService.shardIds().stream().findFirst();
-        return indexService.getShard(shardId.get());
+        return shardId.map(indexService::getShard).orElse(null);
     }
 
     protected boolean segmentReplicationWithRemoteEnabled() {
-        return IndexMetadata.INDEX_REMOTE_STORE_ENABLED_SETTING.get(indexSettings()).booleanValue()
-            && "true".equalsIgnoreCase(featureFlagSettings().get(FeatureFlags.SEGMENT_REPLICATION_EXPERIMENTAL));
+        return IndexMetadata.INDEX_REMOTE_STORE_ENABLED_SETTING.get(indexSettings()).booleanValue();
     }
 
     protected Releasable blockReplication(List<String> nodes, CountDownLatch latch) {
@@ -241,7 +240,7 @@ public class SegmentReplicationBaseIT extends OpenSearchIntegTestCase {
 
     protected void assertReplicaCheckpointUpdated(IndexShard primaryShard) throws Exception {
         assertBusy(() -> {
-            Set<SegmentReplicationShardStats> groupStats = primaryShard.getReplicationStats();
+            Set<SegmentReplicationShardStats> groupStats = primaryShard.getReplicationStatsForTrackedReplicas();
             assertEquals(primaryShard.indexSettings().getNumberOfReplicas(), groupStats.size());
             for (SegmentReplicationShardStats shardStat : groupStats) {
                 assertEquals(0, shardStat.getCheckpointsBehindCount());

@@ -55,24 +55,23 @@ public class ShardMovementStrategyTests extends OpenSearchIntegTestCase {
             .put("cluster.routing.allocation.move.primary_first", movePrimaryFirst);
     }
 
-    public void testClusterGreenAfterPartialRelocationPrimaryFirstShardMovementMovePrimarySettingEnabled() throws InterruptedException {
+    public void testClusterRelocationPrimaryFirstShardMovementMovePrimarySettingEnabled() throws InterruptedException {
         testClusterGreenAfterPartialRelocation(ShardMovementStrategy.PRIMARY_FIRST, true);
     }
 
-    public void testClusterGreenAfterPartialRelocationPrimaryFirstShardMovementMovePrimarySettingDisabled() throws InterruptedException {
+    public void testClusterRelocationPrimaryFirstShardMovementMovePrimarySettingDisabled() throws InterruptedException {
         testClusterGreenAfterPartialRelocation(ShardMovementStrategy.PRIMARY_FIRST, false);
     }
 
-    public void testClusterGreenAfterPartialRelocationReplicaFirstShardMovementPrimaryFirstEnabled() throws InterruptedException {
+    public void testClusterRelocationReplicaFirstShardMovementPrimaryFirstEnabled() throws InterruptedException {
         testClusterGreenAfterPartialRelocation(ShardMovementStrategy.REPLICA_FIRST, true);
     }
 
-    public void testClusterGreenAfterPartialRelocationReplicaFirstShardMovementPrimaryFirstDisabled() throws InterruptedException {
+    public void testClusterRelocationReplicaFirstShardMovementPrimaryFirstDisabled() throws InterruptedException {
         testClusterGreenAfterPartialRelocation(ShardMovementStrategy.REPLICA_FIRST, false);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/9178")
-    public void testClusterGreenAfterPartialRelocationNoPreferenceShardMovementPrimaryFirstEnabled() throws InterruptedException {
+    public void testClusterRelocationNoPreferenceShardMovementPrimaryFirstEnabled() throws InterruptedException {
         testClusterGreenAfterPartialRelocation(ShardMovementStrategy.NO_PREFERENCE, true);
     }
 

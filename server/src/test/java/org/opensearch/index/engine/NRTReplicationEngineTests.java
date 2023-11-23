@@ -35,6 +35,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicLong;
@@ -73,6 +74,28 @@ public class NRTReplicationEngineTests extends EngineTestCase {
                 assertTrue(indexCommit.getFileNames().containsAll(lastCommittedSegmentInfos.files(true)));
             }
         }
+    }
+
+    public void testCreateEngineWithException() throws IOException {
+        final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
+        final Store nrtEngineStore = createStore(INDEX_SETTINGS, newDirectory());
+        try {
+            // Passing null translogPath to induce failure
+            final EngineConfig replicaConfig = config(
+                defaultSettings,
+                nrtEngineStore,
+                null,
+                NoMergePolicy.INSTANCE,
+                null,
+                null,
+                globalCheckpoint::get
+            );
+            new NRTReplicationEngine(replicaConfig);
+        } catch (Exception e) {
+            // Ignore as engine creation will fail
+        }
+        assertEquals(1, nrtEngineStore.refCount());
+        nrtEngineStore.close();
     }
 
     public void testEngineWritesOpsToTranslog() throws Exception {
@@ -152,7 +175,7 @@ public class NRTReplicationEngineTests extends EngineTestCase {
             assertEquals(2, nrtEngine.getLastCommittedSegmentInfos().getGeneration());
 
             // commit the infos to push us to segments_3.
-            nrtEngine.commitSegmentInfos();
+            nrtEngine.flush();
             assertEquals(3, nrtEngine.getLastCommittedSegmentInfos().getGeneration());
             assertEquals(3, nrtEngine.getLatestSegmentInfos().getGeneration());
 
@@ -283,7 +306,7 @@ public class NRTReplicationEngineTests extends EngineTestCase {
         }
     }
 
-    public void testCommitSegmentInfos() throws Exception {
+    public void testFlush() throws Exception {
         // This test asserts that NRTReplication#commitSegmentInfos creates a new commit point with the latest checkpoints
         // stored in user data.
         final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
@@ -304,7 +327,7 @@ public class NRTReplicationEngineTests extends EngineTestCase {
             LocalCheckpointTracker localCheckpointTracker = nrtEngine.getLocalCheckpointTracker();
             final long maxSeqNo = localCheckpointTracker.getMaxSeqNo();
             final long processedCheckpoint = localCheckpointTracker.getProcessedCheckpoint();
-            nrtEngine.commitSegmentInfos();
+            nrtEngine.flush();
 
             // ensure getLatestSegmentInfos returns an updated infos ref with correct userdata.
             final SegmentInfos latestSegmentInfos = nrtEngine.getLatestSegmentInfos();
@@ -322,6 +345,10 @@ public class NRTReplicationEngineTests extends EngineTestCase {
             userData = committedInfos.getUserData();
             assertEquals(processedCheckpoint, Long.parseLong(userData.get(LOCAL_CHECKPOINT_KEY)));
             assertEquals(maxSeqNo, Long.parseLong(userData.get(MAX_SEQ_NO)));
+
+            try (final GatedCloseable<IndexCommit> indexCommit = nrtEngine.acquireLastIndexCommit(true)) {
+                assertEquals(committedInfos.getGeneration() + 1, indexCommit.get().getGeneration());
+            }
         }
     }
 
@@ -548,6 +575,59 @@ public class NRTReplicationEngineTests extends EngineTestCase {
                 nrtEngine.replicaFileTracker.refCount(lastCommittedSegmentInfos.getSegmentsFileName())
             );
             assertFalse(List.of(nrtEngineStore.directory().listAll()).contains(lastCommittedSegmentInfos.getSegmentsFileName()));
+        }
+    }
+
+    public void testCommitOnCloseThrowsException_decRefStore() throws Exception {
+        final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
+
+        final Store nrtEngineStore = createStore(INDEX_SETTINGS, newDirectory());
+        final NRTReplicationEngine nrtEngine = buildNrtReplicaEngine(globalCheckpoint, nrtEngineStore, INDEX_SETTINGS);
+        List<Engine.Operation> operations = generateHistoryOnReplica(
+            randomIntBetween(1, 10),
+            randomBoolean(),
+            randomBoolean(),
+            randomBoolean()
+        );
+        indexOperations(nrtEngine, operations);
+        // wipe the nrt directory initially so we can sync with primary.
+        cleanAndCopySegmentsFromPrimary(nrtEngine);
+        final Optional<String> toDelete = Set.of(nrtEngineStore.directory().listAll()).stream().filter(f -> f.endsWith(".si")).findAny();
+        assertTrue(toDelete.isPresent());
+        nrtEngineStore.directory().deleteFile(toDelete.get());
+        assertEquals(2, nrtEngineStore.refCount());
+        nrtEngine.close();
+        assertEquals(1, nrtEngineStore.refCount());
+        assertTrue(nrtEngineStore.isMarkedCorrupted());
+        // store will throw when eventually closed, not handled here.
+        assertThrows(RuntimeException.class, nrtEngineStore::close);
+    }
+
+    public void testFlushThrowsFlushFailedExceptionOnCorruption() throws Exception {
+        final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
+
+        final Store nrtEngineStore = createStore(INDEX_SETTINGS, newDirectory());
+        final NRTReplicationEngine nrtEngine = buildNrtReplicaEngine(globalCheckpoint, nrtEngineStore, INDEX_SETTINGS);
+        List<Engine.Operation> operations = generateHistoryOnReplica(
+            randomIntBetween(1, 10),
+            randomBoolean(),
+            randomBoolean(),
+            randomBoolean()
+        );
+        indexOperations(nrtEngine, operations);
+        // wipe the nrt directory initially so we can sync with primary.
+        cleanAndCopySegmentsFromPrimary(nrtEngine);
+        final Optional<String> toDelete = Set.of(nrtEngineStore.directory().listAll()).stream().filter(f -> f.endsWith(".si")).findAny();
+        assertTrue(toDelete.isPresent());
+        nrtEngineStore.directory().deleteFile(toDelete.get());
+        assertThrows(FlushFailedEngineException.class, nrtEngine::flush);
+        nrtEngine.close();
+        if (nrtEngineStore.isMarkedCorrupted()) {
+            assertThrows(RuntimeException.class, nrtEngineStore::close);
+        } else {
+            // With certain mock directories a NoSuchFileException is thrown which is not treated as a
+            // corruption Exception. In these cases we don't expect any issue on store close.
+            nrtEngineStore.close();
         }
     }
 
