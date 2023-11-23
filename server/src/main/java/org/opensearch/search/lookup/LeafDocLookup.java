@@ -33,6 +33,7 @@ package org.opensearch.search.lookup;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.opensearch.ExceptionsHelper;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.index.fielddata.IndexFieldData;
 import org.opensearch.index.fielddata.ScriptDocValues;
 import org.opensearch.index.mapper.MappedFieldType;
@@ -50,8 +51,9 @@ import java.util.function.Function;
 /**
  * Looks up a doc from a leaf reader
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class LeafDocLookup implements Map<String, ScriptDocValues<?>> {
 
     private final Map<String, ScriptDocValues<?>> localCacheFieldData = new HashMap<>(4);

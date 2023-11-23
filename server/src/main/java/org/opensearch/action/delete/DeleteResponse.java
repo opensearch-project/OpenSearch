@@ -33,6 +33,7 @@
 package org.opensearch.action.delete;
 
 import org.opensearch.action.DocWriteResponse;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.rest.RestStatus;
@@ -48,8 +49,9 @@ import static org.opensearch.core.xcontent.XContentParserUtils.ensureExpectedTok
  * @see org.opensearch.action.delete.DeleteRequest
  * @see org.opensearch.client.Client#delete(DeleteRequest)
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class DeleteResponse extends DocWriteResponse {
 
     public DeleteResponse(ShardId shardId, StreamInput in) throws IOException {
@@ -112,8 +114,9 @@ public class DeleteResponse extends DocWriteResponse {
      * temporarily store the parsed values, then the {@link DocWriteResponse.Builder#build()} method is called to
      * instantiate the {@link DeleteResponse}.
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public static class Builder extends DocWriteResponse.Builder {
 
         @Override

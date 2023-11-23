@@ -38,6 +38,7 @@ import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.IndicesRequest;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.action.support.clustermanager.ClusterManagerNodeRequest;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.common.Strings;
@@ -76,8 +77,9 @@ import static org.opensearch.core.common.Strings.EMPTY_ARRAY;
  * <li>must not contain invalid file name characters {@link Strings#INVALID_FILENAME_CHARS} </li>
  * </ul>
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class CreateSnapshotRequest extends ClusterManagerNodeRequest<CreateSnapshotRequest>
     implements
         IndicesRequest.Replaceable,

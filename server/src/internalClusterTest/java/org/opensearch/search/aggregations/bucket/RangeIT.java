@@ -184,6 +184,7 @@ public class RangeIT extends ParameterizedOpenSearchIntegTestCase {
         builders.add(client().prepareIndex("new_index").setSource(Collections.emptyMap()));
 
         indexRandom(true, builders);
+        indexRandomForMultipleSlices("idx", "old_index", "new_index");
         ensureSearchable();
     }
 
@@ -917,6 +918,7 @@ public class RangeIT extends ParameterizedOpenSearchIntegTestCase {
     }
 
     public void testEmptyAggregation() throws Exception {
+        indexRandomForConcurrentSearch("empty_bucket_idx");
         SearchResponse searchResponse = client().prepareSearch("empty_bucket_idx")
             .setQuery(matchAllQuery())
             .addAggregation(

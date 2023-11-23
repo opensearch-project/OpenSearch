@@ -34,12 +34,14 @@ package org.opensearch.action.ingest;
 
 import org.opensearch.action.support.clustermanager.ClusterManagerNodeReadOperationRequestBuilder;
 import org.opensearch.client.OpenSearchClient;
+import org.opensearch.common.annotation.PublicApi;
 
 /**
  * Transport request builder to get a pipeline
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class GetPipelineRequestBuilder extends ClusterManagerNodeReadOperationRequestBuilder<
     GetPipelineRequest,
     GetPipelineResponse,

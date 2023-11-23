@@ -33,6 +33,7 @@
 package org.opensearch.common.unit;
 
 import org.opensearch.OpenSearchParseException;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
@@ -43,8 +44,9 @@ import java.io.IOException;
 /**
  * Conversion values.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class SizeValue implements Writeable, Comparable<SizeValue> {
 
     private final long size;

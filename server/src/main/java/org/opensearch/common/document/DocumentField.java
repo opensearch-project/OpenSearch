@@ -32,6 +32,7 @@
 
 package org.opensearch.common.document;
 
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
@@ -56,8 +57,9 @@ import static org.opensearch.core.xcontent.XContentParserUtils.parseFieldsValue;
  * @see SearchHit
  * @see GetResult
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class DocumentField implements Writeable, ToXContentFragment, Iterable<Object> {
 
     private final String name;

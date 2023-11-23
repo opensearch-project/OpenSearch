@@ -35,6 +35,7 @@ import org.apache.logging.log4j.LogManager;
 import org.opensearch.action.admin.cluster.configuration.TransportAddVotingConfigExclusionsAction;
 import org.opensearch.action.admin.indices.close.TransportCloseIndexAction;
 import org.opensearch.action.search.CreatePitController;
+import org.opensearch.action.search.SearchRequestSlowLog;
 import org.opensearch.action.search.TransportSearchAction;
 import org.opensearch.action.support.AutoCreateIndex;
 import org.opensearch.action.support.DestructiveOperations;
@@ -348,6 +349,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 HttpTransportSettings.SETTING_HTTP_MAX_WARNING_HEADER_SIZE,
                 HttpTransportSettings.SETTING_HTTP_MAX_INITIAL_LINE_LENGTH,
                 HttpTransportSettings.SETTING_HTTP_READ_TIMEOUT,
+                HttpTransportSettings.SETTING_HTTP_CONNECT_TIMEOUT,
                 HttpTransportSettings.SETTING_HTTP_RESET_COOKIES,
                 HttpTransportSettings.OLD_SETTING_HTTP_TCP_NO_DELAY,
                 HttpTransportSettings.SETTING_HTTP_TCP_NO_DELAY,
@@ -680,18 +682,25 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 TaskCancellationMonitoringSettings.IS_ENABLED_SETTING,
                 TaskCancellationMonitoringSettings.DURATION_MILLIS_SETTING,
 
+                // Search request slow log settings
+                SearchRequestSlowLog.CLUSTER_SEARCH_REQUEST_SLOWLOG_THRESHOLD_WARN_SETTING,
+                SearchRequestSlowLog.CLUSTER_SEARCH_REQUEST_SLOWLOG_THRESHOLD_INFO_SETTING,
+                SearchRequestSlowLog.CLUSTER_SEARCH_REQUEST_SLOWLOG_THRESHOLD_DEBUG_SETTING,
+                SearchRequestSlowLog.CLUSTER_SEARCH_REQUEST_SLOWLOG_THRESHOLD_TRACE_SETTING,
+                SearchRequestSlowLog.CLUSTER_SEARCH_REQUEST_SLOWLOG_LEVEL,
+
                 // Remote cluster state settings
                 RemoteClusterStateService.REMOTE_CLUSTER_STATE_ENABLED_SETTING,
                 RemoteClusterStateService.INDEX_METADATA_UPLOAD_TIMEOUT_SETTING,
                 RemoteClusterStateService.GLOBAL_METADATA_UPLOAD_TIMEOUT_SETTING,
+                RemoteClusterStateService.METADATA_MANIFEST_UPLOAD_TIMEOUT_SETTING,
                 RemoteStoreNodeService.REMOTE_STORE_COMPATIBILITY_MODE_SETTING,
                 IndicesService.CLUSTER_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING,
                 IndicesService.CLUSTER_REMOTE_INDEX_RESTRICT_ASYNC_DURABILITY_SETTING,
                 AdmissionControlSettings.ADMISSION_CONTROL_TRANSPORT_LAYER_MODE,
                 CPUBasedAdmissionControllerSettings.CPU_BASED_ADMISSION_CONTROLLER_TRANSPORT_LAYER_MODE,
                 CPUBasedAdmissionControllerSettings.INDEXING_CPU_USAGE_LIMIT,
-                CPUBasedAdmissionControllerSettings.SEARCH_CPU_USAGE_LIMIT,
-                IndicesService.CLUSTER_RESTRICT_INDEX_REPLICATION_TYPE_SETTING
+                CPUBasedAdmissionControllerSettings.SEARCH_CPU_USAGE_LIMIT
             )
         )
     );

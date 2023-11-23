@@ -164,3 +164,99 @@ setup:
   - match: { aggregations.date.buckets.1.key: 1540857600000 }
   - match: { aggregations.date.buckets.1.key_as_string: "2018-10-30T00:00:00.000Z" }
   - match: { aggregations.date.buckets.1.doc_count: 2 }
+
+
+---
+"date with nested sort now":
+  - skip:
+      version: " - 2.11.99"
+      reason: fixed in 2.12.0
+
+  # This tests cover scenario where nested sort have now() in date field type.
+  # For this test, we have date field as nested field and we trigger asc/desc sort
+  # on that nested field. `filter` clause is needed when we sort any nested field,
+  # like in this case, "gte": "now/h" says sort nested field date_field only where
+  # document is having value greater than current time now().
+  # Nested field sort query doesn't sort documents if it is not qualified through
+  # `filter` clause.
+  # Only adding tests for `gte` as `lte` would be same behaviour
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            properties:
+              nested_field:
+                type: nested
+                properties:
+                  date_field:
+                    type: date
+                    format: date_optional_time
+  - do:
+      bulk:
+        refresh: true
+        index: test
+        body: |
+          {"index":{}}
+          {"nested_field": [{"date_field": "3023-10-26T12:00:00+09:00"}]}
+          {"index":{}}
+          {"nested_field": [{"date_field": "3024-10-26T12:00:00+09:00"}]}
+          {"index":{}}
+          {"nested_field": [{"date_field": "3025-10-26T12:00:00+09:00"}]}
+          {"index":{}}
+          {"nested_field": [{"date_field": "3026-10-26T12:00:00+09:00"}]}
+          {"index":{}}
+          {"nested_field": [{"date_field": "3027-10-26T12:00:00+09:00"}]}
+          {"index":{}}
+          {"nested_field": [{"date_field": "2022-10-26T12:00:00+09:00"}]}
+          {"index":{}}
+          {"nested_field": [{"date_field": "2023-10-26T12:00:00+09:00"}]}
+          {"index":{}}
+          {"nested_field": [{"date_field": "2021-10-26T12:00:00+09:00"}]}
+          {"index":{}}
+          {"nested_field": [{"date_field": "2020-10-26T12:00:00+09:00"}]}
+          {"index":{}}
+          {"nested_field": [{"date_field": "2019-10-26T12:00:00+09:00"}]}
+
+  # gte: now/h with the desc sort
+  - do:
+      search:
+        index: test
+        body:
+          size: 5
+          sort: [{ nested_field.date_field: { mode: max, order: desc, nested: { path: nested_field, filter: { bool: { filter : [{ range : { nested_field.date_field: { gte: now/h, time_zone: +09:00} } }] } } } } } ]
+  - match: {hits.total.value: 10 }
+  - length: {hits.hits: 5 }
+  - match: { hits.hits.0._index: test }
+  - match: { hits.hits.0._source.nested_field.0.date_field: "3027-10-26T12:00:00+09:00" }
+  - match: { hits.hits.0.sort: [33381428400000] }
+  - match: { hits.hits.1._source.nested_field.0.date_field: "3026-10-26T12:00:00+09:00" }
+  - match: { hits.hits.1.sort: [ 33349892400000 ] }
+  - match: { hits.hits.2._source.nested_field.0.date_field: "3025-10-26T12:00:00+09:00" }
+  - match: { hits.hits.2.sort: [ 33318356400000 ] }
+  - match: { hits.hits.3._source.nested_field.0.date_field: "3024-10-26T12:00:00+09:00" }
+  - match: { hits.hits.3.sort: [ 33286820400000 ] }
+  - match: { hits.hits.4._source.nested_field.0.date_field: "3023-10-26T12:00:00+09:00" }
+  - match: { hits.hits.4.sort: [ 33255198000000 ] }
+
+  # gte: now/h with the asc sort
+  - do:
+      search:
+        index: test
+        body:
+          size: 5
+          sort: [ { nested_field.date_field: { mode: max, order: asc, nested: { path: nested_field, filter: { bool: { filter: [ { range: { nested_field.date_field: { gte: now/h, time_zone: +09:00 } } } ] } } } } } ]
+  - match: { hits.total.value: 10 }
+  - length: { hits.hits: 5 }
+  - match: { hits.hits.0._index: test }
+  - match: { hits.hits.0._source.nested_field.0.date_field: "3023-10-26T12:00:00+09:00" }
+  - match: { hits.hits.0.sort: [ 33255198000000 ] }
+  - match: { hits.hits.1._source.nested_field.0.date_field: "3024-10-26T12:00:00+09:00" }
+  - match: { hits.hits.1.sort: [ 33286820400000 ] }
+  - match: { hits.hits.2._source.nested_field.0.date_field: "3025-10-26T12:00:00+09:00" }
+  - match: { hits.hits.2.sort: [ 33318356400000 ] }
+  - match: { hits.hits.3._source.nested_field.0.date_field: "3026-10-26T12:00:00+09:00" }
+  - match: { hits.hits.3.sort: [ 33349892400000 ] }
+  - match: { hits.hits.4._source.nested_field.0.date_field: "3027-10-26T12:00:00+09:00" }
+  - match: { hits.hits.4.sort: [ 33381428400000 ] }

@@ -33,14 +33,16 @@
 package org.opensearch.index.fielddata;
 
 import org.apache.lucene.index.SortedNumericDocValues;
+import org.opensearch.common.annotation.PublicApi;
 
 import java.io.IOException;
 
 /**
  * Clone of {@link SortedNumericDocValues} for double values.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public abstract class SortedNumericDoubleValues {
 
     /** Sole constructor. (For invocation by subclass

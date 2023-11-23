@@ -48,6 +48,7 @@ import org.apache.lucene.util.BitDocIdSet;
 import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.core.indices.breaker.CircuitBreakerService;
 import org.opensearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
@@ -64,8 +65,9 @@ import java.io.IOException;
  * Thread-safe utility class that allows to get per-segment values via the
  * {@link #load(LeafReaderContext)} method.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public interface IndexFieldData<FD extends LeafFieldData> {
 
     /**
@@ -154,7 +156,10 @@ public interface IndexFieldData<FD extends LeafFieldData> {
          * R will be in the parent filter and its children documents will be the
          * documents that are contained in the inner set between the previous
          * parent + 1, or 0 if there is no previous parent, and R (excluded).
+         *
+         * @opensearch.api
          */
+        @PublicApi(since = "1.0.0")
         public static class Nested {
 
             private final BitSetProducer rootFilter;
@@ -293,8 +298,9 @@ public interface IndexFieldData<FD extends LeafFieldData> {
     /**
      * Base builder interface
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     interface Builder {
 
         IndexFieldData<?> build(IndexFieldDataCache cache, CircuitBreakerService breakerService);
@@ -303,8 +309,9 @@ public interface IndexFieldData<FD extends LeafFieldData> {
     /**
      * Base Global field data class
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     interface Global<FD extends LeafFieldData> extends IndexFieldData<FD> {
 
         IndexFieldData<FD> loadGlobal(DirectoryReader indexReader);

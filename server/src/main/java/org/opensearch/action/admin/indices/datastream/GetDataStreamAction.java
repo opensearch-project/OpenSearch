@@ -51,6 +51,7 @@ import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.metadata.MetadataIndexTemplateService;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.ParseField;
@@ -76,8 +77,9 @@ import java.util.stream.Collectors;
 /**
  * Transport action for getting a datastream
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response> {
 
     public static final GetDataStreamAction INSTANCE = new GetDataStreamAction();
@@ -90,8 +92,9 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
     /**
      * Request for getting data streams
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public static class Request extends ClusterManagerNodeReadRequest<Request> implements IndicesRequest.Replaceable {
 
         private String[] names;
@@ -156,16 +159,18 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
     /**
      * Response for getting data streams
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public static class Response extends ActionResponse implements ToXContentObject {
         public static final ParseField DATASTREAMS_FIELD = new ParseField("data_streams");
 
         /**
          * Data streams information
          *
-         * @opensearch.internal
+         * @opensearch.api
          */
+        @PublicApi(since = "1.0.0")
         public static class DataStreamInfo extends AbstractDiffable<DataStreamInfo> implements ToXContentObject {
 
             public static final ParseField STATUS_FIELD = new ParseField("status");
