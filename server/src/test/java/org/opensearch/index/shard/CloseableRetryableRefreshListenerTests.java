@@ -66,7 +66,7 @@ public class CloseableRetryableRefreshListenerTests extends OpenSearchTestCase {
         // Second invocation of afterRefresh method
         testRefreshListener.afterRefresh(true);
         assertEquals(0, countDownLatch.getCount());
-        testRefreshListener.close();
+        testRefreshListener.drainRefreshes();
     }
 
     /**
@@ -98,7 +98,7 @@ public class CloseableRetryableRefreshListenerTests extends OpenSearchTestCase {
         assertEquals(initialCount - refreshCount, countDownLatch.getCount());
 
         // Closing the refresh listener so that no further afterRefreshes are executed going forward
-        testRefreshListener.close();
+        testRefreshListener.drainRefreshes();
 
         for (int i = 0; i < initialCount - refreshCount; i++) {
             testRefreshListener.afterRefresh(true);
@@ -129,7 +129,7 @@ public class CloseableRetryableRefreshListenerTests extends OpenSearchTestCase {
         };
         testRefreshListener.afterRefresh(true);
         assertEquals(initialCount - 1, countDownLatch.getCount());
-        testRefreshListener.close();
+        testRefreshListener.drainRefreshes();
 
         testRefreshListener = new CloseableRetryableRefreshListener(threadPool) {
             @Override
@@ -148,7 +148,7 @@ public class CloseableRetryableRefreshListenerTests extends OpenSearchTestCase {
         };
         testRefreshListener.afterRefresh(true);
         assertEquals(initialCount - 2, countDownLatch.getCount());
-        testRefreshListener.close();
+        testRefreshListener.drainRefreshes();
 
         testRefreshListener = new CloseableRetryableRefreshListener(threadPool) {
             @Override
@@ -172,7 +172,7 @@ public class CloseableRetryableRefreshListenerTests extends OpenSearchTestCase {
         };
         testRefreshListener.afterRefresh(true);
         assertEquals(initialCount - 3, countDownLatch.getCount());
-        testRefreshListener.close();
+        testRefreshListener.drainRefreshes();
 
         testRefreshListener = new CloseableRetryableRefreshListener(threadPool) {
             @Override
@@ -196,7 +196,7 @@ public class CloseableRetryableRefreshListenerTests extends OpenSearchTestCase {
         };
         testRefreshListener.afterRefresh(true);
         assertEquals(initialCount - 4, countDownLatch.getCount());
-        testRefreshListener.close();
+        testRefreshListener.drainRefreshes();
     }
 
     /**
@@ -237,7 +237,7 @@ public class CloseableRetryableRefreshListenerTests extends OpenSearchTestCase {
         };
         testRefreshListener.afterRefresh(true);
         assertBusy(() -> assertEquals(0, countDownLatch.getCount()));
-        testRefreshListener.close();
+        testRefreshListener.drainRefreshes();
     }
 
     /**
@@ -272,7 +272,7 @@ public class CloseableRetryableRefreshListenerTests extends OpenSearchTestCase {
             }
         };
         testRefreshListener.afterRefresh(randomBoolean());
-        testRefreshListener.close();
+        testRefreshListener.drainRefreshes();
         assertNotEquals(0, countDownLatch.getCount());
     }
 
@@ -307,7 +307,7 @@ public class CloseableRetryableRefreshListenerTests extends OpenSearchTestCase {
         });
         thread.start();
         assertBusy(() -> assertEquals(0, countDownLatch.getCount()));
-        testRefreshListener.close();
+        testRefreshListener.drainRefreshes();
     }
 
     public void testScheduleRetryAfterClose() throws Exception {
@@ -358,8 +358,8 @@ public class CloseableRetryableRefreshListenerTests extends OpenSearchTestCase {
         Thread thread2 = new Thread(() -> {
             try {
                 Thread.sleep(500);
-                testRefreshListener.close();
-            } catch (IOException | InterruptedException e) {
+                testRefreshListener.drainRefreshes();
+            } catch (InterruptedException e) {
                 throw new AssertionError(e);
             }
         });
@@ -408,7 +408,7 @@ public class CloseableRetryableRefreshListenerTests extends OpenSearchTestCase {
         testRefreshListener.afterRefresh(true);
         testRefreshListener.afterRefresh(true);
         assertBusy(() -> assertEquals(3, runCount.get()));
-        testRefreshListener.close();
+        testRefreshListener.drainRefreshes();
     }
 
     public void testExceptionDuringThreadPoolSchedule() throws Exception {
@@ -450,7 +450,7 @@ public class CloseableRetryableRefreshListenerTests extends OpenSearchTestCase {
         assertThrows(RuntimeException.class, () -> testRefreshListener.afterRefresh(true));
         assertBusy(() -> assertFalse(testRefreshListener.getRetryScheduledStatus()));
         assertEquals(1, runCount.get());
-        testRefreshListener.close();
+        testRefreshListener.drainRefreshes();
     }
 
     @After

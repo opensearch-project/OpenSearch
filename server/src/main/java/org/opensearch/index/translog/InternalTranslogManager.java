@@ -11,6 +11,7 @@ package org.opensearch.index.translog;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.store.AlreadyClosedException;
+import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.logging.Loggers;
 import org.opensearch.common.util.concurrent.ReleasableLock;
 import org.opensearch.common.util.io.IOUtils;
@@ -301,8 +302,14 @@ public class InternalTranslogManager implements TranslogManager, Closeable {
         translog.setMinSeqNoToKeep(seqNo);
     }
 
+    @Override
     public void onDelete() {
         translog.onDelete();
+    }
+
+    @Override
+    public Releasable drainSyncToStore() {
+        return translog.drainSyncToStore();
     }
 
     @Override

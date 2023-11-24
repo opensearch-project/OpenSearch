@@ -10,10 +10,11 @@ package org.opensearch.index.shard;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.ReferenceManager;
+import org.opensearch.common.lease.Releasable;
+import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.threadpool.ThreadPool;
 
-import java.io.Closeable;
 import java.io.IOException;
 import java.util.Objects;
 import java.util.concurrent.Semaphore;
@@ -26,7 +27,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * is closed, all the permits are acquired and there are no available permits to afterRefresh. This abstract class provides
  * necessary abstract methods to schedule retry.
  */
-public abstract class CloseableRetryableRefreshListener implements ReferenceManager.RefreshListener, Closeable {
+public abstract class CloseableRetryableRefreshListener implements ReferenceManager.RefreshListener {
 
     /**
      * Total permits = 1 ensures that there is only single instance of runAfterRefreshWithPermit that is running at a time.
@@ -184,18 +185,24 @@ public abstract class CloseableRetryableRefreshListener implements ReferenceMana
      */
     protected abstract boolean performAfterRefreshWithPermit(boolean didRefresh);
 
-    @Override
-    public final void close() throws IOException {
+    public final Releasable drainRefreshes() {
         try {
             if (semaphore.tryAcquire(TOTAL_PERMITS, 10, TimeUnit.MINUTES)) {
                 boolean result = closed.compareAndSet(false, true);
                 assert result && semaphore.availablePermits() == 0;
                 getLogger().info("All permits are acquired and refresh listener is closed");
+                return Releasables.releaseOnce(() -> {
+                    semaphore.release(TOTAL_PERMITS);
+                    boolean wasClosed = closed.getAndSet(false);
+                    assert semaphore.availablePermits() == TOTAL_PERMITS : "Available permits is " + semaphore.availablePermits();
+                    assert wasClosed : "RefreshListener is not closed before reopening it";
+                    getLogger().info("All permits are released and refresh listener is open");
+                });
             } else {
-                throw new TimeoutException("timeout while closing gated refresh listener");
+                throw new TimeoutException("Timeout while acquiring all permits");
             }
         } catch (InterruptedException | TimeoutException e) {
-            throw new RuntimeException("Failed to close the closeable retryable listener", e);
+            throw new RuntimeException("Failed to acquire all permits", e);
         }
     }
 
