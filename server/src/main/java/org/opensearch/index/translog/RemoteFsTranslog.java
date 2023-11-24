@@ -11,6 +11,7 @@ package org.opensearch.index.translog;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.common.SetOnce;
 import org.opensearch.common.lease.Releasable;
+import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.logging.Loggers;
 import org.opensearch.common.util.concurrent.ReleasableLock;
 import org.opensearch.common.util.io.IOUtils;
@@ -38,6 +39,8 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Semaphore;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.function.BooleanSupplier;
 import java.util.function.LongConsumer;
 import java.util.function.LongSupplier;
@@ -53,7 +56,6 @@ import java.util.function.LongSupplier;
 public class RemoteFsTranslog extends Translog {
 
     private final Logger logger;
-    private final BlobStoreRepository blobStoreRepository;
     private final TranslogTransferManager translogTransferManager;
     private final FileTransferTracker fileTransferTracker;
     private final BooleanSupplier primaryModeSupplier;
@@ -75,6 +77,10 @@ public class RemoteFsTranslog extends Translog {
     // Semaphore used to allow only single remote generation to happen at a time
     private final Semaphore remoteGenerationDeletionPermits = new Semaphore(REMOTE_DELETION_PERMITS);
 
+    // These permits exist to allow any inflight background triggered upload.
+    private static final int UPLOAD_PERMITS = 1;
+    private final Semaphore uploadPermits = new Semaphore(UPLOAD_PERMITS);
+
     public RemoteFsTranslog(
         TranslogConfig config,
         String translogUUID,
@@ -89,7 +95,6 @@ public class RemoteFsTranslog extends Translog {
     ) throws IOException {
         super(config, translogUUID, deletionPolicy, globalCheckpointSupplier, primaryTermSupplier, persistedSequenceNumberConsumer);
         logger = Loggers.getLogger(getClass(), shardId);
-        this.blobStoreRepository = blobStoreRepository;
         this.primaryModeSupplier = primaryModeSupplier;
         this.remoteTranslogTransferTracker = remoteTranslogTransferTracker;
         fileTransferTracker = new FileTransferTracker(shardId, remoteTranslogTransferTracker);
@@ -321,8 +326,13 @@ public class RemoteFsTranslog extends Translog {
         // below ensures that the real primary only is uploading. Before the primary mode is set as true for the new
         // primary, the engine is reset to InternalEngine which also initialises the RemoteFsTranslog which in turns
         // downloads all the translogs from remote store and does a flush before the relocation finishes.
-        if (primaryModeSupplier.getAsBoolean() == false) {
-            logger.debug("skipped uploading translog for {} {}", primaryTerm, generation);
+        if (primaryModeSupplier.getAsBoolean() == false || uploadPermits.tryAcquire(1) == false) {
+            logger.debug(
+                "skipped uploading translog for {} {} uploadPermits={}",
+                primaryTerm,
+                generation,
+                uploadPermits.availablePermits()
+            );
             // NO-OP
             return true;
         }
@@ -341,6 +351,8 @@ public class RemoteFsTranslog extends Translog {
                 transferSnapshotProvider,
                 new RemoteFsTranslogTransferListener(generation, primaryTerm, maxSeqNo)
             );
+        } finally {
+            uploadPermits.release(1);
         }
 
     }
@@ -421,6 +433,24 @@ public class RemoteFsTranslog extends Translog {
             );
         }
         this.minSeqNoToKeep = seqNo;
+    }
+
+    @Override
+    protected Releasable drainSyncToStore() {
+        try {
+            if (uploadPermits.tryAcquire(UPLOAD_PERMITS, 1, TimeUnit.MINUTES)) {
+                logger.info("All permits acquired");
+                return Releasables.releaseOnce(() -> {
+                    uploadPermits.release(UPLOAD_PERMITS);
+                    assert uploadPermits.availablePermits() == UPLOAD_PERMITS : "Available permits is " + uploadPermits.availablePermits();
+                    logger.info("All permits released");
+                });
+            } else {
+                throw new TimeoutException("Timeout while acquiring all permits");
+            }
+        } catch (TimeoutException | InterruptedException e) {
+            throw new RuntimeException("Failed to acquire all permits", e);
+        }
     }
 
     @Override

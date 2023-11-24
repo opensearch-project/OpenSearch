@@ -9,6 +9,7 @@
 package org.opensearch.index.translog;
 
 import org.opensearch.common.annotation.PublicApi;
+import org.opensearch.common.lease.Releasable;
 
 import java.io.IOException;
 import java.util.stream.Stream;
@@ -134,6 +135,11 @@ public interface TranslogManager {
     Clean up if any needed on deletion of index
      */
     void onDelete();
+
+    /**
+     * Drains ongoing syncs to the underlying store. It returns a releasable which can be closed to resume the syncs back.
+     */
+    Releasable drainSyncToStore();
 
     Translog.TranslogGeneration getTranslogGeneration();
 }
