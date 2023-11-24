@@ -45,7 +45,6 @@ import java.util.concurrent.TimeUnit;
 
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
-import static org.opensearch.index.shard.RemoteStoreRefreshListener.LAST_N_METADATA_FILES_TO_KEEP;
 import static org.opensearch.indices.IndicesService.CLUSTER_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
@@ -167,7 +166,7 @@ public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
     }
 
     public void testStaleCommitDeletionWithInvokeFlush() throws Exception {
-        internalCluster().startNode();
+        String dataNode = internalCluster().startNode();
         createIndex(INDEX_NAME, remoteStoreIndexSettings(1, 10000l, -1));
         int numberOfIterations = randomIntBetween(5, 15);
         indexData(numberOfIterations, true, INDEX_NAME);
@@ -177,17 +176,20 @@ public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
             .get()
             .getSetting(INDEX_NAME, IndexMetadata.SETTING_INDEX_UUID);
         Path indexPath = Path.of(String.valueOf(segmentRepoPath), indexUUID, "/0/segments/metadata");
+
+        IndexShard indexShard = getIndexShard(dataNode);
+        int lastNMetadataFilesToKeep = indexShard.getRecoverySettings().getMinRemoteSegmentMetadataFiles();
         // Delete is async.
         assertBusy(() -> {
             int actualFileCount = getFileCount(indexPath);
-            if (numberOfIterations <= LAST_N_METADATA_FILES_TO_KEEP) {
+            if (numberOfIterations <= lastNMetadataFilesToKeep) {
                 MatcherAssert.assertThat(actualFileCount, is(oneOf(numberOfIterations - 1, numberOfIterations, numberOfIterations + 1)));
             } else {
                 // As delete is async its possible that the file gets created before the deletion or after
                 // deletion.
                 MatcherAssert.assertThat(
                     actualFileCount,
-                    is(oneOf(LAST_N_METADATA_FILES_TO_KEEP - 1, LAST_N_METADATA_FILES_TO_KEEP, LAST_N_METADATA_FILES_TO_KEEP + 1))
+                    is(oneOf(lastNMetadataFilesToKeep - 1, lastNMetadataFilesToKeep, lastNMetadataFilesToKeep + 1))
                 );
             }
         }, 30, TimeUnit.SECONDS);

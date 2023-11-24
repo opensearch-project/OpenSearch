@@ -247,7 +247,14 @@ public class PeerRecoveryTargetService implements IndexEventListener {
                     indexShard.prepareForIndexRecovery();
                     final boolean hasRemoteSegmentStore = indexShard.indexSettings().isRemoteStoreEnabled();
                     if (hasRemoteSegmentStore) {
-                        indexShard.syncSegmentsFromRemoteSegmentStore(false, recoveryTarget::setLastAccessTime);
+                        try {
+                            indexShard.syncSegmentsFromRemoteSegmentStore(false, recoveryTarget::setLastAccessTime);
+                        } catch (Exception e) {
+                            logger.error(
+                                "Exception while downloading segment files from remote store, will continue with peer to peer segment copy",
+                                e
+                            );
+                        }
                     }
                     final boolean hasRemoteTranslog = recoveryTarget.state().getPrimary() == false && indexShard.isRemoteTranslogEnabled();
                     final boolean hasNoTranslog = indexShard.indexSettings().isRemoteSnapshot();

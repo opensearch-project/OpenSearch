@@ -237,7 +237,7 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
         setup(true, 3);
         assertDocs(indexShard, "1", "2", "3");
 
-        for (int i = 0; i < RemoteStoreRefreshListener.LAST_N_METADATA_FILES_TO_KEEP + 3; i++) {
+        for (int i = 0; i < indexShard.getRecoverySettings().getMinRemoteSegmentMetadataFiles() + 3; i++) {
             indexDocs(4 * (i + 1), 4);
             flushShard(indexShard);
         }

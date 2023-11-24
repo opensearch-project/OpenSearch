@@ -157,6 +157,17 @@ public class RecoverySettings {
         Property.NodeScope
     );
 
+    /**
+     * Controls minimum number of metadata files to keep in remote segment store.
+     * {@code value < 1} will disable deletion of stale segment metadata files.
+     */
+    public static final Setting<Integer> CLUSTER_REMOTE_INDEX_MIN_SEGMENT_METADATA_FILES_SETTING = Setting.intSetting(
+        "cluster.remote_store.index.min.segment-metadata",
+        10,
+        Property.NodeScope,
+        Property.Dynamic
+    );
+
     // choose 512KB-16B to ensure that the resulting byte[] is not a humongous allocation in G1.
     public static final ByteSizeValue DEFAULT_CHUNK_SIZE = new ByteSizeValue(512 * 1024 - 16, ByteSizeUnit.BYTES);
 
@@ -171,6 +182,7 @@ public class RecoverySettings {
     private volatile TimeValue internalActionTimeout;
     private volatile TimeValue internalActionRetryTimeout;
     private volatile TimeValue internalActionLongTimeout;
+    private volatile int minRemoteSegmentMetadataFiles;
 
     private volatile ByteSizeValue chunkSize = DEFAULT_CHUNK_SIZE;
 
@@ -212,6 +224,11 @@ public class RecoverySettings {
             this::setInternalActionLongTimeout
         );
         clusterSettings.addSettingsUpdateConsumer(INDICES_RECOVERY_ACTIVITY_TIMEOUT_SETTING, this::setActivityTimeout);
+        minRemoteSegmentMetadataFiles = CLUSTER_REMOTE_INDEX_MIN_SEGMENT_METADATA_FILES_SETTING.get(settings);
+        clusterSettings.addSettingsUpdateConsumer(
+            CLUSTER_REMOTE_INDEX_MIN_SEGMENT_METADATA_FILES_SETTING,
+            this::setMinRemoteSegmentMetadataFiles
+        );
     }
 
     public RateLimiter rateLimiter() {
@@ -306,5 +323,13 @@ public class RecoverySettings {
 
     private void setMaxConcurrentRemoteStoreStreams(int maxConcurrentRemoteStoreStreams) {
         this.maxConcurrentRemoteStoreStreams = maxConcurrentRemoteStoreStreams;
+    }
+
+    private void setMinRemoteSegmentMetadataFiles(int minRemoteSegmentMetadataFiles) {
+        this.minRemoteSegmentMetadataFiles = minRemoteSegmentMetadataFiles;
+    }
+
+    public int getMinRemoteSegmentMetadataFiles() {
+        return this.minRemoteSegmentMetadataFiles;
     }
 }
