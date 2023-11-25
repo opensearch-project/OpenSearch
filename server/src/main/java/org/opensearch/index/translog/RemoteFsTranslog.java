@@ -59,7 +59,7 @@ public class RemoteFsTranslog extends Translog {
     private final Logger logger;
     private final TranslogTransferManager translogTransferManager;
     private final FileTransferTracker fileTransferTracker;
-    private final BooleanSupplier primaryModeSupplier;
+    private final BooleanSupplier startedPrimarySupplier;
     private final RemoteTranslogTransferTracker remoteTranslogTransferTracker;
     private volatile long maxRemoteTranslogGenerationUploaded;
 
@@ -79,8 +79,8 @@ public class RemoteFsTranslog extends Translog {
     private final Semaphore remoteGenerationDeletionPermits = new Semaphore(REMOTE_DELETION_PERMITS);
 
     // These permits exist to allow any inflight background triggered upload.
-    private static final int SYNC_PERMITS = 1;
-    private final Semaphore syncPermits = new Semaphore(SYNC_PERMITS);
+    private static final int SYNC_PERMIT = 1;
+    private final Semaphore syncPermit = new Semaphore(SYNC_PERMIT);
 
     public RemoteFsTranslog(
         TranslogConfig config,
@@ -91,12 +91,12 @@ public class RemoteFsTranslog extends Translog {
         LongConsumer persistedSequenceNumberConsumer,
         BlobStoreRepository blobStoreRepository,
         ThreadPool threadPool,
-        BooleanSupplier primaryModeSupplier,
+        BooleanSupplier startedPrimarySupplier,
         RemoteTranslogTransferTracker remoteTranslogTransferTracker
     ) throws IOException {
         super(config, translogUUID, deletionPolicy, globalCheckpointSupplier, primaryTermSupplier, persistedSequenceNumberConsumer);
         logger = Loggers.getLogger(getClass(), shardId);
-        this.primaryModeSupplier = primaryModeSupplier;
+        this.startedPrimarySupplier = startedPrimarySupplier;
         this.remoteTranslogTransferTracker = remoteTranslogTransferTracker;
         fileTransferTracker = new FileTransferTracker(shardId, remoteTranslogTransferTracker);
         this.translogTransferManager = buildTranslogTransferManager(
@@ -325,14 +325,15 @@ public class RemoteFsTranslog extends Translog {
         // During primary relocation, both the old and new primary have engine created with RemoteFsTranslog and having
         // ReplicationTracker.primaryMode() as true. However, before we perform the `internal:index/shard/replication/segments_sync`
         // action which re-downloads the segments and translog on the new primary. We are ensuring 2 things here -
-        // 1. Using primaryModeSupplier, we prevent the new primary to do pre-emptive syncs
+        // 1. Using startedPrimarySupplier, we prevent the new primary to do pre-emptive syncs
         // 2. Using syncPermits, we prevent syncs at the desired time during primary relocation.
-        if (primaryModeSupplier.getAsBoolean() == false || syncPermits.tryAcquire(1) == false) {
-            logger.debug("skipped uploading translog for {} {} uploadPermits={}", primaryTerm, generation, syncPermits.availablePermits());
+        if (startedPrimarySupplier.getAsBoolean() == false || syncPermit.tryAcquire(SYNC_PERMIT) == false) {
+            logger.debug("skipped uploading translog for {} {} syncPermits={}", primaryTerm, generation, syncPermit.availablePermits());
             // NO-OP
             return true;
         }
         logger.trace("uploading translog for {} {}", primaryTerm, generation);
+        induceDelayForTest();
         try (
             TranslogCheckpointTransferSnapshot transferSnapshotProvider = new TranslogCheckpointTransferSnapshot.Builder(
                 primaryTerm,
@@ -348,8 +349,13 @@ public class RemoteFsTranslog extends Translog {
                 new RemoteFsTranslogTransferListener(generation, primaryTerm, maxSeqNo)
             );
         } finally {
-            syncPermits.release(1);
+            syncPermit.release(SYNC_PERMIT);
         }
+
+    }
+
+    // Made available for testing only
+    void induceDelayForTest() {
 
     }
 
@@ -434,12 +440,12 @@ public class RemoteFsTranslog extends Translog {
     @Override
     protected Releasable drainSync() {
         try {
-            if (syncPermits.tryAcquire(SYNC_PERMITS, 1, TimeUnit.MINUTES)) {
-                logger.info("All permits acquired");
+            if (syncPermit.tryAcquire(SYNC_PERMIT, 1, TimeUnit.MINUTES)) {
+                logger.info("All inflight remote translog syncs finished and further syncs paused");
                 return Releasables.releaseOnce(() -> {
-                    syncPermits.release(SYNC_PERMITS);
-                    assert syncPermits.availablePermits() == SYNC_PERMITS : "Available permits is " + syncPermits.availablePermits();
-                    logger.info("All permits released");
+                    syncPermit.release(SYNC_PERMIT);
+                    assert syncPermit.availablePermits() == SYNC_PERMIT : "Available permits is " + syncPermit.availablePermits();
+                    logger.info("Resumed remote translog sync back on relocation failure");
                 });
             } else {
                 throw new TimeoutException("Timeout while acquiring all permits");
@@ -456,7 +462,7 @@ public class RemoteFsTranslog extends Translog {
 
         // This is to ensure that after the permits are acquired during primary relocation, there are no further modification on remote
         // store.
-        if (syncPermits.availablePermits() == 0) {
+        if (syncPermit.availablePermits() != SYNC_PERMIT) {
             return;
         }
 
@@ -597,5 +603,10 @@ public class RemoteFsTranslog extends Translog {
     @Override
     public long getMinUnreferencedSeqNoInSegments(long minUnrefCheckpointInLastCommit) {
         return minSeqNoToKeep;
+    }
+
+    // Visible for testing
+    int availablePermits() {
+        return syncPermit.availablePermits();
     }
 }

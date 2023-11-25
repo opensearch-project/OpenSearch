@@ -59,7 +59,7 @@ public class InternalTranslogManager implements TranslogManager, Closeable {
         TranslogEventListener translogEventListener,
         LifecycleAware engineLifeCycleAware,
         TranslogFactory translogFactory,
-        BooleanSupplier primaryModeSupplier
+        BooleanSupplier startedPrimarySupplier
     ) throws IOException {
         this.shardId = shardId;
         this.readLock = readLock;
@@ -72,7 +72,7 @@ public class InternalTranslogManager implements TranslogManager, Closeable {
             if (tracker != null) {
                 tracker.markSeqNoAsPersisted(seqNo);
             }
-        }, translogUUID, translogFactory, primaryModeSupplier);
+        }, translogUUID, translogFactory, startedPrimarySupplier);
         assert translog.getGeneration() != null;
         this.translog = translog;
         assert pendingTranslogRecovery.get() == false : "translog recovery can't be pending before we set it";
@@ -369,7 +369,7 @@ public class InternalTranslogManager implements TranslogManager, Closeable {
         LongConsumer persistedSequenceNumberConsumer,
         String translogUUID,
         TranslogFactory translogFactory,
-        BooleanSupplier primaryModeSupplier
+        BooleanSupplier startedPrimarySupplier
     ) throws IOException {
         return translogFactory.newTranslog(
             translogConfig,
@@ -378,7 +378,7 @@ public class InternalTranslogManager implements TranslogManager, Closeable {
             globalCheckpointSupplier,
             primaryTermSupplier,
             persistedSequenceNumberConsumer,
-            primaryModeSupplier
+            startedPrimarySupplier
         );
     }
 
