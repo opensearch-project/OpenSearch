@@ -54,7 +54,7 @@ import static org.opensearch.index.seqno.SequenceNumbers.LOCAL_CHECKPOINT_KEY;
  *
  * @opensearch.internal
  */
-public final class RemoteStoreRefreshListener extends CloseableRetryableRefreshListener {
+public final class RemoteStoreRefreshListener extends ReleasableRetryableRefreshListener {
 
     private final Logger logger;
 

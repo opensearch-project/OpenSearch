@@ -23,11 +23,11 @@ import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
- * RefreshListener that runs afterRefresh method if and only if there is a permit available. Once the listener
- * is closed, all the permits are acquired and there are no available permits to afterRefresh. This abstract class provides
+ * RefreshListener that runs afterRefresh method if and only if there is a permit available. Once the {@code drainRefreshes()}
+ * is called, all the permits are acquired and there are no available permits to afterRefresh. This abstract class provides
  * necessary abstract methods to schedule retry.
  */
-public abstract class CloseableRetryableRefreshListener implements ReferenceManager.RefreshListener {
+public abstract class ReleasableRetryableRefreshListener implements ReferenceManager.RefreshListener {
 
     /**
      * Total permits = 1 ensures that there is only single instance of runAfterRefreshWithPermit that is running at a time.
@@ -48,11 +48,11 @@ public abstract class CloseableRetryableRefreshListener implements ReferenceMana
      */
     private final AtomicBoolean retryScheduled = new AtomicBoolean(false);
 
-    public CloseableRetryableRefreshListener() {
+    public ReleasableRetryableRefreshListener() {
         this.threadPool = null;
     }
 
-    public CloseableRetryableRefreshListener(ThreadPool threadPool) {
+    public ReleasableRetryableRefreshListener(ThreadPool threadPool) {
         assert Objects.nonNull(threadPool);
         this.threadPool = threadPool;
     }
@@ -215,7 +215,7 @@ public abstract class CloseableRetryableRefreshListener implements ReferenceMana
     /**
      * Returns the timeout which is used while draining refreshes.
      */
-    protected TimeValue getDrainTimeout() {
+    TimeValue getDrainTimeout() {
         return DRAIN_TIMEOUT;
     }
 

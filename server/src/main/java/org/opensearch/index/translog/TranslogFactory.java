@@ -32,6 +32,6 @@ public interface TranslogFactory {
         final LongSupplier globalCheckpointSupplier,
         final LongSupplier primaryTermSupplier,
         final LongConsumer persistedSequenceNumberConsumer,
-        final BooleanSupplier primaryModeSupplier
+        final BooleanSupplier startedPrimarySupplier
     ) throws IOException;
 }

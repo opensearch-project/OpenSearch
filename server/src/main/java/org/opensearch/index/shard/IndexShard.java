@@ -847,7 +847,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         assert shardRouting.primary() : "only primaries can be marked as relocated: " + shardRouting;
         // The below list of releasable ensures that if the relocation does not happen, we undo the activity of close and
         // acquire all permits. This will ensure that the remote store uploads can still be done by the existing primary shard.
-        List<Releasable> releasablesOnNoHandoff = new ArrayList<>();
+        List<Releasable> releasablesOnHandoffFailures = new ArrayList<>(2);
         try (Releasable forceRefreshes = refreshListeners.forceRefreshes()) {
             indexShardOperationPermits.blockOperations(30, TimeUnit.MINUTES, () -> {
                 forceRefreshes.close();
@@ -862,13 +862,13 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
                 // Ensures all in-flight remote store refreshes drain, before we perform the performSegRep.
                 for (ReferenceManager.RefreshListener refreshListener : internalRefreshListener) {
-                    if (refreshListener instanceof CloseableRetryableRefreshListener) {
-                        releasablesOnNoHandoff.add(((CloseableRetryableRefreshListener) refreshListener).drainRefreshes());
+                    if (refreshListener instanceof ReleasableRetryableRefreshListener) {
+                        releasablesOnHandoffFailures.add(((ReleasableRetryableRefreshListener) refreshListener).drainRefreshes());
                     }
                 }
 
                 // Ensure all in-flight remote store translog upload drains, before we perform the performSegRep.
-                releasablesOnNoHandoff.add(getEngineOrNull().translogManager().drainSync());
+                releasablesOnHandoffFailures.add(getEngine().translogManager().drainSync());
 
                 // no shard operation permits are being held here, move state from started to relocated
                 assert indexShardOperationPermits.getActiveOperationsCount() == OPERATIONS_BLOCKED
@@ -903,14 +903,16 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             // Fail primary relocation source and target shards.
             failShard("timed out waiting for relocation hand-off to complete", null);
             throw new IndexShardClosedException(shardId(), "timed out waiting for relocation hand-off to complete");
+        } catch (Exception ex) {
+            logger.warn("exception occurred during relocation hand-off to complete errorMsg={}", ex.getMessage());
+            assert replicationTracker.isPrimaryMode();
+            throw ex;
         } finally {
             // If the primary mode is still true after the end of handoff attempt, it basically means that the relocation
             // failed. The existing primary will continue to be the primary, so we need to allow the segments and translog
             // upload to resume.
             if (replicationTracker.isPrimaryMode()) {
-                for (Releasable releasable : releasablesOnNoHandoff) {
-                    releasable.close();
-                }
+                Releasables.close(releasablesOnHandoffFailures);
             }
         }
     }
