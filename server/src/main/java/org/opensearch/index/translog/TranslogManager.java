@@ -139,7 +139,7 @@ public interface TranslogManager {
     /**
      * Drains ongoing syncs to the underlying store. It returns a releasable which can be closed to resume the syncs back.
      */
-    Releasable drainSyncToStore();
+    Releasable drainSync();
 
     Translog.TranslogGeneration getTranslogGeneration();
 }

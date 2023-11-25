@@ -308,8 +308,8 @@ public class InternalTranslogManager implements TranslogManager, Closeable {
     }
 
     @Override
-    public Releasable drainSyncToStore() {
-        return translog.drainSyncToStore();
+    public Releasable drainSync() {
+        return translog.drainSync();
     }
 
     @Override
