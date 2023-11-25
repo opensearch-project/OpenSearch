@@ -3887,10 +3887,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             circuitBreakerService,
             globalCheckpointSupplier,
             replicationTracker::getRetentionLeases,
-            () -> getOperationPrimaryTerm(),
+            this::getOperationPrimaryTerm,
             tombstoneDocSupplier(),
             isReadOnlyReplica,
-            replicationTracker::isPrimaryMode,
+            this::isStartedPrimary,
             translogFactorySupplier.apply(indexSettings, shardRouting),
             isTimeSeriesDescSortOptimizationEnabled() ? DataStream.TIMESERIES_LEAF_SORTER : null // DESC @timestamp default order for
             // timeseries
@@ -3903,6 +3903,15 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     public boolean isRemoteTranslogEnabled() {
         return indexSettings() != null && indexSettings().isRemoteTranslogStoreEnabled();
+    }
+
+    /**
+     * This checks if we are in state to upload to remote store. Until the cluster-manager informs the shard through
+     * cluster state, the shard will not be in STARTED state. This method is used to prevent pre-emptive segment or
+     * translog uploads.
+     */
+    public boolean isStartedPrimary() {
+        return getReplicationTracker().isPrimaryMode() && state() == IndexShardState.STARTED;
     }
 
     /**
