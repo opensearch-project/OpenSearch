@@ -1820,8 +1820,8 @@ public abstract class Translog extends AbstractIndexShardComponent implements In
     /**
      * Drains ongoing syncs to the underlying store. It returns a releasable which can be closed to resume the syncs back.
      */
-    protected Releasable drainSyncToStore() {
-        return () -> {};
+    protected Releasable drainSync() {
+        return () -> {}; // noop
     }
 
     /**

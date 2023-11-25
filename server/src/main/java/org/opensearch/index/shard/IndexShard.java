@@ -868,7 +868,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 }
 
                 // Ensure all in-flight remote store translog upload drains, before we perform the performSegRep.
-                releasablesOnNoHandoff.add(getEngineOrNull().translogManager().drainSyncToStore());
+                releasablesOnNoHandoff.add(getEngineOrNull().translogManager().drainSync());
 
                 // no shard operation permits are being held here, move state from started to relocated
                 assert indexShardOperationPermits.getActiveOperationsCount() == OPERATIONS_BLOCKED

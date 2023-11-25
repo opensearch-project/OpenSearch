@@ -126,7 +126,7 @@ public class NoOpTranslogManager implements TranslogManager {
     public void onDelete() {}
 
     @Override
-    public Releasable drainSyncToStore() {
+    public Releasable drainSync() {
         return () -> {};
     }
 
