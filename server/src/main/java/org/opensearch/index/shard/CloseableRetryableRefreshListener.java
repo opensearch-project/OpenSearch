@@ -35,6 +35,8 @@ public abstract class CloseableRetryableRefreshListener implements ReferenceMana
      */
     private static final int TOTAL_PERMITS = 1;
 
+    private static final TimeValue DRAIN_TIMEOUT = TimeValue.timeValueMinutes(10);
+
     private final AtomicBoolean closed = new AtomicBoolean(false);
 
     private final Semaphore semaphore = new Semaphore(TOTAL_PERMITS);
@@ -187,7 +189,8 @@ public abstract class CloseableRetryableRefreshListener implements ReferenceMana
 
     public final Releasable drainRefreshes() {
         try {
-            if (semaphore.tryAcquire(TOTAL_PERMITS, 10, TimeUnit.MINUTES)) {
+            TimeValue timeout = getDrainTimeout();
+            if (semaphore.tryAcquire(TOTAL_PERMITS, timeout.seconds(), TimeUnit.SECONDS)) {
                 boolean result = closed.compareAndSet(false, true);
                 assert result && semaphore.availablePermits() == 0;
                 getLogger().info("All permits are acquired and refresh listener is closed");
@@ -208,6 +211,14 @@ public abstract class CloseableRetryableRefreshListener implements ReferenceMana
 
     protected abstract Logger getLogger();
 
+    // Made available for unit testing purpose only
+    /**
+     * Returns the timeout which is used while draining refreshes.
+     */
+    protected TimeValue getDrainTimeout() {
+        return DRAIN_TIMEOUT;
+    }
+
     // Visible for testing
     /**
      * Returns if the retry is scheduled or not.
@@ -216,5 +227,15 @@ public abstract class CloseableRetryableRefreshListener implements ReferenceMana
      */
     boolean getRetryScheduledStatus() {
         return retryScheduled.get();
+    }
+
+    // Visible for testing
+    int availablePermits() {
+        return semaphore.availablePermits();
+    }
+
+    // Visible for testing
+    boolean isClosed() {
+        return closed.get();
     }
 }

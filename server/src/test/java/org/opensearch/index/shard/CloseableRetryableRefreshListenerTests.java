@@ -10,6 +10,7 @@ package org.opensearch.index.shard;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.TestThreadPool;
@@ -274,6 +275,7 @@ public class CloseableRetryableRefreshListenerTests extends OpenSearchTestCase {
         testRefreshListener.afterRefresh(randomBoolean());
         testRefreshListener.drainRefreshes();
         assertNotEquals(0, countDownLatch.getCount());
+        assertRefreshListenerClosed(testRefreshListener);
     }
 
     public void testCloseWaitsForAcquiringAllPermits() throws Exception {
@@ -308,6 +310,7 @@ public class CloseableRetryableRefreshListenerTests extends OpenSearchTestCase {
         thread.start();
         assertBusy(() -> assertEquals(0, countDownLatch.getCount()));
         testRefreshListener.drainRefreshes();
+        assertRefreshListenerClosed(testRefreshListener);
     }
 
     public void testScheduleRetryAfterClose() throws Exception {
@@ -368,6 +371,7 @@ public class CloseableRetryableRefreshListenerTests extends OpenSearchTestCase {
         thread1.join();
         thread2.join();
         assertBusy(() -> assertEquals(1, runCount.get()));
+        assertRefreshListenerClosed(testRefreshListener);
     }
 
     public void testConcurrentScheduleRetry() throws Exception {
@@ -409,6 +413,7 @@ public class CloseableRetryableRefreshListenerTests extends OpenSearchTestCase {
         testRefreshListener.afterRefresh(true);
         assertBusy(() -> assertEquals(3, runCount.get()));
         testRefreshListener.drainRefreshes();
+        assertRefreshListenerClosed(testRefreshListener);
     }
 
     public void testExceptionDuringThreadPoolSchedule() throws Exception {
@@ -451,11 +456,135 @@ public class CloseableRetryableRefreshListenerTests extends OpenSearchTestCase {
         assertBusy(() -> assertFalse(testRefreshListener.getRetryScheduledStatus()));
         assertEquals(1, runCount.get());
         testRefreshListener.drainRefreshes();
+        assertRefreshListenerClosed(testRefreshListener);
+    }
+
+    public void testTimeoutDuringClose() throws Exception {
+        // This test checks the expected behaviour when the drainRefreshes times out.
+        CloseableRetryableRefreshListener testRefreshListener = new CloseableRetryableRefreshListener(mock(ThreadPool.class)) {
+            @Override
+            protected boolean performAfterRefreshWithPermit(boolean didRefresh) {
+                try {
+                    Thread.sleep(TimeValue.timeValueSeconds(2).millis());
+                } catch (InterruptedException e) {
+                    throw new AssertionError(e);
+                }
+                return true;
+            }
+
+            @Override
+            public void beforeRefresh() {}
+
+            @Override
+            protected Logger getLogger() {
+                return logger;
+            }
+
+            @Override
+            protected TimeValue getDrainTimeout() {
+                return TimeValue.timeValueSeconds(1);
+            }
+        };
+        Thread thread1 = new Thread(() -> {
+            try {
+                testRefreshListener.afterRefresh(true);
+            } catch (IOException e) {
+                throw new AssertionError(e);
+            }
+        });
+        thread1.start();
+        assertBusy(() -> assertEquals(0, testRefreshListener.availablePermits()));
+        RuntimeException ex = assertThrows(RuntimeException.class, testRefreshListener::drainRefreshes);
+        assertEquals("Failed to acquire all permits", ex.getMessage());
+        thread1.join();
+    }
+
+    public void testThreadInterruptDuringClose() throws Exception {
+        // This test checks the expected behaviour when the thread performing the drainRefresh is interrupted.
+        CountDownLatch latch = new CountDownLatch(2);
+        CloseableRetryableRefreshListener testRefreshListener = new CloseableRetryableRefreshListener(mock(ThreadPool.class)) {
+            @Override
+            protected boolean performAfterRefreshWithPermit(boolean didRefresh) {
+                try {
+                    Thread.sleep(TimeValue.timeValueSeconds(2).millis());
+                } catch (InterruptedException e) {
+                    throw new AssertionError(e);
+                }
+                return true;
+            }
+
+            @Override
+            public void beforeRefresh() {}
+
+            @Override
+            protected Logger getLogger() {
+                return logger;
+            }
+
+            @Override
+            protected TimeValue getDrainTimeout() {
+                return TimeValue.timeValueSeconds(2);
+            }
+        };
+        Thread thread1 = new Thread(() -> {
+            try {
+                testRefreshListener.afterRefresh(true);
+                latch.countDown();
+            } catch (IOException e) {
+                throw new AssertionError(e);
+            }
+        });
+        Thread thread2 = new Thread(() -> {
+            RuntimeException ex = assertThrows(RuntimeException.class, testRefreshListener::drainRefreshes);
+            assertEquals("Failed to acquire all permits", ex.getMessage());
+            latch.countDown();
+        });
+        thread1.start();
+        assertBusy(() -> assertEquals(0, testRefreshListener.availablePermits()));
+        thread2.start();
+        thread2.interrupt();
+        thread1.join();
+        thread2.join();
+        assertEquals(0, latch.getCount());
+    }
+
+    public void testResumeRefreshesAfterDrainRefreshes() {
+        // This test checks the expected behaviour when the refresh listener is drained, but then refreshes are resumed again
+        // by closing the releasables acquired by calling the drainRefreshes method.
+        CloseableRetryableRefreshListener testRefreshListener = new CloseableRetryableRefreshListener(mock(ThreadPool.class)) {
+            @Override
+            protected boolean performAfterRefreshWithPermit(boolean didRefresh) {
+                return true;
+            }
+
+            @Override
+            public void beforeRefresh() {}
+
+            @Override
+            protected Logger getLogger() {
+                return logger;
+            }
+        };
+        assertRefreshListenerOpen(testRefreshListener);
+        Releasable releasable = testRefreshListener.drainRefreshes();
+        assertRefreshListenerClosed(testRefreshListener);
+        releasable.close();
+        assertRefreshListenerOpen(testRefreshListener);
     }
 
     @After
     public void tearDown() throws Exception {
         super.tearDown();
         terminate(threadPool);
+    }
+
+    private void assertRefreshListenerClosed(CloseableRetryableRefreshListener testRefreshListener) {
+        assertTrue(testRefreshListener.isClosed());
+        assertEquals(0, testRefreshListener.availablePermits());
+    }
+
+    private void assertRefreshListenerOpen(CloseableRetryableRefreshListener testRefreshListener) {
+        assertFalse(testRefreshListener.isClosed());
+        assertEquals(1, testRefreshListener.availablePermits());
     }
 }
