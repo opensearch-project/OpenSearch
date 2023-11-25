@@ -489,8 +489,7 @@ public final class RemoteStoreRefreshListener extends CloseableRetryableRefreshL
      * @return true iff primaryMode is true and index shard is not in closed state.
      */
     private boolean isReadyForUpload() {
-        boolean isReady = (indexShard.getReplicationTracker().isPrimaryMode() && indexShard.state() != IndexShardState.CLOSED)
-            || isLocalOrSnapshotRecovery();
+        boolean isReady = indexShard.isStartedPrimary() || isLocalOrSnapshotRecovery();
 
         if (isReady == false) {
             StringBuilder sb = new StringBuilder("Skipped syncing segments with");
@@ -503,11 +502,11 @@ public final class RemoteStoreRefreshListener extends CloseableRetryableRefreshL
             if (indexShard.getEngineOrNull() != null) {
                 sb.append(" engineType=").append(indexShard.getEngine().getClass().getSimpleName());
             }
-            if (isLocalOrSnapshotRecovery() == false) {
+            if (indexShard.recoveryState() != null) {
                 sb.append(" recoverySourceType=").append(indexShard.recoveryState().getRecoverySource().getType());
                 sb.append(" primary=").append(indexShard.shardRouting.primary());
             }
-            logger.trace(sb.toString());
+            logger.info(sb.toString());
         }
         return isReady;
     }
@@ -516,8 +515,8 @@ public final class RemoteStoreRefreshListener extends CloseableRetryableRefreshL
         // In this case when the primary mode is false, we need to upload segments to Remote Store
         // This is required in case of snapshots/shrink/ split/clone where we need to durable persist
         // all segments to remote before completing the recovery to ensure durability.
-
         return (indexShard.state() == IndexShardState.RECOVERING && indexShard.shardRouting.primary())
+            && indexShard.recoveryState() != null
             && (indexShard.recoveryState().getRecoverySource().getType() == RecoverySource.Type.LOCAL_SHARDS
                 || indexShard.recoveryState().getRecoverySource().getType() == RecoverySource.Type.SNAPSHOT);
     }
