@@ -161,9 +161,18 @@ public class RecoverySettings {
      * Controls minimum number of metadata files to keep in remote segment store.
      * {@code value < 1} will disable deletion of stale segment metadata files.
      */
-    public static final Setting<Integer> CLUSTER_REMOTE_INDEX_MIN_SEGMENT_METADATA_FILES_SETTING = Setting.intSetting(
-        "cluster.remote_store.index.min.segment-metadata",
+    public static final Setting<Integer> CLUSTER_REMOTE_INDEX_SEGMENT_METADATA_RETENTION_MAX_COUNT_SETTING = Setting.intSetting(
+        "cluster.remote_store.index.segment_metadata.retention.max_count",
         10,
+        -1,
+        100,
+        v -> {
+            if (v == 0) {
+                throw new IllegalArgumentException(
+                    "Value 0 is not allowed for this setting as it would delete all the data from remote segment store"
+                );
+            }
+        },
         Property.NodeScope,
         Property.Dynamic
     );
@@ -224,9 +233,9 @@ public class RecoverySettings {
             this::setInternalActionLongTimeout
         );
         clusterSettings.addSettingsUpdateConsumer(INDICES_RECOVERY_ACTIVITY_TIMEOUT_SETTING, this::setActivityTimeout);
-        minRemoteSegmentMetadataFiles = CLUSTER_REMOTE_INDEX_MIN_SEGMENT_METADATA_FILES_SETTING.get(settings);
+        minRemoteSegmentMetadataFiles = CLUSTER_REMOTE_INDEX_SEGMENT_METADATA_RETENTION_MAX_COUNT_SETTING.get(settings);
         clusterSettings.addSettingsUpdateConsumer(
-            CLUSTER_REMOTE_INDEX_MIN_SEGMENT_METADATA_FILES_SETTING,
+            CLUSTER_REMOTE_INDEX_SEGMENT_METADATA_RETENTION_MAX_COUNT_SETTING,
             this::setMinRemoteSegmentMetadataFiles
         );
     }

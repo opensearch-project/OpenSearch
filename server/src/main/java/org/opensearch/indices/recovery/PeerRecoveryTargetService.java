@@ -247,6 +247,10 @@ public class PeerRecoveryTargetService implements IndexEventListener {
                     indexShard.prepareForIndexRecovery();
                     final boolean hasRemoteSegmentStore = indexShard.indexSettings().isRemoteStoreEnabled();
                     if (hasRemoteSegmentStore) {
+                        // ToDo: This is a temporary mitigation to not fail the peer recovery flow in case there is
+                        // an exception while downloading segments from remote store. For remote backed indexes, we
+                        // plan to revamp this flow so that node-node segment copy will not happen.
+                        // GitHub Issue to track the revamp: https://github.com/opensearch-project/OpenSearch/issues/11331
                         try {
                             indexShard.syncSegmentsFromRemoteSegmentStore(false, recoveryTarget::setLastAccessTime);
                         } catch (Exception e) {

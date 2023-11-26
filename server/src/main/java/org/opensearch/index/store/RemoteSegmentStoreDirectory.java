@@ -727,8 +727,10 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
      * @throws IOException in case of I/O error while reading from / writing to remote segment store
      */
     public void deleteStaleSegments(int lastNMetadataFilesToKeep) throws IOException {
-        if (lastNMetadataFilesToKeep <= 0) {
-            logger.info("Stale segment deletion is disabled if cluster.remote_store.index.min.segment-metadata is set to < 1");
+        if (lastNMetadataFilesToKeep == -1) {
+            logger.info(
+                "Stale segment deletion is disabled if cluster.remote_store.index.segment_metadata.retention.max_count is set to -1"
+            );
             return;
         }
         List<String> sortedMetadataFileList = remoteMetadataDirectory.listFilesByPrefixInLexicographicOrder(
