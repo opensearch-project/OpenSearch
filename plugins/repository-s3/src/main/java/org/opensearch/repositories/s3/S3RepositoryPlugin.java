@@ -261,7 +261,9 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
             S3ClientSettings.IDENTITY_TOKEN_FILE_SETTING,
             S3ClientSettings.ROLE_SESSION_NAME_SETTING,
             S3Repository.PARALLEL_MULTIPART_UPLOAD_MINIMUM_PART_SIZE_SETTING,
-            S3Repository.PARALLEL_MULTIPART_UPLOAD_ENABLED_SETTING
+            S3Repository.PARALLEL_MULTIPART_UPLOAD_ENABLED_SETTING,
+            S3Repository.REDIRECT_LARGE_S3_UPLOAD,
+            S3Repository.UPLOAD_RETRY_ENABLED
         );
     }
 
