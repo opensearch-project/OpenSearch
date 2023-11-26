@@ -42,6 +42,7 @@ import java.util.Set;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BooleanSupplier;
 import java.util.function.LongConsumer;
 import java.util.function.LongSupplier;
@@ -81,6 +82,7 @@ public class RemoteFsTranslog extends Translog {
     // These permits exist to allow any inflight background triggered upload.
     private static final int SYNC_PERMIT = 1;
     private final Semaphore syncPermit = new Semaphore(SYNC_PERMIT);
+    private final AtomicBoolean pauseSync = new AtomicBoolean(false);
 
     public RemoteFsTranslog(
         TranslogConfig config,
@@ -435,10 +437,14 @@ public class RemoteFsTranslog extends Translog {
     protected Releasable drainSync() {
         try {
             if (syncPermit.tryAcquire(SYNC_PERMIT, 1, TimeUnit.MINUTES)) {
+                boolean result = pauseSync.compareAndSet(false, true);
+                assert result && syncPermit.availablePermits() == 0;
                 logger.info("All inflight remote translog syncs finished and further syncs paused");
                 return Releasables.releaseOnce(() -> {
                     syncPermit.release(SYNC_PERMIT);
+                    boolean wasSyncPaused = pauseSync.getAndSet(false);
                     assert syncPermit.availablePermits() == SYNC_PERMIT : "Available permits is " + syncPermit.availablePermits();
+                    assert wasSyncPaused : "RemoteFsTranslog sync was not paused before re-enabling it";
                     logger.info("Resumed remote translog sync back on relocation failure");
                 });
             } else {
@@ -456,7 +462,7 @@ public class RemoteFsTranslog extends Translog {
 
         // This is to ensure that after the permits are acquired during primary relocation, there are no further modification on remote
         // store.
-        if (syncPermit.availablePermits() != SYNC_PERMIT) {
+        if (pauseSync.get()) {
             return;
         }
 
