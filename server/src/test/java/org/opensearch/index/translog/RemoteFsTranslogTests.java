@@ -29,7 +29,6 @@ import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.common.util.concurrent.ConcurrentCollections;
 import org.opensearch.common.util.io.IOUtils;
@@ -128,14 +127,14 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
     private ThreadPool threadPool;
     private final static String METADATA_DIR = "metadata";
     private final static String DATA_DIR = "data";
-    private volatile boolean slowDownEnsureOpen = false;
-
     AtomicInteger writeCalls = new AtomicInteger();
     BlobStoreRepository repository;
 
     BlobStoreTransferService blobStoreTransferService;
 
     TestTranslog.FailSwitch fail;
+
+    TestTranslog.SlowDownWriteSwitch slowDown;
 
     private LongConsumer getPersistedSeqNoConsumer() {
         return seqNo -> {
@@ -191,19 +190,7 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
             threadPool,
             primaryMode::get,
             new RemoteTranslogTransferTracker(shardId, 10)
-        ) {
-            @Override
-            void induceDelayForTest() {
-                // We are inducing 2 seconds delay for testing out available permits
-                if (slowDownEnsureOpen) {
-                    try {
-                        Thread.sleep(TimeValue.timeValueSeconds(2).millis());
-                    } catch (InterruptedException e) {
-                        throw new AssertionError(e);
-                    }
-                }
-            }
-        };
+        );
     }
 
     private RemoteFsTranslog create(Path path, BlobStoreRepository repository, String translogUUID) throws IOException {
@@ -244,13 +231,15 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
         final ClusterService clusterService = BlobStoreTestUtil.mockClusterService(repositoryMetadata);
         fail = new TestTranslog.FailSwitch();
         fail.failNever();
+        slowDown = new TestTranslog.SlowDownWriteSwitch();
         final FsRepository repository = new ThrowingBlobRepository(
             repositoryMetadata,
             createEnvironment(),
             xContentRegistry(),
             clusterService,
             new RecoverySettings(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)),
-            fail
+            fail,
+            slowDown
         ) {
             @Override
             protected void assertSnapshotOrGenericThread() {
@@ -855,7 +844,7 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
         assertEquals(1, translog.readers.size());
 
         // Case 1 - During ongoing uploads, the available permits are 0.
-        slowDownEnsureOpen = true;
+        slowDown.setSleepSeconds(2);
         CountDownLatch latch = new CountDownLatch(1);
         Thread thread1 = new Thread(() -> {
             try {
@@ -872,7 +861,7 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
         Releasable releasable = translog.drainSync();
         assertBusy(() -> assertEquals(0, latch.getCount()));
         assertEquals(0, translog.availablePermits());
-        slowDownEnsureOpen = false;
+        slowDown.setSleepSeconds(0);
         assertEquals(6, translog.allUploaded().size());
         assertEquals(2, translog.readers.size());
         Set<String> mdFiles = blobStoreTransferService.listAll(getTranslogDirectory().add(METADATA_DIR));
@@ -1713,9 +1702,10 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
     }
 
     public class ThrowingBlobRepository extends FsRepository {
-        private final Environment environment;
 
-        private TestTranslog.FailSwitch fail;
+        private final Environment environment;
+        private final TestTranslog.FailSwitch fail;
+        private final TestTranslog.SlowDownWriteSwitch slowDown;
 
         public ThrowingBlobRepository(
             RepositoryMetadata metadata,
@@ -1723,33 +1713,43 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
             NamedXContentRegistry namedXContentRegistry,
             ClusterService clusterService,
             RecoverySettings recoverySettings,
-            TestTranslog.FailSwitch fail
+            TestTranslog.FailSwitch fail,
+            TestTranslog.SlowDownWriteSwitch slowDown
         ) {
             super(metadata, environment, namedXContentRegistry, clusterService, recoverySettings);
             this.environment = environment;
             this.fail = fail;
+            this.slowDown = slowDown;
         }
 
         protected BlobStore createBlobStore() throws Exception {
             final String location = REPOSITORIES_LOCATION_SETTING.get(getMetadata().settings());
             final Path locationFile = environment.resolveRepoFile(location);
-            return new ThrowingBlobStore(bufferSize, locationFile, isReadOnly(), fail);
+            return new ThrowingBlobStore(bufferSize, locationFile, isReadOnly(), fail, slowDown);
         }
     }
 
     private class ThrowingBlobStore extends FsBlobStore {
 
-        private TestTranslog.FailSwitch fail;
+        private final TestTranslog.FailSwitch fail;
+        private final TestTranslog.SlowDownWriteSwitch slowDown;
 
-        public ThrowingBlobStore(int bufferSizeInBytes, Path path, boolean readonly, TestTranslog.FailSwitch fail) throws IOException {
+        public ThrowingBlobStore(
+            int bufferSizeInBytes,
+            Path path,
+            boolean readonly,
+            TestTranslog.FailSwitch fail,
+            TestTranslog.SlowDownWriteSwitch slowDown
+        ) throws IOException {
             super(bufferSizeInBytes, path, readonly);
             this.fail = fail;
+            this.slowDown = slowDown;
         }
 
         @Override
         public BlobContainer blobContainer(BlobPath path) {
             try {
-                return new ThrowingBlobContainer(this, path, buildAndCreate(path), fail);
+                return new ThrowingBlobContainer(this, path, buildAndCreate(path), fail, slowDown);
             } catch (IOException ex) {
                 throw new OpenSearchException("failed to create blob container", ex);
             }
@@ -1759,16 +1759,32 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
     private class ThrowingBlobContainer extends FsBlobContainer {
 
         private TestTranslog.FailSwitch fail;
+        private final TestTranslog.SlowDownWriteSwitch slowDown;
 
-        public ThrowingBlobContainer(FsBlobStore blobStore, BlobPath blobPath, Path path, TestTranslog.FailSwitch fail) {
+        public ThrowingBlobContainer(
+            FsBlobStore blobStore,
+            BlobPath blobPath,
+            Path path,
+            TestTranslog.FailSwitch fail,
+            TestTranslog.SlowDownWriteSwitch slowDown
+        ) {
             super(blobStore, blobPath, path);
             this.fail = fail;
+            this.slowDown = slowDown;
         }
 
+        @Override
         public void writeBlobAtomic(final String blobName, final InputStream inputStream, final long blobSize, boolean failIfAlreadyExists)
             throws IOException {
             if (fail.fail()) {
                 throw new IOException("blob container throwing error");
+            }
+            if (slowDown.getSleepSeconds() > 0) {
+                try {
+                    Thread.sleep(slowDown.getSleepSeconds() * 1000L);
+                } catch (InterruptedException e) {
+                    throw new RuntimeException(e);
+                }
             }
             super.writeBlobAtomic(blobName, inputStream, blobSize, failIfAlreadyExists);
         }

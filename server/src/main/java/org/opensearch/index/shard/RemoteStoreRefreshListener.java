@@ -486,7 +486,7 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
     /**
      * This checks for readiness of the index shard and primary mode. This has separated from shouldSync since we use the
      * returned value of this method for scheduling retries in syncSegments method.
-     * @return true iff primaryMode is true and index shard is not in closed state.
+     * @return true iff the shard is a started with primary mode true or it is local or snapshot recovery.
      */
     private boolean isReadyForUpload() {
         boolean isReady = indexShard.isStartedPrimary() || isLocalOrSnapshotRecovery();
