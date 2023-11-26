@@ -25,6 +25,7 @@ import org.opensearch.common.blobstore.stream.write.WritePriority;
 import org.opensearch.common.io.InputStreamContainer;
 import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.repositories.s3.SocketAccess;
+import org.opensearch.repositories.s3.StatsMetricPublisher;
 import org.opensearch.repositories.s3.io.CheckedContainer;
 
 import java.io.BufferedInputStream;
@@ -55,6 +56,7 @@ public class AsyncPartsHandler {
      * @param completedParts Reference of completed parts
      * @param inputStreamContainers Checksum containers
      * @return list of completable futures
+     * @param statsMetricPublisher sdk metric publisher
      * @throws IOException thrown in case of an IO error
      */
     public static List<CompletableFuture<CompletedPart>> uploadParts(
@@ -66,7 +68,8 @@ public class AsyncPartsHandler {
         StreamContext streamContext,
         String uploadId,
         AtomicReferenceArray<CompletedPart> completedParts,
-        AtomicReferenceArray<CheckedContainer> inputStreamContainers
+        AtomicReferenceArray<CheckedContainer> inputStreamContainers,
+        StatsMetricPublisher statsMetricPublisher
     ) throws IOException {
         List<CompletableFuture<CompletedPart>> futures = new ArrayList<>();
         for (int partIdx = 0; partIdx < streamContext.getNumberOfParts(); partIdx++) {
@@ -77,6 +80,7 @@ public class AsyncPartsHandler {
                 .partNumber(partIdx + 1)
                 .key(uploadRequest.getKey())
                 .uploadId(uploadId)
+                .overrideConfiguration(o -> o.addMetricPublisher(statsMetricPublisher.multipartUploadMetricCollector))
                 .contentLength(inputStreamContainer.getContentLength());
             if (uploadRequest.doRemoteDataIntegrityCheck()) {
                 uploadPartRequestBuilder.checksumAlgorithm(ChecksumAlgorithm.CRC32);
