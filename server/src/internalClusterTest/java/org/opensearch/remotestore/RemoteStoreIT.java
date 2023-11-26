@@ -216,7 +216,7 @@ public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
 
     public void testStaleCommitDeletionWithMinSegmentFiles_3() throws Exception {
         Settings.Builder settings = Settings.builder()
-            .put(RecoverySettings.CLUSTER_REMOTE_INDEX_MIN_SEGMENT_METADATA_FILES_SETTING.getKey(), "3");
+            .put(RecoverySettings.CLUSTER_REMOTE_INDEX_SEGMENT_METADATA_RETENTION_MAX_COUNT_SETTING.getKey(), "3");
         internalCluster().startNode(settings);
 
         createIndex(INDEX_NAME, remoteStoreIndexSettings(1, 10000l, -1));
@@ -235,7 +235,7 @@ public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
 
     public void testStaleCommitDeletionWithMinSegmentFiles_0() throws Exception {
         Settings.Builder settings = Settings.builder()
-            .put(RecoverySettings.CLUSTER_REMOTE_INDEX_MIN_SEGMENT_METADATA_FILES_SETTING.getKey(), "0");
+            .put(RecoverySettings.CLUSTER_REMOTE_INDEX_SEGMENT_METADATA_RETENTION_MAX_COUNT_SETTING.getKey(), "0");
         internalCluster().startNode(settings);
 
         createIndex(INDEX_NAME, remoteStoreIndexSettings(1, 10000l, -1));
