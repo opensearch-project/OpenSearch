@@ -19,6 +19,7 @@ import org.opensearch.common.StreamContext;
 import org.opensearch.common.blobstore.stream.write.WriteContext;
 import org.opensearch.common.blobstore.stream.write.WritePriority;
 import org.opensearch.common.blobstore.transfer.stream.OffsetRangeInputStream;
+import org.opensearch.common.blobstore.transfer.stream.RateLimitingOffsetRangeInputStream;
 import org.opensearch.common.blobstore.transfer.stream.ResettableCheckedInputStream;
 import org.opensearch.common.io.InputStreamContainer;
 import org.opensearch.common.util.ByteUtils;
@@ -27,6 +28,7 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Objects;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.zip.CRC32;
 
 import com.jcraft.jzlib.JZlib;
@@ -51,6 +53,7 @@ public class RemoteTransferContainer implements Closeable {
     private final long expectedChecksum;
     private final OffsetRangeInputStreamSupplier offsetRangeInputStreamSupplier;
     private final boolean isRemoteDataIntegritySupported;
+    private final AtomicBoolean closed = new AtomicBoolean();
 
     private static final Logger log = LogManager.getLogger(RemoteTransferContainer.class);
 
@@ -160,6 +163,10 @@ public class RemoteTransferContainer implements Closeable {
         return () -> {
             try {
                 OffsetRangeInputStream offsetRangeInputStream = offsetRangeInputStreamSupplier.get(size, position);
+                if (offsetRangeInputStream instanceof RateLimitingOffsetRangeInputStream) {
+                    RateLimitingOffsetRangeInputStream rangeIndexInputStream = (RateLimitingOffsetRangeInputStream) offsetRangeInputStream;
+                    rangeIndexInputStream.setClose(closed);
+                }
                 InputStream inputStream = !isRemoteDataIntegrityCheckPossible()
                     ? new ResettableCheckedInputStream(offsetRangeInputStream, fileName)
                     : offsetRangeInputStream;
@@ -226,27 +233,7 @@ public class RemoteTransferContainer implements Closeable {
 
     @Override
     public void close() throws IOException {
-        if (inputStreams.get() == null) {
-            log.warn("Input streams cannot be closed since they are not yet set for multi stream upload");
-            return;
-        }
-
-        boolean closeStreamException = false;
-        for (InputStream is : Objects.requireNonNull(inputStreams.get())) {
-            try {
-                if (is != null) {
-                    is.close();
-                }
-            } catch (IOException ex) {
-                closeStreamException = true;
-                // Attempting to close all streams first before throwing exception.
-                log.error("Multipart stream failed to close ", ex);
-            }
-        }
-
-        if (closeStreamException) {
-            throw new IOException("Closure of some of the multi-part streams failed.");
-        }
+        closed.set(true);
     }
 
     /**
