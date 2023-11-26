@@ -25,10 +25,13 @@ import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.Version;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.annotation.PublicApi;
+import org.opensearch.common.cache.Cache;
+import org.opensearch.common.cache.CacheBuilder;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.io.VersionedCodecStreamWrapper;
 import org.opensearch.common.logging.Loggers;
 import org.opensearch.common.lucene.store.ByteArrayIndexInput;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.remote.RemoteStoreUtils;
@@ -91,6 +94,8 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
 
     private final ThreadPool threadPool;
 
+    private final Cache<String, Boolean> lockCache;
+
     /**
      * Keeps track of local segment filename to uploaded filename along with other attributes like checksum.
      * This map acts as a cache layer for uploaded segment filenames which helps avoid calling listAll() each time.
@@ -130,6 +135,7 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
         this.remoteMetadataDirectory = remoteMetadataDirectory;
         this.mdLockManager = mdLockManager;
         this.threadPool = threadPool;
+        this.lockCache = CacheBuilder.<String, Boolean>builder().setExpireAfterWrite(TimeValue.timeValueDays(1)).build();
         this.logger = Loggers.getLogger(getClass(), shardId);
         init();
     }
@@ -518,7 +524,14 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
 
     // Visible for testing
     Boolean isLockAcquired(String metadataFile) throws IOException {
-        return mdLockManager.isAcquired(FileLockInfo.getLockInfoBuilder().withFileToLock(metadataFile).build());
+        if (lockCache.get(metadataFile) != null) {
+            return true;
+        }
+        boolean lockAcquired = mdLockManager.isAcquired(FileLockInfo.getLockInfoBuilder().withFileToLock(metadataFile).build());
+        if (lockAcquired) {
+            lockCache.put(metadataFile, true);
+        }
+        return lockAcquired;
     }
 
     // Visible for testing
