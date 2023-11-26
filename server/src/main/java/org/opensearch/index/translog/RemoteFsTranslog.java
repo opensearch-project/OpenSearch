@@ -333,7 +333,6 @@ public class RemoteFsTranslog extends Translog {
             return true;
         }
         logger.trace("uploading translog for {} {}", primaryTerm, generation);
-        induceDelayForTest();
         try (
             TranslogCheckpointTransferSnapshot transferSnapshotProvider = new TranslogCheckpointTransferSnapshot.Builder(
                 primaryTerm,
@@ -351,11 +350,6 @@ public class RemoteFsTranslog extends Translog {
         } finally {
             syncPermit.release(SYNC_PERMIT);
         }
-
-    }
-
-    // Made available for testing only
-    void induceDelayForTest() {
 
     }
 

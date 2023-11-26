@@ -912,14 +912,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         } catch (Exception ex) {
             logger.warn("exception occurred during relocation hand-off to complete errorMsg={}", ex.getMessage());
             assert replicationTracker.isPrimaryMode();
-            throw ex;
-        } finally {
             // If the primary mode is still true after the end of handoff attempt, it basically means that the relocation
             // failed. The existing primary will continue to be the primary, so we need to allow the segments and translog
             // upload to resume.
-            if (replicationTracker.isPrimaryMode()) {
-                Releasables.close(releasablesOnHandoffFailures);
-            }
+            Releasables.close(releasablesOnHandoffFailures);
+            throw ex;
         }
     }
 
