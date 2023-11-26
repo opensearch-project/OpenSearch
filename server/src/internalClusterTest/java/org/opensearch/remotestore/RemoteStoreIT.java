@@ -8,6 +8,7 @@
 
 package org.opensearch.remotestore;
 
+import org.opensearch.OpenSearchException;
 import org.opensearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.opensearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.opensearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
@@ -16,6 +17,7 @@ import org.opensearch.action.admin.indices.flush.FlushRequest;
 import org.opensearch.action.admin.indices.recovery.RecoveryResponse;
 import org.opensearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.opensearch.action.index.IndexResponse;
+import org.opensearch.action.search.SearchPhaseExecutionException;
 import org.opensearch.cluster.health.ClusterHealthStatus;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.routing.RecoverySource;
@@ -612,5 +614,62 @@ public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
             .execute()
             .actionGet();
         assertFalse(clusterHealthResponse.isTimedOut());
+    }
+
+    public void testResumeUploadAfterFailedPrimaryRelocation() throws ExecutionException, InterruptedException {
+        // In this test, we fail the hand off during the primary relocation. This will undo the drainRefreshes and
+        // drainSync performed as part of relocation handoff (before performing the handoff transport action).
+        // We validate the same here by failing the peer recovery and ensuring we can index afterward as well.
+
+        internalCluster().startClusterManagerOnlyNode();
+        String oldPrimary = internalCluster().startDataOnlyNodes(1).get(0);
+        createIndex(INDEX_NAME, remoteStoreIndexSettings(0));
+        ensureGreen(INDEX_NAME);
+        int docs = randomIntBetween(5, 10);
+        indexBulk(INDEX_NAME, docs);
+        flushAndRefresh(INDEX_NAME);
+        assertHitCount(client(oldPrimary).prepareSearch(INDEX_NAME).setSize(0).setPreference("_only_local").get(), docs);
+        String newPrimary = internalCluster().startDataOnlyNodes(1).get(0);
+        ensureStableCluster(3);
+
+        IndexShard oldPrimaryIndexShard = getIndexShard(oldPrimary, INDEX_NAME);
+        CountDownLatch handOffLatch = new CountDownLatch(1);
+
+        MockTransportService mockTargetTransportService = ((MockTransportService) internalCluster().getInstance(
+            TransportService.class,
+            oldPrimary
+        ));
+        mockTargetTransportService.addSendBehavior((connection, requestId, action, request, options) -> {
+            if (PeerRecoveryTargetService.Actions.HANDOFF_PRIMARY_CONTEXT.equals(action)) {
+                handOffLatch.countDown();
+                throw new OpenSearchException("failing recovery for test purposes");
+            }
+            connection.sendRequest(requestId, action, request, options);
+        });
+
+        logger.info("--> relocate the shard");
+        client().admin()
+            .cluster()
+            .prepareReroute()
+            .add(new MoveAllocationCommand(INDEX_NAME, 0, oldPrimary, newPrimary))
+            .execute()
+            .actionGet();
+
+        handOffLatch.await(30, TimeUnit.SECONDS);
+
+        assertTrue(oldPrimaryIndexShard.isStartedPrimary());
+        assertEquals(oldPrimary, primaryNodeName(INDEX_NAME));
+        assertHitCount(client(oldPrimary).prepareSearch(INDEX_NAME).setSize(0).setPreference("_only_local").get(), docs);
+
+        SearchPhaseExecutionException ex = assertThrows(
+            SearchPhaseExecutionException.class,
+            () -> client(newPrimary).prepareSearch(INDEX_NAME).setSize(0).setPreference("_only_local").get()
+        );
+        assertEquals("all shards failed", ex.getMessage());
+
+        int moreDocs = randomIntBetween(5, 10);
+        indexBulk(INDEX_NAME, moreDocs);
+        flushAndRefresh(INDEX_NAME);
+        assertHitCount(client(oldPrimary).prepareSearch(INDEX_NAME).setSize(0).setPreference("_only_local").get(), docs + moreDocs);
     }
 }
