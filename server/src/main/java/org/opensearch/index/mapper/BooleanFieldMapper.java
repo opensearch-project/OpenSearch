@@ -193,7 +193,7 @@ public class BooleanFieldMapper extends ParametrizedFieldMapper {
                         return (Boolean) value;
                     } else {
                         String textValue = value.toString();
-                        return Booleans.parseBoolean(textValue.toCharArray(), 0, textValue.length(), false);
+                        return Booleans.parseBooleanStrict(textValue, false);
                     }
                 }
             };
