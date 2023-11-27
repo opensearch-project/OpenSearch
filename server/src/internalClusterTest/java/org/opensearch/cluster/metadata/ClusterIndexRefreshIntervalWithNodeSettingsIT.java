@@ -13,6 +13,7 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.indices.IndicesService;
 
 import java.util.Locale;
+import java.util.concurrent.ExecutionException;
 
 public class ClusterIndexRefreshIntervalWithNodeSettingsIT extends ClusterIndexRefreshIntervalIT {
 
@@ -28,7 +29,7 @@ public class ClusterIndexRefreshIntervalWithNodeSettingsIT extends ClusterIndexR
             .build();
     }
 
-    public void testIndexTemplateCreationFailsWithLessThanMinimumRefreshInterval() {
+    public void testIndexTemplateCreationFailsWithLessThanMinimumRefreshInterval() throws ExecutionException, InterruptedException {
         Throwable throwable = assertThrows(IllegalArgumentException.class, () -> putIndexTemplate("0s"));
         assertEquals(
             throwable.getMessage(),
@@ -39,6 +40,7 @@ public class ClusterIndexRefreshIntervalWithNodeSettingsIT extends ClusterIndexR
                 getMinRefreshIntervalForRefreshDisabled()
             )
         );
+        super.testIndexTemplateCreationWithLessThanMinimumRefreshInterval();
     }
 
     @Override
