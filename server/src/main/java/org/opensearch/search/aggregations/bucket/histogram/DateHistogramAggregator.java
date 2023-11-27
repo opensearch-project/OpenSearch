@@ -121,7 +121,7 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
 
         // Create the filters for fast aggregation only if the query is instance
         // of point range query and there aren't any parent/sub aggregations
-        if (parent() == null && subAggregators.length == 0) {
+        if (parent() == null && subAggregators.length == 0 && valuesSourceConfig.missing() == null && valuesSourceConfig.script() == null) {
             final FieldContext fieldContext = valuesSourceConfig.fieldContext();
             if (fieldContext != null) {
                 final String fieldName = fieldContext.field();
@@ -129,6 +129,13 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
                 if (bounds != null) {
                     assert fieldContext.fieldType() instanceof DateFieldMapper.DateFieldType;
                     fieldType = (DateFieldMapper.DateFieldType) fieldContext.fieldType();
+
+                    // Update min/max limit if user specified any hard bounds
+                    if (hardBounds != null) {
+                        bounds[0] = Math.max(bounds[0], hardBounds.getMin());
+                        bounds[1] = Math.min(bounds[1], hardBounds.getMax());
+                    }
+
                     filters = FilterRewriteHelper.createFilterForAggregations(
                         context,
                         rounding,

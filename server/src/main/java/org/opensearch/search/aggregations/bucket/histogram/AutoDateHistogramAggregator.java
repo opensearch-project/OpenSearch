@@ -162,7 +162,7 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
 
         // Create the filters for fast aggregation only if the query is instance
         // of point range query and there aren't any parent/sub aggregations
-        if (parent() == null && subAggregators.length == 0) {
+        if (parent() == null && subAggregators.length == 0 && valuesSourceConfig.missing() == null && valuesSourceConfig.script() == null) {
             final FieldContext fieldContext = valuesSourceConfig.fieldContext();
             if (fieldContext != null) {
                 final String fieldName = fieldContext.field();
