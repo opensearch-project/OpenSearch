@@ -347,6 +347,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     private final List<ReferenceManager.RefreshListener> internalRefreshListener = new ArrayList<>();
     private final RemoteStoreFileDownloader fileDownloader;
+    private final RecoverySettings recoverySettings;
 
     public IndexShard(
         final ShardRouting shardRouting,
@@ -471,6 +472,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             ? false
             : mapperService.documentMapper().mappers().containsTimeStampField();
         this.remoteStoreStatsTrackerFactory = remoteStoreStatsTrackerFactory;
+        this.recoverySettings = recoverySettings;
         this.fileDownloader = new RemoteStoreFileDownloader(shardRouting.shardId(), threadPool, recoverySettings);
     }
 
@@ -567,6 +569,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     public String getNodeId() {
         return translogConfig.getNodeId();
+    }
+
+    public RecoverySettings getRecoverySettings() {
+        return recoverySettings;
     }
 
     public RemoteStoreFileDownloader getFileDownloader() {
