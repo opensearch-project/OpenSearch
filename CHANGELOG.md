@@ -55,6 +55,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bumps jetty version to 9.4.52.v20230823 to fix GMS-2023-1857 ([#9822](https://github.com/opensearch-project/OpenSearch/pull/9822))
 - Bump `org.eclipse.jgit` from 6.5.0 to 6.7.0 ([#10147](https://github.com/opensearch-project/OpenSearch/pull/10147))
 - Bump OpenTelemetry from 1.30.1 to 1.31.0 ([#10617](https://github.com/opensearch-project/OpenSearch/pull/10617))
+- Bump OpenTelemetry from 1.31.0 to 1.32.0 and OpenTelemetry Semconv from 1.21.0-alpha to 1.23.1-alpha ([#11305](https://github.com/opensearch-project/OpenSearch/pull/11305))
 
 ### Changed
 - [CCR] Add getHistoryOperationsFromTranslog method to fetch the history snapshot from translogs ([#3948](https://github.com/opensearch-project/OpenSearch/pull/3948))
@@ -127,6 +128,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `actions/github-script` from 6 to 7 ([#11271](https://github.com/opensearch-project/OpenSearch/pull/11271))
 - Bump `jackson` and `jackson_databind` from 2.15.2 to 2.16.0 ([#11273](https://github.com/opensearch-project/OpenSearch/pull/11273))
 - Bump `netty` from 4.1.100.Final to 4.1.101.Final ([#11294](https://github.com/opensearch-project/OpenSearch/pull/11294))
+- Bump `com.avast.gradle:gradle-docker-compose-plugin` from 0.16.12 to 0.17.5 ([#10163](https://github.com/opensearch-project/OpenSearch/pull/10163))
+- Bump `com.squareup.okhttp3:okhttp` from 4.11.0 to 4.12.0 ([#10861](https://github.com/opensearch-project/OpenSearch/pull/10861))
 
 ### Changed
 - Mute the query profile IT with concurrent execution ([#9840](https://github.com/opensearch-project/OpenSearch/pull/9840))
@@ -158,6 +161,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Fix SuggestSearch.testSkipDuplicates by forceing refresh when indexing its test documents ([#11068](https://github.com/opensearch-project/OpenSearch/pull/11068))
 - Delegating CachingWeightWrapper#count to internal weight object ([#10543](https://github.com/opensearch-project/OpenSearch/pull/10543))
 - Fix per request latency last phase not tracked ([#10934](https://github.com/opensearch-project/OpenSearch/pull/10934))
+- Fix for stuck update action in a bulk with `retry_on_conflict` property ([#11152](https://github.com/opensearch-project/OpenSearch/issues/11152))
 
 ### Security
 

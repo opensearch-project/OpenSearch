@@ -57,7 +57,7 @@ import java.util.concurrent.TimeUnit;
  *
  * @opensearch.internal
  */
-public final class SearchRequestSlowLog implements SearchRequestOperationsListener {
+public final class SearchRequestSlowLog extends SearchRequestOperationsListener {
     private static final Charset UTF_8 = StandardCharsets.UTF_8;
 
     private long warnThreshold;
@@ -134,19 +134,19 @@ public final class SearchRequestSlowLog implements SearchRequestOperationsListen
     }
 
     @Override
-    public void onPhaseStart(SearchPhaseContext context) {}
+    void onPhaseStart(SearchPhaseContext context) {}
 
     @Override
-    public void onPhaseEnd(SearchPhaseContext context, SearchRequestContext searchRequestContext) {}
+    void onPhaseEnd(SearchPhaseContext context, SearchRequestContext searchRequestContext) {}
 
     @Override
-    public void onPhaseFailure(SearchPhaseContext context) {}
+    void onPhaseFailure(SearchPhaseContext context) {}
 
     @Override
-    public void onRequestStart(SearchRequestContext searchRequestContext) {}
+    void onRequestStart(SearchRequestContext searchRequestContext) {}
 
     @Override
-    public void onRequestEnd(SearchPhaseContext context, SearchRequestContext searchRequestContext) {
+    void onRequestEnd(SearchPhaseContext context, SearchRequestContext searchRequestContext) {
         long tookInNanos = System.nanoTime() - searchRequestContext.getAbsoluteStartNanos();
 
         if (warnThreshold >= 0 && tookInNanos > warnThreshold && level.isLevelEnabledFor(SlowLogLevel.WARN)) {
