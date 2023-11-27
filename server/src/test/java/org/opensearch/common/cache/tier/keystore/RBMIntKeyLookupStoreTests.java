@@ -82,9 +82,13 @@ public class RBMIntKeyLookupStoreTests extends OpenSearchTestCase {
 
     public void testContains() throws Exception {
         RBMIntKeyLookupStore kls = new RBMIntKeyLookupStore(RBMIntKeyLookupStore.KeystoreModuloValue.TWO_TO_TWENTY_NINE, 0L);
-        for (int i = 0; i < 2000; i++) {
+        RBMIntKeyLookupStore noModuloKls = new RBMIntKeyLookupStore(RBMIntKeyLookupStore.KeystoreModuloValue.NONE, 0L);
+        for (int i = 0; i < kls.REFRESH_SIZE_EST_INTERVAL + 1000; i++) {
+            // set upper bound > number of elements to trigger a size check, ensuring we test that too
             kls.add(i);
             assertTrue(kls.contains(i));
+            noModuloKls.add(i);
+            assertTrue(noModuloKls.contains(i));
         }
     }
 
