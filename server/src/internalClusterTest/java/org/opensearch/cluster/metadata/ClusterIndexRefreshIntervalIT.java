@@ -42,6 +42,7 @@ import org.opensearch.core.index.Index;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.indices.IndicesService;
+import org.opensearch.snapshots.AbstractSnapshotIntegTestCase;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.junit.Before;
 
@@ -54,7 +55,7 @@ import static org.opensearch.indices.IndicesService.CLUSTER_DEFAULT_INDEX_REFRES
 import static org.opensearch.indices.IndicesService.CLUSTER_MINIMUM_INDEX_REFRESH_INTERVAL_SETTING;
 
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 2)
-public class ClusterIndexRefreshIntervalIT extends OpenSearchIntegTestCase {
+public class ClusterIndexRefreshIntervalIT extends AbstractSnapshotIntegTestCase {
 
     public static final String INDEX_NAME = "test-index";
 
