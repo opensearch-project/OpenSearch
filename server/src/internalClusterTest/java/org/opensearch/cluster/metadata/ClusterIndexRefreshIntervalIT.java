@@ -35,6 +35,7 @@ package org.opensearch.cluster.metadata;
 import org.opensearch.action.admin.indices.get.GetIndexRequest;
 import org.opensearch.action.admin.indices.get.GetIndexResponse;
 import org.opensearch.action.admin.indices.settings.put.UpdateSettingsRequest;
+import org.opensearch.action.admin.indices.template.put.PutIndexTemplateRequest;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.index.Index;
@@ -44,6 +45,7 @@ import org.opensearch.indices.IndicesService;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.junit.Before;
 
+import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
 
@@ -69,6 +71,23 @@ public class ClusterIndexRefreshIntervalIT extends OpenSearchIntegTestCase {
         internalCluster().startClusterManagerOnlyNode();
     }
 
+    static void putIndexTemplate(String refreshInterval) {
+        PutIndexTemplateRequest request = new PutIndexTemplateRequest("my-template"); // <1>
+        request.patterns(Arrays.asList("pattern-1", "log-*")); // <2>
+
+        request.settings(
+            Settings.builder() // <1>
+                .put("index.number_of_shards", 3)
+                .put("index.number_of_replicas", 1)
+                .put("index.refresh_interval", refreshInterval)
+        );
+        assertTrue(client().admin().indices().putTemplate(request).actionGet().isAcknowledged());
+    }
+
+    public void testIndexTemplateCreationWithLessThanMinimumRefreshInterval() throws Exception {
+        putIndexTemplate("1s");
+    }
+
     public void testDefaultRefreshIntervalWithUpdateClusterAndIndexSettings() throws Exception {
         String clusterManagerName = internalCluster().getClusterManagerName();
         List<String> dataNodes = internalCluster().startDataOnlyNodes(2);
@@ -90,7 +109,7 @@ public class ClusterIndexRefreshIntervalIT extends OpenSearchIntegTestCase {
             .get();
         assertEquals(refreshInterval, indexService.getRefreshTaskInterval());
 
-        // Update of cluster.minimum.index.refresh_interval setting to value less than refreshInterval above will fail
+        // Update of cluster.minimum.index.refresh_interval setting to value more than default refreshInterval above will fail
         TimeValue invalidMinimumRefreshInterval = TimeValue.timeValueMillis(refreshInterval.millis() + randomIntBetween(1, 1000));
         IllegalArgumentException exceptionDuringMinUpdate = assertThrows(
             IllegalArgumentException.class,

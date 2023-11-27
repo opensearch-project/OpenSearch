@@ -12,6 +12,8 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.indices.IndicesService;
 
+import java.util.Locale;
+
 public class ClusterIndexRefreshIntervalWithNodeSettingsIT extends ClusterIndexRefreshIntervalIT {
 
     @Override
@@ -24,6 +26,19 @@ public class ClusterIndexRefreshIntervalWithNodeSettingsIT extends ClusterIndexR
                 getMinRefreshIntervalForRefreshDisabled().toString()
             )
             .build();
+    }
+
+    public void testIndexTemplateCreationFailsWithLessThanMinimumRefreshInterval() {
+        Throwable throwable = assertThrows(IllegalArgumentException.class, () -> putIndexTemplate("0s"));
+        assertEquals(
+            throwable.getMessage(),
+            String.format(
+                Locale.ROOT,
+                "invalid index.refresh_interval [%s]: cannot be smaller than cluster.minimum.index.refresh_interval [%s]",
+                "0s",
+                getMinRefreshIntervalForRefreshDisabled()
+            )
+        );
     }
 
     @Override
