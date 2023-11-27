@@ -96,4 +96,49 @@ public class RecoverySettingsDynamicUpdateTests extends OpenSearchTestCase {
         );
         assertEquals(new TimeValue(duration, timeUnit), recoverySettings.internalActionLongTimeout());
     }
+
+    public void testSegmentMetadataRetention() {
+        // Default value
+        assertEquals(10, recoverySettings.getMinRemoteSegmentMetadataFiles());
+
+        // Setting value < default (10)
+        clusterSettings.applySettings(
+            Settings.builder().put(RecoverySettings.CLUSTER_REMOTE_INDEX_SEGMENT_METADATA_RETENTION_MAX_COUNT_SETTING.getKey(), 5).build()
+        );
+        assertEquals(5, recoverySettings.getMinRemoteSegmentMetadataFiles());
+
+        // Setting min value
+        clusterSettings.applySettings(
+            Settings.builder().put(RecoverySettings.CLUSTER_REMOTE_INDEX_SEGMENT_METADATA_RETENTION_MAX_COUNT_SETTING.getKey(), -1).build()
+        );
+        assertEquals(-1, recoverySettings.getMinRemoteSegmentMetadataFiles());
+
+        // Setting value > default (10)
+        clusterSettings.applySettings(
+            Settings.builder().put(RecoverySettings.CLUSTER_REMOTE_INDEX_SEGMENT_METADATA_RETENTION_MAX_COUNT_SETTING.getKey(), 15).build()
+        );
+        assertEquals(15, recoverySettings.getMinRemoteSegmentMetadataFiles());
+
+        // Setting value to 0 should fail and retain the existing value
+        assertThrows(
+            IllegalArgumentException.class,
+            () -> clusterSettings.applySettings(
+                Settings.builder()
+                    .put(RecoverySettings.CLUSTER_REMOTE_INDEX_SEGMENT_METADATA_RETENTION_MAX_COUNT_SETTING.getKey(), 0)
+                    .build()
+            )
+        );
+        assertEquals(15, recoverySettings.getMinRemoteSegmentMetadataFiles());
+
+        // Setting value < -1 should fail and retain the existing value
+        assertThrows(
+            IllegalArgumentException.class,
+            () -> clusterSettings.applySettings(
+                Settings.builder()
+                    .put(RecoverySettings.CLUSTER_REMOTE_INDEX_SEGMENT_METADATA_RETENTION_MAX_COUNT_SETTING.getKey(), -5)
+                    .build()
+            )
+        );
+        assertEquals(15, recoverySettings.getMinRemoteSegmentMetadataFiles());
+    }
 }
