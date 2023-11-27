@@ -462,7 +462,7 @@ public class RemoteFsTranslog extends Translog {
 
         // This is to ensure that after the permits are acquired during primary relocation, there are no further modification on remote
         // store.
-        if (pauseSync.get()) {
+        if (startedPrimarySupplier.getAsBoolean() == false || pauseSync.get()) {
             return;
         }
 
