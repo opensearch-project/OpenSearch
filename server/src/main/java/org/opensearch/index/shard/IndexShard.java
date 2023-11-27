@@ -910,7 +910,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             failShard("timed out waiting for relocation hand-off to complete", null);
             throw new IndexShardClosedException(shardId(), "timed out waiting for relocation hand-off to complete");
         } catch (Exception ex) {
-            logger.warn("exception occurred during relocation hand-off to complete errorMsg={}", ex.getMessage());
             assert replicationTracker.isPrimaryMode();
             // If the primary mode is still true after the end of handoff attempt, it basically means that the relocation
             // failed. The existing primary will continue to be the primary, so we need to allow the segments and translog

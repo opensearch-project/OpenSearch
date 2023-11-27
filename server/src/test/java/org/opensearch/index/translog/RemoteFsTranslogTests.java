@@ -879,21 +879,21 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
             ops,
             new Translog.Index(String.valueOf(2), 2, primaryTerm.get(), new byte[] { 1 })
         );
-        assertEquals(2, translog.readers.size());
+        assertEquals(1, translog.readers.size());
         assertEquals(6, translog.allUploaded().size());
         assertEquals(mdFiles, blobStoreTransferService.listAll(getTranslogDirectory().add(METADATA_DIR)));
 
         // Refill the permits back
         Releasables.close(releasable);
         addToTranslogAndListAndUpload(translog, ops, new Translog.Index(String.valueOf(3), 3, primaryTerm.get(), new byte[] { 1 }));
-        assertEquals(3, translog.readers.size());
-        assertEquals(10, translog.allUploaded().size());
+        assertEquals(2, translog.readers.size());
+        assertEquals(8, translog.allUploaded().size());
         assertEquals(3, blobStoreTransferService.listAll(getTranslogDirectory().add(METADATA_DIR)).size());
 
         translog.setMinSeqNoToKeep(3);
         translog.trimUnreferencedReaders();
         assertEquals(1, translog.readers.size());
-        assertBusy(() -> assertEquals(6, translog.allUploaded().size()));
+        assertBusy(() -> assertEquals(4, translog.allUploaded().size()));
         assertBusy(() -> assertEquals(1, blobStoreTransferService.listAll(getTranslogDirectory().add(METADATA_DIR)).size()));
     }
 
