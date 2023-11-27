@@ -113,7 +113,7 @@ public class RecoverySettingsDynamicUpdateTests extends OpenSearchTestCase {
         );
         assertEquals(-1, recoverySettings.getMinRemoteSegmentMetadataFiles());
 
-        // Setting value > default (10) and value < max (100)
+        // Setting value > default (10)
         clusterSettings.applySettings(
             Settings.builder().put(RecoverySettings.CLUSTER_REMOTE_INDEX_SEGMENT_METADATA_RETENTION_MAX_COUNT_SETTING.getKey(), 15).build()
         );
@@ -136,17 +136,6 @@ public class RecoverySettingsDynamicUpdateTests extends OpenSearchTestCase {
             () -> clusterSettings.applySettings(
                 Settings.builder()
                     .put(RecoverySettings.CLUSTER_REMOTE_INDEX_SEGMENT_METADATA_RETENTION_MAX_COUNT_SETTING.getKey(), -5)
-                    .build()
-            )
-        );
-        assertEquals(15, recoverySettings.getMinRemoteSegmentMetadataFiles());
-
-        // Setting value > 100 should fail and retain the existing value
-        assertThrows(
-            IllegalArgumentException.class,
-            () -> clusterSettings.applySettings(
-                Settings.builder()
-                    .put(RecoverySettings.CLUSTER_REMOTE_INDEX_SEGMENT_METADATA_RETENTION_MAX_COUNT_SETTING.getKey(), 105)
                     .build()
             )
         );

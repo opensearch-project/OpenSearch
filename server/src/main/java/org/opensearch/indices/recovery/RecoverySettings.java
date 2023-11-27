@@ -165,7 +165,6 @@ public class RecoverySettings {
         "cluster.remote_store.index.segment_metadata.retention.max_count",
         10,
         -1,
-        100,
         v -> {
             if (v == 0) {
                 throw new IllegalArgumentException(
