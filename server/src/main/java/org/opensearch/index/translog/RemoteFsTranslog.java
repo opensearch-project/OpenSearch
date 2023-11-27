@@ -275,6 +275,16 @@ public class RemoteFsTranslog extends Translog {
     }
 
     private boolean prepareAndUpload(Long primaryTerm, Long generation) throws IOException {
+        // During primary relocation, both the old and new primary have engine created with RemoteFsTranslog and having
+        // ReplicationTracker.primaryMode() as true. However, before we perform the `internal:index/shard/replication/segments_sync`
+        // action which re-downloads the segments and translog on the new primary. We are ensuring 2 things here -
+        // 1. Using startedPrimarySupplier, we prevent the new primary to do pre-emptive syncs
+        // 2. Using syncPermits, we prevent syncs at the desired time during primary relocation.
+        if (startedPrimarySupplier.getAsBoolean() == false || syncPermit.tryAcquire(SYNC_PERMIT) == false) {
+            logger.debug("skipped uploading translog for {} {} syncPermits={}", primaryTerm, generation, syncPermit.availablePermits());
+            // NO-OP
+            return false;
+        }
         long maxSeqNo = -1;
         try (Releasable ignored = writeLock.acquire()) {
             if (generation == null || generation == current.getGeneration()) {
@@ -324,16 +334,6 @@ public class RemoteFsTranslog extends Translog {
     }
 
     private boolean upload(long primaryTerm, long generation, long maxSeqNo) throws IOException {
-        // During primary relocation, both the old and new primary have engine created with RemoteFsTranslog and having
-        // ReplicationTracker.primaryMode() as true. However, before we perform the `internal:index/shard/replication/segments_sync`
-        // action which re-downloads the segments and translog on the new primary. We are ensuring 2 things here -
-        // 1. Using startedPrimarySupplier, we prevent the new primary to do pre-emptive syncs
-        // 2. Using syncPermits, we prevent syncs at the desired time during primary relocation.
-        if (startedPrimarySupplier.getAsBoolean() == false || syncPermit.tryAcquire(SYNC_PERMIT) == false) {
-            logger.debug("skipped uploading translog for {} {} syncPermits={}", primaryTerm, generation, syncPermit.availablePermits());
-            // NO-OP
-            return true;
-        }
         logger.trace("uploading translog for {} {}", primaryTerm, generation);
         try (
             TranslogCheckpointTransferSnapshot transferSnapshotProvider = new TranslogCheckpointTransferSnapshot.Builder(
