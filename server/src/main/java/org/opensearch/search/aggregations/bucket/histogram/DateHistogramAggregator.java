@@ -133,7 +133,7 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
                     // Update min/max limit if user specified any hard bounds
                     if (hardBounds != null) {
                         bounds[0] = Math.max(bounds[0], hardBounds.getMin());
-                        bounds[1] = Math.min(bounds[1], hardBounds.getMax());
+                        bounds[1] = Math.min(bounds[1], hardBounds.getMax() - 1); // hard bounds max is exclusive
                     }
 
                     filters = FilterRewriteHelper.createFilterForAggregations(
@@ -286,18 +286,20 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
         }
 
         for (i = 0; i < filters.length; i++) {
-            long bucketOrd = bucketOrds.add(
-                owningBucketOrd,
-                preparedRounding.round(
-                    fieldType.convertNanosToMillis(
-                        NumericUtils.sortableBytesToLong(((PointRangeQuery) filters[i].getQuery()).getLowerPoint(), 0)
+            if (counts[i] > 0) {
+                long bucketOrd = bucketOrds.add(
+                    owningBucketOrd,
+                    preparedRounding.round(
+                        fieldType.convertNanosToMillis(
+                            NumericUtils.sortableBytesToLong(((PointRangeQuery) filters[i].getQuery()).getLowerPoint(), 0)
+                        )
                     )
-                )
-            );
-            if (bucketOrd < 0) { // already seen
-                bucketOrd = -1 - bucketOrd;
+                );
+                if (bucketOrd < 0) { // already seen
+                    bucketOrd = -1 - bucketOrd;
+                }
+                incrementBucketDocCount(bucketOrd, counts[i]);
             }
-            incrementBucketDocCount(bucketOrd, counts[i]);
         }
         throw new CollectionTerminatedException();
     }
