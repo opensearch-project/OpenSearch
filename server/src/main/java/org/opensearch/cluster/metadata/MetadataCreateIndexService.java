@@ -1497,25 +1497,11 @@ public class MetadataCreateIndexService {
      * @param clusterSettings cluster setting
      */
     public static void validateRefreshIntervalSettings(Settings requestSettings, ClusterSettings clusterSettings) {
-        validateRefreshIntervalSettings(requestSettings, clusterSettings, Settings.EMPTY);
-    }
-
-    /**
-     * Validates {@code index.refresh_interval} is equal or below the {@code cluster.minimum.index.refresh_interval}.
-     *
-     * @param requestSettings settings passed in during index create/update request
-     * @param clusterSettings cluster setting
-     * @param settings general settings to be checked for cluster minimum refresh interval. Useful while restoring ClusterState
-     */
-    public static void validateRefreshIntervalSettings(Settings requestSettings, ClusterSettings clusterSettings, Settings settings) {
         if (IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.exists(requestSettings) == false) {
             return;
         }
         TimeValue requestRefreshInterval = IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.get(requestSettings);
-        TimeValue clusterMinimumRefreshInterval = settings.getAsTime(
-            IndicesService.CLUSTER_MINIMUM_INDEX_REFRESH_INTERVAL_SETTING.getKey(),
-            clusterSettings.get(IndicesService.CLUSTER_MINIMUM_INDEX_REFRESH_INTERVAL_SETTING)
-        );
+        TimeValue clusterMinimumRefreshInterval = clusterSettings.get(IndicesService.CLUSTER_MINIMUM_INDEX_REFRESH_INTERVAL_SETTING);
         if (requestRefreshInterval.millis() < clusterMinimumRefreshInterval.millis()) {
             throw new IllegalArgumentException(
                 "invalid index.refresh_interval ["

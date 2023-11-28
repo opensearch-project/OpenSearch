@@ -582,7 +582,7 @@ public class RestoreService implements ClusterStateApplier {
                             if (metadata.templates() != null) {
                                 // TODO: Should all existing templates be deleted first?
                                 for (final IndexTemplateMetadata cursor : metadata.templates().values()) {
-                                    MetadataCreateIndexService.validateRefreshIntervalSettings(cursor.settings(), clusterSettings, metadata.persistentSettings());
+                                    MetadataCreateIndexService.validateRefreshIntervalSettings(cursor.settings(), clusterSettings);
                                     mdBuilder.put(cursor);
                                 }
                             }
