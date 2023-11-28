@@ -82,9 +82,16 @@ shadowJar {
   }
 }
 
-tasks.validateNebulaPom.dependsOn tasks.generatePomFileForShadowPublication
+// Allowing the task generatePomFileForNebulaPublication to generate the POM file with added compile dependencies.
+gradle.taskGraph.whenReady {
+    taskGraph ->
+        if (taskGraph.hasTask(generatePomFileForShadowPublication)) {
+            generatePomFileForShadowPublication.enabled = false
+        }
+}
+
 tasks.validateShadowPom.dependsOn tasks.generatePomFileForNebulaPublication
-tasks.withType(AbstractPublishToMaven)*.dependsOn "generatePomFileForShadowPublication", "generatePomFileForNebulaPublication"
+tasks.withType(AbstractPublishToMaven)*.dependsOn  "generatePomFileForNebulaPublication"
 
 tasks.named("dependencyLicenses").configure {
   mapping from: /asm-.*/, to: 'asm'
