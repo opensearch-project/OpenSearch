@@ -127,7 +127,7 @@ public class NRTReplicationEngine extends Engine implements LifecycleAware {
                 },
                 this,
                 engineConfig.getTranslogFactory(),
-                engineConfig.getPrimaryModeSupplier()
+                engineConfig.getStartedPrimarySupplier()
             );
             this.translogManager = translogManagerRef;
             success = true;
