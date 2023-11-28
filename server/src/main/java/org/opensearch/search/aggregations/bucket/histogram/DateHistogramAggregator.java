@@ -33,12 +33,9 @@ package org.opensearch.search.aggregations.bucket.histogram;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedNumericDocValues;
-import org.apache.lucene.search.CollectionTerminatedException;
-import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.CollectionUtil;
-import org.apache.lucene.util.NumericUtils;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.Rounding;
 import org.opensearch.common.lease.Releasables;
@@ -84,9 +81,9 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
     private final long minDocCount;
     private final LongBounds extendedBounds;
     private final LongBounds hardBounds;
-    private Weight[] filters = null;
+    private final Weight[] filters;
     private final LongKeyedBucketOrds bucketOrds;
-    private DateFieldMapper.DateFieldType fieldType;
+    private final DateFieldMapper.DateFieldType fieldType;
 
     DateHistogramAggregator(
         String name,
@@ -119,35 +116,34 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
 
         bucketOrds = LongKeyedBucketOrds.build(context.bigArrays(), cardinality);
 
-        // Create the filters for fast aggregation only if the query is instance
-        // of point range query and there aren't any parent/sub aggregations
-        if (parent() == null && subAggregators.length == 0 && valuesSourceConfig.missing() == null && valuesSourceConfig.script() == null) {
-            final FieldContext fieldContext = valuesSourceConfig.fieldContext();
-            if (fieldContext != null) {
-                final String fieldName = fieldContext.field();
-                final long[] bounds = FilterRewriteHelper.getAggregationBounds(context, fieldName);
-                if (bounds != null) {
-                    assert fieldContext.fieldType() instanceof DateFieldMapper.DateFieldType;
-                    fieldType = (DateFieldMapper.DateFieldType) fieldContext.fieldType();
+        FilterRewriteHelper.FilterContext filterContext = FilterRewriteHelper.buildFastFilterContext(
+            parent,
+            subAggregators.length,
+            context,
+            x -> rounding,
+            () -> preparedRounding,
+            valuesSourceConfig,
+            this::computeBounds
+        );
+        if (filterContext != null) {
+            fieldType = filterContext.fieldType;
+            filters = filterContext.filters;
+        } else {
+            filters = null;
+            fieldType = null;
+        }
+    }
 
-                    // Update min/max limit if user specified any hard bounds
-                    if (hardBounds != null) {
-                        bounds[0] = Math.max(bounds[0], hardBounds.getMin());
-                        bounds[1] = Math.min(bounds[1], hardBounds.getMax() - 1); // hard bounds max is exclusive
-                    }
-
-                    filters = FilterRewriteHelper.createFilterForAggregations(
-                        context,
-                        rounding,
-                        preparedRounding,
-                        fieldName,
-                        fieldType,
-                        bounds[0],
-                        bounds[1]
-                    );
-                }
+    private long[] computeBounds(final FieldContext fieldContext) throws IOException {
+        final long[] bounds = FilterRewriteHelper.getAggregationBounds(context, fieldContext.field());
+        if (bounds != null) {
+            // Update min/max limit if user specified any hard bounds
+            if (hardBounds != null) {
+                bounds[0] = Math.max(bounds[0], hardBounds.getMin());
+                bounds[1] = Math.min(bounds[1], hardBounds.getMax() - 1); // hard bounds max is exclusive
             }
         }
+        return bounds;
     }
 
     @Override
@@ -176,7 +172,12 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
                 // Try fast filter aggregation if the filters have been created
                 // Skip if tried before and gave incorrect/incomplete results
                 if (useOpt[0]) {
-                    useOpt[0] = tryFastFilterAggregation(ctx, owningBucketOrd);
+                    useOpt[0] = FilterRewriteHelper.tryFastFilterAggregation(ctx, filters, fieldType, (key, count) -> {
+                        incrementBucketDocCount(
+                            FilterRewriteHelper.getBucketOrd(bucketOrds.add(owningBucketOrd, preparedRounding.round(key))),
+                            count
+                        );
+                    });
                 }
 
                 if (values.advanceExact(doc)) {
@@ -271,36 +272,5 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
         } else {
             return 1.0;
         }
-    }
-
-    private boolean tryFastFilterAggregation(LeafReaderContext ctx, long owningBucketOrd) throws IOException {
-        final int[] counts = new int[filters.length];
-        int i;
-        for (i = 0; i < filters.length; i++) {
-            counts[i] = filters[i].count(ctx);
-            if (counts[i] == -1) {
-                // Cannot use the optimization if any of the counts
-                // is -1 indicating the segment might have deleted documents
-                return false;
-            }
-        }
-
-        for (i = 0; i < filters.length; i++) {
-            if (counts[i] > 0) {
-                long bucketOrd = bucketOrds.add(
-                    owningBucketOrd,
-                    preparedRounding.round(
-                        fieldType.convertNanosToMillis(
-                            NumericUtils.sortableBytesToLong(((PointRangeQuery) filters[i].getQuery()).getLowerPoint(), 0)
-                        )
-                    )
-                );
-                if (bucketOrd < 0) { // already seen
-                    bucketOrd = -1 - bucketOrd;
-                }
-                incrementBucketDocCount(bucketOrd, counts[i]);
-            }
-        }
-        throw new CollectionTerminatedException();
     }
 }

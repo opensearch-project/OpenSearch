@@ -10,6 +10,7 @@ package org.opensearch.search.aggregations.bucket.histogram;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.PointValues;
+import org.apache.lucene.search.CollectionTerminatedException;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
@@ -18,10 +19,13 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.NumericUtils;
+import org.opensearch.common.CheckedFunction;
 import org.opensearch.common.Rounding;
 import org.opensearch.common.lucene.search.function.FunctionScoreQuery;
 import org.opensearch.index.mapper.DateFieldMapper;
 import org.opensearch.index.query.DateRangeIncludingNowQuery;
+import org.opensearch.search.aggregations.support.FieldContext;
+import org.opensearch.search.aggregations.support.ValuesSourceConfig;
 import org.opensearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -31,7 +35,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.function.BiConsumer;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 /**
  * Helpers functions to rewrite and optimize aggregations using
@@ -40,6 +46,17 @@ import java.util.function.Function;
  * @opensearch.internal
  */
 public class FilterRewriteHelper {
+
+    static class FilterContext {
+        final DateFieldMapper.DateFieldType fieldType;
+        final Weight[] filters;
+
+        public FilterContext(DateFieldMapper.DateFieldType fieldType, Weight[] filters) {
+            this.fieldType = fieldType;
+            this.filters = filters;
+        }
+    }
+
     private static final int MAX_NUM_FILTER_BUCKETS = 1024;
     private static final Map<Class, Function<Query, Query>> queryWrappers;
 
@@ -56,7 +73,7 @@ public class FilterRewriteHelper {
      * Recursively unwraps query into the concrete form
      * for applying the optimization
      */
-    public static Query unwrapIntoConcreteQuery(Query query) {
+    private static Query unwrapIntoConcreteQuery(Query query) {
         while (queryWrappers.containsKey(query.getClass())) {
             query = queryWrappers.get(query.getClass()).apply(query);
         }
@@ -85,7 +102,7 @@ public class FilterRewriteHelper {
         return new long[] { min, max };
     }
 
-    public static long[] getAggregationBounds(final SearchContext context, final String fieldName) throws IOException {
+    static long[] getAggregationBounds(final SearchContext context, final String fieldName) throws IOException {
         final Query cq = unwrapIntoConcreteQuery(context.query());
         final long[] indexBounds = getIndexBoundsFromLeaves(context, fieldName);
         if (cq instanceof PointRangeQuery) {
@@ -117,7 +134,7 @@ public class FilterRewriteHelper {
      * Creates the range query filters for aggregations using the interval, min/max
      * bounds and the rounding values
      */
-    public static Weight[] createFilterForAggregations(
+    private static Weight[] createFilterForAggregations(
         final SearchContext context,
         final Rounding rounding,
         final Rounding.Prepared preparedRounding,
@@ -186,5 +203,79 @@ public class FilterRewriteHelper {
         }
 
         return filters;
+    }
+
+    static FilterContext buildFastFilterContext(
+        final Object parent,
+        final int subAggLength,
+        SearchContext context,
+        Function<long[], Rounding> roundingFunction,
+        Supplier<Rounding.Prepared> preparedRoundingSupplier,
+        ValuesSourceConfig valuesSourceConfig,
+        CheckedFunction<FieldContext, long[], IOException> computeBounds
+    ) throws IOException {
+        // Create the filters for fast aggregation only if the query is instance
+        // of point range query and there aren't any parent/sub aggregations
+        if (parent == null && subAggLength == 0 && valuesSourceConfig.missing() == null && valuesSourceConfig.script() == null) {
+            final FieldContext fieldContext = valuesSourceConfig.fieldContext();
+            if (fieldContext != null) {
+                final String fieldName = fieldContext.field();
+                final long[] bounds = computeBounds.apply(fieldContext);
+                if (bounds != null) {
+                    assert fieldContext.fieldType() instanceof DateFieldMapper.DateFieldType;
+                    final DateFieldMapper.DateFieldType fieldType = (DateFieldMapper.DateFieldType) fieldContext.fieldType();
+                    final Rounding rounding = roundingFunction.apply(bounds);
+                    final Weight[] filters = FilterRewriteHelper.createFilterForAggregations(
+                        context,
+                        rounding,
+                        preparedRoundingSupplier.get(),
+                        fieldName,
+                        fieldType,
+                        bounds[0],
+                        bounds[1]
+                    );
+                    return new FilterContext(fieldType, filters);
+                }
+            }
+        }
+        return null;
+    }
+
+    static long getBucketOrd(long bucketOrd) {
+        if (bucketOrd < 0) { // already seen
+            bucketOrd = -1 - bucketOrd;
+        }
+
+        return bucketOrd;
+    }
+
+    static boolean tryFastFilterAggregation(
+        final LeafReaderContext ctx,
+        final Weight[] filters,
+        final DateFieldMapper.DateFieldType fieldType,
+        final BiConsumer<Long, Integer> incrementDocCount
+    ) throws IOException {
+        final int[] counts = new int[filters.length];
+        int i;
+        for (i = 0; i < filters.length; i++) {
+            counts[i] = filters[i].count(ctx);
+            if (counts[i] == -1) {
+                // Cannot use the optimization if any of the counts
+                // is -1 indicating the segment might have deleted documents
+                return false;
+            }
+        }
+
+        for (i = 0; i < filters.length; i++) {
+            if (counts[i] > 0) {
+                incrementDocCount.accept(
+                    fieldType.convertNanosToMillis(
+                        NumericUtils.sortableBytesToLong(((PointRangeQuery) filters[i].getQuery()).getLowerPoint(), 0)
+                    ),
+                    counts[i]
+                );
+            }
+        }
+        throw new CollectionTerminatedException();
     }
 }
