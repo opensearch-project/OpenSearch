@@ -7801,7 +7801,9 @@ public class InternalEngineTests extends EngineTestCase {
                     assertNotNull(result.getFailure());
                     assertThat(
                         result.getFailure().getMessage(),
-                        containsString("Number of documents in shard " + shardId + " can't exceed [" + maxDocs + "]")
+                        containsString(
+                            "Number of documents in shard " + shardId + " exceeds the limit of [" + maxDocs + "] documents per shard"
+                        )
                     );
                     assertThat(result.getSeqNo(), equalTo(UNASSIGNED_SEQ_NO));
                     assertThat(engine.getLocalCheckpointTracker().getMaxSeqNo(), equalTo(maxSeqNo));

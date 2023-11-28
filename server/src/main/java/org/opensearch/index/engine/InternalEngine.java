@@ -1412,7 +1412,9 @@ public class InternalEngine extends Engine {
         final long totalDocs = indexWriter.getPendingNumDocs() + inFlightDocCount.addAndGet(addingDocs);
         if (totalDocs > maxDocs) {
             releaseInFlightDocs(addingDocs);
-            return new IllegalArgumentException("Number of documents in shard " + shardId + " can't exceed [" + maxDocs + "]");
+            return new IllegalArgumentException(
+                "Number of documents in shard " + shardId + " exceeds the limit of [" + maxDocs + "] documents per shard"
+            );
         } else {
             return null;
         }

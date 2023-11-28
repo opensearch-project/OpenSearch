@@ -127,7 +127,7 @@ public class MaxDocsLimitIT extends OpenSearchIntegTestCase {
         );
         assertThat(
             deleteError.getMessage(),
-            containsString("Number of documents in shard " + shardId + " can't exceed [" + maxDocs.get() + "]")
+            containsString("Number of documents in shard " + shardId + " exceeds the limit of [" + maxDocs.get() + "] documents per shard")
         );
         client().admin().indices().prepareRefresh("test").get();
         SearchResponse searchResponse = client().prepareSearch("test")
@@ -216,7 +216,13 @@ public class MaxDocsLimitIT extends OpenSearchIntegTestCase {
                         numFailure.incrementAndGet();
                         assertThat(
                             e.getMessage(),
-                            containsString("Number of documents in shard " + shardId + " can't exceed [" + maxDocs.get() + "]")
+                            containsString(
+                                "Number of documents in shard "
+                                    + shardId
+                                    + " exceeds the limit of ["
+                                    + maxDocs.get()
+                                    + "] documents per shard"
+                            )
                         );
                     }
                 }
