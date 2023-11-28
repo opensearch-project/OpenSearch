@@ -79,8 +79,6 @@ public final class RemoteStoreRefreshListener extends CloseableRetryableRefreshL
     );
 
     public static final Set<String> EXCLUDE_FILES = Set.of("write.lock");
-    // Visible for testing
-    public static final int LAST_N_METADATA_FILES_TO_KEEP = 10;
 
     private final IndexShard indexShard;
     private final Directory storeDirectory;
@@ -205,7 +203,7 @@ public final class RemoteStoreRefreshListener extends CloseableRetryableRefreshL
                 // is considered as a first refresh post commit. A cleanup of stale commit files is triggered.
                 // This is done to avoid delete post each refresh.
                 if (isRefreshAfterCommit()) {
-                    remoteDirectory.deleteStaleSegmentsAsync(LAST_N_METADATA_FILES_TO_KEEP);
+                    remoteDirectory.deleteStaleSegmentsAsync(indexShard.getRecoverySettings().getMinRemoteSegmentMetadataFiles());
                 }
 
                 try (GatedCloseable<SegmentInfos> segmentInfosGatedCloseable = indexShard.getSegmentInfosSnapshot()) {

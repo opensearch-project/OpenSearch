@@ -33,6 +33,7 @@
 package org.opensearch.search.profile.query;
 
 import org.apache.lucene.search.Query;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.search.profile.AbstractProfiler;
 import org.opensearch.search.profile.ContextualProfileBreakdown;
 
@@ -49,8 +50,9 @@ import java.util.Objects;
  * request may execute two searches (query + global agg).  A Profiler just
  * represents one of those
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class QueryProfiler extends AbstractProfiler<ContextualProfileBreakdown<QueryTimingType>, Query> {
 
     /**

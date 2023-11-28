@@ -8,6 +8,7 @@
 
 package org.opensearch.index.translog;
 
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.seqno.RetentionLeases;
 
@@ -19,6 +20,7 @@ import java.util.function.Supplier;
  * @opensearch.api
  */
 @FunctionalInterface
+@PublicApi(since = "1.0.0")
 public interface TranslogDeletionPolicyFactory {
     TranslogDeletionPolicy create(IndexSettings settings, Supplier<RetentionLeases> supplier);
 }

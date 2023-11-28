@@ -100,10 +100,6 @@ public class FetchSubPhasePluginIT extends ParameterizedOpenSearchIntegTestCase 
 
     @SuppressWarnings("unchecked")
     public void testPlugin() throws Exception {
-        assumeFalse(
-            "Concurrent search case muted pending fix: https://github.com/opensearch-project/OpenSearch/issues/11112",
-            internalCluster().clusterService().getClusterSettings().get(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING)
-        );
         client().admin()
             .indices()
             .prepareCreate("test")

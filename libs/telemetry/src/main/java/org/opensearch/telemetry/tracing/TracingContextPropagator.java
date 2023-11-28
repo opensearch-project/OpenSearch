@@ -10,7 +10,7 @@ package org.opensearch.telemetry.tracing;
 
 import org.opensearch.common.annotation.ExperimentalApi;
 
-import java.util.List;
+import java.util.Collection;
 import java.util.Map;
 import java.util.Optional;
 import java.util.function.BiConsumer;
@@ -36,7 +36,7 @@ public interface TracingContextPropagator {
      * @param headers request headers to extract the context from
      * @return current span
      */
-    Optional<Span> extractFromHeaders(Map<String, List<String>> headers);
+    Optional<Span> extractFromHeaders(Map<String, Collection<String>> headers);
 
     /**
      * Injects tracing context
