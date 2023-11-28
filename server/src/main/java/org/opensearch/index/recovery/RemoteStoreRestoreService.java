@@ -266,11 +266,7 @@ public class RemoteStoreRestoreService {
         }
         if (remoteMetadata.templates() != null) {
             for (final IndexTemplateMetadata cursor : remoteMetadata.templates().values()) {
-                MetadataCreateIndexService.validateRefreshIntervalSettings(
-                    cursor.settings(),
-                    clusterService.getClusterSettings(),
-                    remoteMetadata.persistentSettings()
-                );
+                MetadataCreateIndexService.validateRefreshIntervalSettings(cursor.settings(), clusterService.getClusterSettings());
                 mdBuilder.put(cursor);
             }
         }
