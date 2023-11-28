@@ -10,10 +10,11 @@ package org.opensearch.index.shard;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.ReferenceManager;
+import org.opensearch.common.lease.Releasable;
+import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.threadpool.ThreadPool;
 
-import java.io.Closeable;
 import java.io.IOException;
 import java.util.Objects;
 import java.util.concurrent.Semaphore;
@@ -22,17 +23,19 @@ import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
- * RefreshListener that runs afterRefresh method if and only if there is a permit available. Once the listener
- * is closed, all the permits are acquired and there are no available permits to afterRefresh. This abstract class provides
+ * RefreshListener that runs afterRefresh method if and only if there is a permit available. Once the {@code drainRefreshes()}
+ * is called, all the permits are acquired and there are no available permits to afterRefresh. This abstract class provides
  * necessary abstract methods to schedule retry.
  */
-public abstract class CloseableRetryableRefreshListener implements ReferenceManager.RefreshListener, Closeable {
+public abstract class ReleasableRetryableRefreshListener implements ReferenceManager.RefreshListener {
 
     /**
      * Total permits = 1 ensures that there is only single instance of runAfterRefreshWithPermit that is running at a time.
      * In case there are use cases where concurrency is required, the total permit variable can be put inside the ctor.
      */
     private static final int TOTAL_PERMITS = 1;
+
+    private static final TimeValue DRAIN_TIMEOUT = TimeValue.timeValueMinutes(10);
 
     private final AtomicBoolean closed = new AtomicBoolean(false);
 
@@ -45,11 +48,11 @@ public abstract class CloseableRetryableRefreshListener implements ReferenceMana
      */
     private final AtomicBoolean retryScheduled = new AtomicBoolean(false);
 
-    public CloseableRetryableRefreshListener() {
+    public ReleasableRetryableRefreshListener() {
         this.threadPool = null;
     }
 
-    public CloseableRetryableRefreshListener(ThreadPool threadPool) {
+    public ReleasableRetryableRefreshListener(ThreadPool threadPool) {
         assert Objects.nonNull(threadPool);
         this.threadPool = threadPool;
     }
@@ -184,22 +187,37 @@ public abstract class CloseableRetryableRefreshListener implements ReferenceMana
      */
     protected abstract boolean performAfterRefreshWithPermit(boolean didRefresh);
 
-    @Override
-    public final void close() throws IOException {
+    public final Releasable drainRefreshes() {
         try {
-            if (semaphore.tryAcquire(TOTAL_PERMITS, 10, TimeUnit.MINUTES)) {
+            TimeValue timeout = getDrainTimeout();
+            if (semaphore.tryAcquire(TOTAL_PERMITS, timeout.seconds(), TimeUnit.SECONDS)) {
                 boolean result = closed.compareAndSet(false, true);
                 assert result && semaphore.availablePermits() == 0;
                 getLogger().info("All permits are acquired and refresh listener is closed");
+                return Releasables.releaseOnce(() -> {
+                    semaphore.release(TOTAL_PERMITS);
+                    boolean wasClosed = closed.getAndSet(false);
+                    assert semaphore.availablePermits() == TOTAL_PERMITS : "Available permits is " + semaphore.availablePermits();
+                    assert wasClosed : "RefreshListener is not closed before reopening it";
+                    getLogger().info("All permits are released and refresh listener is open");
+                });
             } else {
-                throw new TimeoutException("timeout while closing gated refresh listener");
+                throw new TimeoutException("Timeout while acquiring all permits");
             }
         } catch (InterruptedException | TimeoutException e) {
-            throw new RuntimeException("Failed to close the closeable retryable listener", e);
+            throw new RuntimeException("Failed to acquire all permits", e);
         }
     }
 
     protected abstract Logger getLogger();
+
+    // Made available for unit testing purpose only
+    /**
+     * Returns the timeout which is used while draining refreshes.
+     */
+    TimeValue getDrainTimeout() {
+        return DRAIN_TIMEOUT;
+    }
 
     // Visible for testing
     /**
@@ -209,5 +227,15 @@ public abstract class CloseableRetryableRefreshListener implements ReferenceMana
      */
     boolean getRetryScheduledStatus() {
         return retryScheduled.get();
+    }
+
+    // Visible for testing
+    int availablePermits() {
+        return semaphore.availablePermits();
+    }
+
+    // Visible for testing
+    boolean isClosed() {
+        return closed.get();
     }
 }
