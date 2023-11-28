@@ -458,7 +458,9 @@ public final class SearchableSnapshotIT extends AbstractSnapshotIntegTestCase {
 
     private void testUpdateIndexSettingsOnlyAllowedSettings(String index) {
         final UpdateSettingsRequestBuilder builder = client().admin().indices().prepareUpdateSettings(index);
-        builder.setSettings(Map.of("index.max_result_window", 1000, "index.search.slowlog.threshold.query.warn", "10s"));
+        builder.setSettings(
+            Map.of("index.max_result_window", 1000, "index.search.slowlog.threshold.query.warn", "10s", "index.number_of_replicas", 0)
+        );
         AcknowledgedResponse settingsResponse = builder.execute().actionGet();
         assertThat(settingsResponse, notNullValue());
     }
