@@ -1,6 +1,5 @@
-.claude
-CLAUDE.md
-.cursor*
+# build files
+artifacts/
 
 # intellij files
 .idea/

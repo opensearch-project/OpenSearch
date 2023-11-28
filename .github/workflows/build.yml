@@ -1,0 +1,62 @@
+name: Build slim packages
+
+# This workflow runs when any of the following occur:
+  # - Run manually
+on:
+  workflow_dispatch:
+
+
+# Used to run locally using https://github.com/nektos/act
+env:
+  ACT: 
+  VERSION: 2.11.0
+  SNAPSHOT: false
+  PLATFORM: linux
+  BUILD: bash scripts/build.sh
+
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    # Permissions to upload the package
+    permissions:
+      packages: write
+      contents: read
+    strategy:
+        matrix:
+          # act is resource-heavy. Avoid running parallel builds with it:
+          # DISTRIBUTION: [ rpm ]
+          # ARCHITECTURE: [ x64 ]
+          DISTRIBUTION: [ tar, rpm, deb ]
+          ARCHITECTURE: [ x64, arm64 ]
+    steps:
+    - uses: actions/checkout@v4
+    - uses: actions/setup-java@v3
+      with:
+        distribution: temurin
+        java-version: 11
+        
+    - name: Setup Gradle
+      uses: gradle/gradle-build-action@v2.9.0
+    
+    - name: Execute build script
+      run: |
+        $BUILD -v $VERSION -s $SNAPSHOT -p $PLATFORM -a ${{ matrix.ARCHITECTURE }} -d ${{ matrix.DISTRIBUTION }}
+
+    # The package name is stored in the artifacts/artifact_name.txt file
+    - name: Read package name
+      id: package_name
+      run: |
+        echo $(ls -la)
+        echo "package_name=$(cat artifacts/artifact_name.txt)" >> $GITHUB_OUTPUT
+        echo "$(cat artifacts/artifact_name.txt)"
+
+    - name: Upload artifact
+      uses: actions/upload-artifact@v3
+      with:
+        name: ${{ steps.package_name.outputs.package_name }}
+        path: artifacts/dist/${{ steps.package_name.outputs.package_name }}
+        if-no-files-found: error
+
+  # assemble:
+  # release:
