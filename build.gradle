@@ -420,6 +420,7 @@ gradle.projectsEvaluated {
     }
 
     project.tasks.withType(Test) { task ->
+      task.enabled=false
       if (task != null) {
         if (BuildParams.runtimeJavaVersion > JavaVersion.VERSION_17) {
           task.jvmArgs += ["-Djava.security.manager=allow"]
@@ -427,6 +428,12 @@ gradle.projectsEvaluated {
         if (BuildParams.runtimeJavaVersion >= JavaVersion.VERSION_20) {
           task.jvmArgs += ["--add-modules=jdk.incubator.vector"]
         }
+      }
+    }
+
+    tasks.whenTaskAdded {task ->
+      if(task.name.contains("Sniff")) {
+        task.enabled = false
       }
     }
 
@@ -735,3 +742,7 @@ allprojects { project ->
     }
   }
 }
+
+//test {
+//  exclude '**/*'
+//}

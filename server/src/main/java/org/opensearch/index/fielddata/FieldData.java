@@ -423,17 +423,21 @@ public enum FieldData {
     public static SortedBinaryDocValues toString(final SortedSetDocValues values) {
         return new SortedBinaryDocValues() {
             private int count = 0;
+            private BytesRef currentValue = null;
+            private int remainingInstances = 0;
 
             @Override
             public boolean advanceExact(int doc) throws IOException {
                 if (values.advanceExact(doc) == false) {
                     return false;
-                }
+                } // ^This checks to make sure that the doc at the specified number has a value
+
                 for (int i = 0;; ++i) {
-                    if (values.nextOrd() == SortedSetDocValues.NO_MORE_ORDS) {
-                        count = i;
+                    long currentOrd = values.nextOrd();
+                    if (currentOrd == SortedSetDocValues.NO_MORE_ORDS) {
                         break;
                     }
+                    count = count + getSuffix(currentOrd); // we do this here because we want to be looking at each unique value, not just the final
                 }
                 // reset the iterator on the current doc
                 boolean advanced = values.advanceExact(doc);
@@ -443,14 +447,53 @@ public enum FieldData {
 
             @Override
             public int docValueCount() {
-                return count;
+                int oldCount = count;
+                count = 0;
+                return oldCount;
+
+            }
+
+            public int getSuffix(long ord) throws IOException {
+                String value = values.lookupOrd(ord).utf8ToString();
+                int suffixCount = 0;
+                if (value.contains("_")) {
+                    suffixCount = Integer.valueOf(value.split("_")[1]);
+                }
+                return suffixCount;
             }
 
             @Override
             public BytesRef nextValue() throws IOException {
-                return values.lookupOrd(values.nextOrd());
-            }
+                // two cases
+                // 1. actually calling nextOrd for the next bucket
+                // 2. calling a "fake" value which represents one of the suffix items that doesn't technically exist,
+                //    but we need to account for
 
+                if (currentValue != null && remainingInstances > 0) {
+                    remainingInstances -= 1;
+                    return currentValue;
+                }
+
+                remainingInstances = 0;
+                long nextOrd = values.nextOrd();
+                if (nextOrd == SortedSetDocValues.NO_MORE_ORDS) {
+                    currentValue = null;
+                    return values.lookupOrd(nextOrd);
+                }
+
+                // potentially costly string manipulation solution:
+                // https://stackoverflow.com/questions/22519346/how-to-split-a-byte-array-around-a-byte-sequence-in-java
+                // https://www.baeldung.com/java-string-performance
+                String value = values.lookupOrd(nextOrd).utf8ToString();
+                String withoutUnderscore = value;
+                if (value.contains("_")) {
+                    withoutUnderscore = value.split("_")[0];
+                    remainingInstances = Integer.valueOf(value.split("_")[1]) - 1;
+                }
+                BytesRef newBytesRef = new BytesRef(withoutUnderscore);
+                currentValue = newBytesRef;
+                return newBytesRef;
+            }
         };
     }
 

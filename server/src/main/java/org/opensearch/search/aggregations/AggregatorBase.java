@@ -31,9 +31,12 @@
 
 package org.opensearch.search.aggregations;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.ScoreMode;
+import org.opensearch.common.blobstore.transfer.RemoteTransferContainer;
 import org.opensearch.core.common.breaker.CircuitBreaker;
 import org.opensearch.core.common.breaker.CircuitBreakingException;
 import org.opensearch.core.indices.breaker.CircuitBreakerService;
@@ -56,6 +59,8 @@ import java.util.function.Function;
  * @opensearch.internal
  */
 public abstract class AggregatorBase extends Aggregator {
+
+    private static final Logger log = LogManager.getLogger(AggregatorBase.class);
 
     /** The default "weight" that a bucket takes when performing an aggregation */
     public static final int DEFAULT_WEIGHT = 1024 * 5; // 5kb
@@ -90,6 +95,9 @@ public abstract class AggregatorBase extends Aggregator {
         CardinalityUpperBound subAggregatorCardinality,
         Map<String, Object> metadata
     ) throws IOException {
+        Exception e = new Exception();
+        log.error("THIS IS AN ERROR FROM THE AGGREGATORBASE.JAVA ", e);
+
         this.name = name;
         this.metadata = metadata;
         this.parent = parent;

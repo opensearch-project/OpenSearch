@@ -31,6 +31,8 @@
 
 package org.opensearch.search.aggregations.bucket.terms;
 
+import java.util.HashMap;
+import java.util.regex.Pattern;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.util.BytesRef;
@@ -184,6 +186,7 @@ public class MapStringTermsAggregator extends AbstractStringTermsAggregator {
      *
      * @opensearch.internal
      */
+
     public static class ValuesSourceCollectorSource implements CollectorSource {
         private final ValuesSource valuesSource;
 
@@ -206,8 +209,11 @@ public class MapStringTermsAggregator extends AbstractStringTermsAggregator {
         ) throws IOException {
             SortedBinaryDocValues values = valuesSource.bytesValues(ctx);
             return new LeafBucketCollectorBase(sub, values) {
-                final BytesRefBuilder previous = new BytesRefBuilder();
 
+                /**
+                 * Collect the given doc in the given bucket.
+                 * Called once for every document matching a query, with the unbased document number.
+                 */
                 @Override
                 public void collect(int doc, long owningBucketOrd) throws IOException {
                     if (false == values.advanceExact(doc)) {
@@ -215,18 +221,11 @@ public class MapStringTermsAggregator extends AbstractStringTermsAggregator {
                     }
                     int valuesCount = values.docValueCount();
 
-                    // SortedBinaryDocValues don't guarantee uniqueness so we
-                    // need to take care of dups
-                    previous.clear();
                     for (int i = 0; i < valuesCount; ++i) {
                         BytesRef bytes = values.nextValue();
                         if (includeExclude != null && false == includeExclude.accept(bytes)) {
                             continue;
                         }
-                        if (i > 0 && previous.get().equals(bytes)) {
-                            continue;
-                        }
-                        previous.copyBytes(bytes);
                         consumer.accept(sub, doc, owningBucketOrd, bytes);
                     }
                 }
@@ -254,9 +253,12 @@ public class MapStringTermsAggregator extends AbstractStringTermsAggregator {
 
                 PriorityQueue<B> ordered = buildPriorityQueue(size);
                 B spare = null;
+                // BytesKeyedBucketOrds.BucketOrdsEnum : An iterator for buckets inside a particular owningBucketOrd
                 BytesKeyedBucketOrds.BucketOrdsEnum ordsEnum = bucketOrds.ordsEnum(owningBucketOrds[ordIdx]);
-                Supplier<B> emptyBucketBuilder = emptyBucketBuilder(owningBucketOrds[ordIdx]);
-                while (ordsEnum.next()) {
+                Supplier<B> emptyBucketBuilder = emptyBucketBuilder(owningBucketOrds[ordIdx]); // build empty buckets
+                // the primary logic occurs in this while loop IMPORTANT!
+                while (ordsEnum.next()) { // iterate through ordinals
+                    // Here we get the bucketDocCount using utility method from BucketsAggregator.java, providing ord (Long) as key
                     long docCount = bucketDocCount(ordsEnum.ord());
                     otherDocCounts[ordIdx] += docCount;
                     if (docCount < localBucketCountThresholds.getMinDocCount()) {
@@ -416,6 +418,29 @@ public class MapStringTermsAggregator extends AbstractStringTermsAggregator {
             ordsEnum.readValue(spare.termBytes);
             spare.docCount = docCount;
             spare.bucketOrd = ordsEnum.ord();
+
+//            ordsEnum.readValue(spare.termBytes);
+//            String bucketName = spare.termBytes.utf8ToString();
+//            System.out.println("This is the original bucket name " + bucketName);
+//            String quotedPattern = Pattern.quote("_");
+//            String[] splitBucket = bucketName.split(quotedPattern);
+//            System.out.println(Arrays.toString(splitBucket));
+//            String newBucketName = splitBucket[0];
+//            spare.termBytes = new BytesRef(splitBucket[0].getBytes());
+//            spare.docCount = Long.valueOf(splitBucket[1]);
+//            if (!newBucketMap.containsKey(newBucketName)) {
+//                newBucketMap.put(newBucketName, ordsEnum.ord());
+//                spare.bucketOrd = ordsEnum.ord();
+//            } else {
+//                spare.bucketOrd = newBucketMap.get(newBucketName);
+//            }
+//
+//            System.out.println("this is the bucket termBytes " + spare.termBytes.utf8ToString());
+//            System.out.println("this is the bucket docCount " + spare.docCount);
+//            System.out.println("this is the bucket ordinal " + spare.bucketOrd);
+            // Idea, we can change the docCount here, but we will have extra buckets and those buckets need to be consolidated
+            // We can use a hashmap that stores the different values (e.g. foo, bar) as keys and then the ordinal number as the value
+            // We would build it here and then perform lookups here once we clean the key i.e. foo_17 -> foo -> lookup(foo) -> ord
         }
 
         @Override

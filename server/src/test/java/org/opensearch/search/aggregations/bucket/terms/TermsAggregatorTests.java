@@ -258,23 +258,24 @@ public class TermsAggregatorTests extends AggregatorTestCase {
     }
 
     public void testSimple() throws Exception {
+        // TODO: break the test up in a controlled way
         try (Directory directory = newDirectory()) {
             try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
                 Document document = new Document();
-                document.add(new SortedSetDocValuesField("string", new BytesRef("a")));
-                document.add(new SortedSetDocValuesField("string", new BytesRef("b")));
+                document.add(new SortedSetDocValuesField("string", new BytesRef("foo_1")));
+                document.add(new SortedSetDocValuesField("string", new BytesRef("bar_7")));
                 indexWriter.addDocument(document);
                 document = new Document();
-                document.add(new SortedSetDocValuesField("string", new BytesRef("")));
-                document.add(new SortedSetDocValuesField("string", new BytesRef("c")));
-                document.add(new SortedSetDocValuesField("string", new BytesRef("a")));
+                document.add(new SortedSetDocValuesField("string", new BytesRef("foo_4")));
+                document.add(new SortedSetDocValuesField("string", new BytesRef("bar_8")));
+                document.add(new SortedSetDocValuesField("string", new BytesRef("baz_21")));
                 indexWriter.addDocument(document);
                 document = new Document();
-                document.add(new SortedSetDocValuesField("string", new BytesRef("b")));
-                document.add(new SortedSetDocValuesField("string", new BytesRef("d")));
+                document.add(new SortedSetDocValuesField("string", new BytesRef("foo_13")));
+                document.add(new SortedSetDocValuesField("string", new BytesRef("baz_19")));
                 indexWriter.addDocument(document);
                 document = new Document();
-                document.add(new SortedSetDocValuesField("string", new BytesRef("")));
+                document.add(new SortedSetDocValuesField("string", new BytesRef("foo_2")));
                 indexWriter.addDocument(document);
                 try (IndexReader indexReader = maybeWrapReaderEs(indexWriter.getReader())) {
                     IndexSearcher indexSearcher = newIndexSearcher(indexReader);
@@ -289,19 +290,80 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                         indexSearcher.search(new MatchAllDocsQuery(), aggregator);
                         aggregator.postCollection();
                         Terms result = reduce(aggregator);
-                        assertEquals(5, result.getBuckets().size());
-                        assertEquals("", result.getBuckets().get(0).getKeyAsString());
-                        assertEquals(2L, result.getBuckets().get(0).getDocCount());
-                        assertEquals("a", result.getBuckets().get(1).getKeyAsString());
-                        assertEquals(2L, result.getBuckets().get(1).getDocCount());
-                        assertEquals("b", result.getBuckets().get(2).getKeyAsString());
-                        assertEquals(2L, result.getBuckets().get(2).getDocCount());
-                        assertEquals("c", result.getBuckets().get(3).getKeyAsString());
-                        assertEquals(1L, result.getBuckets().get(3).getDocCount());
-                        assertEquals("d", result.getBuckets().get(4).getKeyAsString());
-                        assertEquals(1L, result.getBuckets().get(4).getDocCount());
+
+                        //System.out.println("executionMode " + executionMode.toString());
+                        for (int i = 0; i < result.getBuckets().size(); i++) {
+                            //System.out.println("bucket " + i  + " is " + result.getBuckets().get(i).getKeyAsString());
+                            //System.out.println("Count is " + result.getBuckets().get(i).getDocCount());
+                        }
+                        assertEquals(3, result.getBuckets().size());
+//                        System.out.println("Bucket: " + result.getBuckets().get(0).getKeyAsString() + " Count: " + result.getBuckets().get(0).getDocCount());
+//                        System.out.println("Bucket: " + result.getBuckets().get(1).getKeyAsString() + " Count: " + result.getBuckets().get(1).getDocCount());
+//                        System.out.println("Bucket: " + result.getBuckets().get(2).getKeyAsString() + " Count: " + result.getBuckets().get(2).getDocCount());
+//                        System.out.println("Bucket: " + result.getBuckets().get(3).getKeyAsString() + " Count: " + result.getBuckets().get(3).getDocCount());
+//                        System.out.println("Bucket: " + result.getBuckets().get(4).getKeyAsString() + " Count: " + result.getBuckets().get(4).getDocCount());
+                        assertEquals("bar", result.getBuckets().get(0).getKeyAsString()); // Makes sure that keys are what they should be
+                        assertEquals(15L, result.getBuckets().get(0).getDocCount()); // Makes sure counts for buckets are valid
+                        assertEquals("baz", result.getBuckets().get(1).getKeyAsString());
+                        assertEquals(40L, result.getBuckets().get(1).getDocCount());
+                        assertEquals("foo", result.getBuckets().get(2).getKeyAsString());
+                        assertEquals(20L, result.getBuckets().get(2).getDocCount());
+//                        assertEquals("c", result.getBuckets().get(3).getKeyAsString());
+//                        assertEquals(1L, result.getBuckets().get(3).getDocCount());
+//                        assertEquals("d", result.getBuckets().get(4).getKeyAsString());
+//                        assertEquals(1L, result.getBuckets().get(4).getDocCount());
                         assertTrue(AggregationInspectionHelper.hasValue((InternalTerms) result));
                     }
+                }
+            }
+        }
+    }
+
+    public void testAggregationsForOpenSearchPlugin() throws Exception {
+        // TODO: break the test up in a controlled way
+        try (Directory directory = newDirectory()) {
+            try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
+                Document document = new Document();
+                document.add(new SortedSetDocValuesField("string", new BytesRef("foo_1")));
+                document.add(new SortedSetDocValuesField("string", new BytesRef("bar_7")));
+                indexWriter.addDocument(document);
+                document = new Document();
+                document.add(new SortedSetDocValuesField("string", new BytesRef("foo_4")));
+                document.add(new SortedSetDocValuesField("string", new BytesRef("bar_8")));
+                document.add(new SortedSetDocValuesField("string", new BytesRef("baz_21")));
+                indexWriter.addDocument(document);
+                document = new Document();
+                document.add(new SortedSetDocValuesField("string", new BytesRef("foo_13")));
+                document.add(new SortedSetDocValuesField("string", new BytesRef("baz_19")));
+                indexWriter.addDocument(document);
+                document = new Document();
+                document.add(new SortedSetDocValuesField("string", new BytesRef("foo_2")));
+                indexWriter.addDocument(document);
+                try (IndexReader indexReader = maybeWrapReaderEs(indexWriter.getReader())) {
+                    IndexSearcher indexSearcher = newIndexSearcher(indexReader);
+                    TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("_name").userValueTypeHint(
+                        ValueType.STRING
+                    ).executionHint("map").field("string").order(BucketOrder.key(true));
+                    MappedFieldType fieldType = new KeywordFieldMapper.KeywordFieldType("string");
+
+                    TermsAggregator aggregator = createAggregator(aggregationBuilder, indexSearcher, fieldType);
+                    aggregator.preCollection();
+                    indexSearcher.search(new MatchAllDocsQuery(), aggregator);
+                    aggregator.postCollection();
+                    Terms result = reduce(aggregator);
+
+                    for (int i = 0; i < result.getBuckets().size(); i++) {
+                        //System.out.println("bucket " + i  + " is " + result.getBuckets().get(i).getKeyAsString());
+                        //System.out.println("Count is " + result.getBuckets().get(i).getDocCount());
+                    }
+                    assertEquals(3, result.getBuckets().size());
+                    assertEquals("bar", result.getBuckets().get(0).getKeyAsString()); // Makes sure that keys are what they should be
+                    assertEquals(15L, result.getBuckets().get(0).getDocCount()); // Makes sure counts for buckets are valid
+                    assertEquals("baz", result.getBuckets().get(1).getKeyAsString());
+                    assertEquals(40L, result.getBuckets().get(1).getDocCount());
+                    assertEquals("foo", result.getBuckets().get(2).getKeyAsString());
+                    assertEquals(20L, result.getBuckets().get(2).getDocCount());
+                    assertTrue(AggregationInspectionHelper.hasValue((InternalTerms) result));
                 }
             }
         }
