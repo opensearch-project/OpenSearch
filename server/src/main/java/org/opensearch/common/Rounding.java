@@ -98,7 +98,7 @@ public abstract class Rounding implements Writeable {
             }
 
             @Override
-            long extraLocalOffsetLookup() {
+            public long extraLocalOffsetLookup() {
                 return extraLocalOffsetLookup;
             }
         },
@@ -109,7 +109,7 @@ public abstract class Rounding implements Writeable {
                 return DateUtils.roundYear(utcMillis);
             }
 
-            long extraLocalOffsetLookup() {
+            public long extraLocalOffsetLookup() {
                 return extraLocalOffsetLookup;
             }
         },
@@ -120,7 +120,7 @@ public abstract class Rounding implements Writeable {
                 return DateUtils.roundQuarterOfYear(utcMillis);
             }
 
-            long extraLocalOffsetLookup() {
+            public long extraLocalOffsetLookup() {
                 return extraLocalOffsetLookup;
             }
         },
@@ -131,7 +131,7 @@ public abstract class Rounding implements Writeable {
                 return DateUtils.roundMonthOfYear(utcMillis);
             }
 
-            long extraLocalOffsetLookup() {
+            public long extraLocalOffsetLookup() {
                 return extraLocalOffsetLookup;
             }
         },
@@ -140,7 +140,7 @@ public abstract class Rounding implements Writeable {
                 return DateUtils.roundFloor(utcMillis, this.ratio);
             }
 
-            long extraLocalOffsetLookup() {
+            public long extraLocalOffsetLookup() {
                 return ratio;
             }
         },
@@ -149,7 +149,7 @@ public abstract class Rounding implements Writeable {
                 return DateUtils.roundFloor(utcMillis, ratio);
             }
 
-            long extraLocalOffsetLookup() {
+            public long extraLocalOffsetLookup() {
                 return ratio;
             }
         },
@@ -164,7 +164,7 @@ public abstract class Rounding implements Writeable {
                 return DateUtils.roundFloor(utcMillis, ratio);
             }
 
-            long extraLocalOffsetLookup() {
+            public long extraLocalOffsetLookup() {
                 return ratio;
             }
         },
@@ -179,7 +179,7 @@ public abstract class Rounding implements Writeable {
                 return DateUtils.roundFloor(utcMillis, ratio);
             }
 
-            long extraLocalOffsetLookup() {
+            public long extraLocalOffsetLookup() {
                 return ratio;
             }
         };
@@ -216,7 +216,7 @@ public abstract class Rounding implements Writeable {
          * look up so that we can see transitions that we might have rounded
          * down beyond.
          */
-        abstract long extraLocalOffsetLookup();
+        public abstract long extraLocalOffsetLookup();
 
         public byte getId() {
             return id;
@@ -487,7 +487,7 @@ public abstract class Rounding implements Writeable {
      *
      * @opensearch.internal
      */
-    static class TimeUnitRounding extends Rounding {
+    public static class TimeUnitRounding extends Rounding {
         static final byte ID = 1;
 
         private final DateTimeUnit unit;
@@ -513,6 +513,14 @@ public abstract class Rounding implements Writeable {
         @Override
         public byte id() {
             return ID;
+        }
+
+        public DateTimeUnit getUnit() {
+            return this.unit;
+        }
+
+        public ZoneId getTimeZone() {
+            return this.timeZone;
         }
 
         private LocalDateTime truncateLocalDateTime(LocalDateTime localDateTime) {
@@ -945,7 +953,7 @@ public abstract class Rounding implements Writeable {
      *
      * @opensearch.internal
      */
-    static class TimeIntervalRounding extends Rounding {
+    public static class TimeIntervalRounding extends Rounding {
         static final byte ID = 2;
 
         private final long interval;
@@ -970,6 +978,14 @@ public abstract class Rounding implements Writeable {
         @Override
         public byte id() {
             return ID;
+        }
+
+        public long getInterval() {
+            return this.interval;
+        }
+
+        public ZoneId getTimeZone() {
+            return this.timeZone;
         }
 
         @Override
