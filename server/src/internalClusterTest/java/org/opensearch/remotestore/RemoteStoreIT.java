@@ -35,6 +35,7 @@ import org.opensearch.indices.recovery.PeerRecoveryTargetService;
 import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.plugins.Plugin;
+import org.opensearch.test.InternalTestCluster;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.transport.MockTransportService;
 import org.opensearch.transport.TransportService;
@@ -705,7 +706,7 @@ public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
         assertFalse(clusterHealthResponse.isTimedOut());
     }
 
-    public void testResumeUploadAfterFailedPrimaryRelocation() throws ExecutionException, InterruptedException {
+    public void testResumeUploadAfterFailedPrimaryRelocation() throws ExecutionException, InterruptedException, IOException {
         // In this test, we fail the hand off during the primary relocation. This will undo the drainRefreshes and
         // drainSync performed as part of relocation handoff (before performing the handoff transport action).
         // We validate the same here by failing the peer recovery and ensuring we can index afterward as well.
@@ -759,6 +760,46 @@ public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
         int moreDocs = randomIntBetween(5, 10);
         indexBulk(INDEX_NAME, moreDocs);
         flushAndRefresh(INDEX_NAME);
+        int uncommittedOps = randomIntBetween(5, 10);
+        indexBulk(INDEX_NAME, uncommittedOps);
         assertHitCount(client(oldPrimary).prepareSearch(INDEX_NAME).setSize(0).setPreference("_only_local").get(), docs + moreDocs);
+        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(primaryNodeName(INDEX_NAME)));
+
+        restore(true, INDEX_NAME);
+        ensureGreen(INDEX_NAME);
+        assertHitCount(
+            client(newPrimary).prepareSearch(INDEX_NAME).setSize(0).setPreference("_only_local").get(),
+            docs + moreDocs + uncommittedOps
+        );
+
+        String newNode = internalCluster().startDataOnlyNodes(1).get(0);
+        ensureStableCluster(3);
+        client().admin()
+            .cluster()
+            .prepareReroute()
+            .add(new MoveAllocationCommand(INDEX_NAME, 0, newPrimary, newNode))
+            .execute()
+            .actionGet();
+
+        ClusterHealthResponse clusterHealthResponse = client().admin()
+            .cluster()
+            .prepareHealth()
+            .setWaitForStatus(ClusterHealthStatus.GREEN)
+            .setWaitForEvents(Priority.LANGUID)
+            .setWaitForNoRelocatingShards(true)
+            .setTimeout(TimeValue.timeValueSeconds(10))
+            .execute()
+            .actionGet();
+        assertFalse(clusterHealthResponse.isTimedOut());
+
+        ex = assertThrows(
+            SearchPhaseExecutionException.class,
+            () -> client(newPrimary).prepareSearch(INDEX_NAME).setSize(0).setPreference("_only_local").get()
+        );
+        assertEquals("all shards failed", ex.getMessage());
+        assertHitCount(
+            client(newNode).prepareSearch(INDEX_NAME).setSize(0).setPreference("_only_local").get(),
+            docs + moreDocs + uncommittedOps
+        );
     }
 }

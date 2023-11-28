@@ -8,6 +8,7 @@
 
 package org.opensearch.remotestore;
 
+import org.opensearch.action.admin.cluster.remotestore.restore.RestoreRemoteStoreRequest;
 import org.opensearch.action.admin.indices.get.GetIndexRequest;
 import org.opensearch.action.admin.indices.get.GetIndexResponse;
 import org.opensearch.action.bulk.BulkItemResponse;
@@ -16,6 +17,7 @@ import org.opensearch.action.bulk.BulkResponse;
 import org.opensearch.action.index.IndexRequest;
 import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.action.index.IndexResponse;
+import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.action.support.WriteRequest;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.RepositoriesMetadata;
@@ -58,6 +60,7 @@ import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_ST
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_REPOSITORY_TYPE_ATTRIBUTE_KEY_FORMAT;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEY;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 
 public class RemoteStoreBaseIntegTestCase extends OpenSearchIntegTestCase {
     protected static final String REPOSITORY_NAME = "test-remote-store-repo";
@@ -395,5 +398,17 @@ public class RemoteStoreBaseIntegTestCase extends OpenSearchIntegTestCase {
         String uuid = getIndexResponse.getSettings().get(indexName).get(IndexMetadata.SETTING_INDEX_UUID);
         IndexService indexService = indicesService.indexService(new Index(indexName, uuid));
         return indexService.getShard(0);
+    }
+
+    protected void restore(boolean restoreAllShards, String... indices) {
+        if (restoreAllShards) {
+            assertAcked(client().admin().indices().prepareClose(indices));
+        }
+        client().admin()
+            .cluster()
+            .restoreRemoteStore(
+                new RestoreRemoteStoreRequest().indices(indices).restoreAllShards(restoreAllShards),
+                PlainActionFuture.newFuture()
+            );
     }
 }
