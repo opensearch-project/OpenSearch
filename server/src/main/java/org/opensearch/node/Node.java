@@ -898,10 +898,22 @@ public class Node implements Closeable {
 
             final RestController restController = actionModule.getRestController();
 
+            final NodeResourceUsageTracker nodeResourceUsageTracker = new NodeResourceUsageTracker(
+                threadPool,
+                settings,
+                clusterService.getClusterSettings()
+            );
+            final ResourceUsageCollectorService resourceUsageCollectorService = new ResourceUsageCollectorService(
+                nodeResourceUsageTracker,
+                clusterService,
+                threadPool
+            );
+
             final AdmissionControlService admissionControlService = new AdmissionControlService(
                 settings,
-                clusterService.getClusterSettings(),
-                threadPool
+                clusterService,
+                threadPool,
+                resourceUsageCollectorService
             );
 
             AdmissionControlTransportInterceptor admissionControlTransportInterceptor = new AdmissionControlTransportInterceptor(
@@ -1105,16 +1117,6 @@ public class Node implements Closeable {
                 transportService.getTaskManager(),
                 taskCancellationMonitoringSettings
             );
-            final NodeResourceUsageTracker nodeResourceUsageTracker = new NodeResourceUsageTracker(
-                threadPool,
-                settings,
-                clusterService.getClusterSettings()
-            );
-            final ResourceUsageCollectorService resourceUsageCollectorService = new ResourceUsageCollectorService(
-                nodeResourceUsageTracker,
-                clusterService,
-                threadPool
-            );
             this.nodeService = new NodeService(
                 settings,
                 threadPool,
@@ -1139,7 +1141,8 @@ public class Node implements Closeable {
                 taskCancellationMonitoringService,
                 resourceUsageCollectorService,
                 segmentReplicationStatsTracker,
-                repositoryService
+                repositoryService,
+                admissionControlService
             );
 
             final SearchService searchService = newSearchService(
