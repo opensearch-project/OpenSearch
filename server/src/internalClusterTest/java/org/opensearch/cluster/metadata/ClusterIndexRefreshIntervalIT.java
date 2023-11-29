@@ -35,23 +35,27 @@ package org.opensearch.cluster.metadata;
 import org.opensearch.action.admin.indices.get.GetIndexRequest;
 import org.opensearch.action.admin.indices.get.GetIndexResponse;
 import org.opensearch.action.admin.indices.settings.put.UpdateSettingsRequest;
+import org.opensearch.action.admin.indices.template.put.PutIndexTemplateRequest;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.index.Index;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.indices.IndicesService;
+import org.opensearch.snapshots.AbstractSnapshotIntegTestCase;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.junit.Before;
 
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
 
 import static org.opensearch.indices.IndicesService.CLUSTER_DEFAULT_INDEX_REFRESH_INTERVAL_SETTING;
 import static org.opensearch.indices.IndicesService.CLUSTER_MINIMUM_INDEX_REFRESH_INTERVAL_SETTING;
 
-@OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
-public class ClusterIndexRefreshIntervalIT extends OpenSearchIntegTestCase {
+@OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 2)
+public class ClusterIndexRefreshIntervalIT extends AbstractSnapshotIntegTestCase {
 
     public static final String INDEX_NAME = "test-index";
 
@@ -69,9 +73,39 @@ public class ClusterIndexRefreshIntervalIT extends OpenSearchIntegTestCase {
         internalCluster().startClusterManagerOnlyNode();
     }
 
+    static void putIndexTemplate(String refreshInterval) {
+        PutIndexTemplateRequest request = new PutIndexTemplateRequest("my-template"); // <1>
+        request.patterns(Arrays.asList("pattern-1", "log-*")); // <2>
+
+        request.settings(
+            Settings.builder() // <1>
+                .put("index.number_of_shards", 1)
+                .put("index.number_of_replicas", 1)
+                .put("index.refresh_interval", refreshInterval)
+        );
+        assertTrue(client().admin().indices().putTemplate(request).actionGet().isAcknowledged());
+    }
+
+    public void testIndexTemplateCreationSucceedsWhenNoMinimumRefreshInterval() throws ExecutionException, InterruptedException {
+        String clusterManagerName = internalCluster().getClusterManagerName();
+        List<String> dataNodes = new ArrayList<>(internalCluster().getDataNodeNames());
+        putIndexTemplate("2s");
+
+        // Test index creation using template with valid refresh interval
+        String indexName = "log-myindex-1";
+        createIndex(indexName);
+        ensureYellowAndNoInitializingShards(indexName);
+        ensureGreen(indexName);
+        GetIndexResponse getIndexResponse = client(clusterManagerName).admin().indices().getIndex(new GetIndexRequest()).get();
+        IndicesService indicesService = internalCluster().getInstance(IndicesService.class, randomFrom(dataNodes));
+        String uuid = getIndexResponse.getSettings().get(indexName).get(IndexMetadata.SETTING_INDEX_UUID);
+        IndexService indexService = indicesService.indexService(new Index(indexName, uuid));
+        assertEquals(TimeValue.timeValueSeconds(2), indexService.getRefreshTaskInterval());
+    }
+
     public void testDefaultRefreshIntervalWithUpdateClusterAndIndexSettings() throws Exception {
         String clusterManagerName = internalCluster().getClusterManagerName();
-        List<String> dataNodes = internalCluster().startDataOnlyNodes(2);
+        List<String> dataNodes = new ArrayList<>(internalCluster().getDataNodeNames());
         createIndex(INDEX_NAME);
         ensureYellowAndNoInitializingShards(INDEX_NAME);
         ensureGreen(INDEX_NAME);
@@ -90,7 +124,7 @@ public class ClusterIndexRefreshIntervalIT extends OpenSearchIntegTestCase {
             .get();
         assertEquals(refreshInterval, indexService.getRefreshTaskInterval());
 
-        // Update of cluster.minimum.index.refresh_interval setting to value less than refreshInterval above will fail
+        // Update of cluster.minimum.index.refresh_interval setting to value more than default refreshInterval above will fail
         TimeValue invalidMinimumRefreshInterval = TimeValue.timeValueMillis(refreshInterval.millis() + randomIntBetween(1, 1000));
         IllegalArgumentException exceptionDuringMinUpdate = assertThrows(
             IllegalArgumentException.class,
@@ -205,7 +239,7 @@ public class ClusterIndexRefreshIntervalIT extends OpenSearchIntegTestCase {
             .getAsTime(IndicesService.CLUSTER_MINIMUM_INDEX_REFRESH_INTERVAL_SETTING.getKey(), TimeValue.MINUS_ONE);
         boolean createIndexSuccess = clusterMinimumRefreshInterval.equals(TimeValue.MINUS_ONE);
         String clusterManagerName = internalCluster().getClusterManagerName();
-        List<String> dataNodes = internalCluster().startDataOnlyNodes(2);
+        List<String> dataNodes = new ArrayList<>(internalCluster().getDataNodeNames());
         Settings settings = Settings.builder()
             .put(indexSettings())
             .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), IndexSettings.MINIMUM_REFRESH_INTERVAL)
@@ -236,7 +270,7 @@ public class ClusterIndexRefreshIntervalIT extends OpenSearchIntegTestCase {
 
     public void testInvalidRefreshInterval() {
         String invalidRefreshInterval = "-10s";
-        internalCluster().startDataOnlyNodes(2);
+        List<String> dataNodes = new ArrayList<>(internalCluster().getDataNodeNames());
         Settings settings = Settings.builder()
             .put(indexSettings())
             .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), invalidRefreshInterval)
@@ -251,7 +285,7 @@ public class ClusterIndexRefreshIntervalIT extends OpenSearchIntegTestCase {
     }
 
     public void testCreateIndexWithExplicitNullRefreshInterval() throws ExecutionException, InterruptedException {
-        List<String> dataNodes = internalCluster().startDataOnlyNodes(2);
+        List<String> dataNodes = new ArrayList<>(internalCluster().getDataNodeNames());
         Settings indexSettings = Settings.builder()
             .put(indexSettings())
             .putNull(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey())
@@ -278,7 +312,7 @@ public class ClusterIndexRefreshIntervalIT extends OpenSearchIntegTestCase {
      * the index setting. The underlying index should continue to use the same refresh interval as earlier.
      */
     public void testClusterMinimumChangeOnIndexWithCustomRefreshInterval() throws ExecutionException, InterruptedException {
-        List<String> dataNodes = internalCluster().startDataOnlyNodes(2);
+        List<String> dataNodes = new ArrayList<>(internalCluster().getDataNodeNames());
         TimeValue customRefreshInterval = TimeValue.timeValueSeconds(getDefaultRefreshInterval().getSeconds() + randomIntBetween(1, 5));
         Settings indexSettings = Settings.builder()
             .put(indexSettings())

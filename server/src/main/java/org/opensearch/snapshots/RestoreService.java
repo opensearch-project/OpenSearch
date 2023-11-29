@@ -429,6 +429,10 @@ public class RestoreService implements ClusterStateApplier {
                                     createIndexService.validateIndexName(renamedIndexName, currentState);
                                     createIndexService.validateDotIndex(renamedIndexName, isHidden);
                                     createIndexService.validateIndexSettings(renamedIndexName, snapshotIndexMetadata.getSettings(), false);
+                                    MetadataCreateIndexService.validateRefreshIntervalSettings(
+                                        snapshotIndexMetadata.getSettings(),
+                                        clusterSettings
+                                    );
                                     IndexMetadata.Builder indexMdBuilder = IndexMetadata.builder(snapshotIndexMetadata)
                                         .state(IndexMetadata.State.OPEN)
                                         .index(renamedIndexName);
@@ -578,6 +582,7 @@ public class RestoreService implements ClusterStateApplier {
                             if (metadata.templates() != null) {
                                 // TODO: Should all existing templates be deleted first?
                                 for (final IndexTemplateMetadata cursor : metadata.templates().values()) {
+                                    MetadataCreateIndexService.validateRefreshIntervalSettings(cursor.settings(), clusterSettings);
                                     mdBuilder.put(cursor);
                                 }
                             }
