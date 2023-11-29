@@ -66,6 +66,11 @@ import org.opensearch.node.AdaptiveSelectionStats;
 import org.opensearch.node.NodeResourceUsageStats;
 import org.opensearch.node.NodesResourceUsageStats;
 import org.opensearch.node.ResponseCollectorService;
+import org.opensearch.ratelimitting.admissioncontrol.controllers.AdmissionController;
+import org.opensearch.ratelimitting.admissioncontrol.controllers.CpuBasedAdmissionController;
+import org.opensearch.ratelimitting.admissioncontrol.enums.AdmissionControlActionType;
+import org.opensearch.ratelimitting.admissioncontrol.stats.AdmissionControlStats;
+import org.opensearch.ratelimitting.admissioncontrol.stats.AdmissionControllerStats;
 import org.opensearch.script.ScriptCacheStats;
 import org.opensearch.script.ScriptStats;
 import org.opensearch.test.OpenSearchTestCase;
@@ -540,15 +545,44 @@ public class NodeStatsTests extends OpenSearchTestCase {
                     assertEquals(replicationStats.getTotalBytesBehind(), deserializedReplicationStats.getTotalBytesBehind());
                     assertEquals(replicationStats.getMaxReplicationLag(), deserializedReplicationStats.getMaxReplicationLag());
                 }
+                AdmissionControlStats admissionControlStats = nodeStats.getAdmissionControlStats();
+                AdmissionControlStats deserializedAdmissionControlStats = deserializedNodeStats.getAdmissionControlStats();
+                if (admissionControlStats == null) {
+                    assertNull(deserializedAdmissionControlStats);
+                } else {
+                    assertEquals(
+                        admissionControlStats.getAdmissionControllerStatsList().size(),
+                        deserializedAdmissionControlStats.getAdmissionControllerStatsList().size()
+                    );
+                    AdmissionControllerStats admissionControllerStats = admissionControlStats.getAdmissionControllerStatsList().get(0);
+                    AdmissionControllerStats deserializedAdmissionControllerStats = deserializedAdmissionControlStats
+                        .getAdmissionControllerStatsList()
+                        .get(0);
+                    assertEquals(
+                        admissionControllerStats.getAdmissionControllerName(),
+                        deserializedAdmissionControllerStats.getAdmissionControllerName()
+                    );
+                    assertEquals(1, (long) admissionControllerStats.getRejectionCount().get(AdmissionControlActionType.SEARCH.getType()));
+                    assertEquals(
+                        admissionControllerStats.getRejectionCount().get(AdmissionControlActionType.SEARCH.getType()),
+                        deserializedAdmissionControllerStats.getRejectionCount().get(AdmissionControlActionType.SEARCH.getType())
+                    );
+
+                    assertEquals(2, (long) admissionControllerStats.getRejectionCount().get(AdmissionControlActionType.INDEXING.getType()));
+                    assertEquals(
+                        admissionControllerStats.getRejectionCount().get(AdmissionControlActionType.INDEXING.getType()),
+                        deserializedAdmissionControllerStats.getRejectionCount().get(AdmissionControlActionType.INDEXING.getType())
+                    );
+                }
             }
         }
     }
 
-    public static NodeStats createNodeStats() {
+    public static NodeStats createNodeStats() throws IOException {
         return createNodeStats(false);
     }
 
-    public static NodeStats createNodeStats(boolean remoteStoreStats) {
+    public static NodeStats createNodeStats(boolean remoteStoreStats) throws IOException {
         DiscoveryNode node = new DiscoveryNode(
             "test_node",
             buildNewFakeTransportAddress(),
@@ -861,6 +895,26 @@ public class NodeStatsTests extends OpenSearchTestCase {
             clusterManagerThrottlingStats = new ClusterManagerThrottlingStats();
             clusterManagerThrottlingStats.onThrottle("test-task", randomInt());
         }
+
+        AdmissionControlStats admissionControlStats = null;
+        if (frequently()) {
+            AdmissionController admissionController = new AdmissionController(
+                CpuBasedAdmissionController.CPU_BASED_ADMISSION_CONTROLLER,
+                null,
+                null
+            ) {
+                @Override
+                public void apply(String action, AdmissionControlActionType admissionControlActionType) {
+                    return;
+                }
+            };
+            admissionController.addRejectionCount(AdmissionControlActionType.SEARCH.getType(), 1);
+            admissionController.addRejectionCount(AdmissionControlActionType.INDEXING.getType(), 2);
+            AdmissionControllerStats stats = new AdmissionControllerStats(admissionController);
+            List<AdmissionControllerStats> statsList = new ArrayList();
+            statsList.add(stats);
+            admissionControlStats = new AdmissionControlStats(statsList);
+        }
         ScriptCacheStats scriptCacheStats = scriptStats != null ? scriptStats.toScriptCacheStats() : null;
 
         WeightedRoutingStats weightedRoutingStats = null;
@@ -898,7 +952,8 @@ public class NodeStatsTests extends OpenSearchTestCase {
             null,
             null,
             segmentReplicationRejectionStats,
-            null
+            null,
+            admissionControlStats
         );
     }
 
