@@ -86,7 +86,7 @@ public class ClusterIndexRefreshIntervalIT extends AbstractSnapshotIntegTestCase
         assertTrue(client().admin().indices().putTemplate(request).actionGet().isAcknowledged());
     }
 
-    public void testIndexTemplateCreationWithLessThanMinimumRefreshInterval() throws ExecutionException, InterruptedException {
+    public void testIndexTemplateCreationSucceedsWhenNoMinimumRefreshInterval() throws ExecutionException, InterruptedException {
         String clusterManagerName = internalCluster().getClusterManagerName();
         List<String> dataNodes = new ArrayList<>(internalCluster().getDataNodeNames());
         putIndexTemplate("2s");

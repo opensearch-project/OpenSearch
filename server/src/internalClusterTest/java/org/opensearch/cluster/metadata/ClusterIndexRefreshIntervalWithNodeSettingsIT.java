@@ -55,7 +55,6 @@ public class ClusterIndexRefreshIntervalWithNodeSettingsIT extends ClusterIndexR
                 getMinRefreshIntervalForRefreshDisabled()
             )
         );
-        super.testIndexTemplateCreationWithLessThanMinimumRefreshInterval();
     }
 
     public void testIndexTemplateSnapshotRestoreWithLessThanMinimumRefreshInterval() throws ExecutionException, InterruptedException {
