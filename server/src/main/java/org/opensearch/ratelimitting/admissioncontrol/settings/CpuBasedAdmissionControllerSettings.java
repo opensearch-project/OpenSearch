@@ -14,29 +14,22 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.ratelimitting.admissioncontrol.AdmissionControlSettings;
 import org.opensearch.ratelimitting.admissioncontrol.enums.AdmissionControlMode;
 
-import java.util.Arrays;
-import java.util.List;
-
 /**
  * Settings related to cpu based admission controller.
  * @opensearch.internal
  */
-public class CPUBasedAdmissionControllerSettings {
-    public static final String CPU_BASED_ADMISSION_CONTROLLER = "global_cpu_usage";
+public class CpuBasedAdmissionControllerSettings {
 
     /**
-     * Default parameters for the CPUBasedAdmissionControllerSettings
+     * Default parameters for the CpuBasedAdmissionControllerSettings
      */
     public static class Defaults {
-        public static final long CPU_USAGE = 95;
-        public static List<String> TRANSPORT_LAYER_DEFAULT_URI_TYPE = Arrays.asList("indexing", "search");
+        public static final long CPU_USAGE_LIMIT = 95;
     }
 
     private AdmissionControlMode transportLayerMode;
     private Long searchCPULimit;
     private Long indexingCPULimit;
-
-    private final List<String> transportActionsList;
     /**
      * Feature level setting to operate in shadow-mode or in enforced-mode. If enforced field is set
      * rejection will be performed, otherwise only rejection metrics will be populated.
@@ -54,7 +47,7 @@ public class CPUBasedAdmissionControllerSettings {
      */
     public static final Setting<Long> SEARCH_CPU_USAGE_LIMIT = Setting.longSetting(
         "admission_control.search.cpu_usage.limit",
-        Defaults.CPU_USAGE,
+        Defaults.CPU_USAGE_LIMIT,
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
@@ -64,18 +57,17 @@ public class CPUBasedAdmissionControllerSettings {
      */
     public static final Setting<Long> INDEXING_CPU_USAGE_LIMIT = Setting.longSetting(
         "admission_control.indexing.cpu_usage.limit",
-        Defaults.CPU_USAGE,
+        Defaults.CPU_USAGE_LIMIT,
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
 
     // currently limited to one setting will add further more settings in follow-up PR's
-    public CPUBasedAdmissionControllerSettings(ClusterSettings clusterSettings, Settings settings) {
+    public CpuBasedAdmissionControllerSettings(ClusterSettings clusterSettings, Settings settings) {
         this.transportLayerMode = CPU_BASED_ADMISSION_CONTROLLER_TRANSPORT_LAYER_MODE.get(settings);
         clusterSettings.addSettingsUpdateConsumer(CPU_BASED_ADMISSION_CONTROLLER_TRANSPORT_LAYER_MODE, this::setTransportLayerMode);
         this.searchCPULimit = SEARCH_CPU_USAGE_LIMIT.get(settings);
         this.indexingCPULimit = INDEXING_CPU_USAGE_LIMIT.get(settings);
-        this.transportActionsList = Defaults.TRANSPORT_LAYER_DEFAULT_URI_TYPE;
         clusterSettings.addSettingsUpdateConsumer(INDEXING_CPU_USAGE_LIMIT, this::setIndexingCPULimit);
         clusterSettings.addSettingsUpdateConsumer(SEARCH_CPU_USAGE_LIMIT, this::setSearchCPULimit);
     }
@@ -102,9 +94,5 @@ public class CPUBasedAdmissionControllerSettings {
 
     public void setSearchCPULimit(Long searchCPULimit) {
         this.searchCPULimit = searchCPULimit;
-    }
-
-    public List<String> getTransportActionsList() {
-        return transportActionsList;
     }
 }
