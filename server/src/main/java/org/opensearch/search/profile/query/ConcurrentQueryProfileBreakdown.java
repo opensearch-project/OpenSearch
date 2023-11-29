@@ -185,23 +185,25 @@ public final class ConcurrentQueryProfileBreakdown extends ContextualProfileBrea
                     }
                     final Map<String, Long> currentSliceLeafBreakdownMap = contexts.get(sliceLeaf).toBreakdownMap();
                     // get the count for current leaf timing type
+                    final long sliceLeafTimingTypeCount = currentSliceLeafBreakdownMap.get(timingTypeCountKey);
                     currentSliceBreakdown.compute(
                         timingTypeCountKey,
-                        (key, value) -> (value == null)
-                            ? currentSliceLeafBreakdownMap.get(timingTypeCountKey)
-                            : value + currentSliceLeafBreakdownMap.get(timingTypeCountKey)
+                        (key, value) -> (value == null) ? sliceLeafTimingTypeCount : value + sliceLeafTimingTypeCount
                     );
+
+                    if (sliceLeafTimingTypeCount == 0L) {
+                        // In case where a slice with multiple leaves, it is possible that any one of the leaves has 0 invocations for a
+                        // specific breakdown type. We should skip the slice start/end time computation for any leaf with 0 invocations on a
+                        // timing type, as 0 does not represent an actual timing.
+                        // For example, a slice has 0 invocations for a breakdown type from its leading leaves. Another example, let's
+                        // consider a slice with three leaves: leaf A with a score count of 5, leaf B with a score count of 0,
+                        // and leaf C with a score count of 4. In this situation, we only compute the timing type slice start/end time based
+                        // on leaf A and leaf C. This is because leaf B has a start time of zero.
+                        continue;
+                    }
 
                     // compute the sliceStartTime for timingType using min of startTime across slice leaves
                     final long sliceLeafTimingTypeStartTime = currentSliceLeafBreakdownMap.get(timingTypeStartKey);
-                    if (sliceLeafTimingTypeStartTime == 0L && currentSliceBreakdown.get(timingTypeCountKey) != 0L) {
-                        // In case where a slice with multiple leaves, it is possible that any one of the leaves has 0 invocations for a
-                        // specific breakdown type. For instance, let's consider a slice with three leaves: leaf A with a score count of 5,
-                        // leaf B with a score count of 0, and leaf C with a score count of 4. In this situation, we only compute the timing
-                        // type slice start/end time based on leaf A and leaf C. This is because leaf B has a start time of zero. And it
-                        // doesn't represent an actual timing; rather, it indicates no invocations.
-                        continue;
-                    }
                     currentSliceBreakdown.compute(
                         timingTypeSliceStartTimeKey,
                         (key, value) -> (value == null) ? sliceLeafTimingTypeStartTime : Math.min(value, sliceLeafTimingTypeStartTime)
@@ -215,6 +217,13 @@ public final class ConcurrentQueryProfileBreakdown extends ContextualProfileBrea
                         timingTypeSliceEndTimeKey,
                         (key, value) -> (value == null) ? sliceLeafTimingTypeEndTime : Math.max(value, sliceLeafTimingTypeEndTime)
                     );
+                }
+                // Only when we've checked all leaves in a slice and still find no invocations, then we should set the slice start/end time
+                // to the default 0L. This is because buildQueryBreakdownMap expects timingTypeSliceStartTimeKey and
+                // timingTypeSliceEndTimeKey in the slice level breakdowns.
+                if (currentSliceBreakdown.get(timingTypeCountKey) != null && currentSliceBreakdown.get(timingTypeCountKey) == 0L) {
+                    currentSliceBreakdown.put(timingTypeSliceStartTimeKey, 0L);
+                    currentSliceBreakdown.put(timingTypeSliceEndTimeKey, 0L);
                 }
                 // compute sliceMaxEndTime as max of sliceEndTime across all timing types
                 sliceMaxEndTime = Math.max(sliceMaxEndTime, currentSliceBreakdown.getOrDefault(timingTypeSliceEndTimeKey, Long.MIN_VALUE));
