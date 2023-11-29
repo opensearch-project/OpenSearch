@@ -29,8 +29,8 @@ jobs:
 
             return maintainersResponse.data.map(item => item.login).join(', ');
 
-      - uses: peternied/approved-by-maintainers@main
+      - uses: peternied/approved-by-maintainers@v1
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           min-required: 1
-          maintainers: ${{ steps.find-maintainers.outputs.result }}
+          required-approvers-list: ${{ steps.find-maintainers.outputs.result }}
