@@ -1863,10 +1863,6 @@ public class FieldSortIT extends ParameterizedOpenSearchIntegTestCase {
      * Test case for issue 6150: https://github.com/elastic/elasticsearch/issues/6150
      */
     public void testNestedSort() throws IOException, InterruptedException, ExecutionException {
-        assumeFalse(
-            "Concurrent search case muted pending fix: https://github.com/opensearch-project/OpenSearch/issues/11258",
-            internalCluster().clusterService().getClusterSettings().get(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING)
-        );
         assertAcked(
             prepareCreate("test").setMapping(
                 XContentFactory.jsonBuilder()
