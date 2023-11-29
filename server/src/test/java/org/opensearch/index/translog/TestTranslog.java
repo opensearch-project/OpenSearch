@@ -335,6 +335,18 @@ public class TestTranslog {
         }
     }
 
+    static class SlowDownWriteSwitch {
+        private volatile int sleepSeconds;
+
+        public void setSleepSeconds(int sleepSeconds) {
+            this.sleepSeconds = sleepSeconds;
+        }
+
+        public int getSleepSeconds() {
+            return sleepSeconds;
+        }
+    }
+
     static class SortedSnapshot implements Translog.Snapshot {
         private final Translog.Snapshot snapshot;
         private List<Translog.Operation> operations = null;

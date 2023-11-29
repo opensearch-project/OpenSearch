@@ -345,6 +345,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     private final List<ReferenceManager.RefreshListener> internalRefreshListener = new ArrayList<>();
     private final RemoteStoreFileDownloader fileDownloader;
+    private final RecoverySettings recoverySettings;
 
     public IndexShard(
         final ShardRouting shardRouting,
@@ -469,6 +470,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             ? false
             : mapperService.documentMapper().mappers().containsTimeStampField();
         this.remoteStoreStatsTrackerFactory = remoteStoreStatsTrackerFactory;
+        this.recoverySettings = recoverySettings;
         this.fileDownloader = new RemoteStoreFileDownloader(shardRouting.shardId(), threadPool, recoverySettings);
     }
 
@@ -565,6 +567,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     public String getNodeId() {
         return translogConfig.getNodeId();
+    }
+
+    public RecoverySettings getRecoverySettings() {
+        return recoverySettings;
     }
 
     public RemoteStoreFileDownloader getFileDownloader() {
@@ -845,6 +851,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         final Runnable performSegRep
     ) throws IllegalIndexShardStateException, IllegalStateException, InterruptedException {
         assert shardRouting.primary() : "only primaries can be marked as relocated: " + shardRouting;
+        // The below list of releasable ensures that if the relocation does not happen, we undo the activity of close and
+        // acquire all permits. This will ensure that the remote store uploads can still be done by the existing primary shard.
+        List<Releasable> releasablesOnHandoffFailures = new ArrayList<>(2);
         try (Releasable forceRefreshes = refreshListeners.forceRefreshes()) {
             indexShardOperationPermits.blockOperations(30, TimeUnit.MINUTES, () -> {
                 forceRefreshes.close();
@@ -857,11 +866,15 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     maybeSync();
                 }
 
-                // Ensures all in-flight remote store operations drain, before we perform the handoff.
-                internalRefreshListener.stream()
-                    .filter(refreshListener -> refreshListener instanceof Closeable)
-                    .map(refreshListener -> (Closeable) refreshListener)
-                    .close();
+                // Ensures all in-flight remote store refreshes drain, before we perform the performSegRep.
+                for (ReferenceManager.RefreshListener refreshListener : internalRefreshListener) {
+                    if (refreshListener instanceof ReleasableRetryableRefreshListener) {
+                        releasablesOnHandoffFailures.add(((ReleasableRetryableRefreshListener) refreshListener).drainRefreshes());
+                    }
+                }
+
+                // Ensure all in-flight remote store translog upload drains, before we perform the performSegRep.
+                releasablesOnHandoffFailures.add(getEngine().translogManager().drainSync());
 
                 // no shard operation permits are being held here, move state from started to relocated
                 assert indexShardOperationPermits.getActiveOperationsCount() == OPERATIONS_BLOCKED
@@ -896,6 +909,13 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             // Fail primary relocation source and target shards.
             failShard("timed out waiting for relocation hand-off to complete", null);
             throw new IndexShardClosedException(shardId(), "timed out waiting for relocation hand-off to complete");
+        } catch (Exception ex) {
+            assert replicationTracker.isPrimaryMode();
+            // If the primary mode is still true after the end of handoff attempt, it basically means that the relocation
+            // failed. The existing primary will continue to be the primary, so we need to allow the segments and translog
+            // upload to resume.
+            Releasables.close(releasablesOnHandoffFailures);
+            throw ex;
         }
     }
 
@@ -3865,10 +3885,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             circuitBreakerService,
             globalCheckpointSupplier,
             replicationTracker::getRetentionLeases,
-            () -> getOperationPrimaryTerm(),
+            this::getOperationPrimaryTerm,
             tombstoneDocSupplier(),
             isReadOnlyReplica,
-            replicationTracker::isPrimaryMode,
+            this::isStartedPrimary,
             translogFactorySupplier.apply(indexSettings, shardRouting),
             isTimeSeriesDescSortOptimizationEnabled() ? DataStream.TIMESERIES_LEAF_SORTER : null // DESC @timestamp default order for
             // timeseries
@@ -3881,6 +3901,15 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     public boolean isRemoteTranslogEnabled() {
         return indexSettings() != null && indexSettings().isRemoteTranslogStoreEnabled();
+    }
+
+    /**
+     * This checks if we are in state to upload to remote store. Until the cluster-manager informs the shard through
+     * cluster state, the shard will not be in STARTED state. This method is used to prevent pre-emptive segment or
+     * translog uploads.
+     */
+    public boolean isStartedPrimary() {
+        return getReplicationTracker().isPrimaryMode() && state() == IndexShardState.STARTED;
     }
 
     /**
