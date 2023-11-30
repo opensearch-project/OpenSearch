@@ -216,8 +216,12 @@ public class ScaledFloatFieldMapper extends ParametrizedFieldMapper {
                 long scaledValue = Math.round(scale(value));
                 scaledValues.add(scaledValue);
             }
-            Query query = NumberFieldMapper.NumberType.LONG.termsQuery(name(),
-                Collections.unmodifiableList(scaledValues), hasDocValues(), isSearchable());
+            Query query = NumberFieldMapper.NumberType.LONG.termsQuery(
+                name(),
+                Collections.unmodifiableList(scaledValues),
+                hasDocValues(),
+                isSearchable()
+            );
             if (boost() != 1f) {
                 query = new BoostQuery(query, boost());
             }
@@ -243,8 +247,7 @@ public class ScaledFloatFieldMapper extends ParametrizedFieldMapper {
                 }
                 hi = Math.round(Math.floor(dValue));
             }
-            Query query = NumberFieldMapper.NumberType.LONG.rangeQuery(name(), lo, hi, true, true, hasDocValues(),
-             isSearchable(),   context);
+            Query query = NumberFieldMapper.NumberType.LONG.rangeQuery(name(), lo, hi, true, true, hasDocValues(), isSearchable(), context);
             if (boost() != 1f) {
                 query = new BoostQuery(query, boost());
             }
