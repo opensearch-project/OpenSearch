@@ -226,8 +226,8 @@ public class SameShardRoutingTests extends OpenSearchAllocationTestCase {
         List<ShardRouting> shardRoutings = clusterState.getRoutingNodes().shardsWithState(ShardRoutingState.STARTED);
         String currentNodeId = shardRoutings.get(0).currentNodeId();
 
+        logger.info("--> move shard to the other node in the same host");
         String targetNodeId = Objects.equals(currentNodeId, "node1") ? "node2" : "node1";
-
         AllocationCommands commands = new AllocationCommands(new MoveAllocationCommand("test", 0, currentNodeId, targetNodeId));
         AllocationService.CommandsResult reroute = strategy.reroute(clusterState, commands, true, false);
         assertEquals(Decision.Type.YES, reroute.explanations().explanations().get(0).decisions().type());
