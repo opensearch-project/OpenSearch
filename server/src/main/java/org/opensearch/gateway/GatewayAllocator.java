@@ -137,6 +137,7 @@ public class GatewayAllocator implements ExistingShardsAllocator {
         this.batchStoreAction = batchStoreAction;
         this.replicaBatchShardAllocator = new InternalReplicaBatchShardAllocator();
         this.maxBatchSize = GATEWAY_ALLOCATOR_BATCH_SIZE.get(settings);
+        this.batchMode = EXISTING_SHARDS_ALLOCATOR_BATCH_MODE_ENABLED.get(settings);
     }
 
     @Override
@@ -216,10 +217,21 @@ public class GatewayAllocator implements ExistingShardsAllocator {
 
     @Override
     public void afterPrimariesBeforeReplicas(RoutingAllocation allocation) {
-        assert replicaShardAllocator != null;
-        if (allocation.routingNodes().hasInactiveShards()) {
-            // cancel existing recoveries if we have a better match
-            replicaShardAllocator.processExistingRecoveries(allocation);
+        if (this.batchMode) {
+            assert replicaBatchShardAllocator != null;
+            List<Set<ShardRouting>> storedShardBatches = batchIdToStoreShardBatch.values().stream()
+                .map(ShardsBatch::getBatchedShardRoutings)
+                .collect(Collectors.toList());
+            if (allocation.routingNodes().hasInactiveShards()) {
+                // cancel existing recoveries if we have a better match
+                replicaBatchShardAllocator.processExistingRecoveries(allocation, storedShardBatches);
+            }
+        } else {
+            assert replicaShardAllocator != null;
+            if (allocation.routingNodes().hasInactiveShards()) {
+                // cancel existing recoveries if we have a better match
+                replicaShardAllocator.processExistingRecoveries(allocation);
+            }
         }
     }
 
