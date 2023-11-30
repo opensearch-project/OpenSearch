@@ -194,25 +194,51 @@ public class SameShardRoutingTests extends OpenSearchAllocationTestCase {
 
     public void testRelocateBetweenNodesInSameHost() {
         AllocationService strategy = createAllocationService(
-                Settings.builder().put(SameShardAllocationDecider.CLUSTER_ROUTING_ALLOCATION_SAME_HOST_SETTING.getKey(), true).build());
+            Settings.builder().put(SameShardAllocationDecider.CLUSTER_ROUTING_ALLOCATION_SAME_HOST_SETTING.getKey(), true).build()
+        );
 
         Metadata metaData = Metadata.builder()
-                .put(IndexMetadata.builder("test").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(0))
-                .build();
+            .put(IndexMetadata.builder("test").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(0))
+            .build();
 
-        RoutingTable routingTable = RoutingTable.builder()
-                .addAsNew(metaData.index("test"))
-                .build();
-        ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)).metadata(metaData)
-                .routingTable(routingTable).build();
+        RoutingTable routingTable = RoutingTable.builder().addAsNew(metaData.index("test")).build();
+        ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+            .metadata(metaData)
+            .routingTable(routingTable)
+            .build();
 
         logger.info("--> adding two nodes with the same host");
-        clusterState = ClusterState.builder(clusterState).nodes(
+        clusterState = ClusterState.builder(clusterState)
+            .nodes(
                 DiscoveryNodes.builder()
-                        .add(new DiscoveryNode("node1", "node1", "node1", "test1", "test1", buildNewFakeTransportAddress(), emptyMap(),
-                                CLUSTER_MANAGER_DATA_ROLES, Version.CURRENT))
-                        .add(new DiscoveryNode("node2", "node2", "node2", "test1", "test1", buildNewFakeTransportAddress(), emptyMap(),
-                                CLUSTER_MANAGER_DATA_ROLES, Version.CURRENT))).build();
+                    .add(
+                        new DiscoveryNode(
+                            "node1",
+                            "node1",
+                            "node1",
+                            "test1",
+                            "test1",
+                            buildNewFakeTransportAddress(),
+                            emptyMap(),
+                            CLUSTER_MANAGER_DATA_ROLES,
+                            Version.CURRENT
+                        )
+                    )
+                    .add(
+                        new DiscoveryNode(
+                            "node2",
+                            "node2",
+                            "node2",
+                            "test1",
+                            "test1",
+                            buildNewFakeTransportAddress(),
+                            emptyMap(),
+                            CLUSTER_MANAGER_DATA_ROLES,
+                            Version.CURRENT
+                        )
+                    )
+            )
+            .build();
         clusterState = strategy.reroute(clusterState, "reroute");
 
         assertThat(numberOfShardsOfType(clusterState.getRoutingNodes(), ShardRoutingState.INITIALIZING), equalTo(1));
