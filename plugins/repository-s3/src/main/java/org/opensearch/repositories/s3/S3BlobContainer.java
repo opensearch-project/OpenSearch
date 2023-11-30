@@ -113,13 +113,6 @@ class S3BlobContainer extends AbstractBlobContainer implements AsyncMultiStreamB
 
     private static final Logger logger = LogManager.getLogger(S3BlobContainer.class);
 
-    /**
-     * Maximum number of deletes in a {@link DeleteObjectsRequest}.
-     *
-     * @see <a href="https://docs.aws.amazon.com/AmazonS3/latest/API/multiobjectdeleteapi.html">S3 Documentation</a>.
-     */
-    private static final int MAX_BULK_DELETES = 1000;
-
     private final S3BlobStore blobStore;
     private final String keyPath;
 
@@ -202,11 +195,16 @@ class S3BlobContainer extends AbstractBlobContainer implements AsyncMultiStreamB
             StreamContext streamContext = SocketAccess.doPrivileged(() -> writeContext.getStreamProvider(partSize));
             try (AmazonAsyncS3Reference amazonS3Reference = SocketAccess.doPrivileged(blobStore::asyncClientReference)) {
 
-                S3AsyncClient s3AsyncClient = writeContext.getWritePriority() == WritePriority.HIGH
-                    ? amazonS3Reference.get().priorityClient()
-                    : amazonS3Reference.get().client();
+                S3AsyncClient s3AsyncClient;
+                if (writeContext.getWritePriority() == WritePriority.URGENT) {
+                    s3AsyncClient = amazonS3Reference.get().urgentClient();
+                } else if (writeContext.getWritePriority() == WritePriority.HIGH) {
+                    s3AsyncClient = amazonS3Reference.get().priorityClient();
+                } else {
+                    s3AsyncClient = amazonS3Reference.get().client();
+                }
                 CompletableFuture<Void> completableFuture = blobStore.getAsyncTransferManager()
-                    .uploadObject(s3AsyncClient, uploadRequest, streamContext);
+                    .uploadObject(s3AsyncClient, uploadRequest, streamContext, blobStore.getStatsMetricPublisher());
                 completableFuture.whenComplete((response, throwable) -> {
                     if (throwable == null) {
                         completionListener.onResponse(response);
@@ -241,37 +239,27 @@ class S3BlobContainer extends AbstractBlobContainer implements AsyncMultiStreamB
                     return;
                 }
 
-                final List<CompletableFuture<InputStreamContainer>> blobPartInputStreamFutures = new ArrayList<>();
-                final long blobSize = blobMetadata.objectSize();
-                final Integer numberOfParts = blobMetadata.objectParts() == null ? null : blobMetadata.objectParts().totalPartsCount();
-                final String blobChecksum = blobMetadata.checksum().checksumCRC32();
+                try {
+                    final List<ReadContext.StreamPartCreator> blobPartInputStreamFutures = new ArrayList<>();
+                    final long blobSize = blobMetadata.objectSize();
+                    final Integer numberOfParts = blobMetadata.objectParts() == null ? null : blobMetadata.objectParts().totalPartsCount();
+                    final String blobChecksum = blobMetadata.checksum() == null ? null : blobMetadata.checksum().checksumCRC32();
 
-                if (numberOfParts == null) {
-                    blobPartInputStreamFutures.add(getBlobPartInputStreamContainer(s3AsyncClient, bucketName, blobKey, null));
-                } else {
-                    // S3 multipart files use 1 to n indexing
-                    for (int partNumber = 1; partNumber <= numberOfParts; partNumber++) {
-                        blobPartInputStreamFutures.add(getBlobPartInputStreamContainer(s3AsyncClient, bucketName, blobKey, partNumber));
-                    }
-                }
-
-                CompletableFuture.allOf(blobPartInputStreamFutures.toArray(CompletableFuture[]::new))
-                    .whenComplete((unused, partThrowable) -> {
-                        if (partThrowable == null) {
-                            listener.onResponse(
-                                new ReadContext(
-                                    blobSize,
-                                    blobPartInputStreamFutures.stream().map(CompletableFuture::join).collect(Collectors.toList()),
-                                    blobChecksum
-                                )
+                    if (numberOfParts == null) {
+                        blobPartInputStreamFutures.add(() -> getBlobPartInputStreamContainer(s3AsyncClient, bucketName, blobKey, null));
+                    } else {
+                        // S3 multipart files use 1 to n indexing
+                        for (int partNumber = 1; partNumber <= numberOfParts; partNumber++) {
+                            final int innerPartNumber = partNumber;
+                            blobPartInputStreamFutures.add(
+                                () -> getBlobPartInputStreamContainer(s3AsyncClient, bucketName, blobKey, innerPartNumber)
                             );
-                        } else {
-                            Exception ex = partThrowable.getCause() instanceof Exception
-                                ? (Exception) partThrowable.getCause()
-                                : new Exception(partThrowable.getCause());
-                            listener.onFailure(ex);
                         }
-                    });
+                    }
+                    listener.onResponse(new ReadContext(blobSize, blobPartInputStreamFutures, blobChecksum));
+                } catch (Exception ex) {
+                    listener.onFailure(ex);
+                }
             });
         } catch (Exception ex) {
             listener.onFailure(SdkException.create("Error occurred while fetching blob parts from the repository", ex));
@@ -349,12 +337,12 @@ class S3BlobContainer extends AbstractBlobContainer implements AsyncMultiStreamB
             outstanding = new HashSet<>(blobNames);
         }
         try (AmazonS3Reference clientReference = blobStore.clientReference()) {
-            // S3 API only allows 1k blobs per delete so we split up the given blobs into requests of max. 1k deletes
+            // S3 API allows 1k blobs per delete so we split up the given blobs into requests of bulk size deletes
             final List<DeleteObjectsRequest> deleteRequests = new ArrayList<>();
             final List<String> partition = new ArrayList<>();
             for (String key : outstanding) {
                 partition.add(key);
-                if (partition.size() == MAX_BULK_DELETES) {
+                if (partition.size() == blobStore.getBulkDeletesSize()) {
                     deleteRequests.add(bulkDelete(blobStore.bucket(), partition));
                     partition.clear();
                 }
@@ -401,7 +389,7 @@ class S3BlobContainer extends AbstractBlobContainer implements AsyncMultiStreamB
         assert outstanding.isEmpty();
     }
 
-    private static DeleteObjectsRequest bulkDelete(String bucket, List<String> blobs) {
+    private DeleteObjectsRequest bulkDelete(String bucket, List<String> blobs) {
         return DeleteObjectsRequest.builder()
             .bucket(bucket)
             .delete(
@@ -410,6 +398,7 @@ class S3BlobContainer extends AbstractBlobContainer implements AsyncMultiStreamB
                     .quiet(true)
                     .build()
             )
+            .overrideConfiguration(o -> o.addMetricPublisher(blobStore.getStatsMetricPublisher().deleteObjectsMetricPublisher))
             .build();
     }
 

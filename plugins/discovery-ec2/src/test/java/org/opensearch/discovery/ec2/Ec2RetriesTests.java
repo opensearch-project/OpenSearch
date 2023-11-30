@@ -77,7 +77,8 @@ public class Ec2RetriesTests extends AbstractEc2MockAPITestCase {
                 networkService,
                 PageCacheRecycler.NON_RECYCLING_INSTANCE,
                 new NamedWriteableRegistry(Collections.emptyList()),
-                new NoneCircuitBreakerService()
+                new NoneCircuitBreakerService(),
+                NoopTracer.INSTANCE
             ),
             threadPool,
             TransportService.NOOP_TRANSPORT_INTERCEPTOR,

@@ -93,6 +93,7 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import static org.opensearch.cluster.metadata.MetadataCreateDataStreamService.validateTimestampFieldMapping;
+import static org.opensearch.cluster.metadata.MetadataCreateIndexService.validateRefreshIntervalSettings;
 import static org.opensearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason.NO_LONGER_ASSIGNED;
 
 /**
@@ -747,7 +748,7 @@ public class MetadataIndexTemplateService {
     /**
      * Return a map of v2 template names to their index patterns for v2 templates that would overlap
      * with the given template's index patterns.
-     *
+     * <p>
      * Based on the provided checkPriority and priority parameters this aims to report the overlapping
      * index templates regardless of the priority (ie. checkPriority == false) or otherwise overlapping
      * templates with the same priority as the given priority parameter (this is useful when trying to
@@ -1529,6 +1530,9 @@ public class MetadataIndexTemplateService {
                 Optional.empty()
             );
             validationErrors.addAll(indexSettingsValidation);
+
+            // validate index refresh interval settings
+            validateRefreshIntervalSettings(settings, clusterService.getClusterSettings());
         }
 
         if (indexPatterns.stream().anyMatch(Regex::isMatchAllPattern)) {

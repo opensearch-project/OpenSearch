@@ -47,7 +47,7 @@ import java.util.concurrent.TimeUnit;
 /**
  * Client that always responds with {@code null} to every request. Override {@link #doExecute(ActionType, ActionRequest, ActionListener)}
  * for testing.
- *
+ * <p>
  * See also {@link NoOpNodeClient} if you need to mock a {@link org.opensearch.client.node.NodeClient}.
  */
 public class NoOpClient extends AbstractClient {

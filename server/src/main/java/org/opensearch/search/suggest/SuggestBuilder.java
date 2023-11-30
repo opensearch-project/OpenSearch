@@ -32,6 +32,7 @@
 package org.opensearch.search.suggest;
 
 import org.opensearch.common.Nullable;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.lucene.BytesRefs;
 import org.opensearch.core.ParseField;
 import org.opensearch.core.common.ParsingException;
@@ -59,8 +60,9 @@ import java.util.Objects;
  * Suggesting works by suggesting terms/phrases that appear in the suggest text that are similar compared
  * to the terms in provided text. These suggestions are based on several options described in this class.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class SuggestBuilder implements Writeable, ToXContentObject {
     protected static final ParseField GLOBAL_TEXT_FIELD = new ParseField("text");
 

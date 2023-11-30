@@ -38,6 +38,7 @@ import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.resync.ResyncReplicationRequest;
 import org.opensearch.action.resync.ResyncReplicationResponse;
 import org.opensearch.action.resync.TransportResyncReplicationAction;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.common.util.io.IOUtils;
@@ -398,8 +399,9 @@ public class PrimaryReplicaSyncer {
     /**
      * Task to resync primary and replica
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public static class ResyncTask extends Task {
         private volatile String phase = "starting";
         private volatile int totalOperations;
@@ -465,8 +467,9 @@ public class PrimaryReplicaSyncer {
         /**
          * Status for primary replica syncer
          *
-         * @opensearch.internal
+         * @opensearch.api
          */
+        @PublicApi(since = "1.0.0")
         public static class Status implements Task.Status {
             public static final String NAME = "resync";
 

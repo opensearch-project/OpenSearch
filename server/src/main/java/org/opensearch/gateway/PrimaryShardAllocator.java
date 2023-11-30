@@ -70,7 +70,7 @@ import java.util.stream.Stream;
  * that holds a copy of the shard.  The shard metadata from each node is compared against the
  * set of valid allocation IDs and for all valid shard copies (if any), the primary shard allocator
  * executes the allocation deciders to chose a copy to assign the primary shard to.
- *
+ * <p>
  * Note that the PrimaryShardAllocator does *not* allocate primaries on index creation
  * (see {@link org.opensearch.cluster.routing.allocation.allocator.BalancedShardsAllocator}),
  * nor does it allocate primaries when a primary shard failed and there is a valid replica
@@ -435,11 +435,11 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
     }
 
     private static Comparator<NodeShardState> createActiveShardComparator(boolean matchAnyShard, Set<String> inSyncAllocationIds) {
-        /**
-         * Orders the active shards copies based on below comparators
-         * 1. No store exception i.e. shard copy is readable
-         * 2. Prefer previous primary shard
-         * 3. Prefer shard copy with the highest replication checkpoint. It is NO-OP for doc rep enabled indices.
+        /*
+          Orders the active shards copies based on below comparators
+          1. No store exception i.e. shard copy is readable
+          2. Prefer previous primary shard
+          3. Prefer shard copy with the highest replication checkpoint. It is NO-OP for doc rep enabled indices.
          */
         final Comparator<NodeShardState> comparator; // allocation preference
         if (matchAnyShard) {

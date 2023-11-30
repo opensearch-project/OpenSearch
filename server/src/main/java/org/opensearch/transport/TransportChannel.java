@@ -39,6 +39,7 @@ import org.opensearch.Version;
 import org.opensearch.core.transport.TransportResponse;
 
 import java.io.IOException;
+import java.util.Optional;
 
 /**
  * A transport channel allows to send a response to a request on the channel.
@@ -77,5 +78,19 @@ public interface TransportChannel {
                 sendException
             );
         }
+    }
+
+    /**
+     * Returns the contextual property associated with this specific transport channel (the
+     * implementation of how such properties are managed depends on the particular
+     * transport engine).
+     *
+     * @param name the name of the property
+     * @param clazz the expected type of the property
+     *
+     * @return the value of the property.
+     */
+    default <T> Optional<T> get(String name, Class<T> clazz) {
+        return Optional.empty();
     }
 }

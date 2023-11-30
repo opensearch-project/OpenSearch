@@ -38,7 +38,7 @@ import static org.opensearch.common.util.set.Sets.newHashSet;
 
 /**
  * String utility class.
- *
+ * <p>
  * TODO replace Strings in :server
  *
  * @opensearch.internal

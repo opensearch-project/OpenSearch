@@ -33,6 +33,7 @@
 package org.opensearch.search;
 
 import org.opensearch.common.CheckedFunction;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.io.stream.NamedWriteable;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
@@ -47,17 +48,18 @@ import org.opensearch.plugins.SearchPlugin.SearchExtSpec;
  * Any state needs to be serialized as part of the {@link Writeable#writeTo(StreamOutput)} method and
  * read from the incoming stream, usually done adding a constructor that takes {@link StreamInput} as
  * an argument.
- *
+ * <p>
  * Registration happens through {@link SearchPlugin#getSearchExts()}, which also needs a {@link CheckedFunction} that's able to parse
  * the incoming request from the REST layer into the proper {@link SearchExtBuilder} subclass.
- *
+ * <p>
  * {@link #getWriteableName()} must return the same name as the one used for the registration
  * of the {@link SearchExtSpec}.
  *
  * @see SearchExtSpec
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public abstract class SearchExtBuilder implements NamedWriteable, ToXContentFragment {
 
     public abstract int hashCode();

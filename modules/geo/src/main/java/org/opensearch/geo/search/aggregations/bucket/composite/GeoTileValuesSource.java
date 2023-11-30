@@ -48,7 +48,7 @@ import java.util.function.LongUnaryOperator;
 
 /**
  * A {@link SingleDimensionValuesSource} for geotile values.
- *
+ * <p>
  * Since geotile values can be represented as long values, this class is almost the same as {@link LongValuesSource}
  * The main differences is {@link GeoTileValuesSource#setAfter(Comparable)} as it needs to accept geotile string values i.e. "zoom/x/y".
  *

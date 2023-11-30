@@ -33,6 +33,7 @@
 package org.opensearch.cluster.routing.allocation;
 
 import org.opensearch.cluster.routing.allocation.decider.Decision;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.xcontent.ToXContentFragment;
@@ -48,8 +49,9 @@ import java.util.stream.Collectors;
  * Class used to encapsulate a number of {@link RerouteExplanation}
  * explanations.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class RoutingExplanations implements ToXContentFragment {
     private final List<RerouteExplanation> explanations;
 

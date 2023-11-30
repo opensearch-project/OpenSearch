@@ -46,7 +46,7 @@ import java.util.Set;
  * An implementation of {@link ValueFetcher} that knows how to extract values
  * from the document source. Most standard field mappers will use this class
  * to implement value fetching.
- *
+ * <p>
  * Field types that handle arrays directly should instead use {@link ArraySourceValueFetcher}.
  *
  * @opensearch.internal

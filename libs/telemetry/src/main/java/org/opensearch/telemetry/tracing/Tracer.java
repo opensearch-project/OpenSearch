@@ -9,20 +9,20 @@
 package org.opensearch.telemetry.tracing;
 
 import org.opensearch.common.annotation.ExperimentalApi;
-import org.opensearch.telemetry.tracing.http.HttpTracer;
+import org.opensearch.telemetry.tracing.transport.TransportTracer;
 
 import java.io.Closeable;
 
 /**
  * Tracer is the interface used to create a {@link Span}
  * It automatically handles the context propagation between threads, tasks, nodes etc.
- *
+ * <p>
  * All methods on the Tracer object are multi-thread safe.
  *
  * @opensearch.experimental
  */
 @ExperimentalApi
-public interface Tracer extends HttpTracer, Closeable {
+public interface Tracer extends TransportTracer, Closeable {
     /**
      * Starts the {@link Span} with given {@link SpanCreationContext}
      *
@@ -52,5 +52,11 @@ public interface Tracer extends HttpTracer, Closeable {
      * @return ScopedSpan
      */
     SpanScope withSpanInScope(Span span);
+
+    /**
+     * Tells if the traces are being recorded or not
+     * @return boolean
+     */
+    boolean isRecording();
 
 }

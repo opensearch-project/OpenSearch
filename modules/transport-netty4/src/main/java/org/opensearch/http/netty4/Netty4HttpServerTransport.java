@@ -116,6 +116,9 @@ import static org.opensearch.http.HttpTransportSettings.SETTING_HTTP_TCP_REUSE_A
 import static org.opensearch.http.HttpTransportSettings.SETTING_HTTP_TCP_SEND_BUFFER_SIZE;
 import static org.opensearch.http.HttpTransportSettings.SETTING_PIPELINING_MAX_EVENTS;
 
+/**
+ * The HTTP transport implementations based on Netty 4.
+ */
 public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
     private static final Logger logger = LogManager.getLogger(Netty4HttpServerTransport.class);
 
@@ -184,6 +187,17 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
     private volatile ServerBootstrap serverBootstrap;
     private volatile SharedGroupFactory.SharedGroup sharedGroup;
 
+    /**
+     * Creates new HTTP transport implementations based on Netty 4
+     * @param settings seetings
+     * @param networkService network service
+     * @param bigArrays big array allocator
+     * @param threadPool thread pool instance
+     * @param xContentRegistry XContent registry instance
+     * @param dispatcher dispatcher instance
+     * @param clusterSettings cluster settings
+     * @param sharedGroupFactory shared group factory
+     */
     public Netty4HttpServerTransport(
         Settings settings,
         NetworkService networkService,
@@ -334,7 +348,7 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
         return new HttpChannelHandler(this, handlingSettings);
     }
 
-    protected static final AttributeKey<Netty4HttpChannel> HTTP_CHANNEL_KEY = AttributeKey.newInstance("opensearch-http-channel");
+    public static final AttributeKey<Netty4HttpChannel> HTTP_CHANNEL_KEY = AttributeKey.newInstance("opensearch-http-channel");
     protected static final AttributeKey<Netty4HttpServerChannel> HTTP_SERVER_CHANNEL_KEY = AttributeKey.newInstance(
         "opensearch-http-server-channel"
     );
@@ -419,8 +433,8 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
                     // If this handler is hit then no upgrade has been attempted and the client is just talking HTTP
                     final ChannelPipeline pipeline = ctx.pipeline();
                     pipeline.addAfter(ctx.name(), "handler", getRequestHandler());
-                    pipeline.replace(this, "decoder_compress", new HttpContentDecompressor());
-
+                    pipeline.replace(this, "header_verifier", transport.createHeaderVerifier());
+                    pipeline.addAfter("header_verifier", "decoder_compress", transport.createDecompressor());
                     pipeline.addAfter("decoder_compress", "aggregator", aggregator);
                     if (handlingSettings.isCompression()) {
                         pipeline.addAfter(
@@ -446,7 +460,8 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
             );
             decoder.setCumulator(ByteToMessageDecoder.COMPOSITE_CUMULATOR);
             pipeline.addLast("decoder", decoder);
-            pipeline.addLast("decoder_compress", new HttpContentDecompressor());
+            pipeline.addLast("header_verifier", transport.createHeaderVerifier());
+            pipeline.addLast("decoder_compress", transport.createDecompressor());
             pipeline.addLast("encoder", new HttpResponseEncoder());
             final HttpObjectAggregator aggregator = new HttpObjectAggregator(handlingSettings.getMaxContentLength());
             aggregator.setMaxCumulationBufferComponents(transport.maxCompositeBufferComponents);
@@ -487,13 +502,13 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
 
                     final HttpObjectAggregator aggregator = new HttpObjectAggregator(handlingSettings.getMaxContentLength());
                     aggregator.setMaxCumulationBufferComponents(transport.maxCompositeBufferComponents);
-
                     childChannel.pipeline()
                         .addLast(new LoggingHandler(LogLevel.DEBUG))
                         .addLast(new Http2StreamFrameToHttpObjectCodec(true))
                         .addLast("byte_buf_sizer", byteBufSizer)
                         .addLast("read_timeout", new ReadTimeoutHandler(transport.readTimeoutMillis, TimeUnit.MILLISECONDS))
-                        .addLast("decoder_decompress", new HttpContentDecompressor());
+                        .addLast("header_verifier", transport.createHeaderVerifier())
+                        .addLast("decoder_decompress", transport.createDecompressor());
 
                     if (handlingSettings.isCompression()) {
                         childChannel.pipeline()
@@ -530,5 +545,22 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
                 transport.onServerException(httpServerChannel, (Exception) cause);
             }
         }
+    }
+
+    /**
+     * Extension point that allows a NetworkPlugin to extend the netty pipeline and inspect headers after request decoding
+     */
+    protected ChannelInboundHandlerAdapter createHeaderVerifier() {
+        // pass-through
+        return new ChannelInboundHandlerAdapter();
+    }
+
+    /**
+     * Extension point that allows a NetworkPlugin to override the default netty HttpContentDecompressor and supply a custom decompressor.
+     *
+     * Used in instances to conditionally decompress depending on the outcome from header verification
+     */
+    protected ChannelInboundHandlerAdapter createDecompressor() {
+        return new HttpContentDecompressor();
     }
 }

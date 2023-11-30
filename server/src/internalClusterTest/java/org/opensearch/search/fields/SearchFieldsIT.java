@@ -251,6 +251,7 @@ public class SearchFieldsIT extends ParameterizedOpenSearchIntegTestCase {
             .get();
 
         client().admin().indices().prepareRefresh().get();
+        indexRandomForConcurrentSearch("test");
 
         SearchResponse searchResponse = client().prepareSearch().setQuery(matchAllQuery()).addStoredField("field1").get();
         assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
@@ -358,6 +359,7 @@ public class SearchFieldsIT extends ParameterizedOpenSearchIntegTestCase {
             )
             .get();
         client().admin().indices().refresh(refreshRequest()).actionGet();
+        indexRandomForConcurrentSearch("test");
 
         logger.info("running doc['num1'].value");
         SearchResponse response = client().prepareSearch()
@@ -458,6 +460,7 @@ public class SearchFieldsIT extends ParameterizedOpenSearchIntegTestCase {
             )
             .get();
         client().admin().indices().refresh(refreshRequest()).actionGet();
+        indexRandomForConcurrentSearch("test");
 
         SearchResponse response = client().prepareSearch()
             .setQuery(matchAllQuery())
@@ -547,6 +550,7 @@ public class SearchFieldsIT extends ParameterizedOpenSearchIntegTestCase {
                 .setSource(jsonBuilder().startObject().field("date", "1970-01-01T00:00:00.000Z").endObject()),
             client().prepareIndex("test").setId("2").setSource(jsonBuilder().startObject().field("date", date).endObject())
         );
+        indexRandomForConcurrentSearch("test");
 
         SearchResponse response = client().prepareSearch()
             .setQuery(matchAllQuery())
@@ -632,6 +636,7 @@ public class SearchFieldsIT extends ParameterizedOpenSearchIntegTestCase {
             )
             .get();
         client().admin().indices().refresh(refreshRequest()).actionGet();
+        indexRandomForConcurrentSearch("test");
 
         SearchResponse response = client().prepareSearch()
             .setQuery(matchAllQuery())
@@ -674,6 +679,7 @@ public class SearchFieldsIT extends ParameterizedOpenSearchIntegTestCase {
     public void testScriptFieldsForNullReturn() throws Exception {
         client().prepareIndex("test").setId("1").setSource("foo", "bar").setRefreshPolicy("true").get();
 
+        indexRandomForConcurrentSearch("test");
         SearchResponse response = client().prepareSearch()
             .setQuery(matchAllQuery())
             .addScriptField("test_script_1", new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "return null", Collections.emptyMap()))
@@ -795,6 +801,7 @@ public class SearchFieldsIT extends ParameterizedOpenSearchIntegTestCase {
             .get();
 
         client().admin().indices().prepareRefresh().get();
+        indexRandomForConcurrentSearch("test");
 
         SearchResponse searchResponse = client().prepareSearch()
             .setQuery(matchAllQuery())
@@ -852,6 +859,7 @@ public class SearchFieldsIT extends ParameterizedOpenSearchIntegTestCase {
             .setSource(jsonBuilder().startObject().field("field1", "value").endObject())
             .setRefreshPolicy(IMMEDIATE)
             .get();
+        indexRandomForConcurrentSearch("my-index");
 
         SearchResponse searchResponse = client().prepareSearch("my-index").addStoredField("field1").addStoredField("_routing").get();
 
@@ -866,6 +874,7 @@ public class SearchFieldsIT extends ParameterizedOpenSearchIntegTestCase {
             .setSource(jsonBuilder().startObject().startObject("field1").field("field2", "value1").endObject().endObject())
             .setRefreshPolicy(IMMEDIATE)
             .get();
+        indexRandomForConcurrentSearch("my-index");
 
         assertFailures(
             client().prepareSearch("my-index").addStoredField("field1"),
@@ -932,6 +941,7 @@ public class SearchFieldsIT extends ParameterizedOpenSearchIntegTestCase {
         );
 
         client().prepareIndex("my-index").setId("1").setRefreshPolicy(IMMEDIATE).setSource(source, MediaTypeRegistry.JSON).get();
+        indexRandomForConcurrentSearch("my-index");
 
         String field = "field1.field2.field3.field4";
 
@@ -1039,6 +1049,7 @@ public class SearchFieldsIT extends ParameterizedOpenSearchIntegTestCase {
             .get();
 
         client().admin().indices().prepareRefresh().get();
+        indexRandomForConcurrentSearch("test");
 
         SearchRequestBuilder builder = client().prepareSearch()
             .setQuery(matchAllQuery())
@@ -1271,6 +1282,7 @@ public class SearchFieldsIT extends ParameterizedOpenSearchIntegTestCase {
             );
         }
         indexRandom(true, reqs);
+        indexRandomForConcurrentSearch("index");
         ensureSearchable();
         SearchRequestBuilder req = client().prepareSearch("index");
         for (String field : Arrays.asList("s", "ms", "l", "ml", "d", "md")) {
@@ -1326,6 +1338,7 @@ public class SearchFieldsIT extends ParameterizedOpenSearchIntegTestCase {
 
         index("test", MapperService.SINGLE_MAPPING_NAME, "1", "text_field", "foo", "date_field", formatter.print(date));
         refresh("test");
+        indexRandomForConcurrentSearch("test");
 
         SearchRequestBuilder builder = client().prepareSearch()
             .setQuery(matchAllQuery())
@@ -1387,6 +1400,7 @@ public class SearchFieldsIT extends ParameterizedOpenSearchIntegTestCase {
 
         index("test", MapperService.SINGLE_MAPPING_NAME, "1", "text_field", "foo", "date_field", formatter.print(date));
         refresh("test");
+        indexRandomForConcurrentSearch("test");
 
         SearchRequestBuilder builder = client().prepareSearch()
             .setQuery(matchAllQuery())
@@ -1440,6 +1454,7 @@ public class SearchFieldsIT extends ParameterizedOpenSearchIntegTestCase {
 
         index("test", MapperService.SINGLE_MAPPING_NAME, "1", "field1", "value1", "field2", "value2");
         refresh("test");
+        indexRandomForConcurrentSearch("test");
 
         SearchResponse searchResponse = client().prepareSearch()
             .setQuery(matchAllQuery())
@@ -1482,6 +1497,7 @@ public class SearchFieldsIT extends ParameterizedOpenSearchIntegTestCase {
 
         index("test", MapperService.SINGLE_MAPPING_NAME, "1", "field1", "value1", "field2", "value2");
         refresh("test");
+        indexRandomForConcurrentSearch("test");
 
         SearchResponse searchResponse = client().prepareSearch().setQuery(matchAllQuery()).addStoredField("field*").get();
         assertHitCount(searchResponse, 1L);

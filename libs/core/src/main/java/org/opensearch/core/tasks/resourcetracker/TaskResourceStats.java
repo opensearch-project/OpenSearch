@@ -9,6 +9,7 @@
 package org.opensearch.core.tasks.resourcetracker;
 
 import org.opensearch.Version;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
@@ -29,8 +30,9 @@ import java.util.Objects;
  * Writeable TaskResourceStats objects are used to represent resource
  * snapshot information about currently running task.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "2.1.0")
 public class TaskResourceStats implements Writeable, ToXContentFragment {
     private final Map<String, TaskResourceUsage> resourceUsage;
     private final TaskThreadUsage threadUsage;

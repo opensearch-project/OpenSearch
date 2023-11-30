@@ -1097,8 +1097,8 @@ public class NestedObjectMapperTests extends OpenSearchSingleNodeTestCase {
 
     @Override
     protected boolean forbidPrivateIndexSettings() {
-        /**
-         * This is needed to force the index version with {@link IndexMetadata.SETTING_INDEX_VERSION_CREATED}.
+        /*
+          This is needed to force the index version with {@link IndexMetadata.SETTING_INDEX_VERSION_CREATED}.
          */
         return false;
     }

@@ -42,6 +42,7 @@ import org.opensearch.common.util.BigArrays;
 import org.opensearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.opensearch.index.fielddata.fieldcomparator.DoubleValuesComparatorSource;
 import org.opensearch.index.fielddata.fieldcomparator.FloatValuesComparatorSource;
+import org.opensearch.index.fielddata.fieldcomparator.HalfFloatValuesComparatorSource;
 import org.opensearch.index.fielddata.fieldcomparator.IntValuesComparatorSource;
 import org.opensearch.index.fielddata.fieldcomparator.LongValuesComparatorSource;
 import org.opensearch.index.fielddata.fieldcomparator.UnsignedLongValuesComparatorSource;
@@ -220,6 +221,8 @@ public abstract class IndexNumericFieldData implements IndexFieldData<LeafNumeri
         final XFieldComparatorSource source;
         switch (targetNumericType) {
             case HALF_FLOAT:
+                source = new HalfFloatValuesComparatorSource(this, missingValue, sortMode, nested);
+                break;
             case FLOAT:
                 source = new FloatValuesComparatorSource(this, missingValue, sortMode, nested);
                 break;

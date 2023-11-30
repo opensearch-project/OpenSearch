@@ -76,8 +76,4 @@ public class RemoteSegmentStoreDirectoryFactory implements IndexStorePlugin.Dire
             throw new IllegalArgumentException("Repository should be created before creating index with remote_store enabled setting", e);
         }
     }
-
-    private RemoteDirectory createRemoteDirectory(BlobStoreRepository repository, BlobPath commonBlobPath, String extension) {
-        return new RemoteDirectory(repository.blobStore().blobContainer(commonBlobPath.add(extension)));
-    }
 }
