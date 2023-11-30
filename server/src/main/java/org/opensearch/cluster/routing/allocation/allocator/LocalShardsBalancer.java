@@ -65,7 +65,6 @@ public class LocalShardsBalancer extends ShardsBalancer {
 
     private final float threshold;
     private final Metadata metadata;
-    private final float avgShardsPerNode;
 
     private final float avgPrimaryShardsPerNode;
     private final BalancedShardsAllocator.NodeSorter sorter;
@@ -85,7 +84,6 @@ public class LocalShardsBalancer extends ShardsBalancer {
         this.threshold = threshold;
         this.routingNodes = allocation.routingNodes();
         this.metadata = allocation.metadata();
-        avgShardsPerNode = ((float) metadata.getTotalNumberOfShards()) / routingNodes.size();
         avgPrimaryShardsPerNode = (float) (StreamSupport.stream(metadata.spliterator(), false)
             .mapToInt(IndexMetadata::getNumberOfShards)
             .sum()) / routingNodes.size();
@@ -663,7 +661,6 @@ public class LocalShardsBalancer extends ShardsBalancer {
         RoutingNode targetNode = null;
         final List<NodeAllocationResult> nodeExplanationMap = explain ? new ArrayList<>() : null;
         int weightRanking = 0;
-        int targetNodeProcessed = 0;
         for (BalancedShardsAllocator.ModelNode currentNode : sorter.modelNodes) {
             if (currentNode != sourceNode) {
                 RoutingNode target = currentNode.getRoutingNode();
@@ -677,7 +674,6 @@ public class LocalShardsBalancer extends ShardsBalancer {
                         continue;
                     }
                 }
-                targetNodeProcessed++;
                 // don't use canRebalance as we want hard filtering rules to apply. See #17698
                 Decision allocationDecision = allocation.deciders().canAllocate(shardRouting, target, allocation);
                 if (explain) {
