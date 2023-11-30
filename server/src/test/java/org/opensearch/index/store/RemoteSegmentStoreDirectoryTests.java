@@ -37,6 +37,7 @@ import org.opensearch.index.engine.NRTReplicationEngineFactory;
 import org.opensearch.index.remote.RemoteStoreUtils;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexShardTestCase;
+import org.opensearch.index.store.lockmanager.FileLockInfo;
 import org.opensearch.index.store.lockmanager.RemoteStoreMetadataLockManager;
 import org.opensearch.index.store.remote.metadata.RemoteSegmentMetadata;
 import org.opensearch.index.store.remote.metadata.RemoteSegmentMetadataHandler;
@@ -59,6 +60,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 
+import org.mockito.ArgumentMatcher;
 import org.mockito.Mockito;
 
 import static org.opensearch.index.store.RemoteSegmentStoreDirectory.METADATA_FILES_TO_FETCH;
@@ -67,6 +69,7 @@ import static org.opensearch.test.RemoteStoreTestUtils.createMetadataFileBytes;
 import static org.opensearch.test.RemoteStoreTestUtils.getDummyMetadata;
 import static org.hamcrest.CoreMatchers.is;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.doThrow;
@@ -493,6 +496,74 @@ public class RemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
         ).thenReturn(metadataFiles);
 
         assertThrows(NoSuchFileException.class, () -> remoteSegmentStoreDirectory.isLockAcquired(testPrimaryTerm, testGeneration));
+    }
+
+    // Custom argument matcher which matches metadata file name
+    private static class FileLockInfoMatcher implements ArgumentMatcher<FileLockInfo> {
+
+        FileLockInfo left;
+
+        FileLockInfoMatcher(FileLockInfo left) {
+            this.left = left;
+        }
+
+        @Override
+        public boolean matches(FileLockInfo right) {
+            return left.getFileToLock().equals(right.getFileToLock());
+        }
+    }
+
+    public void testIsLockAcquiredCachingCacheHit() throws IOException {
+        populateMetadata();
+        remoteSegmentStoreDirectory.init();
+        long testPrimaryTerm = 1;
+        long testGeneration = 5;
+
+        List<String> metadataFiles = List.of("metadata__1__5__abc");
+        FileLockInfo fileLockInfoLock = FileLockInfo.getLockInfoBuilder().withFileToLock(metadataFiles.get(0)).build();
+        when(
+            remoteMetadataDirectory.listFilesByPrefixInLexicographicOrder(
+                RemoteSegmentStoreDirectory.MetadataFilenameUtils.getMetadataFilePrefixForCommit(testPrimaryTerm, testGeneration),
+                1
+            )
+        ).thenReturn(metadataFiles);
+
+        // Lock manager isAcquired returns true for the first time and false for subsequent calls
+        when(mdLockManager.isAcquired(argThat(new FileLockInfoMatcher(fileLockInfoLock)))).thenReturn(true).thenReturn(false);
+
+        // Due to cached entries which return with isAcquired = true, subsequent calls return from cache
+        assertTrue(remoteSegmentStoreDirectory.isLockAcquired(testPrimaryTerm, testGeneration));
+        assertTrue(remoteSegmentStoreDirectory.isLockAcquired(testPrimaryTerm, testGeneration));
+        assertTrue(remoteSegmentStoreDirectory.isLockAcquired(testPrimaryTerm, testGeneration));
+
+        // As all but first calls are fetching data from cache, we make only one call to mdLockManager
+        verify(mdLockManager, times(1)).isAcquired(argThat(new FileLockInfoMatcher(fileLockInfoLock)));
+    }
+
+    public void testIsLockAcquiredCachingCacheMiss() throws IOException {
+        populateMetadata();
+        remoteSegmentStoreDirectory.init();
+        long testPrimaryTerm = 1;
+        long testGeneration = 5;
+
+        List<String> metadataFiles = List.of("metadata__1__5__abc");
+        FileLockInfo fileLockInfoLock = FileLockInfo.getLockInfoBuilder().withFileToLock(metadataFiles.get(0)).build();
+        when(
+            remoteMetadataDirectory.listFilesByPrefixInLexicographicOrder(
+                RemoteSegmentStoreDirectory.MetadataFilenameUtils.getMetadataFilePrefixForCommit(testPrimaryTerm, testGeneration),
+                1
+            )
+        ).thenReturn(metadataFiles);
+
+        // Lock manager isAcquired returns false each time, this makes sure entry is not cached.
+        when(mdLockManager.isAcquired(argThat(new FileLockInfoMatcher(fileLockInfoLock)))).thenReturn(false);
+
+        assertFalse(remoteSegmentStoreDirectory.isLockAcquired(testPrimaryTerm, testGeneration));
+        assertFalse(remoteSegmentStoreDirectory.isLockAcquired(testPrimaryTerm, testGeneration));
+        assertFalse(remoteSegmentStoreDirectory.isLockAcquired(testPrimaryTerm, testGeneration));
+
+        // As cache is not populated for this metadata file, we make call to mdLockManager each time.
+        verify(mdLockManager, times(3)).isAcquired(argThat(new FileLockInfoMatcher(fileLockInfoLock)));
     }
 
     public void testGetMetadataFileForCommit() throws IOException {

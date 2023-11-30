@@ -135,7 +135,7 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
         this.remoteMetadataDirectory = remoteMetadataDirectory;
         this.mdLockManager = mdLockManager;
         this.threadPool = threadPool;
-        this.lockCache = CacheBuilder.<String, Boolean>builder().setExpireAfterWrite(TimeValue.timeValueDays(1)).build();
+        this.lockCache = CacheBuilder.<String, Boolean>builder().setExpireAfterWrite(TimeValue.timeValueHours(1)).build();
         this.logger = Loggers.getLogger(getClass(), shardId);
         init();
     }
@@ -364,7 +364,6 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
             String nodeId = tokens[5];
             return new Tuple<>(primaryTermAndGen, nodeId);
         }
-
     }
 
     /**
@@ -529,6 +528,9 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
         }
         boolean lockAcquired = mdLockManager.isAcquired(FileLockInfo.getLockInfoBuilder().withFileToLock(metadataFile).build());
         if (lockAcquired) {
+            // We do not want to cache info of unlocked metadata files as we do not want to miss a lock getting acquired
+            // on a metadata file between 2 invocations of this method. Caching unlocked files can lead to data
+            // consistency issues.
             lockCache.put(metadataFile, true);
         }
         return lockAcquired;
