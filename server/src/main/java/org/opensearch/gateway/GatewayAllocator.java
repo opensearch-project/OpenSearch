@@ -199,8 +199,7 @@ public class GatewayAllocator implements ExistingShardsAllocator {
     public AllocateUnassignedDecision explainUnassignedShardAllocation(ShardRouting unassignedShard, RoutingAllocation routingAllocation) {
         assert unassignedShard.unassigned();
         assert routingAllocation.debugDecision();
-        boolean batchMode = routingAllocation.nodes().getMinNodeVersion().onOrAfter(Version.CURRENT);
-        if (batchMode) {
+        if (this.batchMode) {
             if (getBatchId(unassignedShard, unassignedShard.primary()) == null) {
                 createAndUpdateBatches(routingAllocation, unassignedShard.primary());
             }
