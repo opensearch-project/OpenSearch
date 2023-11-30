@@ -37,9 +37,7 @@ import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.DoublePoint;
 import org.apache.lucene.document.FloatPoint;
-import org.apache.lucene.document.IntField;
 import org.apache.lucene.document.IntPoint;
-import org.apache.lucene.document.LongField;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
@@ -120,15 +118,27 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
 
     public void testIntegerTermsQueryWithDecimalPart() {
         MappedFieldType ft = new NumberFieldMapper.NumberFieldType("field", NumberType.INTEGER);
-        assertEquals(IntField.newSetQuery("field", 1), ft.termsQuery(Arrays.asList(1, 2.1), null));
-        assertEquals(IntField.newSetQuery("field", 1), ft.termsQuery(Arrays.asList(1.0, 2.1), null));
+        assertEquals(
+            new IndexOrDocValuesQuery(IntPoint.newSetQuery("field", 1), SortedNumericDocValuesField.newSlowSetQuery("field", 1)),
+            ft.termsQuery(Arrays.asList(1, 2.1), null)
+        );
+        assertEquals(
+            new IndexOrDocValuesQuery(IntPoint.newSetQuery("field", 1), SortedNumericDocValuesField.newSlowSetQuery("field", 1)),
+            ft.termsQuery(Arrays.asList(1.0, 2.1), null)
+        );
         assertTrue(ft.termsQuery(Arrays.asList(1.1, 2.1), null) instanceof MatchNoDocsQuery);
     }
 
     public void testLongTermsQueryWithDecimalPart() {
         MappedFieldType ft = new NumberFieldMapper.NumberFieldType("field", NumberType.LONG);
-        assertEquals(LongField.newSetQuery("field", 1), ft.termsQuery(Arrays.asList(1, 2.1), null));
-        assertEquals(LongField.newSetQuery("field", 1), ft.termsQuery(Arrays.asList(1.0, 2.1), null));
+        assertEquals(
+            new IndexOrDocValuesQuery(LongPoint.newSetQuery("field", 1), SortedNumericDocValuesField.newSlowSetQuery("field", 1)),
+            ft.termsQuery(Arrays.asList(1, 2.1), null)
+        );
+        assertEquals(
+            new IndexOrDocValuesQuery(LongPoint.newSetQuery("field", 1), SortedNumericDocValuesField.newSlowSetQuery("field", 1)),
+            ft.termsQuery(Arrays.asList(1.0, 2.1), null)
+        );
         assertTrue(ft.termsQuery(Arrays.asList(1.1, 2.1), null) instanceof MatchNoDocsQuery);
     }
 
@@ -522,8 +532,8 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
             float u = (randomFloat() * 2 - 1) * 65504;
             boolean includeLower = randomBoolean();
             boolean includeUpper = randomBoolean();
-            Query floatQ = NumberType.FLOAT.rangeQuery("float", l, u, includeLower, includeUpper, false, MOCK_QSC);
-            Query halfFloatQ = NumberType.HALF_FLOAT.rangeQuery("half_float", l, u, includeLower, includeUpper, false, MOCK_QSC);
+            Query floatQ = NumberType.FLOAT.rangeQuery("float", l, u, includeLower, includeUpper, false, true, MOCK_QSC);
+            Query halfFloatQ = NumberType.HALF_FLOAT.rangeQuery("half_float", l, u, includeLower, includeUpper, false, true, MOCK_QSC);
             assertEquals(searcher.count(floatQ), searcher.count(halfFloatQ));
         }
         IOUtils.close(reader, dir);
@@ -553,8 +563,17 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
             BigInteger u = randomUnsignedLong();
             boolean includeLower = randomBoolean();
             boolean includeUpper = randomBoolean();
-            Query unsignedLongQ = NumberType.UNSIGNED_LONG.rangeQuery("unsigned_long", l, u, includeLower, includeUpper, false, MOCK_QSC);
-            Query doubleQ = NumberType.DOUBLE.rangeQuery("double", l, u, includeLower, includeUpper, false, MOCK_QSC);
+            Query unsignedLongQ = NumberType.UNSIGNED_LONG.rangeQuery(
+                "unsigned_long",
+                l,
+                u,
+                includeLower,
+                includeUpper,
+                false,
+                true,
+                MOCK_QSC
+            );
+            Query doubleQ = NumberType.DOUBLE.rangeQuery("double", l, u, includeLower, includeUpper, false, true, MOCK_QSC);
             assertEquals(searcher.count(doubleQ), searcher.count(unsignedLongQ));
         }
         IOUtils.close(reader, dir);
@@ -562,21 +581,23 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
 
     public void testNegativeZero() {
         assertEquals(
-            NumberType.DOUBLE.rangeQuery("field", null, -0d, true, true, false, MOCK_QSC),
-            NumberType.DOUBLE.rangeQuery("field", null, +0d, true, false, false, MOCK_QSC)
+            NumberType.DOUBLE.rangeQuery("field", null, -0d, true, true, false, true, MOCK_QSC),
+            NumberType.DOUBLE.rangeQuery("field", null, +0d, true, false, false, true, MOCK_QSC)
         );
         assertEquals(
-            NumberType.FLOAT.rangeQuery("field", null, -0f, true, true, false, MOCK_QSC),
-            NumberType.FLOAT.rangeQuery("field", null, +0f, true, false, false, MOCK_QSC)
+            NumberType.FLOAT.rangeQuery("field", null, -0f, true, true, false, true, MOCK_QSC),
+            NumberType.FLOAT.rangeQuery("field", null, +0f, true, false, false, true, MOCK_QSC)
         );
         assertEquals(
-            NumberType.HALF_FLOAT.rangeQuery("field", null, -0f, true, true, false, MOCK_QSC),
-            NumberType.HALF_FLOAT.rangeQuery("field", null, +0f, true, false, false, MOCK_QSC)
+            NumberType.HALF_FLOAT.rangeQuery("field", null, -0f, true, true, false, true, MOCK_QSC),
+            NumberType.HALF_FLOAT.rangeQuery("field", null, +0f, true, false, false, true, MOCK_QSC)
         );
 
-        assertFalse(NumberType.DOUBLE.termQuery("field", -0d, true).equals(NumberType.DOUBLE.termQuery("field", +0d, true)));
-        assertFalse(NumberType.FLOAT.termQuery("field", -0f, true).equals(NumberType.FLOAT.termQuery("field", +0f, true)));
-        assertFalse(NumberType.HALF_FLOAT.termQuery("field", -0f, true).equals(NumberType.HALF_FLOAT.termQuery("field", +0f, true)));
+        assertFalse(NumberType.DOUBLE.termQuery("field", -0d, true, true).equals(NumberType.DOUBLE.termQuery("field", +0d, true, true)));
+        assertFalse(NumberType.FLOAT.termQuery("field", -0f, true, true).equals(NumberType.FLOAT.termQuery("field", +0f, true, true)));
+        assertFalse(
+            NumberType.HALF_FLOAT.termQuery("field", -0f, true, true).equals(NumberType.HALF_FLOAT.termQuery("field", +0f, true, true))
+        );
     }
 
     // Make sure we construct the IndexOrDocValuesQuery objects with queries that match
@@ -631,6 +652,7 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
                 random().nextBoolean() ? null : valueSupplier.get(),
                 randomBoolean(),
                 randomBoolean(),
+                true,
                 true,
                 MOCK_QSC
             );
@@ -711,6 +733,7 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
                 random().nextBoolean() ? null : valueSupplier.get(),
                 randomBoolean(),
                 randomBoolean(),
+                true,
                 true,
                 context
             );

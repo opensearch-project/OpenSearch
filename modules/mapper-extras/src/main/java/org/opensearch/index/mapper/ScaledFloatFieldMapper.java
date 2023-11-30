@@ -201,7 +201,7 @@ public class ScaledFloatFieldMapper extends ParametrizedFieldMapper {
         public Query termQuery(Object value, QueryShardContext context) {
             failIfNotIndexedAndNoDocValues();
             long scaledValue = Math.round(scale(value));
-            Query query = NumberFieldMapper.NumberType.LONG.termQuery(name(), scaledValue, hasDocValues());
+            Query query = NumberFieldMapper.NumberType.LONG.termQuery(name(), scaledValue, hasDocValues(), isSearchable());
             if (boost() != 1f) {
                 query = new BoostQuery(query, boost());
             }
@@ -216,7 +216,8 @@ public class ScaledFloatFieldMapper extends ParametrizedFieldMapper {
                 long scaledValue = Math.round(scale(value));
                 scaledValues.add(scaledValue);
             }
-            Query query = NumberFieldMapper.NumberType.LONG.termsQuery(name(), Collections.unmodifiableList(scaledValues));
+            Query query = NumberFieldMapper.NumberType.LONG.termsQuery(name(),
+                Collections.unmodifiableList(scaledValues), hasDocValues(), isSearchable());
             if (boost() != 1f) {
                 query = new BoostQuery(query, boost());
             }
@@ -242,7 +243,8 @@ public class ScaledFloatFieldMapper extends ParametrizedFieldMapper {
                 }
                 hi = Math.round(Math.floor(dValue));
             }
-            Query query = NumberFieldMapper.NumberType.LONG.rangeQuery(name(), lo, hi, true, true, hasDocValues(), context);
+            Query query = NumberFieldMapper.NumberType.LONG.rangeQuery(name(), lo, hi, true, true, hasDocValues(),
+             isSearchable(),   context);
             if (boost() != 1f) {
                 query = new BoostQuery(query, boost());
             }
