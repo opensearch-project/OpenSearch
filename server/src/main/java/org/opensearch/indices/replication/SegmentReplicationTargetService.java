@@ -150,7 +150,6 @@ public class SegmentReplicationTargetService extends AbstractLifecycleComponent 
 
     @Override
     protected void doStart() {
-        final ClusterService clusterService = indicesService.clusterService();
         if (DiscoveryNode.isDataNode(clusterService.getSettings())) {
             clusterService.addListener(this);
         }
@@ -158,9 +157,8 @@ public class SegmentReplicationTargetService extends AbstractLifecycleComponent 
 
     @Override
     protected void doStop() {
-        final ClusterService clusterService = indicesService.clusterService();
         if (DiscoveryNode.isDataNode(clusterService.getSettings())) {
-            indicesService.clusterService().removeListener(this);
+            clusterService.removeListener(this);
         }
     }
 
