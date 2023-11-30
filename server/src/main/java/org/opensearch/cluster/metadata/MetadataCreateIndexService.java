@@ -1497,10 +1497,16 @@ public class MetadataCreateIndexService {
      * @param clusterSettings cluster setting
      */
     public static void validateRefreshIntervalSettings(Settings requestSettings, ClusterSettings clusterSettings) {
-        if (IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.exists(requestSettings) == false) {
+        if (IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.exists(requestSettings) == false
+            || requestSettings.get(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey()) == null) {
             return;
         }
         TimeValue requestRefreshInterval = IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.get(requestSettings);
+        // If the refresh interval supplied is -1, we allow the index to be created because -1 means no periodic refresh.
+        if (requestRefreshInterval.millis() < 0) {
+            assert requestRefreshInterval.millis() == -1;
+            return;
+        }
         TimeValue clusterMinimumRefreshInterval = clusterSettings.get(IndicesService.CLUSTER_MINIMUM_INDEX_REFRESH_INTERVAL_SETTING);
         if (requestRefreshInterval.millis() < clusterMinimumRefreshInterval.millis()) {
             throw new IllegalArgumentException(
