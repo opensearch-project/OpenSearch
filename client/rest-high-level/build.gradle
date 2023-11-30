@@ -39,7 +39,7 @@ apply plugin: 'opensearch.rest-resources'
 
 base {
   group = 'org.opensearch.client'
-  archivesBaseName = 'opensearch-rest-high-level-client'
+  archivesName = 'opensearch-rest-high-level-client'
 }
 
 restResources {
