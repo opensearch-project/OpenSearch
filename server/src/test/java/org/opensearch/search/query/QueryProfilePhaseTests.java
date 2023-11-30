@@ -24,23 +24,8 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.spans.SpanNearQuery;
 import org.apache.lucene.queries.spans.SpanTermQuery;
+import org.apache.lucene.search.*;
 import org.apache.lucene.search.BooleanClause.Occur;
-import org.apache.lucene.search.BooleanQuery;
-import org.apache.lucene.search.Collector;
-import org.apache.lucene.search.FieldComparator;
-import org.apache.lucene.search.FieldDoc;
-import org.apache.lucene.search.FilterCollector;
-import org.apache.lucene.search.FilterLeafCollector;
-import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.LeafCollector;
-import org.apache.lucene.search.MatchAllDocsQuery;
-import org.apache.lucene.search.MatchNoDocsQuery;
-import org.apache.lucene.search.Query;
-import org.apache.lucene.search.Sort;
-import org.apache.lucene.search.SortField;
-import org.apache.lucene.search.TermQuery;
-import org.apache.lucene.search.TotalHits;
-import org.apache.lucene.search.Weight;
 import org.apache.lucene.search.grouping.CollapseTopFieldDocs;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
@@ -1056,7 +1041,7 @@ public class QueryProfilePhaseTests extends IndexShardTestCase {
                 @SuppressWarnings("unchecked")
                 FieldComparator<Object> comparator = (FieldComparator<Object>) searchSortAndFormat.sort.getSort()[i].getComparator(
                     i,
-                    randomBoolean()
+                    randomFrom(Pruning.values())
                 );
                 int cmp = comparator.compareValues(firstDoc.fields[i], lastDoc.fields[i]);
                 if (cmp == 0) {

@@ -35,10 +35,7 @@ package org.opensearch.search.sort;
 import org.apache.lucene.document.LatLonDocValuesField;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
-import org.apache.lucene.search.DocIdSetIterator;
-import org.apache.lucene.search.FieldComparator;
-import org.apache.lucene.search.LeafFieldComparator;
-import org.apache.lucene.search.SortField;
+import org.apache.lucene.search.*;
 import org.apache.lucene.search.comparators.DoubleComparator;
 import org.apache.lucene.util.BitSet;
 import org.opensearch.OpenSearchParseException;
@@ -734,8 +731,8 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
             }
 
             @Override
-            public FieldComparator<?> newComparator(String fieldname, int numHits, boolean enableSkipping, boolean reversed) {
-                return new DoubleComparator(numHits, null, null, reversed, enableSkipping) {
+            public FieldComparator<?> newComparator(String fieldname, int numHits, Pruning pruning, boolean reversed) {
+                return new DoubleComparator(numHits, null, null, reversed, pruning) {
                     @Override
                     public LeafFieldComparator getLeafComparator(LeafReaderContext context) throws IOException {
                         return new DoubleLeafComparator(context) {

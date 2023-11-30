@@ -31,13 +31,7 @@
 
 package org.apache.lucene.search.grouping;
 
-import org.apache.lucene.search.FieldComparator;
-import org.apache.lucene.search.FieldDoc;
-import org.apache.lucene.search.ScoreDoc;
-import org.apache.lucene.search.Sort;
-import org.apache.lucene.search.SortField;
-import org.apache.lucene.search.TopFieldDocs;
-import org.apache.lucene.search.TotalHits;
+import org.apache.lucene.search.*;
 import org.apache.lucene.util.PriorityQueue;
 import org.opensearch.core.common.util.CollectionUtils;
 
@@ -144,7 +138,7 @@ public final class CollapseTopFieldDocs extends TopFieldDocs {
             reverseMul = new int[sortFields.length];
             for (int compIDX = 0; compIDX < sortFields.length; compIDX++) {
                 final SortField sortField = sortFields[compIDX];
-                comparators[compIDX] = sortField.getComparator(1, false);
+                comparators[compIDX] = sortField.getComparator(1, Pruning.NONE);
                 reverseMul[compIDX] = sortField.getReverse() ? -1 : 1;
             }
         }

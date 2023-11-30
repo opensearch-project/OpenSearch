@@ -33,13 +33,7 @@
 package org.opensearch.search.aggregations.metrics;
 
 import org.apache.lucene.index.IndexWriter;
-import org.apache.lucene.search.FieldComparator;
-import org.apache.lucene.search.FieldDoc;
-import org.apache.lucene.search.ScoreDoc;
-import org.apache.lucene.search.SortField;
-import org.apache.lucene.search.TopDocs;
-import org.apache.lucene.search.TopFieldDocs;
-import org.apache.lucene.search.TotalHits;
+import org.apache.lucene.search.*;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.document.DocumentField;
@@ -356,7 +350,7 @@ public class InternalTopHitsTests extends InternalAggregationTestCase<InternalTo
         FieldComparator[] comparators = new FieldComparator[sortFields.length];
         for (int i = 0; i < sortFields.length; i++) {
             // Values passed to getComparator shouldn't matter
-            comparators[i] = sortFields[i].getComparator(0, false);
+            comparators[i] = sortFields[i].getComparator(0, Pruning.NONE);
         }
         return (lhs, rhs) -> {
             FieldDoc l = (FieldDoc) lhs;

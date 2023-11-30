@@ -34,15 +34,7 @@ package org.opensearch.index.fielddata;
 
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.search.DocIdSet;
-import org.apache.lucene.search.DocIdSetIterator;
-import org.apache.lucene.search.FieldComparatorSource;
-import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.Query;
-import org.apache.lucene.search.ScoreMode;
-import org.apache.lucene.search.Scorer;
-import org.apache.lucene.search.SortField;
-import org.apache.lucene.search.Weight;
+import org.apache.lucene.search.*;
 import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.util.BitDocIdSet;
 import org.apache.lucene.util.BitSet;
@@ -129,13 +121,13 @@ public interface IndexFieldData<FD extends LeafFieldData> {
         protected final MultiValueMode sortMode;
         protected final Object missingValue;
         protected final Nested nested;
-        protected boolean enableSkipping;
+        protected Pruning pruning;
 
         public XFieldComparatorSource(Object missingValue, MultiValueMode sortMode, Nested nested) {
             this.sortMode = sortMode;
             this.missingValue = missingValue;
             this.nested = nested;
-            this.enableSkipping = true; // true by default
+            this.pruning = Pruning.GREATER_THAN; // true by default
         }
 
         public MultiValueMode sortMode() {
@@ -147,7 +139,7 @@ public interface IndexFieldData<FD extends LeafFieldData> {
         }
 
         public void disableSkipping() {
-            this.enableSkipping = false;
+            this.pruning = Pruning.NONE;
         }
 
         /**

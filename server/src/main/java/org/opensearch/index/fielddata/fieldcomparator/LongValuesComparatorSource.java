@@ -34,10 +34,7 @@ package org.opensearch.index.fielddata.fieldcomparator;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
-import org.apache.lucene.search.DocIdSetIterator;
-import org.apache.lucene.search.FieldComparator;
-import org.apache.lucene.search.LeafFieldComparator;
-import org.apache.lucene.search.SortField;
+import org.apache.lucene.search.*;
 import org.apache.lucene.search.comparators.LongComparator;
 import org.apache.lucene.util.BitSet;
 import org.opensearch.common.Nullable;
@@ -114,11 +111,11 @@ public class LongValuesComparatorSource extends IndexFieldData.XFieldComparatorS
     }
 
     @Override
-    public FieldComparator<?> newComparator(String fieldname, int numHits, boolean enableSkipping, boolean reversed) {
+    public FieldComparator<?> newComparator(String fieldname, int numHits, Pruning pruning, boolean reversed) {
         assert indexFieldData == null || fieldname.equals(indexFieldData.getFieldName());
 
         final long lMissingValue = (Long) missingObject(missingValue, reversed);
-        return new LongComparator(numHits, fieldname, lMissingValue, reversed, enableSkipping && this.enableSkipping) {
+        return new LongComparator(numHits, fieldname, lMissingValue, reversed, pruning) {
             @Override
             public LeafFieldComparator getLeafComparator(LeafReaderContext context) throws IOException {
                 return new LongLeafComparator(context) {

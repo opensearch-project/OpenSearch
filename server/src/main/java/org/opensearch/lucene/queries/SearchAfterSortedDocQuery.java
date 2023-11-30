@@ -33,20 +33,7 @@
 package org.opensearch.lucene.queries;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.search.ConstantScoreScorer;
-import org.apache.lucene.search.ConstantScoreWeight;
-import org.apache.lucene.search.DocIdSetIterator;
-import org.apache.lucene.search.FieldComparator;
-import org.apache.lucene.search.FieldDoc;
-import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.LeafFieldComparator;
-import org.apache.lucene.search.Query;
-import org.apache.lucene.search.QueryVisitor;
-import org.apache.lucene.search.ScoreMode;
-import org.apache.lucene.search.Scorer;
-import org.apache.lucene.search.Sort;
-import org.apache.lucene.search.SortField;
-import org.apache.lucene.search.Weight;
+import org.apache.lucene.search.*;
 import org.opensearch.common.lucene.Lucene;
 
 import java.io.IOException;
@@ -77,7 +64,7 @@ public class SearchAfterSortedDocQuery extends Query {
         this.reverseMuls = new int[numFields];
         for (int i = 0; i < numFields; i++) {
             SortField sortField = sort.getSort()[i];
-            FieldComparator<?> fieldComparator = sortField.getComparator(1, false);
+            FieldComparator<?> fieldComparator = sortField.getComparator(1, Pruning.NONE);
             @SuppressWarnings("unchecked")
             FieldComparator<Object> comparator = (FieldComparator<Object>) fieldComparator;
             comparator.setTopValue(after.fields[i]);

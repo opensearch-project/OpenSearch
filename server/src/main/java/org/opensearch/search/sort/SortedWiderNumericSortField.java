@@ -16,6 +16,7 @@ package org.opensearch.search.sort;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.FieldComparator;
 import org.apache.lucene.search.LeafFieldComparator;
+import org.apache.lucene.search.Pruning;
 import org.apache.lucene.search.SortedNumericSortField;
 import org.apache.lucene.search.comparators.NumericComparator;
 
@@ -44,13 +45,13 @@ public class SortedWiderNumericSortField extends SortedNumericSortField {
      * Creates and return a comparator, which always converts Numeric to double
      * and compare to support multi type comparison between numeric values
      * @param numHits number of top hits the queue will store
-     * @param enableSkipping true if the comparator can skip documents via {@link
+     * @param pruning true if the comparator can skip documents via {@link
      *     LeafFieldComparator#competitiveIterator()}
      * @return NumericComparator
      */
     @Override
-    public FieldComparator<?> getComparator(int numHits, boolean enableSkipping) {
-        return new NumericComparator<Number>(getField(), (Number) getMissingValue(), getReverse(), enableSkipping, Double.BYTES) {
+    public FieldComparator<?> getComparator(int numHits, Pruning pruning) {
+        return new NumericComparator<Number>(getField(), (Number) getMissingValue(), getReverse(), pruning, Double.BYTES) {
             @Override
             public int compare(int slot1, int slot2) {
                 throw new UnsupportedOperationException();

@@ -32,11 +32,7 @@
 
 package org.opensearch.action.search;
 
-import org.apache.lucene.search.FieldComparator;
-import org.apache.lucene.search.FieldDoc;
-import org.apache.lucene.search.SortField;
-import org.apache.lucene.search.TopFieldDocs;
-import org.apache.lucene.search.TotalHits;
+import org.apache.lucene.search.*;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.common.time.DateUtils;
 import org.opensearch.index.mapper.DateFieldMapper;
@@ -264,7 +260,7 @@ public class BottomSortValuesCollectorTests extends OpenSearchTestCase {
 
     private TopFieldDocs createTopDocs(SortField sortField, int totalHits, Object[] values) {
         FieldDoc[] fieldDocs = new FieldDoc[values.length];
-        FieldComparator cmp = sortField.getComparator(1, false);
+        FieldComparator cmp = sortField.getComparator(1, Pruning.NONE);
         for (int i = 0; i < values.length; i++) {
             fieldDocs[i] = new FieldDoc(i, Float.NaN, new Object[] { values[i] });
         }
