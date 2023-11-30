@@ -1373,6 +1373,7 @@ public abstract class Engine implements Closeable {
                     // clean all unreferenced files on best effort basis created during failed merge and reset the
                     // shard state back to last Lucene Commit.
                     if (shouldCleanupUnreferencedFiles() && isMergeFailureDueToIOException(failure, reason)) {
+                        logger.info("Cleaning up unreferenced files as merge failed due to: {}", reason);
                         cleanUpUnreferencedFiles();
                     }
 
