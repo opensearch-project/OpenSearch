@@ -55,6 +55,7 @@ import java.time.LocalTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
+import java.time.format.TextStyle;
 import java.time.temporal.ChronoField;
 import java.time.temporal.ChronoUnit;
 import java.time.temporal.IsoFields;
@@ -65,6 +66,7 @@ import java.time.zone.ZoneRules;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
+import java.util.OptionalLong;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -99,7 +101,7 @@ public abstract class Rounding implements Writeable {
             }
 
             @Override
-            public long extraLocalOffsetLookup() {
+            long extraLocalOffsetLookup() {
                 return extraLocalOffsetLookup;
             }
         },
@@ -110,7 +112,7 @@ public abstract class Rounding implements Writeable {
                 return DateUtils.roundYear(utcMillis);
             }
 
-            public long extraLocalOffsetLookup() {
+            long extraLocalOffsetLookup() {
                 return extraLocalOffsetLookup;
             }
         },
@@ -121,7 +123,7 @@ public abstract class Rounding implements Writeable {
                 return DateUtils.roundQuarterOfYear(utcMillis);
             }
 
-            public long extraLocalOffsetLookup() {
+            long extraLocalOffsetLookup() {
                 return extraLocalOffsetLookup;
             }
         },
@@ -132,7 +134,7 @@ public abstract class Rounding implements Writeable {
                 return DateUtils.roundMonthOfYear(utcMillis);
             }
 
-            public long extraLocalOffsetLookup() {
+            long extraLocalOffsetLookup() {
                 return extraLocalOffsetLookup;
             }
         },
@@ -141,7 +143,7 @@ public abstract class Rounding implements Writeable {
                 return DateUtils.roundFloor(utcMillis, this.ratio);
             }
 
-            public long extraLocalOffsetLookup() {
+            long extraLocalOffsetLookup() {
                 return ratio;
             }
         },
@@ -150,7 +152,7 @@ public abstract class Rounding implements Writeable {
                 return DateUtils.roundFloor(utcMillis, ratio);
             }
 
-            public long extraLocalOffsetLookup() {
+            long extraLocalOffsetLookup() {
                 return ratio;
             }
         },
@@ -165,7 +167,7 @@ public abstract class Rounding implements Writeable {
                 return DateUtils.roundFloor(utcMillis, ratio);
             }
 
-            public long extraLocalOffsetLookup() {
+            long extraLocalOffsetLookup() {
                 return ratio;
             }
         },
@@ -217,7 +219,7 @@ public abstract class Rounding implements Writeable {
          * look up so that we can see transitions that we might have rounded
          * down beyond.
          */
-        public abstract long extraLocalOffsetLookup();
+        abstract long extraLocalOffsetLookup();
 
         public byte getId() {
             return id;
@@ -488,7 +490,7 @@ public abstract class Rounding implements Writeable {
      *
      * @opensearch.internal
      */
-    public static class TimeUnitRounding extends Rounding {
+    static class TimeUnitRounding extends Rounding {
         static final byte ID = 1;
 
         private final DateTimeUnit unit;
@@ -521,14 +523,6 @@ public abstract class Rounding implements Writeable {
         @Override
         public byte id() {
             return ID;
-        }
-
-        public DateTimeUnit getUnit() {
-            return this.unit;
-        }
-
-        public ZoneId getTimeZone() {
-            return this.timeZone;
         }
 
         private LocalDateTime truncateLocalDateTime(LocalDateTime localDateTime) {
@@ -961,7 +955,7 @@ public abstract class Rounding implements Writeable {
      *
      * @opensearch.internal
      */
-    public static class TimeIntervalRounding extends Rounding {
+    static class TimeIntervalRounding extends Rounding {
         static final byte ID = 2;
 
         private final long interval;
@@ -990,14 +984,6 @@ public abstract class Rounding implements Writeable {
         @Override
         public byte id() {
             return ID;
-        }
-
-        public long getInterval() {
-            return this.interval;
-        }
-
-        public ZoneId getTimeZone() {
-            return this.timeZone;
         }
 
         @Override
@@ -1398,5 +1384,41 @@ public abstract class Rounding implements Writeable {
             default:
                 throw new OpenSearchException("unknown rounding id [" + id + "]");
         }
+    }
+
+    /**
+     * Extracts the interval value from the {@link Rounding} instance
+     * @param rounding {@link Rounding} instance
+     * @return the interval value from the {@link Rounding} instance or {@code OptionalLong.empty()}
+     * if the interval is not available
+     */
+    public static OptionalLong getInterval(Rounding rounding) {
+        long interval = 0;
+
+        if (rounding instanceof TimeUnitRounding) {
+            interval = (((TimeUnitRounding) rounding).unit).extraLocalOffsetLookup();
+            if (!isUTCTimeZone(((TimeUnitRounding) rounding).timeZone)) {
+                // Fast filter aggregation cannot be used if it needs time zone rounding
+                return OptionalLong.empty();
+            }
+        } else if (rounding instanceof TimeIntervalRounding) {
+            interval = ((TimeIntervalRounding) rounding).interval;
+            if (!isUTCTimeZone(((TimeIntervalRounding) rounding).timeZone)) {
+                // Fast filter aggregation cannot be used if it needs time zone rounding
+                return OptionalLong.empty();
+            }
+        } else {
+            return OptionalLong.empty();
+        }
+
+        return OptionalLong.of(interval);
+    }
+
+    /**
+     * Helper function for checking if the time zone requested for date histogram
+     * aggregation is utc or not
+     */
+    private static boolean isUTCTimeZone(final ZoneId zoneId) {
+        return "Z".equals(zoneId.getDisplayName(TextStyle.FULL, Locale.ENGLISH));
     }
 }

@@ -29,12 +29,10 @@ import org.opensearch.search.aggregations.support.ValuesSourceConfig;
 import org.opensearch.search.internal.SearchContext;
 
 import java.io.IOException;
-import java.time.ZoneId;
-import java.time.format.TextStyle;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
+import java.util.OptionalLong;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -58,7 +56,7 @@ public class FilterRewriteHelper {
     }
 
     private static final int MAX_NUM_FILTER_BUCKETS = 1024;
-    private static final Map<Class, Function<Query, Query>> queryWrappers;
+    private static final Map<Class<?>, Function<Query, Query>> queryWrappers;
 
     // Initialize the wrappers map for unwrapping the query
     static {
@@ -123,14 +121,6 @@ public class FilterRewriteHelper {
     }
 
     /**
-     * Helper function for checking if the time zone requested for date histogram
-     * aggregation is utc or not
-     */
-    private static boolean isUTCTimeZone(final ZoneId zoneId) {
-        return "Z".equals(zoneId.getDisplayName(TextStyle.FULL, Locale.ENGLISH));
-    }
-
-    /**
      * Creates the range query filters for aggregations using the interval, min/max
      * bounds and the rounding values
      */
@@ -143,24 +133,12 @@ public class FilterRewriteHelper {
         final long low,
         final long high
     ) throws IOException {
-        long interval;
-        if (rounding instanceof Rounding.TimeUnitRounding) {
-            interval = (((Rounding.TimeUnitRounding) rounding).getUnit()).extraLocalOffsetLookup();
-            if (!isUTCTimeZone(((Rounding.TimeUnitRounding) rounding).getTimeZone())) {
-                // Fast filter aggregation cannot be used if it needs time zone rounding
-                return null;
-            }
-        } else if (rounding instanceof Rounding.TimeIntervalRounding) {
-            interval = ((Rounding.TimeIntervalRounding) rounding).getInterval();
-            if (!isUTCTimeZone(((Rounding.TimeIntervalRounding) rounding).getTimeZone())) {
-                // Fast filter aggregation cannot be used if it needs time zone rounding
-                return null;
-            }
-        } else {
-            // Unexpected scenario, exit and fall back to original
+        final OptionalLong intervalOpt = Rounding.getInterval(rounding);
+        if (intervalOpt.isEmpty()) {
             return null;
         }
 
+        final long interval = intervalOpt.getAsLong();
         // Calculate the number of buckets using range and interval
         long roundedLow = preparedRounding.round(fieldType.convertNanosToMillis(low));
         long prevRounded = roundedLow;
