@@ -465,9 +465,22 @@ public class SegmentReplicationTargetServiceTests extends IndexShardTestCase {
         verify(spy, (never())).updateVisibleCheckpoint(eq(0L), eq(replicaShard));
     }
 
-    public void testDoNotProcessLatestCheckpointIfItIsbehind() {
-        sut.updateLatestReceivedCheckpoint(replicaShard.getLatestReplicationCheckpoint(), replicaShard);
-        assertFalse(sut.processLatestReceivedCheckpoint(replicaShard, null));
+    public void testDoNotProcessLatestCheckpointIfCheckpointIsBehind() {
+        SegmentReplicationTargetService service = spy(sut);
+        doReturn(mock(SegmentReplicationTarget.class)).when(service).startReplication(any(), any(), any());
+        ReplicationCheckpoint checkpoint = replicaShard.getLatestReplicationCheckpoint();
+        service.updateLatestReceivedCheckpoint(checkpoint, replicaShard);
+        service.processLatestReceivedCheckpoint(replicaShard, null);
+        verify(service, times(0)).startReplication(eq(replicaShard), eq(checkpoint), any());
+    }
+
+    public void testProcessLatestCheckpointIfCheckpointAhead() {
+        SegmentReplicationTargetService service = spy(sut);
+        doNothing().when(service).startReplication(any());
+        doReturn(mock(SegmentReplicationTarget.class)).when(service).startReplication(any(), any(), any());
+        service.updateLatestReceivedCheckpoint(aheadCheckpoint, replicaShard);
+        service.processLatestReceivedCheckpoint(replicaShard, null);
+        verify(service, times(1)).startReplication(eq(replicaShard), eq(aheadCheckpoint), any());
     }
 
     public void testOnNewCheckpointInvokedOnClosedShardDoesNothing() throws IOException {
