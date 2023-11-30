@@ -182,7 +182,7 @@ public abstract class Rounding implements Writeable {
                 return DateUtils.roundFloor(utcMillis, ratio);
             }
 
-            public long extraLocalOffsetLookup() {
+            long extraLocalOffsetLookup() {
                 return ratio;
             }
         };
