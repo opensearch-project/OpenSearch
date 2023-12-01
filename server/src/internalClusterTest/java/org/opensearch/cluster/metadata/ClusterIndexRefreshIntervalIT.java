@@ -242,7 +242,6 @@ public class ClusterIndexRefreshIntervalIT extends AbstractSnapshotIntegTestCase
             .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), IndexSettings.MINIMUM_REFRESH_INTERVAL)
             .build();
         createIndex(INDEX_NAME, settings);
-        ensureYellowAndNoInitializingShards(INDEX_NAME);
         ensureGreen(INDEX_NAME);
         GetIndexResponse getIndexResponse = client(clusterManagerName).admin().indices().getIndex(new GetIndexRequest()).get();
         IndicesService indicesService = internalCluster().getInstance(IndicesService.class, randomFrom(dataNodes));
