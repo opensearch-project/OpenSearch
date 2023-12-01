@@ -100,8 +100,6 @@ public class ForceMergeRequestTests extends OpenSearchTestCase {
                 out.setVersion(compatibleVersion);
                 sample.writeTo(out);
 
-                System.out.println(compatibleVersion);
-
                 final ForceMergeRequest deserializedRequest;
                 try (StreamInput in = out.bytes().streamInput()) {
                     in.setVersion(Version.CURRENT);
@@ -123,7 +121,6 @@ public class ForceMergeRequestTests extends OpenSearchTestCase {
         {
             final ForceMergeRequest sample = randomRequest();
             final Version compatibleVersion = VersionUtils.randomCompatibleVersion(random(), Version.CURRENT);
-            System.out.println(compatibleVersion);
             try (BytesStreamOutput out = new BytesStreamOutput()) {
                 out.setVersion(Version.CURRENT);
                 sample.getParentTask().writeTo(out);
