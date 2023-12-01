@@ -1324,8 +1324,10 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
             allocationId,
             cps.checkpointTimers.size(),
             bytesBehind,
-            cps.checkpointTimers.values().stream().mapToLong(SegmentReplicationLagTimer::time).max().orElse(0),
-            cps.checkpointTimers.values().stream().mapToLong(SegmentReplicationLagTimer::totalElapsedTime).max().orElse(0),
+            bytesBehind > 0L ? cps.checkpointTimers.values().stream().mapToLong(SegmentReplicationLagTimer::time).max().orElse(0) : 0,
+            bytesBehind > 0L
+                ? cps.checkpointTimers.values().stream().mapToLong(SegmentReplicationLagTimer::totalElapsedTime).max().orElse(0)
+                : 0,
             cps.lastCompletedReplicationLag
         );
     }
