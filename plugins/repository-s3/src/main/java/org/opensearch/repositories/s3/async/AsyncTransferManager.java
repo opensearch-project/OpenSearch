@@ -34,11 +34,11 @@ import org.opensearch.common.blobstore.stream.write.WritePriority;
 import org.opensearch.common.io.InputStreamContainer;
 import org.opensearch.common.util.ByteUtils;
 import org.opensearch.core.common.unit.ByteSizeUnit;
+import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.repositories.s3.SocketAccess;
 import org.opensearch.repositories.s3.StatsMetricPublisher;
 import org.opensearch.repositories.s3.io.CheckedContainer;
 
-import java.io.BufferedInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Arrays;
@@ -183,7 +183,8 @@ public final class AsyncTransferManager {
                 uploadId,
                 completedParts,
                 inputStreamContainers,
-                statsMetricPublisher
+                statsMetricPublisher,
+                uploadRequest.isUploadRetryEnabled()
             );
         } catch (Exception ex) {
             try {
@@ -302,9 +303,12 @@ public final class AsyncTransferManager {
     /**
      * Calculates the optimal part size of each part request if the upload operation is carried out as multipart upload.
      */
-    public long calculateOptimalPartSize(long contentLengthOfSource) {
+    public long calculateOptimalPartSize(long contentLengthOfSource, WritePriority writePriority, boolean uploadRetryEnabled) {
         if (contentLengthOfSource < ByteSizeUnit.MB.toBytes(5)) {
             return contentLengthOfSource;
+        }
+        if (uploadRetryEnabled && (writePriority == WritePriority.HIGH || writePriority == WritePriority.URGENT)) {
+            return new ByteSizeValue(5, ByteSizeUnit.MB).getBytes();
         }
         double optimalPartSize = contentLengthOfSource / (double) MAX_UPLOAD_PARTS;
         optimalPartSize = Math.ceil(optimalPartSize);
@@ -335,9 +339,13 @@ public final class AsyncTransferManager {
         } else {
             streamReadExecutor = executorService;
         }
-        // Buffered stream is needed to allow mark and reset ops during IO errors so that only buffered
-        // data can be retried instead of retrying whole file by the application.
-        InputStream inputStream = new BufferedInputStream(inputStreamContainer.getInputStream(), (int) (ByteSizeUnit.MB.toBytes(1) + 1));
+
+        InputStream inputStream = AsyncPartsHandler.maybeRetryInputStream(
+            inputStreamContainer.getInputStream(),
+            uploadRequest.getWritePriority(),
+            uploadRequest.isUploadRetryEnabled(),
+            uploadRequest.getContentLength()
+        );
         CompletableFuture<Void> putObjectFuture = SocketAccess.doPrivileged(
             () -> s3AsyncClient.putObject(
                 putObjectRequestBuilder.build(),
