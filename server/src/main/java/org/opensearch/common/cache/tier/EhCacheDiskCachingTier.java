@@ -301,6 +301,16 @@ public class EhCacheDiskCachingTier<K, V> implements DiskCachingTier<K, V> {
                     assert event.getNewValue() == null;
                     break;
                 case REMOVED:
+                    this.removalListener.ifPresent(
+                        listener -> listener.onRemoval(
+                            new RemovalNotification<>(
+                                event.getKey(),
+                                valueSerializer.deserialize(event.getOldValue()),
+                                RemovalReason.INVALIDATED,
+                                TierType.DISK
+                            )
+                        )
+                    );
                     count.dec();
                     assert event.getNewValue() == null;
                     break;
