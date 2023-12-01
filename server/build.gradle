@@ -47,7 +47,7 @@ publishing {
 }
 
 base {
-  archivesBaseName = 'opensearch'
+  archivesName = 'opensearch'
 }
 
 sourceSets {
@@ -403,6 +403,7 @@ tasks.named("licenseHeaders").configure {
 }
 
 tasks.test {
+    environment "node.roles.test", "[]"
     if (BuildParams.runtimeJavaVersion > JavaVersion.VERSION_1_8) {
         jvmArgs += ["--add-opens", "java.base/java.nio.file=ALL-UNNAMED"]
     }

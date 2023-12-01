@@ -20,6 +20,7 @@
             properties:
               counter:
                 type: double
+
   - do:
       bulk:
         refresh: true
@@ -119,3 +120,87 @@
   - match: { status: 400 }
   - match: { error.type: search_phase_execution_exception }
   - match: { error.caused_by.reason: "Can't do sort across indices, as a field has [unsigned_long] type in one index, and different type in another index!" }
+
+---
+"search across indices with mixed long and double and float numeric types":
+  - skip:
+      version: " - 2.11.0"
+      reason: half float was broken before 2.11.1
+
+  - do:
+      indices.create:
+        index: test_1
+        body:
+          mappings:
+            properties:
+              counter:
+                type: long
+
+  - do:
+      indices.create:
+        index: test_2
+        body:
+          mappings:
+            properties:
+              counter:
+                type: double
+
+  - do:
+      indices.create:
+        index: test_3
+        body:
+          mappings:
+            properties:
+              counter:
+                type: half_float
+
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - index:
+              _index: test_1
+          - counter: 223372036854775800
+          - index:
+              _index: test_2
+          - counter: 1223372036854775800.23
+          - index:
+              _index: test_2
+          - counter: 184.4
+          - index:
+              _index: test_3
+          - counter: 187.4
+          - index:
+              _index: test_3
+          - counter: 194.4
+
+  - do:
+      search:
+        index: test_*
+        rest_total_hits_as_int: true
+        body:
+          sort: [{ counter: desc }]
+  - match: { hits.total: 5 }
+  - length: { hits.hits: 5 }
+  - match: { hits.hits.0._index: test_2 }
+  - match: { hits.hits.0._source.counter: 1223372036854775800.23 }
+  - match: { hits.hits.0.sort.0: 1223372036854775800.23 }
+  - match: { hits.hits.1._index: test_1 }
+  - match: { hits.hits.1._source.counter: 223372036854775800 }
+  - match: { hits.hits.1.sort.0: 223372036854775800  }
+  - match: { hits.hits.2._index: test_3 }
+  - match: { hits.hits.2._source.counter: 194.4 }
+
+  - do:
+      search:
+        index: test_*
+        rest_total_hits_as_int: true
+        body:
+          sort: [{ counter: asc }]
+  - match: { hits.total: 5 }
+  - length: { hits.hits: 5 }
+  - match: { hits.hits.0._index: test_2 }
+  - match: { hits.hits.0._source.counter: 184.4 }
+  - match: { hits.hits.0.sort.0: 184.4 }
+  - match: { hits.hits.1._index: test_3 }
+  - match: { hits.hits.1._source.counter: 187.4 }

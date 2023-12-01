@@ -59,6 +59,7 @@ public class SortFromPluginIT extends ParameterizedOpenSearchIntegTestCase {
         client().prepareIndex("test").setId("3").setSource("field", 0).get();
 
         refresh();
+        indexRandomForConcurrentSearch("test");
 
         SearchResponse searchResponse = client().prepareSearch("test").addSort(new CustomSortBuilder("field", SortOrder.ASC)).get();
         assertThat(searchResponse.getHits().getAt(0).getId(), equalTo("3"));
@@ -80,6 +81,7 @@ public class SortFromPluginIT extends ParameterizedOpenSearchIntegTestCase {
         client().prepareIndex("test").setId("3").setSource("field", 0).get();
 
         refresh();
+        indexRandomForConcurrentSearch("test");
 
         // builder -> json -> builder
         SearchResponse searchResponse = client().prepareSearch("test")

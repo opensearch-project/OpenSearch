@@ -437,6 +437,7 @@ public class SimpleQueryStringIT extends ParameterizedOpenSearchIntegTestCase {
         client().prepareIndex("test").setId("2").setSource("foo", 234, "bar", "bcd").get();
 
         refresh();
+        indexRandomForConcurrentSearch("test");
 
         SearchResponse searchResponse = client().prepareSearch().setQuery(simpleQueryStringQuery("test").field("_index")).get();
         assertHitCount(searchResponse, 2L);
