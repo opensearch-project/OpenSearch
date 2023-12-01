@@ -13,13 +13,13 @@ import java.util.Locale;
 /**
  * Enums that defines the type of the transport requests
  */
-public enum TransportActionType {
+public enum AdmissionControlActionType {
     INDEXING("indexing"),
     SEARCH("search");
 
     private final String type;
 
-    TransportActionType(String uriType) {
+    AdmissionControlActionType(String uriType) {
         this.type = uriType;
     }
 
@@ -31,7 +31,7 @@ public enum TransportActionType {
         return type;
     }
 
-    public static TransportActionType fromName(String name) {
+    public static AdmissionControlActionType fromName(String name) {
         name = name.toLowerCase(Locale.ROOT);
         switch (name) {
             case "indexing":
