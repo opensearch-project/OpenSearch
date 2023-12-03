@@ -1,8 +1,8 @@
 ---
 "Throw aliases missing exception when removing non-existing alias with setting must_exist to true":
   - skip:
-      version: " - 2.11.99"
-      reason: "fixed in 2.12"
+      version: " - 2.99.99"
+      reason: "introduced in 3.0"
 
   - do:
       indices.create:
