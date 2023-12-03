@@ -292,7 +292,7 @@ public class InternalEngine extends Engine {
                     new CompositeTranslogEventListener(Arrays.asList(internalTranslogEventListener, translogEventListener), shardId),
                     this::ensureOpen,
                     engineConfig.getTranslogFactory(),
-                    engineConfig.getPrimaryModeSupplier()
+                    engineConfig.getStartedPrimarySupplier()
                 );
                 this.translogManager = translogManagerRef;
                 this.softDeletesPolicy = newSoftDeletesPolicy();
@@ -1412,7 +1412,9 @@ public class InternalEngine extends Engine {
         final long totalDocs = indexWriter.getPendingNumDocs() + inFlightDocCount.addAndGet(addingDocs);
         if (totalDocs > maxDocs) {
             releaseInFlightDocs(addingDocs);
-            return new IllegalArgumentException("Number of documents in the index can't exceed [" + maxDocs + "]");
+            return new IllegalArgumentException(
+                "Number of documents in shard " + shardId + " exceeds the limit of [" + maxDocs + "] documents per shard"
+            );
         } else {
             return null;
         }

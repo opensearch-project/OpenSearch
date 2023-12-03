@@ -320,7 +320,7 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
         // This is the case of isRetry=false, shouldRetry=false
         // Succeed on 1st attempt
         int succeedOnAttempt = 1;
-        // We spy on IndexShard.getReplicationTracker() to validate that we have tried running remote time as per the expectation.
+        // We spy on IndexShard.isPrimaryStarted() to validate that we have tried running remote time as per the expectation.
         CountDownLatch refreshCountLatch = new CountDownLatch(succeedOnAttempt);
         // We spy on IndexShard.getEngine() to validate that we have successfully hit the terminal code for ascertaining successful upload.
         // Value has been set as 3 as during a successful upload IndexShard.getEngine() is hit thrice and with mockito we are counting down
@@ -341,7 +341,7 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
         // This covers 2 cases - 1) isRetry=false, shouldRetry=true 2) isRetry=true, shouldRetry=false
         // Succeed on 2nd attempt
         int succeedOnAttempt = 2;
-        // We spy on IndexShard.getReplicationTracker() to validate that we have tried running remote time as per the expectation.
+        // We spy on IndexShard.isPrimaryStarted() to validate that we have tried running remote time as per the expectation.
         CountDownLatch refreshCountLatch = new CountDownLatch(succeedOnAttempt);
         // We spy on IndexShard.getEngine() to validate that we have successfully hit the terminal code for ascertaining successful upload.
         // Value has been set as 3 as during a successful upload IndexShard.getEngine() is hit thrice and with mockito we are counting down
@@ -365,7 +365,7 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
     public void testRefreshSuccessAfterFailureInFirstAttemptAfterSnapshotAndMetadataUpload() throws Exception {
         int succeedOnAttempt = 1;
         int checkpointPublishSucceedOnAttempt = 2;
-        // We spy on IndexShard.getReplicationTracker() to validate that we have tried running remote time as per the expectation.
+        // We spy on IndexShard.isPrimaryStarted() to validate that we have tried running remote time as per the expectation.
         CountDownLatch refreshCountLatch = new CountDownLatch(succeedOnAttempt);
         // We spy on IndexShard.getEngine() to validate that we have successfully hit the terminal code for ascertaining successful upload.
         // Value has been set as 6 as during a successful upload IndexShard.getEngine() is hit thrice and here we are running the flow twice
@@ -387,7 +387,7 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
         // This covers 3 cases - 1) isRetry=false, shouldRetry=true 2) isRetry=true, shouldRetry=false 3) isRetry=True, shouldRetry=true
         // Succeed on 3rd attempt
         int succeedOnAttempt = 3;
-        // We spy on IndexShard.getReplicationTracker() to validate that we have tried running remote time as per the expectation.
+        // We spy on IndexShard.isPrimaryStarted() to validate that we have tried running remote time as per the expectation.
         CountDownLatch refreshCountLatch = new CountDownLatch(succeedOnAttempt);
         // We spy on IndexShard.getEngine() to validate that we have successfully hit the terminal code for ascertaining successful upload.
         // Value has been set as 3 as during a successful upload IndexShard.getEngine() is hit thrice and with mockito we are counting down
@@ -479,6 +479,7 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
         IndexShard shard = mock(IndexShard.class);
         Store store = mock(Store.class);
         when(shard.store()).thenReturn(store);
+        when(shard.state()).thenReturn(IndexShardState.STARTED);
         when(store.directory()).thenReturn(indexShard.store().directory());
 
         // Mock (RemoteSegmentStoreDirectory) ((FilterDirectory) ((FilterDirectory) indexShard.remoteStore().directory())
@@ -500,13 +501,12 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
         when(shard.getThreadPool()).thenReturn(threadPool);
 
         // Mock indexShard.getReplicationTracker().isPrimaryMode()
-
         doAnswer(invocation -> {
             if (Objects.nonNull(refreshCountLatch)) {
                 refreshCountLatch.countDown();
             }
-            return indexShard.getReplicationTracker();
-        }).when(shard).getReplicationTracker();
+            return true;
+        }).when(shard).isStartedPrimary();
 
         AtomicLong counter = new AtomicLong();
         // Mock indexShard.getSegmentInfosSnapshot()

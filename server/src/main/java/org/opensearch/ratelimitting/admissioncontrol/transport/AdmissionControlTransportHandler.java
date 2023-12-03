@@ -12,6 +12,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.ratelimitting.admissioncontrol.AdmissionControlService;
+import org.opensearch.ratelimitting.admissioncontrol.enums.AdmissionControlActionType;
 import org.opensearch.tasks.Task;
 import org.opensearch.transport.TransportChannel;
 import org.opensearch.transport.TransportRequest;
@@ -28,18 +29,21 @@ public class AdmissionControlTransportHandler<T extends TransportRequest> implem
     protected final Logger log = LogManager.getLogger(this.getClass());
     AdmissionControlService admissionControlService;
     boolean forceExecution;
+    AdmissionControlActionType admissionControlActionType;
 
     public AdmissionControlTransportHandler(
         String action,
         TransportRequestHandler<T> actualHandler,
         AdmissionControlService admissionControlService,
-        boolean forceExecution
+        boolean forceExecution,
+        AdmissionControlActionType admissionControlActionType
     ) {
         super();
         this.action = action;
         this.actualHandler = actualHandler;
         this.admissionControlService = admissionControlService;
         this.forceExecution = forceExecution;
+        this.admissionControlActionType = admissionControlActionType;
     }
 
     /**
@@ -50,15 +54,16 @@ public class AdmissionControlTransportHandler<T extends TransportRequest> implem
      */
     @Override
     public void messageReceived(T request, TransportChannel channel, Task task) throws Exception {
-        // intercept all the transport requests here and apply admission control
-        try {
-            // TODO Need to evaluate if we need to apply admission control or not if force Execution is true will update in next PR.
-            this.admissionControlService.applyTransportAdmissionControl(this.action);
-        } catch (final OpenSearchRejectedExecutionException openSearchRejectedExecutionException) {
-            log.warn(openSearchRejectedExecutionException.getMessage());
-            channel.sendResponse(openSearchRejectedExecutionException);
-        } catch (final Exception e) {
-            throw e;
+        // skip admission control if force execution is true
+        if (!this.forceExecution) {
+            // intercept the transport requests here and apply admission control
+            try {
+                this.admissionControlService.applyTransportAdmissionControl(this.action, this.admissionControlActionType);
+            } catch (final OpenSearchRejectedExecutionException openSearchRejectedExecutionException) {
+                log.warn(openSearchRejectedExecutionException.getMessage());
+                channel.sendResponse(openSearchRejectedExecutionException);
+                return;
+            }
         }
         actualHandler.messageReceived(request, channel, task);
     }

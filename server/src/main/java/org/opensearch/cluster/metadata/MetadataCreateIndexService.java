@@ -1496,7 +1496,7 @@ public class MetadataCreateIndexService {
      * @param requestSettings settings passed in during index create/update request
      * @param clusterSettings cluster setting
      */
-    static void validateRefreshIntervalSettings(Settings requestSettings, ClusterSettings clusterSettings) {
+    public static void validateRefreshIntervalSettings(Settings requestSettings, ClusterSettings clusterSettings) {
         if (IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.exists(requestSettings) == false) {
             return;
         }

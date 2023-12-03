@@ -148,6 +148,20 @@ class S3Repository extends MeteredBlobStoreRepository {
     static final ByteSizeValue MAX_FILE_SIZE_USING_MULTIPART = new ByteSizeValue(5, ByteSizeUnit.TB);
 
     /**
+     * Whether large uploads need to be redirected to slow sync s3 client.
+     */
+    static final Setting<Boolean> REDIRECT_LARGE_S3_UPLOAD = Setting.boolSetting(
+        "redirect_large_s3_upload",
+        true,
+        Setting.Property.NodeScope
+    );
+
+    /**
+     * Whether retry on uploads are enabled. This setting wraps inputstream with buffered stream to enable retries.
+     */
+    static final Setting<Boolean> UPLOAD_RETRY_ENABLED = Setting.boolSetting("s3_upload_retry_enabled", true, Setting.Property.NodeScope);
+
+    /**
      * Minimum threshold below which the chunk is uploaded using a single request. Beyond this threshold,
      * the S3 repository will use the AWS Multipart Upload API to split the chunk into several parts, each of buffer_size length, and
      * to upload each part in its own request. Note that setting a buffer size lower than 5mb is not allowed since it will prevents the
@@ -391,7 +405,9 @@ class S3Repository extends MeteredBlobStoreRepository {
 
         // Reload configs for S3RepositoryPlugin
         service.settings(metadata);
+        service.releaseCachedClients();
         s3AsyncService.settings(metadata);
+        s3AsyncService.releaseCachedClients();
 
         // Reload configs for S3BlobStore
         BlobStore blobStore = getBlobStore();
