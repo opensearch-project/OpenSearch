@@ -1818,6 +1818,11 @@ public abstract class Translog extends AbstractIndexShardComponent implements In
     protected void onDelete() {}
 
     /**
+     * Drains ongoing syncs to the underlying store. It returns a releasable which can be closed to resume the syncs back.
+     */
+    abstract Releasable drainSync();
+
+    /**
      * deletes all files associated with a reader. package-private to be able to simulate node failures at this point
      */
     void deleteReaderFiles(TranslogReader reader) {

@@ -20,17 +20,17 @@ import java.util.List;
  * @opensearch.internal
  */
 @InternalApi
-interface SearchRequestOperationsListener {
+abstract class SearchRequestOperationsListener {
 
-    void onPhaseStart(SearchPhaseContext context);
+    abstract void onPhaseStart(SearchPhaseContext context);
 
-    void onPhaseEnd(SearchPhaseContext context, SearchRequestContext searchRequestContext);
+    abstract void onPhaseEnd(SearchPhaseContext context, SearchRequestContext searchRequestContext);
 
-    void onPhaseFailure(SearchPhaseContext context);
+    abstract void onPhaseFailure(SearchPhaseContext context);
 
-    default void onRequestStart(SearchRequestContext searchRequestContext) {}
+    void onRequestStart(SearchRequestContext searchRequestContext) {}
 
-    default void onRequestEnd(SearchPhaseContext context, SearchRequestContext searchRequestContext) {}
+    void onRequestEnd(SearchPhaseContext context, SearchRequestContext searchRequestContext) {}
 
     /**
      * Holder of Composite Listeners
@@ -38,17 +38,17 @@ interface SearchRequestOperationsListener {
      * @opensearch.internal
      */
 
-    final class CompositeListener implements SearchRequestOperationsListener {
+    static final class CompositeListener extends SearchRequestOperationsListener {
         private final List<SearchRequestOperationsListener> listeners;
         private final Logger logger;
 
-        public CompositeListener(List<SearchRequestOperationsListener> listeners, Logger logger) {
+        CompositeListener(List<SearchRequestOperationsListener> listeners, Logger logger) {
             this.listeners = listeners;
             this.logger = logger;
         }
 
         @Override
-        public void onPhaseStart(SearchPhaseContext context) {
+        void onPhaseStart(SearchPhaseContext context) {
             for (SearchRequestOperationsListener listener : listeners) {
                 try {
                     listener.onPhaseStart(context);
@@ -59,7 +59,7 @@ interface SearchRequestOperationsListener {
         }
 
         @Override
-        public void onPhaseEnd(SearchPhaseContext context, SearchRequestContext searchRequestContext) {
+        void onPhaseEnd(SearchPhaseContext context, SearchRequestContext searchRequestContext) {
             for (SearchRequestOperationsListener listener : listeners) {
                 try {
                     listener.onPhaseEnd(context, searchRequestContext);
@@ -70,7 +70,7 @@ interface SearchRequestOperationsListener {
         }
 
         @Override
-        public void onPhaseFailure(SearchPhaseContext context) {
+        void onPhaseFailure(SearchPhaseContext context) {
             for (SearchRequestOperationsListener listener : listeners) {
                 try {
                     listener.onPhaseFailure(context);
@@ -81,7 +81,7 @@ interface SearchRequestOperationsListener {
         }
 
         @Override
-        public void onRequestStart(SearchRequestContext searchRequestContext) {
+        void onRequestStart(SearchRequestContext searchRequestContext) {
             for (SearchRequestOperationsListener listener : listeners) {
                 try {
                     listener.onRequestStart(searchRequestContext);

@@ -12,6 +12,8 @@ import software.amazon.awssdk.metrics.MetricCollection;
 import software.amazon.awssdk.metrics.MetricPublisher;
 import software.amazon.awssdk.metrics.MetricRecord;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.opensearch.common.blobstore.BlobStore;
 
 import java.time.Duration;
@@ -21,6 +23,7 @@ import java.util.concurrent.atomic.AtomicLong;
 
 public class StatsMetricPublisher {
 
+    private static final Logger LOGGER = LogManager.getLogger(StatsMetricPublisher.class);
     private final Stats stats = new Stats();
 
     private final Map<BlobStore.Metric, Stats> extendedStats = new HashMap<>() {
@@ -35,6 +38,7 @@ public class StatsMetricPublisher {
     public MetricPublisher listObjectsMetricPublisher = new MetricPublisher() {
         @Override
         public void publish(MetricCollection metricCollection) {
+            LOGGER.debug(() -> "List objects request metrics: " + metricCollection);
             for (MetricRecord<?> metricRecord : metricCollection) {
                 switch (metricRecord.metric().name()) {
                     case "ApiCallDuration":
@@ -64,6 +68,7 @@ public class StatsMetricPublisher {
     public MetricPublisher deleteObjectsMetricPublisher = new MetricPublisher() {
         @Override
         public void publish(MetricCollection metricCollection) {
+            LOGGER.debug(() -> "Delete objects request metrics: " + metricCollection);
             for (MetricRecord<?> metricRecord : metricCollection) {
                 switch (metricRecord.metric().name()) {
                     case "ApiCallDuration":
@@ -93,6 +98,7 @@ public class StatsMetricPublisher {
     public MetricPublisher getObjectMetricPublisher = new MetricPublisher() {
         @Override
         public void publish(MetricCollection metricCollection) {
+            LOGGER.debug(() -> "Get object request metrics: " + metricCollection);
             for (MetricRecord<?> metricRecord : metricCollection) {
                 switch (metricRecord.metric().name()) {
                     case "ApiCallDuration":
@@ -122,6 +128,7 @@ public class StatsMetricPublisher {
     public MetricPublisher putObjectMetricPublisher = new MetricPublisher() {
         @Override
         public void publish(MetricCollection metricCollection) {
+            LOGGER.debug(() -> "Put object request metrics: " + metricCollection);
             for (MetricRecord<?> metricRecord : metricCollection) {
                 switch (metricRecord.metric().name()) {
                     case "ApiCallDuration":
@@ -151,6 +158,7 @@ public class StatsMetricPublisher {
     public MetricPublisher multipartUploadMetricCollector = new MetricPublisher() {
         @Override
         public void publish(MetricCollection metricCollection) {
+            LOGGER.debug(() -> "Multi-part request metrics: " + metricCollection);
             for (MetricRecord<?> metricRecord : metricCollection) {
                 switch (metricRecord.metric().name()) {
                     case "ApiCallDuration":

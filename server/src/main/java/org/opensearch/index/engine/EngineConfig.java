@@ -108,7 +108,7 @@ public final class EngineConfig {
     private final LongSupplier globalCheckpointSupplier;
     private final Supplier<RetentionLeases> retentionLeasesSupplier;
     private final boolean isReadOnlyReplica;
-    private final BooleanSupplier primaryModeSupplier;
+    private final BooleanSupplier startedPrimarySupplier;
     private final Comparator<LeafReader> leafSorter;
 
     /**
@@ -287,7 +287,7 @@ public final class EngineConfig {
         this.primaryTermSupplier = builder.primaryTermSupplier;
         this.tombstoneDocSupplier = builder.tombstoneDocSupplier;
         this.isReadOnlyReplica = builder.isReadOnlyReplica;
-        this.primaryModeSupplier = builder.primaryModeSupplier;
+        this.startedPrimarySupplier = builder.startedPrimarySupplier;
         this.translogFactory = builder.translogFactory;
         this.leafSorter = builder.leafSorter;
     }
@@ -495,11 +495,11 @@ public final class EngineConfig {
     }
 
     /**
-     * Returns the underlying primaryModeSupplier.
+     * Returns the underlying startedPrimarySupplier.
      * @return the primary mode supplier.
      */
-    public BooleanSupplier getPrimaryModeSupplier() {
-        return primaryModeSupplier;
+    public BooleanSupplier getStartedPrimarySupplier() {
+        return startedPrimarySupplier;
     }
 
     /**
@@ -577,7 +577,7 @@ public final class EngineConfig {
         private TombstoneDocSupplier tombstoneDocSupplier;
         private TranslogDeletionPolicyFactory translogDeletionPolicyFactory;
         private boolean isReadOnlyReplica;
-        private BooleanSupplier primaryModeSupplier;
+        private BooleanSupplier startedPrimarySupplier;
         private TranslogFactory translogFactory = new InternalTranslogFactory();
         Comparator<LeafReader> leafSorter;
 
@@ -701,8 +701,8 @@ public final class EngineConfig {
             return this;
         }
 
-        public Builder primaryModeSupplier(BooleanSupplier primaryModeSupplier) {
-            this.primaryModeSupplier = primaryModeSupplier;
+        public Builder startedPrimarySupplier(BooleanSupplier startedPrimarySupplier) {
+            this.startedPrimarySupplier = startedPrimarySupplier;
             return this;
         }
 

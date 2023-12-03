@@ -45,6 +45,7 @@ import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.core.transport.TransportResponse;
+import org.opensearch.ratelimitting.admissioncontrol.enums.AdmissionControlActionType;
 import org.opensearch.search.SearchPhaseResult;
 import org.opensearch.search.SearchService;
 import org.opensearch.search.dfs.DfsSearchResult;
@@ -542,6 +543,9 @@ public class SearchTransportService {
         transportService.registerRequestHandler(
             DFS_ACTION_NAME,
             ThreadPool.Names.SAME,
+            false,
+            true,
+            AdmissionControlActionType.SEARCH,
             ShardSearchRequest::new,
             (request, channel, task) -> searchService.executeDfsPhase(
                 request,
@@ -556,6 +560,9 @@ public class SearchTransportService {
         transportService.registerRequestHandler(
             QUERY_ACTION_NAME,
             ThreadPool.Names.SAME,
+            false,
+            true,
+            AdmissionControlActionType.SEARCH,
             ShardSearchRequest::new,
             (request, channel, task) -> {
                 searchService.executeQueryPhase(
@@ -575,6 +582,9 @@ public class SearchTransportService {
         transportService.registerRequestHandler(
             QUERY_ID_ACTION_NAME,
             ThreadPool.Names.SAME,
+            false,
+            true,
+            AdmissionControlActionType.SEARCH,
             QuerySearchRequest::new,
             (request, channel, task) -> {
                 searchService.executeQueryPhase(
@@ -633,6 +643,7 @@ public class SearchTransportService {
             ThreadPool.Names.SAME,
             true,
             true,
+            AdmissionControlActionType.SEARCH,
             ShardFetchSearchRequest::new,
             (request, channel, task) -> {
                 searchService.executeFetchPhase(
