@@ -954,7 +954,8 @@ public class NodeStatsTests extends OpenSearchTestCase {
             null,
             segmentReplicationRejectionStats,
             null,
-            admissionControlStats
+            admissionControlStats,
+            null
         );
     }
 
@@ -1010,4 +1011,5 @@ public class NodeStatsTests extends OpenSearchTestCase {
     private OperationStats getPipelineStats(List<IngestStats.PipelineStat> pipelineStats, String id) {
         return pipelineStats.stream().filter(p1 -> p1.getPipelineId().equals(id)).findFirst().map(p2 -> p2.getStats()).orElse(null);
     }
+
 }

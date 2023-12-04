@@ -62,6 +62,7 @@ import org.opensearch.search.backpressure.SearchBackpressureService;
 import org.opensearch.search.pipeline.SearchPipelineService;
 import org.opensearch.tasks.TaskCancellationMonitoringService;
 import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.transport.TransportConnectionFailureStats;
 import org.opensearch.transport.TransportService;
 
 import java.io.Closeable;
@@ -236,7 +237,8 @@ public class NodeService implements Closeable {
         boolean resourceUsageStats,
         boolean segmentReplicationTrackerStats,
         boolean repositoriesStats,
-        boolean admissionControl
+        boolean admissionControl,
+        boolean transportConnectionFailureStats
     ) {
         // for indices stats we want to include previous allocated shards stats as well (it will
         // only be applied to the sensible ones to use, like refresh/merge/flush/indexing stats)
@@ -268,7 +270,8 @@ public class NodeService implements Closeable {
             searchPipelineStats ? this.searchPipelineService.stats() : null,
             segmentReplicationTrackerStats ? this.segmentReplicationStatsTracker.getTotalRejectionStats() : null,
             repositoriesStats ? this.repositoriesService.getRepositoriesStats() : null,
-            admissionControl ? this.admissionControlService.stats() : null
+            admissionControl ? this.admissionControlService.stats() : null,
+            transportConnectionFailureStats ? TransportConnectionFailureStats.getInstance() : null
         );
     }
 

@@ -66,6 +66,7 @@ import org.opensearch.search.backpressure.stats.SearchBackpressureStats;
 import org.opensearch.search.pipeline.SearchPipelineStats;
 import org.opensearch.tasks.TaskCancellationStats;
 import org.opensearch.threadpool.ThreadPoolStats;
+import org.opensearch.transport.TransportConnectionFailureStats;
 import org.opensearch.transport.TransportStats;
 
 import java.io.IOException;
@@ -158,6 +159,9 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
     @Nullable
     private AdmissionControlStats admissionControlStats;
 
+    @Nullable
+    private TransportConnectionFailureStats transportConnectionFailureStats;
+
     public NodeStats(StreamInput in) throws IOException {
         super(in);
         timestamp = in.readVLong();
@@ -235,6 +239,11 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         } else {
             admissionControlStats = null;
         }
+        if (in.getVersion().onOrAfter(Version.V_2_12_0)) {
+            transportConnectionFailureStats = in.readOptionalWriteable(TransportConnectionFailureStats::new);
+        } else {
+            transportConnectionFailureStats = null;
+        }
     }
 
     public NodeStats(
@@ -265,7 +274,8 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         @Nullable SearchPipelineStats searchPipelineStats,
         @Nullable SegmentReplicationRejectionStats segmentReplicationRejectionStats,
         @Nullable RepositoriesStats repositoriesStats,
-        @Nullable AdmissionControlStats admissionControlStats
+        @Nullable AdmissionControlStats admissionControlStats,
+        @Nullable TransportConnectionFailureStats transportConnectionFailureStats
     ) {
         super(node);
         this.timestamp = timestamp;
@@ -295,6 +305,7 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         this.segmentReplicationRejectionStats = segmentReplicationRejectionStats;
         this.repositoriesStats = repositoriesStats;
         this.admissionControlStats = admissionControlStats;
+        this.transportConnectionFailureStats = transportConnectionFailureStats;
     }
 
     public long getTimestamp() {
@@ -452,6 +463,11 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         return admissionControlStats;
     }
 
+    @Nullable
+    public TransportConnectionFailureStats getTransportConnectionFailureStats() {
+        return transportConnectionFailureStats;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
@@ -507,6 +523,10 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         // TODO: change to V_2_12_0 on main after backport to 2.x
         if (out.getVersion().onOrAfter(Version.V_3_0_0)) {
             out.writeOptionalWriteable(admissionControlStats);
+        }
+
+        if (out.getVersion().onOrAfter(Version.V_2_12_0)) {
+            out.writeOptionalWriteable(transportConnectionFailureStats);
         }
     }
 
@@ -610,6 +630,9 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         }
         if (getAdmissionControlStats() != null) {
             getAdmissionControlStats().toXContent(builder, params);
+        }
+        if (getTransportConnectionFailureStats() != null) {
+            getTransportConnectionFailureStats().toXContent(builder, params);
         }
         return builder;
     }
