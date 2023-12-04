@@ -146,7 +146,14 @@ public final class AsyncTransferManager {
                 handleException(returnFuture, () -> "Failed to initiate multipart upload", throwable);
             } else {
                 log.debug(() -> "Initiated new multipart upload, uploadId: " + createMultipartUploadResponse.uploadId());
-                doUploadInParts(s3AsyncClient, uploadRequest, streamContext, returnFuture, createMultipartUploadResponse.uploadId());
+                doUploadInParts(
+                    s3AsyncClient,
+                    uploadRequest,
+                    streamContext,
+                    returnFuture,
+                    createMultipartUploadResponse.uploadId(),
+                    statsMetricPublisher
+                );
             }
         });
     }
@@ -156,7 +163,8 @@ public final class AsyncTransferManager {
         UploadRequest uploadRequest,
         StreamContext streamContext,
         CompletableFuture<Void> returnFuture,
-        String uploadId
+        String uploadId,
+        StatsMetricPublisher statsMetricPublisher
     ) {
 
         // The list of completed parts must be sorted
@@ -174,7 +182,8 @@ public final class AsyncTransferManager {
                 streamContext,
                 uploadId,
                 completedParts,
-                inputStreamContainers
+                inputStreamContainers,
+                statsMetricPublisher
             );
         } catch (Exception ex) {
             try {
@@ -198,7 +207,7 @@ public final class AsyncTransferManager {
             }
             return null;
         })
-            .thenCompose(ignore -> completeMultipartUpload(s3AsyncClient, uploadRequest, uploadId, completedParts))
+            .thenCompose(ignore -> completeMultipartUpload(s3AsyncClient, uploadRequest, uploadId, completedParts, statsMetricPublisher))
             .handle(handleExceptionOrResponse(s3AsyncClient, uploadRequest, returnFuture, uploadId))
             .exceptionally(throwable -> {
                 handleException(returnFuture, () -> "Unexpected exception occurred", throwable);
@@ -245,7 +254,8 @@ public final class AsyncTransferManager {
         S3AsyncClient s3AsyncClient,
         UploadRequest uploadRequest,
         String uploadId,
-        AtomicReferenceArray<CompletedPart> completedParts
+        AtomicReferenceArray<CompletedPart> completedParts,
+        StatsMetricPublisher statsMetricPublisher
     ) {
 
         log.debug(() -> new ParameterizedMessage("Sending completeMultipartUploadRequest, uploadId: {}", uploadId));
@@ -254,6 +264,7 @@ public final class AsyncTransferManager {
             .bucket(uploadRequest.getBucket())
             .key(uploadRequest.getKey())
             .uploadId(uploadId)
+            .overrideConfiguration(o -> o.addMetricPublisher(statsMetricPublisher.multipartUploadMetricCollector))
             .multipartUpload(CompletedMultipartUpload.builder().parts(parts).build())
             .build();
 
