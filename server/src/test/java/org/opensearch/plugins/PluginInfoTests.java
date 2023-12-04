@@ -32,6 +32,7 @@
 
 package org.opensearch.plugins;
 
+import com.google.gson.JsonSyntaxException;
 import org.opensearch.Version;
 import org.opensearch.action.admin.cluster.node.info.PluginsAndModules;
 import org.opensearch.common.io.stream.BytesStreamOutput;
@@ -74,6 +75,33 @@ public class PluginInfoTests extends OpenSearchTestCase {
         assertEquals("fake desc", info.getDescription());
         assertEquals("1.0", info.getVersion());
         assertEquals("FakePlugin", info.getClassname());
+        assertEquals(Version.CURRENT.toString(), info.getOpenSearchVersionRange().toString());
+        assertThat(info.getExtendedPlugins(), empty());
+    }
+
+    public void testReadFromPropertiesWithDependencies() throws Exception {
+        Path pluginDir = createTempDir().resolve("fake-plugin");
+        PluginTestUtil.writePluginProperties(
+            pluginDir,
+            "description",
+            "fake desc",
+            "name",
+            "my_plugin",
+            "version",
+            "1.0",
+            "dependencies",
+            "{opensearch:~" + Version.CURRENT.toString() + "}",
+            "java.version",
+            System.getProperty("java.specification.version"),
+            "classname",
+            "FakePlugin"
+        );
+        PluginInfo info = PluginInfo.readFromProperties(pluginDir);
+        assertEquals("my_plugin", info.getName());
+        assertEquals("fake desc", info.getDescription());
+        assertEquals("1.0", info.getVersion());
+        assertEquals("FakePlugin", info.getClassname());
+        assertEquals("~" + Version.CURRENT.toString(), info.getOpenSearchVersionRange().toString());
         assertThat(info.getExtendedPlugins(), empty());
     }
 
@@ -102,6 +130,7 @@ public class PluginInfoTests extends OpenSearchTestCase {
         assertEquals("1.0", info.getVersion());
         assertEquals("FakePlugin", info.getClassname());
         assertEquals("custom-folder", info.getTargetFolderName());
+        assertEquals(Version.CURRENT.toString(), info.getOpenSearchVersionRange().toString());
         assertThat(info.getExtendedPlugins(), empty());
     }
 
@@ -130,11 +159,40 @@ public class PluginInfoTests extends OpenSearchTestCase {
         assertThat(e.getMessage(), containsString("[version] is missing"));
     }
 
-    public void testReadFromPropertiesOpenSearchVersionMissing() throws Exception {
+    public void testReadFromPropertiesOpenSearchVersionAndDependenciesMissing() throws Exception {
         Path pluginDir = createTempDir().resolve("fake-plugin");
         PluginTestUtil.writePluginProperties(pluginDir, "description", "fake desc", "name", "my_plugin", "version", "1.0");
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> PluginInfo.readFromProperties(pluginDir));
-        assertThat(e.getMessage(), containsString("[opensearch.version] is missing"));
+        assertThat(
+            e.getMessage(),
+            containsString("Either [opensearch.version] or [dependencies] property must be specified for the plugin ")
+        );
+    }
+
+    public void testReadFromPropertiesWithDependenciesAndOpenSearchVersion() throws Exception {
+        Path pluginDir = createTempDir().resolve("fake-plugin");
+        PluginTestUtil.writePluginProperties(
+            pluginDir,
+            "description",
+            "fake desc",
+            "name",
+            "my_plugin",
+            "version",
+            "1.0",
+            "opensearch.version",
+            Version.CURRENT.toString(),
+            "dependencies",
+            "{opensearch:" + Version.CURRENT.toString() + "}",
+            "java.version",
+            System.getProperty("java.specification.version"),
+            "classname",
+            "FakePlugin"
+        );
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> PluginInfo.readFromProperties(pluginDir));
+        assertThat(
+            e.getMessage(),
+            containsString("Only one of [opensearch.version] or [dependencies] property can be specified for the plugin")
+        );
     }
 
     public void testReadFromPropertiesJavaVersionMissing() throws Exception {
@@ -305,7 +363,6 @@ public class PluginInfoTests extends OpenSearchTestCase {
         ByteBufferStreamInput input = new ByteBufferStreamInput(buffer);
         PluginInfo info2 = new PluginInfo(input);
         assertThat(info2.toString(), equalTo(info.toString()));
-
     }
 
     public void testPluginListSorted() {
@@ -347,4 +404,86 @@ public class PluginInfoTests extends OpenSearchTestCase {
         assertThat(e.getMessage(), containsString("Unknown properties in plugin descriptor"));
     }
 
+    public void testMultipleDependencies() throws Exception {
+        Path pluginDir = createTempDir().resolve("fake-plugin");
+        PluginTestUtil.writePluginProperties(
+            pluginDir,
+            "description",
+            "fake desc",
+            "name",
+            "my_plugin",
+            "version",
+            "1.0",
+            "dependencies",
+            "{opensearch:~" + Version.CURRENT.toString() + ", dependency2=1.0.0}",
+            "java.version",
+            System.getProperty("java.specification.version"),
+            "classname",
+            "FakePlugin"
+        );
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> PluginInfo.readFromProperties(pluginDir));
+        assertThat(e.getMessage(), containsString("Exactly one dependency is allowed to be specified in plugin descriptor properties"));
+    }
+
+    public void testNonOpenSearchDependency() throws Exception {
+        Path pluginDir = createTempDir().resolve("fake-plugin");
+        PluginTestUtil.writePluginProperties(
+            pluginDir,
+            "description",
+            "fake desc",
+            "name",
+            "my_plugin",
+            "version",
+            "1.0",
+            "dependencies",
+            "{some_dependency:~" + Version.CURRENT.toString() + "}",
+            "java.version",
+            System.getProperty("java.specification.version"),
+            "classname",
+            "FakePlugin"
+        );
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> PluginInfo.readFromProperties(pluginDir));
+        assertThat(e.getMessage(), containsString("Only OpenSearch is allowed to be specified as a plugin dependency"));
+    }
+
+    public void testEmptyDependenciesProperty() throws Exception {
+        Path pluginDir = createTempDir().resolve("fake-plugin");
+        PluginTestUtil.writePluginProperties(
+            pluginDir,
+            "description",
+            "fake desc",
+            "name",
+            "my_plugin",
+            "version",
+            "1.0",
+            "dependencies",
+            "{}",
+            "java.version",
+            System.getProperty("java.specification.version"),
+            "classname",
+            "FakePlugin"
+        );
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> PluginInfo.readFromProperties(pluginDir));
+        assertThat(e.getMessage(), containsString("Exactly one dependency is allowed to be specified in plugin descriptor properties"));
+    }
+
+    public void testInvalidDependenciesProperty() throws Exception {
+        Path pluginDir = createTempDir().resolve("fake-plugin");
+        PluginTestUtil.writePluginProperties(
+            pluginDir,
+            "description",
+            "fake desc",
+            "name",
+            "my_plugin",
+            "version",
+            "1.0",
+            "dependencies",
+            "{invalid}",
+            "java.version",
+            System.getProperty("java.specification.version"),
+            "classname",
+            "FakePlugin"
+        );
+        expectThrows(JsonSyntaxException.class, () -> PluginInfo.readFromProperties(pluginDir));
+    }
 }

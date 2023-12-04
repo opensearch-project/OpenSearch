@@ -32,6 +32,7 @@
 
 package org.opensearch.plugins;
 
+import com.google.gson.Gson;
 import org.opensearch.Version;
 import org.opensearch.bootstrap.JarHell;
 import org.opensearch.common.annotation.PublicApi;
@@ -41,6 +42,7 @@ import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.semver.SemverRange;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -69,7 +71,7 @@ public class PluginInfo implements Writeable, ToXContentObject {
     private final String name;
     private final String description;
     private final String version;
-    private final Version opensearchVersion;
+    private final SemverRange opensearchVersionRange;
     private final String javaVersion;
     private final String classname;
     private final String customFolderName;
@@ -100,10 +102,34 @@ public class PluginInfo implements Writeable, ToXContentObject {
         List<String> extendedPlugins,
         boolean hasNativeController
     ) {
+        this(
+            name,
+            description,
+            version,
+            SemverRange.fromString(opensearchVersion.toString()),
+            javaVersion,
+            classname,
+            customFolderName,
+            extendedPlugins,
+            hasNativeController
+        );
+    }
+
+    public PluginInfo(
+        String name,
+        String description,
+        String version,
+        SemverRange opensearchVersionRange,
+        String javaVersion,
+        String classname,
+        String customFolderName,
+        List<String> extendedPlugins,
+        boolean hasNativeController
+    ) {
         this.name = name;
         this.description = description;
         this.version = version;
-        this.opensearchVersion = opensearchVersion;
+        this.opensearchVersionRange = opensearchVersionRange;
         this.javaVersion = javaVersion;
         this.classname = classname;
         this.customFolderName = customFolderName;
@@ -156,7 +182,7 @@ public class PluginInfo implements Writeable, ToXContentObject {
         this.name = in.readString();
         this.description = in.readString();
         this.version = in.readString();
-        this.opensearchVersion = in.readVersion();
+        this.opensearchVersionRange = in.readSemverRange();
         this.javaVersion = in.readString();
         this.classname = in.readString();
         this.customFolderName = in.readString();
@@ -169,7 +195,7 @@ public class PluginInfo implements Writeable, ToXContentObject {
         out.writeString(name);
         out.writeString(description);
         out.writeString(version);
-        out.writeVersion(opensearchVersion);
+        out.writeSemverRange(opensearchVersionRange);
         out.writeString(javaVersion);
         out.writeString(classname);
         if (customFolderName != null) {
@@ -214,10 +240,34 @@ public class PluginInfo implements Writeable, ToXContentObject {
         }
 
         final String opensearchVersionString = propsMap.remove("opensearch.version");
-        if (opensearchVersionString == null) {
-            throw new IllegalArgumentException("property [opensearch.version] is missing for plugin [" + name + "]");
+        final String dependenciesValue = propsMap.remove("dependencies");
+        if (opensearchVersionString == null && dependenciesValue == null) {
+            throw new IllegalArgumentException(
+                "Either [opensearch.version] or [dependencies] property must be specified for the plugin [" + name + "]"
+            );
         }
-        final Version opensearchVersion = Version.fromString(opensearchVersionString);
+        if (opensearchVersionString != null && dependenciesValue != null) {
+            throw new IllegalArgumentException(
+                "Only one of [opensearch.version] or [dependencies] property can be specified for the plugin [" + name + "]"
+            );
+        }
+
+        final SemverRange opensearchVersionRange;
+        if (opensearchVersionString != null) {
+            opensearchVersionRange = new SemverRange(Version.fromString(opensearchVersionString), SemverRange.RangeOperator.DEFAULT);
+        } else {
+            Map<String, String> dependenciesMap = new Gson().fromJson(dependenciesValue, Map.class);
+            if (dependenciesMap.size() != 1) {
+                throw new IllegalArgumentException(
+                    "Exactly one dependency is allowed to be specified in plugin descriptor properties: " + dependenciesMap
+                );
+            }
+            if (dependenciesMap.keySet().stream().noneMatch(s -> s.equals("opensearch"))) {
+                throw new IllegalArgumentException("Only OpenSearch is allowed to be specified as a plugin dependency: " + dependenciesMap);
+            }
+            opensearchVersionRange = SemverRange.fromString(dependenciesMap.get("opensearch"));
+        }
+
         final String javaVersionString = propsMap.remove("java.version");
         if (javaVersionString == null) {
             throw new IllegalArgumentException("property [java.version] is missing for plugin [" + name + "]");
@@ -273,7 +323,7 @@ public class PluginInfo implements Writeable, ToXContentObject {
             name,
             description,
             version,
-            opensearchVersion,
+            opensearchVersionRange,
             javaVersionString,
             classname,
             customFolderName,
@@ -337,12 +387,12 @@ public class PluginInfo implements Writeable, ToXContentObject {
     }
 
     /**
-     * The version of OpenSearch the plugin was built for.
+     * The range of OpenSearch versions the plugin is compatible with.
      *
-     * @return an OpenSearch version
+     * @return an OpenSearch version range
      */
-    public Version getOpenSearchVersion() {
-        return opensearchVersion;
+    public SemverRange getOpenSearchVersionRange() {
+        return opensearchVersionRange;
     }
 
     /**
@@ -378,7 +428,7 @@ public class PluginInfo implements Writeable, ToXContentObject {
         {
             builder.field("name", name);
             builder.field("version", version);
-            builder.field("opensearch_version", opensearchVersion);
+            builder.field("opensearch_version", opensearchVersionRange);
             builder.field("java_version", javaVersion);
             builder.field("description", description);
             builder.field("classname", classname);
@@ -432,7 +482,7 @@ public class PluginInfo implements Writeable, ToXContentObject {
             .append("\n")
             .append(prefix)
             .append("OpenSearch Version: ")
-            .append(opensearchVersion)
+            .append(opensearchVersionRange)
             .append("\n")
             .append(prefix)
             .append("Java Version: ")
