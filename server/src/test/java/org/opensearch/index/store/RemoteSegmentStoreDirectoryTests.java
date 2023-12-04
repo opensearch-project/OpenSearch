@@ -516,28 +516,39 @@ public class RemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
     public void testIsLockAcquiredCachingCacheHit() throws IOException {
         populateMetadata();
         remoteSegmentStoreDirectory.init();
-        long testPrimaryTerm = 1;
-        long testGeneration = 5;
 
         List<String> metadataFiles = List.of("metadata__1__5__abc");
         FileLockInfo fileLockInfoLock = FileLockInfo.getLockInfoBuilder().withFileToLock(metadataFiles.get(0)).build();
-        when(
-            remoteMetadataDirectory.listFilesByPrefixInLexicographicOrder(
-                RemoteSegmentStoreDirectory.MetadataFilenameUtils.getMetadataFilePrefixForCommit(testPrimaryTerm, testGeneration),
-                1
-            )
-        ).thenReturn(metadataFiles);
 
         // Lock manager isAcquired returns true for the first time and false for subsequent calls
         when(mdLockManager.isAcquired(argThat(new FileLockInfoMatcher(fileLockInfoLock)))).thenReturn(true).thenReturn(false);
 
         // Due to cached entries which return with isAcquired = true, subsequent calls return from cache
-        assertTrue(remoteSegmentStoreDirectory.isLockAcquired(testPrimaryTerm, testGeneration));
-        assertTrue(remoteSegmentStoreDirectory.isLockAcquired(testPrimaryTerm, testGeneration));
-        assertTrue(remoteSegmentStoreDirectory.isLockAcquired(testPrimaryTerm, testGeneration));
+        assertTrue(remoteSegmentStoreDirectory.isLockAcquired("metadata__1__5__abc", true));
+        assertTrue(remoteSegmentStoreDirectory.isLockAcquired("metadata__1__5__abc", true));
+        assertTrue(remoteSegmentStoreDirectory.isLockAcquired("metadata__1__5__abc", true));
 
         // As all but first calls are fetching data from cache, we make only one call to mdLockManager
         verify(mdLockManager, times(1)).isAcquired(argThat(new FileLockInfoMatcher(fileLockInfoLock)));
+    }
+
+    public void testIsLockAcquiredCachingCacheHitUseCacheFalse() throws IOException {
+        populateMetadata();
+        remoteSegmentStoreDirectory.init();
+
+        List<String> metadataFiles = List.of("metadata__1__5__abc");
+        FileLockInfo fileLockInfoLock = FileLockInfo.getLockInfoBuilder().withFileToLock(metadataFiles.get(0)).build();
+
+        // Lock manager isAcquired returns true for the first time and false for subsequent calls
+        when(mdLockManager.isAcquired(argThat(new FileLockInfoMatcher(fileLockInfoLock)))).thenReturn(true).thenReturn(false);
+
+        // Due to cached entries which return with isAcquired = true, subsequent calls return from cache
+        assertTrue(remoteSegmentStoreDirectory.isLockAcquired("metadata__1__5__abc", false));
+        assertFalse(remoteSegmentStoreDirectory.isLockAcquired("metadata__1__5__abc", false));
+        assertFalse(remoteSegmentStoreDirectory.isLockAcquired("metadata__1__5__abc", false));
+
+        // As all but first calls are fetching data from cache, we make only one call to mdLockManager
+        verify(mdLockManager, times(3)).isAcquired(argThat(new FileLockInfoMatcher(fileLockInfoLock)));
     }
 
     public void testIsLockAcquiredCachingCacheMiss() throws IOException {
@@ -999,7 +1010,7 @@ public class RemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
         // popluateMetadata() adds stub to return 3 metadata files
         // We are passing lastNMetadataFilesToKeep=2 here to validate that in case of exception deleteFile is not
         // invoked
-        remoteSegmentStoreDirectory.deleteStaleSegmentsAsync(2);
+        remoteSegmentStoreDirectory.deleteStaleSegmentsAsync(2, true);
 
         assertBusy(() -> assertThat(remoteSegmentStoreDirectory.canDeleteStaleCommits.get(), is(true)));
         verify(remoteMetadataDirectory, times(0)).deleteFile(any(String.class));
@@ -1012,7 +1023,7 @@ public class RemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
         // popluateMetadata() adds stub to return 3 metadata files
         // We are passing lastNMetadataFilesToKeep=2 here to validate that in case of exception deleteFile is not
         // invoked
-        remoteSegmentStoreDirectory.deleteStaleSegmentsAsync(2);
+        remoteSegmentStoreDirectory.deleteStaleSegmentsAsync(2, true);
 
         assertBusy(() -> assertThat(remoteSegmentStoreDirectory.canDeleteStaleCommits.get(), is(true)));
         verify(remoteMetadataDirectory, times(0)).deleteFile(any(String.class));
@@ -1025,7 +1036,7 @@ public class RemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
         // popluateMetadata() adds stub to return 3 metadata files
         // We are passing lastNMetadataFilesToKeep=2 here to validate that in case of exception deleteFile is not
         // invoked
-        remoteSegmentStoreDirectory.deleteStaleSegmentsAsync(2);
+        remoteSegmentStoreDirectory.deleteStaleSegmentsAsync(2, true);
 
         assertBusy(() -> assertThat(remoteSegmentStoreDirectory.canDeleteStaleCommits.get(), is(false)));
         verify(remoteMetadataDirectory, times(0)).deleteFile(any(String.class));
@@ -1036,7 +1047,7 @@ public class RemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
 
         // popluateMetadata() adds stub to return 3 metadata files
         // We are passing lastNMetadataFilesToKeep=5 here so that none of the metadata files will be deleted
-        remoteSegmentStoreDirectory.deleteStaleSegmentsAsync(5);
+        remoteSegmentStoreDirectory.deleteStaleSegmentsAsync(5, true);
 
         assertBusy(() -> assertThat(remoteSegmentStoreDirectory.canDeleteStaleCommits.get(), is(true)));
         verify(remoteMetadataDirectory, times(0)).openInput(any(String.class), eq(IOContext.DEFAULT));
@@ -1048,7 +1059,7 @@ public class RemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
 
         // popluateMetadata() adds stub to return 3 metadata files
         // We are passing lastNMetadataFilesToKeep=2 here so that oldest 1 metadata file will be deleted
-        remoteSegmentStoreDirectory.deleteStaleSegmentsAsync(2);
+        remoteSegmentStoreDirectory.deleteStaleSegmentsAsync(2, true);
 
         for (String metadata : metadataFilenameContentMapping.get(metadataFilename3).values()) {
             String uploadedFilename = metadata.split(RemoteSegmentStoreDirectory.UploadedSegmentMetadata.SEPARATOR)[1];
@@ -1117,7 +1128,7 @@ public class RemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
         doThrow(new IOException("Error")).when(remoteDataDirectory).deleteFile(segmentFileWithException);
         // popluateMetadata() adds stub to return 3 metadata files
         // We are passing lastNMetadataFilesToKeep=2 here so that oldest 1 metadata file will be deleted
-        remoteSegmentStoreDirectory.deleteStaleSegmentsAsync(2);
+        remoteSegmentStoreDirectory.deleteStaleSegmentsAsync(2, true);
 
         for (String metadata : metadataFilenameContentMapping.get(metadataFilename3).values()) {
             String uploadedFilename = metadata.split(RemoteSegmentStoreDirectory.UploadedSegmentMetadata.SEPARATOR)[1];
@@ -1140,7 +1151,7 @@ public class RemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
         doThrow(new NoSuchFileException(segmentFileWithException)).when(remoteDataDirectory).deleteFile(segmentFileWithException);
         // popluateMetadata() adds stub to return 3 metadata files
         // We are passing lastNMetadataFilesToKeep=2 here so that oldest 1 metadata file will be deleted
-        remoteSegmentStoreDirectory.deleteStaleSegmentsAsync(2);
+        remoteSegmentStoreDirectory.deleteStaleSegmentsAsync(2, true);
 
         for (String metadata : metadataFilenameContentMapping.get(metadataFilename3).values()) {
             String uploadedFilename = metadata.split(RemoteSegmentStoreDirectory.UploadedSegmentMetadata.SEPARATOR)[1];

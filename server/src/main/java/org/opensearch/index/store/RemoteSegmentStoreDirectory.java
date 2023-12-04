@@ -94,7 +94,7 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
 
     private final ThreadPool threadPool;
 
-    private final Cache<String, Boolean> lockCache;
+    private final Cache<String, Boolean> acquiredLockCache;
 
     /**
      * Keeps track of local segment filename to uploaded filename along with other attributes like checksum.
@@ -135,7 +135,8 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
         this.remoteMetadataDirectory = remoteMetadataDirectory;
         this.mdLockManager = mdLockManager;
         this.threadPool = threadPool;
-        this.lockCache = CacheBuilder.<String, Boolean>builder().setExpireAfterWrite(TimeValue.timeValueHours(1)).build();
+        // ToDo: make the cache TTL configurable
+        this.acquiredLockCache = CacheBuilder.<String, Boolean>builder().setExpireAfterWrite(TimeValue.timeValueHours(1)).build();
         this.logger = Loggers.getLogger(getClass(), shardId);
         init();
     }
@@ -518,12 +519,12 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
     @Override
     public Boolean isLockAcquired(long primaryTerm, long generation) throws IOException {
         String metadataFile = getMetadataFileForCommit(primaryTerm, generation);
-        return isLockAcquired(metadataFile);
+        return isLockAcquired(metadataFile, false);
     }
 
     // Visible for testing
-    Boolean isLockAcquired(String metadataFile) throws IOException {
-        if (lockCache.get(metadataFile) != null) {
+    Boolean isLockAcquired(String metadataFile, boolean useCache) throws IOException {
+        if (useCache && acquiredLockCache.get(metadataFile) != null) {
             return true;
         }
         boolean lockAcquired = mdLockManager.isAcquired(FileLockInfo.getLockInfoBuilder().withFileToLock(metadataFile).build());
@@ -531,7 +532,7 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
             // We do not want to cache info of unlocked metadata files as we do not want to miss a lock getting acquired
             // on a metadata file between 2 invocations of this method. Caching unlocked files can lead to data
             // consistency issues.
-            lockCache.put(metadataFile, true);
+            acquiredLockCache.put(metadataFile, true);
         }
         return lockAcquired;
     }
@@ -740,7 +741,7 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
      * @param lastNMetadataFilesToKeep number of metadata files to keep
      * @throws IOException in case of I/O error while reading from / writing to remote segment store
      */
-    public void deleteStaleSegments(int lastNMetadataFilesToKeep) throws IOException {
+    private void deleteStaleSegments(int lastNMetadataFilesToKeep, boolean useCache) throws IOException {
         if (lastNMetadataFilesToKeep == -1) {
             logger.info(
                 "Stale segment deletion is disabled if cluster.remote_store.index.segment_metadata.retention.max_count is set to -1"
@@ -766,7 +767,7 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
         );
         List<String> metadataFilesToBeDeleted = metadataFilesEligibleToDelete.stream().filter(metadataFile -> {
             try {
-                return !isLockAcquired(metadataFile);
+                return !isLockAcquired(metadataFile, useCache);
             } catch (IOException e) {
                 logger.error(
                     "skipping metadata file ("
@@ -832,22 +833,22 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
         logger.debug("deletedSegmentFiles={}", deletedSegmentFiles);
     }
 
-    public void deleteStaleSegmentsAsync(int lastNMetadataFilesToKeep) {
-        deleteStaleSegmentsAsync(lastNMetadataFilesToKeep, ActionListener.wrap(r -> {}, e -> {}));
+    public void deleteStaleSegmentsAsync(int lastNMetadataFilesToKeep, boolean useCache) {
+        deleteStaleSegmentsAsync(lastNMetadataFilesToKeep, ActionListener.wrap(r -> {}, e -> {}), useCache);
     }
 
     /**
      * Delete stale segment and metadata files asynchronously.
-     * This method calls {@link RemoteSegmentStoreDirectory#deleteStaleSegments(int)} in an async manner.
+     * This method calls {@link RemoteSegmentStoreDirectory#deleteStaleSegments(int, boolean)} in an async manner.
      *
      * @param lastNMetadataFilesToKeep number of metadata files to keep
      */
-    public void deleteStaleSegmentsAsync(int lastNMetadataFilesToKeep, ActionListener<Void> listener) {
+    private void deleteStaleSegmentsAsync(int lastNMetadataFilesToKeep, ActionListener<Void> listener, boolean useCache) {
         if (canDeleteStaleCommits.compareAndSet(true, false)) {
             try {
                 threadPool.executor(ThreadPool.Names.REMOTE_PURGE).execute(() -> {
                     try {
-                        deleteStaleSegments(lastNMetadataFilesToKeep);
+                        deleteStaleSegments(lastNMetadataFilesToKeep, useCache);
                         listener.onResponse(null);
                     } catch (Exception e) {
                         logger.error(
@@ -895,6 +896,10 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
 
     @Override
     public void close() throws IOException {
-        deleteStaleSegmentsAsync(0, ActionListener.wrap(r -> deleteIfEmpty(), e -> logger.error("Failed to cleanup remote directory")));
+        deleteStaleSegmentsAsync(
+            0,
+            ActionListener.wrap(r -> deleteIfEmpty(), e -> logger.error("Failed to cleanup remote directory")),
+            false
+        );
     }
 }
