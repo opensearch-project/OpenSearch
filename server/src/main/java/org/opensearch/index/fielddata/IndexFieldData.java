@@ -121,13 +121,13 @@ public interface IndexFieldData<FD extends LeafFieldData> {
         protected final MultiValueMode sortMode;
         protected final Object missingValue;
         protected final Nested nested;
-        protected Pruning pruning;
+        protected boolean enableSkipping;
 
         public XFieldComparatorSource(Object missingValue, MultiValueMode sortMode, Nested nested) {
             this.sortMode = sortMode;
             this.missingValue = missingValue;
             this.nested = nested;
-            this.pruning = Pruning.GREATER_THAN; // true by default
+            this.enableSkipping = true; // true by default
         }
 
         public MultiValueMode sortMode() {
@@ -139,7 +139,14 @@ public interface IndexFieldData<FD extends LeafFieldData> {
         }
 
         public void disableSkipping() {
-            this.pruning = Pruning.NONE;
+            this.enableSkipping = false;
+        }
+
+        protected Pruning filterPruning(Pruning pruning) {
+            if (this.enableSkipping) {
+                return pruning;
+            }
+            return Pruning.NONE;
         }
 
         /**

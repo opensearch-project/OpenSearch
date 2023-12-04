@@ -732,7 +732,7 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
 
             @Override
             public FieldComparator<?> newComparator(String fieldname, int numHits, Pruning pruning, boolean reversed) {
-                return new DoubleComparator(numHits, null, null, reversed, pruning) {
+                return new DoubleComparator(numHits, null, null, reversed, filterPruning(pruning)) {
                     @Override
                     public LeafFieldComparator getLeafComparator(LeafReaderContext context) throws IOException {
                         return new DoubleLeafComparator(context) {

@@ -91,7 +91,7 @@ public class FloatValuesComparatorSource extends IndexFieldData.XFieldComparator
         assert indexFieldData == null || fieldname.equals(indexFieldData.getFieldName());
 
         final float fMissingValue = (Float) missingObject(missingValue, reversed);
-        return new FloatComparator(numHits, fieldname, fMissingValue, reversed, pruning) {
+        return new FloatComparator(numHits, fieldname, fMissingValue, reversed, filterPruning(pruning)) {
             @Override
             public LeafFieldComparator getLeafComparator(LeafReaderContext context) throws IOException {
                 return new FloatLeafComparator(context) {

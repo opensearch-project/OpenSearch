@@ -102,7 +102,7 @@ public class BytesRefFieldComparatorSource extends IndexFieldData.XFieldComparat
                 indexFieldData.getFieldName(),
                 sortMissingLast,
                 reversed,
-                pruning
+                filterPruning(pruning)
             ) {
 
                 @Override

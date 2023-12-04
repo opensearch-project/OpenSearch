@@ -37,7 +37,23 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
-import org.apache.lucene.search.*;
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.CollectionTerminatedException;
+import org.apache.lucene.search.DocIdSet;
+import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.search.FieldComparator;
+import org.apache.lucene.search.FieldDoc;
+import org.apache.lucene.search.LeafFieldComparator;
+import org.apache.lucene.search.Pruning;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.ScoreMode;
+import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.Sort;
+import org.apache.lucene.search.SortField;
+import org.apache.lucene.search.SortedNumericSelector;
+import org.apache.lucene.search.SortedNumericSortField;
+import org.apache.lucene.search.Weight;
 import org.apache.lucene.search.comparators.LongComparator;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.RoaringDocIdSet;
@@ -340,7 +356,7 @@ final class CompositeAggregator extends BucketsAggregator {
 
                     @Override
                     public FieldComparator<?> getComparator(int numHits, Pruning pruning) {
-                        return new LongComparator(1, delegate.getField(), (Long) missingValue, delegate.getReverse(), pruning) {
+                        return new LongComparator(1, delegate.getField(), (Long) missingValue, delegate.getReverse(), Pruning.NONE) {
                             @Override
                             public LeafFieldComparator getLeafComparator(LeafReaderContext context) throws IOException {
                                 return new LongLeafComparator(context) {

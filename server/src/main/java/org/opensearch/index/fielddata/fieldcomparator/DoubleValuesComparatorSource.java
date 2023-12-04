@@ -98,7 +98,7 @@ public class DoubleValuesComparatorSource extends IndexFieldData.XFieldComparato
         assert indexFieldData == null || fieldname.equals(indexFieldData.getFieldName());
 
         final double dMissingValue = (Double) missingObject(missingValue, reversed);
-        return new DoubleComparator(numHits, fieldname, dMissingValue, reversed, pruning) {
+        return new DoubleComparator(numHits, fieldname, dMissingValue, reversed, filterPruning(pruning)) {
             @Override
             public LeafFieldComparator getLeafComparator(LeafReaderContext context) throws IOException {
                 return new DoubleLeafComparator(context) {

@@ -89,7 +89,7 @@ public class UnsignedLongValuesComparatorSource extends IndexFieldData.XFieldCom
         assert indexFieldData == null || fieldname.equals(indexFieldData.getFieldName());
 
         final BigInteger ulMissingValue = (BigInteger) missingObject(missingValue, reversed);
-        return new UnsignedLongComparator(numHits, fieldname, ulMissingValue, reversed, pruning) {
+        return new UnsignedLongComparator(numHits, fieldname, ulMissingValue, reversed, filterPruning(pruning)) {
             @Override
             public LeafFieldComparator getLeafComparator(LeafReaderContext context) throws IOException {
                 return new UnsignedLongLeafComparator(context) {

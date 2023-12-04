@@ -115,7 +115,7 @@ public class LongValuesComparatorSource extends IndexFieldData.XFieldComparatorS
         assert indexFieldData == null || fieldname.equals(indexFieldData.getFieldName());
 
         final long lMissingValue = (Long) missingObject(missingValue, reversed);
-        return new LongComparator(numHits, fieldname, lMissingValue, reversed, pruning) {
+        return new LongComparator(numHits, fieldname, lMissingValue, reversed, filterPruning(pruning)) {
             @Override
             public LeafFieldComparator getLeafComparator(LeafReaderContext context) throws IOException {
                 return new LongLeafComparator(context) {

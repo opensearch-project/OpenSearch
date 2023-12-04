@@ -71,7 +71,7 @@ public class IntValuesComparatorSource extends IndexFieldData.XFieldComparatorSo
         assert indexFieldData == null || fieldname.equals(indexFieldData.getFieldName());
 
         final int iMissingValue = (Integer) missingObject(missingValue, reversed);
-        return new IntComparator(numHits, fieldname, iMissingValue, reversed, pruning) {
+        return new IntComparator(numHits, fieldname, iMissingValue, reversed, filterPruning(pruning)) {
             @Override
             public LeafFieldComparator getLeafComparator(LeafReaderContext context) throws IOException {
                 return new IntLeafComparator(context) {
