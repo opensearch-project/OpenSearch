@@ -47,7 +47,7 @@ publishing {
 }
 
 base {
-  archivesBaseName = 'opensearch'
+  archivesName = 'opensearch'
 }
 
 sourceSets {

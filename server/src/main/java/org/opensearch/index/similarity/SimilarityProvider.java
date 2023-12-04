@@ -33,14 +33,16 @@
 package org.opensearch.index.similarity;
 
 import org.apache.lucene.search.similarities.Similarity;
+import org.opensearch.common.annotation.PublicApi;
 
 import java.util.Objects;
 
 /**
  * Wrapper around a {@link Similarity} and its name.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public final class SimilarityProvider {
 
     private final String name;

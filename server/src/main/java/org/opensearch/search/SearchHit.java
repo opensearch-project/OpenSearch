@@ -37,6 +37,7 @@ import org.opensearch.OpenSearchParseException;
 import org.opensearch.Version;
 import org.opensearch.action.OriginalIndices;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.document.DocumentField;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.core.ParseField;
@@ -92,8 +93,9 @@ import static org.opensearch.core.xcontent.XContentParserUtils.ensureFieldName;
  *
  * @see SearchHits
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public final class SearchHit implements Writeable, ToXContentObject, Iterable<DocumentField> {
 
     private final transient int docId;
@@ -995,8 +997,9 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
     /**
      * Encapsulates the nested identity of a hit.
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public static final class NestedIdentity implements Writeable, ToXContentFragment {
 
         private static final String _NESTED = "_nested";

@@ -9,7 +9,10 @@
 package org.opensearch.repositories.s3;
 
 import software.amazon.awssdk.core.async.AsyncRequestBody;
+import software.amazon.awssdk.core.exception.SdkException;
+import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.services.s3.S3AsyncClient;
+import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.AbortMultipartUploadRequest;
 import software.amazon.awssdk.services.s3.model.AbortMultipartUploadResponse;
 import software.amazon.awssdk.services.s3.model.CompleteMultipartUploadRequest;
@@ -18,8 +21,10 @@ import software.amazon.awssdk.services.s3.model.CreateMultipartUploadRequest;
 import software.amazon.awssdk.services.s3.model.CreateMultipartUploadResponse;
 import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
 import software.amazon.awssdk.services.s3.model.DeleteObjectResponse;
+import software.amazon.awssdk.services.s3.model.ObjectCannedACL;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import software.amazon.awssdk.services.s3.model.PutObjectResponse;
+import software.amazon.awssdk.services.s3.model.StorageClass;
 import software.amazon.awssdk.services.s3.model.UploadPartRequest;
 import software.amazon.awssdk.services.s3.model.UploadPartResponse;
 
@@ -37,6 +42,7 @@ import org.opensearch.common.lucene.store.ByteArrayIndexInput;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.repositories.s3.async.AsyncExecutorContainer;
 import org.opensearch.repositories.s3.async.AsyncTransferEventLoopGroup;
@@ -61,15 +67,21 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.IntStream;
 
+import org.mockito.Mockito;
 import org.mockito.invocation.InvocationOnMock;
 
 import static org.opensearch.repositories.s3.S3Repository.BULK_DELETE_SIZE;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 public class S3BlobContainerMockClientTests extends OpenSearchTestCase implements ConfigPathSupport {
 
@@ -516,7 +528,7 @@ public class S3BlobContainerMockClientTests extends OpenSearchTestCase implement
                     }
                 }, partSize, calculateLastPartSize(blobSize, partSize), calculateNumberOfParts(blobSize, partSize));
             }
-        }, blobSize, false, WritePriority.HIGH, uploadSuccess -> {
+        }, blobSize, false, WritePriority.NORMAL, uploadSuccess -> {
             assertTrue(uploadSuccess);
             if (throwExceptionOnFinalizeUpload) {
                 throw new RuntimeException();
@@ -546,4 +558,115 @@ public class S3BlobContainerMockClientTests extends OpenSearchTestCase implement
     private int calculateNumberOfParts(long contentLength, long partSize) {
         return (int) ((contentLength % partSize) == 0 ? contentLength / partSize : (contentLength / partSize) + 1);
     }
+
+    public void testFailureWhenLargeFileRedirected() throws IOException, ExecutionException, InterruptedException {
+        testLargeFilesRedirectedToSlowSyncClient(true);
+    }
+
+    public void testLargeFileRedirected() throws IOException, ExecutionException, InterruptedException {
+        testLargeFilesRedirectedToSlowSyncClient(false);
+    }
+
+    private void testLargeFilesRedirectedToSlowSyncClient(boolean expectException) throws IOException, InterruptedException {
+        final ByteSizeValue partSize = new ByteSizeValue(1024, ByteSizeUnit.MB);
+
+        int numberOfParts = 20;
+        final long lastPartSize = new ByteSizeValue(20, ByteSizeUnit.MB).getBytes();
+        final long blobSize = ((numberOfParts - 1) * partSize.getBytes()) + lastPartSize;
+        CountDownLatch countDownLatch = new CountDownLatch(1);
+        AtomicReference<Exception> exceptionRef = new AtomicReference<>();
+        ActionListener<Void> completionListener = ActionListener.wrap(resp -> { countDownLatch.countDown(); }, ex -> {
+            exceptionRef.set(ex);
+            countDownLatch.countDown();
+        });
+
+        final String bucketName = randomAlphaOfLengthBetween(1, 10);
+
+        final BlobPath blobPath = new BlobPath();
+        if (randomBoolean()) {
+            IntStream.of(randomIntBetween(1, 5)).forEach(value -> blobPath.add("path_" + value));
+        }
+
+        final long bufferSize = ByteSizeUnit.MB.toBytes(randomIntBetween(5, 1024));
+
+        final S3BlobStore blobStore = mock(S3BlobStore.class);
+        when(blobStore.bucket()).thenReturn(bucketName);
+        when(blobStore.getStatsMetricPublisher()).thenReturn(new StatsMetricPublisher());
+        when(blobStore.bufferSizeInBytes()).thenReturn(bufferSize);
+
+        final boolean serverSideEncryption = randomBoolean();
+        when(blobStore.serverSideEncryption()).thenReturn(serverSideEncryption);
+
+        final StorageClass storageClass = randomFrom(StorageClass.values());
+        when(blobStore.getStorageClass()).thenReturn(storageClass);
+        when(blobStore.isRedirectLargeUploads()).thenReturn(true);
+
+        final ObjectCannedACL cannedAccessControlList = randomBoolean() ? randomFrom(ObjectCannedACL.values()) : null;
+        if (cannedAccessControlList != null) {
+            when(blobStore.getCannedACL()).thenReturn(cannedAccessControlList);
+        }
+
+        final S3Client client = mock(S3Client.class);
+        final AmazonS3Reference clientReference = Mockito.spy(new AmazonS3Reference(client));
+        doNothing().when(clientReference).close();
+        when(blobStore.clientReference()).thenReturn(clientReference);
+        final CreateMultipartUploadResponse createMultipartUploadResponse = CreateMultipartUploadResponse.builder()
+            .uploadId(randomAlphaOfLength(10))
+            .build();
+        when(client.createMultipartUpload(any(CreateMultipartUploadRequest.class))).thenReturn(createMultipartUploadResponse);
+        if (expectException) {
+            when(client.uploadPart(any(UploadPartRequest.class), any(RequestBody.class))).thenThrow(
+                SdkException.create("Expected upload part request to fail", new RuntimeException())
+            );
+        } else {
+            when(client.uploadPart(any(UploadPartRequest.class), any(RequestBody.class))).thenReturn(UploadPartResponse.builder().build());
+        }
+
+        // Fail the completion request
+        when(client.completeMultipartUpload(any(CompleteMultipartUploadRequest.class))).thenReturn(
+            CompleteMultipartUploadResponse.builder().build()
+        );
+        when(client.abortMultipartUpload(any(AbortMultipartUploadRequest.class))).thenReturn(
+            AbortMultipartUploadResponse.builder().build()
+        );
+
+        List<InputStream> openInputStreams = new ArrayList<>();
+        final S3BlobContainer s3BlobContainer = Mockito.spy(new S3BlobContainer(blobPath, blobStore));
+        s3BlobContainer.asyncBlobUpload(new WriteContext("write_large_blob", new StreamContextSupplier() {
+            @Override
+            public StreamContext supplyStreamContext(long partSize) {
+                return new StreamContext(new CheckedTriFunction<Integer, Long, Long, InputStreamContainer, IOException>() {
+                    @Override
+                    public InputStreamContainer apply(Integer partNo, Long size, Long position) throws IOException {
+                        InputStream inputStream = new OffsetRangeIndexInputStream(new ZeroIndexInput("desc", blobSize), size, position);
+                        openInputStreams.add(inputStream);
+                        return new InputStreamContainer(inputStream, size, position);
+                    }
+                }, partSize, calculateLastPartSize(blobSize, partSize), calculateNumberOfParts(blobSize, partSize));
+            }
+        }, blobSize, false, WritePriority.HIGH, uploadSuccess -> { assertTrue(uploadSuccess); }, false, null), completionListener);
+
+        assertTrue(countDownLatch.await(5000, TimeUnit.SECONDS));
+        if (expectException) {
+            assertNotNull(exceptionRef.get());
+        } else {
+            assertNull(exceptionRef.get());
+        }
+        verify(s3BlobContainer, times(1)).executeMultipartUpload(any(S3BlobStore.class), anyString(), any(InputStream.class), anyLong());
+
+        if (expectException) {
+            verify(client, times(1)).abortMultipartUpload(any(AbortMultipartUploadRequest.class));
+        } else {
+            verify(client, times(0)).abortMultipartUpload(any(AbortMultipartUploadRequest.class));
+        }
+
+        openInputStreams.forEach(inputStream -> {
+            try {
+                inputStream.close();
+            } catch (IOException ex) {
+                logger.error("Error closing input stream");
+            }
+        });
+    }
+
 }

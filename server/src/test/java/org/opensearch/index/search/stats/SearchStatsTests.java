@@ -35,6 +35,7 @@ package org.opensearch.index.search.stats;
 import org.opensearch.action.search.SearchPhase;
 import org.opensearch.action.search.SearchPhaseContext;
 import org.opensearch.action.search.SearchPhaseName;
+import org.opensearch.action.search.SearchRequestOperationsListenerSupport;
 import org.opensearch.action.search.SearchRequestStats;
 import org.opensearch.index.search.stats.SearchStats.Stats;
 import org.opensearch.test.OpenSearchTestCase;
@@ -47,7 +48,7 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class SearchStatsTests extends OpenSearchTestCase {
+public class SearchStatsTests extends OpenSearchTestCase implements SearchRequestOperationsListenerSupport {
 
     // https://github.com/elastic/elasticsearch/issues/7644
     public void testShardLevelSearchGroupStats() throws Exception {
@@ -84,8 +85,8 @@ public class SearchStatsTests extends OpenSearchTestCase {
             when(mockSearchPhase.getStartTimeInNanos()).thenReturn(System.nanoTime() - TimeUnit.SECONDS.toNanos(paramValue));
             when(mockSearchPhase.getSearchPhaseName()).thenReturn(searchPhaseName);
             for (int iterator = 0; iterator < paramValue; iterator++) {
-                testRequestStats.onPhaseStart(ctx);
-                testRequestStats.onPhaseEnd(ctx);
+                onPhaseStart(testRequestStats, ctx);
+                onPhaseEnd(testRequestStats, ctx);
             }
         }
         searchStats1.setSearchRequestStats(testRequestStats);

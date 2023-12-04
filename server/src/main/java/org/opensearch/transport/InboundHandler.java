@@ -57,6 +57,10 @@ import java.io.EOFException;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 /**
  * Handler for inbound data
@@ -188,11 +192,16 @@ public class InboundHandler {
         }
     }
 
+    private Map<String, Collection<String>> extractHeaders(Map<String, String> headers) {
+        return headers.entrySet().stream().collect(Collectors.toMap(e -> e.getKey(), e -> Collections.singleton(e.getValue())));
+    }
+
     private <T extends TransportRequest> void handleRequest(TcpChannel channel, Header header, InboundMessage message) throws IOException {
         final String action = header.getActionName();
         final long requestId = header.getRequestId();
         final Version version = header.getVersion();
-        Span span = tracer.startSpan(SpanBuilder.from(action, channel));
+        final Map<String, Collection<String>> headers = extractHeaders(header.getHeaders().v1());
+        Span span = tracer.startSpan(SpanBuilder.from(action, channel), headers);
         try (SpanScope spanScope = tracer.withSpanInScope(span)) {
             if (header.isHandshake()) {
                 messageListener.onRequestReceived(requestId, action);

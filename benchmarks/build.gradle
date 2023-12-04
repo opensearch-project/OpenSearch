@@ -40,7 +40,7 @@ application {
 }
 
 base {
-  archivesBaseName = 'opensearch-benchmarks'
+  archivesName = 'opensearch-benchmarks'
 }
 
 test.enabled = false

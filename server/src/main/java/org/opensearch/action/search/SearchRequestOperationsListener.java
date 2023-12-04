@@ -10,6 +10,7 @@ package org.opensearch.action.search;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.opensearch.common.annotation.InternalApi;
 
 import java.util.List;
 
@@ -18,13 +19,18 @@ import java.util.List;
  *
  * @opensearch.internal
  */
-public interface SearchRequestOperationsListener {
+@InternalApi
+abstract class SearchRequestOperationsListener {
 
-    void onPhaseStart(SearchPhaseContext context);
+    abstract void onPhaseStart(SearchPhaseContext context);
 
-    void onPhaseEnd(SearchPhaseContext context);
+    abstract void onPhaseEnd(SearchPhaseContext context, SearchRequestContext searchRequestContext);
 
-    void onPhaseFailure(SearchPhaseContext context);
+    abstract void onPhaseFailure(SearchPhaseContext context);
+
+    void onRequestStart(SearchRequestContext searchRequestContext) {}
+
+    void onRequestEnd(SearchPhaseContext context, SearchRequestContext searchRequestContext) {}
 
     /**
      * Holder of Composite Listeners
@@ -32,17 +38,17 @@ public interface SearchRequestOperationsListener {
      * @opensearch.internal
      */
 
-    final class CompositeListener implements SearchRequestOperationsListener {
+    static final class CompositeListener extends SearchRequestOperationsListener {
         private final List<SearchRequestOperationsListener> listeners;
         private final Logger logger;
 
-        public CompositeListener(List<SearchRequestOperationsListener> listeners, Logger logger) {
+        CompositeListener(List<SearchRequestOperationsListener> listeners, Logger logger) {
             this.listeners = listeners;
             this.logger = logger;
         }
 
         @Override
-        public void onPhaseStart(SearchPhaseContext context) {
+        void onPhaseStart(SearchPhaseContext context) {
             for (SearchRequestOperationsListener listener : listeners) {
                 try {
                     listener.onPhaseStart(context);
@@ -53,10 +59,10 @@ public interface SearchRequestOperationsListener {
         }
 
         @Override
-        public void onPhaseEnd(SearchPhaseContext context) {
+        void onPhaseEnd(SearchPhaseContext context, SearchRequestContext searchRequestContext) {
             for (SearchRequestOperationsListener listener : listeners) {
                 try {
-                    listener.onPhaseEnd(context);
+                    listener.onPhaseEnd(context, searchRequestContext);
                 } catch (Exception e) {
                     logger.warn(() -> new ParameterizedMessage("onPhaseEnd listener [{}] failed", listener), e);
                 }
@@ -64,12 +70,34 @@ public interface SearchRequestOperationsListener {
         }
 
         @Override
-        public void onPhaseFailure(SearchPhaseContext context) {
+        void onPhaseFailure(SearchPhaseContext context) {
             for (SearchRequestOperationsListener listener : listeners) {
                 try {
                     listener.onPhaseFailure(context);
                 } catch (Exception e) {
                     logger.warn(() -> new ParameterizedMessage("onPhaseFailure listener [{}] failed", listener), e);
+                }
+            }
+        }
+
+        @Override
+        void onRequestStart(SearchRequestContext searchRequestContext) {
+            for (SearchRequestOperationsListener listener : listeners) {
+                try {
+                    listener.onRequestStart(searchRequestContext);
+                } catch (Exception e) {
+                    logger.warn(() -> new ParameterizedMessage("onRequestStart listener [{}] failed", listener), e);
+                }
+            }
+        }
+
+        @Override
+        public void onRequestEnd(SearchPhaseContext context, SearchRequestContext searchRequestContext) {
+            for (SearchRequestOperationsListener listener : listeners) {
+                try {
+                    listener.onRequestEnd(context, searchRequestContext);
+                } catch (Exception e) {
+                    logger.warn(() -> new ParameterizedMessage("onRequestEnd listener [{}] failed", listener), e);
                 }
             }
         }

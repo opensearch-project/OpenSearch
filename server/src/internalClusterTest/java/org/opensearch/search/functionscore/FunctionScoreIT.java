@@ -126,10 +126,11 @@ public class FunctionScoreIT extends ParameterizedOpenSearchIntegTestCase {
         }
     }
 
-    public void testScriptScoresNested() throws IOException {
+    public void testScriptScoresNested() throws IOException, InterruptedException {
         createIndex(INDEX);
         index(INDEX, TYPE, "1", jsonBuilder().startObject().field("dummy_field", 1).endObject());
         refresh();
+        indexRandomForConcurrentSearch(INDEX);
 
         Script scriptOne = new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "1", Collections.emptyMap());
         Script scriptTwo = new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "get score value", Collections.emptyMap());
@@ -148,10 +149,11 @@ public class FunctionScoreIT extends ParameterizedOpenSearchIntegTestCase {
         assertThat(response.getHits().getAt(0).getScore(), equalTo(1.0f));
     }
 
-    public void testScriptScoresWithAgg() throws IOException {
+    public void testScriptScoresWithAgg() throws IOException, InterruptedException {
         createIndex(INDEX);
         index(INDEX, TYPE, "1", jsonBuilder().startObject().field("dummy_field", 1).endObject());
         refresh();
+        indexRandomForConcurrentSearch(INDEX);
 
         Script script = new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "get score value", Collections.emptyMap());
 
@@ -166,10 +168,11 @@ public class FunctionScoreIT extends ParameterizedOpenSearchIntegTestCase {
         assertThat(((Terms) response.getAggregations().asMap().get("score_agg")).getBuckets().get(0).getDocCount(), is(1L));
     }
 
-    public void testScriptScoresWithAggWithExplain() throws IOException {
+    public void testScriptScoresWithAggWithExplain() throws IOException, InterruptedException {
         createIndex(INDEX);
         index(INDEX, TYPE, "1", jsonBuilder().startObject().field("dummy_field", 1).endObject());
         refresh();
+        indexRandomForConcurrentSearch(INDEX);
 
         Script script = new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "get score value", Collections.emptyMap());
 
@@ -195,7 +198,7 @@ public class FunctionScoreIT extends ParameterizedOpenSearchIntegTestCase {
         assertThat(((Terms) response.getAggregations().asMap().get("score_agg")).getBuckets().get(0).getDocCount(), is(1L));
     }
 
-    public void testMinScoreFunctionScoreBasic() throws IOException {
+    public void testMinScoreFunctionScoreBasic() throws IOException, InterruptedException {
         float score = randomValueOtherThanMany((f) -> Float.compare(f, 0) < 0, OpenSearchTestCase::randomFloat);
         float minScore = randomValueOtherThanMany((f) -> Float.compare(f, 0) < 0, OpenSearchTestCase::randomFloat);
         index(
@@ -207,6 +210,7 @@ public class FunctionScoreIT extends ParameterizedOpenSearchIntegTestCase {
                 .endObject()
         );
         refresh();
+        indexRandomForConcurrentSearch(INDEX);
         ensureYellow();
 
         Script script = new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['random_score']", Collections.emptyMap());
@@ -291,6 +295,7 @@ public class FunctionScoreIT extends ParameterizedOpenSearchIntegTestCase {
         assertAcked(prepareCreate("test"));
         index("test", "testtype", "1", jsonBuilder().startObject().field("text", "test text").endObject());
         refresh();
+        indexRandomForConcurrentSearch("test");
 
         SearchResponse termQuery = client().search(searchRequest().source(searchSource().explain(true).query(termQuery("text", "text"))))
             .get();

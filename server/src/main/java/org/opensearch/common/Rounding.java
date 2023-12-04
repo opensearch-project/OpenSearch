@@ -37,6 +37,7 @@ import org.apache.lucene.util.ArrayUtil;
 import org.opensearch.OpenSearchException;
 import org.opensearch.common.LocalTimeOffset.Gap;
 import org.opensearch.common.LocalTimeOffset.Overlap;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.round.Roundable;
 import org.opensearch.common.round.RoundableFactory;
 import org.opensearch.common.time.DateUtils;
@@ -53,6 +54,7 @@ import java.time.LocalTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
+import java.time.format.TextStyle;
 import java.time.temporal.ChronoField;
 import java.time.temporal.ChronoUnit;
 import java.time.temporal.IsoFields;
@@ -63,6 +65,7 @@ import java.time.zone.ZoneRules;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
+import java.util.OptionalLong;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -76,16 +79,18 @@ import java.util.concurrent.TimeUnit;
  * blog for some background reading. Its super interesting and the links are
  * a comedy gold mine. If you like time zones. Or hate them.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public abstract class Rounding implements Writeable {
     private static final Logger logger = LogManager.getLogger(Rounding.class);
 
     /**
      * A Date Time Unit
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public enum DateTimeUnit {
         WEEK_OF_WEEKYEAR((byte) 1, "week", IsoFields.WEEK_OF_WEEK_BASED_YEAR, true, TimeUnit.DAYS.toMillis(7)) {
             private final long extraLocalOffsetLookup = TimeUnit.DAYS.toMillis(7);
@@ -176,7 +181,7 @@ public abstract class Rounding implements Writeable {
                 return DateUtils.roundFloor(utcMillis, ratio);
             }
 
-            long extraLocalOffsetLookup() {
+            public long extraLocalOffsetLookup() {
                 return ratio;
             }
         };
@@ -268,8 +273,9 @@ public abstract class Rounding implements Writeable {
     /**
      * A strategy for rounding milliseconds since epoch.
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public interface Prepared {
         /**
          * Rounds the given value.
@@ -359,8 +365,9 @@ public abstract class Rounding implements Writeable {
     /**
      * Builder for rounding
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public static class Builder {
 
         private final DateTimeUnit unit;
@@ -1362,5 +1369,41 @@ public abstract class Rounding implements Writeable {
             default:
                 throw new OpenSearchException("unknown rounding id [" + id + "]");
         }
+    }
+
+    /**
+     * Extracts the interval value from the {@link Rounding} instance
+     * @param rounding {@link Rounding} instance
+     * @return the interval value from the {@link Rounding} instance or {@code OptionalLong.empty()}
+     * if the interval is not available
+     */
+    public static OptionalLong getInterval(Rounding rounding) {
+        long interval = 0;
+
+        if (rounding instanceof TimeUnitRounding) {
+            interval = (((TimeUnitRounding) rounding).unit).extraLocalOffsetLookup();
+            if (!isUTCTimeZone(((TimeUnitRounding) rounding).timeZone)) {
+                // Fast filter aggregation cannot be used if it needs time zone rounding
+                return OptionalLong.empty();
+            }
+        } else if (rounding instanceof TimeIntervalRounding) {
+            interval = ((TimeIntervalRounding) rounding).interval;
+            if (!isUTCTimeZone(((TimeIntervalRounding) rounding).timeZone)) {
+                // Fast filter aggregation cannot be used if it needs time zone rounding
+                return OptionalLong.empty();
+            }
+        } else {
+            return OptionalLong.empty();
+        }
+
+        return OptionalLong.of(interval);
+    }
+
+    /**
+     * Helper function for checking if the time zone requested for date histogram
+     * aggregation is utc or not
+     */
+    private static boolean isUTCTimeZone(final ZoneId zoneId) {
+        return "Z".equals(zoneId.getDisplayName(TextStyle.FULL, Locale.ENGLISH));
     }
 }

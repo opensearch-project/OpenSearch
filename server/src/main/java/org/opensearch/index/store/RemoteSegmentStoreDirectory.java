@@ -24,6 +24,7 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.Version;
 import org.opensearch.common.UUIDs;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.io.VersionedCodecStreamWrapper;
 import org.opensearch.common.logging.Loggers;
@@ -67,8 +68,9 @@ import java.util.stream.Collectors;
  * remote segment store also keeps track of refresh checkpoints as metadata in a separate path which is handled by
  * another instance of {@code RemoteDirectory}.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "2.3.0")
 public final class RemoteSegmentStoreDirectory extends FilterDirectory implements RemoteStoreCommitLevelLockManager {
 
     /**
@@ -216,7 +218,10 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
 
     /**
      * Metadata of a segment that is uploaded to remote segment store.
+     *
+     * @opensearch.api
      */
+    @PublicApi(since = "2.3.0")
     public static class UploadedSegmentMetadata {
         // Visible for testing
         static final String SEPARATOR = "::";
@@ -722,6 +727,12 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
      * @throws IOException in case of I/O error while reading from / writing to remote segment store
      */
     public void deleteStaleSegments(int lastNMetadataFilesToKeep) throws IOException {
+        if (lastNMetadataFilesToKeep == -1) {
+            logger.info(
+                "Stale segment deletion is disabled if cluster.remote_store.index.segment_metadata.retention.max_count is set to -1"
+            );
+            return;
+        }
         List<String> sortedMetadataFileList = remoteMetadataDirectory.listFilesByPrefixInLexicographicOrder(
             MetadataFilenameUtils.METADATA_PREFIX,
             Integer.MAX_VALUE

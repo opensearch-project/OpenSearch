@@ -97,8 +97,9 @@ import static org.opensearch.common.settings.Settings.writeSettingsToStream;
 /**
  * Index metadata information
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragment {
 
     public static final ClusterBlock INDEX_READ_ONLY_BLOCK = new ClusterBlock(
@@ -160,8 +161,9 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     /**
      * The state of the index.
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public enum State {
         OPEN((byte) 0),
         CLOSE((byte) 1);
@@ -1211,8 +1213,9 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     /**
      * Builder of index metadata.
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public static class Builder {
 
         private String index;

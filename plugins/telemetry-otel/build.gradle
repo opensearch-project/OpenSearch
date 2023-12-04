@@ -78,6 +78,7 @@ thirdPartyAudit {
     'org.conscrypt.ConscryptHostnameVerifier',
     'org.openjsse.javax.net.ssl.SSLParameters',
     'org.openjsse.javax.net.ssl.SSLSocket',
+    'io.opentelemetry.api.events.EventBuilder',
     'io.opentelemetry.api.events.EventEmitter',
     'io.opentelemetry.api.events.EventEmitterBuilder',
     'io.opentelemetry.api.events.EventEmitterProvider',
@@ -86,7 +87,8 @@ thirdPartyAudit {
     'io.opentelemetry.sdk.autoconfigure.spi.metrics.ConfigurableMetricExporterProvider',
     'io.opentelemetry.sdk.autoconfigure.spi.traces.ConfigurableSpanExporterProvider',
     'kotlin.io.path.PathsKt',
-    'io.opentelemetry.sdk.autoconfigure.spi.traces.ConfigurableSpanExporterProvider'
+    'io.opentelemetry.sdk.autoconfigure.spi.traces.ConfigurableSpanExporterProvider',
+    'io.opentelemetry.sdk.autoconfigure.spi.internal.AutoConfigureListener'
   )
 }
 
