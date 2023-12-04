@@ -32,7 +32,12 @@
 
 package org.opensearch.action.search;
 
-import org.apache.lucene.search.*;
+import org.apache.lucene.search.FieldComparator;
+import org.apache.lucene.search.FieldDoc;
+import org.apache.lucene.search.Pruning;
+import org.apache.lucene.search.SortField;
+import org.apache.lucene.search.TopFieldDocs;
+import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.common.time.DateUtils;
 import org.opensearch.index.mapper.DateFieldMapper;

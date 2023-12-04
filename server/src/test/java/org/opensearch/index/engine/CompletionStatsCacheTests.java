@@ -39,7 +39,7 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryCachingPolicy;
-import org.apache.lucene.search.suggest.document.Completion90PostingsFormat;
+import org.apache.lucene.search.suggest.document.Completion99PostingsFormat;
 import org.apache.lucene.search.suggest.document.SuggestField;
 import org.apache.lucene.store.Directory;
 import org.opensearch.OpenSearchException;
@@ -69,7 +69,7 @@ public class CompletionStatsCacheTests extends OpenSearchTestCase {
 
     public void testCompletionStatsCache() throws IOException, InterruptedException {
         final IndexWriterConfig indexWriterConfig = newIndexWriterConfig();
-        final PostingsFormat postingsFormat = new Completion90PostingsFormat();
+        final PostingsFormat postingsFormat = new Completion99PostingsFormat();
         indexWriterConfig.setCodec(new Lucene99Codec() {
             @Override
             public PostingsFormat getPostingsFormatForField(String field) {

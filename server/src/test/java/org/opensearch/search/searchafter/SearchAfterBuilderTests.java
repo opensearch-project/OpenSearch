@@ -33,7 +33,11 @@
 package org.opensearch.search.searchafter;
 
 import org.apache.lucene.document.LatLonDocValuesField;
-import org.apache.lucene.search.*;
+import org.apache.lucene.search.FieldComparator;
+import org.apache.lucene.search.Pruning;
+import org.apache.lucene.search.SortField;
+import org.apache.lucene.search.SortedNumericSortField;
+import org.apache.lucene.search.SortedSetSortField;
 import org.opensearch.common.geo.GeoPoint;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.xcontent.XContentFactory;
