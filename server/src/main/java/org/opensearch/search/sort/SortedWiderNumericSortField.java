@@ -45,7 +45,7 @@ public class SortedWiderNumericSortField extends SortedNumericSortField {
      * Creates and return a comparator, which always converts Numeric to double
      * and compare to support multi type comparison between numeric values
      * @param numHits number of top hits the queue will store
-     * @param pruning true if the comparator can skip documents via {@link
+     * @param pruning controls how the comparator skips documents via {@link
      *     LeafFieldComparator#competitiveIterator()}
      * @return NumericComparator
      */
