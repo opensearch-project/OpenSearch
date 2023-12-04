@@ -22,27 +22,22 @@ import jdk.incubator.vector.VectorSpecies;
  */
 @InternalApi
 class BtreeSearcher implements Roundable {
-    private final VectorSpecies<Long> species;
-    private final int lanes;
-    private final int shift;
+    private static final VectorSpecies<Long> LONG_VECTOR_SPECIES = LongVector.SPECIES_PREFERRED;
+    private static final int LANES = LONG_VECTOR_SPECIES.length();
+    private static final int SHIFT = log2(LANES);
+
     private final long[] values;
+    private final long minValue;
 
     BtreeSearcher(long[] values, int size) {
-        this(values, size, LongVector.SPECIES_PREFERRED);
-    }
-
-    BtreeSearcher(long[] values, int size, VectorSpecies<Long> species) {
         if (size <= 0) {
             throw new IllegalArgumentException("at least one value must be present");
         }
 
-        this.species = species;
-        this.lanes = species.length();
-        this.shift = log2(lanes);
+        int blocks = (size + LANES - 1) / LANES; // number of blocks
+        int length = 1 + blocks * LANES; // size of the backing array (1-indexed)
 
-        int blocks = (size + lanes - 1) / lanes; // number of blocks
-        int length = 1 + blocks * lanes; // size of the backing array (1-indexed)
-
+        this.minValue = values[0];
         this.values = new long[length];
         build(values, 0, size, this.values, 1);
     }
@@ -64,10 +59,10 @@ class BtreeSearcher implements Roundable {
      * @param j is the index in the output array to write the value to
      * @return the next index 'i'
      */
-    private int build(long[] src, int i, int size, long[] dst, int j) {
+    private static int build(long[] src, int i, int size, long[] dst, int j) {
         if (j < dst.length) {
-            for (int k = 0; k < lanes; k++) {
-                i = build(src, i, size, dst, j + ((j + k) << shift));
+            for (int k = 0; k < LANES; k++) {
+                i = build(src, i, size, dst, j + ((j + k) << SHIFT));
 
                 // Fills the B-tree as a complete tree, i.e., all levels are completely filled,
                 // except the last level which is filled from left to right.
@@ -75,38 +70,31 @@ class BtreeSearcher implements Roundable {
                 // and pad the remaining array with +infinity.
                 dst[j + k] = (j + k <= size) ? src[i++] : Long.MAX_VALUE;
             }
-            i = build(src, i, size, dst, j + ((j + lanes) << shift));
+            i = build(src, i, size, dst, j + ((j + LANES) << SHIFT));
         }
         return i;
     }
 
     @Override
     public long floor(long key) {
-        Vector<Long> keyVector = LongVector.broadcast(species, key);
+        Vector<Long> keyVector = LongVector.broadcast(LONG_VECTOR_SPECIES, key);
         int i = 1, result = 1;
 
         while (i < values.length) {
-            Vector<Long> valuesVector = LongVector.fromArray(species, values, i);
+            Vector<Long> valuesVector = LongVector.fromArray(LONG_VECTOR_SPECIES, values, i);
             int j = i + valuesVector.compare(VectorOperators.GT, keyVector).firstTrue();
             result = (j > i) ? j : result;
-            i += (j << shift);
+            i += (j << SHIFT);
         }
 
-        assert result > 1 : "key must be greater than or equal to " + values[1];
+        assert result > 1 : "key must be greater than or equal to " + minValue;
         return values[result - 1];
     }
 
-    private static int log2(int n) {
-        if ((n <= 0) || ((n & (n - 1)) != 0)) {
-            throw new IllegalArgumentException(n + " is not a positive power of 2");
+    private static int log2(int num) {
+        if ((num <= 0) || ((num & (num - 1)) != 0)) {
+            throw new IllegalArgumentException(num + " is not a positive power of 2");
         }
-
-        int result = 0;
-        while (n > 1) {
-            n >>>= 1;
-            result += 1;
-        }
-
-        return result;
+        return 32 - Integer.numberOfLeadingZeros(num - 1);
     }
 }

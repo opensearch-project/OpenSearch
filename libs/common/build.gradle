@@ -52,41 +52,17 @@ if (BuildParams.runtimeJavaVersion >= JavaVersion.VERSION_20) {
         srcDirs = ['src/main/java20']
       }
     }
-
-    java20Test {
-      java {
-        srcDirs = ['src/test/java20']
-      }
-    }
   }
 
   configurations {
     java20Implementation.extendsFrom(implementation)
-    java20TestImplementation.extendsFrom(implementation)
   }
 
   dependencies {
     java20Implementation sourceSets.main.output
-
-    // Adding Java 20 sources as compile-only to make them visible during compilation,
-    // but using the multi-release JAR output to provide the runtime functionality.
-    // This helps avoid JarHell problems when an overridden class is present with the same name.
-    java20TestCompileOnly sourceSets.java20.output
-    java20TestImplementation files(jar.archiveFile)
-    java20TestImplementation sourceSets.test.output
-    java20TestImplementation(project(':test:framework')) {
-      exclude group: 'org.opensearch', module: 'opensearch-common'
-    }
   }
 
   compileJava20Java {
-    sourceCompatibility = JavaVersion.VERSION_20
-    targetCompatibility = JavaVersion.VERSION_20
-    options.compilerArgs += ['--add-modules', 'jdk.incubator.vector']
-    options.compilerArgs -= '-Werror' // use of incubator modules is reported as a warning
-  }
-
-  compileJava20TestJava {
     sourceCompatibility = JavaVersion.VERSION_20
     targetCompatibility = JavaVersion.VERSION_20
     options.compilerArgs += ['--add-modules', 'jdk.incubator.vector']
@@ -101,23 +77,17 @@ if (BuildParams.runtimeJavaVersion >= JavaVersion.VERSION_20) {
     manifest.attributes('Multi-Release': 'true')
   }
 
+  test {
+    // Adds the multi-release JAR to the classpath when executing tests.
+    // This allows newer sources to be picked up at test runtime (if supported).
+    classpath += files(jar.archiveFile)
+    // Removes the "main" sources from the classpath to avoid JarHell problems as
+    // the multi-release JAR already contains those classes.
+    classpath -= sourceSets.main.output
+  }
+
   forbiddenApisJava20 {
     failOnMissingClasses = false
     ignoreSignaturesOfMissingClasses = true
   }
-
-  forbiddenApisJava20Test {
-    failOnMissingClasses = false
-    ignoreSignaturesOfMissingClasses = true
-  }
-
-  tasks.register('testJava20', Test) {
-    dependsOn jar
-    shouldRunAfter test
-    group = 'verification'
-    testClassesDirs = sourceSets.java20Test.output.classesDirs
-    classpath = sourceSets.java20Test.runtimeClasspath
-  }
-
-  check.dependsOn('testJava20')
 }
