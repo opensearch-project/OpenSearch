@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.search.pipeline.common.helpers;
+package org.opensearch.search.pipeline.common;
 
 import java.util.Collection;
 import java.util.Map;
@@ -19,7 +19,7 @@ import java.util.function.Function;
  * Helper for map abstractions passed to scripting processors. Throws {@link UnsupportedOperationException} for almost
  * all methods. Subclasses just need to implement get and put.
  */
-public abstract class BasicMap implements Map<String, Object> {
+abstract class BasicMap implements Map<String, Object> {
 
     /**
      * No-args constructor.

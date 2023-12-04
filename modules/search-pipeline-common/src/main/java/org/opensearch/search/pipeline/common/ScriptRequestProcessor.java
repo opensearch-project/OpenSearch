@@ -27,8 +27,6 @@ import org.opensearch.search.pipeline.PipelineProcessingContext;
 import org.opensearch.search.pipeline.Processor;
 import org.opensearch.search.pipeline.SearchRequestProcessor;
 import org.opensearch.search.pipeline.StatefulSearchRequestProcessor;
-import org.opensearch.search.pipeline.common.helpers.BasicMap;
-import org.opensearch.search.pipeline.common.helpers.SearchRequestMap;
 
 import java.io.InputStream;
 import java.util.HashMap;

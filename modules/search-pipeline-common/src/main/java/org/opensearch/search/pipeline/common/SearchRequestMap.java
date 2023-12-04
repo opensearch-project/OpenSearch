@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.search.pipeline.common.helpers;
+package org.opensearch.search.pipeline.common;
 
 import org.opensearch.action.search.SearchRequest;
 import org.opensearch.search.builder.SearchSourceBuilder;
@@ -17,7 +17,7 @@ import java.util.Map;
  * A custom implementation of {@link Map} that provides access to the properties of a {@link SearchRequest}'s
  * {@link SearchSourceBuilder}. The class allows retrieving and modifying specific properties of the search request.
  */
-public class SearchRequestMap extends BasicMap implements Map<String, Object> {
+class SearchRequestMap extends BasicMap implements Map<String, Object> {
 
     private final SearchSourceBuilder source;
 

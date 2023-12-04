@@ -19,7 +19,6 @@ import org.opensearch.script.ScriptType;
 import org.opensearch.script.SearchScript;
 import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.search.pipeline.PipelineProcessingContext;
-import org.opensearch.search.pipeline.common.helpers.SearchRequestMap;
 import org.opensearch.test.OpenSearchTestCase;
 import org.junit.Before;
 
