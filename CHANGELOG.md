@@ -139,6 +139,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `org.apache.commons:commons-text` from 1.10.0 to 1.11.0 ([#11344](https://github.com/opensearch-project/OpenSearch/pull/11344))
 - Bump `reactor-netty-core` from 1.1.12 to 1.1.13 ([#11350](https://github.com/opensearch-project/OpenSearch/pull/11350))
 - Bump `com.gradle.enterprise` from 3.14.1 to 3.15.1 ([#11339](https://github.com/opensearch-project/OpenSearch/pull/11339))
+- Bump `com.sun.xml.bind:jaxb-impl` from 2.2.3-1 to 4.0.4 ([#11444](https://github.com/opensearch-project/OpenSearch/pull/11444))
 
 ### Changed
 - Mute the query profile IT with concurrent execution ([#9840](https://github.com/opensearch-project/OpenSearch/pull/9840))
