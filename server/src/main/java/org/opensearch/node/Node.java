@@ -146,7 +146,6 @@ import org.opensearch.index.recovery.RemoteStoreRestoreService;
 import org.opensearch.index.remote.RemoteStoreStatsTrackerFactory;
 import org.opensearch.index.store.RemoteSegmentStoreDirectoryFactory;
 import org.opensearch.index.store.remote.filecache.FileCache;
-import org.opensearch.index.store.remote.filecache.FileCacheCleaner;
 import org.opensearch.index.store.remote.filecache.FileCacheFactory;
 import org.opensearch.indices.IndicesModule;
 import org.opensearch.indices.IndicesService;
@@ -678,7 +677,7 @@ public class Node implements Closeable {
             );
             // File cache will be initialized by the node once circuit breakers are in place.
             initializeFileCache(settings, circuitBreakerService.getBreaker(CircuitBreaker.REQUEST));
-            final FileCacheCleaner fileCacheCleaner = new FileCacheCleaner(nodeEnvironment, fileCache);
+            nodeEnvironment.setFileCache(fileCache);
             final MonitorService monitorService = new MonitorService(settings, nodeEnvironment, threadPool, fileCache);
 
             pluginsService.filterPlugins(CircuitBreakerPlugin.class).forEach(plugin -> {
@@ -812,7 +811,6 @@ public class Node implements Closeable {
                 recoveryStateFactories,
                 remoteDirectoryFactory,
                 repositoriesServiceReference::get,
-                fileCacheCleaner,
                 searchRequestStats,
                 remoteStoreStatsTrackerFactory,
                 recoverySettings

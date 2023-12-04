@@ -44,6 +44,7 @@ import org.apache.lucene.store.Lock;
 import org.apache.lucene.store.LockObtainFailedException;
 import org.apache.lucene.store.NIOFSDirectory;
 import org.apache.lucene.store.NativeFSLockFactory;
+import org.apache.lucene.util.SetOnce;
 import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
@@ -71,6 +72,7 @@ import org.opensearch.gateway.PersistedClusterStateService;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.shard.ShardPath;
 import org.opensearch.index.store.FsDirectoryFactory;
+import org.opensearch.index.store.remote.filecache.FileCache;
 import org.opensearch.monitor.fs.FsInfo;
 import org.opensearch.monitor.fs.FsProbe;
 import org.opensearch.monitor.jvm.JvmInfo;
@@ -105,6 +107,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static java.util.Collections.unmodifiableSet;
+import static org.opensearch.index.store.remote.directory.RemoteSnapshotDirectoryFactory.LOCAL_STORE_LOCATION;
 
 /**
  * A component that holds all data paths for a single node.
@@ -198,6 +201,8 @@ public final class NodeEnvironment implements Closeable {
     private final Map<ShardId, InternalShardLock> shardLocks = new HashMap<>();
 
     private final NodeMetadata nodeMetadata;
+
+    private final SetOnce<FileCache> fileCache = new SetOnce<>();
 
     /**
      * Maximum number of data nodes that should run in an environment.
@@ -393,6 +398,10 @@ public final class NodeEnvironment implements Closeable {
         }
     }
 
+    public void setFileCache(final FileCache fileCache) {
+        this.fileCache.set(fileCache);
+    }
+
     /**
      * Resolve a specific nodes/{node.id} path for the specified path and node lock id.
      *
@@ -577,6 +586,14 @@ public final class NodeEnvironment implements Closeable {
     public void deleteShardDirectoryUnderLock(ShardLock lock, IndexSettings indexSettings) throws IOException {
         final ShardId shardId = lock.getShardId();
         assert isShardLocked(shardId) : "shard " + shardId + " is not locked";
+
+        if (indexSettings.isRemoteSnapshot()) {
+            final ShardPath shardPath = ShardPath.loadFileCachePath(this, shardId);
+            cleanupShardFileCache(shardPath);
+            deleteShardFileCacheDirectory(shardPath);
+            logger.trace("deleted shard {} file cache directory, path: [{}]", shardId, shardPath.getDataPath());
+        }
+
         final Path[] paths = availableShardPaths(shardId);
         logger.trace("acquiring locks for {}, paths: [{}]", shardId, paths);
         acquireFSLockForPaths(indexSettings, paths);
@@ -590,6 +607,40 @@ public final class NodeEnvironment implements Closeable {
         }
         logger.trace("deleted shard {} directory, paths: [{}]", shardId, paths);
         assert assertPathsDoNotExist(paths);
+    }
+
+    /**
+     * Cleans up the corresponding index file path entries from FileCache
+     *
+     * @param shardPath the shard path
+     */
+    private void cleanupShardFileCache(ShardPath shardPath) {
+        try {
+            final FileCache fc = fileCache.get();
+            assert fc != null;
+            final Path localStorePath = shardPath.getDataPath().resolve(LOCAL_STORE_LOCATION);
+            try (DirectoryStream<Path> ds = Files.newDirectoryStream(localStorePath)) {
+                for (Path subPath : ds) {
+                    fc.remove(subPath.toRealPath());
+                }
+            }
+        } catch (IOException ioe) {
+            logger.error(
+                () -> new ParameterizedMessage("Error removing items from cache during shard deletion {}", shardPath.getShardId()),
+                ioe
+            );
+        }
+    }
+
+    private void deleteShardFileCacheDirectory(ShardPath shardPath) {
+        final Path path = shardPath.getDataPath();
+        try {
+            if (Files.exists(path)) {
+                IOUtils.rm(path);
+            }
+        } catch (IOException e) {
+            logger.error(() -> new ParameterizedMessage("Failed to delete cache path for shard {}", shardPath.getShardId()), e);
+        }
     }
 
     private static boolean assertPathsDoNotExist(final Path[] paths) {
@@ -653,6 +704,10 @@ public final class NodeEnvironment implements Closeable {
      * @param indexSettings settings for the index being deleted
      */
     public void deleteIndexDirectoryUnderLock(Index index, IndexSettings indexSettings) throws IOException {
+        if (indexSettings.isRemoteSnapshot()) {
+            deleteIndexFileCacheDirectory(index);
+        }
+
         final Path[] indexPaths = indexPaths(index);
         logger.trace("deleting index {} directory, paths({}): [{}]", index, indexPaths.length, indexPaths);
         IOUtils.rm(indexPaths);
@@ -660,6 +715,18 @@ public final class NodeEnvironment implements Closeable {
             Path customLocation = resolveIndexCustomLocation(indexSettings.customDataPath(), index.getUUID());
             logger.trace("deleting custom index {} directory [{}]", index, customLocation);
             IOUtils.rm(customLocation);
+        }
+    }
+
+    private void deleteIndexFileCacheDirectory(Index index) {
+        final Path indexCachePath = fileCacheNodePath().fileCachePath.resolve(index.getUUID());
+        logger.trace("deleting index {} file cache directory, path: [{}]", index, indexCachePath);
+        if (Files.exists(indexCachePath)) {
+            try {
+                IOUtils.rm(indexCachePath);
+            } catch (IOException e) {
+                logger.error(() -> new ParameterizedMessage("Failed to delete cache path for index {}", index), e);
+            }
         }
     }
 

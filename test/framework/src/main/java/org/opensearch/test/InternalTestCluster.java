@@ -2280,6 +2280,13 @@ public final class InternalTestCluster extends TestCluster {
     }
 
     /**
+     * Starts a search node with default settings and returns its name.
+     */
+    public String startSearchNode() {
+        return startNode(Settings.builder().put(onlyRole(Settings.EMPTY, DiscoveryNodeRole.SEARCH_ROLE)).build());
+    }
+
+    /**
      * Starts a node with the given settings builder and returns its name.
      */
     public String startNode(Settings.Builder settings) {
