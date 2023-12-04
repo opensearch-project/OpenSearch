@@ -28,7 +28,7 @@ public class OffsetRangeIndexInputStream extends OffsetRangeInputStream {
     private static final Logger logger = LogManager.getLogger(OffsetRangeIndexInputStream.class);
     private final InputStreamIndexInput inputStreamIndexInput;
     private final IndexInput indexInput;
-    private AtomicBoolean closed;
+    private AtomicBoolean readBlock;
     private final OffsetRangeRefCount offsetRangeRefCount;
     private final RunOnce closeOnce;
 
@@ -50,8 +50,8 @@ public class OffsetRangeIndexInputStream extends OffsetRangeInputStream {
     }
 
     @Override
-    public void setClose(AtomicBoolean close) {
-        this.closed = close;
+    public void setReadBlock(AtomicBoolean readBlock) {
+        this.readBlock = readBlock;
     }
 
     @Override
@@ -75,7 +75,7 @@ public class OffsetRangeIndexInputStream extends OffsetRangeInputStream {
         //
         // All these protection mechanisms are required in order to prevent invalid access to streams happening
         // from the new S3 async SDK.
-        ensureOpen();
+        ensureReadable();
         try (OffsetRangeRefCount ignored = getStreamReference()) {
             return inputStreamIndexInput.read(b, off, len);
         }
@@ -89,10 +89,10 @@ public class OffsetRangeIndexInputStream extends OffsetRangeInputStream {
         return offsetRangeRefCount;
     }
 
-    private void ensureOpen() {
-        if (closed != null && closed.get() == true) {
-            logger.debug("Read on stream was attempted after during the close of overall file stream!");
-            throw alreadyClosed("Already closed: ");
+    private void ensureReadable() {
+        if (readBlock != null && readBlock.get() == true) {
+            logger.debug("Read attempted on a stream which was read blocked!");
+            throw alreadyClosed("Read blocked stream.");
         }
     }
 
@@ -102,7 +102,7 @@ public class OffsetRangeIndexInputStream extends OffsetRangeInputStream {
 
     @Override
     public int read() throws IOException {
-        ensureOpen();
+        ensureReadable();
         try (OffsetRangeRefCount ignored = getStreamReference()) {
             return inputStreamIndexInput.read();
         }
@@ -130,7 +130,7 @@ public class OffsetRangeIndexInputStream extends OffsetRangeInputStream {
 
     @Override
     public String toString() {
-        return "OffsetRangeIndexInputStream{" + "indexInput=" + indexInput + ", closed=" + closed + '}';
+        return "OffsetRangeIndexInputStream{" + "indexInput=" + indexInput + ", readBlock=" + readBlock + '}';
     }
 
     private static class ClosingStreams {

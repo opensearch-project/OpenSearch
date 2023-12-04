@@ -21,7 +21,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public abstract class OffsetRangeInputStream extends InputStream {
     public abstract long getFilePointer() throws IOException;
 
-    public void setClose(AtomicBoolean close) {
+    public void setReadBlock(AtomicBoolean readBlock) {
         // Nothing
     }
 }

@@ -41,8 +41,8 @@ public class RateLimitingOffsetRangeInputStream extends OffsetRangeInputStream {
         this.delegate = delegate;
     }
 
-    public void setClose(AtomicBoolean close) {
-        delegate.setClose(close);
+    public void setReadBlock(AtomicBoolean readBlock) {
+        delegate.setReadBlock(readBlock);
     }
 
     @Override
