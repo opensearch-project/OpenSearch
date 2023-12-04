@@ -119,7 +119,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ### Dependencies
 - Bump Lucene from 9.7.0 to 9.8.0 ([10276](https://github.com/opensearch-project/OpenSearch/pull/10276))
-- Bump `commons-io:commons-io` from 2.13.0 to 2.15.0 ([#10294](https://github.com/opensearch-project/OpenSearch/pull/10294), [#11001](https://github.com/opensearch-project/OpenSearch/pull/11001), [#11002](https://github.com/opensearch-project/OpenSearch/pull/11002))
+- Bump `commons-io:commons-io` from 2.13.0 to 2.15.1 ([#10294](https://github.com/opensearch-project/OpenSearch/pull/10294), [#11001](https://github.com/opensearch-project/OpenSearch/pull/11001), [#11002](https://github.com/opensearch-project/OpenSearch/pull/11002), [#11446](https://github.com/opensearch-project/OpenSearch/pull/11446))
 - Bump `com.google.api.grpc:proto-google-common-protos` from 2.10.0 to 2.25.1 ([#10208](https://github.com/opensearch-project/OpenSearch/pull/10208), [#10298](https://github.com/opensearch-project/OpenSearch/pull/10298))
 - Bump `com.netflix.nebula.ospackage-base` from 11.4.0 to 11.5.0 ([#10295](https://github.com/opensearch-project/OpenSearch/pull/10295))
 - Bump `org.apache.zookeeper:zookeeper` from 3.9.0 to 3.9.1 ([#10506](https://github.com/opensearch-project/OpenSearch/pull/10506))
