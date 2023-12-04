@@ -60,7 +60,7 @@ dependencies {
   api "com.sun.jersey:jersey-core:${versions.jersey}"
   api "com.sun.jersey:jersey-json:${versions.jersey}"
   api "org.codehaus.jettison:jettison:${versions.jettison}"
-  api 'com.sun.xml.bind:jaxb-impl:2.2.3-1'
+  api 'com.sun.xml.bind:jaxb-impl:4.0.4'
 
   // HACK: javax.xml.bind was removed from default modules in java 9, so we pull the api in here,
   // and allowlist this hack in JarHell
