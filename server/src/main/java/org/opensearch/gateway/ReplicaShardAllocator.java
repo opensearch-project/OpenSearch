@@ -495,16 +495,6 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
 
     protected abstract AsyncShardFetch.FetchResult<NodeStoreFilesMetadata> fetchData(ShardRouting shard, RoutingAllocation allocation);
 
-    @Override
-    // to be override
-    public HashMap<ShardRouting, AllocateUnassignedDecision> makeAllocationDecision(
-        Set<ShardRouting> shards,
-        RoutingAllocation allocation,
-        Logger logger
-    ) {
-        return null;
-    }
-
     /**
      * Returns a boolean indicating whether fetching shard data has been triggered at any point for the given shard.
      */

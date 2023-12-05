@@ -49,6 +49,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * An abstract class that implements basic functionality for allocating
@@ -82,14 +83,15 @@ public abstract class BaseGatewayShardAllocator {
     }
 
     /**
-     * Allocate Set of unassigned shard  to nodes where valid copies of the shard already exists
-     * @param shards the shards to allocate
+     * Allocate Batch of unassigned shard  to nodes where valid copies of the shard already exists
+     * @param shardRoutings the shards to allocate
      * @param allocation the allocation state container object
      */
-    public void allocateUnassignedBatch(Set<ShardRouting> shards, RoutingAllocation allocation) {
+    public void allocateUnassignedBatch(Set<ShardRouting> shardRoutings, RoutingAllocation allocation) {
         // make Allocation Decisions for all shards
-        HashMap<ShardRouting, AllocateUnassignedDecision> decisionMap = makeAllocationDecision(shards, allocation, logger);
-        assert shards.size() == decisionMap.size() : "make allocation decision didn't return allocation decision for " + "some shards";
+        HashMap<ShardRouting, AllocateUnassignedDecision> decisionMap = makeAllocationDecision(shardRoutings, allocation, logger);
+        assert shardRoutings.size() == decisionMap.size() : "make allocation decision didn't return allocation decision for "
+            + "some shards";
         // get all unassigned shards iterator
         RoutingNodes.UnassignedShards.UnassignedIterator iterator = allocation.routingNodes().unassigned().iterator();
 
@@ -159,15 +161,18 @@ public abstract class BaseGatewayShardAllocator {
     );
 
     public HashMap<ShardRouting, AllocateUnassignedDecision> makeAllocationDecision(
-        Set<ShardRouting> shards,
+        Set<ShardRouting> unassignedShardBatch,
         RoutingAllocation allocation,
         Logger logger
     ) {
-        HashMap<ShardRouting, AllocateUnassignedDecision> allocationDecisions = new HashMap<>();
-        for (ShardRouting unassignedShard : shards) {
-            allocationDecisions.put(unassignedShard, makeAllocationDecision(unassignedShard, allocation, logger));
-        }
-        return allocationDecisions;
+
+        return (HashMap<ShardRouting, AllocateUnassignedDecision>) unassignedShardBatch.stream()
+            .collect(
+                Collectors.toMap(
+                    unassignedShard -> unassignedShard,
+                    unassignedShard -> makeAllocationDecision(unassignedShard, allocation, logger)
+                )
+            );
     }
 
     /**
