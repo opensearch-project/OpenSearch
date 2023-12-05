@@ -110,6 +110,6 @@ public class BytesRefUtils {
      * @return long value
      */
     public static long bytesToLong(BytesRef bytes) {
-        return (long) BitUtil.VH_BE_LONG.get(bytes.bytes, 0);
+        return (long) BitUtil.VH_BE_LONG.get(bytes.bytes, bytes.offset);
     }
 }
