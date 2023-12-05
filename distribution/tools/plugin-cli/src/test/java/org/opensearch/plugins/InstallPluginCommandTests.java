@@ -73,9 +73,9 @@ import org.opensearch.env.TestEnvironment;
 import org.opensearch.semver.SemverRange;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.PosixPermissionsResetter;
+import org.opensearch.test.VersionUtils;
 import org.junit.After;
 import org.junit.Before;
-import org.opensearch.test.VersionUtils;
 
 import java.io.BufferedReader;
 import java.io.ByteArrayInputStream;
@@ -309,7 +309,8 @@ public class InstallPluginCommandTests extends OpenSearchTestCase {
         writeJar(structure.resolve("plugin.jar"), className);
     }
 
-    static Path createPlugin(String name, Path structure, SemverRange opensearchVersionRange, String... additionalProps) throws IOException {
+    static Path createPlugin(String name, Path structure, SemverRange opensearchVersionRange, String... additionalProps)
+        throws IOException {
         writePlugin(name, structure, opensearchVersionRange, additionalProps);
         return writeZip(structure, null);
     }
@@ -900,8 +901,7 @@ public class InstallPluginCommandTests extends OpenSearchTestCase {
     public void testInstallPluginWithCompatibleDependencies() throws Exception {
         Tuple<Path, Environment> env = createEnv(fs, temp);
         Path pluginDir = createPluginDir(temp);
-        String pluginZip = createPlugin("fake", pluginDir, SemverRange.fromString("~" + Version.CURRENT.toString()))
-            .toUri()
+        String pluginZip = createPlugin("fake", pluginDir, SemverRange.fromString("~" + Version.CURRENT.toString())).toUri()
             .toURL()
             .toString();
         skipJarHellCommand.execute(terminal, Collections.singletonList(pluginZip), false, env.v2());
@@ -914,7 +914,9 @@ public class InstallPluginCommandTests extends OpenSearchTestCase {
         // Core version is behind plugin version by one w.r.t patch, hence incompatible
         Version coreVersion = Version.CURRENT;
         Version pluginVersion = VersionUtils.getVersion(coreVersion.major, coreVersion.minor, (byte) (coreVersion.revision + 1));
-        String pluginZip = createPlugin("fake", pluginDir, SemverRange.fromString("~" + pluginVersion.toString())).toUri().toURL().toString();
+        String pluginZip = createPlugin("fake", pluginDir, SemverRange.fromString("~" + pluginVersion.toString())).toUri()
+            .toURL()
+            .toString();
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
             () -> skipJarHellCommand.execute(terminal, Collections.singletonList(pluginZip), false, env.v2())
