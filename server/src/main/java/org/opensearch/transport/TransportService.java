@@ -64,6 +64,7 @@ import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.core.service.ReportingService;
 import org.opensearch.core.transport.TransportResponse;
 import org.opensearch.node.NodeClosedException;
+import org.opensearch.ratelimitting.admissioncontrol.enums.AdmissionControlActionType;
 import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskManager;
 import org.opensearch.telemetry.tracing.Span;
@@ -1188,6 +1189,40 @@ public class TransportService extends AbstractLifecycleComponent
     ) {
         validateActionName(action);
         handler = interceptor.interceptHandler(action, executor, forceExecution, handler);
+        RequestHandlerRegistry<Request> reg = new RequestHandlerRegistry<>(
+            action,
+            requestReader,
+            taskManager,
+            handler,
+            executor,
+            forceExecution,
+            canTripCircuitBreaker
+        );
+        transport.registerRequestHandler(reg);
+    }
+
+    /**
+     * Registers a new request handler with admission control support
+     *
+     * @param action                The action the request handler is associated with
+     * @param executor              The executor the request handling will be executed on
+     * @param forceExecution        Force execution on the executor queue and never reject it
+     * @param canTripCircuitBreaker Check the request size and raise an exception in case the limit is breached.
+     * @param admissionControlActionType Admission control based on resource usage limits of provided action type
+     * @param requestReader               The request class that will be used to construct new instances for streaming
+     * @param handler               The handler itself that implements the request handling
+     */
+    public <Request extends TransportRequest> void registerRequestHandler(
+        String action,
+        String executor,
+        boolean forceExecution,
+        boolean canTripCircuitBreaker,
+        AdmissionControlActionType admissionControlActionType,
+        Writeable.Reader<Request> requestReader,
+        TransportRequestHandler<Request> handler
+    ) {
+        validateActionName(action);
+        handler = interceptor.interceptHandler(action, executor, forceExecution, handler, admissionControlActionType);
         RequestHandlerRegistry<Request> reg = new RequestHandlerRegistry<>(
             action,
             requestReader,

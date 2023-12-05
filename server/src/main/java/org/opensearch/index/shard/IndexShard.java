@@ -1764,20 +1764,14 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         if (isSegmentReplicationAllowed() == false) {
             return false;
         }
-        ReplicationCheckpoint localCheckpoint = getLatestReplicationCheckpoint();
-        if (localCheckpoint.isAheadOf(requestCheckpoint)) {
+        final ReplicationCheckpoint localCheckpoint = getLatestReplicationCheckpoint();
+        if (requestCheckpoint.isAheadOf(localCheckpoint) == false) {
             logger.trace(
                 () -> new ParameterizedMessage(
                     "Ignoring new replication checkpoint - Shard is already on checkpoint {} that is ahead of {}",
                     localCheckpoint,
                     requestCheckpoint
                 )
-            );
-            return false;
-        }
-        if (localCheckpoint.equals(requestCheckpoint)) {
-            logger.trace(
-                () -> new ParameterizedMessage("Ignoring new replication checkpoint - Shard is already on checkpoint {}", requestCheckpoint)
             );
             return false;
         }
