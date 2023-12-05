@@ -109,7 +109,7 @@ dependencies {
   api 'com.netflix.nebula:nebula-publishing-plugin:20.3.0'
   api 'com.netflix.nebula:gradle-info-plugin:12.1.6'
   api 'org.apache.rat:apache-rat:0.15'
-  api 'commons-io:commons-io:2.11.0'
+  api 'commons-io:commons-io:2.15.1'
   api "net.java.dev.jna:jna:5.13.0"
   api 'com.github.johnrengelman:shadow:8.1.1'
   api 'org.jdom:jdom2:2.0.6.1'
