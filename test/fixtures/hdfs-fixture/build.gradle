@@ -55,7 +55,7 @@ dependencies {
   api "com.fasterxml.jackson.core:jackson-databind:${versions.jackson_databind}"
   api "com.fasterxml.woodstox:woodstox-core:${versions.woodstox}"
   api 'net.minidev:json-smart:2.4.10'
-  api 'org.apache.zookeeper:zookeeper:3.8.0'
+  api 'org.apache.zookeeper:zookeeper:3.8.3'
   api "org.jetbrains.kotlin:kotlin-stdlib:${versions.kotlin}"
   api "com.google.protobuf:protobuf-java:${versions.protobuf}"
   api "org.eclipse.jetty:jetty-server:${versions.jetty}"
