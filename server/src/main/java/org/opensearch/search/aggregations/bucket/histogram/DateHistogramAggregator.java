@@ -49,8 +49,8 @@ import org.opensearch.search.aggregations.InternalAggregation;
 import org.opensearch.search.aggregations.LeafBucketCollector;
 import org.opensearch.search.aggregations.LeafBucketCollectorBase;
 import org.opensearch.search.aggregations.bucket.BucketsAggregator;
+import org.opensearch.search.aggregations.bucket.FilterRewriteHelper;
 import org.opensearch.search.aggregations.bucket.terms.LongKeyedBucketOrds;
-import org.opensearch.search.aggregations.support.FieldContext;
 import org.opensearch.search.aggregations.support.ValuesSource;
 import org.opensearch.search.aggregations.support.ValuesSourceConfig;
 import org.opensearch.search.internal.SearchContext;
@@ -116,13 +116,18 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
 
         bucketOrds = LongKeyedBucketOrds.build(context.bigArrays(), cardinality);
 
+        FilterRewriteHelper.ValueSourceContext dateHistogramSourceContext = new FilterRewriteHelper.ValueSourceContext(
+            valuesSourceConfig.missing() != null,
+            valuesSourceConfig.script() != null,
+            valuesSourceConfig.fieldType()
+        );
         FilterRewriteHelper.FilterContext filterContext = FilterRewriteHelper.buildFastFilterContext(
             parent,
             subAggregators.length,
             context,
             x -> rounding,
             () -> preparedRounding,
-            valuesSourceConfig,
+            dateHistogramSourceContext,
             this::computeBounds
         );
         if (filterContext != null) {
@@ -134,8 +139,8 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
         }
     }
 
-    private long[] computeBounds(final FieldContext fieldContext) throws IOException {
-        final long[] bounds = FilterRewriteHelper.getAggregationBounds(context, fieldContext.field());
+    private long[] computeBounds(final FilterRewriteHelper.ValueSourceContext fieldContext) throws IOException {
+        final long[] bounds = FilterRewriteHelper.getAggregationBounds(context, fieldContext.getFieldType().name());
         if (bounds != null) {
             // Update min/max limit if user specified any hard bounds
             if (hardBounds != null) {
@@ -172,12 +177,15 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
                 // Try fast filter aggregation if the filters have been created
                 // Skip if tried before and gave incorrect/incomplete results
                 if (useOpt[0]) {
-                    useOpt[0] = FilterRewriteHelper.tryFastFilterAggregation(ctx, filters, fieldType, (key, count) -> {
-                        incrementBucketDocCount(
-                            FilterRewriteHelper.getBucketOrd(bucketOrds.add(owningBucketOrd, preparedRounding.round(key))),
-                            count
-                        );
-                    });
+                    useOpt[0] = FilterRewriteHelper.tryFastFilterAggregation(ctx, filters, fieldType,
+                        (key, count) -> {
+                            incrementBucketDocCount(
+                                FilterRewriteHelper.getBucketOrd( // TODO reading not possible to see duplicate bucket
+                                    bucketOrds.add(owningBucketOrd, preparedRounding.round(key))
+                                ),
+                                count
+                            );
+                        });
                 }
 
                 if (values.advanceExact(doc)) {
@@ -209,29 +217,33 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
 
     @Override
     public InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
-        return buildAggregationsForVariableBuckets(owningBucketOrds, bucketOrds, (bucketValue, docCount, subAggregationResults) -> {
-            return new InternalDateHistogram.Bucket(bucketValue, docCount, keyed, formatter, subAggregationResults);
-        }, (owningBucketOrd, buckets) -> {
-            // the contract of the histogram aggregation is that shards must return buckets ordered by key in ascending order
-            CollectionUtil.introSort(buckets, BucketOrder.key(true).comparator());
+        return buildAggregationsForVariableBuckets(
+            owningBucketOrds,
+            bucketOrds,
+            (bucketValue, docCount, subAggregationResults) -> {
+                return new InternalDateHistogram.Bucket(bucketValue, docCount, keyed, formatter, subAggregationResults);
+            },
+            (owningBucketOrd, buckets) -> {
+                // the contract of the histogram aggregation is that shards must return buckets ordered by key in ascending order
+                CollectionUtil.introSort(buckets, BucketOrder.key(true).comparator());
 
-            // value source will be null for unmapped fields
-            // Important: use `rounding` here, not `shardRounding`
-            InternalDateHistogram.EmptyBucketInfo emptyBucketInfo = minDocCount == 0
-                ? new InternalDateHistogram.EmptyBucketInfo(rounding.withoutOffset(), buildEmptySubAggregations(), extendedBounds)
-                : null;
-            return new InternalDateHistogram(
-                name,
-                buckets,
-                order,
-                minDocCount,
-                rounding.offset(),
-                emptyBucketInfo,
-                formatter,
-                keyed,
-                metadata()
-            );
-        });
+                // value source will be null for unmapped fields
+                // Important: use `rounding` here, not `shardRounding`
+                InternalDateHistogram.EmptyBucketInfo emptyBucketInfo = minDocCount == 0
+                    ? new InternalDateHistogram.EmptyBucketInfo(rounding.withoutOffset(), buildEmptySubAggregations(), extendedBounds)
+                    : null;
+                return new InternalDateHistogram(
+                    name,
+                    buckets,
+                    order,
+                    minDocCount,
+                    rounding.offset(),
+                    emptyBucketInfo,
+                    formatter,
+                    keyed,
+                    metadata()
+                );
+            });
     }
 
     @Override

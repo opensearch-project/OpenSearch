@@ -441,10 +441,12 @@ public class AutoDateHistogramAggregatorTests extends DateHistogramAggregatorTes
 
         final DateFieldMapper.DateFieldType fieldType = new DateFieldMapper.DateFieldType("date_field");
 
-        testCase(aggregation, DEFAULT_QUERY, iw -> {}, (Consumer<InternalAutoDateHistogram>) histogram -> {
-            assertEquals(0, histogram.getBuckets().size());
-            assertFalse(AggregationInspectionHelper.hasValue(histogram));
-        }, fieldType);
+        testCase(aggregation, DEFAULT_QUERY, iw -> {},
+            (Consumer<InternalAutoDateHistogram>) histogram -> {
+                assertEquals(0, histogram.getBuckets().size());
+                assertFalse(AggregationInspectionHelper.hasValue(histogram));
+            },
+            fieldType);
     }
 
     public void testIntervalYear() throws IOException {

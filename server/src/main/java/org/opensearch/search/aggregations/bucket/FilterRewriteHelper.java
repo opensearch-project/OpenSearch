@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.search.aggregations.bucket.histogram;
+package org.opensearch.search.aggregations.bucket;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.PointValues;
@@ -23,9 +23,8 @@ import org.opensearch.common.CheckedFunction;
 import org.opensearch.common.Rounding;
 import org.opensearch.common.lucene.search.function.FunctionScoreQuery;
 import org.opensearch.index.mapper.DateFieldMapper;
+import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.query.DateRangeIncludingNowQuery;
-import org.opensearch.search.aggregations.support.FieldContext;
-import org.opensearch.search.aggregations.support.ValuesSourceConfig;
 import org.opensearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -45,9 +44,9 @@ import java.util.function.Supplier;
  */
 public class FilterRewriteHelper {
 
-    static class FilterContext {
-        final DateFieldMapper.DateFieldType fieldType;
-        final Weight[] filters;
+    public static class FilterContext {
+        public final DateFieldMapper.DateFieldType fieldType;
+        public final Weight[] filters;
 
         public FilterContext(DateFieldMapper.DateFieldType fieldType, Weight[] filters) {
             this.fieldType = fieldType;
@@ -100,7 +99,7 @@ public class FilterRewriteHelper {
         return new long[] { min, max };
     }
 
-    static long[] getAggregationBounds(final SearchContext context, final String fieldName) throws IOException {
+    public static long[] getAggregationBounds(final SearchContext context, final String fieldName) throws IOException {
         final Query cq = unwrapIntoConcreteQuery(context.query());
         final long[] indexBounds = getIndexBoundsFromLeaves(context, fieldName);
         if (cq instanceof PointRangeQuery) {
@@ -148,86 +147,118 @@ public class FilterRewriteHelper {
             // Below rounding is needed as the interval could return in
             // non-rounded values for something like calendar month
             roundedLow = preparedRounding.round(roundedLow + interval);
-            if (prevRounded == roundedLow) break;
+            if (prevRounded == roundedLow) break; // TODO reading prevents getting into an infinite loop?
             prevRounded = roundedLow;
         }
 
         Weight[] filters = null;
         if (bucketCount > 0 && bucketCount <= MAX_NUM_FILTER_BUCKETS) {
-            int i = 0;
             filters = new Weight[bucketCount];
             roundedLow = preparedRounding.round(fieldType.convertNanosToMillis(low));
+
+            int i = 0;
             while (i < bucketCount) {
                 // Calculate the lower bucket bound
                 final byte[] lower = new byte[8];
-                NumericUtils.longToSortableBytes(i == 0 ? low : fieldType.convertRoundedMillisToNanos(roundedLow), lower, 0);
-                // Calculate the upper bucket bound
-                final byte[] upper = new byte[8];
-                roundedLow = preparedRounding.round(roundedLow + interval);
-                // Subtract -1 if the minimum is roundedLow as roundedLow itself
-                // is included in the next bucket
                 NumericUtils.longToSortableBytes(
-                    i + 1 == bucketCount ? high : fieldType.convertRoundedMillisToNanos(roundedLow) - 1,
+                    i == 0 ? low : fieldType.convertRoundedMillisToNanos(roundedLow),
+                    lower, 0
+                );
+
+                // Calculate the upper bucket bound
+                roundedLow = preparedRounding.round(roundedLow + interval);
+                final byte[] upper = new byte[8];
+                NumericUtils.longToSortableBytes(
+                    i + 1 == bucketCount ? high :
+                        // Subtract -1 if the minimum is roundedLow as roundedLow itself
+                        // is included in the next bucket
+                        fieldType.convertRoundedMillisToNanos(roundedLow) - 1,
                     upper,
                     0
                 );
-                filters[i++] = context.searcher().createWeight(new PointRangeQuery(field, lower, upper, 1) {
-                    @Override
-                    protected String toString(int dimension, byte[] value) {
-                        return null;
-                    }
-                }, ScoreMode.COMPLETE_NO_SCORES, 1);
+
+                filters[i++] = context.searcher().createWeight(
+                    new PointRangeQuery(field, lower, upper, 1) {
+                        @Override
+                        protected String toString(int dimension, byte[] value) {
+                            return null;
+                        }
+                    }, ScoreMode.COMPLETE_NO_SCORES, 1);
             }
         }
 
         return filters;
     }
 
-    static FilterContext buildFastFilterContext(
+    public static FilterContext buildFastFilterContext(
         final Object parent,
         final int subAggLength,
         SearchContext context,
         Function<long[], Rounding> roundingFunction,
         Supplier<Rounding.Prepared> preparedRoundingSupplier,
-        ValuesSourceConfig valuesSourceConfig,
-        CheckedFunction<FieldContext, long[], IOException> computeBounds
+        ValueSourceContext valueSourceContext,
+        CheckedFunction<ValueSourceContext, long[], IOException> computeBounds
     ) throws IOException {
         // Create the filters for fast aggregation only if the query is instance
         // of point range query and there aren't any parent/sub aggregations
-        if (parent == null && subAggLength == 0 && valuesSourceConfig.missing() == null && valuesSourceConfig.script() == null) {
-            final FieldContext fieldContext = valuesSourceConfig.fieldContext();
-            if (fieldContext != null) {
-                final String fieldName = fieldContext.field();
-                final long[] bounds = computeBounds.apply(fieldContext);
+        if (parent == null && subAggLength == 0 && !valueSourceContext.missing && !valueSourceContext.hasScript) {
+            MappedFieldType fieldType = valueSourceContext.getFieldType();
+            if (fieldType != null) {
+                final String fieldName = valueSourceContext.getFieldType().name();
+                final long[] bounds = computeBounds.apply(valueSourceContext);
                 if (bounds != null) {
-                    assert fieldContext.fieldType() instanceof DateFieldMapper.DateFieldType;
-                    final DateFieldMapper.DateFieldType fieldType = (DateFieldMapper.DateFieldType) fieldContext.fieldType();
+                    assert fieldType instanceof DateFieldMapper.DateFieldType;
                     final Rounding rounding = roundingFunction.apply(bounds);
                     final Weight[] filters = FilterRewriteHelper.createFilterForAggregations(
                         context,
                         rounding,
                         preparedRoundingSupplier.get(),
                         fieldName,
-                        fieldType,
+                        (DateFieldMapper.DateFieldType) fieldType,
                         bounds[0],
                         bounds[1]
                     );
-                    return new FilterContext(fieldType, filters);
+                    return new FilterContext((DateFieldMapper.DateFieldType) fieldType, filters);
                 }
             }
         }
         return null;
     }
 
-    static long getBucketOrd(long bucketOrd) {
-        if (bucketOrd < 0) { // already seen
+    /**
+     * Encapsulates metadata about a value source needed to rewrite
+     */
+    public static class ValueSourceContext {
+        private final boolean missing;
+        private final boolean hasScript;
+        private final MappedFieldType fieldType;
+
+        /**
+         * @param missing   whether missing value/bucket is set
+         * @param hasScript whether script is used
+         * @param fieldType null if the field doesn't exist
+         */
+        public ValueSourceContext(boolean missing, boolean hasScript, MappedFieldType fieldType) {
+            this.missing = missing;
+            this.hasScript = hasScript;
+            this.fieldType = fieldType;
+        }
+
+        // TODO reading why boolean doesn't need getter?
+        public MappedFieldType getFieldType() {
+            return fieldType;
+        }
+    }
+
+    public static long getBucketOrd(long bucketOrd) {
+        if (bucketOrd < 0) { // already seen // TODO reading theoretically for one segment, there cannot be duplicate bucket?
             bucketOrd = -1 - bucketOrd;
         }
 
         return bucketOrd;
     }
 
-    static boolean tryFastFilterAggregation(
+    public static boolean tryFastFilterAggregation(
         final LeafReaderContext ctx,
         final Weight[] filters,
         final DateFieldMapper.DateFieldType fieldType,

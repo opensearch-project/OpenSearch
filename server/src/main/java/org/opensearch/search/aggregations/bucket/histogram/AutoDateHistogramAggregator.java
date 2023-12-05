@@ -53,6 +53,7 @@ import org.opensearch.search.aggregations.LeafBucketCollector;
 import org.opensearch.search.aggregations.LeafBucketCollectorBase;
 import org.opensearch.search.aggregations.bucket.DeferableBucketAggregator;
 import org.opensearch.search.aggregations.bucket.DeferringBucketCollector;
+import org.opensearch.search.aggregations.bucket.FilterRewriteHelper;
 import org.opensearch.search.aggregations.bucket.MergingBucketsDeferringCollector;
 import org.opensearch.search.aggregations.bucket.histogram.AutoDateHistogramAggregationBuilder.RoundingInfo;
 import org.opensearch.search.aggregations.bucket.terms.LongKeyedBucketOrds;
@@ -156,6 +157,11 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
         this.roundingPreparer = roundingPreparer;
         this.preparedRounding = prepareRounding(0);
 
+        FilterRewriteHelper.ValueSourceContext dateHistogramSourceContext = new FilterRewriteHelper.ValueSourceContext(
+            valuesSourceConfig.missing() != null,
+            valuesSourceConfig.script() != null,
+            valuesSourceConfig.fieldType()
+        );
         FilterRewriteHelper.FilterContext filterContext = FilterRewriteHelper.buildFastFilterContext(
             parent(),
             subAggregators.length,
@@ -164,8 +170,8 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
             // Passing prepared rounding as supplier to ensure the correct prepared
             // rounding is set as it is done during getMinimumRounding
             () -> preparedRounding,
-            valuesSourceConfig,
-            fc -> FilterRewriteHelper.getAggregationBounds(context, fc.field())
+            dateHistogramSourceContext,
+            fc -> FilterRewriteHelper.getAggregationBounds(context, fc.getFieldType().name())
         );
         if (filterContext != null) {
             fieldType = filterContext.fieldType;
@@ -240,12 +246,14 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
                 // Try fast filter aggregation if the filters have been created
                 // Skip if tried before and gave incorrect/incomplete results
                 if (useOpt[0]) {
-                    useOpt[0] = FilterRewriteHelper.tryFastFilterAggregation(ctx, filters, fieldType, (key, count) -> {
-                        incrementBucketDocCount(
-                            FilterRewriteHelper.getBucketOrd(getBucketOrds().add(owningBucketOrd, preparedRounding.round(key))),
-                            count
-                        );
-                    });
+                    useOpt[0] = FilterRewriteHelper.tryFastFilterAggregation(ctx, filters, fieldType,
+                        (key, count) -> {
+                            incrementBucketDocCount(
+                                FilterRewriteHelper.getBucketOrd(
+                                    getBucketOrds().add(owningBucketOrd, preparedRounding.round(key))),
+                                count
+                            );
+                        });
                 }
 
                 iteratingCollector.collect(doc, owningBucketOrd);
