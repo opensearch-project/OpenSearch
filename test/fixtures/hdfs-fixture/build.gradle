@@ -54,7 +54,7 @@ dependencies {
   api 'net.minidev:json-smart:2.4.10'
   api "org.jetbrains.kotlin:kotlin-stdlib:${versions.kotlin}"
   api "com.google.protobuf:protobuf-java:${versions.protobuf}"
-  api 'org.apache.zookeeper:zookeeper:3.8.0'
+  api 'org.apache.zookeeper:zookeeper:3.8.3'
   api "org.eclipse.jetty:jetty-server:${versions.jetty}"
   api "org.eclipse.jetty.websocket:javax-websocket-server-impl:${versions.jetty}"
   runtimeOnly "com.google.guava:guava:${versions.guava}"
