@@ -63,6 +63,14 @@ public class SemverRange implements ToXContentFragment {
     }
 
     /**
+     * Return the version for this range.
+     * @return the range version
+     */
+    public Version getRangeVersion() {
+        return rangeVersion;
+    }
+
+    /**
      * Check if range is satisfied by given version string.
      *
      * @param version version to check

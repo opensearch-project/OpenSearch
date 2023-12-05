@@ -182,7 +182,11 @@ public class PluginInfo implements Writeable, ToXContentObject {
         this.name = in.readString();
         this.description = in.readString();
         this.version = in.readString();
-        this.opensearchVersionRange = in.readSemverRange();
+        if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
+            this.opensearchVersionRange = in.readSemverRange();
+        } else {
+            this.opensearchVersionRange = new SemverRange(in.readVersion(), SemverRange.RangeOperator.DEFAULT);
+        }
         this.javaVersion = in.readString();
         this.classname = in.readString();
         this.customFolderName = in.readString();
@@ -195,7 +199,11 @@ public class PluginInfo implements Writeable, ToXContentObject {
         out.writeString(name);
         out.writeString(description);
         out.writeString(version);
-        out.writeSemverRange(opensearchVersionRange);
+        if (out.getVersion().onOrAfter(Version.V_3_0_0)) {
+            out.writeSemverRange(opensearchVersionRange);
+        } else {
+            out.writeVersion(opensearchVersionRange.getRangeVersion());
+        }
         out.writeString(javaVersion);
         out.writeString(classname);
         if (customFolderName != null) {
