@@ -9,32 +9,32 @@
 # Default opensearch.service file
 
 [Unit]
-Description=OpenSearch
-Documentation=https://opensearch.org/
+Description=wazuh-indexer
+Documentation=https://documentation.wazuh.com
 Wants=network-online.target
 After=network-online.target
 
 [Service]
 Type=notify
-RuntimeDirectory=opensearch
+RuntimeDirectory=wazuh-indexer
 PrivateTmp=true
-EnvironmentFile=-/etc/default/opensearch
-EnvironmentFile=-/etc/sysconfig/opensearch
+Environment=OPENSEARCH_HOME=/usr/share/wazuh-indexer
+Environment=OPENSEARCH_PATH_CONF=${path.conf}
+Environment=PID_DIR=/var/run/wazuh-indexer
+Environment=OPENSEARCH_SD_NOTIFY=true
+EnvironmentFile=-${path.env}
 
-WorkingDirectory=/usr/share/opensearch
+WorkingDirectory=/usr/share/wazuh-indexer
 
-User=opensearch
-Group=opensearch
+User=wazuh-indexer
+Group=wazuh-indexer
 
-ExecStartPre=/bin/mkdir -p /dev/shm/performanceanalyzer
-ExecStartPre=/bin/chown opensearch:opensearch /dev/shm/performanceanalyzer
-
-ExecStart=/usr/share/opensearch/bin/systemd-entrypoint -p ${PID_DIR}/opensearch.pid --quiet
+ExecStart=/usr/share/wazuh-indexer/bin/systemd-entrypoint -p ${PID_DIR}/wazuh-indexer.pid --quiet
 
 # StandardOutput is configured to redirect to journalctl since
 # some error messages may be logged in standard output before
-# opensearch logging system is initialized. OpenSearch
-# stores its logs in /var/log/opensearch and does not use
+# wazuh-indexer logging system is initialized. Wazuh-indexer
+# stores its logs in /var/log/wazuh-indexer and does not use
 # journalctl by default. If you also want to enable journalctl
 # logging, you can simply remove the "quiet" option from ExecStart.
 StandardOutput=journal

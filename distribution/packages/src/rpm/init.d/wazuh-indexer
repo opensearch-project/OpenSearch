@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 #
-# opensearch <summary>
+# wazuh-indexer <summary>
 #
 # chkconfig:   2345 80 20
-# description: Starts and stops a single opensearch instance on this system
+# description: Starts and stops a single wazuh-indexer instance on this system
 #
 
 ### BEGIN INIT INFO
@@ -12,7 +12,7 @@
 # Required-Stop: $network $named
 # Default-Start: 2 3 4 5
 # Default-Stop: 0 1 6
-# Short-Description: This service manages the opensearch daemon
+# Short-Description: This service manages the wazuh-indexer daemon
 # Description: OpenSearch is a very scalable, schema-free and high-performance search solution supporting multi-tenancy and near realtime search.
 ### END INIT INFO
 
@@ -33,13 +33,13 @@ if [ -f /etc/rc.d/init.d/functions ]; then
     . /etc/rc.d/init.d/functions
 fi
 
-# Sets the default values for opensearch variables used in this script
-OPENSEARCH_HOME="/usr/share/opensearch"
+# Sets the default values for wazuh-indexer variables used in this script
+OPENSEARCH_HOME="/usr/share/wazuh-indexer"
 MAX_OPEN_FILES=65535
 MAX_MAP_COUNT=262144
 OPENSEARCH_PATH_CONF="${path.conf}"
 
-PID_DIR="/var/run/opensearch"
+PID_DIR="/var/run/wazuh-indexer"
 
 # Source the default env file
 OPENSEARCH_ENV_FILE="${path.env}"
@@ -47,8 +47,8 @@ if [ -f "$OPENSEARCH_ENV_FILE" ]; then
     . "$OPENSEARCH_ENV_FILE"
 fi
 
-exec="$OPENSEARCH_HOME/bin/opensearch"
-prog="opensearch"
+exec="$OPENSEARCH_HOME/bin/wazuh-indexer"
+prog="wazuh-indexer"
 pidfile="$PID_DIR/${prog}.pid"
 
 export OPENSEARCH_JAVA_OPTS
@@ -60,7 +60,7 @@ export OPENSEARCH_JAVA_HOME
 lockfile=/var/lock/subsys/$prog
 
 if [ ! -x "$exec" ]; then
-    echo "The opensearch startup script does not exists or it is not executable, tried: $exec"
+    echo "The wazuh-indexer startup script does not exists or it is not executable, tried: $exec"
     exit 1
 fi
 
@@ -79,16 +79,16 @@ start() {
 
     # Ensure that the PID_DIR exists (it is cleaned at OS startup time)
     if [ -n "$PID_DIR" ] && [ ! -e "$PID_DIR" ]; then
-        mkdir -p "$PID_DIR" && chown opensearch:opensearch "$PID_DIR"
+        mkdir -p "$PID_DIR" && chown wazuh-indexer:wazuh-indexer "$PID_DIR"
     fi
     if [ -n "$pidfile" ] && [ ! -e "$pidfile" ]; then
-        touch "$pidfile" && chown opensearch:opensearch "$pidfile"
+        touch "$pidfile" && chown wazuh-indexer:wazuh-indexer "$pidfile"
     fi
 
     cd $OPENSEARCH_HOME
     echo -n $"Starting $prog: "
     # if not running, start it up here, usually something like "daemon $exec"
-    daemon --user opensearch --pidfile $pidfile $exec -p $pidfile -d
+    daemon --user wazuh-indexer --pidfile $pidfile $exec -p $pidfile -d
     retval=$?
     echo
     [ $retval -eq 0 ] && touch $lockfile

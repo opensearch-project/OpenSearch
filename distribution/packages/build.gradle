@@ -58,8 +58,8 @@ import java.util.regex.Pattern
  * The following commands are useful when it comes to check the user/group
  * and files permissions set within the RPM and DEB packages:
  *
- *    rpm -qlp --dump path/to/opensearch.rpm
- *    dpkg -c path/to/opensearch.deb
+ *    rpm -qlp --dump path/to/wazuh-indexer.rpm
+ *    dpkg -c path/to/wazuh-indexer.deb
  */
 
 plugins {
@@ -79,20 +79,20 @@ void addProcessFilesTask(String type, boolean jdk) {
       MavenFilteringHack.filter(it, expansionsForDistribution(type, jdk))
     }
 
-    into('etc/opensearch') {
+    into('etc/wazuh-indexer') {
       with configFiles(type, jdk)
     }
     MavenFilteringHack.filter(it, expansionsForDistribution(type, jdk))
 
     doLast {
       // create empty dirs, we set the permissions when configuring the packages
-      mkdir "${packagingFiles}/var/log/opensearch"
-      mkdir "${packagingFiles}/var/lib/opensearch"
-      mkdir "${packagingFiles}/usr/share/opensearch/plugins"
+      mkdir "${packagingFiles}/var/log/wazuh-indexer"
+      mkdir "${packagingFiles}/var/lib/wazuh-indexer"
+      mkdir "${packagingFiles}/usr/share/wazuh-indexer/plugins"
 
-      // bare empty dir for /etc/opensearch and /etc/opensearch/jvm.options.d
-      mkdir "${packagingFiles}/opensearch"
-      mkdir "${packagingFiles}/opensearch/jvm.options.d"
+      // bare empty dir for /etc/wazuh-indexer and /etc/wazuh-indexer/jvm.options.d
+      mkdir "${packagingFiles}/wazuh-indexer"
+      mkdir "${packagingFiles}/wazuh-indexer/jvm.options.d"
     }
   }
 }
@@ -106,12 +106,13 @@ addProcessFilesTask('rpm', false)
 // since we have different templated files that need to be consumed, but the structure
 // is the same
 Closure commonPackageConfig(String type, boolean jdk, String architecture) {
+  project.version = rootProject.file('VERSION').getText()
   return {
     onlyIf {
       OS.current().equals(OS.WINDOWS) == false
     }
     dependsOn "process'${jdk ? '' : 'NoJdk'}${type.capitalize()}Files"
-    packageName = "opensearch"
+    packageName "wazuh-indexer"
     if (type == 'deb') {
       if (architecture == 'x64') {
         arch = 'amd64'
@@ -154,7 +155,7 @@ Closure commonPackageConfig(String type, boolean jdk, String architecture) {
 
     // top level "into" directive is not inherited from ospackage for some reason, so we must
     // specify it again explicitly for copying common files
-    into('/usr/share/opensearch') {
+    into('/usr/share/wazuh-indexer') {
       into('bin') {
         with binFiles(type, jdk)
       }
@@ -175,8 +176,8 @@ Closure commonPackageConfig(String type, boolean jdk, String architecture) {
           with jdkFiles(project, 'linux', architecture)
         }
       }
-      into('agent') {
-        with agentFiles()
+      into ('') {
+        with versionFile()
       }
       // we need to specify every intermediate directory in these paths so the package managers know they are explicitly
       // intended to manage them; otherwise they may be left behind on uninstallation. duplicate calls of the same
@@ -206,7 +207,7 @@ Closure commonPackageConfig(String type, boolean jdk, String architecture) {
       }
     } else {
       assert type == 'rpm'
-      into('/usr/share/opensearch') {
+      into('/usr/share/wazuh-indexer') {
         from(rootProject.file('licenses')) {
           include 'APACHE-LICENSE-2.0.txt'
           rename { 'LICENSE.txt' }
@@ -218,66 +219,66 @@ Closure commonPackageConfig(String type, boolean jdk, String architecture) {
     }
 
     // ========= config files =========
-    configurationFile '/etc/opensearch/opensearch.yml'
-    configurationFile '/etc/opensearch/jvm.options'
-    configurationFile '/etc/opensearch/log4j2.properties'
+    configurationFile '/etc/wazuh-indexer/opensearch.yml'
+    configurationFile '/etc/wazuh-indexer/jvm.options'
+    configurationFile '/etc/wazuh-indexer/log4j2.properties'
     from("${packagingFiles}") {
       dirPermissions {
         unix 0750
       }
       into('/etc')
-      permissionGroup 'opensearch'
-      includeEmptyDirs = true
-      createDirectoryEntry = true
-      include("opensearch") // empty dir, just to add directory entry
-      include("opensearch/jvm.options.d") // empty dir, just to add directory entry
+      permissionGroup 'wazuh-indexer'
+      includeEmptyDirs true
+      createDirectoryEntry true
+      include("wazuh-indexer") // empty dir, just to add directory entry
+      include("wazuh-indexer/jvm.options.d") // empty dir, just to add directory entry
     }
-    from("${packagingFiles}/etc/opensearch") {
-      into('/etc/opensearch')
+    from("${packagingFiles}/etc/wazuh-indexer") {
+      into('/etc/wazuh-indexer')
       dirPermissions {
         unix 0750
       }
       filePermissions{
         unix 0660
       }
-      permissionGroup 'opensearch'
-      includeEmptyDirs = true
-      createDirectoryEntry = true
+      permissionGroup 'wazuh-indexer'
+      includeEmptyDirs true
+      createDirectoryEntry true
       fileType CONFIG | NOREPLACE
     }
     String envFile = expansionsForDistribution(type, jdk)['path.env']
     configurationFile envFile
     into(new File(envFile).getParent()) {
       fileType CONFIG | NOREPLACE
-      permissionGroup 'opensearch'
+      permissionGroup 'wazuh-indexer'
       filePermissions {
         unix 0660
       }
-      from "${packagingFiles}/env/opensearch"
+      from "${packagingFiles}/env/wazuh-indexer"
     }
 
     // ========= systemd =========
     into('/usr/lib/tmpfiles.d') {
-      from "${packagingFiles}/systemd/opensearch.conf"
+      from "${packagingFiles}/systemd/wazuh-indexer.conf"
       filePermissions {
         unix 0644
       }
     }
     into('/usr/lib/systemd/system') {
       fileType CONFIG | NOREPLACE
-      from "${packagingFiles}/systemd/opensearch.service"
+      from "${packagingFiles}/systemd/wazuh-indexer.service"
       filePermissions {
         unix 0644
       }
     }
     into('/usr/lib/sysctl.d') {
       fileType CONFIG | NOREPLACE
-      from "${packagingFiles}/systemd/sysctl/opensearch.conf"
+      from "${packagingFiles}/systemd/sysctl/wazuh-indexer.conf"
       filePermissions {
         unix 0644
       }
     }
-    into('/usr/share/opensearch/bin') {
+    into('/usr/share/wazuh-indexer/bin') {
       from "${packagingFiles}/systemd/systemd-entrypoint"
       filePermissions {
         unix 0755
@@ -285,13 +286,13 @@ Closure commonPackageConfig(String type, boolean jdk, String architecture) {
     }
 
     // ========= sysV init =========
-    configurationFile '/etc/init.d/opensearch'
+    configurationFile '/etc/init.d/wazuh-indexer'
     into('/etc/init.d') {
       filePermissions {
         unix 0750
       }
       fileType CONFIG | NOREPLACE
-      from "${packagingFiles}/init.d/opensearch"
+      from "${packagingFiles}/init.d/wazuh-indexer"
     }
 
     // ========= empty dirs =========
@@ -310,11 +311,11 @@ Closure commonPackageConfig(String type, boolean jdk, String architecture) {
         }
       }
     }
-    copyEmptyDir('/var/log/opensearch', 'opensearch', 'opensearch', 0750)
-    copyEmptyDir('/var/lib/opensearch', 'opensearch', 'opensearch', 0750)
-    copyEmptyDir('/usr/share/opensearch/plugins', 'root', 'root', 0755)
+    copyEmptyDir('/var/log/wazuh-indexer', 'wazuh-indexer', 'wazuh-indexer', 0750)
+    copyEmptyDir('/var/lib/wazuh-indexer', 'wazuh-indexer', 'wazuh-indexer', 0750)
+    copyEmptyDir('/usr/share/wazuh-indexer/plugins', 'root', 'root', 0755)
 
-    into '/usr/share/opensearch'
+    into '/usr/share/wazuh-indexer'
     with noticeFile(jdk)
   }
 }
@@ -348,7 +349,7 @@ ospackage {
   user = 'root'
   permissionGroup = 'root'
 
-  into '/usr/share/opensearch'
+  into '/usr/share/wazuh-indexer'
 }
 
 Closure commonDebConfig(boolean jdk, String architecture) {
@@ -369,7 +370,7 @@ Closure commonDebConfig(boolean jdk, String architecture) {
     requires 'adduser'
 
     into('/usr/share/lintian/overrides') {
-      from('src/deb/lintian/opensearch')
+      from('src/deb/lintian/wazuh-indexer')
       filePermissions {
         unix 0644
       }
@@ -413,8 +414,8 @@ Closure commonRpmConfig(boolean jdk, String architecture) {
     vendor = 'OpenSearch'
     // TODO ospackage doesn't support icon but we used to have one
 
-    // without this the rpm will have parent dirs of any files we copy in, eg /etc/opensearch
-    addParentDirs = false
+    // without this the rpm will have parent dirs of any files we copy in, eg /etc/wazuh-indexer
+    addParentDirs false
   }
 }
 
@@ -509,7 +510,7 @@ subprojects {
           Path copyrightPath
           String expectedLicense
           String licenseFilename
-          copyrightPath = packageExtractionDir.toPath().resolve("usr/share/doc/opensearch/copyright")
+          copyrightPath = packageExtractionDir.toPath().resolve("usr/share/doc/wazuh-indexer/copyright")
           expectedLicense = "ASL-2.0"
           licenseFilename = "APACHE-LICENSE-2.0.txt"
           final List<String> header = Arrays.asList("Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/",
@@ -528,7 +529,7 @@ subprojects {
         doLast {
           String licenseFilename = "APACHE-LICENSE-2.0.txt"
           final List<String> licenseLines = Files.readAllLines(rootDir.toPath().resolve("licenses/" + licenseFilename))
-          final Path licensePath = packageExtractionDir.toPath().resolve("usr/share/opensearch/LICENSE.txt")
+          final Path licensePath = packageExtractionDir.toPath().resolve("usr/share/wazuh-indexer/LICENSE.txt")
           assertLinesInFile(licensePath, licenseLines)
         }
       }
@@ -541,7 +542,7 @@ subprojects {
       }
       doLast {
         final List<String> noticeLines = Arrays.asList("OpenSearch (https://opensearch.org/)", "Copyright OpenSearch Contributors")
-        final Path noticePath = packageExtractionDir.toPath().resolve("usr/share/opensearch/NOTICE.txt")
+        final Path noticePath = packageExtractionDir.toPath().resolve("usr/share/wazuh-indexer/NOTICE.txt")
         assertLinesInFile(noticePath, noticeLines)
       }
     }

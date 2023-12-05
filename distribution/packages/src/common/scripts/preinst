@@ -29,24 +29,24 @@ case "$1" in
     # Debian ####################################################
     install|upgrade)
 
-        # Create opensearch group if not existing
-        if ! getent group opensearch > /dev/null 2>&1 ; then
-            echo -n "Creating opensearch group..."
-            addgroup --quiet --system opensearch
+        # Create wazuh-indexer group if not existing
+        if ! getent group wazuh-indexer > /dev/null 2>&1 ; then
+            echo -n "Creating wazuh-indexer group..."
+            addgroup --quiet --system wazuh-indexer
             echo " OK"
         fi
 
-        # Create opensearch user if not existing
-        if ! id opensearch > /dev/null 2>&1 ; then
-            echo -n "Creating opensearch user..."
+        # Create wazuh-indexer user if not existing
+        if ! id wazuh-indexer > /dev/null 2>&1 ; then
+            echo -n "Creating wazuh-indexer user..."
             adduser --quiet \
                     --system \
                     --no-create-home \
                     --home /nonexistent \
-                    --ingroup opensearch \
+                    --ingroup wazuh-indexer \
                     --disabled-password \
                     --shell /bin/false \
-                    opensearch
+                    wazuh-indexer
             echo " OK"
         fi
     ;;
@@ -56,23 +56,23 @@ case "$1" in
     # RedHat ####################################################
     1|2)
 
-        # Create opensearch group if not existing
-        if ! getent group opensearch > /dev/null 2>&1 ; then
-            echo -n "Creating opensearch group..."
-            groupadd -r opensearch
+        # Create wazuh-indexer group if not existing
+        if ! getent group wazuh-indexer > /dev/null 2>&1 ; then
+            echo -n "Creating wazuh-indexer group..."
+            groupadd -r wazuh-indexer
             echo " OK"
         fi
 
-        # Create opensearch user if not existing
-        if ! id opensearch > /dev/null 2>&1 ; then
-            echo -n "Creating opensearch user..."
+        # Create wazuh-indexer user if not existing
+        if ! id wazuh-indexer > /dev/null 2>&1 ; then
+            echo -n "Creating wazuh-indexer user..."
             useradd --system \
                     --no-create-home \
                     --home-dir /nonexistent \
-                    --gid opensearch \
+                    --gid wazuh-indexer \
                     --shell /sbin/nologin \
-                    --comment "opensearch user" \
-                    opensearch
+                    --comment "wazuh-indexer user" \
+                    wazuh-indexer
             echo " OK"
         fi
     ;;

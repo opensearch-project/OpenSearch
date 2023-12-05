@@ -1,22 +1,22 @@
 #!/usr/bin/env bash
 #
-# /etc/init.d/opensearch -- startup script for OpenSearch
+# /etc/init.d/wazuh-indexer -- startup script for Wazuh indexer
 #
 ### BEGIN INIT INFO
-# Provides:          opensearch
+# Provides:          wazuh-indexer
 # Required-Start:    $network $remote_fs $named
 # Required-Stop:     $network $remote_fs $named
 # Default-Start:     2 3 4 5
 # Default-Stop:      0 1 6
-# Short-Description: Starts opensearch
-# Description:       Starts opensearch using start-stop-daemon
+# Short-Description: Starts wazuh-indexer
+# Description:       Starts wazuh-indexer using start-stop-daemon
 ### END INIT INFO
 
 set -e -o pipefail
 
 PATH=/bin:/usr/bin:/sbin:/usr/sbin
-NAME=opensearch
-DESC="OpenSearch Server"
+NAME=wazuh-indexer
+DESC=$NAME
 DEFAULT=/etc/default/$NAME
 
 if [ `id -u` -ne 0 ]; then
@@ -53,7 +53,7 @@ OPENSEARCH_PATH_CONF=/etc/$NAME
 MAX_MAP_COUNT=262144
 
 # OpenSearch PID file directory
-PID_DIR="/var/run/opensearch"
+PID_DIR="/var/run/$NAME"
 
 # End of variables that can be overwritten in $DEFAULT
 
@@ -73,7 +73,7 @@ export JAVA_HOME
 export OPENSEARCH_JAVA_HOME
 
 if [ ! -x "$DAEMON" ]; then
-	echo "The opensearch startup script does not exists or it is not executable, tried: $DAEMON"
+	echo "The wazuh-indexer startup script does not exists or it is not executable, tried: $DAEMON"
 	exit 1
 fi
 
@@ -82,7 +82,7 @@ case "$1" in
 
 	log_daemon_msg "Starting $DESC"
 
-	pid=`pidofproc -p $PID_FILE opensearch`
+	pid=`pidofproc -p $PID_FILE wazuh-indexer`
 	if [ -n "$pid" ] ; then
 		log_begin_msg "Already running."
 		log_end_msg 0
@@ -91,10 +91,10 @@ case "$1" in
 
 	# Ensure that the PID_DIR exists (it is cleaned at OS startup time)
 	if [ -n "$PID_DIR" ] && [ ! -e "$PID_DIR" ]; then
-		mkdir -p "$PID_DIR" && chown opensearch:opensearch "$PID_DIR"
+		mkdir -p "$PID_DIR" && chown wazuh-indexer:wazuh-indexer "$PID_DIR"
 	fi
 	if [ -n "$PID_FILE" ] && [ ! -e "$PID_FILE" ]; then
-		touch "$PID_FILE" && chown opensearch:opensearch "$PID_FILE"
+		touch "$PID_FILE" && chown wazuh-indexer:wazuh-indexer "$PID_FILE"
 	fi
 
 	if [ -n "$MAX_OPEN_FILES" ]; then
@@ -110,7 +110,7 @@ case "$1" in
 	fi
 
 	# Start Daemon
-	start-stop-daemon -d $OPENSEARCH_HOME --start --user opensearch -c opensearch --pidfile "$PID_FILE" --exec $DAEMON -- $DAEMON_OPTS
+	start-stop-daemon -d $OPENSEARCH_HOME --start --user wazuh-indexer -c wazuh-indexer --pidfile "$PID_FILE" --exec $DAEMON -- $DAEMON_OPTS
 	return=$?
 	if [ $return -eq 0 ]; then
 		i=0
@@ -134,7 +134,7 @@ case "$1" in
 
 	if [ -f "$PID_FILE" ]; then
 		start-stop-daemon --stop --pidfile "$PID_FILE" \
-			--user opensearch \
+			--user wazuh-indexer \
 			--quiet \
 			--retry forever/TERM/20 > /dev/null
 		if [ $? -eq 1 ]; then
@@ -151,7 +151,7 @@ case "$1" in
 	log_end_msg 0
 	;;
   status)
-	status_of_proc -p $PID_FILE opensearch opensearch && exit 0 || exit $?
+	status_of_proc -p $PID_FILE wazuh-indexer wazuh-indexer && exit 0 || exit $?
 	;;
   restart|force-reload)
 	if [ -f "$PID_FILE" ]; then

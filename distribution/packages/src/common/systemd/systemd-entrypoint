@@ -6,7 +6,7 @@
 set -e -o pipefail
 
 if [ -n "$OPENSEARCH_KEYSTORE_PASSPHRASE_FILE" ] ; then
-  exec /usr/share/opensearch/bin/opensearch "$@" < "$OPENSEARCH_KEYSTORE_PASSPHRASE_FILE"
+  exec /usr/share/wazuh-indexer/bin/opensearch "$@" < "$OPENSEARCH_KEYSTORE_PASSPHRASE_FILE"
 else
-  exec /usr/share/opensearch/bin/opensearch "$@"
+  exec /usr/share/wazuh-indexer/bin/opensearch "$@"
 fi

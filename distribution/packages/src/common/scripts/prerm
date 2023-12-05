@@ -51,23 +51,23 @@ esac
 
 # Stops the service
 if [ "$STOP_REQUIRED" = "true" ]; then
-    echo -n "Stopping opensearch service..."
+    echo -n "Stopping wazuh-indexer service..."
     if command -v systemctl >/dev/null; then
-        systemctl --no-reload stop opensearch.service
+        systemctl --no-reload stop wazuh-indexer.service
 
-    elif [ -x /etc/init.d/opensearch ]; then
+    elif [ -x /etc/init.d/wazuh-indexer ]; then
         if command -v invoke-rc.d >/dev/null; then
-            invoke-rc.d opensearch stop
+            invoke-rc.d wazuh-indexer stop
         else
-            /etc/init.d/opensearch stop
+            /etc/init.d/wazuh-indexer stop
         fi
 
     # older suse linux distributions do not ship with systemd
     # but do not have an /etc/init.d/ directory
-    # this tries to start the opensearch service on these
+    # this tries to start the wazuh-indexer service on these
     # as well without failing this script
-    elif [ -x /etc/rc.d/init.d/opensearch ] ; then
-        /etc/rc.d/init.d/opensearch stop
+    elif [ -x /etc/rc.d/init.d/wazuh-indexer ] ; then
+        /etc/rc.d/init.d/wazuh-indexer stop
     fi
     echo " OK"
 fi
@@ -80,15 +80,15 @@ fi
 
 if [ "$REMOVE_SERVICE" = "true" ]; then
     if command -v systemctl >/dev/null; then
-        systemctl disable opensearch.service > /dev/null 2>&1 || true
+        systemctl disable wazuh-indexer.service > /dev/null 2>&1 || true
     fi
 
     if command -v chkconfig >/dev/null; then
-        chkconfig --del opensearch 2> /dev/null || true
+        chkconfig --del wazuh-indexer 2> /dev/null || true
     fi
 
     if command -v update-rc.d >/dev/null; then
-        update-rc.d opensearch remove >/dev/null || true
+        update-rc.d wazuh-indexer remove >/dev/null || true
     fi
 fi
 

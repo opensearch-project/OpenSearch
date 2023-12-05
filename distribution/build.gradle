@@ -360,15 +360,10 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
       }
     }
 
-    agentFiles = {
+    versionFile = {
       copySpec {
-        from(project(':libs:agent-sm:agent').prepareAgent) {
-          include '**/*.jar'
-          exclude '**/*-javadoc.jar'
-          exclude '**/*-sources.jar'
-          // strip the version since jvm.options is using agent without version
-          rename("opensearch-agent-${project.version}.jar", "opensearch-agent.jar")
-        }
+        from(rootProject.file('VERSION'))
+        fileMode 0644
       }
     }
 
@@ -538,18 +533,18 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
  *  <dt>path.conf</dt>
  *  <dd>The default directory from which to load configuration. This is used in
  *    the packaging scripts, but in that context it is always
- *    /etc/opensearch. Its also used in bin/opensearch-plugin, where it is
- *    /etc/opensearch for the os packages but $OPENSEARCH_HOME/config otherwise.</dd>
+ *    /etc/wazuh-indexer. Its also used in bin/opensearch-plugin, where it is
+ *    /etc/wazuh-indexer for the os packages but $OPENSEARCH_HOME/config otherwise.</dd>
  *  <dt>path.env</dt>
  *  <dd>The env file sourced before bin/opensearch to set environment
- *    variables. Think /etc/defaults/opensearch.</dd>
+ *    variables. Think /etc/defaults/wazuh-indexer.</dd>
  *  <dt>heap.min and heap.max</dt>
  *  <dd>Default min and max heap</dd>
  *  <dt>scripts.footer</dt>
  *  <dd>Footer appended to control scripts embedded in the distribution that is
  *    (almost) entirely there for cosmetic reasons.</dd>
  *  <dt>stopping.timeout</dt>
- *  <dd>RPM's init script needs to wait for opensearch to stop before
+ *  <dd>RPM's init script needs to wait for wazuh-indexer to stop before
  *    returning from stop and it needs a maximum time to wait. This is it. One
  *    day. DEB retries forever.</dd>
  * </dl>
@@ -557,8 +552,8 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
 subprojects {
   ext.expansionsForDistribution = { distributionType, jdk ->
     final String defaultHeapSize = "1g"
-    final String packagingPathData = "path.data: /var/lib/opensearch"
-    final String pathLogs = "/var/log/opensearch"
+    final String packagingPathData = "path.data: /var/lib/wazuh-indexer"
+    final String pathLogs = "/var/log/wazuh-indexer"
     final String packagingPathLogs = "path.logs: ${pathLogs}"
     final String packagingLoggc = "${pathLogs}/gc.log"
 
@@ -573,8 +568,8 @@ subprojects {
       'project.version': version,
 
       'path.conf': [
-        'deb': '/etc/opensearch',
-        'rpm': '/etc/opensearch',
+        'deb': '/etc/wazuh-indexer',
+        'rpm': '/etc/wazuh-indexer',
         'def': '"$OPENSEARCH_HOME"/config'
       ],
       'path.data': [
@@ -583,15 +578,15 @@ subprojects {
         'def': '#path.data: /path/to/data'
       ],
       'path.env': [
-        'deb': '/etc/default/opensearch',
-        'rpm': '/etc/sysconfig/opensearch',
+        'deb': '/etc/default/wazuh-indexer',
+        'rpm': '/etc/sysconfig/wazuh-indexer',
         /* There isn't one of these files for tar or zip but its important to
           make an empty string here so the script can properly skip it. */
         'def': 'if [ -z "$OPENSEARCH_PATH_CONF" ]; then OPENSEARCH_PATH_CONF="$OPENSEARCH_HOME"/config; done',
       ],
       'source.path.env': [
-        'deb': 'source /etc/default/opensearch',
-        'rpm': 'source /etc/sysconfig/opensearch',
+        'deb': 'source /etc/default/wazuh-indexer',
+        'rpm': 'source /etc/sysconfig/wazuh-indexer',
         'def': 'if [ -z "$OPENSEARCH_PATH_CONF" ]; then OPENSEARCH_PATH_CONF="$OPENSEARCH_HOME"/config; fi',
       ],
       'path.logs': [
@@ -609,14 +604,14 @@ subprojects {
       'heap.max': defaultHeapSize,
 
       'heap.dump.path': [
-        'deb': "-XX:HeapDumpPath=/var/lib/opensearch",
-        'rpm': "-XX:HeapDumpPath=/var/lib/opensearch",
+        'deb': "-XX:HeapDumpPath=/var/lib/wazuh-indexer",
+        'rpm': "-XX:HeapDumpPath=/var/lib/wazuh-indexer",
         'def': "-XX:HeapDumpPath=data"
       ],
 
       'error.file': [
-        'deb': "-XX:ErrorFile=/var/log/opensearch/hs_err_pid%p.log",
-        'rpm': "-XX:ErrorFile=/var/log/opensearch/hs_err_pid%p.log",
+        'deb': "-XX:ErrorFile=/usr/share/wazuh-indexer/hs_err_pid%p.log",
+        'rpm': "-XX:ErrorFile=/usr/share/wazuh-indexer/hs_err_pid%p.log",
         'def': "-XX:ErrorFile=logs/hs_err_pid%p.log"
       ],
 

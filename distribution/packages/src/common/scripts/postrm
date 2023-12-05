@@ -32,7 +32,7 @@ case "$1" in
         REMOVE_JVM_OPTIONS_DIRECTORY=true
         REMOVE_USER_AND_GROUP=true
     ;;
-    failed-upgrade|abort-install|abort-upgrade|disappear|upgrade|disappear)
+    failed-upgrade|abort-install|abort-upgrade|disappear|upgrade)
     ;;
 
     # RedHat ####################################################
@@ -53,34 +53,34 @@ esac
 
 if [ "$REMOVE_DIRS" = "true" ]; then
 
-    if [ -d /var/log/opensearch ]; then
+    if [ -d /var/log/wazuh-indexer ]; then
         echo -n "Deleting log directory..."
-        rm -rf /var/log/opensearch
+        rm -rf /var/log/wazuh-indexer
         echo " OK"
     fi
 
-    if [ -d /usr/share/opensearch/plugins ]; then
+    if [ -d /usr/share/wazuh-indexer/plugins ]; then
         echo -n "Deleting plugins directory..."
-        rm -rf /usr/share/opensearch/plugins
+        rm -rf /usr/share/wazuh-indexer/plugins
         echo " OK"
     fi
 
     # plugins may have contained bin files
-    if [ -d /usr/share/opensearch/bin ]; then
+    if [ -d /usr/share/wazuh-indexer/bin ]; then
         echo -n "Deleting plugin bin directories..."
-        rm -rf /usr/share/opensearch/bin
+        rm -rf /usr/share/wazuh-indexer/bin
         echo " OK"
     fi
 
-    if [ -d /var/run/opensearch ]; then
+    if [ -d /var/run/wazuh-indexer ]; then
         echo -n "Deleting PID directory..."
-        rm -rf /var/run/opensearch
+        rm -rf /var/run/wazuh-indexer
         echo " OK"
     fi
 
     # Delete the data directory if and only if empty
-    if [ -d /var/lib/opensearch ]; then
-        rmdir --ignore-fail-on-non-empty /var/lib/opensearch
+    if [ -d /var/lib/wazuh-indexer ]; then
+        rmdir --ignore-fail-on-non-empty /var/lib/wazuh-indexer
     fi
 
     # delete the jvm.options.d directory if and only if empty
@@ -105,12 +105,12 @@ if [ "$REMOVE_DIRS" = "true" ]; then
 fi
 
 if [ "$REMOVE_USER_AND_GROUP" = "true" ]; then
-    if id opensearch > /dev/null 2>&1 ; then
-        userdel opensearch
+    if id wazuh-indexer > /dev/null 2>&1 ; then
+        userdel wazuh-indexer
     fi
 
-    if getent group opensearch > /dev/null 2>&1 ; then
-        groupdel opensearch
+    if getent group wazuh-indexer > /dev/null 2>&1 ; then
+        groupdel wazuh-indexer
     fi
 fi
 

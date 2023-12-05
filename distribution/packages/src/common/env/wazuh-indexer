@@ -1,19 +1,19 @@
 ################################
-# OpenSearch
+# wazuh-indexer
 ################################
 
-# OpenSearch home directory
-OPENSEARCH_HOME=/usr/share/opensearch
+# wazuh-indexer home directory
+#OPENSEARCH_HOME=/usr/share/wazuh-indexer
 
-# OpenSearch Java path
-#OPENSEARCH_JAVA_HOME=/usr/lib/jvm/java-11-amazon-corretto
+# wazuh-indexer Java path
+#OPENSEARCH_JAVA_HOME=
 
-# OpenSearch configuration directory
+# wazuh-indexer configuration directory
 # Note: this setting will be shared with command-line tools
 OPENSEARCH_PATH_CONF=/etc/opensearch
 
-# OpenSearch PID directory
-PID_DIR=/var/run/opensearch
+# wazuh-indexer PID directory
+#PID_DIR=/var/run/wazuh-indexer
 
 # Additional Java OPTS
 #OPENSEARCH_JAVA_OPTS=
@@ -22,10 +22,12 @@ PID_DIR=/var/run/opensearch
 #RESTART_ON_UPGRADE=true
 
 ################################
-# OpenSearch service
+# wazuh-indexer service
 ################################
 
-# The number of seconds to wait before checking if OpenSearch started successfully as a daemon process
+# SysV init.d
+#
+# The number of seconds to wait before checking if wazuh-indexer started successfully as a daemon process
 OPENSEARCH_STARTUP_SLEEP_TIME=5
 
 # Notification for systemd
@@ -37,17 +39,17 @@ OPENSEARCH_SD_NOTIFY=true
 
 # Specifies the maximum file descriptor number that can be opened by this process
 # When using Systemd, this setting is ignored and the LimitNOFILE defined in
-# /usr/lib/systemd/system/opensearch.service takes precedence
+# /usr/lib/systemd/system/wazuh-indexer.service takes precedence
 #MAX_OPEN_FILES=65535
 
 # The maximum number of bytes of memory that may be locked into RAM
 # Set to "unlimited" if you use the 'bootstrap.memory_lock: true' option
 # in opensearch.yml.
 # When using systemd, LimitMEMLOCK must be set in a unit file such as
-# /etc/systemd/system/opensearch.service.d/override.conf.
+# /etc/systemd/system/wazuh-indexer.service.d/override.conf.
 #MAX_LOCKED_MEMORY=unlimited
 
 # Maximum number of VMA (Virtual Memory Areas) a process can own
 # When using Systemd, this setting is ignored and the 'vm.max_map_count'
-# property is set at boot time in /usr/lib/sysctl.d/opensearch.conf
+# property is set at boot time in /usr/lib/sysctl.d/wazuh-indexer.conf
 #MAX_MAP_COUNT=262144
