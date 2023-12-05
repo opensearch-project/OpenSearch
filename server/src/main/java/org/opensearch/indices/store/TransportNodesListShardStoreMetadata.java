@@ -126,8 +126,12 @@ public class TransportNodesListShardStoreMetadata extends TransportNodesAction<
     }
 
     @Override
-    public void list(Map<ShardId, ShardAttributes> shardAttributes, DiscoveryNode[] nodes, ActionListener<NodesStoreFilesMetadata> listener) {
-        assert shardAttributes.size() == 1 :  "only one shard should be specified";
+    public void list(
+        Map<ShardId, ShardAttributes> shardAttributes,
+        DiscoveryNode[] nodes,
+        ActionListener<NodesStoreFilesMetadata> listener
+    ) {
+        assert shardAttributes.size() == 1 : "only one shard should be specified";
         final ShardId shardId = shardAttributes.keySet().iterator().next();
         final String customDataPath = shardAttributes.get(shardId).getCustomDataPath();
         execute(new Request(shardId, customDataPath, nodes), listener);

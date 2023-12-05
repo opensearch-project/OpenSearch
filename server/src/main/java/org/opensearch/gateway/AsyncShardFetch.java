@@ -104,7 +104,7 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
     ) {
         this.logger = logger;
         this.type = type;
-        shardAttributesMap =new HashMap<>();
+        shardAttributesMap = new HashMap<>();
         shardAttributesMap.put(shardId, new ShardAttributes(shardId, customDataPath));
         this.action = (Lister<BaseNodesResponse<T>, T>) action;
         this.reroutingKey = "ShardId=[" + shardId.toString() + "]";
@@ -132,7 +132,7 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
         this.type = type;
         this.shardAttributesMap = shardAttributesMap;
         this.action = (Lister<BaseNodesResponse<T>, T>) action;
-        this.reroutingKey = "BatchID=[" + batchId+ "]";
+        this.reroutingKey = "BatchID=[" + batchId + "]";
         enableBatchMode = true;
     }
 
@@ -169,10 +169,11 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
         if (enableBatchMode == false) {
             // we will do assertions here on ignoreNodes
             if (ignoreNodes.size() > 1) {
-                throw new IllegalStateException("Fetching Shard Data, " + reroutingKey + "Can only have atmost one shard" +
-                    "for non-batch mode" );
+                throw new IllegalStateException(
+                    "Fetching Shard Data, " + reroutingKey + "Can only have atmost one shard" + "for non-batch mode"
+                );
             }
-            if(ignoreNodes.size() == 1) {
+            if (ignoreNodes.size() == 1) {
                 if (shardAttributesMap.containsKey(ignoreNodes.keySet().iterator().next()) == false) {
                     throw new IllegalStateException("Shard Id must be same as initialized in AsyncShardFetch. Expecting = " + reroutingKey);
                 }
@@ -236,9 +237,16 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
             // if at least one node failed, make sure to have a protective reroute
             // here, just case this round won't find anything, and we need to retry fetching data
 
-            if (failedNodes.isEmpty() == false || allIgnoreNodesMap.values().stream().anyMatch(ignoreNodeSet -> ignoreNodeSet.isEmpty() == false)) {
-                reroute(reroutingKey, "nodes failed [" + failedNodes.size() + "], ignored ["
-                    + allIgnoreNodesMap.values().stream().mapToInt(Set::size).sum() + "]");
+            if (failedNodes.isEmpty() == false
+                || allIgnoreNodesMap.values().stream().anyMatch(ignoreNodeSet -> ignoreNodeSet.isEmpty() == false)) {
+                reroute(
+                    reroutingKey,
+                    "nodes failed ["
+                        + failedNodes.size()
+                        + "], ignored ["
+                        + allIgnoreNodesMap.values().stream().mapToInt(Set::size).sum()
+                        + "]"
+                );
             }
 
             return new FetchResult<>(fetchData, allIgnoreNodesMap);
@@ -334,7 +342,7 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
     /**
      * Implement this in order to scheduled another round that causes a call to fetch data.
      */
-    protected abstract void reroute(String logKey, String reason);
+    protected abstract void reroute(String reroutingKey, String reason);
 
     /**
      * Clear cache for node, ensuring next fetch will fetch a fresh copy.
