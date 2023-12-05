@@ -231,6 +231,9 @@ teardown:
 # Related issue: https://github.com/opensearch-project/OpenSearch/issues/1578
 ---
 "Test remove processor with exclude_field":
+  - skip:
+      version: " - 2.11.99"
+      reason: "exclude_field is introduced in 2.12"
   - do:
       ingest.put_pipeline:
         id: "my_pipeline"
