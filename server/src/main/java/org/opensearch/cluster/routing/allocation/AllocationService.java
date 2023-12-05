@@ -75,7 +75,7 @@ import java.util.stream.Collectors;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 import static org.opensearch.cluster.routing.UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING;
-import static org.opensearch.cluster.routing.allocation.ExistingShardsAllocator.EXISTING_SHARDS_ALLOCATOR_BATCH_MODE_ENABLED;
+import static org.opensearch.cluster.routing.allocation.ExistingShardsAllocator.EXISTING_SHARDS_ALLOCATOR_BATCH_MODE;
 
 /**
  * This service manages the node allocation of a cluster. For this reason the
@@ -114,11 +114,7 @@ public class AllocationService {
         ClusterInfoService clusterInfoService,
         SnapshotsInfoService snapshotsInfoService
     ) {
-        this.allocationDeciders = allocationDeciders;
-        this.shardsAllocator = shardsAllocator;
-        this.clusterInfoService = clusterInfoService;
-        this.snapshotsInfoService = snapshotsInfoService;
-        this.settings = Settings.EMPTY;
+        this(allocationDeciders, shardsAllocator, clusterInfoService, snapshotsInfoService, Settings.EMPTY);
     }
 
     public AllocationService(
@@ -568,7 +564,7 @@ public class AllocationService {
             existingShardsAllocator.beforeAllocation(allocation);
         }
 
-        Boolean batchModeEnabled = EXISTING_SHARDS_ALLOCATOR_BATCH_MODE_ENABLED.get(settings);
+        Boolean batchModeEnabled = EXISTING_SHARDS_ALLOCATOR_BATCH_MODE.get(settings);
 
         if (batchModeEnabled && allocation.nodes().getMinNodeVersion().onOrAfter(Version.CURRENT)) {
             // since allocators is per index setting, to have batch assignment verify allocators same for all shards
