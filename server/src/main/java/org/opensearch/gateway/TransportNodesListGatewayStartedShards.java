@@ -62,6 +62,7 @@ import org.opensearch.index.shard.ShardStateMetadata;
 import org.opensearch.index.store.Store;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
+import org.opensearch.indices.store.ShardAttributes;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportRequest;
 import org.opensearch.transport.TransportService;
@@ -125,14 +126,10 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesAction
     }
 
     @Override
-    public void list(
-        Map<ShardId, String> shardIdsWithCustomDataPath,
-        DiscoveryNode[] nodes,
-        ActionListener<NodesGatewayStartedShards> listener
-    ) {
-        assert shardIdsWithCustomDataPath.size() == 1 : "only one shard should be specified";
-        final ShardId shardId = shardIdsWithCustomDataPath.keySet().iterator().next();
-        final String customDataPath = shardIdsWithCustomDataPath.get(shardId);
+    public void list(Map<ShardId, ShardAttributes> shardAttributesMap, DiscoveryNode[] nodes, ActionListener<NodesGatewayStartedShards> listener) {
+        assert shardAttributesMap.size() == 1 : "only one shard should be specified";
+        final ShardId shardId = shardAttributesMap.keySet().iterator().next();
+        final String customDataPath = shardAttributesMap.get(shardId).getCustomDataPath();
         execute(new Request(shardId, customDataPath, nodes), listener);
     }
 

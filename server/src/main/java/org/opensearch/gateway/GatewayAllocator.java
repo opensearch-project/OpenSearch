@@ -53,6 +53,7 @@ import org.opensearch.common.util.concurrent.ConcurrentCollections;
 import org.opensearch.common.util.set.Sets;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.indices.store.ShardAttributes;
 import org.opensearch.indices.store.TransportNodesListShardStoreMetadata;
 
 import java.util.Collections;
@@ -227,8 +228,8 @@ public class GatewayAllocator implements ExistingShardsAllocator {
         AsyncShardFetch<TransportNodesListShardStoreMetadata.NodeStoreFilesMetadata> fetch,
         RoutingAllocation allocation
     ) {
-        assert fetch.shardToCustomDataPath.size() == 1 : "expected only one shard";
-        ShardId shardId = fetch.shardToCustomDataPath.keySet().iterator().next();
+        assert fetch.shardAttributesMap.size() == 1 : "expected only one shard";
+        ShardId shardId = fetch.shardAttributesMap.keySet().iterator().next();
         ShardRouting primary = allocation.routingNodes().activePrimary(shardId);
         if (primary != null) {
             fetch.clearCacheForNode(primary.currentNodeId());
@@ -257,15 +258,15 @@ public class GatewayAllocator implements ExistingShardsAllocator {
         }
 
         @Override
-        protected void reroute(String logKey, String reason) {
-            logger.trace("{} scheduling reroute for {}", logKey, reason);
+        protected void reroute(String reroutingKey, String reason) {
+            logger.trace("{} scheduling reroute for {}", reroutingKey, reason);
             assert rerouteService != null;
             rerouteService.reroute(
                 "async_shard_fetch",
                 Priority.HIGH,
                 ActionListener.wrap(
-                    r -> logger.trace("{} scheduled reroute completed for {}", logKey, reason),
-                    e -> logger.debug(new ParameterizedMessage("{} scheduled reroute failed for {}", logKey, reason), e)
+                    r -> logger.trace("{} scheduled reroute completed for {}", reroutingKey, reason),
+                    e -> logger.debug(new ParameterizedMessage("{} scheduled reroute failed for {}", reroutingKey, reason), e)
                 )
             );
         }
