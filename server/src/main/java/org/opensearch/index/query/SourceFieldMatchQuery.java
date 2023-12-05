@@ -83,7 +83,7 @@ public class SourceFieldMatchQuery extends Query {
     @Override
     public Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) throws IOException {
 
-        Weight weight = delegateQuery.createWeight(searcher, scoreMode, boost);
+        Weight weight = delegateQuery.createWeight(searcher, ScoreMode.TOP_DOCS, boost);
 
         return new ConstantScoreWeight(this, boost) {
 
@@ -108,7 +108,6 @@ public class SourceFieldMatchQuery extends Query {
                             return false;
                         }
                         MemoryIndex memoryIndex = new MemoryIndex();
-
                         for (Object value : values) {
                             memoryIndex.addField(fieldType.name(), (String) value, fieldType.indexAnalyzer());
                         }
@@ -122,7 +121,7 @@ public class SourceFieldMatchQuery extends Query {
                         return 1000f;
                     }
                 };
-                return new ConstantScoreScorer(this, score(), scoreMode, twoPhase);
+                return new ConstantScoreScorer(this, score(), ScoreMode.TOP_DOCS, twoPhase);
             }
 
             @Override

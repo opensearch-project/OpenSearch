@@ -27,7 +27,7 @@ public class SourceFieldMatchQueryTests extends MapperServiceTestCase {
 
     public void testAllPossibleScenarios() throws IOException {
         MapperService mapperService = createMapperService(mapping(b -> {
-            b.startObject("desert");
+            b.startObject("dessert");
             {
                 b.field("type", "match_only_text");
             }
@@ -35,46 +35,46 @@ public class SourceFieldMatchQueryTests extends MapperServiceTestCase {
         }));
 
         QueryShardContext queryShardContext = createQueryShardContext(mapperService);
-        when(queryShardContext.sourcePath("desert")).thenReturn(Set.of("desert"));
+        when(queryShardContext.sourcePath("dessert")).thenReturn(Set.of("dessert"));
         when(queryShardContext.index()).thenReturn(new Index("test_index", "uuid"));
 
-        String[] deserts = new String[] { "apple pie pie", "banana split pie", "chocolate cake" };
+        String[] desserts = new String[] { "apple pie pie", "banana split pie", "chocolate cake" };
         List<ParsedDocument> docs = new ArrayList<>();
-        for (String desert : deserts) {
-            docs.add(mapperService.documentMapper().parse(source(b -> b.field("desert", desert))));
+        for (String dessert : desserts) {
+            docs.add(mapperService.documentMapper().parse(source(b -> b.field("dessert", dessert))));
         }
         SourceFieldMatchQuery matchBoth = new SourceFieldMatchQuery(
-            QueryBuilders.matchQuery("desert", "apple").doToQuery(queryShardContext),  // Delegate query
-            QueryBuilders.matchQuery("desert", "pie").doToQuery(queryShardContext),    // Filter query
-            queryShardContext.getFieldType("desert"),
+            QueryBuilders.matchQuery("dessert", "apple").doToQuery(queryShardContext),  // Delegate query
+            QueryBuilders.matchQuery("dessert", "pie").doToQuery(queryShardContext),    // Filter query
+            queryShardContext.getFieldType("dessert"),
             queryShardContext
         );
 
         SourceFieldMatchQuery matchDelegate = new SourceFieldMatchQuery(
-            QueryBuilders.matchQuery("desert", "apple").doToQuery(queryShardContext),  // Delegate query
-            QueryBuilders.matchQuery("desert", "juice").doToQuery(queryShardContext),    // Filter query
-            queryShardContext.getFieldType("desert"),
+            QueryBuilders.matchQuery("dessert", "apple").doToQuery(queryShardContext),  // Delegate query
+            QueryBuilders.matchQuery("dessert", "juice").doToQuery(queryShardContext),    // Filter query
+            queryShardContext.getFieldType("dessert"),
             queryShardContext
         );
 
         SourceFieldMatchQuery matchFilter = new SourceFieldMatchQuery(
-            QueryBuilders.matchQuery("desert", "tart").doToQuery(queryShardContext),  // Delegate query
-            QueryBuilders.matchQuery("desert", "pie").doToQuery(queryShardContext),    // Filter query
-            queryShardContext.getFieldType("desert"),
+            QueryBuilders.matchQuery("dessert", "tart").doToQuery(queryShardContext),  // Delegate query
+            QueryBuilders.matchQuery("dessert", "pie").doToQuery(queryShardContext),    // Filter query
+            queryShardContext.getFieldType("dessert"),
             queryShardContext
         );
 
         SourceFieldMatchQuery matchNone = new SourceFieldMatchQuery(
-            QueryBuilders.matchQuery("desert", "gulab").doToQuery(queryShardContext),  // Delegate query
-            QueryBuilders.matchQuery("desert", "jamun").doToQuery(queryShardContext),    // Filter query
-            queryShardContext.getFieldType("desert"),
+            QueryBuilders.matchQuery("dessert", "gulab").doToQuery(queryShardContext),  // Delegate query
+            QueryBuilders.matchQuery("dessert", "jamun").doToQuery(queryShardContext),    // Filter query
+            queryShardContext.getFieldType("dessert"),
             queryShardContext
         );
 
         SourceFieldMatchQuery matchMultipleDocs = new SourceFieldMatchQuery(
             QueryBuilders.matchAllQuery().toQuery(queryShardContext),  // Delegate query
-            QueryBuilders.matchQuery("desert", "pie").doToQuery(queryShardContext),    // Filter query
-            queryShardContext.getFieldType("desert"),
+            QueryBuilders.matchQuery("dessert", "pie").doToQuery(queryShardContext),    // Filter query
+            queryShardContext.getFieldType("dessert"),
             queryShardContext
         );
 
@@ -109,14 +109,14 @@ public class SourceFieldMatchQueryTests extends MapperServiceTestCase {
     public void testSourceDisabled() throws IOException {
         MapperService mapperService = createMapperService(topMapping(b -> b.startObject("_source").field("enabled", false).endObject()));
         QueryShardContext queryShardContext = createQueryShardContext(mapperService);
-        when(queryShardContext.sourcePath("desert")).thenReturn(Set.of("desert"));
+        when(queryShardContext.sourcePath("dessert")).thenReturn(Set.of("dessert"));
         when(queryShardContext.index()).thenReturn(new Index("test_index", "uuid"));
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
             () -> new SourceFieldMatchQuery(
-                QueryBuilders.matchQuery("desert", "apple").doToQuery(queryShardContext),  // Delegate query
-                QueryBuilders.matchQuery("desert", "pie").doToQuery(queryShardContext),    // Filter query
-                queryShardContext.getFieldType("desert"),
+                QueryBuilders.matchQuery("dessert", "apple").doToQuery(queryShardContext),  // Delegate query
+                QueryBuilders.matchQuery("dessert", "pie").doToQuery(queryShardContext),    // Filter query
+                queryShardContext.getFieldType("dessert"),
                 queryShardContext
             )
         );
@@ -129,25 +129,25 @@ public class SourceFieldMatchQueryTests extends MapperServiceTestCase {
 
     public void testMissingField() throws IOException {
         MapperService mapperService = createMapperService(mapping(b -> {
-            b.startObject("desert");
+            b.startObject("dessert");
             {
                 b.field("type", "match_only_text");
             }
             b.endObject();
         }));
         QueryShardContext queryShardContext = createQueryShardContext(mapperService);
-        when(queryShardContext.sourcePath("desert")).thenReturn(Set.of("desert"));
+        when(queryShardContext.sourcePath("dessert")).thenReturn(Set.of("dessert"));
         when(queryShardContext.index()).thenReturn(new Index("test_index", "uuid"));
 
-        String[] deserts = new String[] { "apple pie pie", "banana split pie", "chocolate cake" };
+        String[] desserts = new String[] { "apple pie pie", "banana split pie", "chocolate cake" };
         List<ParsedDocument> docs = new ArrayList<>();
-        for (String desert : deserts) {
-            docs.add(mapperService.documentMapper().parse(source(b -> b.field("desert", desert))));
+        for (String dessert : desserts) {
+            docs.add(mapperService.documentMapper().parse(source(b -> b.field("dessert", dessert))));
         }
         SourceFieldMatchQuery matchDelegate = new SourceFieldMatchQuery(
-            QueryBuilders.matchQuery("desert", "apple").doToQuery(queryShardContext),  // Delegate query
+            QueryBuilders.matchQuery("dessert", "apple").doToQuery(queryShardContext),  // Delegate query
             QueryBuilders.matchQuery("username", "pie").doToQuery(queryShardContext),    // Filter query missing field
-            queryShardContext.getFieldType("desert"),
+            queryShardContext.getFieldType("dessert"),
             queryShardContext
         );
         withLuceneIndex(mapperService, iw -> {
