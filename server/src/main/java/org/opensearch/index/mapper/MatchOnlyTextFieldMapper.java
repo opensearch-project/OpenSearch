@@ -137,7 +137,6 @@ public class MatchOnlyTextFieldMapper extends TextFieldMapper {
 
         @Override
         public MatchOnlyTextFieldMapper build(BuilderContext context) {
-            // TODO - disable norms and index-options and validate
             FieldType fieldType = TextParams.buildFieldType(index, store, indexOptions, norms, termVectors);
             MatchOnlyTextFieldType tft = buildFieldType(fieldType, context);
             return new MatchOnlyTextFieldMapper(
@@ -167,9 +166,6 @@ public class MatchOnlyTextFieldMapper extends TextFieldMapper {
                         "Cannot set position_increment_gap on field [" + name + "] without indexing enabled"
                     );
                 }
-                // for index analyzer we don't set positionIncrementGap whereas for search analyzer its set because
-                // phrase queries, which make use of it, should work fine as they will directly work on the field value
-                // per matched document by reading from _source field.
                 indexAnalyzer = new NamedAnalyzer(indexAnalyzer, positionIncrementGap.get());
                 searchAnalyzer = new NamedAnalyzer(searchAnalyzer, positionIncrementGap.get());
                 searchQuoteAnalyzer = new NamedAnalyzer(searchQuoteAnalyzer, positionIncrementGap.get());
@@ -220,7 +216,7 @@ public class MatchOnlyTextFieldMapper extends TextFieldMapper {
      *
      * @opensearch.internal
      */
-    public static final class MatchOnlyTextFieldType extends TextFieldMapper.TextFieldType {
+    public static final class MatchOnlyTextFieldType extends TextFieldType {
         private final boolean indexPhrases = false;
 
         private PrefixFieldType prefixFieldType;
