@@ -8,9 +8,14 @@
 
 package org.opensearch.index.query;
 
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
+import org.apache.lucene.store.Directory;
 import org.opensearch.core.index.Index;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.MapperServiceTestCase;
@@ -77,13 +82,14 @@ public class SourceFieldMatchQueryTests extends MapperServiceTestCase {
             queryShardContext.getFieldType("dessert"),
             queryShardContext
         );
-
-        withLuceneIndex(mapperService, iw -> {
-            for (ParsedDocument d : docs) {
-                iw.addDocument(d.rootDoc());
-            }
-        }, reader -> {
-            IndexSearcher searcher = newSearcher(reader);
+        Directory dir = newDirectory();
+        IndexWriter iw = new IndexWriter(dir, new IndexWriterConfig(mapperService.indexAnalyzer()));
+        for (ParsedDocument d : docs) {
+            iw.addDocument(d.rootDoc());
+        }
+        try (IndexReader reader = DirectoryReader.open(iw)) {
+            iw.close();
+            IndexSearcher searcher = new IndexSearcher(reader);
             TopDocs topDocs = searcher.search(matchBoth, 10);
             assertEquals(topDocs.totalHits.value, 1);
             assertEquals(topDocs.scoreDocs[0].doc, 0);
@@ -103,7 +109,8 @@ public class SourceFieldMatchQueryTests extends MapperServiceTestCase {
             for (ScoreDoc scoreDoc : topDocs.scoreDocs) {
                 assertEquals(scoreDoc.score, 1.0, 0.00000000001);
             }
-        });
+        }
+        dir.close();
     }
 
     public void testSourceDisabled() throws IOException {
@@ -150,14 +157,17 @@ public class SourceFieldMatchQueryTests extends MapperServiceTestCase {
             queryShardContext.getFieldType("dessert"),
             queryShardContext
         );
-        withLuceneIndex(mapperService, iw -> {
-            for (ParsedDocument d : docs) {
-                iw.addDocument(d.rootDoc());
-            }
-        }, reader -> {
-            IndexSearcher searcher = newSearcher(reader);
+        Directory dir = newDirectory();
+        IndexWriter iw = new IndexWriter(dir, new IndexWriterConfig(mapperService.indexAnalyzer()));
+        for (ParsedDocument d : docs) {
+            iw.addDocument(d.rootDoc());
+        }
+        try (IndexReader reader = DirectoryReader.open(iw)) {
+            iw.close();
+            IndexSearcher searcher = new IndexSearcher(reader);
             TopDocs topDocs = searcher.search(matchDelegate, 10);
             assertEquals(topDocs.totalHits.value, 0);
-        });
+        }
+        dir.close();
     }
 }
