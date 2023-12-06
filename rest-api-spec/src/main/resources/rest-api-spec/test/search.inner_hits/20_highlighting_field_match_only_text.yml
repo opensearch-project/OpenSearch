@@ -1,7 +1,7 @@
 setup:
   - skip:
-      version: " - 2.11.99"
-      reason: "match_only_text field was introduced in 2.12.0"
+      version: " - 2.99.99"
+      reason: "match_only_text was added in 3.0"
   - do:
       indices.create:
         index: test
@@ -89,9 +89,6 @@ setup:
 
 ---
 "Unified highlighter with stored fields and disabled source":
-  - skip:
-      version: "- 7.10.1"
-      reason: "bug fix introduced in 7.10.2"
   - do:
       indices.create:
         index: disabled_source

@@ -1,4 +1,7 @@
 "ngram search":
+  - skip:
+      version: " - 2.99.99"
+      reason: "match_only_text was added in 3.0"
   - do:
       indices.create:
         index: test
@@ -41,6 +44,9 @@
 
 ---
 "testNGramCopyField":
+  - skip:
+      version: " - 2.99.99"
+      reason: "match_only_text was added in 3.0"
   - do:
       indices.create:
         index: test

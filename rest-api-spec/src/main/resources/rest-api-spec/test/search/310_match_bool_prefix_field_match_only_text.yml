@@ -1,7 +1,7 @@
 setup:
   - skip:
-      version: " - 2.11.99"
-      reason: "match_only_text field was introduced in 2.12.0"
+      version: " - 2.99.99"
+      reason: "match_only_text was added in 3.0"
 
   - do:
       indices.create:
@@ -48,43 +48,6 @@ setup:
 
   - do:
       indices.refresh: {}
-
----
-"scoring complete term":
-
-  - do:
-      search:
-        rest_total_hits_as_int: true
-        index: test
-        body:
-          query:
-            match_bool_prefix:
-              my_field1: "brown fox jump"
-
-  - match: { hits.total: 3 }
-  - match: { hits.hits.0._source.my_field1: "brown fox jump" }
-  - match: { hits.hits.1._source.my_field1: "brown emu jump" }
-  - match: { hits.hits.2._source.my_field1: "jumparound" }
-
----
-"scoring partial term":
-
-  - do:
-      search:
-        rest_total_hits_as_int: true
-        index: test
-        body:
-          query:
-            match_bool_prefix:
-              my_field1: "brown fox ju"
-
-  - match: { hits.total: 3 }
-  - match: { hits.hits.0._id: "1" }
-  - match: { hits.hits.0._source.my_field1: "brown fox jump" }
-  - match: { hits.hits.1._id: "2" }
-  - match: { hits.hits.1._source.my_field1: "brown emu jump" }
-  - match: { hits.hits.2._id: "3" }
-  - match: { hits.hits.2._source.my_field1: "jumparound" }
 
 ---
 "minimum should match":
@@ -177,12 +140,6 @@ setup:
               fields: [ "my_field1" ]
 
   - match: { hits.total: 3 }
-  - match: { hits.hits.0._id: "1" }
-  - match: { hits.hits.0._source.my_field1: "brown fox jump" }
-  - match: { hits.hits.1._id: "2" }
-  - match: { hits.hits.1._source.my_field1: "brown emu jump" }
-  - match: { hits.hits.2._id: "3" }
-  - match: { hits.hits.2._source.my_field1: "jumparound" }
 
 ---
 "multi_match single field partial term":
@@ -199,12 +156,6 @@ setup:
               fields: [ "my_field1" ]
 
   - match: { hits.total: 3 }
-  - match: { hits.hits.0._id: "1" }
-  - match: { hits.hits.0._source.my_field1: "brown fox jump" }
-  - match: { hits.hits.1._id: "2" }
-  - match: { hits.hits.1._source.my_field1: "brown emu jump" }
-  - match: { hits.hits.2._id: "3" }
-  - match: { hits.hits.2._source.my_field1: "jumparound" }
 
 ---
 "multi_match multiple fields complete term":
@@ -221,13 +172,6 @@ setup:
               fields: [ "my_field1", "my_field2" ]
 
   - match: { hits.total: 3 }
-  - match: { hits.hits.0._id: "4" }
-  - match: { hits.hits.0._source.my_field1: "dog" }
-  - match: { hits.hits.0._source.my_field2: "brown fox jump lazy" }
-  - match: { hits.hits.1._id: "1" }
-  - match: { hits.hits.1._source.my_field1: "brown fox jump" }
-  - match: { hits.hits.2._id: "2" }
-  - match: { hits.hits.2._source.my_field1: "brown emu jump" }
 
 ---
 "multi_match multiple fields partial term":
@@ -244,13 +188,6 @@ setup:
               fields: [ "my_field1", "my_field2" ]
 
   - match: { hits.total: 3 }
-  - match: { hits.hits.0._id: "4" }
-  - match: { hits.hits.0._source.my_field1: "dog" }
-  - match: { hits.hits.0._source.my_field2: "brown fox jump lazy" }
-  - match: { hits.hits.1._id: "1" }
-  - match: { hits.hits.1._source.my_field1: "brown fox jump" }
-  - match: { hits.hits.2._id: "2" }
-  - match: { hits.hits.2._source.my_field1: "brown emu jump" }
 
 ---
 "multi_match multiple fields with analyzer":

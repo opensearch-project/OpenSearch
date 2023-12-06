@@ -2,7 +2,6 @@ setup:
   - skip:
       version: " - 2.99.99"
       reason: "match_only_text was added in 3.0"
-  - skip:
       features: ["headers"]
 
   - do:
@@ -118,4 +117,3 @@ setup:
               field: match_only_text
 
   - match: {hits.total: 0}
-
