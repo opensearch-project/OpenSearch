@@ -1,6 +1,8 @@
 ---
 "Test common terms query with stacked tokens":
   - skip:
+      version: " - 2.99.99"
+      reason: "match_only_text was added in 3.0"
       features: "allowed_warnings"
 
   - do:
@@ -244,6 +246,9 @@
 
 ---
 "Test match query with synonyms - see #3881 for extensive description of the issue":
+  - skip:
+      version: " - 2.99.99"
+      reason: "match_only_text was added in 3.0"
   - do:
       indices.create:
           index: test

@@ -247,6 +247,8 @@ public class MatchOnlyTextFieldMapper extends TextFieldMapper {
             BooleanQuery.Builder builder = new BooleanQuery.Builder();
             for (Term[] terms : multiPhraseQuery.getTermArrays()) {
                 if (terms.length > 1) {
+                    // Multiple terms in the same position, creating a disjunction query for it and
+                    // adding it to conjunction query
                     BooleanQuery.Builder disjunctions = new BooleanQuery.Builder();
                     for (Term term : terms) {
                         disjunctions.add(new TermQuery(term), BooleanClause.Occur.SHOULD);
@@ -266,11 +268,15 @@ public class MatchOnlyTextFieldMapper extends TextFieldMapper {
             BooleanQuery.Builder builder = new BooleanQuery.Builder();
             for (int i = 0; i < termArray.size(); i++) {
                 if (i == termArray.size() - 1) {
+                    // last element of the term Array is a prefix, thus creating a prefix query for it and adding it to
+                    // conjunction query
                     MultiPhrasePrefixQuery mqb = new MultiPhrasePrefixQuery(name());
                     mqb.add(termArray.get(i).toArray(new Term[0]));
                     builder.add(mqb, BooleanClause.Occur.FILTER);
                 } else {
                     if (termArray.get(i).size() > 1) {
+                        // multiple terms in the same position, creating a disjunction query for it and
+                        // adding it to conjunction query
                         BooleanQuery.Builder disjunctions = new BooleanQuery.Builder();
                         for (Term term : termArray.get(i)) {
                             disjunctions.add(new TermQuery(term), BooleanClause.Occur.SHOULD);

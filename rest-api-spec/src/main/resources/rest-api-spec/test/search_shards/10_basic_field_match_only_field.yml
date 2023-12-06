@@ -1,18 +1,9 @@
 ---
-"Basic /_search_shards test":
-  - do:
-      indices.create:
-        index: test_1
-
-  - do:
-      search_shards:
-        index:  test_1
-        routing: foo
-
-  - match: { shards.0.0.index: test_1 }
-
----
 "Search shards aliases with and without filters":
+  - skip:
+      version: " - 2.99.99"
+      reason: "match_only_text was added in 3.0"
+
   - do:
       indices.create:
         index: test_index

@@ -354,34 +354,34 @@ public abstract class MappedFieldType {
     }
 
     public Query phraseQuery(TokenStream stream, int slop, boolean enablePositionIncrements) throws IOException {
-        return phraseQuery(stream, slop, enablePositionIncrements, null);
-    }
-
-    public Query phraseQuery(TokenStream stream, int slop, boolean enablePositionIncrements, QueryShardContext context) throws IOException {
         throw new IllegalArgumentException(
             "Can only use phrase queries on text fields - not on [" + name + "] which is of type [" + typeName() + "]"
         );
     }
 
+    public Query phraseQuery(TokenStream stream, int slop, boolean enablePositionIncrements, QueryShardContext context) throws IOException {
+        return phraseQuery(stream, slop, enablePositionIncrements);
+    }
+
     public Query multiPhraseQuery(TokenStream stream, int slop, boolean enablePositionIncrements) throws IOException {
-        return multiPhraseQuery(stream, slop, enablePositionIncrements, null);
+        throw new IllegalArgumentException(
+            "Can only use phrase queries on text fields - not on [" + name + "] which is of type [" + typeName() + "]"
+        );
     }
 
     public Query multiPhraseQuery(TokenStream stream, int slop, boolean enablePositionIncrements, QueryShardContext context)
         throws IOException {
-        throw new IllegalArgumentException(
-            "Can only use phrase queries on text fields - not on [" + name + "] which is of type [" + typeName() + "]"
-        );
+        return multiPhraseQuery(stream, slop, enablePositionIncrements);
     }
 
     public Query phrasePrefixQuery(TokenStream stream, int slop, int maxExpansions) throws IOException {
-        return phrasePrefixQuery(stream, slop, maxExpansions, null);
-    }
-
-    public Query phrasePrefixQuery(TokenStream stream, int slop, int maxExpansions, QueryShardContext context) throws IOException {
         throw new IllegalArgumentException(
             "Can only use phrase prefix queries on text fields - not on [" + name + "] which is of type [" + typeName() + "]"
         );
+    }
+
+    public Query phrasePrefixQuery(TokenStream stream, int slop, int maxExpansions, QueryShardContext context) throws IOException {
+        return phrasePrefixQuery(stream, slop, maxExpansions);
     }
 
     public SpanQuery spanPrefixQuery(String value, SpanMultiTermQueryWrapper.SpanRewriteMethod method, QueryShardContext context) {
