@@ -510,6 +510,74 @@ setup:
   - match: { aggregations.1.2.buckets.1.doc_count:  1 }
 
 ---
+"Composite aggregation with filtered nested parent":
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          aggregations:
+            1:
+              nested:
+                path: nested
+              aggs:
+                2:
+                  filter:
+                    range:
+                      nested.nested_long:
+                        gt: 0
+                        lt: 100
+                  aggs:
+                    3:
+                      composite:
+                        sources: [
+                          "nested": {
+                            "terms": {
+                              "field": "nested.nested_long"
+                            }
+                          }
+                        ]
+
+  - match: {hits.total: 6}
+  - length: { aggregations.1.2.3.buckets: 2 }
+  - match: { aggregations.1.2.3.buckets.0.key.nested: 10 }
+  - match: { aggregations.1.2.3.buckets.0.doc_count:  2 }
+  - match: { aggregations.1.2.3.buckets.1.key.nested: 20 }
+  - match: { aggregations.1.2.3.buckets.1.doc_count:  2 }
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          aggregations:
+            1:
+              nested:
+                path: nested
+              aggs:
+                2:
+                  filter:
+                    range:
+                      nested.nested_long:
+                        gt: 0
+                        lt: 100
+                  aggs:
+                    3:
+                      composite:
+                        after: { "nested": 10 }
+                        sources: [
+                          "nested": {
+                            "terms": {
+                              "field": "nested.nested_long"
+                            }
+                          }
+                        ]
+  - match: {hits.total: 6}
+  - length: { aggregations.1.2.3.buckets: 1 }
+  - match: { aggregations.1.2.3.buckets.0.key.nested: 20 }
+  - match: { aggregations.1.2.3.buckets.0.doc_count:  2 }
+
+
+---
 "Composite aggregation with unmapped field":
   - skip:
       version: " - 7.1.99"
