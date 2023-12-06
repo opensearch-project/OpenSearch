@@ -73,7 +73,12 @@ import org.opensearch.search.sort.SortAndFormats;
 import org.opensearch.search.aggregations.bucket.FilterRewriteHelper;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.function.LongUnaryOperator;
 import java.util.stream.Collectors;
 
@@ -160,7 +165,6 @@ final class CompositeAggregator extends BucketsAggregator {
         FilterRewriteHelper.ValueSourceContext dateHistogramSourceContext = new FilterRewriteHelper.ValueSourceContext(
             dateHistogramSourceConfig.missingBucket(),
             dateHistogramSourceConfig.hasScript(),
-            // TODO reading this can be null, and that's why we support missing
             dateHistogramSourceConfig.fieldType()
         );
         FilterRewriteHelper.FilterContext filterContext = FilterRewriteHelper.buildFastFilterContext(
@@ -181,6 +185,18 @@ final class CompositeAggregator extends BucketsAggregator {
             fieldType = null;
         }
     }
+
+    // private long[] computeBounds(final FilterRewriteHelper.ValueSourceContext fieldContext) {
+    //     final long[] bounds = FilterRewriteHelper.getAggregationBounds(context, fieldContext.getFieldType().name());
+    //     if (bounds != null) {
+    //         // Update min/max limit if user specified any hard bounds
+    //         if (hardBounds != null) {
+    //             bounds[0] = Math.max(bounds[0], hardBounds.getMin());
+    //             bounds[1] = Math.min(bounds[1], hardBounds.getMax() - 1); // hard bounds max is exclusive
+    //         }
+    //     }
+    //     return bounds;
+    // }
 
     @Override
     protected void doClose() {
@@ -237,17 +253,14 @@ final class CompositeAggregator extends BucketsAggregator {
             );
         }
 
-
+        // For the fast filters optimization
         if (bucketOrds.size() != 0) {
-            // transform existing buckets into map if not 0
-            // this is for the case where we have duplicate buckets, we need to add bucketOrds content into buckets
             Map<CompositeKey, InternalComposite.InternalBucket> bucketMap = new HashMap<>();
             for (InternalComposite.InternalBucket internalBucket : buckets) {
                 bucketMap.put(internalBucket.getRawKey(), internalBucket);
             }
-            // need to add bucketOrds content into buckets
+
             LongKeyedBucketOrds.BucketOrdsEnum ordsEnum = bucketOrds.ordsEnum(0);
-            // if duplicate, add to existing
             while (ordsEnum.next()) {
                 Long bucketValue = ordsEnum.value();
                 CompositeKey key = new CompositeKey(bucketValue);
@@ -267,9 +280,10 @@ final class CompositeAggregator extends BucketsAggregator {
                     bucketMap.put(key, bucket);
                 }
             }
+
             List<InternalComposite.InternalBucket> bucketList = new ArrayList<>(bucketMap.values());
             CollectionUtil.introSort(bucketList, InternalComposite.InternalBucket::compareKey);
-            buckets = bucketList.toArray(InternalComposite.InternalBucket[]::new);
+            buckets = bucketList.subList(0, Math.min(size, bucketList.size())).toArray(InternalComposite.InternalBucket[]::new);
             num = buckets.length;
         }
 
@@ -514,23 +528,16 @@ final class CompositeAggregator extends BucketsAggregator {
 
     @Override
     protected LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub) throws IOException {
-        // Need to be declared as final and array for usage within the
-        // LeafBucketCollectorBase subclass below
-        final boolean[] useOpt = new boolean[1];
-        useOpt[0] = filters != null;
-
-        // Try fast filter aggregation if the filters have been created
-        // Skip if tried before and gave incorrect/incomplete results
-        if (useOpt[0]) {
-            useOpt[0] = FilterRewriteHelper.tryFastFilterAggregation(ctx, filters, fieldType,
-                (key, count) -> {
-                    incrementBucketDocCount(
-                        FilterRewriteHelper.getBucketOrd(
-                            bucketOrds.add(0, preparedRounding.round(key))),
-                        count
-                    );
-                });
-        }
+        boolean optimized = FilterRewriteHelper.tryFastFilterAggregation(ctx, filters, fieldType,
+            (key, count) -> {
+                incrementBucketDocCount(
+                    FilterRewriteHelper.getBucketOrd(
+                        bucketOrds.add(0, preparedRounding.round(key))
+                    ),
+                    count
+                );
+            }, size);
+        if (optimized) throw new CollectionTerminatedException();
 
         finishLeaf();
 

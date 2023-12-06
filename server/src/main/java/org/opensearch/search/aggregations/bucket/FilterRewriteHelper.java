@@ -10,7 +10,6 @@ package org.opensearch.search.aggregations.bucket;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.PointValues;
-import org.apache.lucene.search.CollectionTerminatedException;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
@@ -37,8 +36,8 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 
 /**
- * Helpers functions to rewrite and optimize aggregations using
- * range filter queries
+ * Help rewrite and optimize aggregations using range filter queries
+ * Currently supported types of aggregations are: DateHistogramAggregator, AutoDateHistogramAggregator, CompositeAggregator
  *
  * @opensearch.internal
  */
@@ -190,6 +189,17 @@ public class FilterRewriteHelper {
         return filters;
     }
 
+    /**
+     * The pre-conditions to initiate fast filter optimization on aggregations are:
+     * 1. The query with aggregation has to be PointRangeQuery on the same date field
+     * 2. No parent/sub aggregations
+     * 3. No missing value/bucket
+     * 4. No script
+     *
+     * @param computeBounds get the lower and upper bound of the field in a shard search
+     * @param roundingFunction produce Rounding that will provide the interval
+     * @param preparedRoundingSupplier produce PreparedRounding that will do the rounding
+     */
     public static FilterContext buildFastFilterContext(
         final Object parent,
         final int subAggLength,
@@ -199,8 +209,6 @@ public class FilterRewriteHelper {
         ValueSourceContext valueSourceContext,
         CheckedFunction<ValueSourceContext, long[], IOException> computeBounds
     ) throws IOException {
-        // Create the filters for fast aggregation only if the query is instance
-        // of point range query and there aren't any parent/sub aggregations
         if (parent == null && subAggLength == 0 && !valueSourceContext.missing && !valueSourceContext.hasScript) {
             MappedFieldType fieldType = valueSourceContext.getFieldType();
             if (fieldType != null) {
@@ -251,19 +259,27 @@ public class FilterRewriteHelper {
     }
 
     public static long getBucketOrd(long bucketOrd) {
-        if (bucketOrd < 0) { // already seen // TODO reading theoretically for one segment, there cannot be duplicate bucket?
+        if (bucketOrd < 0) { // already seen
             bucketOrd = -1 - bucketOrd;
         }
 
         return bucketOrd;
     }
 
+    /**
+     * This should be executed for each segment
+     *
+     * @param size the maximum number of buckets needed
+     */
     public static boolean tryFastFilterAggregation(
         final LeafReaderContext ctx,
         final Weight[] filters,
         final DateFieldMapper.DateFieldType fieldType,
-        final BiConsumer<Long, Integer> incrementDocCount
+        final BiConsumer<Long, Integer> incrementDocCount,
+        final int size
     ) throws IOException {
+        if (filters == null) return false;
+
         final int[] counts = new int[filters.length];
         int i;
         for (i = 0; i < filters.length; i++) {
@@ -275,16 +291,21 @@ public class FilterRewriteHelper {
             }
         }
 
+        int s = 0;
         for (i = 0; i < filters.length; i++) {
             if (counts[i] > 0) {
                 incrementDocCount.accept(
                     fieldType.convertNanosToMillis(
-                        NumericUtils.sortableBytesToLong(((PointRangeQuery) filters[i].getQuery()).getLowerPoint(), 0)
+                        NumericUtils.sortableBytesToLong(
+                            ((PointRangeQuery) filters[i].getQuery()).getLowerPoint(), 0)
                     ),
                     counts[i]
                 );
+                s++;
+                if (s > size) return true;
             }
         }
-        throw new CollectionTerminatedException();
+
+        return true;
     }
 }

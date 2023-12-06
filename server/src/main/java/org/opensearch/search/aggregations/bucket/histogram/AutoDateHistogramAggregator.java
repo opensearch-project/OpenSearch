@@ -33,6 +33,7 @@ package org.opensearch.search.aggregations.bucket.histogram;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedNumericDocValues;
+import org.apache.lucene.search.CollectionTerminatedException;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.CollectionUtil;
@@ -232,30 +233,22 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
             return LeafBucketCollector.NO_OP_COLLECTOR;
         }
 
+        boolean optimized = FilterRewriteHelper.tryFastFilterAggregation(ctx, filters, fieldType,
+            (key, count) -> {
+                incrementBucketDocCount(
+                    FilterRewriteHelper.getBucketOrd(
+                        getBucketOrds().add(0, preparedRounding.round(key))
+                    ),
+                    count
+                );
+            }, Integer.MAX_VALUE);
+        if (optimized) throw new CollectionTerminatedException();
+
         final SortedNumericDocValues values = valuesSource.longValues(ctx);
         final LeafBucketCollector iteratingCollector = getLeafCollector(values, sub);
-
-        // Need to be declared as final and array for usage within the
-        // LeafBucketCollectorBase subclass below
-        final boolean[] useOpt = new boolean[1];
-        useOpt[0] = filters != null;
-
         return new LeafBucketCollectorBase(sub, values) {
             @Override
             public void collect(int doc, long owningBucketOrd) throws IOException {
-                // Try fast filter aggregation if the filters have been created
-                // Skip if tried before and gave incorrect/incomplete results
-                if (useOpt[0]) {
-                    useOpt[0] = FilterRewriteHelper.tryFastFilterAggregation(ctx, filters, fieldType,
-                        (key, count) -> {
-                            incrementBucketDocCount(
-                                FilterRewriteHelper.getBucketOrd(
-                                    getBucketOrds().add(owningBucketOrd, preparedRounding.round(key))),
-                                count
-                            );
-                        });
-                }
-
                 iteratingCollector.collect(doc, owningBucketOrd);
             }
         };

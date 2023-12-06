@@ -33,6 +33,7 @@ package org.opensearch.search.aggregations.bucket.histogram;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedNumericDocValues;
+import org.apache.lucene.search.CollectionTerminatedException;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.CollectionUtil;
@@ -165,29 +166,21 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
             return LeafBucketCollector.NO_OP_COLLECTOR;
         }
 
-        // Need to be declared as final and array for usage within the
-        // LeafBucketCollectorBase subclass below
-        final boolean[] useOpt = new boolean[1];
-        useOpt[0] = filters != null;
+        boolean optimized = FilterRewriteHelper.tryFastFilterAggregation(ctx, filters, fieldType,
+            (key, count) -> {
+                incrementBucketDocCount(
+                    FilterRewriteHelper.getBucketOrd(
+                        bucketOrds.add(0, preparedRounding.round(key))
+                    ),
+                    count
+                );
+            }, Integer.MAX_VALUE);
+        if (optimized) throw new CollectionTerminatedException();
 
         SortedNumericDocValues values = valuesSource.longValues(ctx);
         return new LeafBucketCollectorBase(sub, values) {
             @Override
             public void collect(int doc, long owningBucketOrd) throws IOException {
-                // Try fast filter aggregation if the filters have been created
-                // Skip if tried before and gave incorrect/incomplete results
-                if (useOpt[0]) {
-                    useOpt[0] = FilterRewriteHelper.tryFastFilterAggregation(ctx, filters, fieldType,
-                        (key, count) -> {
-                            incrementBucketDocCount(
-                                FilterRewriteHelper.getBucketOrd( // TODO reading not possible to see duplicate bucket
-                                    bucketOrds.add(owningBucketOrd, preparedRounding.round(key))
-                                ),
-                                count
-                            );
-                        });
-                }
-
                 if (values.advanceExact(doc)) {
                     int valuesCount = values.docValueCount();
 
