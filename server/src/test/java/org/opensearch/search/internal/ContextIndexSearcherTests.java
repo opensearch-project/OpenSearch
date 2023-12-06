@@ -393,8 +393,8 @@ public class ContextIndexSearcherTests extends OpenSearchTestCase {
                     null,
                     searchContext
                 );
-                // Case 1: Verify getSlices return null when concurrent segment search is disabled
-                assertNull(searcher.getSlices());
+                // Case 1: Verify getSlices returns not null when concurrent segment search is disabled
+                assertNotNull(searcher.getSlices());
 
                 // Case 2: Verify the slice count when custom max slice computation is used
                 searcher = new ContextIndexSearcher(
