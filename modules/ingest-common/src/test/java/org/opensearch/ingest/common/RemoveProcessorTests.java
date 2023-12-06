@@ -58,14 +58,14 @@ public class RemoveProcessorTests extends OpenSearchTestCase {
             randomAlphaOfLength(10),
             null,
             Collections.singletonList(new TestTemplateService.MockTemplateScript.Factory(field)),
-            Collections.emptyList(),
+            null,
             false
         );
         processor.execute(ingestDocument);
         assertThat(ingestDocument.hasField(field), equalTo(false));
     }
 
-    public void testRemoveWithExcludeFields() throws Exception {
+    public void testRemoveByExcludeFields() throws Exception {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
         ingestDocument.setFieldValue("foo_1", "value");
         ingestDocument.setFieldValue("foo_2", "value");
@@ -73,7 +73,7 @@ public class RemoveProcessorTests extends OpenSearchTestCase {
         List<TemplateScript.Factory> excludeFields = new ArrayList<>();
         excludeFields.add(new TestTemplateService.MockTemplateScript.Factory("foo_1"));
         excludeFields.add(new TestTemplateService.MockTemplateScript.Factory("foo_2"));
-        Processor processor = new RemoveProcessor(randomAlphaOfLength(10), null, Collections.emptyList(), excludeFields, false);
+        Processor processor = new RemoveProcessor(randomAlphaOfLength(10), null, null, excludeFields, false);
         processor.execute(ingestDocument);
         assertThat(ingestDocument.hasField("foo_1"), equalTo(true));
         assertThat(ingestDocument.hasField("foo_2"), equalTo(true));
@@ -198,5 +198,33 @@ public class RemoveProcessorTests extends OpenSearchTestCase {
                         assertThat(ingestDocument.hasField(metadataFieldName), equalTo(false));
                     }
         }
+    }
+
+    public void testCreateRemoveProcessorWithBothFieldsAndExcludeFields() throws Exception {
+        assertThrows(
+            "ether fields and excludeFields must be set",
+            IllegalArgumentException.class,
+            () -> new RemoveProcessor(randomAlphaOfLength(10), null, null, null, false)
+        );
+
+        final List<TemplateScript.Factory> fields;
+        if (randomBoolean()) {
+            fields = new ArrayList<>();
+        } else {
+            fields = List.of(new TestTemplateService.MockTemplateScript.Factory("foo_1"));
+        }
+
+        final List<TemplateScript.Factory> excludeFields;
+        if (randomBoolean()) {
+            excludeFields = new ArrayList<>();
+        } else {
+            excludeFields = List.of(new TestTemplateService.MockTemplateScript.Factory("foo_2"));
+        }
+
+        assertThrows(
+            "ether fields and excludeFields must be set",
+            IllegalArgumentException.class,
+            () -> new RemoveProcessor(randomAlphaOfLength(10), null, fields, excludeFields, false)
+        );
     }
 }

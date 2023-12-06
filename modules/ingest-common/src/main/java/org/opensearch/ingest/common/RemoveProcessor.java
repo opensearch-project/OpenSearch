@@ -32,6 +32,7 @@
 
 package org.opensearch.ingest.common;
 
+import org.opensearch.common.Nullable;
 import org.opensearch.core.common.Strings;
 import org.opensearch.index.VersionType;
 import org.opensearch.ingest.AbstractProcessor;
@@ -65,13 +66,22 @@ public final class RemoveProcessor extends AbstractProcessor {
     RemoveProcessor(
         String tag,
         String description,
-        List<TemplateScript.Factory> fields,
-        List<TemplateScript.Factory> excludeFields,
+        @Nullable List<TemplateScript.Factory> fields,
+        @Nullable List<TemplateScript.Factory> excludeFields,
         boolean ignoreMissing
     ) {
         super(tag, description);
-        this.fields = new ArrayList<>(fields);
-        this.excludeFields = new ArrayList<>(excludeFields);
+        if (fields == null && excludeFields == null || fields != null && excludeFields != null) {
+            throw new IllegalArgumentException("ether fields and excludeFields must be set");
+        }
+        if (fields != null) {
+            this.fields = new ArrayList<>(fields);
+            this.excludeFields = null;
+        } else {
+            this.fields = null;
+            this.excludeFields = new ArrayList<>(excludeFields);
+        }
+
         this.ignoreMissing = ignoreMissing;
     }
 
@@ -85,7 +95,7 @@ public final class RemoveProcessor extends AbstractProcessor {
 
     @Override
     public IngestDocument execute(IngestDocument document) {
-        if (!fields.isEmpty()) {
+        if (fields != null && !fields.isEmpty()) {
             fields.forEach(field -> {
                 String path = document.renderTemplate(field);
                 final boolean fieldPathIsNullOrEmpty = Strings.isNullOrEmpty(path);
@@ -121,8 +131,8 @@ public final class RemoveProcessor extends AbstractProcessor {
             });
         }
 
-        Set<String> excludeFieldSet = new HashSet<>();
-        if (!excludeFields.isEmpty()) {
+        if (excludeFields != null && !excludeFields.isEmpty()) {
+            Set<String> excludeFieldSet = new HashSet<>();
             excludeFields.forEach(field -> {
                 String path = document.renderTemplate(field);
                 // ignore the empty or null field path
@@ -130,21 +140,21 @@ public final class RemoveProcessor extends AbstractProcessor {
                     excludeFieldSet.add(path);
                 }
             });
-        }
 
-        if (!excludeFieldSet.isEmpty()) {
-            Set<String> existingFields = new HashSet<>(document.getSourceAndMetadata().keySet());
-            Set<String> metadataFields = document.getMetadata()
-                .keySet()
-                .stream()
-                .map(IngestDocument.Metadata::getFieldName)
-                .collect(Collectors.toSet());
-            existingFields.forEach(field -> {
-                // ignore metadata fields such as _index, _id, etc.
-                if (!metadataFields.contains(field) && !excludeFieldSet.contains(field)) {
-                    document.removeField(field);
-                }
-            });
+            if (!excludeFieldSet.isEmpty()) {
+                Set<String> existingFields = new HashSet<>(document.getSourceAndMetadata().keySet());
+                Set<String> metadataFields = document.getMetadata()
+                    .keySet()
+                    .stream()
+                    .map(IngestDocument.Metadata::getFieldName)
+                    .collect(Collectors.toSet());
+                existingFields.forEach(field -> {
+                    // ignore metadata fields such as _index, _id, etc.
+                    if (!metadataFields.contains(field) && !excludeFieldSet.contains(field)) {
+                        document.removeField(field);
+                    }
+                });
+            }
         }
 
         return document;
@@ -179,7 +189,8 @@ public final class RemoveProcessor extends AbstractProcessor {
                 throw newConfigurationException(TYPE, processorTag, "field", "ether field or exclude_field must be set");
             }
 
-            List<TemplateScript.Factory> fieldCompiledTemplates = new ArrayList<>();
+            boolean ignoreMissing = ConfigurationUtils.readBooleanProperty(TYPE, processorTag, config, "ignore_missing", false);
+
             if (field != null) {
                 if (field instanceof List) {
                     @SuppressWarnings("unchecked")
@@ -188,13 +199,11 @@ public final class RemoveProcessor extends AbstractProcessor {
                 } else {
                     fields.add((String) field);
                 }
-                fieldCompiledTemplates = fields.stream()
+                List<TemplateScript.Factory> fieldCompiledTemplates = fields.stream()
                     .map(f -> ConfigurationUtils.compileTemplate(TYPE, processorTag, "field", f, scriptService))
                     .collect(Collectors.toList());
-            }
-
-            List<TemplateScript.Factory> excludeFieldCompiledTemplates = new ArrayList<>();
-            if (excludeField != null) {
+                return new RemoveProcessor(processorTag, description, fieldCompiledTemplates, null, ignoreMissing);
+            } else {
                 if (excludeField instanceof List) {
                     @SuppressWarnings("unchecked")
                     List<String> stringList = (List<String>) excludeField;
@@ -202,13 +211,11 @@ public final class RemoveProcessor extends AbstractProcessor {
                 } else {
                     excludeFields.add((String) excludeField);
                 }
-                excludeFieldCompiledTemplates = excludeFields.stream()
+                List<TemplateScript.Factory> excludeFieldCompiledTemplates = excludeFields.stream()
                     .map(f -> ConfigurationUtils.compileTemplate(TYPE, processorTag, "exclude_field", f, scriptService))
                     .collect(Collectors.toList());
+                return new RemoveProcessor(processorTag, description, null, excludeFieldCompiledTemplates, ignoreMissing);
             }
-
-            boolean ignoreMissing = ConfigurationUtils.readBooleanProperty(TYPE, processorTag, config, "ignore_missing", false);
-            return new RemoveProcessor(processorTag, description, fieldCompiledTemplates, excludeFieldCompiledTemplates, ignoreMissing);
         }
     }
 }
