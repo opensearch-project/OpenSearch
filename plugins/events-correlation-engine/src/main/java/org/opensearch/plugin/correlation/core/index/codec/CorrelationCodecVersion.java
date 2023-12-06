@@ -9,7 +9,7 @@
 package org.opensearch.plugin.correlation.core.index.codec;
 
 import org.apache.lucene.codecs.Codec;
-import org.apache.lucene.codecs.lucene95.Lucene95Codec;
+import org.apache.lucene.codecs.lucene99.Lucene99Codec;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.plugin.correlation.core.index.codec.correlation950.CorrelationCodec;
 import org.opensearch.plugin.correlation.core.index.codec.correlation950.PerFieldCorrelationVectorsFormat;
@@ -24,15 +24,15 @@ import java.util.function.Supplier;
  * @opensearch.internal
  */
 public enum CorrelationCodecVersion {
-    V_9_5_0(
+    V_9_9_0(
         "CorrelationCodec",
-        new Lucene95Codec(),
+        new Lucene99Codec(),
         new PerFieldCorrelationVectorsFormat(Optional.empty()),
         (userCodec, mapperService) -> new CorrelationCodec(userCodec, new PerFieldCorrelationVectorsFormat(Optional.of(mapperService))),
         CorrelationCodec::new
     );
 
-    private static final CorrelationCodecVersion CURRENT = V_9_5_0;
+    private static final CorrelationCodecVersion CURRENT = V_9_9_0;
     private final String codecName;
     private final Codec defaultCodecDelegate;
     private final PerFieldCorrelationVectorsFormat perFieldCorrelationVectorsFormat;

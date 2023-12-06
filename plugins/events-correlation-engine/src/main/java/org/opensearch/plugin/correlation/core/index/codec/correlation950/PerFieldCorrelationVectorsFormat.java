@@ -8,7 +8,7 @@
 
 package org.opensearch.plugin.correlation.core.index.codec.correlation950;
 
-import org.apache.lucene.codecs.lucene95.Lucene95HnswVectorsFormat;
+import org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.plugin.correlation.core.index.codec.BasePerFieldCorrelationVectorsFormat;
 
@@ -26,10 +26,10 @@ public class PerFieldCorrelationVectorsFormat extends BasePerFieldCorrelationVec
     public PerFieldCorrelationVectorsFormat(final Optional<MapperService> mapperService) {
         super(
             mapperService,
-            Lucene95HnswVectorsFormat.DEFAULT_MAX_CONN,
-            Lucene95HnswVectorsFormat.DEFAULT_BEAM_WIDTH,
-            Lucene95HnswVectorsFormat::new,
-            Lucene95HnswVectorsFormat::new
+            Lucene99HnswVectorsFormat.DEFAULT_MAX_CONN,
+            Lucene99HnswVectorsFormat.DEFAULT_BEAM_WIDTH,
+            Lucene99HnswVectorsFormat::new,
+            Lucene99HnswVectorsFormat::new
         );
     }
 }
