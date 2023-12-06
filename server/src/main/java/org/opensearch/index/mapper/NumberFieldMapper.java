@@ -221,17 +221,17 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
                 long points[] = new long[v.length];
                 for (int i = 0; i < values.size(); ++i) {
                     v[i] = parse(values.get(i), false);
-                    points[i] = NumericUtils.floatToSortableInt(v[i]);
+                    points[i] = HalfFloatPoint.halfFloatToSortableShort(v[i]);
                 }
                 if (isSearchable && hasDocValues) {
-                    Query query = FloatPoint.newSetQuery(field, v);
+                    Query query = HalfFloatPoint.newSetQuery(field, v);
                     Query dvQuery = SortedNumericDocValuesField.newSlowSetQuery(field, points);
                     return new IndexOrDocValuesQuery(query, dvQuery);
                 }
                 if (hasDocValues) {
                     return SortedNumericDocValuesField.newSlowSetQuery(field, points);
                 }
-                return FloatPoint.newSetQuery(field, v);
+                return HalfFloatPoint.newSetQuery(field, v);
 
             }
 
