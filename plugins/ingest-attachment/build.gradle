@@ -57,7 +57,7 @@ dependencies {
   runtimeOnly "com.google.guava:guava:${versions.guava}"
   // Other dependencies
   api 'org.tukaani:xz:1.9'
-  api 'commons-io:commons-io:2.14.0'
+  api 'commons-io:commons-io:2.15.0'
   api "org.slf4j:slf4j-api:${versions.slf4j}"
 
   // character set detection
@@ -79,7 +79,7 @@ dependencies {
   api "org.apache.poi:poi:${versions.poi}"
   api "org.apache.poi:poi-ooxml-lite:${versions.poi}"
   api "commons-codec:commons-codec:${versions.commonscodec}"
-  api 'org.apache.xmlbeans:xmlbeans:5.1.1'
+  api 'org.apache.xmlbeans:xmlbeans:5.2.0'
   api 'org.apache.commons:commons-collections4:4.4'
   // MS Office
   api "org.apache.poi:poi-scratchpad:${versions.poi}"

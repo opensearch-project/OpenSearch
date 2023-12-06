@@ -8,10 +8,16 @@
 
 package org.opensearch.remotestore;
 
+import org.opensearch.action.admin.cluster.health.ClusterHealthResponse;
+import org.opensearch.action.admin.cluster.stats.ClusterStatsResponse;
+import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.cluster.routing.allocation.command.MoveAllocationCommand;
+import org.opensearch.common.Priority;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.index.Index;
 import org.opensearch.index.IndexService;
+import org.opensearch.index.ReplicationStats;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.replication.SegmentReplicationState;
@@ -20,10 +26,12 @@ import org.opensearch.indices.replication.SegmentReplicationTargetService;
 import org.opensearch.indices.replication.common.ReplicationCollection;
 import org.opensearch.test.InternalTestCluster;
 import org.opensearch.test.OpenSearchIntegTestCase;
+import org.opensearch.test.disruption.SlowClusterStateProcessing;
 
 import java.nio.file.Path;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 
 /**
  * This class runs tests with remote store + segRep while blocking file downloads
@@ -108,6 +116,75 @@ public class SegmentReplicationUsingRemoteStoreDisruptionIT extends AbstractRemo
             assertEquals("Target should be closed", 0, segmentReplicationTarget.refCount());
         });
         unblockNode(REPOSITORY_NAME, replicaNode);
+        cleanupRepo();
+    }
+
+    public void testUpdateVisibleCheckpointWithLaggingClusterStateUpdates_primaryRelocation() throws Exception {
+        Path location = randomRepoPath().toAbsolutePath();
+        Settings nodeSettings = Settings.builder().put(buildRemoteStoreNodeAttributes(location, 0d, "metadata", Long.MAX_VALUE)).build();
+        internalCluster().startClusterManagerOnlyNode(nodeSettings);
+        internalCluster().startDataOnlyNodes(2, nodeSettings);
+        final Settings indexSettings = Settings.builder().put(indexSettings()).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1).build();
+        createIndex(INDEX_NAME, indexSettings);
+        ensureGreen(INDEX_NAME);
+        final Set<String> dataNodeNames = internalCluster().getDataNodeNames();
+        final String replicaNode = getNode(dataNodeNames, false);
+        final String oldPrimary = getNode(dataNodeNames, true);
+
+        // index a doc.
+        client().prepareIndex(INDEX_NAME).setId("1").setSource("foo", randomInt()).get();
+        refresh(INDEX_NAME);
+
+        logger.info("--> start another node");
+        final String newPrimary = internalCluster().startDataOnlyNode(nodeSettings);
+        ClusterHealthResponse clusterHealthResponse = client().admin()
+            .cluster()
+            .prepareHealth()
+            .setWaitForEvents(Priority.LANGUID)
+            .setWaitForNodes("4")
+            .get();
+        assertEquals(clusterHealthResponse.isTimedOut(), false);
+
+        SlowClusterStateProcessing disruption = new SlowClusterStateProcessing(replicaNode, random(), 0, 0, 1000, 2000);
+        internalCluster().setDisruptionScheme(disruption);
+        disruption.startDisrupting();
+
+        // relocate the primary
+        logger.info("--> relocate the shard");
+        client().admin()
+            .cluster()
+            .prepareReroute()
+            .add(new MoveAllocationCommand(INDEX_NAME, 0, oldPrimary, newPrimary))
+            .execute()
+            .actionGet();
+        clusterHealthResponse = client().admin()
+            .cluster()
+            .prepareHealth()
+            .setWaitForEvents(Priority.LANGUID)
+            .setWaitForNoRelocatingShards(true)
+            .setTimeout(new TimeValue(5, TimeUnit.MINUTES))
+            .execute()
+            .actionGet();
+        assertEquals(clusterHealthResponse.isTimedOut(), false);
+
+        IndexShard newPrimary_shard = getIndexShard(newPrimary, INDEX_NAME);
+        IndexShard replica = getIndexShard(replicaNode, INDEX_NAME);
+        assertBusy(() -> {
+            assertEquals(
+                newPrimary_shard.getLatestReplicationCheckpoint().getSegmentInfosVersion(),
+                replica.getLatestReplicationCheckpoint().getSegmentInfosVersion()
+            );
+        });
+
+        assertBusy(() -> {
+            ClusterStatsResponse clusterStatsResponse = client().admin().cluster().prepareClusterStats().get();
+            ReplicationStats replicationStats = clusterStatsResponse.getIndicesStats().getSegments().getReplicationStats();
+            assertEquals(0L, replicationStats.maxBytesBehind);
+            assertEquals(0L, replicationStats.maxReplicationLag);
+            assertEquals(0L, replicationStats.totalBytesBehind);
+        });
+        disruption.stopDisrupting();
+        disableRepoConsistencyCheck("Remote Store Creates System Repository");
         cleanupRepo();
     }
 

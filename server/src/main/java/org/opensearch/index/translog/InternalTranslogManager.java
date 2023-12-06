@@ -11,6 +11,7 @@ package org.opensearch.index.translog;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.store.AlreadyClosedException;
+import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.logging.Loggers;
 import org.opensearch.common.util.concurrent.ReleasableLock;
 import org.opensearch.common.util.io.IOUtils;
@@ -58,7 +59,7 @@ public class InternalTranslogManager implements TranslogManager, Closeable {
         TranslogEventListener translogEventListener,
         LifecycleAware engineLifeCycleAware,
         TranslogFactory translogFactory,
-        BooleanSupplier primaryModeSupplier
+        BooleanSupplier startedPrimarySupplier
     ) throws IOException {
         this.shardId = shardId;
         this.readLock = readLock;
@@ -71,7 +72,7 @@ public class InternalTranslogManager implements TranslogManager, Closeable {
             if (tracker != null) {
                 tracker.markSeqNoAsPersisted(seqNo);
             }
-        }, translogUUID, translogFactory, primaryModeSupplier);
+        }, translogUUID, translogFactory, startedPrimarySupplier);
         assert translog.getGeneration() != null;
         this.translog = translog;
         assert pendingTranslogRecovery.get() == false : "translog recovery can't be pending before we set it";
@@ -301,8 +302,14 @@ public class InternalTranslogManager implements TranslogManager, Closeable {
         translog.setMinSeqNoToKeep(seqNo);
     }
 
+    @Override
     public void onDelete() {
         translog.onDelete();
+    }
+
+    @Override
+    public Releasable drainSync() {
+        return translog.drainSync();
     }
 
     @Override
@@ -362,7 +369,7 @@ public class InternalTranslogManager implements TranslogManager, Closeable {
         LongConsumer persistedSequenceNumberConsumer,
         String translogUUID,
         TranslogFactory translogFactory,
-        BooleanSupplier primaryModeSupplier
+        BooleanSupplier startedPrimarySupplier
     ) throws IOException {
         return translogFactory.newTranslog(
             translogConfig,
@@ -371,7 +378,7 @@ public class InternalTranslogManager implements TranslogManager, Closeable {
             globalCheckpointSupplier,
             primaryTermSupplier,
             persistedSequenceNumberConsumer,
-            primaryModeSupplier
+            startedPrimarySupplier
         );
     }
 
