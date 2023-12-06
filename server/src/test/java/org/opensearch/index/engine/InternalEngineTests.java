@@ -1848,9 +1848,8 @@ public class InternalEngineTests extends EngineTestCase {
                         liveDocsWithSource.remove(doc.id());
                     }
                 }
-                if (randomBoolean()) {
-                    engine.flush(randomBoolean(), true);
-                }
+                engine.flush(randomBoolean(), true);
+
             }
             engine.flush();
             globalCheckpoint.set(randomLongBetween(0, engine.getPersistedLocalCheckpoint()));
