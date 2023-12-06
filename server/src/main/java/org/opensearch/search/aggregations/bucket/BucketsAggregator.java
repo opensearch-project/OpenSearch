@@ -422,10 +422,7 @@ public abstract class BucketsAggregator extends AggregatorBase {
                             + "]"
                     );
                 }
-                buckets.add(bucketBuilder.build(
-                    ordsEnum.value(),
-                    bucketDocCount(ordsEnum.ord()),
-                    subAggregationResults[b++]));
+                buckets.add(bucketBuilder.build(ordsEnum.value(), bucketDocCount(ordsEnum.ord()), subAggregationResults[b++]));
             }
             results[ordIdx] = resultBuilder.build(owningBucketOrds[ordIdx], buckets);
         }

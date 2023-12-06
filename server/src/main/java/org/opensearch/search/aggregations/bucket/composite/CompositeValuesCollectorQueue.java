@@ -108,7 +108,7 @@ final class CompositeValuesCollectorQueue extends PriorityQueue<Integer> impleme
 
     @Override
     protected boolean lessThan(Integer a, Integer b) {
-        return compare(a, b) > 0; // TODO reading a > b is true, this is a max heap?
+        return compare(a, b) > 0; // max heap
     }
 
     /**
@@ -123,7 +123,7 @@ final class CompositeValuesCollectorQueue extends PriorityQueue<Integer> impleme
      * the slot if the candidate is already in the queue or null if the candidate is not present.
      */
     Integer compareCurrent() {
-        return map.get(new Slot(CANDIDATE_SLOT)); // TODO reading this check the slot/bucket? of the current value
+        return map.get(new Slot(CANDIDATE_SLOT));
     }
 
     /**
@@ -152,7 +152,7 @@ final class CompositeValuesCollectorQueue extends PriorityQueue<Integer> impleme
      */
     private void copyCurrent(int slot, long value) {
         for (int i = 0; i < arrays.length; i++) {
-            arrays[i].copyCurrent(slot); // TODO reading valueSource knows current value, set the value to this slot/index
+            arrays[i].copyCurrent(slot);
         }
         docCounts = bigArrays.grow(docCounts, slot + 1);
         docCounts.set(slot, value);
@@ -204,7 +204,7 @@ final class CompositeValuesCollectorQueue extends PriorityQueue<Integer> impleme
     int hashCode(int slot) {
         int result = 1;
         for (int i = 0; i < arrays.length; i++) {
-            result = 31 * result + // TODO reading why 31 here? For each array, it multiplies the running result by 31. Multiplying by a prime number like 31 helps distribute the hash codes more evenly.
+            result = 31 * result +
                 (slot == CANDIDATE_SLOT ?
                     arrays[i].hashCodeCurrent() :
                     arrays[i].hashCode(slot));
@@ -256,7 +256,7 @@ final class CompositeValuesCollectorQueue extends PriorityQueue<Integer> impleme
         int last = arrays.length - 1;
         LeafBucketCollector collector = in;
         while (last > 0) {
-            collector = arrays[last--].getLeafCollector(context, collector); // TODO reading the pass-in collect will work after current
+            collector = arrays[last--].getLeafCollector(context, collector);
         }
 
         if (forceLeadSourceValue != null) {

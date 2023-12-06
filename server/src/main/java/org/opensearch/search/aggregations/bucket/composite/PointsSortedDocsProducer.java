@@ -148,8 +148,9 @@ class PointsSortedDocsProducer extends SortedDocsProducer {
             }
 
             long bucket = bucketFunction.applyAsLong(packedValue);
-            if (first == false && bucket != lastBucket) { // TODO reading process previous bucket when new bucket appears
-                if (processBucket(queue, context, bucketDocsBuilder.build().iterator(), lastBucket, builder) &&
+            if (first == false && bucket != lastBucket) { // process previous bucket when new bucket appears
+                final DocIdSet docIdSet = bucketDocsBuilder.build();
+                if (processBucket(queue, context, docIdSet.iterator(), lastBucket, builder) &&
                     // lower bucket is inclusive
                     lowerBucket != lastBucket) {
                     // this bucket does not have any competitive composite buckets,

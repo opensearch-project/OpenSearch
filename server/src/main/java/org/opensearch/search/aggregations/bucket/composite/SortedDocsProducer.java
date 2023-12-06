@@ -91,7 +91,7 @@ abstract class SortedDocsProducer {
             @Override
             public void collect(int doc, long bucket) throws IOException {
                 hasCollected[0] = true;
-                long docCount = docCountProvider.getDocCount(doc); // TODO reading _doc_count can be >1
+                long docCount = docCountProvider.getDocCount(doc);
                 if (queue.addIfCompetitive(docCount)) {
                     topCompositeCollected[0]++;
                     if (adder != null && doc != lastDoc) { // TODO reading why doc can be == lastDoc?
@@ -109,11 +109,10 @@ abstract class SortedDocsProducer {
             }
         };
 
-        final LeafBucketCollector collector = queue.getLeafCollector(leadSourceBucket, context, queueCollector);
-
         final Bits liveDocs = context.reader().getLiveDocs();
+        final LeafBucketCollector collector = queue.getLeafCollector(leadSourceBucket, context, queueCollector);
         while (iterator.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
-            if (liveDocs == null || liveDocs.get(iterator.docID())) { // TODO reading doc exists
+            if (liveDocs == null || liveDocs.get(iterator.docID())) {
                 collector.collect(iterator.docID());
             }
         }

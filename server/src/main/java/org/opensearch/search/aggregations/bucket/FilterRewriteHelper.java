@@ -146,7 +146,7 @@ public class FilterRewriteHelper {
             // Below rounding is needed as the interval could return in
             // non-rounded values for something like calendar month
             roundedLow = preparedRounding.round(roundedLow + interval);
-            if (prevRounded == roundedLow) break; // TODO reading prevents getting into an infinite loop?
+            if (prevRounded == roundedLow) break; // prevents getting into an infinite loop
             prevRounded = roundedLow;
         }
 
@@ -210,9 +210,9 @@ public class FilterRewriteHelper {
         CheckedFunction<ValueSourceContext, long[], IOException> computeBounds
     ) throws IOException {
         if (parent == null && subAggLength == 0 && !valueSourceContext.missing && !valueSourceContext.hasScript) {
-            MappedFieldType fieldType = valueSourceContext.getFieldType();
+            MappedFieldType fieldType = valueSourceContext.fieldType;
             if (fieldType != null) {
-                final String fieldName = valueSourceContext.getFieldType().name();
+                final String fieldName = fieldType.name();
                 final long[] bounds = computeBounds.apply(valueSourceContext);
                 if (bounds != null) {
                     assert fieldType instanceof DateFieldMapper.DateFieldType;
@@ -252,7 +252,6 @@ public class FilterRewriteHelper {
             this.fieldType = fieldType;
         }
 
-        // TODO reading why boolean doesn't need getter?
         public MappedFieldType getFieldType() {
             return fieldType;
         }
