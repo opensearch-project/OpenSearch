@@ -73,12 +73,12 @@ import org.opensearch.search.aggregations.LeafBucketCollector;
 import org.opensearch.search.aggregations.MultiBucketCollector;
 import org.opensearch.search.aggregations.MultiBucketConsumerService;
 import org.opensearch.search.aggregations.bucket.BucketsAggregator;
+import org.opensearch.search.aggregations.bucket.FilterRewriteHelper;
 import org.opensearch.search.aggregations.bucket.missing.MissingOrder;
 import org.opensearch.search.aggregations.bucket.terms.LongKeyedBucketOrds;
 import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.searchafter.SearchAfterBuilder;
 import org.opensearch.search.sort.SortAndFormats;
-import org.opensearch.search.aggregations.bucket.FilterRewriteHelper;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -519,7 +519,10 @@ final class CompositeAggregator extends BucketsAggregator {
 
         if (scorer != null) {
             DocIdSetIterator docIt = scorer.iterator();
-            final LeafBucketCollector inner = queue.getLeafCollector(ctx, getFirstPassCollector(docIdSetBuilder, indexSortPrefix.getSort().length));
+            final LeafBucketCollector inner = queue.getLeafCollector(
+                ctx,
+                getFirstPassCollector(docIdSetBuilder, indexSortPrefix.getSort().length)
+            );
             inner.setScorer(scorer);
 
             final Bits liveDocs = ctx.reader().getLiveDocs();
@@ -533,15 +536,9 @@ final class CompositeAggregator extends BucketsAggregator {
 
     @Override
     protected LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub) throws IOException {
-        boolean optimized = FilterRewriteHelper.tryFastFilterAggregation(ctx, filters, fieldType,
-            (key, count) -> {
-                incrementBucketDocCount(
-                    FilterRewriteHelper.getBucketOrd(
-                        bucketOrds.add(0, preparedRounding.round(key))
-                    ),
-                    count
-                );
-            }, size);
+        boolean optimized = FilterRewriteHelper.tryFastFilterAggregation(ctx, filters, fieldType, (key, count) -> {
+            incrementBucketDocCount(FilterRewriteHelper.getBucketOrd(bucketOrds.add(0, preparedRounding.round(key))), count);
+        }, size);
         if (optimized) throw new CollectionTerminatedException();
 
         finishLeaf();
@@ -673,7 +670,8 @@ final class CompositeAggregator extends BucketsAggregator {
             @Override
             public void collect(int doc, long zeroBucket) throws IOException {
                 assert zeroBucket == 0;
-                Integer slot = queue.compareCurrent(); // TODO reading queue will make sure current value presents through collection mechanism
+                Integer slot = queue.compareCurrent(); // TODO reading queue will make sure current value presents through collection
+                                                       // mechanism
                 if (slot != null) {
                     // The candidate key is a top bucket.
                     // We can defer the collection of this document/bucket to the sub collector

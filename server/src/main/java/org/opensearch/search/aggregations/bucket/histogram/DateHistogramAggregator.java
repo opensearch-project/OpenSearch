@@ -121,7 +121,8 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
             valuesSourceConfig.missing() != null,
             valuesSourceConfig.script() != null,
             valuesSourceConfig.fieldType(),
-            0);
+            0
+        );
         FilterRewriteHelper.FilterContext filterContext = FilterRewriteHelper.buildFastFilterContext(
             parent,
             subAggregators.length,
@@ -166,15 +167,9 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
             return LeafBucketCollector.NO_OP_COLLECTOR;
         }
 
-        boolean optimized = FilterRewriteHelper.tryFastFilterAggregation(ctx, filters, fieldType,
-            (key, count) -> {
-                incrementBucketDocCount(
-                    FilterRewriteHelper.getBucketOrd(
-                        bucketOrds.add(0, preparedRounding.round(key))
-                    ),
-                    count
-                );
-            }, Integer.MAX_VALUE);
+        boolean optimized = FilterRewriteHelper.tryFastFilterAggregation(ctx, filters, fieldType, (key, count) -> {
+            incrementBucketDocCount(FilterRewriteHelper.getBucketOrd(bucketOrds.add(0, preparedRounding.round(key))), count);
+        }, Integer.MAX_VALUE);
         if (optimized) throw new CollectionTerminatedException();
 
         SortedNumericDocValues values = valuesSource.longValues(ctx);
@@ -210,33 +205,29 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
 
     @Override
     public InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
-        return buildAggregationsForVariableBuckets(
-            owningBucketOrds,
-            bucketOrds,
-            (bucketValue, docCount, subAggregationResults) -> {
-                return new InternalDateHistogram.Bucket(bucketValue, docCount, keyed, formatter, subAggregationResults);
-            },
-            (owningBucketOrd, buckets) -> {
-                // the contract of the histogram aggregation is that shards must return buckets ordered by key in ascending order
-                CollectionUtil.introSort(buckets, BucketOrder.key(true).comparator());
+        return buildAggregationsForVariableBuckets(owningBucketOrds, bucketOrds, (bucketValue, docCount, subAggregationResults) -> {
+            return new InternalDateHistogram.Bucket(bucketValue, docCount, keyed, formatter, subAggregationResults);
+        }, (owningBucketOrd, buckets) -> {
+            // the contract of the histogram aggregation is that shards must return buckets ordered by key in ascending order
+            CollectionUtil.introSort(buckets, BucketOrder.key(true).comparator());
 
-                // value source will be null for unmapped fields
-                // Important: use `rounding` here, not `shardRounding`
-                InternalDateHistogram.EmptyBucketInfo emptyBucketInfo = minDocCount == 0
-                    ? new InternalDateHistogram.EmptyBucketInfo(rounding.withoutOffset(), buildEmptySubAggregations(), extendedBounds)
-                    : null;
-                return new InternalDateHistogram(
-                    name,
-                    buckets,
-                    order,
-                    minDocCount,
-                    rounding.offset(),
-                    emptyBucketInfo,
-                    formatter,
-                    keyed,
-                    metadata()
-                );
-            });
+            // value source will be null for unmapped fields
+            // Important: use `rounding` here, not `shardRounding`
+            InternalDateHistogram.EmptyBucketInfo emptyBucketInfo = minDocCount == 0
+                ? new InternalDateHistogram.EmptyBucketInfo(rounding.withoutOffset(), buildEmptySubAggregations(), extendedBounds)
+                : null;
+            return new InternalDateHistogram(
+                name,
+                buckets,
+                order,
+                minDocCount,
+                rounding.offset(),
+                emptyBucketInfo,
+                formatter,
+                keyed,
+                metadata()
+            );
+        });
     }
 
     @Override

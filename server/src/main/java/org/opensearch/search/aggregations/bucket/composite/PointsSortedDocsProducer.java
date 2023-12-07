@@ -151,7 +151,7 @@ class PointsSortedDocsProducer extends SortedDocsProducer {
             if (first == false && bucket != lastBucket) { // process previous bucket when new bucket appears
                 final DocIdSet docIdSet = bucketDocsBuilder.build();
                 if (processBucket(queue, context, docIdSet.iterator(), lastBucket, builder) &&
-                    // lower bucket is inclusive
+                // lower bucket is inclusive
                     lowerBucket != lastBucket) {
                     // this bucket does not have any competitive composite buckets,
                     // we can early terminate the collection because the remaining buckets are guaranteed
@@ -170,8 +170,7 @@ class PointsSortedDocsProducer extends SortedDocsProducer {
 
         @Override
         public PointValues.Relation compare(byte[] minPackedValue, byte[] maxPackedValue) {
-            if ((upperPointQuery != null
-                && Arrays.compareUnsigned(minPackedValue, 0, bytesPerDim, upperPointQuery, 0, bytesPerDim) > 0)
+            if ((upperPointQuery != null && Arrays.compareUnsigned(minPackedValue, 0, bytesPerDim, upperPointQuery, 0, bytesPerDim) > 0)
                 || (lowerPointQuery != null
                     && Arrays.compareUnsigned(maxPackedValue, 0, bytesPerDim, lowerPointQuery, 0, bytesPerDim) < 0)) {
                 // does not match the query

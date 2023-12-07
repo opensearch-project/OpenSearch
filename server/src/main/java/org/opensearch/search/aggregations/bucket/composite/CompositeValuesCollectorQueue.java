@@ -204,10 +204,7 @@ final class CompositeValuesCollectorQueue extends PriorityQueue<Integer> impleme
     int hashCode(int slot) {
         int result = 1;
         for (int i = 0; i < arrays.length; i++) {
-            result = 31 * result +
-                (slot == CANDIDATE_SLOT ?
-                    arrays[i].hashCodeCurrent() :
-                    arrays[i].hashCode(slot));
+            result = 31 * result + (slot == CANDIDATE_SLOT ? arrays[i].hashCodeCurrent() : arrays[i].hashCode(slot));
         }
         return result;
     }
@@ -310,12 +307,14 @@ final class CompositeValuesCollectorQueue extends PriorityQueue<Integer> impleme
         }
 
         if (size() >= maxSize) { // TODO reading when queue is full, can check competitiveness
-            // the tree map is full, check if the candidate key should be kept // TODO reading queue contain topN largest composite key/bucket/slot
+            // the tree map is full, check if the candidate key should be kept // TODO reading queue contain topN largest composite
+            // key/bucket/slot
             int cmp = compare(CANDIDATE_SLOT, top());
             if (cmp > 0) { // TODO reading current large than queue
                 if (cmp <= indexSortSourcePrefix) { // TODO reading the way of comparing current and queue uses sorted fields
                     // index sort guarantees that there is no key greater or equal than the
-                    // current one in the subsequent documents so we can early terminate. // TODO reading how to get the topN smallest items using heap?
+                    // current one in the subsequent documents so we can early terminate. // TODO reading how to get the topN smallest items
+                    // using heap?
                     throw new CollectionTerminatedException();
                 }
                 // the candidate key is not competitive, skip it.

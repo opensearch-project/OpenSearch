@@ -162,7 +162,8 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
             valuesSourceConfig.missing() != null,
             valuesSourceConfig.script() != null,
             valuesSourceConfig.fieldType(),
-            0);
+            0
+        );
         FilterRewriteHelper.FilterContext filterContext = FilterRewriteHelper.buildFastFilterContext(
             parent(),
             subAggregators.length,
@@ -233,15 +234,9 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
             return LeafBucketCollector.NO_OP_COLLECTOR;
         }
 
-        boolean optimized = FilterRewriteHelper.tryFastFilterAggregation(ctx, filters, fieldType,
-            (key, count) -> {
-                incrementBucketDocCount(
-                    FilterRewriteHelper.getBucketOrd(
-                        getBucketOrds().add(0, preparedRounding.round(key))
-                    ),
-                    count
-                );
-            }, Integer.MAX_VALUE);
+        boolean optimized = FilterRewriteHelper.tryFastFilterAggregation(ctx, filters, fieldType, (key, count) -> {
+            incrementBucketDocCount(FilterRewriteHelper.getBucketOrd(getBucketOrds().add(0, preparedRounding.round(key))), count);
+        }, Integer.MAX_VALUE);
         if (optimized) throw new CollectionTerminatedException();
 
         final SortedNumericDocValues values = valuesSource.longValues(ctx);

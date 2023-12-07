@@ -316,8 +316,7 @@ public class DateHistogramValuesSourceBuilder extends CompositeValuesSourceBuild
                         IndexReader reader,
                         int size,
                         LongConsumer addRequestCircuitBreakerBytes,
-                        CompositeValuesSourceConfig compositeValuesSourceConfig
-                    ) -> {
+                        CompositeValuesSourceConfig compositeValuesSourceConfig) -> {
                         final RoundingValuesSource roundingValuesSource = (RoundingValuesSource) compositeValuesSourceConfig.valuesSource();
                         return new LongValuesSource(
                             bigArrays,

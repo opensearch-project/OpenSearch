@@ -165,30 +165,22 @@ public class FilterRewriteHelper {
             while (i < bucketCount) {
                 // Calculate the lower bucket bound
                 final byte[] lower = new byte[8];
-                NumericUtils.longToSortableBytes(
-                    i == 0 ? low : fieldType.convertRoundedMillisToNanos(roundedLow),
-                    lower, 0
-                );
+                NumericUtils.longToSortableBytes(i == 0 ? low : fieldType.convertRoundedMillisToNanos(roundedLow), lower, 0);
 
                 // Calculate the upper bucket bound
                 roundedLow = preparedRounding.round(roundedLow + interval);
                 final byte[] upper = new byte[8];
-                NumericUtils.longToSortableBytes(
-                    i + 1 == bucketCount ? high :
-                        // Subtract -1 if the minimum is roundedLow as roundedLow itself
-                        // is included in the next bucket
-                        fieldType.convertRoundedMillisToNanos(roundedLow) - 1,
-                    upper,
-                    0
-                );
+                NumericUtils.longToSortableBytes(i + 1 == bucketCount ? high :
+                // Subtract -1 if the minimum is roundedLow as roundedLow itself
+                // is included in the next bucket
+                    fieldType.convertRoundedMillisToNanos(roundedLow) - 1, upper, 0);
 
-                filters[i++] = context.searcher().createWeight(
-                    new PointRangeQuery(field, lower, upper, 1) {
-                        @Override
-                        protected String toString(int dimension, byte[] value) {
-                            return null;
-                        }
-                    }, ScoreMode.COMPLETE_NO_SCORES, 1);
+                filters[i++] = context.searcher().createWeight(new PointRangeQuery(field, lower, upper, 1) {
+                    @Override
+                    protected String toString(int dimension, byte[] value) {
+                        return null;
+                    }
+                }, ScoreMode.COMPLETE_NO_SCORES, 1);
             }
         }
 
@@ -305,8 +297,7 @@ public class FilterRewriteHelper {
             if (counts[i] > 0) {
                 incrementDocCount.accept(
                     fieldType.convertNanosToMillis(
-                        NumericUtils.sortableBytesToLong(
-                            ((PointRangeQuery) filters[i].getQuery()).getLowerPoint(), 0)
+                        NumericUtils.sortableBytesToLong(((PointRangeQuery) filters[i].getQuery()).getLowerPoint(), 0)
                     ),
                     counts[i]
                 );

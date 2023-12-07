@@ -275,11 +275,13 @@ public class LongValuesSource extends SingleDimensionValuesSource<Long> {
                 case "long":
                     toBucketFunction = (value) -> rounding.applyAsLong(LongPoint.decodeDimension(value, 0));
                     break;
+
                 case "int":
                 case "short":
                 case "byte":
                     toBucketFunction = (value) -> rounding.applyAsLong(IntPoint.decodeDimension(value, 0));
                     break;
+
                 default:
                     return null;
             }
