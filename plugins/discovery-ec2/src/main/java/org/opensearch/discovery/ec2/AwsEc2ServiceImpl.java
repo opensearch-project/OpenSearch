@@ -99,7 +99,13 @@ class AwsEc2ServiceImpl implements AwsEc2Service {
 
         if (Strings.hasText(endpoint)) {
             logger.debug("using explicit ec2 endpoint [{}]", endpoint);
-            builder.endpointOverride(URI.create(endpoint));
+            URI uri = URI.create(endpoint);
+            if (uri.getScheme() == null) {
+                // if no scheme is provided, default to https
+                logger.debug("no scheme found in endpoint [{}], defaulting to https", endpoint);
+                uri = URI.create("https://" + endpoint);
+            }
+            builder.endpointOverride(uri);
         }
 
         if (Strings.hasText(region)) {
