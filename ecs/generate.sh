@@ -1,5 +1,8 @@
 #!/bin/bash
 
+set -e
+set -u
+
 # Function to display usage information
 show_usage() {
   echo "Usage: $0 <ECS_VERSION> <INDEXER_SRC> <MODULE> [--upload <URL>]"
@@ -12,20 +15,15 @@ show_usage() {
 
 # Function to generate mappings
 generate_mappings() {
-  ECS_VERSION="$1"
-  INDEXER_SRC="$2"
-  MODULE="$3"
-  UPLOAD="$4"
-  URL="$5"
-
-  IN_FILES_DIR="$INDEXER_SRC/ecs/$MODULE/fields"
-  OUT_DIR="$INDEXER_SRC/ecs/$MODULE/mappings/$ECS_VERSION"
+  local IN_FILES_DIR="$INDEXER_SRC/ecs/$MODULE/fields"
+  local OUT_DIR="$INDEXER_SRC/ecs/$MODULE/mappings/$ECS_VERSION"
 
   # Ensure the output directory exists
   mkdir -p "$OUT_DIR" || exit 1
 
   # Generate mappings
   python scripts/generator.py --strict --ref "$ECS_VERSION" \
+    --include "$IN_FILES_DIR/custom/wazuh.yml" \
     --subset "$IN_FILES_DIR/subset.yml" \
     --template-settings "$IN_FILES_DIR/template-settings.json" \
     --template-settings-legacy "$IN_FILES_DIR/template-settings-legacy.json" \
@@ -55,8 +53,8 @@ generate_mappings() {
 
 # Function to upload generated composable index template to the OpenSearch cluster
 upload_mappings() {
-  OUT_DIR="$1"
-  URL="$2"
+  local OUT_DIR="$1"
+  local URL="$2"
 
   echo "Uploading index template to the OpenSearch cluster"
   for file in "$OUT_DIR/generated/elasticsearch/composable/component"/*.json; do
