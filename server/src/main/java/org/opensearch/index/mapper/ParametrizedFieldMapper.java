@@ -36,7 +36,6 @@ import org.apache.lucene.document.FieldType;
 import org.opensearch.Version;
 import org.opensearch.common.Explicit;
 import org.opensearch.common.TriFunction;
-import org.opensearch.common.annotation.InternalApi;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.settings.Settings;
@@ -154,16 +153,20 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
 
     /**
      * Serializes a parameter
+     *
+     * @opensearch.api
      */
-    @InternalApi
+    @PublicApi(since = "1.0.0")
     protected interface Serializer<T> {
         void serialize(XContentBuilder builder, String name, T value) throws IOException;
     }
 
     /**
      * Check on whether or not a parameter should be serialized
+     *
+     * @opensearch.api
      */
-    @InternalApi
+    @PublicApi(since = "1.0.0")
     protected interface SerializerCheck<T> {
         /**
          * Check on whether or not a parameter should be serialized
