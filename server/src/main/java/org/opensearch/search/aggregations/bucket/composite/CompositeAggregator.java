@@ -602,7 +602,7 @@ final class CompositeAggregator extends BucketsAggregator {
                 try {
                     long docCount = docCountProvider.getDocCount(doc);
                     if (queue.addIfCompetitive(indexSortPrefix, docCount)) {
-                        if (builder != null && lastDoc != doc) { // TODO reading how can lastDoc == doc?
+                        if (builder != null && lastDoc != doc) {
                             builder.add(doc);
                             lastDoc = doc;
                         }

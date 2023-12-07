@@ -248,7 +248,7 @@ public class FilterRewriteHelper {
          * @param missing   whether missing value/bucket is set
          * @param hasScript whether script is used
          * @param fieldType null if the field doesn't exist
-         * @param afterKey
+         * @param afterKey  for composite aggregation, the key of the last bucket in the previous response
          */
         public ValueSourceContext(boolean missing, boolean hasScript, MappedFieldType fieldType, long afterKey) {
             this.missing = missing;
