@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.search.pipeline.common.helpers;
+package org.opensearch.search.pipeline.common;
 
 import org.opensearch.OpenSearchException;
 import org.opensearch.OpenSearchWrapperException;
@@ -14,12 +14,12 @@ import org.opensearch.OpenSearchWrapperException;
 /**
  * An exception that indicates an error occurred while processing a {@link SearchRequestMap}.
  */
-public class SearchRequestMapProcessingException extends OpenSearchException implements OpenSearchWrapperException {
+class SearchRequestMapProcessingException extends OpenSearchException implements OpenSearchWrapperException {
 
     /**
      * Constructs a new SearchRequestMapProcessingException with the specified message.
      *
-     * @param msg The error message.
+     * @param msg  The error message.
      * @param args Arguments to substitute in the error message.
      */
     public SearchRequestMapProcessingException(String msg, Object... args) {
@@ -29,9 +29,9 @@ public class SearchRequestMapProcessingException extends OpenSearchException imp
     /**
      * Constructs a new SearchRequestMapProcessingException with the specified message and cause.
      *
-     * @param msg The error message.
+     * @param msg   The error message.
      * @param cause The cause of the exception.
-     * @param args Arguments to substitute in the error message.
+     * @param args  Arguments to substitute in the error message.
      */
     public SearchRequestMapProcessingException(String msg, Throwable cause, Object... args) {
         super(msg, cause, args);
