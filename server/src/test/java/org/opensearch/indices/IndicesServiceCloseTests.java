@@ -37,7 +37,7 @@ import org.apache.lucene.search.Query;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.routing.allocation.DiskThresholdSettings;
 import org.opensearch.common.cache.RemovalNotification;
-import org.opensearch.common.cache.tier.enums.CacheStoreType;
+import org.opensearch.common.cache.store.enums.CacheStoreType;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.OpenSearchExecutors;
 import org.opensearch.core.common.bytes.BytesArray;

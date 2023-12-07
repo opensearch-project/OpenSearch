@@ -6,5 +6,5 @@
  * compatible open source license.
  */
 
-/** Package related to tiered cache services */
-package org.opensearch.common.cache.tier.service;
+/** Package related to tiered cache enums */
+package org.opensearch.common.cache.store.enums;

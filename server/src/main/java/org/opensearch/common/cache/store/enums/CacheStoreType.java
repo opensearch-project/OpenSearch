@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.common.cache.tier.enums;
+package org.opensearch.common.cache.store.enums;
 
 /**
  * Cache store types in tiered cache.

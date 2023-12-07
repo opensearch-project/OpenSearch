@@ -34,8 +34,8 @@ package org.opensearch.indices;
 
 import org.opensearch.common.cache.RemovalNotification;
 import org.opensearch.common.cache.RemovalReason;
-import org.opensearch.common.cache.tier.enums.CacheStoreType;
-import org.opensearch.common.cache.tier.TieredCacheRemovalNotification;
+import org.opensearch.common.cache.store.StoreAwareCacheRemovalNotification;
+import org.opensearch.common.cache.store.enums.CacheStoreType;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.index.cache.request.ShardRequestCache;
 import org.opensearch.index.shard.IndexShard;
@@ -69,19 +69,15 @@ abstract class AbstractIndexShardCacheEntity implements IndicesRequestCache.Cach
 
     @Override
     public final void onRemoval(RemovalNotification<IndicesRequestCache.Key, BytesReference> notification) {
-        if (notification instanceof TieredCacheRemovalNotification){
+        if (notification instanceof StoreAwareCacheRemovalNotification) {
             stats().onRemoval(
                 notification.getKey(),
                 notification.getValue(),
                 notification.getRemovalReason() == RemovalReason.EVICTED,
-                ((TieredCacheRemovalNotification<IndicesRequestCache.Key, BytesReference>) notification).getTierType()
+                ((StoreAwareCacheRemovalNotification<IndicesRequestCache.Key, BytesReference>) notification).getCacheStoreType()
             );
         } else {
-            stats().onRemoval(
-                notification.getKey(),
-                notification.getValue(),
-                notification.getRemovalReason() == RemovalReason.EVICTED
-            );
+            stats().onRemoval(notification.getKey(), notification.getValue(), notification.getRemovalReason() == RemovalReason.EVICTED);
         }
     }
 }

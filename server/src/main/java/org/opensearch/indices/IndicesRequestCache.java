@@ -39,15 +39,18 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.opensearch.common.CheckedSupplier;
+import org.opensearch.common.cache.LoadAwareCacheLoader;
 import org.opensearch.common.cache.RemovalNotification;
-import org.opensearch.common.cache.tier.OnHeapCachingTier;
-import org.opensearch.common.cache.tier.OpenSearchOnHeapCache;
-import org.opensearch.common.cache.tier.enums.CacheStoreType;
-import org.opensearch.common.cache.tier.listeners.TieredCacheEventListener;
-import org.opensearch.common.cache.tier.TieredCacheLoader;
-import org.opensearch.common.cache.tier.TieredCacheRemovalNotification;
-import org.opensearch.common.cache.tier.service.TieredCacheService;
-import org.opensearch.common.cache.tier.service.TieredCacheSpilloverStrategyService;
+import org.opensearch.common.cache.store.Cache;
+import org.opensearch.common.cache.store.OpenSearchOnHeapCache;
+import org.opensearch.common.cache.store.StoreAwareCacheRemovalNotification;
+import org.opensearch.common.cache.store.builders.StoreAwareCacheBuilder;
+import org.opensearch.common.cache.store.enums.CacheStoreType;
+import org.opensearch.common.cache.store.listeners.EventType;
+import org.opensearch.common.cache.store.listeners.StoreAwareCacheEventListener;
+import org.opensearch.common.cache.store.listeners.StoreAwareCacheEventListenerConfiguration;
+import org.opensearch.common.cache.tier.TieredCache;
+import org.opensearch.common.cache.tier.TieredSpilloverCache;
 import org.opensearch.common.lucene.index.OpenSearchDirectoryReader;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
@@ -61,6 +64,7 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Objects;
@@ -82,7 +86,7 @@ import java.util.concurrent.ConcurrentMap;
  *
  * @opensearch.internal
  */
-public final class IndicesRequestCache implements TieredCacheEventListener<IndicesRequestCache.Key, BytesReference>, Closeable {
+public final class IndicesRequestCache implements StoreAwareCacheEventListener<IndicesRequestCache.Key, BytesReference>, Closeable {
 
     private static final Logger logger = LogManager.getLogger(IndicesRequestCache.class);
 
@@ -111,27 +115,29 @@ public final class IndicesRequestCache implements TieredCacheEventListener<Indic
     private final Set<CleanupKey> keysToClean = ConcurrentCollections.newConcurrentSet();
     private final ByteSizeValue size;
     private final TimeValue expire;
-    private final TieredCacheService<Key, BytesReference> tieredCacheService;
+    private final Cache<Key, BytesReference> cache;
 
     IndicesRequestCache(Settings settings) {
         this.size = INDICES_CACHE_QUERY_SIZE.get(settings);
         this.expire = INDICES_CACHE_QUERY_EXPIRE.exists(settings) ? INDICES_CACHE_QUERY_EXPIRE.get(settings) : null;
         long sizeInBytes = size.getBytes();
+        StoreAwareCacheBuilder<Key, BytesReference> openSearchOnHeapCacheBuilder = new OpenSearchOnHeapCache.Builder<Key, BytesReference>()
+            .setWeigher((k, v) -> k.ramBytesUsed() + v.ramBytesUsed())
+            .setMaximumWeightInBytes(sizeInBytes)
+            .setExpireAfterAccess(expire);
 
-        // Initialize onHeap cache tier first.
-        OnHeapCachingTier<Key, BytesReference> openSearchOnHeapCache = new OpenSearchOnHeapCache.Builder<Key, BytesReference>().setWeigher(
-            (k, v) -> k.ramBytesUsed() + v.ramBytesUsed()
-        ).setMaximumWeight(sizeInBytes).setExpireAfterAccess(expire).build();
-
-        // Initialize tiered cache service. TODO: Enable Disk tier when tiered support is turned on.
-        tieredCacheService = new TieredCacheSpilloverStrategyService.Builder<Key, BytesReference>().setOnHeapCachingTier(
-            openSearchOnHeapCache
-        ).setTieredCacheEventListener(this).build();
+        cache = new TieredSpilloverCache.Builder<Key, BytesReference>().setOnHeapCacheBuilder(openSearchOnHeapCacheBuilder)
+            .setListenerConfiguration(
+                new StoreAwareCacheEventListenerConfiguration.Builder<Key, BytesReference>().setEventListener(this)
+                    .setEventTypes(EnumSet.of(EventType.ON_CACHED, EventType.ON_HIT, EventType.ON_MISS, EventType.ON_REMOVAL))
+                    .build()
+            )
+            .build();
     }
 
     @Override
     public void close() {
-        tieredCacheService.invalidateAll();
+        cache.invalidateAll();
     }
 
     void clear(CacheEntity entity) {
@@ -145,7 +151,7 @@ public final class IndicesRequestCache implements TieredCacheEventListener<Indic
     }
 
     @Override
-    public void onRemoval(TieredCacheRemovalNotification<Key, BytesReference> notification) {
+    public void onRemoval(StoreAwareCacheRemovalNotification<Key, BytesReference> notification) {
         notification.getKey().entity.onRemoval(notification);
     }
 
@@ -168,7 +174,7 @@ public final class IndicesRequestCache implements TieredCacheEventListener<Indic
         assert reader.getReaderCacheHelper() != null;
         final Key key = new Key(cacheEntity, reader.getReaderCacheHelper().getKey(), cacheKey);
         Loader cacheLoader = new Loader(cacheEntity, loader);
-        BytesReference value = tieredCacheService.computeIfAbsent(key, cacheLoader);
+        BytesReference value = cache.computeIfAbsent(key, cacheLoader);
         if (cacheLoader.isLoaded()) {
             // see if its the first time we see this reader, and make sure to register a cleanup key
             CleanupKey cleanupKey = new CleanupKey(cacheEntity, reader.getReaderCacheHelper().getKey());
@@ -190,7 +196,7 @@ public final class IndicesRequestCache implements TieredCacheEventListener<Indic
      */
     void invalidate(CacheEntity cacheEntity, DirectoryReader reader, BytesReference cacheKey) {
         assert reader.getReaderCacheHelper() != null;
-        tieredCacheService.invalidate(new Key(cacheEntity, reader.getReaderCacheHelper().getKey(), cacheKey));
+        cache.invalidate(new Key(cacheEntity, reader.getReaderCacheHelper().getKey(), cacheKey));
     }
 
     /**
@@ -198,7 +204,7 @@ public final class IndicesRequestCache implements TieredCacheEventListener<Indic
      *
      * @opensearch.internal
      */
-    private static class Loader implements TieredCacheLoader<Key, BytesReference> {
+    private static class Loader implements LoadAwareCacheLoader<Key, BytesReference> {
 
         private final CacheEntity entity;
         private final CheckedSupplier<BytesReference, IOException> loader;
@@ -364,7 +370,7 @@ public final class IndicesRequestCache implements TieredCacheEventListener<Indic
             }
         }
         if (!currentKeysToClean.isEmpty() || !currentFullClean.isEmpty()) {
-            for (Iterator<Key> iterator = tieredCacheService.getOnHeapCachingTier().keys().iterator(); iterator.hasNext();) {
+            for (Iterator<Key> iterator = getIterable(CacheStoreType.ON_HEAP).iterator(); iterator.hasNext();) {
                 Key key = iterator.next();
                 if (currentFullClean.contains(key.entity.getCacheIdentity())) {
                     iterator.remove();
@@ -375,14 +381,30 @@ public final class IndicesRequestCache implements TieredCacheEventListener<Indic
                 }
             }
         }
-        tieredCacheService.getOnHeapCachingTier().refresh();
+        refresh(CacheStoreType.ON_HEAP);
+    }
+
+    private Iterable<Key> getIterable(CacheStoreType cacheStoreType) {
+        if (cache instanceof TieredCache) {
+            return ((TieredCache<Key, BytesReference>) cache).cacheKeys(cacheStoreType);
+        } else {
+            return cache.keys();
+        }
+    }
+
+    private void refresh(CacheStoreType cacheStoreType) {
+        if (cache instanceof TieredCache) {
+            ((TieredCache<Key, BytesReference>) cache).refresh(cacheStoreType);
+        } else {
+            cache.refresh();
+        }
     }
 
     /**
      * Returns the current size of the cache
      */
     long count() {
-        return tieredCacheService.count();
+        return cache.count();
     }
 
     int numRegisteredCloseListeners() { // for testing

@@ -6,5 +6,7 @@
  * compatible open source license.
  */
 
-/** Package related to tiered cache listeners */
-package org.opensearch.common.cache.tier.listeners;
+/**
+ * Base package for listener dispatchers.
+ */
+package org.opensearch.common.cache.store.listeners.dispatchers;
