@@ -22,18 +22,20 @@ import org.opensearch.search.SearchPhaseResult;
  */
 public final class PipelinedRequest extends SearchRequest {
     private final Pipeline pipeline;
+    private final PipelineProcessingContext requestContext;
 
-    PipelinedRequest(Pipeline pipeline, SearchRequest transformedRequest) {
+    PipelinedRequest(Pipeline pipeline, SearchRequest transformedRequest, PipelineProcessingContext requestContext) {
         super(transformedRequest);
         this.pipeline = pipeline;
+        this.requestContext = requestContext;
     }
 
     public void transformRequest(ActionListener<SearchRequest> requestListener) {
-        pipeline.transformRequest(this, requestListener);
+        pipeline.transformRequest(this, requestListener, requestContext);
     }
 
     public ActionListener<SearchResponse> transformResponseListener(ActionListener<SearchResponse> responseListener) {
-        return pipeline.transformResponseListener(this, responseListener);
+        return pipeline.transformResponseListener(this, responseListener, requestContext);
     }
 
     public <Result extends SearchPhaseResult> void transformSearchPhaseResults(
@@ -42,7 +44,7 @@ public final class PipelinedRequest extends SearchRequest {
         final String currentPhase,
         final String nextPhase
     ) {
-        pipeline.runSearchPhaseResultsTransformer(searchPhaseResult, searchPhaseContext, currentPhase, nextPhase);
+        pipeline.runSearchPhaseResultsTransformer(searchPhaseResult, searchPhaseContext, currentPhase, nextPhase, requestContext);
     }
 
     // Visible for testing
