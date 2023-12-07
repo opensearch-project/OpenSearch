@@ -165,6 +165,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Improve boolean parsing performance ([#11308](https://github.com/opensearch-project/OpenSearch/pull/11308))
 - Interpret byte array as primitive using VarHandles ([#11362](https://github.com/opensearch-project/OpenSearch/pull/11362))
 - Change error message when per shard document limit is breached ([#11312](https://github.com/opensearch-project/OpenSearch/pull/11312))
+- Automatically add scheme to discovery.ec2.endpoint ([#11512](https://github.com/opensearch-project/OpenSearch/pull/11512))
 
 ### Deprecated
 
