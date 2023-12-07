@@ -47,6 +47,8 @@ dependencies {
     exclude group: "com.squareup.okhttp3"
     exclude group: "org.xerial.snappy"
     exclude module: "json-io"
+    exclude module: "logback-core"
+    exclude module: "logback-classic"
   }
   api "org.codehaus.jettison:jettison:${versions.jettison}"
   api "org.apache.commons:commons-compress:${versions.commonscompress}"
@@ -66,6 +68,8 @@ dependencies {
   api 'org.apache.zookeeper:zookeeper:3.9.1'
   api "org.apache.commons:commons-text:1.11.0"
   api "commons-net:commons-net:3.10.0"
+  api "ch.qos.logback:logback-core:1.2.13"
+  api "ch.qos.logback:logback-classic:1.2.13"
   runtimeOnly "com.google.guava:guava:${versions.guava}"
   runtimeOnly("com.squareup.okhttp3:okhttp:4.12.0") {
     exclude group: "com.squareup.okio"
