@@ -75,10 +75,8 @@ abstract class SortedDocsProducer {
     ) throws IOException {
         final int[] topCompositeCollected = new int[1];
         final boolean[] hasCollected = new boolean[1];
-
         final DocCountProvider docCountProvider = new DocCountProvider();
         docCountProvider.setLeafReaderContext(context);
-
         final LeafBucketCollector queueCollector = new LeafBucketCollector() {
             int lastDoc = -1;
 
@@ -94,7 +92,7 @@ abstract class SortedDocsProducer {
                 long docCount = docCountProvider.getDocCount(doc);
                 if (queue.addIfCompetitive(docCount)) {
                     topCompositeCollected[0]++;
-                    if (adder != null && doc != lastDoc) { // TODO reading why doc can be == lastDoc?
+                    if (adder != null && doc != lastDoc) {
                         if (remainingBits == 0) {
                             // the cost approximation was lower than the real size, we need to grow the adder
                             // by some numbers (128) to ensure that we can add the extra documents
@@ -108,7 +106,6 @@ abstract class SortedDocsProducer {
                 }
             }
         };
-
         final Bits liveDocs = context.reader().getLiveDocs();
         final LeafBucketCollector collector = queue.getLeafCollector(leadSourceBucket, context, queueCollector);
         while (iterator.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
@@ -116,7 +113,6 @@ abstract class SortedDocsProducer {
                 collector.collect(iterator.docID());
             }
         }
-
         if (queue.isFull() && hasCollected[0] && topCompositeCollected[0] == 0) {
             return true;
         }

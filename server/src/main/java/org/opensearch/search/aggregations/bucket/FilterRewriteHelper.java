@@ -143,7 +143,7 @@ public class FilterRewriteHelper {
         final long interval = intervalOpt.getAsLong();
         // afterKey is the last bucket key in previous response, while the bucket key
         // is the start of the bucket values, so add the interval
-        if (afterKey != 0) {
+        if (afterKey != -1) {
             low = afterKey + interval;
         }
         // Calculate the number of buckets using range and interval
@@ -248,7 +248,7 @@ public class FilterRewriteHelper {
          * @param missing   whether missing value/bucket is set
          * @param hasScript whether script is used
          * @param fieldType null if the field doesn't exist
-         * @param afterKey  for composite aggregation, the key of the last bucket in the previous response
+         * @param afterKey  used to paginate for composite aggregation, pass in -1 if not used
          */
         public ValueSourceContext(boolean missing, boolean hasScript, MappedFieldType fieldType, long afterKey) {
             this.missing = missing;

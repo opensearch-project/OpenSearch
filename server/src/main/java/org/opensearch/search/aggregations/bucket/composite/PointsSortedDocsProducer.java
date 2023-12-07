@@ -77,7 +77,6 @@ class PointsSortedDocsProducer extends SortedDocsProducer {
             }
             lowerBucket = (Long) lowerValue;
         }
-
         long upperBucket = Long.MAX_VALUE;
         Comparable upperValue = queue.getUpperValueLeadSource();
         if (upperValue != null) {
@@ -148,7 +147,8 @@ class PointsSortedDocsProducer extends SortedDocsProducer {
             }
 
             long bucket = bucketFunction.applyAsLong(packedValue);
-            if (first == false && bucket != lastBucket) { // process previous bucket when new bucket appears
+            // process previous bucket when new bucket appears
+            if (first == false && bucket != lastBucket) {
                 final DocIdSet docIdSet = bucketDocsBuilder.build();
                 if (processBucket(queue, context, docIdSet.iterator(), lastBucket, builder) &&
                 // lower bucket is inclusive

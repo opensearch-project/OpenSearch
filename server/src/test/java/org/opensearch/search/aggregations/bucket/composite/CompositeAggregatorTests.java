@@ -2241,21 +2241,20 @@ public class CompositeAggregatorTests extends BaseCompositeAggregatorTestCase {
         Function<Object, V> transformKey
     ) throws IOException {
         int numTerms = randomIntBetween(10, 500);
-        List<T> terms = new ArrayList<>();
+        List<T> terms = new ArrayList<>(); // possible values for the terms
         for (int i = 0; i < numTerms; i++) {
             terms.add(randomSupplier.get());
         }
         int numDocs = randomIntBetween(100, 200);
         List<Map<String, List<Object>>> dataset = new ArrayList<>();
-
-        Set<T> valuesSet = new HashSet<>();
-        Map<Comparable<?>, AtomicLong> expectedDocCounts = new HashMap<>();
+        Set<T> valuesSet = new HashSet<>(); // how many different values
+        Map<Comparable<?>, AtomicLong> expectedDocCounts = new HashMap<>(); // how many docs for each value
         for (int i = 0; i < numDocs; i++) {
             int numValues = randomIntBetween(1, 5);
             Set<Object> values = new HashSet<>();
             for (int j = 0; j < numValues; j++) {
                 int rand = randomIntBetween(0, terms.size() - 1);
-                if (values.add(terms.get(rand))) {
+                if (values.add(terms.get(rand))) { // values are unique for one doc
                     AtomicLong count = expectedDocCounts.computeIfAbsent(terms.get(rand), (k) -> new AtomicLong(0));
                     count.incrementAndGet();
                     valuesSet.add(terms.get(rand));
@@ -2263,9 +2262,8 @@ public class CompositeAggregatorTests extends BaseCompositeAggregatorTestCase {
             }
             dataset.add(Collections.singletonMap(field, new ArrayList<>(values)));
         }
-        List<T> expected = new ArrayList<>(valuesSet);
+        List<T> expected = new ArrayList<>(valuesSet); // how many buckets expected
         Collections.sort(expected);
-
         List<Comparable<T>> seen = new ArrayList<>();
         AtomicBoolean finish = new AtomicBoolean(false);
         int size = randomIntBetween(1, expected.size());

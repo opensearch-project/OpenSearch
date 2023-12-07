@@ -165,7 +165,7 @@ final class CompositeAggregator extends BucketsAggregator {
         this.queue = new CompositeValuesCollectorQueue(context.bigArrays(), sources, size, rawAfterKey);
         this.rawAfterKey = rawAfterKey;
 
-        // Try fast filter optimization
+        // Try fast filter optimization when the only source is date histogram
         if (sourceConfigs.length == 1 && sourceConfigs[0].valuesSource() instanceof RoundingValuesSource) {
             RoundingValuesSource dateHistogramSource = (RoundingValuesSource) sourceConfigs[0].valuesSource();
             bucketOrds = LongKeyedBucketOrds.build(context.bigArrays(), CardinalityUpperBound.ONE);
@@ -258,7 +258,7 @@ final class CompositeAggregator extends BucketsAggregator {
             );
         }
 
-        // Fast filters optimization
+        // Build results from fast filters optimization
         if (bucketOrds != null) {
             Map<CompositeKey, InternalComposite.InternalBucket> bucketMap = new HashMap<>();
             for (InternalComposite.InternalBucket internalBucket : buckets) {
@@ -386,9 +386,7 @@ final class CompositeAggregator extends BucketsAggregator {
                 }
                 break;
             }
-
             sortFields.add(indexSortField);
-
             if (sourceConfig.valuesSource() instanceof RoundingValuesSource) {
                 // the rounding "squashes" many values together, that breaks the ordering of sub-values,
                 // so we ignore the subsequent sources even if they match the index sort.
@@ -516,7 +514,6 @@ final class CompositeAggregator extends BucketsAggregator {
             .build();
         Weight weight = context.searcher().createWeight(context.searcher().rewrite(newQuery), ScoreMode.COMPLETE_NO_SCORES, 1f);
         Scorer scorer = weight.scorer(ctx);
-
         if (scorer != null) {
             DocIdSetIterator docIt = scorer.iterator();
             final LeafBucketCollector inner = queue.getLeafCollector(
@@ -524,7 +521,6 @@ final class CompositeAggregator extends BucketsAggregator {
                 getFirstPassCollector(docIdSetBuilder, indexSortPrefix.getSort().length)
             );
             inner.setScorer(scorer);
-
             final Bits liveDocs = ctx.reader().getLiveDocs();
             while (docIt.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
                 if (liveDocs == null || liveDocs.get(docIt.docID())) {
@@ -548,7 +544,6 @@ final class CompositeAggregator extends BucketsAggregator {
         Sort indexSortPrefix = buildIndexSortPrefix(ctx);
         int sortPrefixLen = computeSortPrefixLen(indexSortPrefix);
 
-        // are there index sort enabled? sortPrefixLen
         SortedDocsProducer sortedDocsProducer = sortPrefixLen == 0
             ? sources[0].createSortedDocsProducerOrNull(ctx.reader(), context.query())
             : null;
@@ -602,6 +597,8 @@ final class CompositeAggregator extends BucketsAggregator {
                 try {
                     long docCount = docCountProvider.getDocCount(doc);
                     if (queue.addIfCompetitive(indexSortPrefix, docCount)) {
+                        // one doc may contain multiple values, we iterate over and collect one by one
+                        // so the same doc can appear multiple times here
                         if (builder != null && lastDoc != doc) {
                             builder.add(doc);
                             lastDoc = doc;
@@ -626,18 +623,14 @@ final class CompositeAggregator extends BucketsAggregator {
             Query query = context.query();
             weight = context.searcher().createWeight(context.searcher().rewrite(query), ScoreMode.COMPLETE, 1f);
         }
-
         deferredCollectors.preCollection();
-
         for (Entry entry : entries) {
             DocIdSetIterator docIdSetIterator = entry.docIdSet.iterator();
             if (docIdSetIterator == null) {
                 continue;
             }
-
             final LeafBucketCollector subCollector = deferredCollectors.getLeafCollector(entry.context);
             final LeafBucketCollector collector = queue.getLeafCollector(entry.context, getSecondPassCollector(subCollector));
-
             DocIdSetIterator scorerIt = null;
             if (needsScores) {
                 Scorer scorer = weight.scorer(entry.context);
@@ -646,7 +639,6 @@ final class CompositeAggregator extends BucketsAggregator {
                     subCollector.setScorer(scorer);
                 }
             }
-
             int docID;
             while ((docID = docIdSetIterator.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS) {
                 if (needsScores) {
@@ -658,7 +650,6 @@ final class CompositeAggregator extends BucketsAggregator {
                 collector.collect(docID);
             }
         }
-
         deferredCollectors.postCollection();
     }
 
@@ -670,7 +661,7 @@ final class CompositeAggregator extends BucketsAggregator {
             @Override
             public void collect(int doc, long zeroBucket) throws IOException {
                 assert zeroBucket == 0;
-                Integer slot = queue.compareCurrent();
+                Integer slot = queue.getCurrentSlot();
                 if (slot != null) {
                     // The candidate key is a top bucket.
                     // We can defer the collection of this document/bucket to the sub collector
