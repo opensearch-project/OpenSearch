@@ -12,6 +12,11 @@ import org.opensearch.common.cache.RemovalNotification;
 import org.opensearch.common.cache.RemovalReason;
 import org.opensearch.common.cache.store.enums.CacheStoreType;
 
+/**
+ * Removal notification for store aware cache.
+ * @param <K> Type of key.
+ * @param <V> Type of value.
+ */
 public class StoreAwareCacheRemovalNotification<K, V> extends RemovalNotification<K, V> {
     private final CacheStoreType cacheStoreType;
 

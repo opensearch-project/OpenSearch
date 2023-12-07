@@ -11,6 +11,11 @@ package org.opensearch.common.cache.store.listeners;
 import java.util.EnumSet;
 import java.util.Objects;
 
+/**
+ * Configuration class for event listener. Defines for which event types and listener, events needs to be sent.
+ * @param <K> Type of key
+ * @param <V> Type of value
+ */
 public class StoreAwareCacheEventListenerConfiguration<K, V> {
 
     private final EnumSet<EventType> eventTypes;
@@ -29,6 +34,9 @@ public class StoreAwareCacheEventListenerConfiguration<K, V> {
         return eventListener;
     }
 
+    /**
+     * Builder class
+     */
     public static class Builder<K, V> {
         private EnumSet<EventType> eventTypes;
         private StoreAwareCacheEventListener<K, V> eventListener;
