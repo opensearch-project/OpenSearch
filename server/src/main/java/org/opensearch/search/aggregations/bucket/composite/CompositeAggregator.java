@@ -368,7 +368,7 @@ final class CompositeAggregator extends BucketsAggregator {
         for (int i = 0; i < end; i++) {
             CompositeValuesSourceConfig sourceConfig = sourceConfigs[i];
             SingleDimensionValuesSource<?> source = sources[i];
-            SortField indexSortField = indexSort.getSort()[i]; // TODO reading requiring the order should match
+            SortField indexSortField = indexSort.getSort()[i];
             if (source.fieldType == null
                 // TODO: can we handle missing bucket when using index sort optimization ?
                 || source.missingBucket
@@ -380,16 +380,18 @@ final class CompositeAggregator extends BucketsAggregator {
 
             if (indexSortField.getReverse() != (source.reverseMul == -1)) {
                 if (i == 0) {
-                    // the leading index sort matches the leading source field but the order is reversed
+                    // the leading index sort matches the leading source field, but the order is reversed,
                     // so we don't check the other sources.
                     return new Sort(indexSortField);
                 }
                 break;
             }
+
             sortFields.add(indexSortField);
+
             if (sourceConfig.valuesSource() instanceof RoundingValuesSource) {
-                // the rounding "squashes" many values together, that breaks the ordering of sub-values
-                // so we ignore subsequent source even if they match the index sort.
+                // the rounding "squashes" many values together, that breaks the ordering of sub-values,
+                // so we ignore the subsequent sources even if they match the index sort.
                 break;
             }
         }
@@ -409,8 +411,7 @@ final class CompositeAggregator extends BucketsAggregator {
         if (indexSortPrefix == null) {
             return 0;
         }
-        if (indexSortPrefix.getSort()[0].getReverse() // TODO reading sort optimization is reversed
-            != (sources[0].reverseMul == -1)) { // TODO reading aggregation sort param is desc
+        if (indexSortPrefix.getSort()[0].getReverse() != (sources[0].reverseMul == -1)) {
             assert indexSortPrefix.getSort().length == 1;
             return -1;
         } else {
@@ -502,7 +503,6 @@ final class CompositeAggregator extends BucketsAggregator {
         for (int i = 0; i < formats.length; i++) {
             formats[i] = sources[i].format;
         }
-        // TODO reading sort and search after with criteria
         FieldDoc fieldDoc = SearchAfterBuilder.buildFieldDoc(
             new SortAndFormats(indexSortPrefix, formats),
             Arrays.copyOfRange(rawAfterKey.values(), 0, formats.length)
@@ -565,19 +565,19 @@ final class CompositeAggregator extends BucketsAggregator {
             // see {@link MultiCollector} for more details on how we handle early termination in aggregations.
             earlyTerminated = true;
             throw new CollectionTerminatedException();
-        } else { // TODO reading index sort not enabled
+        } else {
             if (fillDocIdSet) {
                 currentLeaf = ctx;
                 docIdSetBuilder = new RoaringDocIdSet.Builder(ctx.reader().maxDoc());
             }
             if (rawAfterKey != null && sortPrefixLen > 0) {
                 // We have an after key and index sort is applicable, so we jump directly to the doc
-                // that is after the index sort prefix using the rawAfterKey and we start collecting
-                // document from there.
+                // after the index sort prefix using the rawAfterKey and we start collecting
+                // documents from there.
+                assert indexSortPrefix != null;
                 processLeafFromQuery(ctx, indexSortPrefix);
                 throw new CollectionTerminatedException();
             } else {
-                // rawAfterKey == null || sort order is reversed
                 final LeafBucketCollector inner = queue.getLeafCollector(ctx, getFirstPassCollector(docIdSetBuilder, sortPrefixLen));
                 return new LeafBucketCollector() {
                     @Override
@@ -649,7 +649,7 @@ final class CompositeAggregator extends BucketsAggregator {
 
             int docID;
             while ((docID = docIdSetIterator.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS) {
-                if (needsScores) { // TODO reading not sure what need score does here?
+                if (needsScores) {
                     assert scorerIt != null && scorerIt.docID() < docID;
                     scorerIt.advance(docID);
                     // aggregations should only be replayed on matching documents
@@ -670,8 +670,7 @@ final class CompositeAggregator extends BucketsAggregator {
             @Override
             public void collect(int doc, long zeroBucket) throws IOException {
                 assert zeroBucket == 0;
-                Integer slot = queue.compareCurrent(); // TODO reading queue will make sure current value presents through collection
-                                                       // mechanism
+                Integer slot = queue.compareCurrent();
                 if (slot != null) {
                     // The candidate key is a top bucket.
                     // We can defer the collection of this document/bucket to the sub collector

@@ -43,6 +43,9 @@ import java.util.function.Supplier;
  */
 public class FilterRewriteHelper {
 
+    /**
+     * Saves the objects that will be used to try fast filter optimization
+     */
     public static class FilterContext {
         public final DateFieldMapper.DateFieldType fieldType;
         public final Weight[] filters;
