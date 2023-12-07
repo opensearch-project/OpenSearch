@@ -47,6 +47,9 @@ import org.opensearch.action.admin.cluster.decommission.awareness.put.Decommissi
 import org.opensearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.opensearch.action.admin.cluster.health.ClusterHealthRequestBuilder;
 import org.opensearch.action.admin.cluster.health.ClusterHealthResponse;
+import org.opensearch.action.admin.cluster.insights.top_queries.TopQueriesRequest;
+import org.opensearch.action.admin.cluster.insights.top_queries.TopQueriesRequestBuilder;
+import org.opensearch.action.admin.cluster.insights.top_queries.TopQueriesResponse;
 import org.opensearch.action.admin.cluster.node.hotthreads.NodesHotThreadsRequest;
 import org.opensearch.action.admin.cluster.node.hotthreads.NodesHotThreadsRequestBuilder;
 import org.opensearch.action.admin.cluster.node.hotthreads.NodesHotThreadsResponse;
@@ -942,4 +945,27 @@ public interface ClusterAdminClient extends OpenSearchClient {
      * Deletes a stored search pipeline
      */
     ActionFuture<AcknowledgedResponse> deleteSearchPipeline(DeleteSearchPipelineRequest request);
+
+    /**
+     * Top Queries of the cluster.
+     *
+     * @param request The top queries request
+     * @return The result future
+     * @see org.opensearch.client.Requests#topQueriesRequest(String...)
+     */
+    ActionFuture<TopQueriesResponse> topQueries(TopQueriesRequest request);
+
+    /**
+     * Top Queries of the cluster.
+     *
+     * @param request  The top queries request
+     * @param listener A listener to be notified with a result
+     * @see org.opensearch.client.Requests#topQueriesRequest(String...)
+     */
+    void topQueries(TopQueriesRequest request, ActionListener<TopQueriesResponse> listener);
+
+    /**
+     * Top Queries of the cluster.
+     */
+    TopQueriesRequestBuilder prepareTopQueries(String... nodesIds);
 }

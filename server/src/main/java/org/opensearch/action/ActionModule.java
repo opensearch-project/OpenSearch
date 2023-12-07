@@ -48,6 +48,8 @@ import org.opensearch.action.admin.cluster.decommission.awareness.put.Decommissi
 import org.opensearch.action.admin.cluster.decommission.awareness.put.TransportDecommissionAction;
 import org.opensearch.action.admin.cluster.health.ClusterHealthAction;
 import org.opensearch.action.admin.cluster.health.TransportClusterHealthAction;
+import org.opensearch.action.admin.cluster.insights.top_queries.TopQueriesAction;
+import org.opensearch.action.admin.cluster.insights.top_queries.TransportTopQueriesAction;
 import org.opensearch.action.admin.cluster.node.hotthreads.NodesHotThreadsAction;
 import org.opensearch.action.admin.cluster.node.hotthreads.TransportNodesHotThreadsAction;
 import org.opensearch.action.admin.cluster.node.info.NodesInfoAction;
@@ -359,6 +361,7 @@ import org.opensearch.rest.action.admin.cluster.RestRemoteStoreStatsAction;
 import org.opensearch.rest.action.admin.cluster.RestRestoreRemoteStoreAction;
 import org.opensearch.rest.action.admin.cluster.RestRestoreSnapshotAction;
 import org.opensearch.rest.action.admin.cluster.RestSnapshotsStatusAction;
+import org.opensearch.rest.action.admin.cluster.RestTopQueriesAction;
 import org.opensearch.rest.action.admin.cluster.RestVerifyRepositoryAction;
 import org.opensearch.rest.action.admin.cluster.dangling.RestDeleteDanglingIndexAction;
 import org.opensearch.rest.action.admin.cluster.dangling.RestImportDanglingIndexAction;
@@ -762,6 +765,9 @@ public class ActionModule extends AbstractModule {
         actions.register(GetSearchPipelineAction.INSTANCE, GetSearchPipelineTransportAction.class);
         actions.register(DeleteSearchPipelineAction.INSTANCE, DeleteSearchPipelineTransportAction.class);
 
+        // Query Insight Actions
+        actions.register(TopQueriesAction.INSTANCE, TransportTopQueriesAction.class);
+
         return unmodifiableMap(actions.getRegistry());
     }
 
@@ -974,6 +980,9 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestGetDecommissionStateAction());
         registerHandler.accept(new RestRemoteStoreStatsAction());
         registerHandler.accept(new RestRestoreRemoteStoreAction());
+
+        // Query insights API
+        registerHandler.accept(new RestTopQueriesAction());
     }
 
     @Override
