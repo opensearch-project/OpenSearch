@@ -66,6 +66,7 @@ import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.document.SortedUnsignedLongDocValuesRangeQuery;
+import org.opensearch.index.document.SortedUnsignedLongDocValuesSetQuery;
 import org.opensearch.index.fielddata.IndexNumericFieldData;
 import org.opensearch.index.mapper.MappedFieldType.Relation;
 import org.opensearch.index.mapper.NumberFieldMapper.NumberFieldType;
@@ -409,6 +410,22 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
             () -> unsearchable.rangeQuery("1", "3", true, true, null, null, null, MOCK_QSC)
+        );
+        assertEquals("Cannot search on field [field] since it is both not indexed, and does not have doc_values enabled.", e.getMessage());
+    }
+
+    public void testUnsignedLongTermsQuery() {
+        MappedFieldType ft = new NumberFieldMapper.NumberFieldType("field", NumberFieldMapper.NumberType.UNSIGNED_LONG);
+        Query expected = new IndexOrDocValuesQuery(
+            BigIntegerPoint.newSetQuery("field", BigInteger.valueOf(1), BigInteger.valueOf(3)),
+            SortedUnsignedLongDocValuesSetQuery.newSlowSetQuery("field", BigInteger.valueOf(1), BigInteger.valueOf(3))
+        );
+        assertEquals(expected, ft.termsQuery(List.of("1", "3"), MOCK_QSC));
+
+        MappedFieldType unsearchable = unsearchable();
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> unsearchable.termsQuery(List.of("1", "3"), MOCK_QSC)
         );
         assertEquals("Cannot search on field [field] since it is both not indexed, and does not have doc_values enabled.", e.getMessage());
     }

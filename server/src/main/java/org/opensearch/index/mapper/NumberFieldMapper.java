@@ -62,6 +62,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.core.xcontent.XContentParser.Token;
 import org.opensearch.index.document.SortedUnsignedLongDocValuesRangeQuery;
+import org.opensearch.index.document.SortedUnsignedLongDocValuesSetQuery;
 import org.opensearch.index.fielddata.IndexFieldData;
 import org.opensearch.index.fielddata.IndexNumericFieldData.NumericType;
 import org.opensearch.index.fielddata.plain.SortedNumericIndexFieldData;
@@ -1018,11 +1019,11 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
 
                 if (isSearchable && hasDocvalues) {
                     Query query = BigIntegerPoint.newSetQuery(field, v);
-                    Query dvQuery = SortedNumericDocValuesField.newSlowSetQuery(field, points);
+                    Query dvQuery = SortedUnsignedLongDocValuesSetQuery.newSlowSetQuery(field, v);
                     return new IndexOrDocValuesQuery(query, dvQuery);
                 }
                 if (hasDocvalues) {
-                    return SortedNumericDocValuesField.newSlowSetQuery(field, points);
+                    return SortedUnsignedLongDocValuesSetQuery.newSlowSetQuery(field, v);
                 }
                 return BigIntegerPoint.newSetQuery(field, v);
             }
