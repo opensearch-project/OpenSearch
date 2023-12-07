@@ -62,7 +62,7 @@ setup:
           integer: 1
           long: 1
           short: 1
-          unsigned_long: 1
+          unsigned_long: 10223372036854775807
 
   - do:
       headers:
@@ -78,7 +78,7 @@ setup:
           integer: 1
           long: 1
           short: 1
-          unsigned_long: 1
+          unsigned_long: 10223372036854775807
 
 
   - do:
@@ -95,7 +95,7 @@ setup:
           integer: 1
           long: 1
           short: 1
-          unsigned_long: 1
+          unsigned_long: 10223372036854775807
 
 
   - do:

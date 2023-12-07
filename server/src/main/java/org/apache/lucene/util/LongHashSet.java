@@ -6,10 +6,8 @@
  * compatible open source license.
  */
 
-package org.apache.lucene.document;
+package org.apache.lucene.util;
 
-import org.apache.lucene.util.Accountable;
-import org.apache.lucene.util.RamUsageEstimator;
 import org.apache.lucene.util.packed.PackedInts;
 
 import java.util.Arrays;

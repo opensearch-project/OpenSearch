@@ -222,7 +222,9 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
                 long points[] = new long[v.length];
                 for (int i = 0; i < values.size(); ++i) {
                     v[i] = parse(values.get(i), false);
-                    points[i] = HalfFloatPoint.halfFloatToSortableShort(v[i]);
+                    if (hasDocValues) {
+                        points[i] = HalfFloatPoint.halfFloatToSortableShort(v[i]);
+                    }
                 }
                 if (isSearchable && hasDocValues) {
                     Query query = HalfFloatPoint.newSetQuery(field, v);
@@ -357,7 +359,9 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
                 long points[] = new long[v.length];
                 for (int i = 0; i < values.size(); ++i) {
                     v[i] = parse(values.get(i), false);
-                    points[i] = NumericUtils.floatToSortableInt(v[i]);
+                    if (hasDocValues) {
+                        points[i] = NumericUtils.floatToSortableInt(v[i]);
+                    }
                 }
                 if (isSearchable && hasDocValues) {
                     return new IndexOrDocValuesQuery(
@@ -481,7 +485,9 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
                 long points[] = new long[v.length];
                 for (int i = 0; i < values.size(); ++i) {
                     v[i] = parse(values.get(i), false);
-                    points[i] = NumericUtils.doubleToSortableLong(v[i]);
+                    if (hasDocValues) {
+                        points[i] = NumericUtils.doubleToSortableLong(v[i]);
+                    }
                 }
                 if (isSearchable && hasDocValues) {
                     return new IndexOrDocValuesQuery(
@@ -758,8 +764,10 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
                     v = Arrays.copyOf(v, upTo);
                 }
                 long points[] = new long[v.length];
-                for (int i = 0; i < v.length; i++) {
-                    points[i] = v[i];
+                if (hasDocValues) {
+                    for (int i = 0; i < v.length; i++) {
+                        points[i] = v[i];
+                    }
                 }
                 if (isSearchable && hasDocValues) {
                     return new IndexOrDocValuesQuery(
@@ -999,14 +1007,12 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
             @Override
             public Query termsQuery(String field, List<Object> values, boolean hasDocvalues, boolean isSearchable) {
                 BigInteger[] v = new BigInteger[values.size()];
-                long points[] = new long[v.length];
                 int upTo = 0;
 
                 for (int i = 0; i < values.size(); i++) {
                     Object value = values.get(i);
                     if (!hasDecimalPart(value)) {
                         v[upTo++] = parse(value, true);
-                        points[i] = v[i].longValue();
                     }
                 }
 

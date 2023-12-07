@@ -8,7 +8,6 @@
 
 package org.opensearch.index.document;
 
-import org.apache.lucene.document.LongHashSet;
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.LeafReader;
@@ -25,6 +24,7 @@ import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.TwoPhaseIterator;
 import org.apache.lucene.search.Weight;
+import org.apache.lucene.util.LongHashSet;
 
 import java.io.IOException;
 import java.math.BigInteger;
