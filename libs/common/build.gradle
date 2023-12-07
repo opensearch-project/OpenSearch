@@ -77,6 +77,12 @@ if (BuildParams.runtimeJavaVersion >= JavaVersion.VERSION_20) {
   }
 
   tasks.withType(Test).configureEach {
+    // Relying on the convention for Test.classpath in custom Test tasks has been deprecated
+    // and scheduled to be removed in Gradle 9.0. Below lines are added from the migration guide:
+    // https://docs.gradle.org/8.5/userguide/upgrading_version_8.html#test_task_default_classpath
+    testClassesDirs = testing.suites.test.sources.output.classesDirs
+    classpath = testing.suites.test.sources.runtimeClasspath
+
     // Adds the multi-release JAR to the classpath when executing tests.
     // This allows newer sources to be picked up at test runtime (if supported).
     classpath += files(jar.archiveFile)
