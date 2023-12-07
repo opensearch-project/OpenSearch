@@ -1279,7 +1279,7 @@ public class CompositeAggregatorTests extends BaseCompositeAggregatorTestCase {
             },
             (result) -> {
                 assertEquals(3, result.getBuckets().size());
-                assertEquals("{date=1508457600000}", result.afterKey().toString());
+                assertEquals("{date=1508457600000}", result.afterKey().toString()); // 2017-10-20T00:00:00
                 assertEquals("{date=1474329600000}", result.getBuckets().get(0).getKeyAsString());
                 assertEquals(2L, result.getBuckets().get(0).getDocCount());
                 assertEquals("{date=1508371200000}", result.getBuckets().get(1).getKeyAsString());
@@ -1300,9 +1300,8 @@ public class CompositeAggregatorTests extends BaseCompositeAggregatorTestCase {
                 DateHistogramValuesSourceBuilder histo = new DateHistogramValuesSourceBuilder("date").field("date")
                     .calendarInterval(DateHistogramInterval.days(1));
                 return new CompositeAggregationBuilder("name", Collections.singletonList(histo)).aggregateAfter(
-                    createAfterKey("date", 1474329600000L)
+                    createAfterKey("date", 1474329600000L) // 2016-09-20T00:00:00
                 );
-
             },
             (result) -> {
                 assertEquals(2, result.getBuckets().size());

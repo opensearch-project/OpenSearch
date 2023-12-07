@@ -120,8 +120,8 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
         FilterRewriteHelper.ValueSourceContext dateHistogramSourceContext = new FilterRewriteHelper.ValueSourceContext(
             valuesSourceConfig.missing() != null,
             valuesSourceConfig.script() != null,
-            valuesSourceConfig.fieldType()
-        );
+            valuesSourceConfig.fieldType(),
+            0);
         FilterRewriteHelper.FilterContext filterContext = FilterRewriteHelper.buildFastFilterContext(
             parent,
             subAggregators.length,

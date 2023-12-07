@@ -128,8 +128,9 @@ public class FilterRewriteHelper {
         final Rounding.Prepared preparedRounding,
         final String field,
         final DateFieldMapper.DateFieldType fieldType,
-        final long low,
-        final long high
+        long low,
+        final long high,
+        long afterKey
     ) throws IOException {
         final OptionalLong intervalOpt = Rounding.getInterval(rounding);
         if (intervalOpt.isEmpty()) {
@@ -137,6 +138,11 @@ public class FilterRewriteHelper {
         }
 
         final long interval = intervalOpt.getAsLong();
+        // afterKey is the last bucket key in previous response, while the bucket key
+        // is the start of the bucket values, so add the interval
+        if (afterKey != 0) {
+            low = afterKey + interval;
+        }
         // Calculate the number of buckets using range and interval
         long roundedLow = preparedRounding.round(fieldType.convertNanosToMillis(low));
         long prevRounded = roundedLow;
@@ -224,7 +230,8 @@ public class FilterRewriteHelper {
                         fieldName,
                         (DateFieldMapper.DateFieldType) fieldType,
                         bounds[0],
-                        bounds[1]
+                        bounds[1],
+                        valueSourceContext.afterKey
                     );
                     return new FilterContext((DateFieldMapper.DateFieldType) fieldType, filters);
                 }
@@ -240,16 +247,19 @@ public class FilterRewriteHelper {
         private final boolean missing;
         private final boolean hasScript;
         private final MappedFieldType fieldType;
+        private final long afterKey;
 
         /**
          * @param missing   whether missing value/bucket is set
          * @param hasScript whether script is used
          * @param fieldType null if the field doesn't exist
+         * @param afterKey
          */
-        public ValueSourceContext(boolean missing, boolean hasScript, MappedFieldType fieldType) {
+        public ValueSourceContext(boolean missing, boolean hasScript, MappedFieldType fieldType, long afterKey) {
             this.missing = missing;
             this.hasScript = hasScript;
             this.fieldType = fieldType;
+            this.afterKey = afterKey;
         }
 
         public MappedFieldType getFieldType() {

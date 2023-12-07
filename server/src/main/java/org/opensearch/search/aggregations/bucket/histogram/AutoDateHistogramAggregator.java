@@ -161,8 +161,8 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
         FilterRewriteHelper.ValueSourceContext dateHistogramSourceContext = new FilterRewriteHelper.ValueSourceContext(
             valuesSourceConfig.missing() != null,
             valuesSourceConfig.script() != null,
-            valuesSourceConfig.fieldType()
-        );
+            valuesSourceConfig.fieldType(),
+            0);
         FilterRewriteHelper.FilterContext filterContext = FilterRewriteHelper.buildFastFilterContext(
             parent(),
             subAggregators.length,

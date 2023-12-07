@@ -116,10 +116,10 @@ final class CompositeAggregator extends BucketsAggregator {
 
     private boolean earlyTerminated;
 
-    private final Weight[] filters;
-    private final LongKeyedBucketOrds bucketOrds;
-    private final DateFieldMapper.DateFieldType fieldType;
-    private final Rounding.Prepared preparedRounding;
+    private Weight[] filters = null;
+    private LongKeyedBucketOrds bucketOrds = null;
+    private DateFieldMapper.DateFieldType fieldType = null;
+    private Rounding.Prepared preparedRounding = null;
 
     CompositeAggregator(
         String name,
@@ -165,51 +165,48 @@ final class CompositeAggregator extends BucketsAggregator {
         this.queue = new CompositeValuesCollectorQueue(context.bigArrays(), sources, size, rawAfterKey);
         this.rawAfterKey = rawAfterKey;
 
-        bucketOrds = LongKeyedBucketOrds.build(context.bigArrays(), CardinalityUpperBound.ONE);
-
-        CompositeValuesSourceConfig dateHistogramSourceConfig = sourceConfigs[0];
-        RoundingValuesSource dateHistogramSource = (RoundingValuesSource) dateHistogramSourceConfig.valuesSource();
-        preparedRounding = dateHistogramSource.getPreparedRounding();
-        FilterRewriteHelper.ValueSourceContext dateHistogramSourceContext = new FilterRewriteHelper.ValueSourceContext(
-            dateHistogramSourceConfig.missingBucket(),
-            dateHistogramSourceConfig.hasScript(),
-            dateHistogramSourceConfig.fieldType()
-        );
-        FilterRewriteHelper.FilterContext filterContext = FilterRewriteHelper.buildFastFilterContext(
-            parent,
-            subAggregators.length,
-            context,
-            x -> dateHistogramSource.getRounding(),
-            () -> preparedRounding,
-            dateHistogramSourceContext,
-            // TODO reading need to consider afterKey in this
-            fc -> FilterRewriteHelper.getAggregationBounds(context, fc.getFieldType().name())
-        );
-        if (filterContext != null) {
-            fieldType = filterContext.fieldType;
-            filters = filterContext.filters;
-        } else {
-            filters = null;
-            fieldType = null;
+        // Try fast filter optimization
+        if (sourceConfigs.length == 1 && sourceConfigs[0].valuesSource() instanceof RoundingValuesSource) {
+            RoundingValuesSource dateHistogramSource = (RoundingValuesSource) sourceConfigs[0].valuesSource();
+            bucketOrds = LongKeyedBucketOrds.build(context.bigArrays(), CardinalityUpperBound.ONE);
+            preparedRounding = dateHistogramSource.getPreparedRounding();
+            long afterValue = 0;
+            if (rawAfterKey != null) {
+                assert rawAfterKey.size() == 1 && formats.size() == 1;
+                afterValue = formats.get(0).parseLong(rawAfterKey.get(0).toString(), false, () -> {
+                    throw new IllegalArgumentException("now() is not supported in [after] key");
+                });
+            }
+            FilterRewriteHelper.ValueSourceContext dateHistogramSourceContext = new FilterRewriteHelper.ValueSourceContext(
+                sourceConfigs[0].missingBucket(),
+                sourceConfigs[0].hasScript(),
+                sourceConfigs[0].fieldType(),
+                afterValue
+            );
+            FilterRewriteHelper.FilterContext filterContext = FilterRewriteHelper.buildFastFilterContext(
+                parent,
+                subAggregators.length,
+                context,
+                x -> dateHistogramSource.getRounding(),
+                () -> preparedRounding,
+                dateHistogramSourceContext,
+                fc -> FilterRewriteHelper.getAggregationBounds(context, fc.getFieldType().name())
+            );
+            if (filterContext != null) {
+                fieldType = filterContext.fieldType;
+                filters = filterContext.filters;
+            } else {
+                filters = null;
+                fieldType = null;
+            }
         }
     }
-
-    // private long[] computeBounds(final FilterRewriteHelper.ValueSourceContext fieldContext) {
-    //     final long[] bounds = FilterRewriteHelper.getAggregationBounds(context, fieldContext.getFieldType().name());
-    //     if (bounds != null) {
-    //         // Update min/max limit if user specified any hard bounds
-    //         if (hardBounds != null) {
-    //             bounds[0] = Math.max(bounds[0], hardBounds.getMin());
-    //             bounds[1] = Math.min(bounds[1], hardBounds.getMax() - 1); // hard bounds max is exclusive
-    //         }
-    //     }
-    //     return bounds;
-    // }
 
     @Override
     protected void doClose() {
         try {
             Releasables.close(queue);
+            Releasables.close(bucketOrds);
         } finally {
             Releasables.close(sources);
         }
@@ -261,8 +258,8 @@ final class CompositeAggregator extends BucketsAggregator {
             );
         }
 
-        // For the fast filters optimization
-        if (bucketOrds.size() != 0) {
+        // Fast filters optimization
+        if (bucketOrds != null) {
             Map<CompositeKey, InternalComposite.InternalBucket> bucketMap = new HashMap<>();
             for (InternalComposite.InternalBucket internalBucket : buckets) {
                 bucketMap.put(internalBucket.getRawKey(), internalBucket);
@@ -549,14 +546,14 @@ final class CompositeAggregator extends BucketsAggregator {
 
         finishLeaf();
 
-        boolean fillDocIdSet = deferredCollectors != NO_OP_COLLECTOR; // TODO reading subAggs are deferred
+        boolean fillDocIdSet = deferredCollectors != NO_OP_COLLECTOR;
 
         Sort indexSortPrefix = buildIndexSortPrefix(ctx);
-        int sortPrefixLen = computeSortPrefixLen(indexSortPrefix); // TODO reading asc index sort exists
+        int sortPrefixLen = computeSortPrefixLen(indexSortPrefix);
 
         // are there index sort enabled? sortPrefixLen
         SortedDocsProducer sortedDocsProducer = sortPrefixLen == 0
-            ? sources[0].createSortedDocsProducerOrNull(ctx.reader(), context.query()) // TODO reading only using the first field
+            ? sources[0].createSortedDocsProducerOrNull(ctx.reader(), context.query())
             : null;
         if (sortedDocsProducer != null) {
             // Visit documents sorted by the leading source of the composite definition and terminates
@@ -564,7 +561,7 @@ final class CompositeAggregator extends BucketsAggregator {
             // in the queue.
             DocIdSet docIdSet = sortedDocsProducer.processLeaf(context.query(), queue, ctx, fillDocIdSet);
             if (fillDocIdSet) {
-                entries.add(new Entry(ctx, docIdSet)); // TODO reading add entries
+                entries.add(new Entry(ctx, docIdSet));
             }
             // We can bypass search entirely for this segment, the processing is done in the previous call.
             // Throwing this exception will terminate the execution of the search for this root aggregation,
@@ -635,7 +632,7 @@ final class CompositeAggregator extends BucketsAggregator {
 
         deferredCollectors.preCollection();
 
-        for (Entry entry : entries) { // TODO reading entry is the leaf
+        for (Entry entry : entries) {
             DocIdSetIterator docIdSetIterator = entry.docIdSet.iterator();
             if (docIdSetIterator == null) {
                 continue;
@@ -680,7 +677,7 @@ final class CompositeAggregator extends BucketsAggregator {
                 if (slot != null) {
                     // The candidate key is a top bucket.
                     // We can defer the collection of this document/bucket to the sub collector
-                    subCollector.collect(doc, slot); // TODO reading slot is the same as owning bucket ordinal
+                    subCollector.collect(doc, slot);
                 }
             }
         };
