@@ -309,7 +309,7 @@ public final class NetworkModule {
          * @param actualHandler The handler itself that implements the request handling
          * @param admissionControlActionType Admission control based on resource usage limits of provided action type
          * @return returns the actual TransportRequestHandler after intercepting all previous handlers
-         * @param <T>
+         * @param <T> transport request type
          */
         @Override
         public <T extends TransportRequest> TransportRequestHandler<T> interceptHandler(
