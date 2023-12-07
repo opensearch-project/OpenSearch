@@ -40,7 +40,7 @@ java {
 
 base {
   group = 'org.opensearch.client'
-  archivesBaseName = 'opensearch-rest-client'
+  archivesName = 'opensearch-rest-client'
 }
 
 dependencies {

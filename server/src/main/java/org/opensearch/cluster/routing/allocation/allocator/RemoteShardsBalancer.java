@@ -406,7 +406,7 @@ public final class RemoteShardsBalancer extends ShardsBalancer {
                     allocation.metadata(),
                     allocation.routingTable()
                 );
-                ShardRouting initShard = routingNodes.initializeShard(shard, node.nodeId(), null, shardSize, allocation.changes());
+                routingNodes.initializeShard(shard, node.nodeId(), null, shardSize, allocation.changes());
                 nodeQueue.offer(node);
                 allocated = true;
                 break;
@@ -444,7 +444,6 @@ public final class RemoteShardsBalancer extends ShardsBalancer {
 
                 // Break out if all nodes in the queue have been checked for this shard
                 if (nodeQueue.stream().allMatch(rn -> nodesCheckedForShard.contains(rn.nodeId()))) {
-                    throttled = true;
                     break;
                 }
             }

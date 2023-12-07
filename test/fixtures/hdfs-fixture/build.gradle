@@ -65,10 +65,10 @@ dependencies {
   api "org.eclipse.jetty:jetty-server:${versions.jetty}"
   api "org.eclipse.jetty.websocket:javax-websocket-server-impl:${versions.jetty}"
   api 'org.apache.zookeeper:zookeeper:3.9.1'
-  api "org.apache.commons:commons-text:1.10.0"
-  api "commons-net:commons-net:3.9.0"
+  api "org.apache.commons:commons-text:1.11.0"
+  api "commons-net:commons-net:3.10.0"
   runtimeOnly "com.google.guava:guava:${versions.guava}"
-  runtimeOnly("com.squareup.okhttp3:okhttp:4.11.0") {
+  runtimeOnly("com.squareup.okhttp3:okhttp:4.12.0") {
     exclude group: "com.squareup.okio"
   }
   runtimeOnly "com.squareup.okio:okio:3.6.0"

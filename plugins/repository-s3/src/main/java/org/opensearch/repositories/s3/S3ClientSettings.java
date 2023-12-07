@@ -177,7 +177,7 @@ final class S3ClientSettings {
     static final Setting.AffixSetting<TimeValue> REQUEST_TIMEOUT_SETTING = Setting.affixKeySetting(
         PREFIX,
         "request_timeout",
-        key -> Setting.timeSetting(key, TimeValue.timeValueMinutes(2), Property.NodeScope)
+        key -> Setting.timeSetting(key, TimeValue.timeValueMinutes(5), Property.NodeScope)
     );
 
     /** The connection timeout for connecting to s3. */
@@ -198,14 +198,14 @@ final class S3ClientSettings {
     static final Setting.AffixSetting<Integer> MAX_CONNECTIONS_SETTING = Setting.affixKeySetting(
         PREFIX,
         "max_connections",
-        key -> Setting.intSetting(key, 100, Property.NodeScope)
+        key -> Setting.intSetting(key, 500, Property.NodeScope)
     );
 
     /** Connection acquisition timeout for new connections to S3. */
     static final Setting.AffixSetting<TimeValue> CONNECTION_ACQUISITION_TIMEOUT = Setting.affixKeySetting(
         PREFIX,
         "connection_acquisition_timeout",
-        key -> Setting.timeSetting(key, TimeValue.timeValueMinutes(2), Property.NodeScope)
+        key -> Setting.timeSetting(key, TimeValue.timeValueMinutes(15), Property.NodeScope)
     );
 
     /** The maximum pending connections to S3. */

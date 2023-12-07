@@ -8,8 +8,14 @@
 
 package org.opensearch.ratelimitting.admissioncontrol.controllers;
 
+import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.util.concurrent.ConcurrentCollections;
+import org.opensearch.node.ResourceUsageCollectorService;
+import org.opensearch.ratelimitting.admissioncontrol.enums.AdmissionControlActionType;
 import org.opensearch.ratelimitting.admissioncontrol.enums.AdmissionControlMode;
 
+import java.util.HashMap;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
@@ -19,17 +25,25 @@ import java.util.concurrent.atomic.AtomicLong;
  */
 public abstract class AdmissionController {
 
-    private final AtomicLong rejectionCount;
     private final String admissionControllerName;
+    final ResourceUsageCollectorService resourceUsageCollectorService;
+    public final Map<String, AtomicLong> rejectionCountMap;
+    public final ClusterService clusterService;
 
     /**
-     *
-     * @param rejectionCount initialised rejectionCount value for AdmissionController
-     * @param admissionControllerName name of the admissionController
+     * @param admissionControllerName       name of the admissionController
+     * @param resourceUsageCollectorService instance used to get resource usage stats of the node
+     * @param clusterService instance of the clusterService
      */
-    public AdmissionController(AtomicLong rejectionCount, String admissionControllerName) {
-        this.rejectionCount = rejectionCount;
+    public AdmissionController(
+        String admissionControllerName,
+        ResourceUsageCollectorService resourceUsageCollectorService,
+        ClusterService clusterService
+    ) {
         this.admissionControllerName = admissionControllerName;
+        this.resourceUsageCollectorService = resourceUsageCollectorService;
+        this.clusterService = clusterService;
+        this.rejectionCountMap = ConcurrentCollections.newConcurrentMap();
     }
 
     /**
@@ -41,10 +55,17 @@ public abstract class AdmissionController {
     }
 
     /**
-     * Increment the tracking-objects and apply the admission control if threshold is breached.
-     * Mostly applicable while applying admission controller
+     *
+     * @return true if admissionController is Enforced Mode else false
      */
-    public abstract void apply(String action);
+    public Boolean isAdmissionControllerEnforced(AdmissionControlMode admissionControlMode) {
+        return admissionControlMode == AdmissionControlMode.ENFORCED;
+    }
+
+    /**
+     * Apply admission control based on the resource usage for an action
+     */
+    public abstract void apply(String action, AdmissionControlActionType admissionControlActionType);
 
     /**
      * @return name of the admission-controller
@@ -54,17 +75,31 @@ public abstract class AdmissionController {
     }
 
     /**
-     * Adds the rejection count for the controller. Primarily used when copying controller states.
-     * @param count To add the value of the tracking resource object as the provided count
+     * Add rejection count to the rejection count metric tracked by the admission controller
      */
-    public void addRejectionCount(long count) {
-        this.rejectionCount.addAndGet(count);
+    public void addRejectionCount(String admissionControlActionType, long count) {
+        if (!this.rejectionCountMap.containsKey(admissionControlActionType)) {
+            this.rejectionCountMap.put(admissionControlActionType, new AtomicLong(0));
+        }
+        this.rejectionCountMap.get(admissionControlActionType).getAndAdd(count);
     }
 
     /**
      * @return current value of the rejection count metric tracked by the admission-controller.
      */
-    public long getRejectionCount() {
-        return this.rejectionCount.get();
+    public long getRejectionCount(String admissionControlActionType) {
+        if (this.rejectionCountMap.containsKey(admissionControlActionType)) {
+            return this.rejectionCountMap.get(admissionControlActionType).get();
+        }
+        return 0;
+    }
+
+    /**
+     * Get rejection stats of the admission controller
+     */
+    public Map<String, Long> getRejectionStats() {
+        Map<String, Long> rejectionStats = new HashMap<>();
+        rejectionCountMap.forEach((actionType, count) -> rejectionStats.put(actionType, count.get()));
+        return rejectionStats;
     }
 }

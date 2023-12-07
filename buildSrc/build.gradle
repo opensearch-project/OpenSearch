@@ -109,15 +109,15 @@ dependencies {
   api 'com.netflix.nebula:nebula-publishing-plugin:20.3.0'
   api 'com.netflix.nebula:gradle-info-plugin:12.1.6'
   api 'org.apache.rat:apache-rat:0.15'
-  api 'commons-io:commons-io:2.13.0'
+  api 'commons-io:commons-io:2.15.1'
   api "net.java.dev.jna:jna:5.13.0"
   api 'com.github.johnrengelman:shadow:8.1.1'
   api 'org.jdom:jdom2:2.0.6.1'
   api "org.jetbrains.kotlin:kotlin-stdlib-jdk8:${props.getProperty('kotlin')}"
   api 'de.thetaphi:forbiddenapis:3.6'
-  api 'com.avast.gradle:gradle-docker-compose-plugin:0.16.12'
+  api 'com.avast.gradle:gradle-docker-compose-plugin:0.17.5'
   api "org.yaml:snakeyaml:${props.getProperty('snakeyaml')}"
-  api 'org.apache.maven:maven-model:3.9.4'
+  api 'org.apache.maven:maven-model:3.9.6'
   api 'com.networknt:json-schema-validator:1.0.86'
   api 'org.jruby.jcodings:jcodings:1.0.58'
   api 'org.jruby.joni:joni:2.2.1'
