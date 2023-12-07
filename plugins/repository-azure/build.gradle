@@ -55,11 +55,11 @@ dependencies {
   api "io.netty:netty-transport-native-unix-common:${versions.netty}"
   implementation project(':modules:transport-netty4')
   api 'com.azure:azure-storage-blob:12.14.4'
-  api 'org.reactivestreams:reactive-streams:1.0.3'
-  api 'io.projectreactor:reactor-core:3.4.23'
-  api 'io.projectreactor.netty:reactor-netty:1.0.16'
-  api 'io.projectreactor.netty:reactor-netty-core:1.0.24'
-  api 'io.projectreactor.netty:reactor-netty-http:1.0.24'
+  api 'org.reactivestreams:reactive-streams:1.0.4'
+  api "io.projectreactor:reactor-core:${versions.reactor}"
+  api "io.projectreactor.netty:reactor-netty:${versions.reactor_netty}"
+  api "io.projectreactor.netty:reactor-netty-core:${versions.reactor_netty}"
+  api "io.projectreactor.netty:reactor-netty-http:${versions.reactor_netty}"
   api "org.slf4j:slf4j-api:${versions.slf4j}"
   api "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}"
   api "com.fasterxml.jackson.core:jackson-databind:${versions.jackson_databind}"
@@ -99,24 +99,6 @@ thirdPartyAudit {
     'com.azure.storage.internal.avro.implementation.AvroReaderFactory',
     'com.azure.storage.internal.avro.implementation.schema.AvroSchema',
     'com.ctc.wstx.shaded.msv_core.driver.textui.Driver',
-    'io.micrometer.core.instrument.Clock',
-    'io.micrometer.core.instrument.Counter',
-    'io.micrometer.core.instrument.Counter$Builder',
-    'io.micrometer.core.instrument.DistributionSummary',
-    'io.micrometer.core.instrument.DistributionSummary$Builder',
-    'io.micrometer.core.instrument.Gauge',
-    'io.micrometer.core.instrument.Gauge$Builder',
-    'io.micrometer.core.instrument.Meter',
-    'io.micrometer.core.instrument.MeterRegistry',
-    'io.micrometer.core.instrument.Metrics',
-    'io.micrometer.core.instrument.Tag',
-    'io.micrometer.core.instrument.Tags',
-    'io.micrometer.core.instrument.Timer',
-    'io.micrometer.core.instrument.Timer$Builder',
-    'io.micrometer.core.instrument.Timer$Sample',
-    'io.micrometer.core.instrument.binder.jvm.ExecutorServiceMetrics',
-    'io.micrometer.core.instrument.composite.CompositeMeterRegistry',
-    'io.micrometer.core.instrument.search.Search',
     'io.netty.channel.epoll.Epoll',
     'io.netty.channel.epoll.EpollDatagramChannel',
     'io.netty.channel.epoll.EpollServerSocketChannel',
@@ -158,6 +140,33 @@ thirdPartyAudit {
     'javax.xml.bind.annotation.adapters.XmlJavaTypeAdapter',
     'javax.xml.bind.annotation.adapters.XmlJavaTypeAdapter$DEFAULT',
     'javax.xml.bind.annotation.adapters.XmlJavaTypeAdapters',
+    'org.osgi.framework.BundleActivator',
+    'org.osgi.framework.BundleContext',
+    'org.slf4j.impl.StaticLoggerBinder',
+    'org.slf4j.impl.StaticMDCBinder',
+    'org.slf4j.impl.StaticMarkerBinder',
+    'reactor.blockhound.BlockHound$Builder',
+    'reactor.blockhound.integration.BlockHoundIntegration',
+    'io.micrometer.context.ContextAccessor',
+    'io.micrometer.core.instrument.Clock',
+    'io.micrometer.core.instrument.Counter',
+    'io.micrometer.core.instrument.Counter$Builder',
+    'io.micrometer.core.instrument.DistributionSummary',
+    'io.micrometer.core.instrument.DistributionSummary$Builder',
+    'io.micrometer.core.instrument.Gauge',
+    'io.micrometer.core.instrument.Gauge$Builder',
+    'io.micrometer.core.instrument.Meter',
+    'io.micrometer.core.instrument.Meter$Type',
+    'io.micrometer.core.instrument.MeterRegistry',
+    'io.micrometer.core.instrument.Metrics',
+    'io.micrometer.core.instrument.Tag',
+    'io.micrometer.core.instrument.Tags',
+    'io.micrometer.core.instrument.Timer',
+    'io.micrometer.core.instrument.Timer$Builder',
+    'io.micrometer.core.instrument.Timer$Sample',
+    'io.micrometer.core.instrument.binder.jvm.ExecutorServiceMetrics',
+    'io.micrometer.core.instrument.composite.CompositeMeterRegistry',
+    'io.micrometer.core.instrument.search.Search',
     'kotlin.collections.ArraysKt',
     'kotlin.jvm.JvmClassMappingKt',
     'kotlin.jvm.functions.Function0',
@@ -168,14 +177,7 @@ thirdPartyAudit {
     'kotlin.jvm.internal.markers.KMappedMarker',
     'kotlin.reflect.KClass',
     'kotlin.reflect.KDeclarationContainer',
-    'kotlin.sequences.Sequence',
-    'org.osgi.framework.BundleActivator',
-    'org.osgi.framework.BundleContext',
-    'org.slf4j.impl.StaticLoggerBinder',
-    'org.slf4j.impl.StaticMDCBinder',
-    'org.slf4j.impl.StaticMarkerBinder',
-    'reactor.blockhound.BlockHound$Builder',
-    'reactor.blockhound.integration.BlockHoundIntegration'
+    'kotlin.sequences.Sequence'
   )
 
   ignoreViolations(
