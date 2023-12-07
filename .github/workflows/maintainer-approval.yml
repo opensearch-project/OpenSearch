@@ -29,7 +29,7 @@ jobs:
 
             return maintainersResponse.data.map(item => item.login).join(', ');
 
-      - uses: peternied/approved-by-maintainers@v1
+      - uses: peternied/required-approval@v1.2
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           min-required: 1
