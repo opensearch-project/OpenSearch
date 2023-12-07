@@ -16,6 +16,7 @@ Inspired from [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 - Bump `org.bouncycastle:bc-fips` from 1.0.2.3 to 1.0.2.4 ([#10297](https://github.com/opensearch-project/OpenSearch/pull/10297))
 - Bump `org.apache.avro:avro` from 1.10.2 to 1.11.3 ([#11502](https://github.com/opensearch-project/OpenSearch/pull/11502))
 - Bump `jetty` from 9.4.51.v20230217 to 9.4.52.v20230823 ([#11501](https://github.com/opensearch-project/OpenSearch/pull/11501))
+- Bump `io.projectreactor:reactor-core` from 3.4.23 to 3.4.34 and reactor-netty from 1.0.24 to 1.0.39 ([#11500](https://github.com/opensearch-project/OpenSearch/pull/11500))
 
 ### Changed
 - Use iterative approach to evaluate Regex.simpleMatch ([#11060](https://github.com/opensearch-project/OpenSearch/pull/11060))
