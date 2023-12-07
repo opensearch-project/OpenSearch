@@ -6,6 +6,7 @@ Inspired from [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ### Added
 - Improve compressed request handling ([#10261](https://github.com/opensearch-project/OpenSearch/pull/10261))
+- Maintainer approval check ([#11378](https://github.com/opensearch-project/OpenSearch/pull/11378))
 
 ### Dependencies
 - Bump asm from 9.5 to 9.6 ([#10302](https://github.com/opensearch-project/OpenSearch/pull/10302))
