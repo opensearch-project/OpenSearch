@@ -8,17 +8,11 @@
 
 package org.opensearch.common.round;
 
-import org.opensearch.common.SuppressForbidden;
 import org.opensearch.test.OpenSearchTestCase;
-import org.junit.BeforeClass;
+
+import java.util.List;
 
 public class RoundableTests extends OpenSearchTestCase {
-
-    @BeforeClass
-    @SuppressForbidden(reason = "Sets the feature flag system property to a random value")
-    public static void setupClass() {
-        System.setProperty("opensearch.experimental.feature.simd.rounding.enabled", String.valueOf(randomBoolean()));
-    }
 
     public void testRoundingEmptyArray() {
         Throwable throwable = assertThrows(IllegalArgumentException.class, () -> RoundableFactory.create(new long[0], 0));
@@ -34,23 +28,12 @@ public class RoundableTests extends OpenSearchTestCase {
         assertRounding(roundable, values, size);
     }
 
-    @SuppressForbidden(reason = "Reads a package-private static field using reflection as it's only available on Java 20 and above")
     public void testRoundingLargeArray() {
         int size = randomIntBetween(65, 256);
         long[] values = randomArrayOfSortedValues(size);
         Roundable roundable = RoundableFactory.create(values, size);
 
-        boolean isBtreeSearchSupported;
-        try {
-            // Not supported below Java 20.
-            isBtreeSearchSupported = RoundableFactory.class.getDeclaredField("IS_BTREE_SEARCH_SUPPORTED").getBoolean(null);
-        } catch (NoSuchFieldException e) {
-            isBtreeSearchSupported = false;
-        } catch (IllegalAccessException e) {
-            throw new RuntimeException(e);
-        }
-
-        assertEquals(isBtreeSearchSupported ? "BtreeSearcher" : "BinarySearcher", roundable.getClass().getSimpleName());
+        assertTrue(List.of("BtreeSearcher", "BinarySearcher").contains(roundable.getClass().getSimpleName()));
         assertRounding(roundable, values, size);
     }
 

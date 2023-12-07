@@ -63,7 +63,6 @@ if (BuildParams.runtimeJavaVersion >= JavaVersion.VERSION_20) {
   }
 
   compileJava20Java {
-    sourceCompatibility = JavaVersion.VERSION_20
     targetCompatibility = JavaVersion.VERSION_20
     options.compilerArgs += ['--add-modules', 'jdk.incubator.vector']
     options.compilerArgs -= '-Werror' // use of incubator modules is reported as a warning
@@ -77,7 +76,7 @@ if (BuildParams.runtimeJavaVersion >= JavaVersion.VERSION_20) {
     manifest.attributes('Multi-Release': 'true')
   }
 
-  test {
+  tasks.withType(Test).configureEach {
     // Adds the multi-release JAR to the classpath when executing tests.
     // This allows newer sources to be picked up at test runtime (if supported).
     classpath += files(jar.archiveFile)
@@ -85,6 +84,14 @@ if (BuildParams.runtimeJavaVersion >= JavaVersion.VERSION_20) {
     // the multi-release JAR already contains those classes.
     classpath -= sourceSets.main.output
   }
+
+  tasks.register('roundableSimdTest', Test) {
+    group 'verification'
+    include '**/RoundableTests.class'
+    systemProperty 'opensearch.experimental.feature.simd.rounding.enabled', 'true'
+  }
+
+  check.dependsOn(roundableSimdTest)
 
   forbiddenApisJava20 {
     failOnMissingClasses = false
