@@ -1,8 +1,6 @@
 setup:
     - skip:
         features: [ "headers" ]
-
-    - skip:
         version: " - 2.11.99"
         reason: "searching with only doc_values was added in 2.12.0"
 ---
