@@ -2310,8 +2310,6 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                             List.of(),
                             client
                         ),
-                        null,
-                        new SearchRequestSlowLog(clusterService),
                         NoopMetricsRegistry.INSTANCE
                     )
                 );

@@ -783,7 +783,7 @@ public class Node implements Closeable {
                 threadPool
             );
 
-            final SearchRequestStats searchRequestStats = new SearchRequestStats();
+            final SearchRequestStats searchRequestStats = new SearchRequestStats(clusterService);
             final SearchRequestSlowLog searchRequestSlowLog = new SearchRequestSlowLog(clusterService);
 
             remoteStoreStatsTrackerFactory = new RemoteStoreStatsTrackerFactory(clusterService, settings);

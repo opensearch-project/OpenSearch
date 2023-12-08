@@ -161,6 +161,22 @@ public final class SearchRequestSlowLog extends SearchRequestOperationsListener 
     }
 
     /**
+     * register this listener to TransportSearchAction
+     */
+    @Override
+    protected void register() {
+        TransportSearchAction.addSearchOperationsListener(this);
+    }
+
+    /**
+     * deregister this listener to TransportSearchAction
+     */
+    @Override
+    protected void deregister() {
+        TransportSearchAction.removeSearchOperationsListener(this);
+    }
+
+    /**
      * Search request slow log message
      *
      * @opensearch.internal
@@ -233,18 +249,22 @@ public final class SearchRequestSlowLog extends SearchRequestOperationsListener 
 
     void setWarnThreshold(TimeValue warnThreshold) {
         this.warnThreshold = warnThreshold.nanos();
+        changeEnabledIfNeeded();
     }
 
     void setInfoThreshold(TimeValue infoThreshold) {
         this.infoThreshold = infoThreshold.nanos();
+        changeEnabledIfNeeded();
     }
 
     void setDebugThreshold(TimeValue debugThreshold) {
         this.debugThreshold = debugThreshold.nanos();
+        changeEnabledIfNeeded();
     }
 
     void setTraceThreshold(TimeValue traceThreshold) {
         this.traceThreshold = traceThreshold.nanos();
+        changeEnabledIfNeeded();
     }
 
     void setLevel(SlowLogLevel level) {
@@ -269,5 +289,12 @@ public final class SearchRequestSlowLog extends SearchRequestOperationsListener 
 
     SlowLogLevel getLevel() {
         return level;
+    }
+
+    private void changeEnabledIfNeeded() {
+        super.setEnabled(this.warnThreshold >= 0
+            || this.debugThreshold >= 0
+            || this.infoThreshold >= 0
+            || this.traceThreshold >= 0);
     }
 }

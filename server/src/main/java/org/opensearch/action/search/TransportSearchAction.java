@@ -154,13 +154,6 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         Setting.Property.NodeScope
     );
 
-    public static final String SEARCH_REQUEST_STATS_ENABLED_KEY = "search.request_stats_enabled";
-    public static final Setting<Boolean> SEARCH_REQUEST_STATS_ENABLED = Setting.boolSetting(
-        SEARCH_REQUEST_STATS_ENABLED_KEY,
-        false,
-        Property.Dynamic,
-        Property.NodeScope
-    );
 
     public static final String SEARCH_PHASE_TOOK_ENABLED_KEY = "search.phase_took_enabled";
     public static final Setting<Boolean> SEARCH_PHASE_TOOK_ENABLED = Setting.boolSetting(
@@ -169,6 +162,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         Property.Dynamic,
         Property.NodeScope
     );
+
+    private static final List<SearchRequestOperationsListener> searchRequestOperationsListenersList = new ArrayList<>();
 
     private final NodeClient client;
     private final ThreadPool threadPool;
@@ -182,12 +177,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
     private final CircuitBreaker circuitBreaker;
     private final SearchPipelineService searchPipelineService;
 
-    private volatile boolean isRequestStatsEnabled;
-
     private volatile boolean searchQueryMetricsEnabled;
-
-    private final SearchRequestStats searchRequestStats;
-    private final SearchRequestSlowLog searchRequestSlowLog;
 
     private final MetricsRegistry metricsRegistry;
 
@@ -207,8 +197,6 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         IndexNameExpressionResolver indexNameExpressionResolver,
         NamedWriteableRegistry namedWriteableRegistry,
         SearchPipelineService searchPipelineService,
-        SearchRequestStats searchRequestStats,
-        SearchRequestSlowLog searchRequestSlowLog,
         MetricsRegistry metricsRegistry
     ) {
         super(SearchAction.NAME, transportService, actionFilters, (Writeable.Reader<SearchRequest>) SearchRequest::new);
@@ -224,10 +212,6 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.namedWriteableRegistry = namedWriteableRegistry;
         this.searchPipelineService = searchPipelineService;
-        this.isRequestStatsEnabled = clusterService.getClusterSettings().get(SEARCH_REQUEST_STATS_ENABLED);
-        clusterService.getClusterSettings().addSettingsUpdateConsumer(SEARCH_REQUEST_STATS_ENABLED, this::setIsRequestStatsEnabled);
-        this.searchRequestStats = searchRequestStats;
-        this.searchRequestSlowLog = searchRequestSlowLog;
         this.metricsRegistry = metricsRegistry;
         this.searchQueryMetricsEnabled = clusterService.getClusterSettings().get(SEARCH_QUERY_METRICS_ENABLED_SETTING);
         clusterService.getClusterSettings()
@@ -239,10 +223,6 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         if ((this.searchQueryMetricsEnabled == true) && this.searchQueryCategorizer == null) {
             this.searchQueryCategorizer = new SearchQueryCategorizer(metricsRegistry);
         }
-    }
-
-    private void setIsRequestStatsEnabled(boolean isRequestStatsEnabled) {
-        this.isRequestStatsEnabled = isRequestStatsEnabled;
     }
 
     private Map<String, AliasFilter> buildPerIndexAliasFilter(
@@ -1245,11 +1225,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
     }
 
     private List<SearchRequestOperationsListener> createSearchListenerList(SearchRequest searchRequest, SearchTimeProvider timeProvider) {
-        final List<SearchRequestOperationsListener> searchListenersList = new ArrayList<>();
-
-        if (isRequestStatsEnabled) {
-            searchListenersList.add(searchRequestStats);
-        }
+        final List<SearchRequestOperationsListener> searchListenersList = new ArrayList<>(searchRequestOperationsListenersList);
 
         // phase_took is enabled with request param and/or cluster setting
         Boolean phaseTookRequestParam = searchRequest.isPhaseTook();
@@ -1261,13 +1237,6 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         } else if (phaseTookRequestParam == true) {
             timeProvider.setPhaseTook(true);
             searchListenersList.add(timeProvider);
-        }
-
-        if (searchRequestSlowLog.getWarnThreshold() >= 0
-            || searchRequestSlowLog.getInfoThreshold() >= 0
-            || searchRequestSlowLog.getDebugThreshold() >= 0
-            || searchRequestSlowLog.getTraceThreshold() >= 0) {
-            searchListenersList.add(searchRequestSlowLog);
         }
 
         return searchListenersList;
@@ -1539,5 +1508,39 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             }
         }
         return iterators;
+    }
+
+
+    /**
+     * Add a {@link SearchRequestOperationsListener} to the searchRequestOperationsListenersList,
+     * which will be executed during each search request.
+     *
+     * @param listener A SearchRequestOperationsListener object to add.
+     * @throws IllegalArgumentException if the input listener is null or already exists in the list.
+     */
+    public static void addSearchOperationsListener(SearchRequestOperationsListener listener) {
+        if (listener == null) {
+            throw new IllegalArgumentException("listener must not be null");
+        }
+        if (searchRequestOperationsListenersList.contains(listener)) {
+            throw new IllegalArgumentException("listener already added");
+        }
+        searchRequestOperationsListenersList.add(listener);
+    }
+
+    /**
+     * Remove a {@link SearchRequestOperationsListener} from the searchRequestOperationsListenersList,
+     *
+     * @param listener A SearchRequestOperationsListener object to remove.
+     * @throws IllegalArgumentException if the input listener is null or already exists in the list.
+     */
+    public static void removeSearchOperationsListener(SearchRequestOperationsListener listener) {
+        if (listener == null) {
+            throw new IllegalArgumentException("listener must not be null");
+        }
+        if (!searchRequestOperationsListenersList.contains(listener)) {
+            throw new IllegalArgumentException("listener does not exist in the listeners list");
+        }
+        searchRequestOperationsListenersList.remove(listener);
     }
 }
