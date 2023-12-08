@@ -912,18 +912,17 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
                 if (upTo != v.length) {
                     v = Arrays.copyOf(v, upTo);
                 }
-                long points[] = v.clone();
                 if (isSearchable && hasDocValues) {
                     return new IndexOrDocValuesQuery(
-                        LongPoint.newSetQuery(field, points),
-                        SortedNumericDocValuesField.newSlowSetQuery(field, points)
+                        LongPoint.newSetQuery(field, v),
+                        SortedNumericDocValuesField.newSlowSetQuery(field, v)
                     );
                 }
                 if (hasDocValues) {
-                    return SortedNumericDocValuesField.newSlowSetQuery(field, points);
+                    return SortedNumericDocValuesField.newSlowSetQuery(field, v);
 
                 }
-                return LongPoint.newSetQuery(field, points);
+                return LongPoint.newSetQuery(field, v);
             }
 
             @Override
