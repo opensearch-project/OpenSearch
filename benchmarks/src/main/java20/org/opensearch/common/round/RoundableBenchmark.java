@@ -83,7 +83,7 @@ public class RoundableBenchmark {
             "256" })
         public Integer size;
 
-        @Param({ "binary", "linear" })
+        @Param({ "linear", "binary", "btree" })
         public String type;
 
         @Param({ "uniform", "skewed_edge", "skewed_center" })
@@ -93,7 +93,7 @@ public class RoundableBenchmark {
         public Supplier<Roundable> supplier;
 
         @Setup
-        public void setup() {
+        public void setup() throws ClassNotFoundException, IllegalAccessException {
             Random random = new Random(size);
             long[] values = new long[size];
             for (int i = 1; i < values.length; i++) {
@@ -134,6 +134,9 @@ public class RoundableBenchmark {
                     break;
                 case "linear":
                     supplier = () -> new BidirectionalLinearSearcher(values, size);
+                    break;
+                case "btree":
+                    supplier = () -> new BtreeSearcher(values, size);
                     break;
                 default:
                     throw new IllegalArgumentException("invalid type: " + type);
