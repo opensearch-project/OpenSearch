@@ -39,11 +39,11 @@ import software.amazon.awssdk.core.Protocol;
 import software.amazon.awssdk.core.client.config.ClientOverrideConfiguration;
 import software.amazon.awssdk.core.retry.RetryPolicy;
 import software.amazon.awssdk.http.apache.ProxyConfiguration;
+import software.amazon.awssdk.services.ec2.Ec2Client;
 
 import org.opensearch.common.settings.MockSecureSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsException;
-import software.amazon.awssdk.services.ec2.Ec2Client;
 
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -205,16 +205,16 @@ public class AwsEc2ServiceImplTests extends AbstractEc2DiscoveryTestCase {
     }
 
     public void testAWSConfigurationWithEndpointScheme() {
-        final Settings settings = Settings.builder()
-            .put("discovery.ec2.endpoint", "https://ec2.us-west-2.amazonaws.com")
-            .build();
+        final Settings settings = Settings.builder().put("discovery.ec2.endpoint", "https://ec2.us-west-2.amazonaws.com").build();
 
         Ec2ClientSettings clientSettings = Ec2ClientSettings.getClientSettings(settings);
 
         AwsEc2ServiceImpl awsEc2Service = new AwsEc2ServiceImpl();
         final AwsCredentialsProvider awsCredentialsProvider = AwsEc2ServiceImpl.buildCredentials(logger, clientSettings);
         final ClientOverrideConfiguration overrideConfiguration = AwsEc2ServiceImpl.buildOverrideConfiguration(logger, clientSettings);
-        final ProxyConfiguration proxyConfiguration = SocketAccess.doPrivileged(() -> AwsEc2ServiceImpl.buildProxyConfiguration(logger, clientSettings));
+        final ProxyConfiguration proxyConfiguration = SocketAccess.doPrivileged(
+            () -> AwsEc2ServiceImpl.buildProxyConfiguration(logger, clientSettings)
+        );
         Ec2Client cli = awsEc2Service.buildClient(
             awsCredentialsProvider,
             proxyConfiguration,
@@ -228,16 +228,16 @@ public class AwsEc2ServiceImplTests extends AbstractEc2DiscoveryTestCase {
     }
 
     public void testAWSConfigurationWithoutEndpointScheme() {
-        final Settings settings = Settings.builder()
-            .put("discovery.ec2.endpoint", "ec2.us-west-2.amazonaws.com")
-            .build();
+        final Settings settings = Settings.builder().put("discovery.ec2.endpoint", "ec2.us-west-2.amazonaws.com").build();
 
         Ec2ClientSettings clientSettings = Ec2ClientSettings.getClientSettings(settings);
 
         AwsEc2ServiceImpl awsEc2Service = new AwsEc2ServiceImpl();
         final AwsCredentialsProvider awsCredentialsProvider = AwsEc2ServiceImpl.buildCredentials(logger, clientSettings);
         final ClientOverrideConfiguration overrideConfiguration = AwsEc2ServiceImpl.buildOverrideConfiguration(logger, clientSettings);
-        final ProxyConfiguration proxyConfiguration = SocketAccess.doPrivileged(() -> AwsEc2ServiceImpl.buildProxyConfiguration(logger, clientSettings));
+        final ProxyConfiguration proxyConfiguration = SocketAccess.doPrivileged(
+            () -> AwsEc2ServiceImpl.buildProxyConfiguration(logger, clientSettings)
+        );
         Ec2Client cli = awsEc2Service.buildClient(
             awsCredentialsProvider,
             proxyConfiguration,
