@@ -1000,7 +1000,15 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
                     return Queries.newMatchNoDocsQuery("Value [" + value + "] has a decimal part");
                 }
                 BigInteger v = parse(value, true);
-                return rangeQuery(field, v, v, true, true, hasDocValues, isSearchable, null);
+                if (isSearchable && hasDocValues) {
+                    Query query = BigIntegerPoint.newExactQuery(field, v);
+                    Query dvQuery = SortedUnsignedLongDocValuesRangeQuery.newSlowRangeQuery(field, v, v);
+                    return new IndexOrDocValuesQuery(query, dvQuery);
+                }
+                if (hasDocValues) {
+                    return SortedUnsignedLongDocValuesRangeQuery.newSlowRangeQuery(field, v, v);
+                }
+                return BigIntegerPoint.newExactQuery(field, v);
             }
 
             @Override
