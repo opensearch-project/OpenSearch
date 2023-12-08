@@ -236,9 +236,10 @@ public class IpFieldMapper extends ParametrizedFieldMapper {
                 if (term.contains("/")) {
                     final Tuple<InetAddress, Integer> cidr = InetAddresses.parseCidr(term);
                     query = InetAddressPoint.newPrefixQuery(name(), cidr.v1(), cidr.v2());
+                } else {
+                    InetAddress address = InetAddresses.forString(term);
+                    query = InetAddressPoint.newExactQuery(name(), address);
                 }
-                InetAddress address = InetAddresses.forString(term);
-                query = InetAddressPoint.newExactQuery(name(), address);
             }
             if (isSearchable() && hasDocValues()) {
                 return new IndexOrDocValuesQuery(
