@@ -802,7 +802,7 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
                         logger.info("Segment file {} corresponding to metadata file {} does not exist in remote", file, metadataFile);
                     } catch (IOException e) {
                         deletionSuccessful.set(false);
-                        logger.info(
+                        logger.warn(
                             "Exception while deleting segment file {} corresponding to metadata file {}. Deletion will be re-tried",
                             file,
                             metadataFile
