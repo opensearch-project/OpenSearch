@@ -158,4 +158,19 @@ public abstract class SortedUnsignedLongDocValuesSetQuery extends Query {
             }
         };
     }
+
+    public static Query newSlowExactQuery(String field, BigInteger value) {
+        return new SortedUnsignedLongDocValuesRangeQuery(field, value, value) {
+            @Override
+            SortedNumericDocValues getValues(LeafReader reader, String field) throws IOException {
+                FieldInfo info = reader.getFieldInfos().fieldInfo(field);
+                if (info == null) {
+                    // Queries have some optimizations when one sub scorer returns null rather
+                    // than a scorer that does not match any documents
+                    return null;
+                }
+                return DocValues.getSortedNumeric(reader, field);
+            }
+        };
+    }
 }

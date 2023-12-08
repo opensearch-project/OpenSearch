@@ -1002,11 +1002,11 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
                 BigInteger v = parse(value, true);
                 if (isSearchable && hasDocValues) {
                     Query query = BigIntegerPoint.newExactQuery(field, v);
-                    Query dvQuery = SortedUnsignedLongDocValuesRangeQuery.newSlowRangeQuery(field, v, v);
+                    Query dvQuery = SortedUnsignedLongDocValuesSetQuery.newSlowExactQuery(field, v);
                     return new IndexOrDocValuesQuery(query, dvQuery);
                 }
                 if (hasDocValues) {
-                    return SortedUnsignedLongDocValuesRangeQuery.newSlowRangeQuery(field, v, v);
+                    return SortedUnsignedLongDocValuesSetQuery.newSlowExactQuery(field, v);
                 }
                 return BigIntegerPoint.newExactQuery(field, v);
             }
