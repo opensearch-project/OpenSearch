@@ -39,6 +39,8 @@ dependencies {
     exclude module: 'protobuf-java'
     exclude group: 'org.codehaus.jackson'
     exclude group: "org.bouncycastle"
+    exclude module: "logback-core"
+    exclude module: "logback-classic"
   }
 
   api "org.codehaus.jettison:jettison:${versions.jettison}"
@@ -57,5 +59,7 @@ dependencies {
   api 'org.apache.zookeeper:zookeeper:3.8.3'
   api "org.eclipse.jetty:jetty-server:${versions.jetty}"
   api "org.eclipse.jetty.websocket:javax-websocket-server-impl:${versions.jetty}"
+  api "ch.qos.logback:logback-core:1.2.13"
+  api "ch.qos.logback:logback-classic:1.2.13"
   runtimeOnly "com.google.guava:guava:${versions.guava}"
 }
