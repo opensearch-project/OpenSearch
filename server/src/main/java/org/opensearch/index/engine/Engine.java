@@ -2178,8 +2178,9 @@ public abstract class Engine implements Closeable {
     /**
      * The runner for translog recovery
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     @FunctionalInterface
     public interface TranslogRecoveryRunner {
         int run(Engine engine, Translog.Snapshot snapshot) throws IOException;
