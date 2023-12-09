@@ -677,7 +677,6 @@ public abstract class StreamInput extends InputStream {
         return expectedSize < 2 ? expectedSize + 1 : (int) (expectedSize / 0.75 + 1.0);
     }
 
-
     /**
      * Reads a {@link Map} from a data source using provided key and value readers and a map constructor.
      *
@@ -706,7 +705,7 @@ public abstract class StreamInput extends InputStream {
      * @throws IOException If an I/O error occurs during reading from the data source.
      */
     private <K, V> Map<K, V> readMap(Writeable.Reader<K> keyReader, Writeable.Reader<V> valueReader, IntFunction<Map<K, V>> constructor)
-    throws IOException {
+        throws IOException {
         int size = readArraySize();
         if (size == 0) {
             return Collections.emptyMap();
