@@ -50,8 +50,6 @@ import org.opensearch.test.ParameterizedOpenSearchIntegTestCase;
 import java.util.Arrays;
 import java.util.Collection;
 
-import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.hasKey;
 import static org.opensearch.index.query.QueryBuilders.boolQuery;
 import static org.opensearch.index.query.QueryBuilders.constantScoreQuery;
 import static org.opensearch.index.query.QueryBuilders.matchAllQuery;
@@ -64,7 +62,9 @@ import static org.opensearch.index.query.QueryBuilders.wrapperQuery;
 import static org.opensearch.search.SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasItemInArray;
+import static org.hamcrest.Matchers.hasKey;
 
 public class MatchedQueriesIT extends ParameterizedOpenSearchIntegTestCase {
 

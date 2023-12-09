@@ -90,7 +90,9 @@ public class RestSearchAction extends BaseRestHandler {
     private static final Set<String> RESPONSE_PARAMS;
 
     static {
-        final Set<String> responseParams = new HashSet<>(Arrays.asList(TYPED_KEYS_PARAM, TOTAL_HITS_AS_INT_PARAM, INCLUDE_NAMED_QUERIES_SCORE_PARAM));
+        final Set<String> responseParams = new HashSet<>(
+            Arrays.asList(TYPED_KEYS_PARAM, TOTAL_HITS_AS_INT_PARAM, INCLUDE_NAMED_QUERIES_SCORE_PARAM)
+        );
         RESPONSE_PARAMS = Collections.unmodifiableSet(responseParams);
     }
 

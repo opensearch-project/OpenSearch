@@ -31,23 +31,19 @@
 
 package org.opensearch.search.fetch.subphase;
 
-import java.util.LinkedHashMap;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.Weight;
-import org.apache.lucene.util.Bits;
-import org.opensearch.common.lucene.Lucene;
 import org.opensearch.search.fetch.FetchContext;
 import org.opensearch.search.fetch.FetchSubPhase;
 import org.opensearch.search.fetch.FetchSubPhaseProcessor;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.List;
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**

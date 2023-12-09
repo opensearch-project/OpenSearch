@@ -32,7 +32,6 @@
 
 package org.opensearch.search;
 
-import java.util.LinkedHashMap;
 import org.apache.lucene.search.Explanation;
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.Version;
@@ -72,10 +71,10 @@ import org.opensearch.transport.RemoteClusterAware;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -710,8 +709,7 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
         }
         sortValues.toXContent(builder, params);
         if (matchedQueries != null && matchedQueries.size() > 0) {
-            boolean includeMatchedQueriesScore =
-                params.paramAsBoolean(RestSearchAction.INCLUDE_NAMED_QUERIES_SCORE_PARAM, false);
+            boolean includeMatchedQueriesScore = params.paramAsBoolean(RestSearchAction.INCLUDE_NAMED_QUERIES_SCORE_PARAM, false);
             if (includeMatchedQueriesScore) {
                 builder.startObject(Fields.MATCHED_QUERIES);
                 for (Map.Entry<String, Float> entry : matchedQueries.entrySet()) {
