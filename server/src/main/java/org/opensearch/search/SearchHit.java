@@ -211,7 +211,7 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
         } else {
             matchedQueries = new LinkedHashMap<>(size);
             for (int i = 0; i < size; i++) {
-                matchedQueries.put(in.readString(), in.readFloat());
+                matchedQueries.put(in.readString(), Float.NaN);
             }
         }
         // we call the setter here because that also sets the local index parameter
