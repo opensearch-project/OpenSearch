@@ -32,6 +32,7 @@
 
 package org.opensearch.search;
 
+import java.util.LinkedHashMap;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.TotalHits;
 import org.opensearch.Version;
@@ -129,9 +130,9 @@ public class SearchHitTests extends AbstractWireSerializingTestCase<SearchHit> {
         }
         if (randomBoolean()) {
             int size = randomIntBetween(0, 5);
-            String[] matchedQueries = new String[size];
+            Map<String, Float> matchedQueries = new LinkedHashMap<>(size);
             for (int i = 0; i < size; i++) {
-                matchedQueries[i] = randomAlphaOfLength(5);
+                matchedQueries.put(randomAlphaOfLength(5), Float.NaN);
             }
             hit.matchedQueries(matchedQueries);
         }

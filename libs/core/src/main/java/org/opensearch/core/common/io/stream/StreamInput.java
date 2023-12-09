@@ -650,6 +650,77 @@ public abstract class StreamInput extends InputStream {
     }
 
     /**
+     * Reads an ordered {@link Map} from a data source using provided key and value readers.
+     *
+     * This method creates a `LinkedHashMap`, ensuring that the iteration order of the map
+     * matches the order in which the entries were read from the data source. It uses the
+     * `keyReader` and `valueReader` to read each key-value pair and constructs the map
+     * with an initial capacity optimized based on the expected size.
+     *
+     * Usage example:
+     * <pre><code>
+     * Map&lt;Integer, String&gt; orderedMap = readOrderedMap(StreamInput::readInteger, StreamInput::readString);
+     * </code></pre>
+     *
+     * @param keyReader The {@link Writeable.Reader} used to read the keys of the map.
+     * @param valueReader The {@link Writeable.Reader} used to read the values of the map.
+     * @return A {@link LinkedHashMap} containing the keys and values read from the data source.
+     *         The map maintains the order in which keys and values were read.
+     * @throws IOException If an I/O error occurs during reading from the data source.
+     */
+    public <K, V> Map<K, V> readOrderedMap(Writeable.Reader<K> keyReader, Writeable.Reader<V> valueReader) throws IOException {
+        return readMap(keyReader, valueReader, (expectedSize) -> new LinkedHashMap<>(capacity(expectedSize)));
+    }
+
+    static int capacity(int expectedSize) {
+        assert expectedSize >= 0;
+        return expectedSize < 2 ? expectedSize + 1 : (int) (expectedSize / 0.75 + 1.0);
+    }
+
+
+    /**
+     * Reads a {@link Map} from a data source using provided key and value readers and a map constructor.
+     *
+     * This method is a flexible utility for reading a map from a data source, such as a file or network stream.
+     * It uses the provided `keyReader` and `valueReader` to read each key-value pair. The size of the map is
+     * determined first by reading the array size. A map constructor is also provided to create a map of the
+     * appropriate size, allowing for optimized performance based on the expected number of entries.
+     *
+     * If the read size is zero, an empty map is returned. Otherwise, the method iterates over the size,
+     * reading keys and values and adding them to the map.
+     *
+     * Usage example:
+     * <pre><code>
+     * Map&lt;Integer, String&gt; map = readMap(StreamInput::readInteger, StreamInput::readString, HashMap::new);
+     * </code></pre>
+     *
+     * Note: If the map is empty, an immutable empty map is returned. Otherwise, a mutable map is created.
+     *
+     * @param keyReader The {@link Writeable.Reader} used to read the keys of the map.
+     * @param valueReader The {@link Writeable.Reader} used to read the values of the map.
+     * @param constructor A function that takes an integer (the initial size) and returns a new map.
+     *                    This allows for the creation of a map with an initial capacity matching the
+     *                    expected size, optimizing performance.
+     * @return A {@link Map} containing the keys and values read from the data source. This map is either
+     *         empty (and immutable) or mutable and filled with the read data.
+     * @throws IOException If an I/O error occurs during reading from the data source.
+     */
+    private <K, V> Map<K, V> readMap(Writeable.Reader<K> keyReader, Writeable.Reader<V> valueReader, IntFunction<Map<K, V>> constructor)
+    throws IOException {
+        int size = readArraySize();
+        if (size == 0) {
+            return Collections.emptyMap();
+        }
+        Map<K, V> map = constructor.apply(size);
+        for (int i = 0; i < size; i++) {
+            K key = keyReader.read(this);
+            V value = valueReader.read(this);
+            map.put(key, value);
+        }
+        return map;
+    }
+
+    /**
      * Read a {@link Map} of {@code K}-type keys to {@code V}-type {@link List}s.
      * <pre><code>
      * Map&lt;String, List&lt;String&gt;&gt; map = in.readMapOfLists(StreamInput::readString, StreamInput::readString);
