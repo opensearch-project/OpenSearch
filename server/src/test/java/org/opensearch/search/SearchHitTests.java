@@ -39,6 +39,7 @@ import org.opensearch.action.OriginalIndices;
 import org.opensearch.common.document.DocumentField;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.xcontent.json.JsonXContent;
+import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.io.stream.Writeable;
@@ -77,6 +78,18 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 public class SearchHitTests extends AbstractWireSerializingTestCase<SearchHit> {
+
+    public static SearchHit createTestItemWithMatchedQueriesScores(boolean withOptionalInnerHits, boolean withShardTarget) {
+        var searchHit = createTestItem(randomFrom(XContentType.values()), withOptionalInnerHits, withShardTarget);
+        int size = randomIntBetween(1, 5); // Ensure at least one matched query
+        Map<String, Float> matchedQueries = new LinkedHashMap<>(size);
+        for (int i = 0; i < size; i++) {
+            matchedQueries.put(randomAlphaOfLength(5), randomFloat());
+        }
+        searchHit.matchedQueries(matchedQueries);
+        return searchHit;
+    }
+
     public static SearchHit createTestItem(boolean withOptionalInnerHits, boolean withShardTarget) {
         return createTestItem(randomFrom(XContentType.values()), withOptionalInnerHits, withShardTarget);
     }
@@ -220,6 +233,13 @@ public class SearchHitTests extends AbstractWireSerializingTestCase<SearchHit> {
         assertToXContentEquivalent(originalBytes, toXContent(parsed, xContentType, true), xContentType);
     }
 
+    public void testSerializationDeserializationWithMatchedQueriesScores() throws IOException {
+        SearchHit searchHit = createTestItemWithMatchedQueriesScores(true, true);
+        SearchHit deserializedSearchHit = copyWriteable(searchHit, getNamedWriteableRegistry(), SearchHit::new, Version.V_3_0_0);
+        assertEquals(searchHit, deserializedSearchHit);
+        assertEquals(searchHit.getMatchedQueriesAndScores(), deserializedSearchHit.getMatchedQueriesAndScores());
+    }
+
     /**
      * When e.g. with "stored_fields": "_none_", only "_index" and "_score" are returned.
      */
@@ -243,6 +263,59 @@ public class SearchHitTests extends AbstractWireSerializingTestCase<SearchHit> {
         XContentBuilder builder = JsonXContent.contentBuilder();
         searchHit.toXContent(builder, ToXContent.EMPTY_PARAMS);
         assertEquals("{\"_id\":\"id1\",\"_score\":1.5}", builder.toString());
+    }
+
+    public void testSerializeShardTargetWithNewVersion() throws Exception {
+        String clusterAlias = randomBoolean() ? null : "cluster_alias";
+        SearchShardTarget target = new SearchShardTarget(
+            "_node_id",
+            new ShardId(new Index("_index", "_na_"), 0),
+            clusterAlias,
+            OriginalIndices.NONE
+        );
+
+        Map<String, SearchHits> innerHits = new HashMap<>();
+        SearchHit innerHit1 = new SearchHit(0, "_id", null, null);
+        innerHit1.shard(target);
+        SearchHit innerInnerHit2 = new SearchHit(0, "_id", null, null);
+        innerInnerHit2.shard(target);
+        innerHits.put("1", new SearchHits(new SearchHit[] { innerInnerHit2 }, new TotalHits(1, TotalHits.Relation.EQUAL_TO), 1f));
+        innerHit1.setInnerHits(innerHits);
+        SearchHit innerHit2 = new SearchHit(0, "_id", null, null);
+        innerHit2.shard(target);
+        SearchHit innerHit3 = new SearchHit(0, "_id", null, null);
+        innerHit3.shard(target);
+
+        innerHits = new HashMap<>();
+        SearchHit hit1 = new SearchHit(0, "_id", null, null);
+        innerHits.put("1", new SearchHits(new SearchHit[] { innerHit1, innerHit2 }, new TotalHits(1, TotalHits.Relation.EQUAL_TO), 1f));
+        innerHits.put("2", new SearchHits(new SearchHit[] { innerHit3 }, new TotalHits(1, TotalHits.Relation.EQUAL_TO), 1f));
+        hit1.shard(target);
+        hit1.setInnerHits(innerHits);
+
+        SearchHit hit2 = new SearchHit(0, "_id", null, null);
+        hit2.shard(target);
+
+        SearchHits hits = new SearchHits(new SearchHit[] { hit1, hit2 }, new TotalHits(2, TotalHits.Relation.EQUAL_TO), 1f);
+
+        SearchHits results = copyWriteable(hits, getNamedWriteableRegistry(), SearchHits::new, Version.V_3_0_0);
+        SearchShardTarget deserializedTarget = results.getAt(0).getShard();
+        assertThat(deserializedTarget, equalTo(target));
+        assertThat(results.getAt(0).getInnerHits().get("1").getAt(0).getShard(), notNullValue());
+        assertThat(results.getAt(0).getInnerHits().get("1").getAt(0).getInnerHits().get("1").getAt(0).getShard(), notNullValue());
+        assertThat(results.getAt(0).getInnerHits().get("1").getAt(1).getShard(), notNullValue());
+        assertThat(results.getAt(0).getInnerHits().get("2").getAt(0).getShard(), notNullValue());
+        for (SearchHit hit : results) {
+            assertEquals(clusterAlias, hit.getClusterAlias());
+            if (hit.getInnerHits() != null) {
+                for (SearchHits innerhits : hit.getInnerHits().values()) {
+                    for (SearchHit innerHit : innerhits) {
+                        assertEquals(clusterAlias, innerHit.getClusterAlias());
+                    }
+                }
+            }
+        }
+        assertThat(results.getAt(1).getShard(), equalTo(target));
     }
 
     public void testSerializeShardTarget() throws Exception {

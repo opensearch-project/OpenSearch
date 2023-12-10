@@ -229,36 +229,6 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
         }
     }
 
-    private Map<String, DocumentField> readFields(StreamInput in) throws IOException {
-        Map<String, DocumentField> fields;
-        int size = in.readVInt();
-        if (size == 0) {
-            fields = emptyMap();
-        } else if (size == 1) {
-            DocumentField hitField = new DocumentField(in);
-            fields = singletonMap(hitField.getName(), hitField);
-        } else {
-            fields = new HashMap<>(size);
-            for (int i = 0; i < size; i++) {
-                DocumentField field = new DocumentField(in);
-                fields.put(field.getName(), field);
-            }
-            fields = unmodifiableMap(fields);
-        }
-        return fields;
-    }
-
-    private void writeFields(StreamOutput out, Map<String, DocumentField> fields) throws IOException {
-        if (fields == null) {
-            out.writeVInt(0);
-        } else {
-            out.writeVInt(fields.size());
-            for (DocumentField field : fields.values()) {
-                field.writeTo(out);
-            }
-        }
-    }
-
     private static final Text SINGLE_MAPPING_TYPE = new Text(MapperService.SINGLE_MAPPING_NAME);
 
     @Override
@@ -469,7 +439,7 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
     * */
     public void setDocumentField(String fieldName, DocumentField field) {
         if (fieldName == null || field == null) return;
-        if (documentFields.size() == 0) this.documentFields = new HashMap<>();
+        if (documentFields.isEmpty()) this.documentFields = new HashMap<>();
         this.documentFields.put(fieldName, field);
     }
 
@@ -482,7 +452,7 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
      * were required to be loaded.
      */
     public Map<String, DocumentField> getFields() {
-        if (metaFields.size() > 0 || documentFields.size() > 0) {
+        if (!metaFields.isEmpty() || !documentFields.isEmpty()) {
             final Map<String, DocumentField> fields = new HashMap<>();
             fields.putAll(metaFields);
             fields.putAll(documentFields);
@@ -675,7 +645,7 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
 
         for (DocumentField field : metaFields.values()) {
             // ignore empty metadata fields
-            if (field.getValues().size() == 0) {
+            if (field.getValues().isEmpty()) {
                 continue;
             }
             // _ignored is the only multi-valued meta field
@@ -691,10 +661,10 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
         }
         if (documentFields.isEmpty() == false &&
         // ignore fields all together if they are all empty
-            documentFields.values().stream().anyMatch(df -> df.getValues().size() > 0)) {
+            documentFields.values().stream().anyMatch(df -> !df.getValues().isEmpty())) {
             builder.startObject(Fields.FIELDS);
             for (DocumentField field : documentFields.values()) {
-                if (field.getValues().size() > 0) {
+                if (!field.getValues().isEmpty()) {
                     field.toXContent(builder, params);
                 }
             }
@@ -708,7 +678,7 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
             builder.endObject();
         }
         sortValues.toXContent(builder, params);
-        if (matchedQueries != null && matchedQueries.size() > 0) {
+        if (matchedQueries != null && !matchedQueries.isEmpty()) {
             boolean includeMatchedQueriesScore = params.paramAsBoolean(RestSearchAction.INCLUDE_NAMED_QUERIES_SCORE_PARAM, false);
             if (includeMatchedQueriesScore) {
                 builder.startObject(Fields.MATCHED_QUERIES);
@@ -876,7 +846,7 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
             assert shardId.getIndexName().equals(index);
             searchHit.shard(new SearchShardTarget(nodeId, shardId, clusterAlias, OriginalIndices.NONE));
         } else {
-            // these fields get set anyways when setting the shard target,
+            // these fields get set anyway when setting the shard target,
             // but we set them explicitly when we don't have enough info to rebuild the shard target
             searchHit.index = index;
             searchHit.clusterAlias = clusterAlias;
