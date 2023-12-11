@@ -151,6 +151,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bumps `jetty` version from 9.4.52.v20230823 to 9.4.53.v20231009 ([#11539](https://github.com/opensearch-project/OpenSearch/pull/11539))
 - Bump `org.wiremock:wiremock-standalone` from 3.1.0 to 3.3.1 ([#11555](https://github.com/opensearch-project/OpenSearch/pull/11555))
 - Bump `org.apache.commons:commons-compress` from 1.24.0 to 1.25.0 ([#11556](https://github.com/opensearch-project/OpenSearch/pull/11556))
+- Bump `actions/stale` from 8 to 9 ([#11557](https://github.com/opensearch-project/OpenSearch/pull/11557))
 
 ### Changed
 - Mute the query profile IT with concurrent execution ([#9840](https://github.com/opensearch-project/OpenSearch/pull/9840))
