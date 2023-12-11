@@ -121,7 +121,10 @@ dependencies {
   api 'org.apache.ant:ant:1.10.12'
   api 'com.netflix.nebula:gradle-extra-configurations-plugin:3.0.3'
   api 'com.netflix.nebula:nebula-publishing-plugin:4.7.0'
-  api 'com.netflix.nebula:gradle-info-plugin:8.2.0'
+  api("com.netflix.nebula:gradle-info-plugin:8.2.0") {
+    exclude module: 'jgit'
+  }
+  api 'org.eclipse.jgit:org.eclipse.jgit:6.8.0.202311291450-r'
   api 'org.apache.rat:apache-rat:0.13'
   api 'commons-io:commons-io:2.7'
   api "net.java.dev.jna:jna:5.5.0"
