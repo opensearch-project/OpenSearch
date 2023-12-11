@@ -45,9 +45,12 @@ import org.opensearch.index.store.remote.filecache.FileCache;
 import org.opensearch.index.store.remote.filecache.FileCacheFactory;
 import org.opensearch.test.OpenSearchTestCase;
 
+import java.io.BufferedWriter;
 import java.io.IOException;
 import java.nio.file.FileStore;
+import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
 import java.nio.file.attribute.FileAttributeView;
 import java.nio.file.attribute.FileStoreAttributeView;
 import java.util.Arrays;
@@ -58,6 +61,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
+import static org.opensearch.monitor.fs.FsProbe.adjustForHugeFilesystems;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.emptyOrNullString;
 import static org.hamcrest.Matchers.greaterThan;
@@ -157,6 +161,59 @@ public class FsProbeTests extends OpenSearchTestCase {
 
                 if (path.fileCacheReserved > -1L) {
                     assertTrue(path.free - path.available >= path.fileCacheReserved);
+                }
+            }
+        }
+    }
+
+    public void testFsInfoWhenFileCacheOccupied() throws IOException {
+        Settings settings = Settings.builder().putList("node.roles", "search", "data").build();
+        try (NodeEnvironment env = newNodeEnvironment(settings)) {
+            final long usableSpace = adjustForHugeFilesystems(env.fileCacheNodePath().fileStore.getUsableSpace());
+            ByteSizeValue gbByteSizeValue = new ByteSizeValue(usableSpace - 10, ByteSizeUnit.BYTES);
+            env.fileCacheNodePath().fileCacheReservedSize = gbByteSizeValue;
+            FileCache fileCache = FileCacheFactory.createConcurrentLRUFileCache(
+                gbByteSizeValue.getBytes(),
+                16,
+                new NoopCircuitBreaker(CircuitBreaker.REQUEST)
+            );
+
+            // write a temp file to occupy some file cache space
+            Path tempFile = createTempFile();
+            try (BufferedWriter bufferedWriter = Files.newBufferedWriter(tempFile, StandardOpenOption.APPEND)) {
+                bufferedWriter.write(randomAlphaOfLength(100));
+                bufferedWriter.flush();
+            }
+
+            FsProbe probe = new FsProbe(env, fileCache);
+            FsInfo stats = probe.stats(null);
+            assertNotNull(stats);
+            assertTrue(stats.getTimestamp() > 0L);
+            FsInfo.Path total = stats.getTotal();
+            assertNotNull(total);
+            assertTrue(total.total > 0L);
+            assertTrue(total.free > 0L);
+            assertTrue(total.fileCacheReserved > 0L);
+            if (env.nodePaths().length > 1) {
+                assertTrue(total.available > 0L);
+            } else {
+                assertEquals(0L, total.available);
+            }
+            assertTrue((total.free - total.available) < total.fileCacheReserved);
+
+            for (FsInfo.Path path : stats) {
+                assertNotNull(path);
+                assertFalse(path.getPath().isEmpty());
+                assertFalse(path.getMount().isEmpty());
+                assertFalse(path.getType().isEmpty());
+                assertTrue(path.total > 0L);
+                assertTrue(path.free > 0L);
+
+                if (path.fileCacheReserved > 0L) {
+                    assertEquals(0L, path.available);
+                    assertTrue(path.free - path.available < path.fileCacheReserved);
+                } else {
+                    assertTrue(path.available > 0L);
                 }
             }
         }
