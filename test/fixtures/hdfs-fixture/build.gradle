@@ -49,6 +49,7 @@ dependencies {
     exclude module: "json-io"
     exclude module: "logback-core"
     exclude module: "logback-classic"
+    exclude module: "avro"
   }
   api "org.codehaus.jettison:jettison:${versions.jettison}"
   api "org.apache.commons:commons-compress:${versions.commonscompress}"
