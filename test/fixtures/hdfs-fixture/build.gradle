@@ -41,6 +41,7 @@ dependencies {
     exclude group: "org.bouncycastle"
     exclude module: "logback-core"
     exclude module: "logback-classic"
+    exclude module: "avro"
   }
 
   api "org.codehaus.jettison:jettison:${versions.jettison}"
