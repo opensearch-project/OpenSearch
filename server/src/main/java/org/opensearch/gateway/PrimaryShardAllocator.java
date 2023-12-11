@@ -51,7 +51,6 @@ import org.opensearch.cluster.routing.allocation.decider.Decision.Type;
 import org.opensearch.env.ShardLockObtainFailedException;
 import org.opensearch.gateway.AsyncShardFetch.FetchResult;
 import org.opensearch.gateway.TransportNodesListGatewayStartedShards.NodeGatewayStartedShards;
-import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -137,13 +136,11 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
     * @param shardsState {@link FetchResult<NodeGatewayStartedShards>}
     * */
     private static List<NodeGatewayStartedShards> adaptToNodeShardStates(FetchResult<NodeGatewayStartedShards> shardsState) {
-        if (!shardsState.hasData()){
+        if (!shardsState.hasData()) {
             return null;
         }
         List<NodeGatewayStartedShards> nodeShardStates = new ArrayList<>();
-        shardsState.getData().forEach((node, nodeGatewayStartedShard) -> {
-            nodeShardStates.add(nodeGatewayStartedShard);
-        });
+        shardsState.getData().forEach((node, nodeGatewayStartedShard) -> { nodeShardStates.add(nodeGatewayStartedShard); });
         return nodeShardStates;
     }
 
@@ -349,13 +346,13 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
         (NodeGatewayStartedShards state) -> state.storeException() == null
     ).reversed();
     private static final Comparator<NodeGatewayStartedShards> PRIMARY_FIRST_COMPARATOR = Comparator.comparing(
-        NodeGatewayStartedShards::primary).reversed();
+        NodeGatewayStartedShards::primary
+    ).reversed();
 
-    private static final Comparator<NodeGatewayStartedShards> HIGHEST_REPLICATION_CHECKPOINT_FIRST_COMPARATOR =
-        Comparator.comparing(
-            NodeGatewayStartedShards::replicationCheckpoint,
-            Comparator.nullsLast(Comparator.naturalOrder())
-        );
+    private static final Comparator<NodeGatewayStartedShards> HIGHEST_REPLICATION_CHECKPOINT_FIRST_COMPARATOR = Comparator.comparing(
+        NodeGatewayStartedShards::replicationCheckpoint,
+        Comparator.nullsLast(Comparator.naturalOrder())
+    );
 
     /**
      * Builds a list of nodes. If matchAnyShard is set to false, only nodes that have an allocation id matching
@@ -437,7 +434,10 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
         return new NodeShardsResult(nodeShardStates, numberOfAllocationsFound);
     }
 
-    private static Comparator<NodeGatewayStartedShards> createActiveShardComparator(boolean matchAnyShard, Set<String> inSyncAllocationIds) {
+    private static Comparator<NodeGatewayStartedShards> createActiveShardComparator(
+        boolean matchAnyShard,
+        Set<String> inSyncAllocationIds
+    ) {
         /**
          * Orders the active shards copies based on below comparators
          * 1. No store exception i.e. shard copy is readable
