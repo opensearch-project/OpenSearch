@@ -71,6 +71,7 @@ import org.opensearch.action.index.IndexResponse;
 import org.opensearch.action.search.ClearScrollResponse;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.action.support.IndicesOptions;
+import org.opensearch.action.support.WriteRequest;
 import org.opensearch.client.AdminClient;
 import org.opensearch.client.Client;
 import org.opensearch.client.ClusterAdminClient;
@@ -1646,6 +1647,7 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
             for (List<IndexRequestBuilder> segmented : partition) {
                 BulkRequestBuilder bulkBuilder = client().prepareBulk();
                 for (IndexRequestBuilder indexRequestBuilder : segmented) {
+                    indexRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.NONE);
                     bulkBuilder.add(indexRequestBuilder);
                 }
                 BulkResponse actionGet = bulkBuilder.execute().actionGet();

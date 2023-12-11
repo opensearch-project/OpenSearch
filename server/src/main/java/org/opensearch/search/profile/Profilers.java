@@ -32,6 +32,7 @@
 
 package org.opensearch.search.profile;
 
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.search.internal.ContextIndexSearcher;
 import org.opensearch.search.profile.aggregation.AggregationProfiler;
 import org.opensearch.search.profile.aggregation.ConcurrentAggregationProfiler;
@@ -47,8 +48,9 @@ import java.util.List;
 /**
  * Wrapper around all the profilers that makes management easier.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public final class Profilers {
 
     private final ContextIndexSearcher searcher;

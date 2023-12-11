@@ -33,13 +33,15 @@
 package org.opensearch.index.analysis;
 
 import org.apache.lucene.analysis.Analyzer;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.inject.Provider;
 
 /**
  * Base interface for all analyzer providers
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public interface AnalyzerProvider<T extends Analyzer> extends Provider<T> {
 
     String name();

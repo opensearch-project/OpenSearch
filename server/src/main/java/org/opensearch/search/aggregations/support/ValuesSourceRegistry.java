@@ -31,6 +31,7 @@
 
 package org.opensearch.search.aggregations.support;
 
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.search.SearchModule;
 import org.opensearch.search.aggregations.AggregationExecutionException;
@@ -49,15 +50,17 @@ import java.util.stream.Collectors;
  * directly instantiate this class, instead get an already-configured copy from {@link QueryShardContext#getValuesSourceRegistry()}, or (in
  * the case of some test scenarios only) directly from {@link SearchModule#getValuesSourceRegistry()}
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class ValuesSourceRegistry {
 
     /**
      * The registry key for the values source registry key
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public static final class RegistryKey<T> {
         private final String name;
         private final Class<T> supplierType;
@@ -90,8 +93,9 @@ public class ValuesSourceRegistry {
     /**
      * Builder for the values source registry
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public static class Builder {
         private final AggregationUsageService.Builder usageServiceBuilder;
         private Map<RegistryKey<?>, List<Map.Entry<ValuesSourceType, ?>>> aggregatorRegistry = new HashMap<>();

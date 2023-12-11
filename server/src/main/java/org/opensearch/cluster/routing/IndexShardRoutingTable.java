@@ -39,6 +39,7 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.Randomness;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.collect.MapBuilder;
 import org.opensearch.common.util.set.Sets;
 import org.opensearch.core.common.io.stream.StreamInput;
@@ -73,8 +74,9 @@ import static java.util.Collections.emptyMap;
  * referred to as replicas of a shard. Given that, this class encapsulates all
  * replicas (instances) for a single index shard.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class IndexShardRoutingTable implements Iterable<ShardRouting> {
 
     final ShardShuffler shuffler;
@@ -921,8 +923,9 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
     /**
      * Key for WeightedRouting Shard Iterator
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "2.4.0")
     public static class WeightedRoutingKey {
         private final WeightedRouting weightedRouting;
 

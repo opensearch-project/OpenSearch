@@ -80,6 +80,7 @@ import java.util.ListIterator;
 import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.TimeUnit;
@@ -1211,8 +1212,14 @@ public final class Settings implements ToXContentFragment {
                 String value = propertyPlaceholder.replacePlaceholders(Settings.toString(entry.getValue()), placeholderResolver);
                 // if the values exists and has length, we should maintain it in the map
                 // otherwise, the replace process resolved into removing it
-                if (Strings.hasLength(value)) {
-                    entry.setValue(value);
+                if (Strings.hasLength(value) == true) {
+                    // try to parse the value as a list first
+                    final Optional<List<String>> optList = tryParseableStringToList(value);
+                    if (optList.isPresent()) {
+                        entry.setValue(optList.get());
+                    } else {
+                        entry.setValue(value);
+                    }
                 } else {
                     entryItr.remove();
                 }
@@ -1247,6 +1254,34 @@ public final class Settings implements ToXContentFragment {
         public Settings build() {
             processLegacyLists(map);
             return new Settings(map, secureSettings.get());
+        }
+
+        /**
+         * Tries to parse the placeholder value as a list (fe [], ["a", "b", "c"])
+         * @param parsableString placeholder value to parse
+         * @return the {@link Optional} result of the parsing attempt
+         */
+        private static Optional<List<String>> tryParseableStringToList(String parsableString) {
+            // fromXContent doesn't use named xcontent or deprecation.
+            try (
+                XContentParser xContentParser = MediaTypeRegistry.JSON.xContent()
+                    .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, parsableString)
+            ) {
+                XContentParser.Token token = xContentParser.nextToken();
+                if (token != XContentParser.Token.START_ARRAY) {
+                    return Optional.empty();
+                }
+                ArrayList<String> list = new ArrayList<>();
+                while ((token = xContentParser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                    if (token != XContentParser.Token.VALUE_STRING) {
+                        return Optional.empty();
+                    }
+                    list.add(xContentParser.text());
+                }
+                return Optional.of(list);
+            } catch (IOException e) {
+                return Optional.empty();
+            }
         }
     }
 

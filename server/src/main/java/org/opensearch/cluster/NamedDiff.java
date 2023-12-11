@@ -33,13 +33,15 @@
 package org.opensearch.cluster;
 
 import org.opensearch.Version;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.io.stream.NamedWriteable;
 
 /**
  * Diff that also support NamedWriteable interface
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public interface NamedDiff<T extends Diffable<T>> extends Diff<T>, NamedWriteable {
     /**
      * The minimal version of the recipient this custom object can be sent to

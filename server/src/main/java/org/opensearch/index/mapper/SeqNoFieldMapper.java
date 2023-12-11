@@ -39,6 +39,7 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.index.fielddata.IndexFieldData;
 import org.opensearch.index.fielddata.IndexNumericFieldData.NumericType;
 import org.opensearch.index.fielddata.plain.SortedNumericIndexFieldData;
@@ -74,8 +75,9 @@ public class SeqNoFieldMapper extends MetadataFieldMapper {
      * A sequence ID, which is made up of a sequence number (both the searchable
      * and doc_value version of the field) and the primary term.
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public static class SequenceIDFields {
 
         public final Field seqNo;

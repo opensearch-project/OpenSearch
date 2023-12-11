@@ -47,6 +47,7 @@ public abstract class ParameterizedOpenSearchIntegTestCase extends OpenSearchInt
         client().admin().cluster().prepareUpdateSettings().setPersistentSettings(settingsToUnset).get();
     }
 
+    // This method shouldn't be called in setupSuiteScopeCluster(). Only call this method inside single test.
     public void indexRandomForConcurrentSearch(String... indices) throws InterruptedException {
         if (dynamicSettings.get(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey()).equals("true")) {
             indexRandomForMultipleSlices(indices);
