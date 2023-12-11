@@ -7,10 +7,6 @@ package org.opensearch.snapshots;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.Set;
-import java.util.concurrent.TimeUnit;
 import org.opensearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.opensearch.action.admin.cluster.node.stats.NodeStats;
 import org.opensearch.action.admin.cluster.node.stats.NodesStatsRequest;
@@ -43,7 +39,6 @@ import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.index.store.remote.file.CleanerDaemonThreadLeakFilter;
 import org.opensearch.index.store.remote.filecache.FileCacheStats;
-import org.opensearch.indices.IndicesService;
 import org.opensearch.monitor.fs.FsInfo;
 import org.opensearch.node.Node;
 import org.opensearch.repositories.fs.FsRepository;
@@ -52,9 +47,13 @@ import org.hamcrest.MatcherAssert;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
@@ -264,10 +263,23 @@ public final class SearchableSnapshotIT extends AbstractSnapshotIntegTestCase {
         for (int i = 0; i < numShardsIndex; ++i) {
             String pickedNode = randomFrom(dataNodes);
             assertIndexAssignedToNodeOrNot(restoredIndexName, pickedNode, true);
-            assertTrue(client.admin().indices().prepareUpdateSettings(restoredIndexName)
-                .setSettings(Settings.builder().put("index.routing.allocation.exclude._id", pickedNode)).execute().actionGet().isAcknowledged());
-            ClusterHealthResponse clusterHealthResponse = client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID)
-                .setWaitForNoRelocatingShards(true).setTimeout(new TimeValue(5, TimeUnit.MINUTES)).execute().actionGet();
+            assertTrue(
+                client.admin()
+                    .indices()
+                    .prepareUpdateSettings(restoredIndexName)
+                    .setSettings(Settings.builder().put("index.routing.allocation.exclude._id", pickedNode))
+                    .execute()
+                    .actionGet()
+                    .isAcknowledged()
+            );
+            ClusterHealthResponse clusterHealthResponse = client.admin()
+                .cluster()
+                .prepareHealth()
+                .setWaitForEvents(Priority.LANGUID)
+                .setWaitForNoRelocatingShards(true)
+                .setTimeout(new TimeValue(5, TimeUnit.MINUTES))
+                .execute()
+                .actionGet();
             assertThat(clusterHealthResponse.isTimedOut(), equalTo(false));
             assertIndexAssignedToNodeOrNot(restoredIndexName, pickedNode, false);
             assertIndexAssignedToNodeOrNot(indexName, pickedNode, true);
@@ -393,7 +405,8 @@ public final class SearchableSnapshotIT extends AbstractSnapshotIntegTestCase {
         createIndexWithDocsAndEnsureGreen(1, numReplicasIndex, numOfDocs, indexName);
     }
 
-    private void createIndexWithDocsAndEnsureGreen(int numShardsIndex, int numReplicasIndex, int numOfDocs, String indexName) throws InterruptedException {
+    private void createIndexWithDocsAndEnsureGreen(int numShardsIndex, int numReplicasIndex, int numOfDocs, String indexName)
+        throws InterruptedException {
         createIndex(
             indexName,
             Settings.builder()

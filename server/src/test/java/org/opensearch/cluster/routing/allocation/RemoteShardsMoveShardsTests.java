@@ -103,6 +103,8 @@ public class RemoteShardsMoveShardsTests extends RemoteShardsBalancerBaseTestCas
         assertTrue(routingTable.allShards(localIndex).stream().noneMatch(shard -> shard.currentNodeId().equals(excludedLocalOnlyNode)));
 
         // No shard of updated remote index should be on excluded remote capable node
-        assertTrue(routingTable.allShards(remoteIndex).stream().noneMatch(shard -> shard.currentNodeId().equals(excludedRemoteCapableNode)));
+        assertTrue(
+            routingTable.allShards(remoteIndex).stream().noneMatch(shard -> shard.currentNodeId().equals(excludedRemoteCapableNode))
+        );
     }
 }

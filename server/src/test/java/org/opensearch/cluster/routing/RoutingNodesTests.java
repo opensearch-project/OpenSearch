@@ -46,8 +46,6 @@ import org.junit.Before;
 import java.util.Iterator;
 import java.util.List;
 
-import org.mockito.Mockito;
-
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 
