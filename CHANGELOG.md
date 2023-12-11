@@ -149,6 +149,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `org.apache.xmlbeans:xmlbeans` from 5.1.1 to 5.2.0 ([#11448](https://github.com/opensearch-project/OpenSearch/pull/11448))
 - Bump `logback-core` and `logback-classic` to 1.2.13 ([#11521](https://github.com/opensearch-project/OpenSearch/pull/11521))
 - Bumps `jetty` version from 9.4.52.v20230823 to 9.4.53.v20231009 ([#11539](https://github.com/opensearch-project/OpenSearch/pull/11539))
+- Bump `org.wiremock:wiremock-standalone` from 3.1.0 to 3.3.1 ([#11555](https://github.com/opensearch-project/OpenSearch/pull/11555))
 
 ### Changed
 - Mute the query profile IT with concurrent execution ([#9840](https://github.com/opensearch-project/OpenSearch/pull/9840))
