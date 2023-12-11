@@ -122,7 +122,7 @@ dependencies {
   api 'org.jruby.jcodings:jcodings:1.0.58'
   api 'org.jruby.joni:joni:2.2.1'
   api "com.fasterxml.jackson.core:jackson-databind:${props.getProperty('jackson_databind')}"
-  api "org.ajoberstar.grgit:grgit-core:5.2.0"
+  api "org.ajoberstar.grgit:grgit-core:5.2.1"
 
   testFixturesApi "junit:junit:${props.getProperty('junit')}"
   testFixturesApi "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${props.getProperty('randomizedrunner')}"
@@ -133,10 +133,6 @@ dependencies {
   integTestImplementation('org.spockframework:spock-core:2.3-groovy-3.0') {
     exclude module: "groovy"
   }
-  implementation('org.ajoberstar.grgit:grgit-core:5.2.0') {
-    exclude group: 'org.eclipse.jgit', module: 'org.eclipse.jgit'
-  }
-  implementation 'org.eclipse.jgit:org.eclipse.jgit:6.7.0.202309050840-r'
 }
 
 configurations.all {
