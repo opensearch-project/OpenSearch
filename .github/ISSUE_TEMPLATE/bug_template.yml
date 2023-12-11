@@ -60,27 +60,20 @@ body:
       required: true
   - type: textarea
     attributes:
-      label: Documents, Screenshots
-      description: If applicable, please attach more information in this area, like log files or screenshoots, to help debug your problem.
-    validations:
-      required: false
-  - type: textarea
-    attributes:
-      label: Host/Environment
-      value: |
-        - OS: [e.g. iOS]
-        - Version [e.g. 22]
-    validations:
-      required: false
-  - type: textarea
-    attributes:
-      label: Plugins
-      description: Please list all plugins currently enabled.
-    validations:
-      required: false
-  - type: textarea
-    attributes:
-      label: Additional context
+      label: Additional Details
       description: Add any other context about the problem here.
+      value: |
+        **Plugins**
+        Please list all plugins currently enabled.
+
+        **Screenshots**
+        If applicable, add screenshots to help explain your problem.
+
+        **Host/Environment (please complete the following information):**
+         - OS: [e.g. iOS]
+         - Version [e.g. 22]
+
+        **Additional context**
+        Add any other context about the problem here.
     validations:
       required: false
