@@ -50,6 +50,7 @@ final class SearchQueryCounters {
     public final Counter termCounter;
     public final Counter totalCounter;
     public final Counter wildcardCounter;
+    public final Counter numberOfInputFieldsCounter;
 
     public SearchQueryCounters(MetricsRegistry metricsRegistry) {
         this.metricsRegistry = metricsRegistry;
@@ -206,6 +207,11 @@ final class SearchQueryCounters {
         this.wildcardCounter = metricsRegistry.createCounter(
             "search.query.type.wildcard.count",
             "Counter for the number of top level and nested wildcard search queries",
+            UNIT
+        );
+        this.numberOfInputFieldsCounter = metricsRegistry.createCounter(
+            "search.query.type.numberofinputfields.count",
+            "Counter for the number of input fields in the search queries",
             UNIT
         );
     }

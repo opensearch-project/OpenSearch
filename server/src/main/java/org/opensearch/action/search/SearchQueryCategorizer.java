@@ -15,6 +15,7 @@ import org.opensearch.index.query.QueryBuilderVisitor;
 import org.opensearch.index.query.QueryShapeVisitor;
 import org.opensearch.search.aggregations.AggregatorFactories;
 import org.opensearch.search.builder.SearchSourceBuilder;
+import org.opensearch.search.fetch.subphase.FieldAndFormat;
 import org.opensearch.search.sort.SortBuilder;
 import org.opensearch.telemetry.metrics.MetricsRegistry;
 import org.opensearch.telemetry.metrics.tags.Tags;
@@ -32,17 +33,23 @@ final class SearchQueryCategorizer {
 
     final SearchQueryCounters searchQueryCounters;
 
+    final SearchQueryAggregationCategorizer searchQueryAggregationCategorizer;
+
     public SearchQueryCategorizer(MetricsRegistry metricsRegistry) {
         searchQueryCounters = new SearchQueryCounters(metricsRegistry);
+        searchQueryAggregationCategorizer = new SearchQueryAggregationCategorizer(searchQueryCounters);
     }
 
     public void categorize(SearchSourceBuilder source) {
         QueryBuilder topLevelQueryBuilder = source.query();
-
         logQueryShape(topLevelQueryBuilder);
         incrementQueryTypeCounters(topLevelQueryBuilder);
         incrementQueryAggregationCounters(source.aggregations());
         incrementQuerySortCounters(source.sorts());
+
+        List<FieldAndFormat> fields = source.fetchFields();
+        int numberOfInputFields = fields.size();
+        searchQueryCounters.numberOfInputFieldsCounter.add(1, Tags.create().addTag("number", numberOfInputFields));
     }
 
     private void incrementQuerySortCounters(List<SortBuilder<?>> sorts) {
@@ -56,9 +63,11 @@ final class SearchQueryCategorizer {
     }
 
     private void incrementQueryAggregationCounters(AggregatorFactories.Builder aggregations) {
-        if (aggregations != null) {
-            searchQueryCounters.aggCounter.add(1);
+        if (aggregations == null) {
+            return;
         }
+
+        searchQueryAggregationCategorizer.incrementSearchQueryAggregationCounters(aggregations.getAggregatorFactories());
     }
 
     private void incrementQueryTypeCounters(QueryBuilder topLevelQueryBuilder) {
