@@ -78,7 +78,8 @@ final class SearchQueryCategorizingVisitor implements QueryBuilderVisitor {
             searchQueryCounters.termCounter.add(1, Tags.create().addTag(LEVEL_TAG, level));
         } else if (qb instanceof WildcardQueryBuilder) {
             searchQueryCounters.wildcardCounter.add(1, Tags.create().addTag(LEVEL_TAG, level));
-        } if (qb instanceof BoostingQueryBuilder) {
+        }
+        if (qb instanceof BoostingQueryBuilder) {
             searchQueryCounters.boostCounter.add(1, Tags.create().addTag(LEVEL_TAG, level));
         } else if (qb instanceof ConstantScoreQueryBuilder) {
             searchQueryCounters.constantScoreCounter.add(1, Tags.create().addTag(LEVEL_TAG, level));

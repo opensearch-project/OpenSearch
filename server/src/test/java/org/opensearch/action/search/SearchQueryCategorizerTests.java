@@ -8,7 +8,6 @@
 
 package org.opensearch.action.search;
 
-import org.mockito.ArgumentCaptor;
 import org.opensearch.index.query.BoolQueryBuilder;
 import org.opensearch.index.query.BoostingQueryBuilder;
 import org.opensearch.index.query.MatchNoneQueryBuilder;
@@ -35,7 +34,7 @@ import org.junit.Before;
 
 import java.util.Arrays;
 
-import org.mockito.Mockito;
+import org.mockito.ArgumentCaptor;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
