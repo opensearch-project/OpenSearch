@@ -10,12 +10,12 @@ package org.opensearch.action.search;
 
 import org.apache.logging.log4j.Logger;
 import org.opensearch.cluster.service.ClusterService;
-import org.opensearch.common.inject.Inject;
 import org.opensearch.common.settings.Setting;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.stream.Collectors;
 
 
 /**
@@ -38,7 +38,6 @@ public class SearchRequestListenerManager {
     );
     private final List<SearchRequestOperationsListener> searchRequestListenersList;
 
-    @Inject
     public SearchRequestListenerManager(
         ClusterService clusterService
     ) {
@@ -47,20 +46,22 @@ public class SearchRequestListenerManager {
     }
 
     /**
-     * Add a {@link SearchRequestOperationsListener} to the searchRequestListenersList,
-     * which will be executed during each search request.
+     * Add multiple {@link SearchRequestOperationsListener} to the searchRequestListenersList.
+     * Those enabled listeners will be executed during each search request.
      *
-     * @param listener A SearchRequestOperationsListener object to add.
-     * @throws IllegalArgumentException if the input listener is null or already exists in the list.
+     * @param listeners Multiple SearchRequestOperationsListener object to add.
+     * @throws IllegalArgumentException if any input listener is null or already exists in the list.
      */
-    public void addListener(SearchRequestOperationsListener listener) {
-        if (listener == null) {
-            throw new IllegalArgumentException("listener must not be null");
+    public void addListeners(SearchRequestOperationsListener... listeners) {
+        for (SearchRequestOperationsListener listener : listeners) {
+            if (listener == null) {
+                throw new IllegalArgumentException("listener must not be null");
+            }
+            if (searchRequestListenersList.contains(listener)) {
+                throw new IllegalArgumentException("listener already added");
+            }
+            searchRequestListenersList.add(listener);
         }
-        if (searchRequestListenersList.contains(listener)) {
-            throw new IllegalArgumentException("listener already added");
-        }
-        searchRequestListenersList.add(listener);
     }
 
     /**
@@ -104,9 +105,9 @@ public class SearchRequestListenerManager {
         Logger logger,
         SearchRequestOperationsListener... perRequestListeners
     ) {
-        final List<SearchRequestOperationsListener> searchListenersList = new ArrayList<>(searchRequestListenersList);
+        final List<SearchRequestOperationsListener> searchListenersList = searchRequestListenersList.stream().filter(SearchRequestOperationsListener::getEnabled).collect(Collectors.toList());
 
-        Arrays.stream(perRequestListeners).parallel().forEach((listener) -> {
+        Arrays.stream(perRequestListeners).forEach((listener) -> {
             if (listener != null && listener.getClass() == TransportSearchAction.SearchTimeProvider.class) {
                 TransportSearchAction.SearchTimeProvider timeProvider = (TransportSearchAction.SearchTimeProvider) listener;
                 // phase_took is enabled with request param and/or cluster setting

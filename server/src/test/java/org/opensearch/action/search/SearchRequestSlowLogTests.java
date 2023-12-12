@@ -95,8 +95,7 @@ public class SearchRequestSlowLogTests extends OpenSearchTestCase {
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
             null
         );
-        SearchRequestListenerManager listenerManager = new SearchRequestListenerManager(clusterService1);
-        SearchRequestSlowLog searchRequestSlowLog1 = new SearchRequestSlowLog(clusterService1, listenerManager);
+        SearchRequestSlowLog searchRequestSlowLog1 = new SearchRequestSlowLog(clusterService1);
         int numberOfLoggersBefore = context.getLoggers().size();
 
         SearchPhaseContext searchPhaseContext2 = new MockSearchPhaseContext(1);
@@ -106,7 +105,7 @@ public class SearchRequestSlowLogTests extends OpenSearchTestCase {
             null
         );
         SearchRequestListenerManager listenerManager2 = new SearchRequestListenerManager(clusterService2);
-        SearchRequestSlowLog searchRequestSlowLog2 = new SearchRequestSlowLog(clusterService2, listenerManager2);
+        SearchRequestSlowLog searchRequestSlowLog2 = new SearchRequestSlowLog(clusterService2);
 
         int numberOfLoggersAfter = context.getLoggers().size();
         assertThat(numberOfLoggersAfter, equalTo(numberOfLoggersBefore));
@@ -126,8 +125,7 @@ public class SearchRequestSlowLogTests extends OpenSearchTestCase {
         Settings settings = settingsBuilder.build();
         ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         ClusterService clusterService = new ClusterService(settings, clusterSettings, null);
-        SearchRequestListenerManager listenerManager = new SearchRequestListenerManager(clusterService);
-        SearchRequestSlowLog searchRequestSlowLog = new SearchRequestSlowLog(clusterService, listenerManager, logger);
+        SearchRequestSlowLog searchRequestSlowLog = new SearchRequestSlowLog(clusterService, logger);
         final List<SearchRequestOperationsListener> searchListenersList = new ArrayList<>(List.of(searchRequestSlowLog));
 
         when(searchRequestContext.getSearchRequestOperationsListener()).thenReturn(
@@ -160,8 +158,7 @@ public class SearchRequestSlowLogTests extends OpenSearchTestCase {
         Settings settings = settingsBuilder.build();
         ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         ClusterService clusterService = new ClusterService(settings, clusterSettings, null);
-        SearchRequestListenerManager listenerManager = new SearchRequestListenerManager(clusterService);
-        SearchRequestSlowLog searchRequestSlowLog = new SearchRequestSlowLog(clusterService, listenerManager, logger);
+        SearchRequestSlowLog searchRequestSlowLog = new SearchRequestSlowLog(clusterService, logger);
         final List<SearchRequestOperationsListener> searchListenersList = new ArrayList<>(List.of(searchRequestSlowLog));
 
         when(searchPhaseContext.getRequest()).thenReturn(searchRequest);
@@ -312,8 +309,7 @@ public class SearchRequestSlowLogTests extends OpenSearchTestCase {
         Settings settings = settingsBuilder.build();
         ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         ClusterService clusterService = new ClusterService(settings, clusterSettings, null);
-        SearchRequestListenerManager listenerManager = new SearchRequestListenerManager(clusterService);
-        SearchRequestSlowLog searchRequestSlowLog = new SearchRequestSlowLog(clusterService, listenerManager);
+        SearchRequestSlowLog searchRequestSlowLog = new SearchRequestSlowLog(clusterService);
         assertEquals(level, searchRequestSlowLog.getLevel());
     }
 
@@ -324,8 +320,7 @@ public class SearchRequestSlowLogTests extends OpenSearchTestCase {
         Settings settings = settingsBuilder.build();
         ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         ClusterService clusterService = new ClusterService(settings, clusterSettings, null);
-        SearchRequestListenerManager listenerManager = new SearchRequestListenerManager(clusterService);
-        SearchRequestSlowLog searchRequestSlowLog = new SearchRequestSlowLog(clusterService, listenerManager);
+        SearchRequestSlowLog searchRequestSlowLog = new SearchRequestSlowLog(clusterService);
         assertEquals(level, searchRequestSlowLog.getLevel().toString());
     }
 
@@ -336,10 +331,9 @@ public class SearchRequestSlowLogTests extends OpenSearchTestCase {
         Settings settings = settingsBuilder.build();
         ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         ClusterService clusterService = new ClusterService(settings, clusterSettings, null);
-        SearchRequestListenerManager listenerManager = new SearchRequestListenerManager(clusterService);
 
         try {
-            new SearchRequestSlowLog(clusterService, listenerManager);
+            new SearchRequestSlowLog(clusterService);
             fail();
         } catch (IllegalArgumentException ex) {
             final String expected = "No enum constant org.opensearch.common.logging.SlowLogLevel.NOT A LEVEL";
@@ -357,8 +351,7 @@ public class SearchRequestSlowLogTests extends OpenSearchTestCase {
         Settings settings = settingsBuilder.build();
         ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         ClusterService clusterService = new ClusterService(settings, clusterSettings, null);
-        SearchRequestListenerManager listenerManager = new SearchRequestListenerManager(clusterService);
-        SearchRequestSlowLog searchRequestSlowLog = new SearchRequestSlowLog(clusterService, listenerManager);
+        SearchRequestSlowLog searchRequestSlowLog = new SearchRequestSlowLog(clusterService);
         assertEquals(TimeValue.timeValueMillis(400).nanos(), searchRequestSlowLog.getWarnThreshold());
         assertEquals(TimeValue.timeValueMillis(300).nanos(), searchRequestSlowLog.getInfoThreshold());
         assertEquals(TimeValue.timeValueMillis(200).nanos(), searchRequestSlowLog.getDebugThreshold());
@@ -375,8 +368,7 @@ public class SearchRequestSlowLogTests extends OpenSearchTestCase {
         Settings settings = settingsBuilder.build();
         ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         ClusterService clusterService = new ClusterService(settings, clusterSettings, null);
-        SearchRequestListenerManager listenerManager = new SearchRequestListenerManager(clusterService);
-        SearchRequestSlowLog searchRequestSlowLog = new SearchRequestSlowLog(clusterService, listenerManager);
+        SearchRequestSlowLog searchRequestSlowLog = new SearchRequestSlowLog(clusterService);
         assertEquals(TimeValue.timeValueSeconds(400).nanos(), searchRequestSlowLog.getWarnThreshold());
         assertEquals(TimeValue.timeValueMillis(300).nanos(), searchRequestSlowLog.getInfoThreshold());
         assertEquals(TimeValue.timeValueNanos(200000).nanos(), searchRequestSlowLog.getDebugThreshold());
@@ -391,8 +383,7 @@ public class SearchRequestSlowLogTests extends OpenSearchTestCase {
         Settings settings = settingsBuilder.build();
         ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         ClusterService clusterService = new ClusterService(settings, clusterSettings, null);
-        SearchRequestListenerManager listenerManager = new SearchRequestListenerManager(clusterService);
-        SearchRequestSlowLog searchRequestSlowLog = new SearchRequestSlowLog(clusterService, listenerManager);
+        SearchRequestSlowLog searchRequestSlowLog = new SearchRequestSlowLog(clusterService);
         assertEquals(TimeValue.timeValueMillis(400).nanos(), searchRequestSlowLog.getWarnThreshold());
         assertEquals(TimeValue.timeValueMillis(-1).nanos(), searchRequestSlowLog.getInfoThreshold());
         assertEquals(TimeValue.timeValueMillis(200).nanos(), searchRequestSlowLog.getDebugThreshold());
@@ -406,10 +397,9 @@ public class SearchRequestSlowLogTests extends OpenSearchTestCase {
         Settings settings = settingsBuilder.build();
         ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         ClusterService clusterService = new ClusterService(settings, clusterSettings, null);
-        SearchRequestListenerManager listenerManager = new SearchRequestListenerManager(clusterService);
 
         try {
-            new SearchRequestSlowLog(clusterService, listenerManager);
+            new SearchRequestSlowLog(clusterService);
             fail();
         } catch (IllegalArgumentException ex) {
             final String expected =

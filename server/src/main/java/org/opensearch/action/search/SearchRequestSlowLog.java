@@ -37,7 +37,6 @@ import com.fasterxml.jackson.core.io.JsonStringEncoder;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.cluster.service.ClusterService;
-import org.opensearch.common.inject.Inject;
 import org.opensearch.common.logging.Loggers;
 import org.opensearch.common.logging.OpenSearchLogMessage;
 import org.opensearch.common.logging.SlowLogLevel;
@@ -109,18 +108,14 @@ public final class SearchRequestSlowLog extends SearchRequestOperationsListener 
 
     private static final ToXContent.Params FORMAT_PARAMS = new ToXContent.MapParams(Collections.singletonMap("pretty", "false"));
 
-    @Inject
     public SearchRequestSlowLog(
-        ClusterService clusterService,
-        SearchRequestListenerManager searchRequestListenerManager
+        ClusterService clusterService
         ) {
-        this(clusterService, searchRequestListenerManager, LogManager.getLogger(CLUSTER_SEARCH_REQUEST_SLOWLOG_PREFIX)); // logger configured in log4j2.properties
+        this(clusterService, LogManager.getLogger(CLUSTER_SEARCH_REQUEST_SLOWLOG_PREFIX)); // logger configured in log4j2.properties
     }
 
-    @Inject
-    SearchRequestSlowLog(ClusterService clusterService, SearchRequestListenerManager searchRequestListenerManager, Logger logger) {
+    SearchRequestSlowLog(ClusterService clusterService, Logger logger) {
         this.logger = logger;
-        this.searchRequestListenerManager = searchRequestListenerManager;
         Loggers.setLevel(this.logger, SlowLogLevel.TRACE.name());
 
         this.warnThreshold = clusterService.getClusterSettings().get(CLUSTER_SEARCH_REQUEST_SLOWLOG_THRESHOLD_WARN_SETTING).nanos();

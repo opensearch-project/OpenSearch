@@ -33,7 +33,6 @@
 package org.opensearch.indices;
 
 import org.opensearch.action.admin.indices.stats.CommonStats;
-import org.opensearch.action.search.SearchRequestListenerManager;
 import org.opensearch.action.search.SearchRequestStats;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.ClusterSettings;
@@ -55,8 +54,7 @@ public class NodeIndicesStatsTests extends OpenSearchTestCase {
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
             null
         );
-        SearchRequestListenerManager listenerManager = new SearchRequestListenerManager(clusterService);
-        SearchRequestStats requestStats = new SearchRequestStats(clusterService, listenerManager);
+        SearchRequestStats requestStats = new SearchRequestStats(clusterService);
         final NodeIndicesStats stats = new NodeIndicesStats(oldStats, Collections.emptyMap(), requestStats);
         final String level = randomAlphaOfLength(16);
         final ToXContent.Params params = new ToXContent.MapParams(Collections.singletonMap("level", level));

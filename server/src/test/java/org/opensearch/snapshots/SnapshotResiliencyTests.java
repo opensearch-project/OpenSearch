@@ -90,7 +90,6 @@ import org.opensearch.action.search.SearchAction;
 import org.opensearch.action.search.SearchExecutionStatsCollector;
 import org.opensearch.action.search.SearchPhaseController;
 import org.opensearch.action.search.SearchRequest;
-import org.opensearch.action.search.SearchRequestSlowLog;
 import org.opensearch.action.search.SearchRequestListenerManager;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.action.search.SearchTransportService;

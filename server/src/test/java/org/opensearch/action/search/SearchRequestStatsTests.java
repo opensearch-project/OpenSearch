@@ -30,8 +30,7 @@ public class SearchRequestStatsTests extends OpenSearchTestCase {
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
             null
         );
-        SearchRequestListenerManager listenerManager = new SearchRequestListenerManager(clusterService);
-        SearchRequestStats testRequestStats = new SearchRequestStats(clusterService, listenerManager);
+        SearchRequestStats testRequestStats = new SearchRequestStats(clusterService);
         SearchPhaseContext ctx = mock(SearchPhaseContext.class);
         SearchPhase mockSearchPhase = mock(SearchPhase.class);
         when(ctx.getCurrentPhase()).thenReturn(mockSearchPhase);
@@ -51,8 +50,7 @@ public class SearchRequestStatsTests extends OpenSearchTestCase {
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
             null
         );
-        SearchRequestListenerManager listenerManager = new SearchRequestListenerManager(clusterService);
-        SearchRequestStats testRequestStats = new SearchRequestStats(clusterService, listenerManager);
+        SearchRequestStats testRequestStats = new SearchRequestStats(clusterService);
 
         SearchPhaseContext ctx = mock(SearchPhaseContext.class);
         SearchPhase mockSearchPhase = mock(SearchPhase.class);
@@ -78,8 +76,7 @@ public class SearchRequestStatsTests extends OpenSearchTestCase {
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
             null
         );
-        SearchRequestListenerManager listenerManager = new SearchRequestListenerManager(clusterService);
-        SearchRequestStats testRequestStats = new SearchRequestStats(clusterService, listenerManager);
+        SearchRequestStats testRequestStats = new SearchRequestStats(clusterService);
         int numTasks = randomIntBetween(5, 50);
         Thread[] threads = new Thread[numTasks * SearchPhaseName.values().length];
         Phaser phaser = new Phaser(numTasks * SearchPhaseName.values().length + 1);
@@ -111,8 +108,7 @@ public class SearchRequestStatsTests extends OpenSearchTestCase {
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
             null
         );
-        SearchRequestListenerManager listenerManager = new SearchRequestListenerManager(clusterService);
-        SearchRequestStats testRequestStats = new SearchRequestStats(clusterService, listenerManager);
+        SearchRequestStats testRequestStats = new SearchRequestStats(clusterService);
         int numTasks = randomIntBetween(5, 50);
         Thread[] threads = new Thread[numTasks * SearchPhaseName.values().length];
         Phaser phaser = new Phaser(numTasks * SearchPhaseName.values().length + 1);
@@ -153,8 +149,7 @@ public class SearchRequestStatsTests extends OpenSearchTestCase {
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
             null
         );
-        SearchRequestListenerManager listenerManager = new SearchRequestListenerManager(clusterService);
-        SearchRequestStats testRequestStats = new SearchRequestStats(clusterService, listenerManager);
+        SearchRequestStats testRequestStats = new SearchRequestStats(clusterService);
         int numTasks = randomIntBetween(5, 50);
         Thread[] threads = new Thread[numTasks * SearchPhaseName.values().length];
         Phaser phaser = new Phaser(numTasks * SearchPhaseName.values().length + 1);

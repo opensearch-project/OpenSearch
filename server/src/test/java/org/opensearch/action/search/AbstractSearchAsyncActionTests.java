@@ -336,8 +336,7 @@ public class AbstractSearchAsyncActionTests extends OpenSearchTestCase {
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
             null
         );
-        SearchRequestListenerManager listenerManager = new SearchRequestListenerManager(clusterService);
-        SearchRequestStats testListener = new SearchRequestStats(clusterService, listenerManager);
+        SearchRequestStats testListener = new SearchRequestStats(clusterService);
 
         final List<SearchRequestOperationsListener> requestOperationListeners = new ArrayList<>(List.of(testListener));
         SearchQueryThenFetchAsyncAction action = createSearchQueryThenFetchAsyncAction(requestOperationListeners);
@@ -605,8 +604,7 @@ public class AbstractSearchAsyncActionTests extends OpenSearchTestCase {
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
             null
         );
-        SearchRequestListenerManager listenerManager = new SearchRequestListenerManager(clusterService);
-        SearchRequestStats testListener = new SearchRequestStats(clusterService, listenerManager);
+        SearchRequestStats testListener = new SearchRequestStats(clusterService);
         final List<SearchRequestOperationsListener> requestOperationListeners = new ArrayList<>(List.of(testListener));
 
         long delay = (randomIntBetween(1, 5));
@@ -660,8 +658,7 @@ public class AbstractSearchAsyncActionTests extends OpenSearchTestCase {
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
             null
         );
-        SearchRequestListenerManager listenerManager = new SearchRequestListenerManager(clusterService);
-        SearchRequestStats testListener = new SearchRequestStats(clusterService, listenerManager);
+        SearchRequestStats testListener = new SearchRequestStats(clusterService);
         final List<SearchRequestOperationsListener> requestOperationListeners = new ArrayList<>(List.of(testListener));
 
         SearchDfsQueryThenFetchAsyncAction searchDfsQueryThenFetchAsyncAction = createSearchDfsQueryThenFetchAsyncAction(

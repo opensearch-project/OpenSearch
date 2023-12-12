@@ -783,10 +783,16 @@ public class Node implements Closeable {
                 repositoriesServiceReference::get,
                 threadPool
             );
-            final SearchRequestListenerManager searchRequestListenerManager = new SearchRequestListenerManager(clusterService);
 
-            final SearchRequestStats searchRequestStats = new SearchRequestStats(clusterService, searchRequestListenerManager);
-            final SearchRequestSlowLog searchRequestSlowLog = new SearchRequestSlowLog(clusterService, searchRequestListenerManager);
+            final SearchRequestStats searchRequestStats = new SearchRequestStats(clusterService);
+            final SearchRequestSlowLog searchRequestSlowLog = new SearchRequestSlowLog(clusterService);
+
+            // register all standard SearchRequestOperationsListeners to the SearchRequestListenerManager
+            final SearchRequestListenerManager searchRequestListenerManager = new SearchRequestListenerManager(clusterService);
+            searchRequestListenerManager.addListeners(
+                searchRequestStats,
+                searchRequestSlowLog
+            );
 
             remoteStoreStatsTrackerFactory = new RemoteStoreStatsTrackerFactory(clusterService, settings);
             final IndicesService indicesService = new IndicesService(

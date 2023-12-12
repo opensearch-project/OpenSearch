@@ -20,8 +20,15 @@ import java.util.List;
  * @opensearch.internal
  */
 @InternalApi
-abstract class SearchRequestOperationsListener {
-    protected SearchRequestListenerManager searchRequestListenerManager;
+public abstract class SearchRequestOperationsListener {
+    private volatile boolean enabled;
+
+    protected SearchRequestOperationsListener() {
+        this.enabled = false;
+    }
+    protected SearchRequestOperationsListener(boolean enabled) {
+        this.enabled = enabled;
+    }
 
     abstract void onPhaseStart(SearchPhaseContext context);
 
@@ -33,33 +40,13 @@ abstract class SearchRequestOperationsListener {
 
     void onRequestEnd(SearchPhaseContext context, SearchRequestContext searchRequestContext) {}
 
-    public void setEnabled(boolean enabled) {
-        if (enabled) {
-            register();
-        } else {
-            deregister();
-        }
+
+    boolean getEnabled() {
+        return enabled;
     }
 
-
-    /**
-     * Handler function to register this listener to certain components
-     * This function will be called when the listener is enabled.
-     */
-    protected void register() {
-        if (this.searchRequestListenerManager != null) {
-            this.searchRequestListenerManager.addListener(this);
-        }
-    }
-
-    /**
-     * Handler function to deregister this listener from certain components
-     * This function will be called when the listener is disabled.
-     */
-    protected void deregister() {
-        if (this.searchRequestListenerManager != null) {
-            this.searchRequestListenerManager.removeListener(this);
-        }
+    void setEnabled(boolean enabled) {
+        this.enabled = enabled;
     }
 
     /**

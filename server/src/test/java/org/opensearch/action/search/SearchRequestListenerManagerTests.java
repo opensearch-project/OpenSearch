@@ -28,7 +28,7 @@ public class SearchRequestListenerManagerTests extends OpenSearchTestCase {
         );
         SearchRequestListenerManager listenerManager = new SearchRequestListenerManager(clusterService);
         SearchRequestOperationsListener testListener = createTestSearchRequestOperationsListener();
-        listenerManager.addListener(testListener);
+        listenerManager.addListeners(testListener);
         assertEquals(1, listenerManager.getListeners().size());
         assertEquals(testListener, listenerManager.getListeners().get(0));
     }
@@ -42,15 +42,14 @@ public class SearchRequestListenerManagerTests extends OpenSearchTestCase {
         SearchRequestListenerManager listenerManager = new SearchRequestListenerManager(clusterService);
         SearchRequestOperationsListener testListener1 = createTestSearchRequestOperationsListener();
         SearchRequestOperationsListener testListener2 = createTestSearchRequestOperationsListener();
-        listenerManager.addListener(testListener1);
-        listenerManager.addListener(testListener2);
+        listenerManager.addListeners(testListener1, testListener2);
         assertEquals(2, listenerManager.getListeners().size());
         listenerManager.removeListener(testListener2);
         assertEquals(1, listenerManager.getListeners().size());
         assertEquals(testListener1, listenerManager.getListeners().get(0));
     }
 
-    public void testBuildCompositeListenersWithTimeProvider() throws NoSuchFieldException, IllegalAccessException {
+    public void testStandardListenersEnabled() throws NoSuchFieldException, IllegalAccessException {
         ClusterService clusterService = new ClusterService(
             Settings.EMPTY,
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
@@ -58,12 +57,40 @@ public class SearchRequestListenerManagerTests extends OpenSearchTestCase {
         );
         SearchRequestListenerManager listenerManager = new SearchRequestListenerManager(clusterService);
         SearchRequestOperationsListener testListener1 = createTestSearchRequestOperationsListener();
+        SearchRequestOperationsListener testListener2 = createTestSearchRequestOperationsListener();
+        testListener2.setEnabled(true);
+        listenerManager.addListeners(testListener1, testListener2);
+        SearchSourceBuilder source = SearchSourceBuilder.searchSource().query(QueryBuilders.matchAllQuery());
+        SearchRequest searchRequest = new SearchRequest().source(source);
+        SearchRequestOperationsListener.CompositeListener compositeListener = listenerManager.buildCompositeListener(
+            searchRequest,
+            logger
+        );
+        Field listenersField = SearchRequestOperationsListener.CompositeListener.class.getDeclaredField("listeners");
+        listenersField.setAccessible(true);
+        List<SearchRequestOperationsListener> listeners = (List<SearchRequestOperationsListener>) listenersField.get(compositeListener);
+        assertEquals(1, listeners.size());
+        assertEquals(testListener2, listeners.get(0));
+        assertEquals(2, listenerManager.getListeners().size());
+        assertEquals(testListener1, listenerManager.getListeners().get(0));
+        assertEquals(testListener2, listenerManager.getListeners().get(1));
+    }
+
+    public void testStandardListenersAndTimeProvider() throws NoSuchFieldException, IllegalAccessException {
+        ClusterService clusterService = new ClusterService(
+            Settings.EMPTY,
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+            null
+        );
+        SearchRequestListenerManager listenerManager = new SearchRequestListenerManager(clusterService);
+        SearchRequestOperationsListener testListener1 = createTestSearchRequestOperationsListener();
+        testListener1.setEnabled(true);
         SearchRequestOperationsListener timeProviderListener = new TransportSearchAction.SearchTimeProvider(
             0,
             System.nanoTime(),
             System::nanoTime
         );
-        listenerManager.addListener(testListener1);
+        listenerManager.addListeners(testListener1);
         SearchSourceBuilder source = SearchSourceBuilder.searchSource().query(QueryBuilders.matchAllQuery());
         SearchRequest searchRequest = new SearchRequest().source(source);
         searchRequest.setPhaseTook(true);
@@ -82,7 +109,7 @@ public class SearchRequestListenerManagerTests extends OpenSearchTestCase {
         assertEquals(testListener1, listenerManager.getListeners().get(0));
     }
 
-    public void testBuildCompositeListenersWithPhaseTookDisabled() throws NoSuchFieldException, IllegalAccessException {
+    public void testStandardListenersDisabledAndTimeProvider() throws NoSuchFieldException, IllegalAccessException {
         ClusterService clusterService = new ClusterService(
             Settings.EMPTY,
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
@@ -95,7 +122,40 @@ public class SearchRequestListenerManagerTests extends OpenSearchTestCase {
             System.nanoTime(),
             System::nanoTime
         );
-        listenerManager.addListener(testListener1);
+        listenerManager.addListeners(testListener1);
+        SearchSourceBuilder source = SearchSourceBuilder.searchSource().query(QueryBuilders.matchAllQuery());
+        SearchRequest searchRequest = new SearchRequest().source(source);
+        searchRequest.setPhaseTook(true);
+        SearchRequestOperationsListener.CompositeListener compositeListener = listenerManager.buildCompositeListener(
+            searchRequest,
+            logger,
+            timeProviderListener
+        );
+        Field listenersField = SearchRequestOperationsListener.CompositeListener.class.getDeclaredField("listeners");
+        listenersField.setAccessible(true);
+        List<SearchRequestOperationsListener> listeners = (List<SearchRequestOperationsListener>) listenersField.get(compositeListener);
+        assertEquals(1, listeners.size());
+        assertEquals(timeProviderListener, listeners.get(0));
+        assertEquals(1, listenerManager.getListeners().size());
+        assertEquals(testListener1, listenerManager.getListeners().get(0));
+        assertFalse(listenerManager.getListeners().get(0).getEnabled());
+    }
+
+    public void testStandardListenerAndTimeProviderDisabled() throws NoSuchFieldException, IllegalAccessException {
+        ClusterService clusterService = new ClusterService(
+            Settings.EMPTY,
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+            null
+        );
+        SearchRequestListenerManager listenerManager = new SearchRequestListenerManager(clusterService);
+        SearchRequestOperationsListener testListener1 = createTestSearchRequestOperationsListener();
+        testListener1.setEnabled(true);
+        SearchRequestOperationsListener timeProviderListener = new TransportSearchAction.SearchTimeProvider(
+            0,
+            System.nanoTime(),
+            System::nanoTime
+        );
+        listenerManager.addListeners(testListener1);
         SearchSourceBuilder source = SearchSourceBuilder.searchSource().query(QueryBuilders.matchAllQuery());
         SearchRequest searchRequest = new SearchRequest().source(source);
         searchRequest.setPhaseTook(false);
