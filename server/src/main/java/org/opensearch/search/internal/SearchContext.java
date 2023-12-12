@@ -35,7 +35,6 @@ import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.CollectorManager;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.util.ArrayUtil;
 import org.opensearch.action.search.SearchShardTask;
 import org.opensearch.action.search.SearchType;
 import org.opensearch.common.Nullable;
@@ -86,6 +85,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
+
+import static org.opensearch.search.aggregations.bucket.BucketUtils.suggestShardSideQueueSize;
 
 /**
  * This class encapsulates the state needed to execute a search. It holds a reference to the
@@ -410,7 +411,7 @@ public abstract class SearchContext implements Releasable {
      */
     public LocalBucketCountThresholds asLocalBucketCountThresholds(TermsAggregator.BucketCountThresholds bucketCountThresholds) {
         if (shouldUseConcurrentSearch()) {
-            return new LocalBucketCountThresholds(0, ArrayUtil.MAX_ARRAY_LENGTH - 1);
+            return new LocalBucketCountThresholds(0, suggestShardSideQueueSize(bucketCountThresholds.getShardSize()));
         } else {
             return new LocalBucketCountThresholds(bucketCountThresholds.getShardMinDocCount(), bucketCountThresholds.getShardSize());
         }
