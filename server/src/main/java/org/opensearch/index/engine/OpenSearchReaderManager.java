@@ -32,14 +32,13 @@
 
 package org.opensearch.index.engine;
 
-import java.io.IOException;
-
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.search.ReferenceManager;
-
 import org.apache.lucene.search.SearcherManager;
 import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.lucene.index.OpenSearchDirectoryReader;
+
+import java.io.IOException;
 
 /**
  * Utility class to safely share {@link OpenSearchDirectoryReader} instances across

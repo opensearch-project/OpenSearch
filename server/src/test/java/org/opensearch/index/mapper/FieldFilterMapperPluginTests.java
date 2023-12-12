@@ -40,7 +40,7 @@ import org.opensearch.action.fieldcaps.FieldCapabilities;
 import org.opensearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.opensearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.opensearch.cluster.metadata.MappingMetadata;
-import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.indices.IndicesModule;
 import org.opensearch.plugins.MapperPlugin;
 import org.opensearch.plugins.Plugin;
@@ -73,7 +73,7 @@ public class FieldFilterMapperPluginTests extends OpenSearchSingleNodeTestCase {
     public void putMappings() {
         assertAcked(client().admin().indices().prepareCreate("index1"));
         assertAcked(client().admin().indices().prepareCreate("filtered"));
-        assertAcked(client().admin().indices().preparePutMapping("index1", "filtered").setSource(TEST_ITEM, XContentType.JSON));
+        assertAcked(client().admin().indices().preparePutMapping("index1", "filtered").setSource(TEST_ITEM, MediaTypeRegistry.JSON));
     }
 
     public void testGetMappings() {

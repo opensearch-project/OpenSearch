@@ -10,7 +10,6 @@ package org.opensearch.upgrade;
 
 import com.google.common.jimfs.Configuration;
 import com.google.common.jimfs.Jimfs;
-import org.junit.Before;
 import org.opensearch.cli.MockTerminal;
 import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.collect.Tuple;
@@ -19,6 +18,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.env.Environment;
 import org.opensearch.env.TestEnvironment;
 import org.opensearch.test.OpenSearchTestCase;
+import org.junit.Before;
 
 import java.io.File;
 import java.io.IOException;

@@ -33,6 +33,7 @@
 package org.opensearch.test.client;
 
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
+
 import org.apache.lucene.tests.util.TestUtil;
 import org.opensearch.action.search.SearchRequestBuilder;
 import org.opensearch.action.search.SearchType;

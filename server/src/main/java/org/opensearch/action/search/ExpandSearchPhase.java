@@ -32,8 +32,8 @@
 
 package org.opensearch.action.search;
 
-import org.opensearch.action.ActionListener;
 import org.opensearch.common.util.concurrent.AtomicArray;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.index.query.BoolQueryBuilder;
 import org.opensearch.index.query.InnerHitBuilder;
 import org.opensearch.index.query.QueryBuilder;

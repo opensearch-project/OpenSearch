@@ -32,13 +32,13 @@
 
 package org.opensearch.action.admin.cluster.snapshots.status;
 
+import org.opensearch.core.xcontent.XContentParser;
+import org.opensearch.test.AbstractXContentTestCase;
+
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Predicate;
-
-import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.test.AbstractXContentTestCase;
 
 public class SnapshotsStatusResponseTests extends AbstractXContentTestCase<SnapshotsStatusResponse> {
 

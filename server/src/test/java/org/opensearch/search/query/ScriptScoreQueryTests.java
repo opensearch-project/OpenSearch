@@ -184,6 +184,7 @@ public class ScriptScoreQueryTests extends OpenSearchTestCase {
     ) {
         SearchLookup lookup = mock(SearchLookup.class);
         LeafSearchLookup leafLookup = mock(LeafSearchLookup.class);
+        IndexSearcher indexSearcher = mock(IndexSearcher.class);
         when(lookup.getLeafSearchLookup(any())).thenReturn(leafLookup);
         return new ScoreScript.LeafFactory() {
             @Override
@@ -193,7 +194,7 @@ public class ScriptScoreQueryTests extends OpenSearchTestCase {
 
             @Override
             public ScoreScript newInstance(LeafReaderContext ctx) throws IOException {
-                return new ScoreScript(script.getParams(), lookup, leafReaderContext) {
+                return new ScoreScript(script.getParams(), lookup, indexSearcher, leafReaderContext) {
                     @Override
                     public double execute(ExplanationHolder explanation) {
                         return function.apply(explanation);

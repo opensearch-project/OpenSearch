@@ -32,16 +32,16 @@
 
 package org.opensearch.action.admin.cluster.repositories.put;
 
-import org.opensearch.action.ActionListener;
 import org.opensearch.action.support.ActionFilters;
-import org.opensearch.action.support.master.AcknowledgedResponse;
 import org.opensearch.action.support.clustermanager.TransportClusterManagerNodeAction;
+import org.opensearch.action.support.master.AcknowledgedResponse;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.block.ClusterBlockException;
 import org.opensearch.cluster.block.ClusterBlockLevel;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.threadpool.ThreadPool;
@@ -100,7 +100,7 @@ public class TransportPutRepositoryAction extends TransportClusterManagerNodeAct
         ClusterState state,
         final ActionListener<AcknowledgedResponse> listener
     ) {
-        repositoriesService.registerRepository(
+        repositoriesService.registerOrUpdateRepository(
             request,
             ActionListener.delegateFailure(
                 listener,

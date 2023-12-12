@@ -34,9 +34,9 @@ package org.opensearch.common.geo;
 
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
+import org.opensearch.core.xcontent.MapXContentParser;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.core.xcontent.MapXContentParser;
 import org.opensearch.geometry.Geometry;
 import org.opensearch.geometry.GeometryCollection;
 import org.opensearch.geometry.Point;

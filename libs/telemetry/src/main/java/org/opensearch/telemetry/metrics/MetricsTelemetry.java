@@ -8,9 +8,14 @@
 
 package org.opensearch.telemetry.metrics;
 
+import org.opensearch.common.annotation.ExperimentalApi;
+
 /**
  * Interface for metrics telemetry providers
+  *
+ * @opensearch.experimental
  */
-public interface MetricsTelemetry {
+@ExperimentalApi
+public interface MetricsTelemetry extends MetricsRegistry {
 
 }

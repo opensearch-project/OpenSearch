@@ -49,13 +49,9 @@ import java.util.function.ToIntBiFunction;
  */
 public abstract class AbstractBytesReference implements BytesReference {
 
-    private Integer hash = null; // we cache the hash of this reference since it can be quite costly to re-calculated it
+    /** we cache the hash of this reference since it can be quite costly to re-calculated it */
+    private Integer hash = null;
     private static final int MAX_UTF16_LENGTH = Integer.MAX_VALUE >> 1;
-
-    @Override
-    public int getInt(int index) {
-        return (get(index) & 0xFF) << 24 | (get(index + 1) & 0xFF) << 16 | (get(index + 2) & 0xFF) << 8 | get(index + 3) & 0xFF;
-    }
 
     @Override
     public int indexOf(byte marker, int from) {

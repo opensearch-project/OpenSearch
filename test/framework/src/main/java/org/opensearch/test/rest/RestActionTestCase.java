@@ -32,15 +32,15 @@
 
 package org.opensearch.test.rest;
 
-import org.opensearch.action.ActionListener;
 import org.opensearch.action.ActionRequest;
-import org.opensearch.action.ActionResponse;
 import org.opensearch.action.ActionType;
+import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.ThreadContext;
-import org.opensearch.identity.IdentityService;
+import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.action.ActionResponse;
 import org.opensearch.core.indices.breaker.NoneCircuitBreakerService;
-import org.opensearch.client.node.NodeClient;
+import org.opensearch.identity.IdentityService;
 import org.opensearch.rest.RestController;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.tasks.Task;
@@ -103,7 +103,7 @@ public abstract class RestActionTestCase extends OpenSearchTestCase {
     /**
      * A mocked {@link NodeClient} which can be easily reconfigured to verify arbitrary verification
      * functions, and can be reset to allow reconfiguration partway through a test without having to construct a new object.
-     *
+     * <p>
      * By default, will throw {@link AssertionError} when any execution method is called, unless configured otherwise using
      * {@link #setExecuteVerifier(BiFunction)} or {@link #setExecuteLocallyVerifier(BiFunction)}.
      */

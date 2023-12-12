@@ -35,9 +35,11 @@ import com.carrotsearch.randomizedtesting.JUnit4MethodProvider;
 import com.carrotsearch.randomizedtesting.RandomizedRunner;
 import com.carrotsearch.randomizedtesting.annotations.TestMethodProviders;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakLingering;
-import junit.framework.AssertionFailedError;
+
 import org.junit.Assert;
 import org.junit.runner.RunWith;
+
+import junit.framework.AssertionFailedError;
 
 @RunWith(RandomizedRunner.class)
 @TestMethodProviders({ JUnit4MethodProvider.class, JUnit3MethodProvider.class })

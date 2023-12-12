@@ -32,6 +32,8 @@
 
 package org.opensearch.search.geo;
 
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.opensearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.cluster.ClusterState;
@@ -39,23 +41,44 @@ import org.opensearch.cluster.routing.IndexShardRoutingTable;
 import org.opensearch.common.geo.builders.PointBuilder;
 import org.opensearch.common.geo.builders.ShapeBuilder;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.xcontent.XContentFactory;
-import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.mapper.GeoShapeFieldMapper;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.indices.IndicesService;
-import org.opensearch.test.OpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedOpenSearchIntegTestCase;
+
+import java.util.Arrays;
+import java.util.Collection;
 
 import static org.opensearch.index.query.QueryBuilders.geoShapeQuery;
 import static org.opensearch.index.query.QueryBuilders.matchAllQuery;
+import static org.opensearch.search.SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
-
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
-public class GeoShapeIntegrationIT extends OpenSearchIntegTestCase {
+public class GeoShapeIntegrationIT extends ParameterizedOpenSearchIntegTestCase {
+
+    public GeoShapeIntegrationIT(Settings dynamicSettings) {
+        super(dynamicSettings);
+    }
+
+    @ParametersFactory
+    public static Collection<Object[]> parameters() {
+        return Arrays.asList(
+            new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), false).build() },
+            new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), true).build() }
+        );
+    }
+
+    @Override
+    protected Settings featureFlagSettings() {
+        return Settings.builder().put(super.featureFlagSettings()).put(FeatureFlags.CONCURRENT_SEGMENT_SEARCH, "true").build();
+    }
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
@@ -196,7 +219,7 @@ public class GeoShapeIntegrationIT extends OpenSearchIntegTestCase {
 
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> client().admin().indices().preparePutMapping("test").setSource(update, XContentType.JSON).get()
+            () -> client().admin().indices().preparePutMapping("test").setSource(update, MediaTypeRegistry.JSON).get()
         );
         assertThat(e.getMessage(), containsString("using [BKD] strategy cannot be merged with"));
     }
@@ -227,7 +250,7 @@ public class GeoShapeIntegrationIT extends OpenSearchIntegTestCase {
             + "    }\n"
             + "}";
 
-        indexRandom(true, client().prepareIndex("test").setId("0").setSource(source, XContentType.JSON).setRouting("ABC"));
+        indexRandom(true, client().prepareIndex("test").setId("0").setSource(source, MediaTypeRegistry.JSON).setRouting("ABC"));
 
         SearchResponse searchResponse = client().prepareSearch("test")
             .setQuery(geoShapeQuery("shape", "0").indexedShapeIndex("test").indexedShapeRouting("ABC"))
@@ -263,8 +286,8 @@ public class GeoShapeIntegrationIT extends OpenSearchIntegTestCase {
 
         String source = "{\n" + "    \"shape\" : \"POLYGON((179 0, -179 0, -179 2, 179 2, 179 0))\"" + "}";
 
-        indexRandom(true, client().prepareIndex("quad").setId("0").setSource(source, XContentType.JSON));
-        indexRandom(true, client().prepareIndex("vector").setId("0").setSource(source, XContentType.JSON));
+        indexRandom(true, client().prepareIndex("quad").setId("0").setSource(source, MediaTypeRegistry.JSON));
+        indexRandom(true, client().prepareIndex("vector").setId("0").setSource(source, MediaTypeRegistry.JSON));
 
         try {
             ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest();

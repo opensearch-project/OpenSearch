@@ -46,12 +46,13 @@ import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
 import org.opensearch.common.CharArrays;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.annotation.PublicApi;
+import org.opensearch.common.unit.TimeValue;
+import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.settings.SecureString;
 import org.opensearch.core.common.text.Text;
-import org.opensearch.common.unit.TimeValue;
-import org.opensearch.core.common.Strings;
 import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.core.xcontent.MediaType;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
@@ -95,7 +96,7 @@ import static org.opensearch.OpenSearchException.readStackTrace;
 
 /**
  * A stream from this node to another node. Technically, it can also be streamed to a byte array but that is mostly for testing.
- *
+ * <p>
  * This class's methods are optimized so you can put the methods that read and write a class next to each other and you can scan them
  * visually for differences. That means that most variables should be read and written in a single line so even large objects fit both
  * reading and writing on the screen. It also means that the methods on this class are named very similarly to {@link StreamOutput}. Finally
@@ -104,8 +105,9 @@ import static org.opensearch.OpenSearchException.readStackTrace;
  * lists, either by storing {@code List}s internally or just converting to and from a {@code List} when calling. This comment is repeated
  * on {@link StreamInput}.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public abstract class StreamInput extends InputStream {
 
     private Version version = Version.CURRENT;
@@ -722,6 +724,8 @@ public abstract class StreamInput extends InputStream {
                 return readByte();
             case 12:
                 return readDate();
+            case 13:
+                return readZonedDateTime();
             case 14:
                 return readBytesReference();
             case 15:
@@ -1124,7 +1128,7 @@ public abstract class StreamInput extends InputStream {
      * the corresponding entry in the registry by name, so that the proper object can be read and returned.
      * Default implementation throws {@link UnsupportedOperationException} as StreamInput doesn't hold a registry.
      * Use {@link FilterInputStream} instead which wraps a stream and supports a {@link NamedWriteableRegistry} too.
-     *
+     * <p>
      * Prefer {@link StreamInput#readNamedWriteable(Class)} and {@link StreamOutput#writeNamedWriteable(NamedWriteable)} unless you
      * have a compelling reason to use this method instead.
      */

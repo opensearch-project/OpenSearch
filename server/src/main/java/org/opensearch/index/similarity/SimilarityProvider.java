@@ -33,14 +33,16 @@
 package org.opensearch.index.similarity;
 
 import org.apache.lucene.search.similarities.Similarity;
+import org.opensearch.common.annotation.PublicApi;
 
 import java.util.Objects;
 
 /**
  * Wrapper around a {@link Similarity} and its name.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public final class SimilarityProvider {
 
     private final String name;
@@ -70,23 +72,23 @@ public final class SimilarityProvider {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         SimilarityProvider that = (SimilarityProvider) o;
-        /**
-         * We check <code>name</code> only because the <code>similarity</code> is
-         * re-created for each new instance and they don't implement equals.
-         * This is not entirely correct though but we only use equality checks
-         * for similarities inside the same index and names are unique in this case.
-         **/
+        /*
+          We check <code>name</code> only because the <code>similarity</code> is
+          re-created for each new instance and they don't implement equals.
+          This is not entirely correct though but we only use equality checks
+          for similarities inside the same index and names are unique in this case.
+         */
         return Objects.equals(name, that.name);
     }
 
     @Override
     public int hashCode() {
-        /**
-         * We use <code>name</code> only because the <code>similarity</code> is
-         * re-created for each new instance and they don't implement equals.
-         * This is not entirely correct though but we only use equality checks
-         * for similarities a single index and names are unique in this case.
-         **/
+        /*
+          We use <code>name</code> only because the <code>similarity</code> is
+          re-created for each new instance and they don't implement equals.
+          This is not entirely correct though but we only use equality checks
+          for similarities a single index and names are unique in this case.
+         */
         return Objects.hash(name);
     }
 }

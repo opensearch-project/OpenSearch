@@ -8,20 +8,19 @@
 
 package org.opensearch.indices.replication;
 
-import org.junit.Assert;
-import org.opensearch.action.ActionListener;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.CancellableThreads;
-import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.codec.CodecService;
 import org.opensearch.index.engine.NRTReplicationEngineFactory;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexShardTestCase;
-import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.recovery.FileChunkWriter;
 import org.opensearch.indices.recovery.RecoverySettings;
@@ -29,6 +28,7 @@ import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
 import org.opensearch.indices.replication.common.CopyState;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.transport.TransportService;
+import org.junit.Assert;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -94,7 +94,7 @@ public class OngoingSegmentReplicationsTests extends IndexShardTestCase {
     }
 
     public void testPrepareAndSendSegments() throws IOException {
-        indexDoc(primary, "1", "{\"foo\" : \"baz\"}", XContentType.JSON, "foobar");
+        indexDoc(primary, "1", "{\"foo\" : \"baz\"}", MediaTypeRegistry.JSON, "foobar");
         primary.refresh("Test");
         OngoingSegmentReplications replications = spy(new OngoingSegmentReplications(mockIndicesService, recoverySettings));
         final CheckpointInfoRequest request = new CheckpointInfoRequest(
@@ -162,7 +162,7 @@ public class OngoingSegmentReplicationsTests extends IndexShardTestCase {
         CountDownLatch latch = new CountDownLatch(1);
         OngoingSegmentReplications replications = new OngoingSegmentReplications(mockIndicesService, recoverySettings);
         // add a doc and refresh so primary has more than one segment.
-        indexDoc(primary, "1", "{\"foo\" : \"baz\"}", XContentType.JSON, "foobar");
+        indexDoc(primary, "1", "{\"foo\" : \"baz\"}", MediaTypeRegistry.JSON, "foobar");
         primary.refresh("Test");
         final CheckpointInfoRequest request = new CheckpointInfoRequest(
             1L,

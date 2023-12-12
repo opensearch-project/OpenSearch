@@ -8,11 +8,14 @@
 
 package org.opensearch.telemetry.tracing;
 
+import org.opensearch.common.annotation.InternalApi;
+
 /**
  * Wrapper class to hold reference of Span
  *
  * @opensearch.internal
  */
+@InternalApi
 final class SpanReference {
 
     private Span span;

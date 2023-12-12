@@ -46,12 +46,12 @@ import org.opensearch.client.RestClient;
 import org.opensearch.client.RestClientBuilder;
 import org.opensearch.client.WarningsHandler;
 import org.opensearch.client.sniff.OpenSearchNodesSniffer;
-import org.opensearch.core.common.Strings;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.io.PathUtils;
-import org.opensearch.common.xcontent.XContentType;
-import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.common.util.io.IOUtils;
+import org.opensearch.core.common.Strings;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
+import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.test.rest.OpenSearchRestTestCase;
 import org.opensearch.test.rest.yaml.restspec.ClientYamlSuiteRestApi;
 import org.opensearch.test.rest.yaml.restspec.ClientYamlSuiteRestSpec;
@@ -78,7 +78,7 @@ import java.util.Set;
 /**
  * Runs a suite of yaml tests shared with all the official OpenSearch
  * clients against an opensearch cluster.
- *
+ * <p>
  * The suite timeout is extended to account for projects with a large number of tests.
  */
 @TimeoutSuite(millis = 30 * TimeUnits.MINUTE)
@@ -110,9 +110,9 @@ public abstract class OpenSearchClientYamlSuiteTestCase extends OpenSearchRestTe
     /**
      * This separator pattern matches ',' except it is preceded by a '\'.
      * This allows us to support ',' within paths when it is escaped with a slash.
-     *
+     * <p>
      * For example, the path string "/a/b/c\,d/e/f,/foo/bar,/baz" is separated to "/a/b/c\,d/e/f", "/foo/bar" and "/baz".
-     *
+     * <p>
      * For reference, this regular expression feature is known as zero-width negative look-behind.
      *
      */
@@ -451,7 +451,7 @@ public abstract class OpenSearchClientYamlSuiteTestCase extends OpenSearchRestTe
             // Dump the stash on failure. Instead of dumping it in true json we escape `\n`s so stack traces are easier to read
             logger.info(
                 "Stash dump on test failure [{}]",
-                Strings.toString(XContentType.JSON, restTestExecutionContext.stash(), true, true)
+                Strings.toString(MediaTypeRegistry.JSON, restTestExecutionContext.stash(), true, true)
                     .replace("\\n", "\n")
                     .replace("\\r", "\r")
                     .replace("\\t", "\t")

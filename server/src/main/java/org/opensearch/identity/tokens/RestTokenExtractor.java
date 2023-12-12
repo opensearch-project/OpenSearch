@@ -7,8 +7,8 @@
  */
 package org.opensearch.identity.tokens;
 
-import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.opensearch.core.common.Strings;
 import org.opensearch.rest.RestRequest;
 
@@ -26,7 +26,7 @@ public class RestTokenExtractor {
 
     /**
      * Given a rest request it will extract authentication token
-     *
+     * <p>
      * If no token was found, returns null.
      */
     public static AuthToken extractToken(final RestRequest request) {

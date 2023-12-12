@@ -13,6 +13,7 @@ permissions:
 
 jobs:
   gradle-check:
+    if: github.repository == 'opensearch-project/OpenSearch'
     permissions:
       contents: read # to fetch code (actions/checkout)
       pull-requests: write # to create or update comment (peter-evans/create-or-update-comment)
@@ -22,7 +23,7 @@ jobs:
     timeout-minutes: 130
     steps:
       - name: Checkout OpenSearch repo
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           ref: ${{ github.event.pull_request.head.sha }}
 
@@ -49,7 +50,7 @@ jobs:
           echo "pr_number=Null" >> $GITHUB_ENV
 
       - name: Checkout opensearch-build repo
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           repository: opensearch-project/opensearch-build
           ref: main
@@ -71,20 +72,17 @@ jobs:
 
       - name: Upload Coverage Report
         if: success()
-        uses: codecov/codecov-action@v2
+        uses: codecov/codecov-action@v3
         with:
           files: ./codeCoverage.xml
 
       - name: Create Comment Success
         if: ${{ github.event_name == 'pull_request_target' && success() && env.result == 'SUCCESS' }}
-        uses: peter-evans/create-or-update-comment@v2
+        uses: peter-evans/create-or-update-comment@v3
         with:
           issue-number: ${{ env.pr_number }}
           body: |
-            ### Gradle Check (Jenkins) Run Completed with:
-            * **RESULT:** ${{ env.result }} :white_check_mark:
-            * **URL:** ${{ env.workflow_url }}
-            * **CommitID:** ${{ env.pr_from_sha }}
+            :white_check_mark: Gradle check result for ${{ env.pr_from_sha }}: [${{ env.result }}](${{ env.workflow_url }})
 
       - name: Extract Test Failure
         if: ${{ github.event_name == 'pull_request_target' && env.result != 'SUCCESS' }}
@@ -103,28 +101,23 @@ jobs:
 
       - name: Create Comment Flaky
         if: ${{ github.event_name == 'pull_request_target' && success() && env.result != 'SUCCESS' }}
-        uses: peter-evans/create-or-update-comment@v2
+        uses: peter-evans/create-or-update-comment@v3
         with:
           issue-number: ${{ env.pr_number }}
           body: |
-            ### Gradle Check (Jenkins) Run Completed with:
-            * **RESULT:** ${{ env.result }} :grey_exclamation: ${{ env.test_failures }}
-            * **URL:** ${{ env.workflow_url }}
-            * **CommitID:** ${{ env.pr_from_sha }}
+            :grey_exclamation: Gradle check result for ${{ env.pr_from_sha }}: [${{ env.result }}](${{ env.workflow_url }}) ${{ env.test_failures }}
+
             Please review all [flaky tests](https://github.com/opensearch-project/OpenSearch/blob/main/DEVELOPER_GUIDE.md#flaky-tests) that succeeded after retry and create an issue if one does not already exist to track the flaky failure.
 
       - name: Create Comment Failure
         if: ${{ github.event_name == 'pull_request_target' && failure() }}
-        uses: peter-evans/create-or-update-comment@v2
+        uses: peter-evans/create-or-update-comment@v3
         with:
           issue-number: ${{ env.pr_number }}
           body: |
-            ### Gradle Check (Jenkins) Run Completed with:
-            * **RESULT:** ${{ env.result }} :x: ${{ env.test_failures }}
-            * **URL:** ${{ env.workflow_url }}
-            * **CommitID:** ${{ env.pr_from_sha }}
-            Please examine the workflow log, locate, and copy-paste the failure(s) below, then iterate to green.
-            Is the failure [a flaky test](https://github.com/opensearch-project/OpenSearch/blob/main/DEVELOPER_GUIDE.md#flaky-tests) unrelated to your change?
+            :x: Gradle check result for ${{ env.pr_from_sha }}: [${{ env.result }}](${{ env.workflow_url }})
+
+            Please examine the workflow log, locate, and copy-paste the failure(s) below, then iterate to green. Is the failure [a flaky test](https://github.com/opensearch-project/OpenSearch/blob/main/DEVELOPER_GUIDE.md#flaky-tests) unrelated to your change?
 
       - name: Create Issue On Push Failure
         if: ${{ github.event_name == 'push' && failure() }}

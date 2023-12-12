@@ -32,7 +32,6 @@
 
 package org.opensearch.client;
 
-import org.opensearch.index.reindex.ReindexRequest;
 import org.opensearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
 import org.opensearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.opensearch.action.admin.cluster.node.tasks.list.TaskGroup;
@@ -46,8 +45,9 @@ import org.opensearch.client.tasks.GetTaskResponse;
 import org.opensearch.client.tasks.TaskId;
 import org.opensearch.client.tasks.TaskSubmissionResponse;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.rest.RestStatus;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
+import org.opensearch.index.reindex.ReindexRequest;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -94,9 +94,9 @@ public class TasksIT extends OpenSearchRestHighLevelClientTestCase {
         createIndex(sourceIndex, settings);
         createIndex(destinationIndex, settings);
         BulkRequest bulkRequest = new BulkRequest().add(
-            new IndexRequest(sourceIndex).id("1").source(Collections.singletonMap("foo", "bar"), XContentType.JSON)
+            new IndexRequest(sourceIndex).id("1").source(Collections.singletonMap("foo", "bar"), MediaTypeRegistry.JSON)
         )
-            .add(new IndexRequest(sourceIndex).id("2").source(Collections.singletonMap("foo2", "bar2"), XContentType.JSON))
+            .add(new IndexRequest(sourceIndex).id("2").source(Collections.singletonMap("foo2", "bar2"), MediaTypeRegistry.JSON))
             .setRefreshPolicy(RefreshPolicy.IMMEDIATE);
         assertEquals(RestStatus.OK, highLevelClient().bulk(bulkRequest, RequestOptions.DEFAULT).status());
 

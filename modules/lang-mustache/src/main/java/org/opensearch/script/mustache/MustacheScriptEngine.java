@@ -34,6 +34,7 @@ package org.opensearch.script.mustache;
 import com.github.mustachejava.Mustache;
 import com.github.mustachejava.MustacheException;
 import com.github.mustachejava.MustacheFactory;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
@@ -58,7 +59,7 @@ import java.util.Set;
 /**
  * Main entry point handling template registration, compilation and
  * execution.
- *
+ * <p>
  * Template handling is based on Mustache. Template handling is a two step
  * process: First compile the string representing the template, the resulting
  * {@link Mustache} object can then be re-used for subsequent executions.

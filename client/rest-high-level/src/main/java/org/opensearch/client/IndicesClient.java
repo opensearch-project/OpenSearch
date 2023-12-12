@@ -32,7 +32,6 @@
 
 package org.opensearch.client;
 
-import org.opensearch.action.ActionListener;
 import org.opensearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.opensearch.action.admin.indices.alias.get.GetAliasesRequest;
 import org.opensearch.action.admin.indices.cache.clear.ClearIndicesCacheRequest;
@@ -88,6 +87,7 @@ import org.opensearch.client.indices.SimulateIndexTemplateRequest;
 import org.opensearch.client.indices.SimulateIndexTemplateResponse;
 import org.opensearch.client.indices.rollover.RolloverRequest;
 import org.opensearch.client.indices.rollover.RolloverResponse;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.rest.RestStatus;
 
 import java.io.IOException;

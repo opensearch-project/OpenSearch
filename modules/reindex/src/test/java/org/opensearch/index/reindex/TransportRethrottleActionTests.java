@@ -32,22 +32,23 @@
 
 package org.opensearch.index.reindex;
 
-import org.opensearch.action.ActionListener;
 import org.opensearch.action.FailedNodeException;
 import org.opensearch.action.TaskOperationFailure;
 import org.opensearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.opensearch.client.Client;
-import org.opensearch.tasks.TaskId;
+import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.tasks.TaskId;
 import org.opensearch.tasks.TaskInfo;
 import org.opensearch.test.OpenSearchTestCase;
 import org.hamcrest.Matcher;
 import org.junit.Before;
-import org.mockito.ArgumentCaptor;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.function.Consumer;
+
+import org.mockito.ArgumentCaptor;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
@@ -55,8 +56,8 @@ import static org.opensearch.common.unit.TimeValue.timeValueMillis;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.theInstance;
-import static org.mockito.Mockito.eq;
 import static org.mockito.Mockito.atMost;
+import static org.mockito.Mockito.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 

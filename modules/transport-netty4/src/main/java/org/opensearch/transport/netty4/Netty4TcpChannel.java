@@ -32,18 +32,20 @@
 
 package org.opensearch.transport.netty4;
 
-import io.netty.channel.Channel;
-import io.netty.channel.ChannelFuture;
-import io.netty.channel.ChannelPromise;
 import org.opensearch.ExceptionsHelper;
-import org.opensearch.action.ActionListener;
 import org.opensearch.common.Nullable;
-import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.concurrent.CompletableContext;
+import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.transport.TcpChannel;
 import org.opensearch.transport.TransportException;
 
 import java.net.InetSocketAddress;
+import java.util.Optional;
+
+import io.netty.channel.Channel;
+import io.netty.channel.ChannelFuture;
+import io.netty.channel.ChannelPromise;
 
 public class Netty4TcpChannel implements TcpChannel {
 
@@ -161,6 +163,18 @@ public class Netty4TcpChannel implements TcpChannel {
         if (channel.eventLoop().isShutdown()) {
             listener.onFailure(new TransportException("Cannot send message, event loop is shutting down."));
         }
+    }
+
+    @SuppressWarnings("unchecked")
+    @Override
+    public <T> Optional<T> get(String name, Class<T> clazz) {
+        final Object handler = getNettyChannel().pipeline().get(name);
+
+        if (handler != null && clazz.isInstance(handler) == true) {
+            return Optional.of((T) handler);
+        }
+
+        return Optional.empty();
     }
 
     public Channel getNettyChannel() {

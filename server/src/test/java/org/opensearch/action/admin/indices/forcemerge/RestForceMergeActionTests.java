@@ -33,10 +33,10 @@
 package org.opensearch.action.admin.indices.forcemerge;
 
 import org.opensearch.client.node.NodeClient;
-import org.opensearch.core.common.bytes.BytesArray;
-import org.opensearch.core.xcontent.NamedXContentRegistry;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.xcontent.json.JsonXContent;
+import org.opensearch.core.common.bytes.BytesArray;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
+import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.action.admin.indices.RestForceMergeAction;
 import org.opensearch.test.rest.FakeRestChannel;
@@ -62,7 +62,7 @@ public class RestForceMergeActionTests extends RestActionTestCase {
         String json = JsonXContent.contentBuilder().startObject().field("max_num_segments", 1).endObject().toString();
         final FakeRestRequest request = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withContent(
             new BytesArray(json),
-            XContentType.JSON
+            MediaTypeRegistry.JSON
         ).withPath("/_forcemerge").build();
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,

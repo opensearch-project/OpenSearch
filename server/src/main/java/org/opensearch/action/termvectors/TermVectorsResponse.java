@@ -41,13 +41,14 @@ import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.CharsRefBuilder;
 import org.opensearch.Version;
-import org.opensearch.action.ActionResponse;
+import org.opensearch.common.annotation.PublicApi;
+import org.opensearch.common.io.stream.BytesStreamOutput;
+import org.opensearch.common.unit.TimeValue;
+import org.opensearch.core.action.ActionResponse;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.bytes.BytesReference;
-import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
-import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.mapper.MapperService;
@@ -62,8 +63,9 @@ import java.util.Set;
  * Response returning the term vector (doc frequency, positions, offsets) for a
  * document.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class TermVectorsResponse extends ActionResponse implements ToXContentObject {
 
     /**

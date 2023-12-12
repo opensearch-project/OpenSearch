@@ -26,10 +26,12 @@ import java.util.Objects;
 public class NonGlobalAggCollectorManagerWithSingleCollector extends AggregationCollectorManager {
 
     private final Collector collector;
+    private final String collectorName;
 
     public NonGlobalAggCollectorManagerWithSingleCollector(SearchContext context) throws IOException {
         super(context, context.aggregations().factories()::createTopLevelNonGlobalAggregators, CollectorResult.REASON_AGGREGATION);
         collector = Objects.requireNonNull(super.newCollector(), "collector instance is null");
+        collectorName = collector.toString();
     }
 
     @Override
@@ -41,5 +43,10 @@ public class NonGlobalAggCollectorManagerWithSingleCollector extends Aggregation
     public ReduceableSearchResult reduce(Collection<Collector> collectors) throws IOException {
         assert collectors.isEmpty() : "Reduce on NonGlobalAggregationCollectorManagerWithCollector called with non-empty collectors";
         return super.reduce(List.of(collector));
+    }
+
+    @Override
+    public String getCollectorName() {
+        return collectorName;
     }
 }

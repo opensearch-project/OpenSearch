@@ -36,19 +36,20 @@ import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
 import org.opensearch.common.Booleans;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.annotation.PublicApi;
+import org.opensearch.common.logging.DeprecationLogger;
+import org.opensearch.common.unit.TimeValue;
+import org.opensearch.core.ParseField;
 import org.opensearch.core.common.ParsingException;
+import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
-import org.opensearch.common.logging.DeprecationLogger;
-import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.xcontent.XContentHelper;
-import org.opensearch.common.xcontent.XContentType;
-import org.opensearch.core.common.Strings;
-import org.opensearch.core.ParseField;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentHelper;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.QueryRewriteContext;
@@ -91,8 +92,9 @@ import static org.opensearch.search.internal.SearchContext.TRACK_TOTAL_HITS_DISA
  *
  * @see org.opensearch.action.search.SearchRequest#source(SearchSourceBuilder)
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public final class SearchSourceBuilder implements Writeable, ToXContentObject, Rewriteable<SearchSourceBuilder> {
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(SearchSourceBuilder.class);
 
@@ -1493,8 +1495,9 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
     /**
      * Boosts on an index
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public static class IndexBoost implements Writeable, ToXContentObject {
         private final String index;
         private final float boost;
@@ -1594,8 +1597,9 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
     /**
      * Script field
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public static class ScriptField implements Writeable, ToXContentFragment {
 
         private final boolean ignoreFailure;
@@ -1803,7 +1807,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
 
     public String toString(Params params) {
         try {
-            return XContentHelper.toXContent(this, XContentType.JSON, params, true).utf8ToString();
+            return XContentHelper.toXContent(this, MediaTypeRegistry.JSON, params, true).utf8ToString();
         } catch (IOException e) {
             throw new OpenSearchException(e);
         }

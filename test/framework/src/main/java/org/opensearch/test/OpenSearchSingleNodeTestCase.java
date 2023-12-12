@@ -32,6 +32,7 @@
 package org.opensearch.test;
 
 import com.carrotsearch.randomizedtesting.RandomizedContext;
+
 import org.opensearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.opensearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.opensearch.action.admin.indices.create.CreateIndexRequestBuilder;
@@ -54,11 +55,11 @@ import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.util.concurrent.OpenSearchExecutors;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.core.common.Strings;
+import org.opensearch.core.index.Index;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.env.Environment;
 import org.opensearch.env.NodeEnvironment;
-import org.opensearch.core.index.Index;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.indices.IndicesService;
@@ -68,9 +69,11 @@ import org.opensearch.node.Node;
 import org.opensearch.node.NodeValidationException;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.script.MockScriptService;
+import org.opensearch.search.SearchService;
 import org.opensearch.search.internal.SearchContext;
 import org.opensearch.telemetry.TelemetrySettings;
 import org.opensearch.test.telemetry.MockTelemetryPlugin;
+import org.opensearch.test.telemetry.tracing.StrictCheckSpanProcessor;
 import org.opensearch.transport.TransportSettings;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
@@ -188,6 +191,7 @@ public abstract class OpenSearchSingleNodeTestCase extends OpenSearchTestCase {
     @AfterClass
     public static void tearDownClass() throws Exception {
         stopNode();
+        StrictCheckSpanProcessor.validateTracingStateOnShutdown();
     }
 
     /**
@@ -225,7 +229,8 @@ public abstract class OpenSearchSingleNodeTestCase extends OpenSearchTestCase {
         final Path tempDir = createTempDir();
         final String nodeName = nodeSettings().get(Node.NODE_NAME_SETTING.getKey(), "node_s_0");
 
-        Settings settings = Settings.builder()
+        final Settings featureFlagSettings = featureFlagSettings();
+        Settings.Builder settingsBuilder = Settings.builder()
             .put(ClusterName.CLUSTER_NAME_SETTING.getKey(), InternalTestCluster.clusterName("single-node-cluster", random().nextLong()))
             .put(Environment.PATH_HOME_SETTING.getKey(), tempDir)
             .put(Environment.PATH_REPO_SETTING.getKey(), tempDir.resolve("repo"))
@@ -249,9 +254,14 @@ public abstract class OpenSearchSingleNodeTestCase extends OpenSearchTestCase {
             .putList(INITIAL_CLUSTER_MANAGER_NODES_SETTING.getKey(), nodeName)
             .put(FeatureFlags.TELEMETRY_SETTING.getKey(), true)
             .put(TelemetrySettings.TRACER_ENABLED_SETTING.getKey(), true)
+            .put(TelemetrySettings.TRACER_FEATURE_ENABLED_SETTING.getKey(), true)
             .put(nodeSettings()) // allow test cases to provide their own settings or override these
-            .put(featureFlagSettings())
-            .build();
+            .put(featureFlagSettings);
+        if (FeatureFlags.CONCURRENT_SEGMENT_SEARCH_SETTING.get(featureFlagSettings)) {
+            // By default, for tests we will put the target slice count of 2. This will increase the probability of having multiple slices
+            // when tests are run with concurrent segment search enabled
+            settingsBuilder.put(SearchService.CONCURRENT_SEGMENT_SEARCH_TARGET_MAX_SLICE_COUNT_KEY, 2);
+        }
 
         Collection<Class<? extends Plugin>> plugins = getPlugins();
         if (plugins.contains(getTestTransportPlugin()) == false) {
@@ -262,8 +272,9 @@ public abstract class OpenSearchSingleNodeTestCase extends OpenSearchTestCase {
             plugins.add(MockHttpTransport.TestPlugin.class);
         }
         plugins.add(MockScriptService.TestPlugin.class);
+
         plugins.add(MockTelemetryPlugin.class);
-        Node node = new MockNode(settings, plugins, forbidPrivateIndexSettings());
+        Node node = new MockNode(settingsBuilder.build(), plugins, forbidPrivateIndexSettings());
         try {
             node.start();
         } catch (NodeValidationException e) {

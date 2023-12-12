@@ -9,21 +9,20 @@
 package org.opensearch.plugin.correlation.core.index.query;
 
 import org.apache.lucene.search.KnnFloatVectorQuery;
-import org.junit.Assert;
 import org.opensearch.Version;
 import org.opensearch.cluster.ClusterModule;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.xcontent.XContentFactory;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.NamedWriteableAwareStreamInput;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.index.Index;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.core.index.Index;
 import org.opensearch.index.mapper.NumberFieldMapper;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.QueryBuilders;
@@ -32,6 +31,7 @@ import org.opensearch.index.query.TermQueryBuilder;
 import org.opensearch.plugin.correlation.core.index.mapper.VectorFieldMapper;
 import org.opensearch.plugins.SearchPlugin;
 import org.opensearch.test.OpenSearchTestCase;
+import org.junit.Assert;
 
 import java.io.IOException;
 import java.util.List;
@@ -114,7 +114,7 @@ public class CorrelationQueryBuilderTests extends OpenSearchTestCase {
         XContentParser contentParser = createParser(JsonXContent.jsonXContent, correlationQuery);
         contentParser.nextToken();
         CorrelationQueryBuilder actualBuilder = CorrelationQueryBuilder.parse(contentParser);
-        Assert.assertEquals(correlationQuery.replace("\n", "").replace(" ", ""), Strings.toString(XContentType.JSON, actualBuilder));
+        Assert.assertEquals(correlationQuery.replace("\n", "").replace(" ", ""), Strings.toString(MediaTypeRegistry.JSON, actualBuilder));
     }
 
     /**
@@ -203,7 +203,8 @@ public class CorrelationQueryBuilderTests extends OpenSearchTestCase {
 
     /**
      * test serialization of Correlation Query Builder
-     * @throws Exception
+     * @throws Exception throws an IOException if serialization fails
+     * @throws Exception Exception
      */
     public void testSerialization() throws Exception {
         assertSerialization(Optional.empty());

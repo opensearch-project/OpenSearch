@@ -9,8 +9,11 @@
 package org.opensearch.test.telemetry.tracing;
 
 import org.opensearch.telemetry.tracing.Span;
+import org.opensearch.telemetry.tracing.SpanCreationContext;
 import org.opensearch.telemetry.tracing.TracingContextPropagator;
 import org.opensearch.telemetry.tracing.TracingTelemetry;
+
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Mock {@link TracingTelemetry} implementation for testing.
@@ -18,18 +21,19 @@ import org.opensearch.telemetry.tracing.TracingTelemetry;
 public class MockTracingTelemetry implements TracingTelemetry {
 
     private final SpanProcessor spanProcessor = new StrictCheckSpanProcessor();
+    private final AtomicBoolean shutdown = new AtomicBoolean(false);
 
     /**
      * Base constructor.
      */
-    public MockTracingTelemetry() {
-
-    }
+    public MockTracingTelemetry() {}
 
     @Override
-    public Span createSpan(String spanName, Span parentSpan) {
-        Span span = new MockSpan(spanName, parentSpan, spanProcessor);
-        spanProcessor.onStart(span);
+    public Span createSpan(SpanCreationContext spanCreationContext, Span parentSpan) {
+        Span span = new MockSpan(spanCreationContext, parentSpan, spanProcessor);
+        if (shutdown.get() == false) {
+            spanProcessor.onStart(span);
+        }
         return span;
     }
 
@@ -40,7 +44,7 @@ public class MockTracingTelemetry implements TracingTelemetry {
 
     @Override
     public void close() {
-        ((StrictCheckSpanProcessor) spanProcessor).ensureAllSpansAreClosed();
-        ((StrictCheckSpanProcessor) spanProcessor).clear();
+        shutdown.set(true);
     }
+
 }

@@ -32,9 +32,9 @@
 
 package org.opensearch.analysis.common;
 
-import org.opensearch.painless.spi.PainlessExtension;
 import org.opensearch.painless.spi.Allowlist;
 import org.opensearch.painless.spi.AllowlistLoader;
+import org.opensearch.painless.spi.PainlessExtension;
 import org.opensearch.script.ScriptContext;
 
 import java.util.Collections;

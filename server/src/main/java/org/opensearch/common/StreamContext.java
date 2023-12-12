@@ -45,8 +45,20 @@ public class StreamContext {
     }
 
     /**
+     * Copy constructor for overriding class
+     */
+    protected StreamContext(StreamContext streamContext) {
+        this.streamSupplier = streamContext.streamSupplier;
+        this.partSize = streamContext.partSize;
+        this.numberOfParts = streamContext.numberOfParts;
+        this.lastPartSize = streamContext.lastPartSize;
+    }
+
+    /**
      * Vendor plugins can use this method to create new streams only when they are required for processing
      * New streams won't be created till this method is called with the specific <code>partNumber</code>
+     * It is the responsibility of caller to ensure that stream is properly closed after consumption
+     * otherwise it can leak resources.
      *
      * @param partNumber The index of the part
      * @return A stream reference to the part requested

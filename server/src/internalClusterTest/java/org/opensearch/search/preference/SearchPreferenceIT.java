@@ -32,6 +32,8 @@
 
 package org.opensearch.search.preference;
 
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.opensearch.action.admin.cluster.node.stats.NodeStats;
 import org.opensearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.opensearch.action.search.SearchRequestBuilder;
@@ -42,19 +44,23 @@ import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.routing.OperationRouting;
 import org.opensearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.common.Strings;
-import org.opensearch.node.Node;
 import org.opensearch.core.rest.RestStatus;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
+import org.opensearch.node.Node;
 import org.opensearch.test.OpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedOpenSearchIntegTestCase;
 
-import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
 import java.util.HashSet;
 import java.util.Set;
 
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.opensearch.index.query.QueryBuilders.matchAllQuery;
+import static org.opensearch.search.SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -64,7 +70,24 @@ import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.not;
 
 @OpenSearchIntegTestCase.ClusterScope(minNumDataNodes = 2)
-public class SearchPreferenceIT extends OpenSearchIntegTestCase {
+public class SearchPreferenceIT extends ParameterizedOpenSearchIntegTestCase {
+
+    public SearchPreferenceIT(Settings dynamicSettings) {
+        super(dynamicSettings);
+    }
+
+    @ParametersFactory
+    public static Collection<Object[]> parameters() {
+        return Arrays.asList(
+            new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), false).build() },
+            new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), true).build() }
+        );
+    }
+
+    @Override
+    protected Settings featureFlagSettings() {
+        return Settings.builder().put(super.featureFlagSettings()).put(FeatureFlags.CONCURRENT_SEGMENT_SEARCH, "true").build();
+    }
 
     @Override
     public Settings nodeSettings(int nodeOrdinal) {
@@ -75,7 +98,7 @@ public class SearchPreferenceIT extends OpenSearchIntegTestCase {
     }
 
     // see #2896
-    public void testStopOneNodePreferenceWithRedState() throws IOException {
+    public void testStopOneNodePreferenceWithRedState() throws Exception {
         assertAcked(
             prepareCreate("test").setSettings(
                 Settings.builder().put("index.number_of_shards", cluster().numDataNodes() + 2).put("index.number_of_replicas", 0)
@@ -86,6 +109,7 @@ public class SearchPreferenceIT extends OpenSearchIntegTestCase {
             client().prepareIndex("test").setId("" + i).setSource("field1", "value1").get();
         }
         refresh();
+        indexRandomForConcurrentSearch("test");
         internalCluster().stopRandomDataNode();
         client().admin().cluster().prepareHealth().setWaitForStatus(ClusterHealthStatus.RED).get();
         String[] preferences = new String[] {
@@ -114,7 +138,7 @@ public class SearchPreferenceIT extends OpenSearchIntegTestCase {
         assertThat("_only_local", searchResponse.getFailedShards(), greaterThanOrEqualTo(0));
     }
 
-    public void testNoPreferenceRandom() {
+    public void testNoPreferenceRandom() throws Exception {
         assertAcked(
             prepareCreate("test").setSettings(
                 // this test needs at least a replica to make sure two consecutive searches go to two different copies of the same data
@@ -125,6 +149,7 @@ public class SearchPreferenceIT extends OpenSearchIntegTestCase {
 
         client().prepareIndex("test").setSource("field1", "value1").get();
         refresh();
+        indexRandomForConcurrentSearch("test");
 
         final Client client = internalCluster().smartClient();
         SearchResponse searchResponse = client.prepareSearch("test").setQuery(matchAllQuery()).get();
@@ -135,12 +160,13 @@ public class SearchPreferenceIT extends OpenSearchIntegTestCase {
         assertThat(firstNodeId, not(equalTo(secondNodeId)));
     }
 
-    public void testSimplePreference() {
-        client().admin().indices().prepareCreate("test").setSettings("{\"number_of_replicas\": 1}", XContentType.JSON).get();
+    public void testSimplePreference() throws InterruptedException {
+        client().admin().indices().prepareCreate("test").setSettings("{\"number_of_replicas\": 1}", MediaTypeRegistry.JSON).get();
         ensureGreen();
 
         client().prepareIndex("test").setSource("field1", "value1").get();
         refresh();
+        indexRandomForConcurrentSearch("test");
 
         SearchResponse searchResponse = client().prepareSearch().setQuery(matchAllQuery()).get();
         assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
@@ -177,7 +203,7 @@ public class SearchPreferenceIT extends OpenSearchIntegTestCase {
         }
     }
 
-    public void testNodesOnlyRandom() {
+    public void testNodesOnlyRandom() throws Exception {
         assertAcked(
             prepareCreate("test").setSettings(
                 // this test needs at least a replica to make sure two consecutive searches go to two different copies of the same data
@@ -187,6 +213,7 @@ public class SearchPreferenceIT extends OpenSearchIntegTestCase {
         ensureGreen();
         client().prepareIndex("test").setSource("field1", "value1").get();
         refresh();
+        indexRandomForConcurrentSearch("test");
 
         final Client client = internalCluster().smartClient();
         // multiple wildchar to cover multi-param usecase
@@ -238,7 +265,7 @@ public class SearchPreferenceIT extends OpenSearchIntegTestCase {
         assertThat(hitNodes.size(), greaterThan(1));
     }
 
-    public void testCustomPreferenceUnaffectedByOtherShardMovements() {
+    public void testCustomPreferenceUnaffectedByOtherShardMovements() throws InterruptedException {
 
         /*
          * Custom preferences can be used to encourage searches to go to a consistent set of shard copies, meaning that other copies' data
@@ -257,6 +284,7 @@ public class SearchPreferenceIT extends OpenSearchIntegTestCase {
         ensureGreen();
         client().prepareIndex("test").setSource("field1", "value1").get();
         refresh();
+        indexRandomForConcurrentSearch("test");
 
         final String customPreference = randomAlphaOfLength(10);
 
@@ -276,6 +304,7 @@ public class SearchPreferenceIT extends OpenSearchIntegTestCase {
             prepareCreate("test2").setSettings(Settings.builder().put(indexSettings()).put(SETTING_NUMBER_OF_REPLICAS, replicasInNewIndex))
         );
         ensureGreen();
+        indexRandomForConcurrentSearch("test2");
 
         assertSearchesSpecificNode("test", customPreference, nodeId);
 

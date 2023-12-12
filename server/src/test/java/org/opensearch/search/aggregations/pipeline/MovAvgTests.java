@@ -32,17 +32,17 @@
 
 package org.opensearch.search.aggregations.pipeline;
 
-import static java.util.Collections.emptyList;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.nullValue;
-
-import java.io.IOException;
-
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.search.aggregations.BasePipelineAggregationTestCase;
 import org.opensearch.search.aggregations.PipelineAggregationBuilder;
 import org.opensearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 import org.opensearch.search.aggregations.pipeline.HoltWintersModel.SeasonalityType;
+
+import java.io.IOException;
+
+import static java.util.Collections.emptyList;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.nullValue;
 
 public class MovAvgTests extends BasePipelineAggregationTestCase<MovAvgPipelineAggregationBuilder> {
 

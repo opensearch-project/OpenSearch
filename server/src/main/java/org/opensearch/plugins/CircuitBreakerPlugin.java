@@ -32,10 +32,10 @@
 
 package org.opensearch.plugins;
 
-import org.opensearch.core.common.breaker.CircuitBreaker;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.indices.breaker.BreakerSettings;
+import org.opensearch.core.common.breaker.CircuitBreaker;
 import org.opensearch.core.indices.breaker.CircuitBreakerService;
+import org.opensearch.indices.breaker.BreakerSettings;
 
 /**
  * An extension point for {@link Plugin} implementations to add custom circuit breakers
@@ -46,9 +46,9 @@ public interface CircuitBreakerPlugin {
 
     /**
      * Each of the factory functions are passed to the configured {@link CircuitBreakerService}.
-     *
+     * <p>
      * The service then constructs a {@link CircuitBreaker} given the resulting {@link BreakerSettings}.
-     *
+     * <p>
      * Custom circuit breakers settings can be found in {@link BreakerSettings}.
      * See:
      *  - limit (example: `breaker.foo.limit`) {@link BreakerSettings#CIRCUIT_BREAKER_LIMIT_SETTING}
@@ -63,7 +63,7 @@ public interface CircuitBreakerPlugin {
     /**
      * The passed {@link CircuitBreaker} object is the same one that was constructed by the {@link BreakerSettings}
      * provided by {@link CircuitBreakerPlugin#getCircuitBreaker(Settings)}.
-     *
+     * <p>
      * This reference should never change throughout the lifetime of the node.
      *
      * @param circuitBreaker The constructed {@link CircuitBreaker} object from the {@link BreakerSettings}

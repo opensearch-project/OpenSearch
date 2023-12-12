@@ -31,21 +31,20 @@
 
 package org.opensearch.rest.action.admin.indices;
 
-import java.util.List;
-import org.opensearch.action.ActionListener;
+import org.opensearch.action.ActionModule.DynamicActionRegistry;
 import org.opensearch.action.ActionRequest;
 import org.opensearch.action.ActionType;
-import org.opensearch.action.ActionModule.DynamicActionRegistry;
 import org.opensearch.action.admin.indices.validate.query.ValidateQueryAction;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.TransportAction;
 import org.opensearch.client.node.NodeClient;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
-import org.opensearch.common.settings.Settings;
-import org.opensearch.common.xcontent.XContentType;
-import org.opensearch.identity.IdentityService;
 import org.opensearch.core.indices.breaker.NoneCircuitBreakerService;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
+import org.opensearch.identity.IdentityService;
 import org.opensearch.rest.RestController;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.search.AbstractSearchTestCase;
@@ -62,6 +61,7 @@ import org.junit.BeforeClass;
 
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import static java.util.Collections.emptyMap;
@@ -182,7 +182,7 @@ public class RestValidateQueryActionTests extends AbstractSearchTestCase {
     private RestRequest createRestRequest(String content) {
         return new FakeRestRequest.Builder(xContentRegistry()).withPath("index1/type1/_validate/query")
             .withParams(emptyMap())
-            .withContent(new BytesArray(content), XContentType.JSON)
+            .withContent(new BytesArray(content), MediaTypeRegistry.JSON)
             .build();
     }
 }

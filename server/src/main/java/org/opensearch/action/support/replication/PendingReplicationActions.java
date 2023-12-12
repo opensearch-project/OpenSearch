@@ -33,12 +33,13 @@
 package org.opensearch.action.support.replication;
 
 import org.opensearch.action.support.RetryableAction;
-import org.opensearch.common.util.concurrent.ConcurrentCollections;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.lease.Releasable;
-import org.opensearch.index.shard.PrimaryShardClosedException;
-import org.opensearch.index.shard.IndexShardClosedException;
-import org.opensearch.index.shard.ReplicationGroup;
+import org.opensearch.common.util.concurrent.ConcurrentCollections;
 import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.index.shard.IndexShardClosedException;
+import org.opensearch.index.shard.PrimaryShardClosedException;
+import org.opensearch.index.shard.ReplicationGroup;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
@@ -51,8 +52,9 @@ import java.util.function.Supplier;
 /**
  * Pending Replication Actions
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class PendingReplicationActions implements Consumer<ReplicationGroup>, Releasable {
 
     private final Map<String, Set<RetryableAction<?>>> onGoingReplicationActions = ConcurrentCollections.newConcurrentMap();

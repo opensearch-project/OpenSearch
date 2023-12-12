@@ -36,15 +36,15 @@ import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.ScoreDoc;
 import org.opensearch.action.search.SearchShardTask;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.lucene.Lucene;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
-import org.opensearch.common.lucene.Lucene;
+import org.opensearch.core.tasks.TaskId;
 import org.opensearch.search.RescoreDocIds;
 import org.opensearch.search.dfs.AggregatedDfs;
-import org.opensearch.search.internal.ShardSearchRequest;
 import org.opensearch.search.internal.ShardSearchContextId;
+import org.opensearch.search.internal.ShardSearchRequest;
 import org.opensearch.tasks.Task;
-import org.opensearch.tasks.TaskId;
 import org.opensearch.transport.TransportRequest;
 
 import java.io.IOException;

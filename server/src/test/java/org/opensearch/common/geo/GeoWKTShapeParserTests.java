@@ -50,8 +50,8 @@ import org.opensearch.common.geo.builders.ShapeBuilder;
 import org.opensearch.common.geo.parsers.GeoWKTParser;
 import org.opensearch.common.geo.parsers.ShapeParser;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.geometry.Geometry;
 import org.opensearch.geometry.GeometryCollection;
@@ -64,6 +64,14 @@ import org.opensearch.index.mapper.GeoShapeIndexer;
 import org.opensearch.index.mapper.LegacyGeoShapeFieldMapper;
 import org.opensearch.index.mapper.Mapper;
 import org.opensearch.test.geo.RandomShapeGenerator;
+
+import java.io.IOException;
+import java.text.ParseException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
+
 import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.jts.geom.LineString;
 import org.locationtech.jts.geom.LinearRing;
@@ -75,13 +83,6 @@ import org.locationtech.spatial4j.shape.Rectangle;
 import org.locationtech.spatial4j.shape.Shape;
 import org.locationtech.spatial4j.shape.ShapeCollection;
 import org.locationtech.spatial4j.shape.jts.JtsPoint;
-
-import java.io.IOException;
-import java.text.ParseException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.List;
 
 import static org.opensearch.common.geo.builders.ShapeBuilder.SPATIAL_CONTEXT;
 import static org.hamcrest.Matchers.containsString;

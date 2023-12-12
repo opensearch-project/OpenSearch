@@ -32,8 +32,12 @@
 
 package org.opensearch.search.aggregations;
 
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.common.geo.GeoPoint;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.opensearch.search.aggregations.bucket.histogram.Histogram;
 import org.opensearch.search.aggregations.bucket.terms.Terms;
@@ -43,7 +47,12 @@ import org.opensearch.search.aggregations.metrics.GeoCentroid;
 import org.opensearch.search.aggregations.metrics.Percentiles;
 import org.opensearch.search.aggregations.metrics.Stats;
 import org.opensearch.test.OpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedOpenSearchIntegTestCase;
 
+import java.util.Arrays;
+import java.util.Collection;
+
+import static org.opensearch.search.SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING;
 import static org.opensearch.search.aggregations.AggregationBuilders.cardinality;
 import static org.opensearch.search.aggregations.AggregationBuilders.dateHistogram;
 import static org.opensearch.search.aggregations.AggregationBuilders.geoCentroid;
@@ -56,7 +65,24 @@ import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertSearchResp
 import static org.hamcrest.Matchers.closeTo;
 
 @OpenSearchIntegTestCase.SuiteScopeTestCase
-public class MissingValueIT extends OpenSearchIntegTestCase {
+public class MissingValueIT extends ParameterizedOpenSearchIntegTestCase {
+
+    public MissingValueIT(Settings dynamicSettings) {
+        super(dynamicSettings);
+    }
+
+    @ParametersFactory
+    public static Collection<Object[]> parameters() {
+        return Arrays.asList(
+            new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), false).build() },
+            new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), true).build() }
+        );
+    }
+
+    @Override
+    protected Settings featureFlagSettings() {
+        return Settings.builder().put(super.featureFlagSettings()).put(FeatureFlags.CONCURRENT_SEGMENT_SEARCH, "true").build();
+    }
 
     @Override
     protected int maximumNumberOfShards() {

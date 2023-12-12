@@ -32,13 +32,9 @@
 
 package org.opensearch.repositories.azure;
 
-import reactor.core.scheduler.Schedulers;
-
 import com.azure.core.http.policy.HttpPipelinePolicy;
 import com.azure.storage.blob.BlobServiceClient;
 import com.azure.storage.common.policy.RequestRetryPolicy;
-
-import org.junit.AfterClass;
 import org.opensearch.common.settings.MockSecureSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsException;
@@ -46,6 +42,7 @@ import org.opensearch.common.settings.SettingsModule;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.common.Strings;
 import org.opensearch.test.OpenSearchTestCase;
+import org.junit.AfterClass;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -59,6 +56,8 @@ import java.time.Duration;
 import java.util.Base64;
 import java.util.Collections;
 import java.util.Map;
+
+import reactor.core.scheduler.Schedulers;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.emptyString;
@@ -452,7 +451,8 @@ public class AzureStorageServiceTests extends OpenSearchTestCase {
     }
 
     /**
-     * Extract the blob name from a URI like https://myservice.azure.net/container/path/to/myfile
+     * Extract the blob name from a URI like :
+     * {@code https://myservice.azure.net/container/path/to/myfile }
      * It should remove the container part (first part of the path) and gives path/to/myfile
      * @param uri URI to parse
      * @return The blob name relative to the container

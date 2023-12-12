@@ -33,7 +33,6 @@ package org.opensearch.cluster.service;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.opensearch.action.ActionListener;
 import org.opensearch.cluster.ClusterChangedEvent;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.coordination.ClusterStatePublisher.AckListener;
@@ -44,6 +43,7 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.OpenSearchExecutors;
 import org.opensearch.common.util.concurrent.PrioritizedOpenSearchThreadPoolExecutor;
 import org.opensearch.common.util.concurrent.ThreadContext;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.node.Node;
 import org.opensearch.threadpool.ThreadPool;
 
@@ -52,8 +52,8 @@ import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
-import static org.apache.lucene.tests.util.LuceneTestCase.random;
 import static org.opensearch.test.OpenSearchTestCase.randomInt;
+import static org.apache.lucene.tests.util.LuceneTestCase.random;
 
 public class FakeThreadPoolClusterManagerService extends ClusterManagerService {
     private static final Logger logger = LogManager.getLogger(FakeThreadPoolClusterManagerService.class);

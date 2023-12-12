@@ -32,8 +32,8 @@
 
 package org.opensearch.index.rankeval;
 
-import org.opensearch.action.ActionType;
 import org.opensearch.action.ActionRequestBuilder;
+import org.opensearch.action.ActionType;
 import org.opensearch.client.OpenSearchClient;
 
 public class RankEvalRequestBuilder extends ActionRequestBuilder<RankEvalRequest, RankEvalResponse> {

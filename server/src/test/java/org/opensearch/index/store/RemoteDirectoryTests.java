@@ -8,36 +8,47 @@
 
 package org.opensearch.index.store;
 
+import org.apache.lucene.codecs.CodecUtil;
+import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
-import org.junit.Before;
-import org.opensearch.action.ActionListener;
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.opensearch.action.LatchedActionListener;
+import org.opensearch.common.blobstore.AsyncMultiStreamBlobContainer;
 import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.blobstore.BlobMetadata;
+import org.opensearch.common.blobstore.stream.write.WriteContext;
 import org.opensearch.common.blobstore.support.PlainBlobMetadata;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.test.OpenSearchTestCase;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.NoSuchFileException;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import org.mockito.Mockito;
+
+import static org.opensearch.common.blobstore.BlobContainer.BlobNameSortOrder.LEXICOGRAPHIC;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.when;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 public class RemoteDirectoryTests extends OpenSearchTestCase {
     private BlobContainer blobContainer;
@@ -56,6 +67,85 @@ public class RemoteDirectoryTests extends OpenSearchTestCase {
         String[] actualFileNames = remoteDirectory.listAll();
         String[] expectedFileName = new String[] {};
         assertArrayEquals(expectedFileName, actualFileNames);
+    }
+
+    public void testCopyFrom() throws IOException, InterruptedException {
+        AtomicReference<Boolean> postUploadInvoked = new AtomicReference<>(false);
+        String filename = "_100.si";
+        AsyncMultiStreamBlobContainer blobContainer = mock(AsyncMultiStreamBlobContainer.class);
+        Mockito.doAnswer(invocation -> {
+            ActionListener<Void> completionListener = invocation.getArgument(1);
+            completionListener.onResponse(null);
+            return null;
+        }).when(blobContainer).asyncBlobUpload(any(WriteContext.class), any());
+
+        Directory storeDirectory = LuceneTestCase.newDirectory();
+        IndexOutput indexOutput = storeDirectory.createOutput(filename, IOContext.DEFAULT);
+        indexOutput.writeString("Hello World!");
+        CodecUtil.writeFooter(indexOutput);
+        indexOutput.close();
+        storeDirectory.sync(List.of(filename));
+
+        CountDownLatch countDownLatch = new CountDownLatch(1);
+        RemoteDirectory remoteDirectory = new RemoteDirectory(blobContainer);
+        remoteDirectory.copyFrom(
+            storeDirectory,
+            filename,
+            filename,
+            IOContext.READ,
+            () -> postUploadInvoked.set(true),
+            new ActionListener<>() {
+                @Override
+                public void onResponse(Void t) {
+                    countDownLatch.countDown();
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    fail("Listener responded with exception" + e);
+                }
+            }
+        );
+        assertTrue(countDownLatch.await(10, TimeUnit.SECONDS));
+        assertTrue(postUploadInvoked.get());
+        storeDirectory.close();
+    }
+
+    public void testCopyFromWithException() throws IOException, InterruptedException {
+        AtomicReference<Boolean> postUploadInvoked = new AtomicReference<>(false);
+        String filename = "_100.si";
+        AsyncMultiStreamBlobContainer blobContainer = mock(AsyncMultiStreamBlobContainer.class);
+        Mockito.doAnswer(invocation -> {
+            ActionListener<Void> completionListener = invocation.getArgument(1);
+            completionListener.onResponse(null);
+            return null;
+        }).when(blobContainer).asyncBlobUpload(any(WriteContext.class), any());
+
+        Directory storeDirectory = LuceneTestCase.newDirectory();
+
+        CountDownLatch countDownLatch = new CountDownLatch(1);
+        RemoteDirectory remoteDirectory = new RemoteDirectory(blobContainer);
+        remoteDirectory.copyFrom(
+            storeDirectory,
+            filename,
+            filename,
+            IOContext.READ,
+            () -> postUploadInvoked.set(true),
+            new ActionListener<>() {
+                @Override
+                public void onResponse(Void t) {
+                    fail("Listener responded with success");
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    countDownLatch.countDown();
+                }
+            }
+        );
+        assertTrue(countDownLatch.await(10, TimeUnit.SECONDS));
+        assertFalse(postUploadInvoked.get());
+        storeDirectory.close();
     }
 
     public void testListAll() throws IOException {
@@ -115,13 +205,29 @@ public class RemoteDirectoryTests extends OpenSearchTestCase {
     public void testOpenInput() throws IOException {
         InputStream mockInputStream = mock(InputStream.class);
         when(blobContainer.readBlob("segment_1")).thenReturn(mockInputStream);
-        Map<String, BlobMetadata> fileInfo = new HashMap<>();
-        fileInfo.put("segment_1", new PlainBlobMetadata("segment_1", 100));
-        when(blobContainer.listBlobsByPrefix("segment_1")).thenReturn(fileInfo);
+
+        BlobMetadata blobMetadata = new PlainBlobMetadata("segment_1", 100);
+
+        when(blobContainer.listBlobsByPrefixInSortedOrder("segment_1", 1, LEXICOGRAPHIC)).thenReturn(List.of(blobMetadata));
 
         IndexInput indexInput = remoteDirectory.openInput("segment_1", IOContext.DEFAULT);
         assertTrue(indexInput instanceof RemoteIndexInput);
         assertEquals(100, indexInput.length());
+        verify(blobContainer).listBlobsByPrefixInSortedOrder("segment_1", 1, LEXICOGRAPHIC);
+    }
+
+    public void testOpenInputWithLength() throws IOException {
+        InputStream mockInputStream = mock(InputStream.class);
+        when(blobContainer.readBlob("segment_1")).thenReturn(mockInputStream);
+
+        BlobMetadata blobMetadata = new PlainBlobMetadata("segment_1", 100);
+
+        when(blobContainer.listBlobsByPrefixInSortedOrder("segment_1", 1, LEXICOGRAPHIC)).thenReturn(List.of(blobMetadata));
+
+        IndexInput indexInput = remoteDirectory.openInput("segment_1", 100, IOContext.DEFAULT);
+        assertTrue(indexInput instanceof RemoteIndexInput);
+        assertEquals(100, indexInput.length());
+        verify(blobContainer, times(0)).listBlobsByPrefixInSortedOrder("segment_1", 1, LEXICOGRAPHIC);
     }
 
     public void testOpenInputIOException() throws IOException {
@@ -139,9 +245,8 @@ public class RemoteDirectoryTests extends OpenSearchTestCase {
     }
 
     public void testFileLength() throws IOException {
-        Map<String, BlobMetadata> fileInfo = new HashMap<>();
-        fileInfo.put("segment_1", new PlainBlobMetadata("segment_1", 100));
-        when(blobContainer.listBlobsByPrefix("segment_1")).thenReturn(fileInfo);
+        BlobMetadata blobMetadata = new PlainBlobMetadata("segment_1", 100);
+        when(blobContainer.listBlobsByPrefixInSortedOrder("segment_1", 1, LEXICOGRAPHIC)).thenReturn(List.of(blobMetadata));
 
         assertEquals(100, remoteDirectory.fileLength("segment_1"));
     }
@@ -157,13 +262,7 @@ public class RemoteDirectoryTests extends OpenSearchTestCase {
             LatchedActionListener<List<BlobMetadata>> latchedActionListener = invocation.getArgument(3);
             latchedActionListener.onResponse(List.of(new PlainBlobMetadata("metadata_1", 1)));
             return null;
-        }).when(blobContainer)
-            .listBlobsByPrefixInSortedOrder(
-                eq("metadata"),
-                eq(1),
-                eq(BlobContainer.BlobNameSortOrder.LEXICOGRAPHIC),
-                any(ActionListener.class)
-            );
+        }).when(blobContainer).listBlobsByPrefixInSortedOrder(eq("metadata"), eq(1), eq(LEXICOGRAPHIC), any(ActionListener.class));
 
         assertEquals(List.of("metadata_1"), remoteDirectory.listFilesByPrefixInLexicographicOrder("metadata", 1));
     }
@@ -173,13 +272,7 @@ public class RemoteDirectoryTests extends OpenSearchTestCase {
             LatchedActionListener<List<BlobMetadata>> latchedActionListener = invocation.getArgument(3);
             latchedActionListener.onResponse(List.of());
             return null;
-        }).when(blobContainer)
-            .listBlobsByPrefixInSortedOrder(
-                eq("metadata"),
-                eq(1),
-                eq(BlobContainer.BlobNameSortOrder.LEXICOGRAPHIC),
-                any(ActionListener.class)
-            );
+        }).when(blobContainer).listBlobsByPrefixInSortedOrder(eq("metadata"), eq(1), eq(LEXICOGRAPHIC), any(ActionListener.class));
 
         assertEquals(List.of(), remoteDirectory.listFilesByPrefixInLexicographicOrder("metadata", 1));
     }
@@ -189,13 +282,7 @@ public class RemoteDirectoryTests extends OpenSearchTestCase {
             LatchedActionListener<List<BlobMetadata>> latchedActionListener = invocation.getArgument(3);
             latchedActionListener.onFailure(new IOException("Error"));
             return null;
-        }).when(blobContainer)
-            .listBlobsByPrefixInSortedOrder(
-                eq("metadata"),
-                eq(1),
-                eq(BlobContainer.BlobNameSortOrder.LEXICOGRAPHIC),
-                any(ActionListener.class)
-            );
+        }).when(blobContainer).listBlobsByPrefixInSortedOrder(eq("metadata"), eq(1), eq(LEXICOGRAPHIC), any(ActionListener.class));
 
         assertThrows(IOException.class, () -> remoteDirectory.listFilesByPrefixInLexicographicOrder("metadata", 1));
     }

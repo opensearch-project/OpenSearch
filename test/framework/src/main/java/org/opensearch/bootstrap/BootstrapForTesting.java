@@ -33,17 +33,18 @@
 package org.opensearch.bootstrap;
 
 import com.carrotsearch.randomizedtesting.RandomizedRunner;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.opensearch.common.Booleans;
 import org.opensearch.common.SuppressForbidden;
-import org.opensearch.core.common.Strings;
-import org.opensearch.core.util.FileSystemUtils;
 import org.opensearch.common.io.PathUtils;
 import org.opensearch.common.network.IfConfig;
 import org.opensearch.common.network.NetworkAddress;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.core.common.Strings;
+import org.opensearch.core.util.FileSystemUtils;
 import org.opensearch.mockito.plugin.PriviledgedMockMaker;
 import org.opensearch.plugins.PluginInfo;
 import org.opensearch.secure_sm.SecureSM;
@@ -68,6 +69,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Properties;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -160,12 +162,17 @@ public class BootstrapForTesting {
                     addClassCodebase(codebases, "opensearch-rest-client", "org.opensearch.client.RestClient");
                 }
                 final Policy testFramework = Security.readPolicy(Bootstrap.class.getResource("test-framework.policy"), codebases);
+                // Allow modules to define own test policy in ad-hoc fashion (if needed) that is not really applicable to other modules
+                final Optional<Policy> testPolicy = Optional.ofNullable(Bootstrap.class.getResource("test.policy"))
+                    .map(policy -> Security.readPolicy(policy, codebases));
                 final Policy opensearchPolicy = new OpenSearchPolicy(codebases, perms, getPluginPermissions(), true, new Permissions());
                 Policy.setPolicy(new Policy() {
                     @Override
                     public boolean implies(ProtectionDomain domain, Permission permission) {
                         // implements union
-                        return opensearchPolicy.implies(domain, permission) || testFramework.implies(domain, permission);
+                        return opensearchPolicy.implies(domain, permission)
+                            || testFramework.implies(domain, permission)
+                            || testPolicy.map(policy -> policy.implies(domain, permission)).orElse(false /* no policy */);
                     }
                 });
                 // Create access control context for mocking

@@ -33,7 +33,7 @@
 package org.opensearch.index.reindex;
 
 import org.opensearch.action.support.PlainActionFuture;
-import org.opensearch.tasks.TaskId;
+import org.opensearch.core.tasks.TaskId;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;

@@ -54,9 +54,9 @@ import org.opensearch.common.blobstore.BlobStore;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
 import org.opensearch.core.common.Strings;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.IndexModule;
 import org.opensearch.repositories.IndexId;
 import org.opensearch.repositories.RepositoriesService;
@@ -88,9 +88,9 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
-import static org.hamcrest.Matchers.anEmptyMap;
 import static org.opensearch.test.OpenSearchTestCase.buildNewFakeTransportAddress;
 import static org.opensearch.test.OpenSearchTestCase.randomIntBetween;
+import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.hasKey;
@@ -136,7 +136,7 @@ public final class BlobStoreTestUtil {
                 final RepositoryData repositoryData;
                 try (
                     InputStream blob = blobContainer.readBlob(BlobStoreRepository.INDEX_FILE_PREFIX + latestGen);
-                    XContentParser parser = XContentType.JSON.xContent()
+                    XContentParser parser = MediaTypeRegistry.JSON.xContent()
                         .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, blob)
                 ) {
                     repositoryData = RepositoryData.snapshotsFromXContent(parser, latestGen);

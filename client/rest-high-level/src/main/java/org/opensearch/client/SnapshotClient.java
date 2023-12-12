@@ -32,7 +32,6 @@
 
 package org.opensearch.client;
 
-import org.opensearch.action.ActionListener;
 import org.opensearch.action.admin.cluster.repositories.cleanup.CleanupRepositoryRequest;
 import org.opensearch.action.admin.cluster.repositories.cleanup.CleanupRepositoryResponse;
 import org.opensearch.action.admin.cluster.repositories.delete.DeleteRepositoryRequest;
@@ -52,6 +51,7 @@ import org.opensearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResp
 import org.opensearch.action.admin.cluster.snapshots.status.SnapshotsStatusRequest;
 import org.opensearch.action.admin.cluster.snapshots.status.SnapshotsStatusResponse;
 import org.opensearch.action.support.master.AcknowledgedResponse;
+import org.opensearch.core.action.ActionListener;
 
 import java.io.IOException;
 

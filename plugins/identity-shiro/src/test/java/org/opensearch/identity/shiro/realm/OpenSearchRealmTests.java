@@ -11,8 +11,8 @@ package org.opensearch.identity.shiro.realm;
 import org.apache.shiro.authc.AuthenticationInfo;
 import org.apache.shiro.authc.IncorrectCredentialsException;
 import org.apache.shiro.authc.UsernamePasswordToken;
-import org.junit.Before;
 import org.opensearch.test.OpenSearchTestCase;
+import org.junit.Before;
 
 public class OpenSearchRealmTests extends OpenSearchTestCase {
 

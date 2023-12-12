@@ -31,14 +31,6 @@
 
 package org.opensearch.repositories.hdfs;
 
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.security.AccessController;
-import java.security.PrivilegedAction;
-import java.util.Collections;
-import java.util.Map;
-
 import org.apache.hadoop.hdfs.protocolPB.ClientNamenodeProtocolPB;
 import org.apache.hadoop.security.KerberosInfo;
 import org.apache.hadoop.security.SecurityUtil;
@@ -51,6 +43,14 @@ import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.plugins.RepositoryPlugin;
 import org.opensearch.repositories.Repository;
+
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.security.AccessController;
+import java.security.PrivilegedAction;
+import java.util.Collections;
+import java.util.Map;
 
 public final class HdfsPlugin extends Plugin implements RepositoryPlugin {
 

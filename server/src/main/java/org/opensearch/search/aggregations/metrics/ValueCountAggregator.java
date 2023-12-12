@@ -34,9 +34,9 @@ package org.opensearch.search.aggregations.metrics;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.ScoreMode;
+import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.util.LongArray;
-import org.opensearch.common.lease.Releasables;
 import org.opensearch.index.fielddata.MultiGeoPointValues;
 import org.opensearch.index.fielddata.SortedBinaryDocValues;
 import org.opensearch.search.aggregations.Aggregator;
@@ -52,7 +52,7 @@ import java.util.Map;
 
 /**
  * A field data based aggregator that counts the number of values a specific field has within the aggregation context.
- *
+ * <p>
  * This aggregator works in a multi-bucket mode, that is, when serves as a sub-aggregator, a single aggregator instance aggregates the
  * counts for all buckets owned by the parent aggregator)
  *

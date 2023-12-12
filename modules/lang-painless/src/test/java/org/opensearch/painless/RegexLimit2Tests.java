@@ -32,9 +32,9 @@
 
 package org.opensearch.painless;
 
+import org.opensearch.common.settings.Settings;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
-import org.opensearch.common.settings.Settings;
 
 public class RegexLimit2Tests extends ScriptTestCase {
     // This regex has backtracking due to .*?

@@ -32,12 +32,12 @@
 
 package org.opensearch.transport;
 
+import org.opensearch.common.io.Streams;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.core.common.bytes.BytesReference;
-import org.opensearch.common.compress.CompressorFactory;
-import org.opensearch.common.io.Streams;
 import org.opensearch.core.common.io.stream.BytesStream;
 import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.compress.CompressorRegistry;
 
 import java.io.IOException;
 import java.io.OutputStream;
@@ -48,11 +48,11 @@ import java.util.zip.DeflaterOutputStream;
  * requires that the underlying {@link DeflaterOutputStream} be closed to write EOS bytes. However, the
  * {@link BytesStream} should not be closed yet, as we have not used the bytes. This class handles these
  * intricacies.
- *
+ * <p>
  * {@link CompressibleBytesOutputStream#materializeBytes()} should be called when all the bytes have been
  * written to this stream. If compression is enabled, the proper EOS bytes will be written at that point.
  * The underlying {@link BytesReference} will be returned.
- *
+ * <p>
  * {@link CompressibleBytesOutputStream#close()} will NOT close the underlying stream. The byte stream passed
  * in the constructor must be closed individually.
  *
@@ -68,7 +68,7 @@ final class CompressibleBytesOutputStream extends StreamOutput {
         this.bytesStreamOutput = bytesStreamOutput;
         this.shouldCompress = shouldCompress;
         if (shouldCompress) {
-            this.stream = CompressorFactory.defaultCompressor().threadLocalOutputStream(Streams.flushOnCloseStream(bytesStreamOutput));
+            this.stream = CompressorRegistry.defaultCompressor().threadLocalOutputStream(Streams.flushOnCloseStream(bytesStreamOutput));
         } else {
             this.stream = bytesStreamOutput;
         }

@@ -32,13 +32,14 @@
 package org.opensearch.search.aggregations;
 
 import org.opensearch.action.ActionRequestValidationException;
+import org.opensearch.common.annotation.PublicApi;
+import org.opensearch.common.xcontent.SuggestingErrorOnUnknown;
 import org.opensearch.core.common.ParsingException;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
-import org.opensearch.common.xcontent.SuggestingErrorOnUnknown;
-import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.NamedObjectNotFoundException;
 import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.core.xcontent.XContentBuilder;
@@ -82,8 +83,9 @@ import static java.util.stream.Collectors.toMap;
 /**
  * An immutable collection of {@link AggregatorFactories}.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class AggregatorFactories {
     public static final Pattern VALID_AGG_NAME = Pattern.compile("[^\\[\\]>]+");
 
@@ -257,6 +259,15 @@ public class AggregatorFactories {
         this.factories = factories;
     }
 
+    public boolean allFactoriesSupportConcurrentSearch() {
+        for (AggregatorFactory factory : factories) {
+            if (factory.supportsConcurrentSegmentSearch() == false || factory.evaluateChildFactories() == false) {
+                return false;
+            }
+        }
+        return true;
+    }
+
     /**
      * Create all aggregators so that they can be consumed with multiple
      * buckets.
@@ -331,8 +342,9 @@ public class AggregatorFactories {
      * A mutable collection of {@link AggregationBuilder}s and
      * {@link PipelineAggregationBuilder}s.
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public static class Builder implements Writeable, ToXContentObject {
         private final Set<String> names = new HashSet<>();
 
@@ -591,7 +603,7 @@ public class AggregatorFactories {
 
         @Override
         public String toString() {
-            return Strings.toString(XContentType.JSON, this, true, true);
+            return Strings.toString(MediaTypeRegistry.JSON, this, true, true);
         }
 
         @Override

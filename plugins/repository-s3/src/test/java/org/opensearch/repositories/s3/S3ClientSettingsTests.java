@@ -32,11 +32,6 @@
 
 package org.opensearch.repositories.s3;
 
-import org.opensearch.common.settings.MockSecureSettings;
-import org.opensearch.common.settings.Settings;
-import org.opensearch.common.settings.SettingsException;
-import org.opensearch.repositories.s3.utils.AwsRequestSigner;
-import org.opensearch.repositories.s3.utils.Protocol;
 import software.amazon.awssdk.auth.credentials.AwsCredentials;
 import software.amazon.awssdk.auth.credentials.AwsSessionCredentials;
 import software.amazon.awssdk.core.client.config.ClientOverrideConfiguration;
@@ -44,6 +39,12 @@ import software.amazon.awssdk.core.client.config.SdkAdvancedClientOption;
 import software.amazon.awssdk.core.signer.Signer;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3Client;
+
+import org.opensearch.common.settings.MockSecureSettings;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.settings.SettingsException;
+import org.opensearch.repositories.s3.utils.AwsRequestSigner;
+import org.opensearch.repositories.s3.utils.Protocol;
 
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
@@ -69,10 +70,10 @@ public class S3ClientSettingsTests extends AbstractS3RepositoryTestCase {
         assertThat(defaultSettings.protocol, is(Protocol.HTTPS));
         assertThat(defaultSettings.proxySettings, is(ProxySettings.NO_PROXY_SETTINGS));
         assertThat(defaultSettings.readTimeoutMillis, is(50 * 1000));
-        assertThat(defaultSettings.requestTimeoutMillis, is(120 * 1000));
+        assertThat(defaultSettings.requestTimeoutMillis, is(5 * 60 * 1000));
         assertThat(defaultSettings.connectionTimeoutMillis, is(10 * 1000));
         assertThat(defaultSettings.connectionTTLMillis, is(5 * 1000));
-        assertThat(defaultSettings.maxConnections, is(100));
+        assertThat(defaultSettings.maxConnections, is(500));
         assertThat(defaultSettings.maxRetries, is(3));
         assertThat(defaultSettings.throttleRetries, is(true));
     }

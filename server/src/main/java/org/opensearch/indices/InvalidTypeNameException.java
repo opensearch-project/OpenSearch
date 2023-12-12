@@ -33,8 +33,8 @@
 package org.opensearch.indices;
 
 import org.opensearch.core.common.io.stream.StreamInput;
-import org.opensearch.index.mapper.MapperException;
 import org.opensearch.core.rest.RestStatus;
+import org.opensearch.index.mapper.MapperException;
 
 import java.io.IOException;
 

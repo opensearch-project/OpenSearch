@@ -36,7 +36,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.Version;
-import org.opensearch.action.ActionListener;
 import org.opensearch.action.admin.indices.template.delete.DeleteIndexTemplateRequest;
 import org.opensearch.action.admin.indices.template.put.PutIndexTemplateRequest;
 import org.opensearch.action.support.master.AcknowledgedResponse;
@@ -46,12 +45,13 @@ import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateListener;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.service.ClusterService;
-import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.ToXContent;
-import org.opensearch.common.xcontent.XContentHelper;
-import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.xcontent.XContentHelper;
 import org.opensearch.gateway.GatewayService;
 import org.opensearch.indices.IndexTemplateMissingException;
 import org.opensearch.plugins.Plugin;
@@ -162,7 +162,10 @@ public class TemplateUpgradeService implements ClusterStateListener {
         }
 
         for (Map.Entry<String, BytesReference> change : changes.entrySet()) {
-            PutIndexTemplateRequest request = new PutIndexTemplateRequest(change.getKey()).source(change.getValue(), XContentType.JSON);
+            PutIndexTemplateRequest request = new PutIndexTemplateRequest(change.getKey()).source(
+                change.getValue(),
+                MediaTypeRegistry.JSON
+            );
             request.clusterManagerNodeTimeout(TimeValue.timeValueMinutes(1));
             client.admin().indices().putTemplate(request, new ActionListener<AcknowledgedResponse>() {
                 @Override
@@ -269,7 +272,7 @@ public class TemplateUpgradeService implements ClusterStateListener {
             return XContentHelper.toXContent((builder, params) -> {
                 IndexTemplateMetadata.Builder.toInnerXContentWithTypes(templateMetadata, builder, params);
                 return builder;
-            }, XContentType.JSON, PARAMS, false);
+            }, MediaTypeRegistry.JSON, PARAMS, false);
         } catch (IOException ex) {
             throw new IllegalStateException("Cannot serialize template [" + templateMetadata.getName() + "]", ex);
         }

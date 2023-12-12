@@ -41,12 +41,12 @@ import org.opensearch.Version;
 import org.opensearch.action.OriginalIndices;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.routing.GroupShardsIterator;
-import org.opensearch.core.common.breaker.CircuitBreaker;
-import org.opensearch.core.common.breaker.NoopCircuitBreaker;
 import org.opensearch.common.lucene.search.TopDocsAndMaxScore;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.OpenSearchExecutors;
 import org.opensearch.core.common.Strings;
+import org.opensearch.core.common.breaker.CircuitBreaker;
+import org.opensearch.core.common.breaker.NoopCircuitBreaker;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.SearchPhaseResult;
@@ -58,8 +58,8 @@ import org.opensearch.search.internal.ShardSearchContextId;
 import org.opensearch.search.internal.ShardSearchRequest;
 import org.opensearch.search.query.QuerySearchResult;
 import org.opensearch.search.sort.SortBuilders;
-import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.InternalAggregationTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.transport.Transport;
 
 import java.util.Collections;
@@ -214,7 +214,8 @@ public class SearchQueryThenFetchAsyncActionTests extends OpenSearchTestCase {
             timeProvider,
             null,
             task,
-            SearchResponse.Clusters.EMPTY
+            SearchResponse.Clusters.EMPTY,
+            new SearchRequestContext()
         ) {
             @Override
             protected SearchPhase getNextPhase(SearchPhaseResults<SearchPhaseResult> results, SearchPhaseContext context) {
@@ -226,6 +227,7 @@ public class SearchQueryThenFetchAsyncActionTests extends OpenSearchTestCase {
                 };
             }
         };
+
         action.start();
         latch.await();
         assertThat(successfulOps.get(), equalTo(numShards));

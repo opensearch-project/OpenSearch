@@ -41,7 +41,7 @@ import org.opensearch.cluster.health.ClusterHealthStatus;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.Priority;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.OpenSearchIntegTestCase.ClusterScope;
 import org.opensearch.test.OpenSearchIntegTestCase.Scope;
@@ -50,7 +50,6 @@ import static org.opensearch.client.Requests.createIndexRequest;
 import static org.opensearch.common.unit.TimeValue.timeValueSeconds;
 import static org.opensearch.test.NodeRoles.dataNode;
 import static org.opensearch.test.NodeRoles.nonDataNode;
-
 import static org.hamcrest.Matchers.equalTo;
 
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0)
@@ -62,7 +61,7 @@ public class SimpleDataNodesIT extends OpenSearchIntegTestCase {
         internalCluster().startNode(nonDataNode());
         client().admin().indices().create(createIndexRequest("test").waitForActiveShards(ActiveShardCount.NONE)).actionGet();
         try {
-            client().index(Requests.indexRequest("test").id("1").source(SOURCE, XContentType.JSON).timeout(timeValueSeconds(1)))
+            client().index(Requests.indexRequest("test").id("1").source(SOURCE, MediaTypeRegistry.JSON).timeout(timeValueSeconds(1)))
                 .actionGet();
             fail("no allocation should happen");
         } catch (UnavailableShardsException e) {
@@ -85,7 +84,7 @@ public class SimpleDataNodesIT extends OpenSearchIntegTestCase {
 
         // still no shard should be allocated
         try {
-            client().index(Requests.indexRequest("test").id("1").source(SOURCE, XContentType.JSON).timeout(timeValueSeconds(1)))
+            client().index(Requests.indexRequest("test").id("1").source(SOURCE, MediaTypeRegistry.JSON).timeout(timeValueSeconds(1)))
                 .actionGet();
             fail("no allocation should happen");
         } catch (UnavailableShardsException e) {
@@ -107,7 +106,8 @@ public class SimpleDataNodesIT extends OpenSearchIntegTestCase {
             equalTo(false)
         );
 
-        IndexResponse indexResponse = client().index(Requests.indexRequest("test").id("1").source(SOURCE, XContentType.JSON)).actionGet();
+        IndexResponse indexResponse = client().index(Requests.indexRequest("test").id("1").source(SOURCE, MediaTypeRegistry.JSON))
+            .actionGet();
         assertThat(indexResponse.getId(), equalTo("1"));
     }
 

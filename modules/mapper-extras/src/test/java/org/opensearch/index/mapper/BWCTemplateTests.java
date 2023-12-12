@@ -32,7 +32,7 @@
 
 package org.opensearch.index.mapper;
 
-import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.test.OpenSearchSingleNodeTestCase;
 
@@ -54,9 +54,9 @@ public class BWCTemplateTests extends OpenSearchSingleNodeTestCase {
         byte[] metricBeat = copyToBytesFromClasspath("/org/opensearch/index/mapper/metricbeat-6.0.template.json");
         byte[] packetBeat = copyToBytesFromClasspath("/org/opensearch/index/mapper/packetbeat-6.0.template.json");
         byte[] fileBeat = copyToBytesFromClasspath("/org/opensearch/index/mapper/filebeat-6.0.template.json");
-        client().admin().indices().preparePutTemplate("metricbeat").setSource(metricBeat, XContentType.JSON).get();
-        client().admin().indices().preparePutTemplate("packetbeat").setSource(packetBeat, XContentType.JSON).get();
-        client().admin().indices().preparePutTemplate("filebeat").setSource(fileBeat, XContentType.JSON).get();
+        client().admin().indices().preparePutTemplate("metricbeat").setSource(metricBeat, MediaTypeRegistry.JSON).get();
+        client().admin().indices().preparePutTemplate("packetbeat").setSource(packetBeat, MediaTypeRegistry.JSON).get();
+        client().admin().indices().preparePutTemplate("filebeat").setSource(fileBeat, MediaTypeRegistry.JSON).get();
 
         client().prepareIndex("metricbeat-foo").setId("1").setSource("message", "foo").get();
         client().prepareIndex("packetbeat-foo").setId("1").setSource("message", "foo").get();

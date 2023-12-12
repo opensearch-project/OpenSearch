@@ -32,7 +32,6 @@
 
 package org.opensearch.client;
 
-import org.opensearch.action.ActionListener;
 import org.opensearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.opensearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.opensearch.action.admin.cluster.settings.ClusterGetSettingsRequest;
@@ -47,6 +46,7 @@ import org.opensearch.client.indices.DeleteComponentTemplateRequest;
 import org.opensearch.client.indices.GetComponentTemplatesRequest;
 import org.opensearch.client.indices.GetComponentTemplatesResponse;
 import org.opensearch.client.indices.PutComponentTemplateRequest;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.rest.RestStatus;
 
 import java.io.IOException;
@@ -170,8 +170,8 @@ public final class ClusterClient {
 
     /**
      * Asynchronously get cluster health using the Cluster Health API.
-     *
      * If timeout occurred, {@link ClusterHealthResponse} will have isTimedOut() == true and status() == RestStatus.REQUEST_TIMEOUT
+     *
      * @param healthRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion

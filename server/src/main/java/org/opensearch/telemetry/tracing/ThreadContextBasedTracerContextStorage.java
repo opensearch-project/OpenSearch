@@ -8,19 +8,20 @@
 
 package org.opensearch.telemetry.tracing;
 
+import org.opensearch.common.annotation.InternalApi;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.common.util.concurrent.ThreadContextStatePropagator;
 
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 
 /**
  * Core's ThreadContext based TracerContextStorage implementation
  *
  * @opensearch.internal
  */
+@InternalApi
 public class ThreadContextBasedTracerContextStorage implements TracerContextStorage<String, Span>, ThreadContextStatePropagator {
 
     private final ThreadContext threadContext;
@@ -40,9 +41,6 @@ public class ThreadContextBasedTracerContextStorage implements TracerContextStor
 
     @Override
     public void put(String key, Span span) {
-        if (span == null) {
-            return;
-        }
         SpanReference currentSpanRef = threadContext.getTransient(key);
         if (currentSpanRef == null) {
             threadContext.putTransient(key, new SpanReference(span));
@@ -71,7 +69,7 @@ public class ThreadContextBasedTracerContextStorage implements TracerContextStor
 
         if (source.containsKey(CURRENT_SPAN)) {
             final SpanReference current = (SpanReference) source.get(CURRENT_SPAN);
-            if (current != null) {
+            if (current != null && current.getSpan() != null) {
                 tracingTelemetry.getContextPropagator().inject(current.getSpan(), (key, value) -> headers.put(key, value));
             }
         }
@@ -80,16 +78,7 @@ public class ThreadContextBasedTracerContextStorage implements TracerContextStor
     }
 
     Span getCurrentSpan(String key) {
-        Optional<Span> optionalSpanFromContext = spanFromThreadContext(key);
-        return optionalSpanFromContext.orElse(spanFromHeader());
-    }
-
-    private Optional<Span> spanFromThreadContext(String key) {
         SpanReference currentSpanRef = threadContext.getTransient(key);
-        return (currentSpanRef == null) ? Optional.empty() : Optional.ofNullable(currentSpanRef.getSpan());
-    }
-
-    private Span spanFromHeader() {
-        return tracingTelemetry.getContextPropagator().extract(threadContext.getHeaders());
+        return (currentSpanRef == null) ? null : currentSpanRef.getSpan();
     }
 }

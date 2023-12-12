@@ -31,24 +31,23 @@
 
 package org.opensearch.repositories.s3;
 
+import software.amazon.awssdk.core.exception.SdkClientException;
+import software.amazon.awssdk.core.io.SdkDigestInputStream;
+import software.amazon.awssdk.utils.internal.Base16;
+
 import org.apache.http.HttpStatus;
-import org.junit.After;
-import org.junit.Assert;
-import org.junit.Before;
-import org.opensearch.action.ActionListener;
 import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.common.CheckedTriFunction;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.StreamContext;
 import org.opensearch.common.SuppressForbidden;
+import org.opensearch.common.blobstore.AsyncMultiStreamBlobContainer;
 import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.blobstore.BlobPath;
-import org.opensearch.common.blobstore.VerifyingMultiStreamBlobContainer;
 import org.opensearch.common.blobstore.stream.write.StreamContextSupplier;
 import org.opensearch.common.blobstore.stream.write.WriteContext;
 import org.opensearch.common.blobstore.stream.write.WritePriority;
 import org.opensearch.common.blobstore.transfer.stream.OffsetRangeIndexInputStream;
-import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.hash.MessageDigests;
 import org.opensearch.common.io.InputStreamContainer;
 import org.opensearch.common.io.Streams;
@@ -57,19 +56,21 @@ import org.opensearch.common.lucene.store.InputStreamIndexInput;
 import org.opensearch.common.network.InetAddresses;
 import org.opensearch.common.settings.MockSecureSettings;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.core.common.unit.ByteSizeUnit;
-import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.CountDown;
 import org.opensearch.common.util.io.IOUtils;
+import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.common.unit.ByteSizeUnit;
+import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.repositories.blobstore.AbstractBlobContainerRetriesTestCase;
 import org.opensearch.repositories.blobstore.ZeroInputStream;
 import org.opensearch.repositories.s3.async.AsyncExecutorContainer;
-import org.opensearch.repositories.s3.async.AsyncTransferManager;
 import org.opensearch.repositories.s3.async.AsyncTransferEventLoopGroup;
-import software.amazon.awssdk.core.exception.SdkClientException;
-import software.amazon.awssdk.core.io.SdkDigestInputStream;
-import software.amazon.awssdk.utils.internal.Base16;
+import org.opensearch.repositories.s3.async.AsyncTransferManager;
+import org.junit.After;
+import org.junit.Assert;
+import org.junit.Before;
 
 import java.io.ByteArrayInputStream;
 import java.io.FilterInputStream;
@@ -89,16 +90,17 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.opensearch.repositories.s3.S3ClientSettings.DISABLE_CHUNKED_ENCODING;
+import static org.opensearch.repositories.s3.S3ClientSettings.ENDPOINT_SETTING;
+import static org.opensearch.repositories.s3.S3ClientSettings.MAX_RETRIES_SETTING;
+import static org.opensearch.repositories.s3.S3ClientSettings.READ_TIMEOUT_SETTING;
+import static org.opensearch.repositories.s3.S3ClientSettings.REGION;
+import static org.opensearch.repositories.s3.S3Repository.BULK_DELETE_SIZE;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
-import static org.opensearch.repositories.s3.S3ClientSettings.DISABLE_CHUNKED_ENCODING;
-import static org.opensearch.repositories.s3.S3ClientSettings.ENDPOINT_SETTING;
-import static org.opensearch.repositories.s3.S3ClientSettings.REGION;
-import static org.opensearch.repositories.s3.S3ClientSettings.MAX_RETRIES_SETTING;
-import static org.opensearch.repositories.s3.S3ClientSettings.READ_TIMEOUT_SETTING;
 
 /**
  * This class tests how a {@link S3BlobContainer} and its underlying AWS S3 client are retrying requests when reading or writing blobs.
@@ -160,7 +162,7 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
     }
 
     @Override
-    protected VerifyingMultiStreamBlobContainer createBlobContainer(
+    protected AsyncMultiStreamBlobContainer createBlobContainer(
         final @Nullable Integer maxRetries,
         final @Nullable TimeValue readTimeout,
         final @Nullable Boolean disableChunkedEncoding,
@@ -214,12 +216,15 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
                 bufferSize == null ? S3Repository.BUFFER_SIZE_SETTING.getDefault(Settings.EMPTY) : bufferSize,
                 S3Repository.CANNED_ACL_SETTING.getDefault(Settings.EMPTY),
                 S3Repository.STORAGE_CLASS_SETTING.getDefault(Settings.EMPTY),
+                BULK_DELETE_SIZE.get(Settings.EMPTY),
                 repositoryMetadata,
                 new AsyncTransferManager(
                     S3Repository.PARALLEL_MULTIPART_UPLOAD_MINIMUM_PART_SIZE_SETTING.getDefault(Settings.EMPTY).getBytes(),
                     asyncExecutorContainer.getStreamReader(),
+                    asyncExecutorContainer.getStreamReader(),
                     asyncExecutorContainer.getStreamReader()
                 ),
+                asyncExecutorContainer,
                 asyncExecutorContainer,
                 asyncExecutorContainer
             )
@@ -319,7 +324,7 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
             }
         });
 
-        final VerifyingMultiStreamBlobContainer blobContainer = createBlobContainer(maxRetries, null, true, null);
+        final AsyncMultiStreamBlobContainer blobContainer = createBlobContainer(maxRetries, null, true, null);
         List<InputStream> openInputStreams = new ArrayList<>();
         CountDownLatch countDownLatch = new CountDownLatch(1);
         AtomicReference<Exception> exceptionRef = new AtomicReference<>();

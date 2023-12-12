@@ -32,17 +32,18 @@
 
 package org.opensearch.http.netty4;
 
-import io.netty.channel.Channel;
-import io.netty.channel.ChannelPipeline;
-
-import org.opensearch.action.ActionListener;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.concurrent.CompletableContext;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.http.HttpChannel;
 import org.opensearch.http.HttpResponse;
 import org.opensearch.transport.netty4.Netty4TcpChannel;
 
 import java.net.InetSocketAddress;
+import java.util.Optional;
+
+import io.netty.channel.Channel;
+import io.netty.channel.ChannelPipeline;
 
 public class Netty4HttpChannel implements HttpChannel {
 
@@ -96,6 +97,22 @@ public class Netty4HttpChannel implements HttpChannel {
 
     public Channel getNettyChannel() {
         return channel;
+    }
+
+    @SuppressWarnings("unchecked")
+    @Override
+    public <T> Optional<T> get(String name, Class<T> clazz) {
+        Object handler = getNettyChannel().pipeline().get(name);
+
+        if (handler == null && inboundPipeline() != null) {
+            handler = inboundPipeline().get(name);
+        }
+
+        if (handler != null && clazz.isInstance(handler) == true) {
+            return Optional.of((T) handler);
+        }
+
+        return Optional.empty();
     }
 
     @Override

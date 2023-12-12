@@ -12,16 +12,16 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.Version;
 import org.opensearch.common.CheckedConsumer;
-import org.opensearch.core.common.bytes.BytesReference;
-import org.opensearch.common.compress.Compressor;
-import org.opensearch.common.compress.CompressorFactory;
 import org.opensearch.common.io.stream.BytesStreamOutput;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.io.stream.InputStreamStreamInput;
 import org.opensearch.core.common.io.stream.NamedWriteableAwareStreamInput;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.common.io.stream.OutputStreamStreamOutput;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.compress.Compressor;
+import org.opensearch.core.compress.CompressorRegistry;
 import org.opensearch.transport.BytesTransportRequest;
 
 import java.io.IOException;
@@ -37,7 +37,7 @@ public final class CompressedStreamUtils {
     public static BytesReference createCompressedStream(Version version, CheckedConsumer<StreamOutput, IOException> outputConsumer)
         throws IOException {
         final BytesStreamOutput bStream = new BytesStreamOutput();
-        try (StreamOutput stream = new OutputStreamStreamOutput(CompressorFactory.defaultCompressor().threadLocalOutputStream(bStream))) {
+        try (StreamOutput stream = new OutputStreamStreamOutput(CompressorRegistry.defaultCompressor().threadLocalOutputStream(bStream))) {
             stream.setVersion(version);
             outputConsumer.accept(stream);
         }
@@ -48,7 +48,7 @@ public final class CompressedStreamUtils {
 
     public static StreamInput decompressBytes(BytesTransportRequest request, NamedWriteableRegistry namedWriteableRegistry)
         throws IOException {
-        final Compressor compressor = CompressorFactory.compressor(request.bytes());
+        final Compressor compressor = CompressorRegistry.compressor(request.bytes());
         final StreamInput in;
         if (compressor != null) {
             in = new InputStreamStreamInput(compressor.threadLocalInputStream(request.bytes().streamInput()));

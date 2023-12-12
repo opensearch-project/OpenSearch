@@ -32,18 +32,18 @@
 
 package org.opensearch.rest.action;
 
-import org.opensearch.action.ActionListener;
 import org.opensearch.action.ActionRequest;
-import org.opensearch.action.ActionResponse;
 import org.opensearch.action.ActionType;
 import org.opensearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
 import org.opensearch.client.Client;
 import org.opensearch.client.FilterClient;
 import org.opensearch.client.OriginSettingClient;
 import org.opensearch.client.node.NodeClient;
+import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.action.ActionResponse;
+import org.opensearch.core.tasks.TaskId;
 import org.opensearch.http.HttpChannel;
 import org.opensearch.tasks.Task;
-import org.opensearch.tasks.TaskId;
 
 import java.util.ArrayList;
 import java.util.HashSet;

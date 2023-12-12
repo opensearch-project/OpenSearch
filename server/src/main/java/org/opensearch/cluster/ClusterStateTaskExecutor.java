@@ -33,6 +33,7 @@ package org.opensearch.cluster;
 
 import org.opensearch.cluster.service.ClusterManagerTaskThrottler;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.annotation.PublicApi;
 
 import java.util.IdentityHashMap;
 import java.util.List;
@@ -41,8 +42,9 @@ import java.util.Map;
 /**
  * Interface that updates the cluster state based on the task
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public interface ClusterStateTaskExecutor<T> {
     /**
      * Update the cluster state based on the current state and the given tasks. Return the *same instance* if no state
@@ -70,7 +72,7 @@ public interface ClusterStateTaskExecutor<T> {
     /**
      * Callback invoked after new cluster state is published. Note that
      * this method is not invoked if the cluster state was not updated.
-     *
+     * <p>
      * Note that this method will be executed using system context.
      *
      * @param clusterChangedEvent the change event for this cluster state change, containing
@@ -80,7 +82,7 @@ public interface ClusterStateTaskExecutor<T> {
 
     /**
      * Builds a concise description of a list of tasks (to be used in logging etc.).
-     *
+     * <p>
      * Note that the tasks given are not necessarily the same as those that will be passed to {@link #execute(ClusterState, List)}.
      * but are guaranteed to be a subset of them. This method can be called multiple times with different lists before execution.
      * This allows groupd task description but the submitting source.
@@ -103,8 +105,9 @@ public interface ClusterStateTaskExecutor<T> {
      * Represents the result of a batched execution of cluster state update tasks
      * @param <T> the type of the cluster state update task
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     class ClusterTasksResult<T> {
         @Nullable
         public final ClusterState resultingState;
@@ -127,8 +130,9 @@ public interface ClusterStateTaskExecutor<T> {
         /**
          * Builder for cluster state task.
          *
-         * @opensearch.internal
+         * @opensearch.api
          */
+        @PublicApi(since = "1.0.0")
         public static class Builder<T> {
             private final Map<T, TaskResult> executionResults = new IdentityHashMap<>();
 

@@ -142,29 +142,27 @@ public class LongTerms extends InternalMappedTerms<LongTerms, LongTerms.Bucket> 
         String name,
         BucketOrder reduceOrder,
         BucketOrder order,
-        int requiredSize,
-        long minDocCount,
         Map<String, Object> metadata,
         DocValueFormat format,
         int shardSize,
         boolean showTermDocCountError,
         long otherDocCount,
         List<Bucket> buckets,
-        long docCountError
+        long docCountError,
+        TermsAggregator.BucketCountThresholds bucketCountThresholds
     ) {
         super(
             name,
             reduceOrder,
             order,
-            requiredSize,
-            minDocCount,
             metadata,
             format,
             shardSize,
             showTermDocCountError,
             otherDocCount,
             buckets,
-            docCountError
+            docCountError,
+            bucketCountThresholds
         );
     }
 
@@ -186,15 +184,14 @@ public class LongTerms extends InternalMappedTerms<LongTerms, LongTerms.Bucket> 
             name,
             reduceOrder,
             order,
-            requiredSize,
-            minDocCount,
             metadata,
             format,
             shardSize,
             showTermDocCountError,
             otherDocCount,
             buckets,
-            docCountError
+            docCountError,
+            bucketCountThresholds
         );
     }
 
@@ -216,15 +213,14 @@ public class LongTerms extends InternalMappedTerms<LongTerms, LongTerms.Bucket> 
             name,
             reduceOrder,
             order,
-            requiredSize,
-            minDocCount,
             getMetadata(),
             format,
             shardSize,
             showTermDocCountError,
             otherDocCount,
             buckets,
-            docCountError
+            docCountError,
+            bucketCountThresholds
         );
     }
 
@@ -293,15 +289,14 @@ public class LongTerms extends InternalMappedTerms<LongTerms, LongTerms.Bucket> 
             longTerms.getName(),
             longTerms.reduceOrder,
             longTerms.order,
-            longTerms.requiredSize,
-            longTerms.minDocCount,
             longTerms.metadata,
             longTerms.format,
             longTerms.shardSize,
             longTerms.showTermDocCountError,
             longTerms.otherDocCount,
             newBuckets,
-            longTerms.docCountError
+            longTerms.docCountError,
+            longTerms.bucketCountThresholds
         );
     }
 }

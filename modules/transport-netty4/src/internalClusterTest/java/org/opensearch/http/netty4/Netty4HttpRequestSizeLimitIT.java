@@ -32,9 +32,6 @@
 
 package org.opensearch.http.netty4;
 
-import io.netty.handler.codec.http.FullHttpResponse;
-import io.netty.handler.codec.http.HttpResponseStatus;
-import io.netty.util.ReferenceCounted;
 import org.opensearch.OpenSearchNetty4IntegTestCase;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.settings.Settings;
@@ -50,13 +47,17 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 
+import io.netty.handler.codec.http.FullHttpResponse;
+import io.netty.handler.codec.http.HttpResponseStatus;
+import io.netty.util.ReferenceCounted;
+
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 
 /**
  * This test checks that in-flight requests are limited on HTTP level and that requests that are excluded from limiting can pass.
- *
+ * <p>
  * As the same setting is also used to limit in-flight requests on transport level, we avoid transport messages by forcing
  * a single node "cluster".
  */

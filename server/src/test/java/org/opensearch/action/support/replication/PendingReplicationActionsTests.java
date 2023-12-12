@@ -32,14 +32,14 @@
 
 package org.opensearch.action.support.replication;
 
-import org.opensearch.action.ActionListener;
 import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.action.support.RetryableAction;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.shard.IndexShardClosedException;
 import org.opensearch.index.shard.PrimaryShardClosedException;
-import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.TestThreadPool;
 

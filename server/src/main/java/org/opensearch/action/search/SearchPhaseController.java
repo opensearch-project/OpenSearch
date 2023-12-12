@@ -45,9 +45,9 @@ import org.apache.lucene.search.TopFieldDocs;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.search.TotalHits.Relation;
 import org.apache.lucene.search.grouping.CollapseTopFieldDocs;
+import org.opensearch.common.lucene.search.TopDocsAndMaxScore;
 import org.opensearch.core.common.breaker.CircuitBreaker;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
-import org.opensearch.common.lucene.search.TopDocsAndMaxScore;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.SearchHit;
 import org.opensearch.search.SearchHits;
@@ -162,7 +162,7 @@ public final class SearchPhaseController {
      * Returns a score doc array of top N search docs across all shards, followed by top suggest docs for each
      * named completion suggestion across all shards. If more than one named completion suggestion is specified in the
      * request, the suggest docs for a named suggestion are ordered by the suggestion name.
-     *
+     * <p>
      * Note: The order of the sorted score docs depends on the shard index in the result array if the merge process needs to disambiguate
      * the result. In oder to obtain stable results the shard index (index of the result in the result array) must be the same.
      *
@@ -284,7 +284,7 @@ public final class SearchPhaseController {
     /**
      * Enriches search hits and completion suggestion hits from <code>sortedDocs</code> using <code>fetchResultsArr</code>,
      * merges suggestions, aggregations and profile results
-     *
+     * <p>
      * Expects sortedDocs to have top search docs across all shards, optionally followed by top suggest docs for each named
      * completion suggestion ordered by suggestion name
      */

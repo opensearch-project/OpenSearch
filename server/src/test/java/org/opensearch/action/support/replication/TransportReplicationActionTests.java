@@ -33,15 +33,8 @@
 package org.opensearch.action.support.replication;
 
 import org.apache.lucene.store.AlreadyClosedException;
-import org.hamcrest.Matcher;
-import org.junit.After;
-import org.junit.AfterClass;
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.BeforeClass;
 import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
-import org.opensearch.action.ActionListener;
 import org.opensearch.action.UnavailableShardsException;
 import org.opensearch.action.admin.indices.close.CloseIndexRequest;
 import org.opensearch.action.admin.indices.create.CreateIndexRequest;
@@ -70,28 +63,31 @@ import org.opensearch.cluster.routing.TestShardRouting;
 import org.opensearch.cluster.routing.allocation.AllocationService;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Nullable;
-import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
-import org.opensearch.core.common.io.stream.StreamInput;
-import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.network.NetworkService;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.PageCacheRecycler;
-import org.opensearch.common.lease.Releasable;
+import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.index.Index;
+import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.core.indices.breaker.NoneCircuitBreakerService;
+import org.opensearch.core.rest.RestStatus;
+import org.opensearch.core.transport.TransportResponse;
 import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexShardClosedException;
 import org.opensearch.index.shard.IndexShardState;
 import org.opensearch.index.shard.ReplicationGroup;
-import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.shard.ShardNotFoundException;
 import org.opensearch.index.shard.ShardNotInPrimaryModeException;
 import org.opensearch.indices.IndexClosedException;
 import org.opensearch.indices.IndicesService;
-import org.opensearch.core.indices.breaker.NoneCircuitBreakerService;
 import org.opensearch.indices.cluster.ClusterStateChanges;
-import org.opensearch.core.rest.RestStatus;
+import org.opensearch.telemetry.tracing.noop.NoopTracer;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.transport.CapturingTransport;
 import org.opensearch.test.transport.MockTransportService;
@@ -102,9 +98,14 @@ import org.opensearch.transport.Transport;
 import org.opensearch.transport.TransportChannel;
 import org.opensearch.transport.TransportException;
 import org.opensearch.transport.TransportRequest;
-import org.opensearch.core.transport.TransportResponse;
 import org.opensearch.transport.TransportService;
 import org.opensearch.transport.nio.MockNioTransport;
+import org.hamcrest.Matcher;
+import org.junit.After;
+import org.junit.AfterClass;
+import org.junit.Assert;
+import org.junit.Before;
+import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -121,6 +122,11 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.singleton;
+import static org.opensearch.action.support.replication.ClusterStateCreationUtils.state;
+import static org.opensearch.action.support.replication.ClusterStateCreationUtils.stateWithActivePrimary;
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_WAIT_FOR_ACTIVE_SHARDS;
+import static org.opensearch.test.ClusterServiceUtils.createClusterService;
+import static org.opensearch.test.ClusterServiceUtils.setState;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.equalTo;
@@ -139,11 +145,6 @@ import static org.mockito.Mockito.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
-import static org.opensearch.action.support.replication.ClusterStateCreationUtils.state;
-import static org.opensearch.action.support.replication.ClusterStateCreationUtils.stateWithActivePrimary;
-import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_WAIT_FOR_ACTIVE_SHARDS;
-import static org.opensearch.test.ClusterServiceUtils.createClusterService;
-import static org.opensearch.test.ClusterServiceUtils.setState;
 
 public class TransportReplicationActionTests extends OpenSearchTestCase {
 
@@ -152,7 +153,7 @@ public class TransportReplicationActionTests extends OpenSearchTestCase {
     /**
      * takes a request that was sent by a {@link TransportReplicationAction} and captured
      * and returns the underlying request if it's wrapped or the original (cast to the expected type).
-     *
+     * <p>
      * This will throw a {@link ClassCastException} if the request is of the wrong type.
      */
     public static <R extends ReplicationRequest> R resolveRequest(TransportRequest requestOrWrappedRequest) {
@@ -195,7 +196,8 @@ public class TransportReplicationActionTests extends OpenSearchTestCase {
             TransportService.NOOP_TRANSPORT_INTERCEPTOR,
             x -> clusterService.localNode(),
             null,
-            Collections.emptySet()
+            Collections.emptySet(),
+            NoopTracer.INSTANCE
         );
         transportService.start();
         transportService.acceptIncomingRequests();
@@ -1316,7 +1318,8 @@ public class TransportReplicationActionTests extends OpenSearchTestCase {
             new NetworkService(Collections.emptyList()),
             PageCacheRecycler.NON_RECYCLING_INSTANCE,
             namedWriteableRegistry,
-            new NoneCircuitBreakerService()
+            new NoneCircuitBreakerService(),
+            NoopTracer.INSTANCE
         );
         transportService = new MockTransportService(
             Settings.EMPTY,
@@ -1325,7 +1328,8 @@ public class TransportReplicationActionTests extends OpenSearchTestCase {
             TransportService.NOOP_TRANSPORT_INTERCEPTOR,
             x -> clusterService.localNode(),
             null,
-            Collections.emptySet()
+            Collections.emptySet(),
+            NoopTracer.INSTANCE
         );
         transportService.start();
         transportService.acceptIncomingRequests();

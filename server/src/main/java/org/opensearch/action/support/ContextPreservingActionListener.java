@@ -31,8 +31,8 @@
 
 package org.opensearch.action.support;
 
-import org.opensearch.action.ActionListener;
 import org.opensearch.common.util.concurrent.ThreadContext;
+import org.opensearch.core.action.ActionListener;
 
 import java.util.function.Supplier;
 

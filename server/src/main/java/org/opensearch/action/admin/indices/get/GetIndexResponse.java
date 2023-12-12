@@ -33,14 +33,15 @@
 package org.opensearch.action.admin.indices.get;
 
 import org.opensearch.Version;
-import org.opensearch.action.ActionResponse;
 import org.opensearch.cluster.metadata.AliasMetadata;
 import org.opensearch.cluster.metadata.MappingMetadata;
+import org.opensearch.common.annotation.PublicApi;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.core.action.ActionResponse;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
-import org.opensearch.common.settings.Settings;
-import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.mapper.MapperService;
@@ -57,8 +58,9 @@ import java.util.Objects;
 /**
  * A response for a get index action.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class GetIndexResponse extends ActionResponse implements ToXContentObject {
 
     private Map<String, MappingMetadata> mappings = Map.of();
@@ -328,7 +330,7 @@ public class GetIndexResponse extends ActionResponse implements ToXContentObject
 
     @Override
     public String toString() {
-        return Strings.toString(XContentType.JSON, this);
+        return Strings.toString(MediaTypeRegistry.JSON, this);
     }
 
     @Override

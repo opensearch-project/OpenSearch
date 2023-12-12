@@ -36,12 +36,12 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Sort;
 import org.opensearch.common.CheckedFunction;
+import org.opensearch.common.lucene.search.function.ScoreFunction;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.core.ParseField;
 import org.opensearch.core.common.io.stream.NamedWriteable;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.Writeable;
-import org.opensearch.common.lucene.search.function.ScoreFunction;
-import org.opensearch.common.settings.Settings;
 import org.opensearch.core.xcontent.ContextParser;
 import org.opensearch.core.xcontent.XContent;
 import org.opensearch.core.xcontent.XContentParser;
@@ -551,8 +551,8 @@ public interface SearchPlugin {
         private final Consumer<ValuesSourceRegistry.Builder> aggregatorRegistrar;
         private final Class<?> valueSourceBuilderClass;
         @Deprecated
-        /** This is added for backward compatibility, you don't need to set it, as we use aggregationType instead of
-         * byte code
+        /* This is added for backward compatibility, you don't need to set it, as we use aggregationType instead of
+          byte code
          */
         private Byte byteCode;
         private final CompositeAggregationParsingFunction parsingFunction;

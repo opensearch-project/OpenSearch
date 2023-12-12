@@ -32,13 +32,14 @@
 
 package org.opensearch.action.admin.cluster.snapshots.get;
 
-import org.opensearch.action.ActionResponse;
+import org.opensearch.common.annotation.PublicApi;
+import org.opensearch.core.ParseField;
+import org.opensearch.core.action.ActionResponse;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
-import org.opensearch.common.xcontent.XContentType;
-import org.opensearch.core.ParseField;
 import org.opensearch.core.xcontent.ConstructingObjectParser;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.core.xcontent.XContentBuilder;
@@ -53,8 +54,9 @@ import java.util.Objects;
 /**
  * Get snapshots response
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class GetSnapshotsResponse extends ActionResponse implements ToXContentObject {
 
     @SuppressWarnings("unchecked")
@@ -128,6 +130,6 @@ public class GetSnapshotsResponse extends ActionResponse implements ToXContentOb
 
     @Override
     public String toString() {
-        return Strings.toString(XContentType.JSON, this);
+        return Strings.toString(MediaTypeRegistry.JSON, this);
     }
 }

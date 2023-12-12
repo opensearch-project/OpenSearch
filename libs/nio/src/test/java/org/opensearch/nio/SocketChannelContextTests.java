@@ -35,8 +35,6 @@ package org.opensearch.nio;
 import org.opensearch.common.SuppressForbidden;
 import org.opensearch.test.OpenSearchTestCase;
 import org.junit.Before;
-import org.mockito.ArgumentCaptor;
-import org.mockito.stubbing.Answer;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
@@ -53,12 +51,15 @@ import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.IntFunction;
 
+import org.mockito.ArgumentCaptor;
+import org.mockito.stubbing.Answer;
+
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.anyInt;
-import static org.mockito.Mockito.isNull;
-import static org.mockito.Mockito.same;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.isNull;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.same;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;

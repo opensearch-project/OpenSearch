@@ -34,8 +34,8 @@ package org.opensearch.index.mapper;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.common.geo.GeoPoint;
 import org.opensearch.common.geo.GeoUtils;
-import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.hamcrest.CoreMatchers;
 
 import java.io.IOException;

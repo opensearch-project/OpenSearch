@@ -45,7 +45,6 @@ import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.ByteBuffersDirectory;
 import org.apache.lucene.store.Directory;
 import org.opensearch.action.ActionRequestValidationException;
-import org.opensearch.action.ActionResponse;
 import org.opensearch.action.ActionType;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.IndicesOptions;
@@ -58,28 +57,29 @@ import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.routing.ShardsIterator;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.CheckedBiFunction;
-import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.inject.Inject;
-import org.opensearch.core.common.io.stream.StreamInput;
-import org.opensearch.core.common.io.stream.StreamOutput;
-import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.core.ParseField;
+import org.opensearch.core.action.ActionResponse;
+import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.common.io.stream.Writeable;
+import org.opensearch.core.index.Index;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.xcontent.ConstructingObjectParser;
 import org.opensearch.core.xcontent.MediaType;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.core.index.Index;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.mapper.ParsedDocument;
 import org.opensearch.index.mapper.SourceToParse;
 import org.opensearch.index.query.AbstractQueryBuilder;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.QueryShardContext;
-import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.RestRequest;
@@ -558,7 +558,11 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
             } else if (scriptContext == ScoreScript.CONTEXT) {
                 return prepareRamIndex(request, (context, leafReaderContext) -> {
                     ScoreScript.Factory factory = scriptService.compile(request.script, ScoreScript.CONTEXT);
-                    ScoreScript.LeafFactory leafFactory = factory.newFactory(request.getScript().getParams(), context.lookup());
+                    ScoreScript.LeafFactory leafFactory = factory.newFactory(
+                        request.getScript().getParams(),
+                        context.lookup(),
+                        context.searcher()
+                    );
                     ScoreScript scoreScript = leafFactory.newInstance(leafReaderContext);
                     scoreScript.setDocument(0);
 

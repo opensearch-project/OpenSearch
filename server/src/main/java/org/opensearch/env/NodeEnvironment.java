@@ -53,21 +53,22 @@ import org.opensearch.common.CheckedFunction;
 import org.opensearch.common.Randomness;
 import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.UUIDs;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.collect.Tuple;
+import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.io.IOUtils;
+import org.opensearch.core.common.unit.ByteSizeValue;
+import org.opensearch.core.index.Index;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.util.FileSystemUtils;
-import org.opensearch.common.lease.Releasable;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.gateway.MetadataStateFormat;
 import org.opensearch.gateway.PersistedClusterStateService;
-import org.opensearch.core.index.Index;
 import org.opensearch.index.IndexSettings;
-import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.shard.ShardPath;
 import org.opensearch.index.store.FsDirectoryFactory;
 import org.opensearch.monitor.fs.FsInfo;
@@ -108,14 +109,16 @@ import static java.util.Collections.unmodifiableSet;
 /**
  * A component that holds all data paths for a single node.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public final class NodeEnvironment implements Closeable {
     /**
      * A node path.
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public static class NodePath {
         /* ${data.paths}/nodes/{node.id} */
         public final Path path;
@@ -702,7 +705,7 @@ public final class NodeEnvironment implements Closeable {
      * write operation on a shards data directory like deleting files, creating a new index writer
      * or recover from a different shard instance into it. If the shard lock can not be acquired
      * a {@link ShardLockObtainFailedException} is thrown.
-     *
+     * <p>
      * Note: this method will return immediately if the lock can't be acquired.
      *
      * @param id the shard ID to lock
@@ -767,15 +770,18 @@ public final class NodeEnvironment implements Closeable {
 
     /**
      * A functional interface that people can use to reference {@link #shardLock(ShardId, String, long)}
+     *
+     * @opensearch.api
      */
     @FunctionalInterface
+    @PublicApi(since = "1.0.0")
     public interface ShardLocker {
         ShardLock lock(ShardId shardId, String lockDetails, long lockTimeoutMS) throws ShardLockObtainFailedException;
     }
 
     /**
      * Returns all currently lock shards.
-     *
+     * <p>
      * Note: the shard ids return do not contain a valid Index UUID
      */
     public Set<ShardId> lockedShards() {

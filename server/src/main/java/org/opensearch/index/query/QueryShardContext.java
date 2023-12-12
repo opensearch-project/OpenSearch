@@ -39,18 +39,19 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.search.similarities.Similarity;
 import org.opensearch.Version;
-import org.opensearch.action.ActionListener;
 import org.opensearch.client.Client;
 import org.opensearch.common.CheckedFunction;
-import org.opensearch.core.common.ParsingException;
 import org.opensearch.common.SetOnce;
 import org.opensearch.common.TriFunction;
-import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.lucene.search.Queries;
 import org.opensearch.common.util.BigArrays;
+import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.common.ParsingException;
+import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.core.index.Index;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.core.index.Index;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.IndexSortConfig;
 import org.opensearch.index.analysis.IndexAnalyzers;
@@ -90,8 +91,9 @@ import static java.util.Collections.unmodifiableMap;
 /**
  * Context object used to create lucene queries on the shard level.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class QueryShardContext extends QueryRewriteContext {
 
     private final ScriptService scriptService;
@@ -115,6 +117,7 @@ public class QueryShardContext extends QueryRewriteContext {
     private boolean mapUnmappedFieldAsString;
     private NestedScope nestedScope;
     private final ValuesSourceRegistry valuesSourceRegistry;
+    private BitSetProducer parentFilter;
 
     public QueryShardContext(
         int shardId,
@@ -509,7 +512,7 @@ public class QueryShardContext extends QueryRewriteContext {
     /**
      * This method fails if {@link #freezeContext()} is called before on this
      * context. This is used to <i>seal</i>.
-     *
+     * <p>
      * This methods and all methods that call it should be final to ensure that
      * setting the request as not cacheable and the freezing behaviour of this
      * class cannot be bypassed. This is important so we can trust when this
@@ -621,5 +624,13 @@ public class QueryShardContext extends QueryRewriteContext {
 
     public AggregationUsageService getUsageService() {
         return valuesSourceRegistry.getUsageService();
+    }
+
+    public BitSetProducer getParentFilter() {
+        return parentFilter;
+    }
+
+    public void setParentFilter(BitSetProducer parentFilter) {
+        this.parentFilter = parentFilter;
     }
 }

@@ -32,13 +32,13 @@
 
 package org.opensearch.painless;
 
-import org.junit.AfterClass;
-import org.junit.BeforeClass;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.painless.spi.Allowlist;
 import org.opensearch.painless.spi.AllowlistInstanceBinding;
 import org.opensearch.painless.spi.AllowlistLoader;
 import org.opensearch.script.ScriptContext;
+import org.junit.AfterClass;
+import org.junit.BeforeClass;
 
 import java.util.ArrayList;
 import java.util.Collections;

@@ -54,7 +54,7 @@ plugins {
   id 'lifecycle-base'
   id 'opensearch.docker-support'
   id 'opensearch.global-build-info'
-  id "com.diffplug.spotless" version "6.19.0" apply false
+  id "com.diffplug.spotless" version "6.20.0" apply false
   id "org.gradle.test-retry" version "1.5.4" apply false
   id "test-report-aggregation"
   id 'jacoco-report-aggregation'
@@ -375,7 +375,7 @@ allprojects {
         } else {
           // Link to non-shadowed dependant projects
           project.javadoc.dependsOn "${upstreamProject.path}:javadoc"
-          String externalLinkName = upstreamProject.base.archivesBaseName
+          String externalLinkName = upstreamProject.base.archivesName
           String artifactPath = dep.group.replaceAll('\\.', '/') + '/' + externalLinkName.replaceAll('\\.', '/') + '/' + dep.version
           String projectRelativePath = project.relativePath(upstreamProject.buildDir)
           project.javadoc.options.linksOffline artifactsHost + "/javadoc/" + artifactPath, "${projectRelativePath}/docs/javadoc/"
@@ -501,6 +501,7 @@ subprojects {
         includeClasses.add("org.opensearch.index.reindex.DeleteByQueryBasicTests")
         includeClasses.add("org.opensearch.index.reindex.UpdateByQueryBasicTests")
         includeClasses.add("org.opensearch.index.shard.IndexShardIT")
+        includeClasses.add("org.opensearch.index.shard.RemoteIndexShardTests")
         includeClasses.add("org.opensearch.index.shard.RemoteStoreRefreshListenerTests")
         includeClasses.add("org.opensearch.index.translog.RemoteFSTranslogTests")
         includeClasses.add("org.opensearch.indices.DateMathIndexExpressionsIntegrationIT")

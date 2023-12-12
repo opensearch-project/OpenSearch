@@ -31,8 +31,8 @@
 
 package org.opensearch.watcher;
 
-import org.opensearch.common.util.io.IOUtils;
 import org.apache.lucene.tests.util.LuceneTestCase;
+import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.BufferedWriter;

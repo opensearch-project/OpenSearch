@@ -120,23 +120,7 @@ public class RestPitSegmentsAction extends AbstractCatAction {
         Table table = getTableWithHeader(request);
 
         DiscoveryNodes nodes = this.nodesInCluster.get();
-        table.startRow();
-        table.addCell("index", "default:true;alias:i,idx;desc:index name");
-        table.addCell("shard", "default:true;alias:s,sh;desc:shard name");
-        table.addCell("prirep", "alias:p,pr,primaryOrReplica;default:true;desc:primary or replica");
-        table.addCell("ip", "default:true;desc:ip of node where it lives");
-        table.addCell("id", "default:false;desc:unique id of node where it lives");
-        table.addCell("segment", "default:true;alias:seg;desc:segment name");
-        table.addCell("generation", "default:true;alias:g,gen;text-align:right;desc:segment generation");
-        table.addCell("docs.count", "default:true;alias:dc,docsCount;text-align:right;desc:number of docs in segment");
-        table.addCell("docs.deleted", "default:true;alias:dd,docsDeleted;text-align:right;desc:number of deleted docs in segment");
-        table.addCell("size", "default:true;alias:si;text-align:right;desc:segment size in bytes");
-        table.addCell("size.memory", "default:true;alias:sm,sizeMemory;text-align:right;desc:segment memory in bytes");
-        table.addCell("committed", "default:true;alias:ic,isCommitted;desc:is segment committed");
-        table.addCell("searchable", "default:true;alias:is,isSearchable;desc:is segment searched");
-        table.addCell("version", "default:true;alias:v,ver;desc:version");
-        table.addCell("compound", "default:true;alias:ico,isCompound;desc:is segment compound");
-        table.endRow();
+
         for (IndexSegments indexSegments : indicesSegments.values()) {
             Map<Integer, IndexShardSegments> shards = indexSegments.getShards();
             for (IndexShardSegments indexShardSegments : shards.values()) {

@@ -34,10 +34,10 @@ package org.opensearch.index.query;
 
 import org.apache.lucene.search.join.ScoreMode;
 import org.opensearch.common.Nullable;
-import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.geo.GeoPoint;
 import org.opensearch.common.geo.ShapeRelation;
 import org.opensearch.common.geo.builders.ShapeBuilder;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.geometry.Geometry;
 import org.opensearch.index.query.DistanceFeatureQueryBuilder.Origin;
 import org.opensearch.index.query.MoreLikeThisQueryBuilder.Item;

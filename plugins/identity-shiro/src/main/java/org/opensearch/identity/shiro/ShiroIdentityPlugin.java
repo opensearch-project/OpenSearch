@@ -8,15 +8,15 @@
 
 package org.opensearch.identity.shiro;
 
-import org.opensearch.identity.Subject;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.opensearch.identity.tokens.TokenManager;
-import org.opensearch.plugins.IdentityPlugin;
-import org.opensearch.common.settings.Settings;
-import org.opensearch.plugins.Plugin;
 import org.apache.shiro.SecurityUtils;
 import org.apache.shiro.mgt.SecurityManager;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.identity.Subject;
+import org.opensearch.identity.tokens.TokenManager;
+import org.opensearch.plugins.IdentityPlugin;
+import org.opensearch.plugins.Plugin;
 
 /**
  * Identity implementation with Shiro

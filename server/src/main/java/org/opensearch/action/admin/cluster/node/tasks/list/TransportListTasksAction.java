@@ -32,7 +32,6 @@
 
 package org.opensearch.action.admin.cluster.node.tasks.list;
 
-import org.opensearch.action.ActionListener;
 import org.opensearch.action.FailedNodeException;
 import org.opensearch.action.TaskOperationFailure;
 import org.opensearch.action.support.ActionFilters;
@@ -40,6 +39,7 @@ import org.opensearch.action.support.tasks.TransportTasksAction;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskInfo;
 import org.opensearch.tasks.TaskResourceTrackingService;

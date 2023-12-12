@@ -42,10 +42,10 @@ import org.apache.lucene.search.comparators.LongComparator;
 import org.apache.lucene.util.BitSet;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.util.BigArrays;
-import org.opensearch.index.fielddata.LeafNumericFieldData;
 import org.opensearch.index.fielddata.FieldData;
 import org.opensearch.index.fielddata.IndexFieldData;
 import org.opensearch.index.fielddata.IndexNumericFieldData;
+import org.opensearch.index.fielddata.LeafNumericFieldData;
 import org.opensearch.index.fielddata.plain.SortedNumericIndexFieldData;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.MultiValueMode;
@@ -118,9 +118,7 @@ public class LongValuesComparatorSource extends IndexFieldData.XFieldComparatorS
         assert indexFieldData == null || fieldname.equals(indexFieldData.getFieldName());
 
         final long lMissingValue = (Long) missingObject(missingValue, reversed);
-        // NOTE: it's important to pass null as a missing value in the constructor so that
-        // the comparator doesn't check docsWithField since we replace missing values in select()
-        return new LongComparator(numHits, fieldname, null, reversed, enableSkipping && this.enableSkipping) {
+        return new LongComparator(numHits, fieldname, lMissingValue, reversed, enableSkipping && this.enableSkipping) {
             @Override
             public LeafFieldComparator getLeafComparator(LeafReaderContext context) throws IOException {
                 return new LongLeafComparator(context) {

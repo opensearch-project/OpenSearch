@@ -32,10 +32,11 @@
 
 package org.opensearch.search.internal;
 
+import org.opensearch.common.annotation.PublicApi;
+import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
-import org.opensearch.core.common.Strings;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.QueryRewriteContext;
 import org.opensearch.index.query.Rewriteable;
@@ -47,8 +48,9 @@ import java.util.Objects;
 /**
  * Represents a {@link QueryBuilder} and a list of alias names that filters the builder is composed of.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public final class AliasFilter implements Writeable, Rewriteable<AliasFilter> {
 
     private final String[] aliases;

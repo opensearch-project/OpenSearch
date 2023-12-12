@@ -31,8 +31,8 @@
 
 package org.opensearch.action.support;
 
-import org.opensearch.action.ActionListener;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;

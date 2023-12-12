@@ -31,17 +31,19 @@
 
 package org.opensearch.search.aggregations.bucket;
 
-import org.apache.lucene.search.join.ScoreMode;
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.apache.lucene.search.join.ScoreMode;
 import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.action.search.SearchPhaseExecutionException;
 import org.opensearch.action.search.SearchRequestBuilder;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentType;
-import org.opensearch.index.query.InnerHitBuilder;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.rest.RestStatus;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
+import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.index.query.InnerHitBuilder;
 import org.opensearch.search.aggregations.Aggregator.SubAggCollectionMode;
 import org.opensearch.search.aggregations.InternalAggregation;
 import org.opensearch.search.aggregations.bucket.filter.Filter;
@@ -55,10 +57,12 @@ import org.opensearch.search.aggregations.metrics.Max;
 import org.opensearch.search.aggregations.metrics.Stats;
 import org.opensearch.search.aggregations.metrics.Sum;
 import org.opensearch.test.OpenSearchIntegTestCase;
-
+import org.opensearch.test.ParameterizedOpenSearchIntegTestCase;
 import org.hamcrest.Matchers;
 
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
 import java.util.List;
 
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
@@ -68,6 +72,7 @@ import static org.opensearch.index.query.QueryBuilders.boolQuery;
 import static org.opensearch.index.query.QueryBuilders.matchAllQuery;
 import static org.opensearch.index.query.QueryBuilders.nestedQuery;
 import static org.opensearch.index.query.QueryBuilders.termQuery;
+import static org.opensearch.search.SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING;
 import static org.opensearch.search.aggregations.AggregationBuilders.filter;
 import static org.opensearch.search.aggregations.AggregationBuilders.histogram;
 import static org.opensearch.search.aggregations.AggregationBuilders.max;
@@ -87,11 +92,28 @@ import static org.hamcrest.Matchers.sameInstance;
 import static org.hamcrest.core.IsNull.notNullValue;
 
 @OpenSearchIntegTestCase.SuiteScopeTestCase
-public class NestedIT extends OpenSearchIntegTestCase {
+public class NestedIT extends ParameterizedOpenSearchIntegTestCase {
 
     private static int numParents;
     private static int[] numChildren;
     private static SubAggCollectionMode aggCollectionMode;
+
+    public NestedIT(Settings dynamicSettings) {
+        super(dynamicSettings);
+    }
+
+    @ParametersFactory
+    public static Collection<Object[]> parameters() {
+        return Arrays.asList(
+            new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), false).build() },
+            new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), true).build() }
+        );
+    }
+
+    @Override
+    protected Settings featureFlagSettings() {
+        return Settings.builder().put(super.featureFlagSettings()).put(FeatureFlags.CONCURRENT_SEGMENT_SEARCH, "true").build();
+    }
 
     @Override
     public void setupSuiteScopeCluster() throws Exception {
@@ -202,6 +224,7 @@ public class NestedIT extends OpenSearchIntegTestCase {
                 )
         );
         indexRandom(true, builders);
+        indexRandomForMultipleSlices("idx");
         ensureSearchable();
     }
 
@@ -332,6 +355,7 @@ public class NestedIT extends OpenSearchIntegTestCase {
     }
 
     public void testNestNestedAggs() throws Exception {
+        indexRandomForConcurrentSearch("idx_nested_nested_aggs");
         SearchResponse response = client().prepareSearch("idx_nested_nested_aggs")
             .addAggregation(
                 nested("level1", "nested1").subAggregation(
@@ -461,7 +485,7 @@ public class NestedIT extends OpenSearchIntegTestCase {
                     "{\"dates\": {\"month\": {\"label\": \"2014-11\", \"end\": \"2014-11-30\", \"start\": \"2014-11-01\"}, "
                         + "\"day\": \"2014-11-30\"}, \"comments\": [{\"cid\": 3,\"identifier\": \"29111\"}, {\"cid\": 4,\"tags\": ["
                         + "{\"tid\" :44,\"name\": \"Roles\"}], \"identifier\": \"29101\"}]}",
-                    XContentType.JSON
+                    MediaTypeRegistry.JSON
                 )
         );
         indexRequests.add(
@@ -471,7 +495,7 @@ public class NestedIT extends OpenSearchIntegTestCase {
                     "{\"dates\": {\"month\": {\"label\": \"2014-12\", \"end\": \"2014-12-31\", \"start\": \"2014-12-01\"}, "
                         + "\"day\": \"2014-12-03\"}, \"comments\": [{\"cid\": 1, \"identifier\": \"29111\"}, {\"cid\": 2,\"tags\": ["
                         + "{\"tid\" : 22, \"name\": \"DataChannels\"}], \"identifier\": \"29101\"}]}",
-                    XContentType.JSON
+                    MediaTypeRegistry.JSON
                 )
         );
         indexRandom(true, indexRequests);
@@ -534,6 +558,7 @@ public class NestedIT extends OpenSearchIntegTestCase {
         assertThat(nestedTags.getDocCount(), equalTo(0L)); // This must be 0
         tags = nestedTags.getAggregations().get("tag");
         assertThat(tags.getBuckets().size(), equalTo(0)); // and this must be empty
+        internalCluster().wipeIndices("idx2");
     }
 
     public void testNestedSameDocIdProcessedMultipleTime() throws Exception {
@@ -584,6 +609,7 @@ public class NestedIT extends OpenSearchIntegTestCase {
             )
             .get();
         refresh();
+        indexRandomForConcurrentSearch("idx4");
 
         SearchResponse response = client().prepareSearch("idx4")
             .addAggregation(
@@ -640,6 +666,7 @@ public class NestedIT extends OpenSearchIntegTestCase {
         assertThat(propertyId.getBucketByKey("1").getDocCount(), equalTo(1L));
         assertThat(propertyId.getBucketByKey("2").getDocCount(), equalTo(1L));
         assertThat(propertyId.getBucketByKey("3").getDocCount(), equalTo(1L));
+        internalCluster().wipeIndices("idx4");
     }
 
     public void testFilterAggInsideNestedAgg() throws Exception {
@@ -758,6 +785,7 @@ public class NestedIT extends OpenSearchIntegTestCase {
             )
             .get();
         refresh();
+        indexRandomForConcurrentSearch("classes");
 
         SearchResponse response = client().prepareSearch("classes")
             .addAggregation(
@@ -802,6 +830,7 @@ public class NestedIT extends OpenSearchIntegTestCase {
         assertThat(bucket.getDocCount(), equalTo(1L));
         numStringParams = bucket.getAggregations().get("num_string_params");
         assertThat(numStringParams.getDocCount(), equalTo(0L));
+        internalCluster().wipeIndices("classes");
     }
 
     public void testExtractInnerHitBuildersWithDuplicateHitName() throws Exception {
@@ -826,6 +855,7 @@ public class NestedIT extends OpenSearchIntegTestCase {
             RestStatus.BAD_REQUEST,
             containsString("[inner_hits] already contains an entry for key [ih1]")
         );
+        internalCluster().wipeIndices("idxduplicatehitnames");
     }
 
     public void testExtractInnerHitBuildersWithDuplicatePath() throws Exception {
@@ -848,5 +878,6 @@ public class NestedIT extends OpenSearchIntegTestCase {
             RestStatus.BAD_REQUEST,
             containsString("[inner_hits] already contains an entry for key [property]")
         );
+        internalCluster().wipeIndices("idxnullhitnames");
     }
 }

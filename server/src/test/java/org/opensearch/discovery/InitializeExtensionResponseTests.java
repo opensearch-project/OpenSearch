@@ -8,9 +8,9 @@
 
 package org.opensearch.discovery;
 
+import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.io.stream.BytesStreamInput;
-import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.ArrayList;

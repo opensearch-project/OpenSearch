@@ -52,7 +52,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static com.carrotsearch.randomizedtesting.RandomizedTest.randomBoolean;
 import static java.util.Collections.singletonList;
 import static org.opensearch.packaging.util.Archives.ARCHIVE_OWNER;
 import static org.opensearch.packaging.util.Archives.installArchive;
@@ -76,6 +75,7 @@ import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.CoreMatchers.notNullValue;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.startsWith;
+import static com.carrotsearch.randomizedtesting.RandomizedTest.randomBoolean;
 import static org.junit.Assume.assumeThat;
 import static org.junit.Assume.assumeTrue;
 

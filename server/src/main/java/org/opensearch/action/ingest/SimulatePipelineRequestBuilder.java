@@ -34,14 +34,16 @@ package org.opensearch.action.ingest;
 
 import org.opensearch.action.ActionRequestBuilder;
 import org.opensearch.client.OpenSearchClient;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.bytes.BytesReference;
-import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.xcontent.MediaType;
 
 /**
  * Transport request builder to simulate a pipeline
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class SimulatePipelineRequestBuilder extends ActionRequestBuilder<SimulatePipelineRequest, SimulatePipelineResponse> {
 
     /**
@@ -58,9 +60,9 @@ public class SimulatePipelineRequestBuilder extends ActionRequestBuilder<Simulat
         OpenSearchClient client,
         SimulatePipelineAction action,
         BytesReference source,
-        XContentType xContentType
+        MediaType mediaType
     ) {
-        super(client, action, new SimulatePipelineRequest(source, xContentType));
+        super(client, action, new SimulatePipelineRequest(source, mediaType));
     }
 
     /**

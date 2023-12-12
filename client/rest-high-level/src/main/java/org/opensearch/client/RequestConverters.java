@@ -73,19 +73,19 @@ import org.opensearch.cluster.health.ClusterHealthStatus;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.Priority;
 import org.opensearch.common.SuppressForbidden;
-import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.lucene.uid.Versions;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.core.common.util.CollectionUtils;
 import org.opensearch.common.xcontent.XContentHelper;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.common.Strings;
+import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.common.util.CollectionUtils;
 import org.opensearch.core.xcontent.DeprecationHandler;
+import org.opensearch.core.xcontent.MediaType;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContent;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.core.xcontent.MediaType;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.VersionType;
 import org.opensearch.index.mapper.MapperService;
@@ -119,7 +119,7 @@ import java.util.StringJoiner;
  * @opensearch.api
  */
 final class RequestConverters {
-    static final XContentType REQUEST_BODY_CONTENT_TYPE = XContentType.JSON;
+    static final MediaType REQUEST_BODY_CONTENT_TYPE = MediaTypeRegistry.JSON;
 
     private RequestConverters() {
         // Contains only status utility methods
@@ -177,7 +177,7 @@ final class RequestConverters {
         }
 
         if (bulkContentType == null) {
-            bulkContentType = XContentType.JSON;
+            bulkContentType = MediaTypeRegistry.JSON;
         }
 
         final byte separator = bulkContentType.xContent().streamSeparator();
@@ -266,7 +266,12 @@ final class RequestConverters {
                     }
                 }
             } else if (opType == DocWriteRequest.OpType.UPDATE) {
-                source = XContentHelper.toXContent((UpdateRequest) action, bulkContentType, ToXContent.EMPTY_PARAMS, false).toBytesRef();
+                source = org.opensearch.core.xcontent.XContentHelper.toXContent(
+                    (UpdateRequest) action,
+                    bulkContentType,
+                    ToXContent.EMPTY_PARAMS,
+                    false
+                ).toBytesRef();
             }
 
             if (source != null) {
@@ -446,9 +451,9 @@ final class RequestConverters {
             params.withIndicesOptions(searchRequest.indicesOptions());
         }
         params.withSearchType(searchRequest.searchType().name().toLowerCase(Locale.ROOT));
-        /**
-         * Merging search responses as part of CCS flow to reduce roundtrips is not supported for point in time -
-         * refer to org.opensearch.action.search.SearchResponseMerger
+        /*
+          Merging search responses as part of CCS flow to reduce roundtrips is not supported for point in time -
+          refer to org.opensearch.action.search.SearchResponseMerger
          */
         if (searchRequest.pointInTimeBuilder() != null) {
             params.putParam("ccs_minimize_roundtrips", "false");
@@ -821,7 +826,8 @@ final class RequestConverters {
     }
 
     static HttpEntity createEntity(ToXContent toXContent, MediaType mediaType, ToXContent.Params toXContentParams) throws IOException {
-        BytesRef source = XContentHelper.toXContent(toXContent, mediaType, toXContentParams, false).toBytesRef();
+        BytesRef source = org.opensearch.core.xcontent.XContentHelper.toXContent(toXContent, mediaType, toXContentParams, false)
+            .toBytesRef();
         return new ByteArrayEntity(source.bytes, source.offset, source.length, createContentType(mediaType));
     }
 
@@ -868,12 +874,12 @@ final class RequestConverters {
     }
 
     /**
-     * Returns a {@link ContentType} from a given {@link XContentType}.
+     * Returns a {@link ContentType} from a given {@link MediaType}.
      *
      * @param mediaType the {@link MediaType}
      * @return the {@link ContentType}
      */
-    @SuppressForbidden(reason = "Only allowed place to convert a XContentType to a ContentType")
+    @SuppressForbidden(reason = "Only allowed place to convert a MediaType to a ContentType")
     public static ContentType createContentType(final MediaType mediaType) {
         return ContentType.create(mediaType.mediaTypeWithoutParameters(), (Charset) null);
     }
@@ -1179,14 +1185,14 @@ final class RequestConverters {
             return this;
         }
 
-        Params withTaskId(org.opensearch.tasks.TaskId taskId) {
+        Params withTaskId(org.opensearch.core.tasks.TaskId taskId) {
             if (taskId != null && taskId.isSet()) {
                 return putParam("task_id", taskId.toString());
             }
             return this;
         }
 
-        Params withParentTaskId(org.opensearch.tasks.TaskId parentTaskId) {
+        Params withParentTaskId(org.opensearch.core.tasks.TaskId parentTaskId) {
             if (parentTaskId != null && parentTaskId.isSet()) {
                 return putParam("parent_task_id", parentTaskId.toString());
             }
@@ -1252,7 +1258,7 @@ final class RequestConverters {
      */
     static MediaType enforceSameContentType(IndexRequest indexRequest, @Nullable MediaType mediaType) {
         MediaType requestContentType = indexRequest.getContentType();
-        if (requestContentType != XContentType.JSON && requestContentType != XContentType.SMILE) {
+        if (requestContentType != MediaTypeRegistry.JSON && requestContentType != MediaTypeRegistry.fromFormat("smile")) {
             throw new IllegalArgumentException(
                 "Unsupported content-type found for request with content-type ["
                     + requestContentType

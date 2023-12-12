@@ -41,9 +41,11 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.util.BytesRef;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.util.BigArrays;
+import org.opensearch.core.indices.breaker.CircuitBreakerService;
 import org.opensearch.index.fielddata.IndexFieldData;
 import org.opensearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.opensearch.index.fielddata.IndexFieldDataCache;
@@ -54,7 +56,6 @@ import org.opensearch.index.fielddata.fieldcomparator.BytesRefFieldComparatorSou
 import org.opensearch.index.fielddata.plain.PagedBytesIndexFieldData;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.indices.IndicesService;
-import org.opensearch.core.indices.breaker.CircuitBreakerService;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.MultiValueMode;
 import org.opensearch.search.aggregations.support.CoreValuesSourceType;
@@ -74,8 +75,9 @@ import java.util.function.Supplier;
  * stored, but we need to keep it so that its FieldType can be used to generate
  * queries.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class IdFieldMapper extends MetadataFieldMapper {
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(IdFieldMapper.class);
     static final String ID_FIELD_DATA_DEPRECATION_MESSAGE =

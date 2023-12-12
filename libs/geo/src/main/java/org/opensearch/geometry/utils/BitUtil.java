@@ -48,8 +48,8 @@ public class BitUtil {  // magic numbers for bit interleaving
 
     /**
      * Interleaves the first 32 bits of each long value
-     *
-     * Adapted from: http://graphics.stanford.edu/~seander/bithacks.html#InterleaveBMN
+     * <p>
+     * Adapted from: <a href="http://graphics.stanford.edu/~seander/bithacks.html#InterleaveBMN">bithacks.html#InterleaveBMN</a>
      */
     public static long interleave(int even, int odd) {
         long v1 = 0x00000000FFFFFFFFL & even;

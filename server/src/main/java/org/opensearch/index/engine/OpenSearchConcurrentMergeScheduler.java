@@ -41,15 +41,15 @@ import org.opensearch.common.logging.Loggers;
 import org.opensearch.common.metrics.CounterMetric;
 import org.opensearch.common.metrics.MeanMetric;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.ConcurrentCollections;
 import org.opensearch.common.util.concurrent.OpenSearchExecutors;
+import org.opensearch.core.common.unit.ByteSizeValue;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.MergeSchedulerConfig;
 import org.opensearch.index.merge.MergeStats;
 import org.opensearch.index.merge.OnGoingMerge;
-import org.opensearch.core.index.shard.ShardId;
 
 import java.io.IOException;
 import java.util.Collections;

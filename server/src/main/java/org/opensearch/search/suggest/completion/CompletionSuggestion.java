@@ -34,10 +34,10 @@ package org.opensearch.search.suggest.completion;
 import org.apache.lucene.analysis.CharArraySet;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.util.PriorityQueue;
+import org.opensearch.common.lucene.Lucene;
 import org.opensearch.core.ParseField;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
-import org.opensearch.common.lucene.Lucene;
 import org.opensearch.core.common.text.Text;
 import org.opensearch.core.xcontent.ObjectParser;
 import org.opensearch.core.xcontent.XContentBuilder;
@@ -63,14 +63,14 @@ import static org.opensearch.search.suggest.Suggest.COMPARATOR;
 
 /**
  * Suggestion response for {@link CompletionSuggester} results
- *
+ * <p>
  * Response format for each entry:
  * {
  *     "text" : STRING
  *     "score" : FLOAT
  *     "contexts" : CONTEXTS
  * }
- *
+ * <p>
  * CONTEXTS : {
  *     "CONTEXT_NAME" : ARRAY,
  *     ..

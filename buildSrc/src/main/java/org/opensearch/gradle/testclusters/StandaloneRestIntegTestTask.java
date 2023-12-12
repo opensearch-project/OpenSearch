@@ -38,8 +38,8 @@ import org.opensearch.gradle.test.Fixture;
 import org.opensearch.gradle.util.GradleUtils;
 import org.gradle.api.Task;
 import org.gradle.api.provider.Provider;
-import org.gradle.api.services.internal.BuildServiceRegistryInternal;
 import org.gradle.api.services.internal.BuildServiceProvider;
+import org.gradle.api.services.internal.BuildServiceRegistryInternal;
 import org.gradle.api.tasks.CacheableTask;
 import org.gradle.api.tasks.Internal;
 import org.gradle.api.tasks.Nested;
@@ -62,7 +62,7 @@ import java.util.List;
  * {@link Nested} inputs.
  */
 @CacheableTask
-public class StandaloneRestIntegTestTask extends Test implements TestClustersAware, FileSystemOperationsAware {
+public abstract class StandaloneRestIntegTestTask extends Test implements TestClustersAware, FileSystemOperationsAware {
 
     private Collection<OpenSearchCluster> clusters = new HashSet<>();
     private Closure<Void> beforeStart;

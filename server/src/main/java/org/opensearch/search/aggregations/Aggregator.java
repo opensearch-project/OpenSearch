@@ -33,11 +33,12 @@
 package org.opensearch.search.aggregations;
 
 import org.opensearch.OpenSearchParseException;
+import org.opensearch.common.annotation.PublicApi;
+import org.opensearch.common.lease.Releasable;
 import org.opensearch.core.ParseField;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
-import org.opensearch.common.lease.Releasable;
 import org.opensearch.core.xcontent.DeprecationHandler;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
@@ -57,6 +58,7 @@ import java.util.function.BiConsumer;
  *
  * @opensearch.internal
  */
+@PublicApi(since = "1.0.0")
 public abstract class Aggregator extends BucketCollector implements Releasable {
 
     /**
@@ -64,9 +66,10 @@ public abstract class Aggregator extends BucketCollector implements Releasable {
      *
      * @see AggregationBuilder
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
     @FunctionalInterface
+    @PublicApi(since = "1.0.0")
     public interface Parser {
         /**
          * Returns the aggregator factory with which this parser is associated, may return {@code null} indicating the
@@ -160,9 +163,10 @@ public abstract class Aggregator extends BucketCollector implements Releasable {
     /**
      * Compare two buckets by their ordinal.
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
     @FunctionalInterface
+    @PublicApi(since = "1.0.0")
     public interface BucketComparator {
         /**
          * Compare two buckets by their ordinal.

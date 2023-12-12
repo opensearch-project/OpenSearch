@@ -33,6 +33,7 @@
 package org.opensearch.search.query;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field.Store;
@@ -87,6 +88,7 @@ import org.apache.lucene.util.FixedBitSet;
 import org.opensearch.action.search.SearchShardTask;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.core.tasks.TaskCancelledException;
 import org.opensearch.index.mapper.DateFieldMapper;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.MapperService;
@@ -105,7 +107,6 @@ import org.opensearch.search.internal.ContextIndexSearcher;
 import org.opensearch.search.internal.ScrollContext;
 import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.sort.SortAndFormats;
-import org.opensearch.tasks.TaskCancelledException;
 import org.opensearch.test.TestSearchContext;
 import org.opensearch.threadpool.ThreadPool;
 
@@ -119,6 +120,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
+import static org.opensearch.search.query.TopDocsCollectorContext.hasInfMaxScore;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -126,14 +128,13 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
-import static org.mockito.Mockito.when;
-import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.atLeastOnce;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
-import static org.opensearch.search.query.TopDocsCollectorContext.hasInfMaxScore;
+import static org.mockito.Mockito.when;
 
 public class QueryPhaseTests extends IndexShardTestCase {
     private IndexShard indexShard;
@@ -1208,6 +1209,12 @@ public class QueryPhaseTests extends IndexShardTestCase {
         IndexShard indexShard = mock(IndexShard.class);
         when(searchContext.indexShard()).thenReturn(indexShard);
         when(searchContext.bucketCollectorProcessor()).thenReturn(SearchContext.NO_OP_BUCKET_COLLECTOR_PROCESSOR);
+        when(searchContext.shouldUseConcurrentSearch()).thenReturn(executor != null);
+        if (executor != null) {
+            when(searchContext.getTargetMaxSliceCount()).thenReturn(randomIntBetween(0, 2));
+        } else {
+            when(searchContext.getTargetMaxSliceCount()).thenThrow(IllegalStateException.class);
+        }
         return new ContextIndexSearcher(
             reader,
             IndexSearcher.getDefaultSimilarity(),
@@ -1225,6 +1232,12 @@ public class QueryPhaseTests extends IndexShardTestCase {
         IndexShard indexShard = mock(IndexShard.class);
         when(searchContext.indexShard()).thenReturn(indexShard);
         when(searchContext.bucketCollectorProcessor()).thenReturn(SearchContext.NO_OP_BUCKET_COLLECTOR_PROCESSOR);
+        when(searchContext.shouldUseConcurrentSearch()).thenReturn(executor != null);
+        if (executor != null) {
+            when(searchContext.getTargetMaxSliceCount()).thenReturn(randomIntBetween(0, 2));
+        } else {
+            when(searchContext.getTargetMaxSliceCount()).thenThrow(IllegalStateException.class);
+        }
         return new ContextIndexSearcher(
             reader,
             IndexSearcher.getDefaultSimilarity(),

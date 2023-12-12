@@ -37,12 +37,12 @@ import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.allocation.FailedShard;
 import org.opensearch.cluster.routing.allocation.RoutingAllocation;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.gateway.AsyncShardFetch;
 import org.opensearch.gateway.GatewayAllocator;
 import org.opensearch.gateway.PrimaryShardAllocator;
 import org.opensearch.gateway.ReplicaShardAllocator;
 import org.opensearch.gateway.TransportNodesListGatewayStartedShards.NodeGatewayStartedShards;
-import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
 import org.opensearch.indices.store.TransportNodesListShardStoreMetadata.NodeStoreFilesMetadata;
 
@@ -57,13 +57,13 @@ import java.util.stream.Collectors;
  * A gateway allocator implementation that keeps an in memory list of started shard allocation
  * that are used as replies to the, normally async, fetch data requests. The in memory list
  * is adapted when shards are started and failed.
- *
+ * <p>
  * Nodes leaving and joining the cluster do not change the list of shards the class tracks but
  * rather serves as a filter to what is returned by fetch data. Concretely - fetch data will
  * only return shards that were started on nodes that are currently part of the cluster.
- *
+ * <p>
  * For now only primary shard related data is fetched. Replica request always get an empty response.
- *
+ * <p>
  *
  * This class is useful to use in unit tests that require the functionality of {@link GatewayAllocator} but do
  * not have all the infrastructure required to use it.

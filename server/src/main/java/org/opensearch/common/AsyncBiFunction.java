@@ -31,7 +31,7 @@
 
 package org.opensearch.common;
 
-import org.opensearch.action.ActionListener;
+import org.opensearch.core.action.ActionListener;
 
 /**
  * A {@link java.util.function.BiFunction}-like interface designed to be used with asynchronous executions.

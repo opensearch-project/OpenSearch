@@ -34,7 +34,6 @@ package org.opensearch.cluster.metadata;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.opensearch.action.ActionListener;
 import org.opensearch.action.admin.indices.delete.DeleteIndexClusterStateUpdateRequest;
 import org.opensearch.cluster.AckedClusterStateUpdateTask;
 import org.opensearch.cluster.ClusterState;
@@ -50,6 +49,7 @@ import org.opensearch.common.Priority;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.set.Sets;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.index.Index;
 import org.opensearch.snapshots.RestoreService;
 import org.opensearch.snapshots.SnapshotInProgressException;

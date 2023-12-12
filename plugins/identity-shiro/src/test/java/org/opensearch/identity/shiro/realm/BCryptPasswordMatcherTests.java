@@ -8,14 +8,13 @@
 
 package org.opensearch.identity.shiro.realm;
 
+import org.apache.shiro.authc.AuthenticationInfo;
+import org.apache.shiro.authc.UsernamePasswordToken;
 import org.opensearch.test.OpenSearchTestCase;
 
+import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
-import static org.hamcrest.Matchers.equalTo;
-
-import org.apache.shiro.authc.UsernamePasswordToken;
-import org.apache.shiro.authc.AuthenticationInfo;
 
 public class BCryptPasswordMatcherTests extends OpenSearchTestCase {
 

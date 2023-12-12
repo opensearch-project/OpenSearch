@@ -31,13 +31,14 @@
 
 package org.opensearch.repositories;
 
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.blobstore.DeleteResult;
+import org.opensearch.core.ParseField;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
-import org.opensearch.common.xcontent.XContentType;
-import org.opensearch.core.ParseField;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.ObjectParser;
 import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.core.xcontent.XContentBuilder;
@@ -47,8 +48,9 @@ import java.io.IOException;
 /**
  * Result of a repository cleanup action
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public final class RepositoryCleanupResult implements Writeable, ToXContentObject {
 
     public static final ObjectParser<RepositoryCleanupResult, Void> PARSER = new ObjectParser<>(
@@ -105,6 +107,6 @@ public final class RepositoryCleanupResult implements Writeable, ToXContentObjec
 
     @Override
     public String toString() {
-        return Strings.toString(XContentType.JSON, this);
+        return Strings.toString(MediaTypeRegistry.JSON, this);
     }
 }

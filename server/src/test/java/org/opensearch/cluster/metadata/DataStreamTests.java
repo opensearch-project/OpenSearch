@@ -33,8 +33,8 @@ package org.opensearch.cluster.metadata;
 
 import org.opensearch.common.UUIDs;
 import org.opensearch.core.common.io.stream.Writeable;
-import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.core.index.Index;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.test.AbstractSerializingTestCase;
 
 import java.io.IOException;

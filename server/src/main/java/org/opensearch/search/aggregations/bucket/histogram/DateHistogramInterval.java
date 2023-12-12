@@ -33,11 +33,11 @@
 package org.opensearch.search.aggregations.bucket.histogram;
 
 import org.opensearch.common.Rounding;
+import org.opensearch.common.unit.TimeValue;
+import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
-import org.opensearch.common.unit.TimeValue;
-import org.opensearch.core.common.Strings;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
 
@@ -129,7 +129,7 @@ public class DateHistogramInterval implements Writeable, ToXContentFragment {
      * Converts this DateHistogramInterval into a millisecond representation.  If this is a calendar
      * interval, it is an approximation of milliseconds based on the fixed equivalent (e.g. `1h` is treated as 60
      * fixed minutes, rather than the hour at a specific point in time.
-     *
+     * <p>
      * This is merely a convenience helper for quick comparisons and should not be used for situations that
      * require precise durations.
      */

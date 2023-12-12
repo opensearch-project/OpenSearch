@@ -8,11 +8,11 @@
 
 package org.opensearch.cluster.service;
 
-import org.junit.After;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.TestThreadPool;
+import org.junit.After;
 
 import static org.hamcrest.Matchers.equalTo;
 

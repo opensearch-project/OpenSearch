@@ -32,14 +32,16 @@
 package org.opensearch.bootstrap;
 
 import org.opensearch.cluster.metadata.Metadata;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.env.Environment;
 
 /**
  * Context that is passed to every bootstrap check to make decisions on.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class BootstrapContext {
     /**
      * The node's environment

@@ -40,18 +40,18 @@ import org.apache.lucene.index.PointValues;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.search.SortField;
 import org.opensearch.OpenSearchParseException;
+import org.opensearch.common.logging.DeprecationLogger;
+import org.opensearch.common.time.DateMathParser;
+import org.opensearch.common.time.DateUtils;
 import org.opensearch.core.ParseField;
 import org.opensearch.core.common.ParsingException;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
-import org.opensearch.common.logging.DeprecationLogger;
-import org.opensearch.common.time.DateMathParser;
-import org.opensearch.common.time.DateUtils;
 import org.opensearch.core.xcontent.ObjectParser;
 import org.opensearch.core.xcontent.ObjectParser.ValueType;
+import org.opensearch.core.xcontent.XContent;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.core.xcontent.XContent;
 import org.opensearch.index.IndexSortConfig;
 import org.opensearch.index.fielddata.IndexFieldData;
 import org.opensearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
@@ -611,7 +611,8 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
      * and configurations return <code>null</code>.
      */
     public static MinAndMax<?> getMinMaxOrNull(QueryShardContext context, FieldSortBuilder sortBuilder) throws IOException {
-        return getMinMaxOrNullInternal(context.getIndexReader(), context, sortBuilder);
+        final SortAndFormats sort = SortBuilder.buildSort(Collections.singletonList(sortBuilder), context).get();
+        return getMinMaxOrNullInternal(context.getIndexReader(), context, sortBuilder, sort);
     }
 
     /**
@@ -619,14 +620,21 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
      * The value can be extracted on non-nested indexed mapped fields of type keyword, numeric or date, other fields
      * and configurations return <code>null</code>.
      */
-    public static MinAndMax<?> getMinMaxOrNullForSegment(QueryShardContext context, LeafReaderContext ctx, FieldSortBuilder sortBuilder)
-        throws IOException {
-        return getMinMaxOrNullInternal(ctx.reader(), context, sortBuilder);
+    public static MinAndMax<?> getMinMaxOrNullForSegment(
+        QueryShardContext context,
+        LeafReaderContext ctx,
+        FieldSortBuilder sortBuilder,
+        SortAndFormats sort
+    ) throws IOException {
+        return getMinMaxOrNullInternal(ctx.reader(), context, sortBuilder, sort);
     }
 
-    private static MinAndMax<?> getMinMaxOrNullInternal(IndexReader reader, QueryShardContext context, FieldSortBuilder sortBuilder)
-        throws IOException {
-        SortAndFormats sort = SortBuilder.buildSort(Collections.singletonList(sortBuilder), context).get();
+    private static MinAndMax<?> getMinMaxOrNullInternal(
+        IndexReader reader,
+        QueryShardContext context,
+        FieldSortBuilder sortBuilder,
+        SortAndFormats sort
+    ) throws IOException {
         SortField sortField = sort.sort.getSort()[0];
         if (sortField.getField() == null) {
             return null;

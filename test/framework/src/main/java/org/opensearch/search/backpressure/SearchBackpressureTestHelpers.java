@@ -8,8 +8,8 @@
 
 package org.opensearch.search.backpressure;
 
+import org.opensearch.core.tasks.resourcetracker.TaskResourceUsage;
 import org.opensearch.tasks.CancellableTask;
-import org.opensearch.tasks.TaskResourceUsage;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.concurrent.atomic.AtomicBoolean;

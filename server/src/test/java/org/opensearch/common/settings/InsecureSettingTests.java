@@ -8,19 +8,18 @@
 
 package org.opensearch.common.settings;
 
-import java.util.ArrayList;
-import java.util.List;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.core.LogEvent;
 import org.apache.logging.log4j.core.appender.AbstractAppender;
 import org.apache.logging.log4j.core.config.Property;
+import org.opensearch.common.logging.Loggers;
+import org.opensearch.test.OpenSearchTestCase;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 
-import org.opensearch.common.logging.Loggers;
-import org.opensearch.test.OpenSearchTestCase;
+import java.util.ArrayList;
+import java.util.List;
 
 public class InsecureSettingTests extends OpenSearchTestCase {
     private List<String> rootLogMsgs = new ArrayList<>();

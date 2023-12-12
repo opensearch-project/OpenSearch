@@ -33,19 +33,20 @@
 package org.opensearch.action.admin.indices.mapping.get;
 
 import org.opensearch.Version;
-import org.opensearch.action.ActionResponse;
+import org.opensearch.common.annotation.PublicApi;
+import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.core.ParseField;
+import org.opensearch.core.action.ActionResponse;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.xcontent.ConstructingObjectParser;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.ObjectParser;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.mapper.Mapper;
 import org.opensearch.index.mapper.MapperService;
 
@@ -56,17 +57,18 @@ import java.util.Map;
 import java.util.Objects;
 
 import static java.util.Collections.unmodifiableMap;
-import static org.opensearch.core.xcontent.ConstructingObjectParser.optionalConstructorArg;
 import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.opensearch.core.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 /**
  * Response object for {@link GetFieldMappingsRequest} API
- *
+ * <p>
  * Note: there is a new class with the same name for the Java HLRC that uses a typeless format.
  * Any changes done to this class should go to that client class as well.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class GetFieldMappingsResponse extends ActionResponse implements ToXContentObject {
 
     private static final ParseField MAPPINGS = new ParseField("mappings");
@@ -178,8 +180,9 @@ public class GetFieldMappingsResponse extends ActionResponse implements ToXConte
     /**
      * Metadata for field mappings for toXContent
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public static class FieldMappingMetadata implements ToXContentFragment {
 
         private static final ParseField FULL_NAME = new ParseField("full_name");
@@ -214,7 +217,7 @@ public class GetFieldMappingsResponse extends ActionResponse implements ToXConte
 
         /** Returns the mappings as a map. Note that the returned map has a single key which is always the field's {@link Mapper#name}. */
         public Map<String, Object> sourceAsMap() {
-            return XContentHelper.convertToMap(source, true, XContentType.JSON).v2();
+            return XContentHelper.convertToMap(source, true, MediaTypeRegistry.JSON).v2();
         }
 
         // pkg-private for testing
@@ -233,7 +236,7 @@ public class GetFieldMappingsResponse extends ActionResponse implements ToXConte
                 builder.field("mapping", sourceAsMap());
             } else {
                 try (InputStream stream = source.streamInput()) {
-                    builder.rawField(MAPPING.getPreferredName(), stream, XContentType.JSON);
+                    builder.rawField(MAPPING.getPreferredName(), stream, MediaTypeRegistry.JSON);
                 }
             }
             return builder;

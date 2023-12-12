@@ -33,17 +33,19 @@
 package org.opensearch.index;
 
 import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TopDocs;
+import org.opensearch.Version;
 import org.opensearch.action.support.ActiveShardCount;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.index.Index;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentFactory;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.engine.Engine;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.shard.IndexShard;
@@ -51,8 +53,8 @@ import org.opensearch.index.shard.IndexShardTestCase;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.plugins.Plugin;
-import org.opensearch.test.OpenSearchSingleNodeTestCase;
 import org.opensearch.test.InternalSettingsPlugin;
+import org.opensearch.test.OpenSearchSingleNodeTestCase;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -300,7 +302,7 @@ public class IndexServiceTests extends OpenSearchSingleNodeTestCase {
         assertEquals(1000, refreshTask.getInterval().millis());
         assertTrue(indexService.getRefreshTask().mustReschedule());
         IndexShard shard = indexService.getShard(0);
-        client().prepareIndex("test").setId("0").setSource("{\"foo\": \"bar\"}", XContentType.JSON).get();
+        client().prepareIndex("test").setId("0").setSource("{\"foo\": \"bar\"}", MediaTypeRegistry.JSON).get();
         // now disable the refresh
         client().admin()
             .indices()
@@ -321,7 +323,7 @@ public class IndexServiceTests extends OpenSearchSingleNodeTestCase {
         });
         assertFalse(refreshTask.isClosed());
         // refresh every millisecond
-        client().prepareIndex("test").setId("1").setSource("{\"foo\": \"bar\"}", XContentType.JSON).get();
+        client().prepareIndex("test").setId("1").setSource("{\"foo\": \"bar\"}", MediaTypeRegistry.JSON).get();
         client().admin()
             .indices()
             .prepareUpdateSettings("test")
@@ -335,7 +337,7 @@ public class IndexServiceTests extends OpenSearchSingleNodeTestCase {
                 assertEquals(2, search.totalHits.value);
             }
         });
-        client().prepareIndex("test").setId("2").setSource("{\"foo\": \"bar\"}", XContentType.JSON).get();
+        client().prepareIndex("test").setId("2").setSource("{\"foo\": \"bar\"}", MediaTypeRegistry.JSON).get();
         assertBusy(() -> {
             // this one becomes visible due to the scheduled refresh
             try (Engine.Searcher searcher = shard.acquireSearcher("test")) {
@@ -353,7 +355,7 @@ public class IndexServiceTests extends OpenSearchSingleNodeTestCase {
         IndexService indexService = createIndex("test", settings);
         ensureGreen("test");
         assertTrue(indexService.getRefreshTask().mustReschedule());
-        client().prepareIndex("test").setId("1").setSource("{\"foo\": \"bar\"}", XContentType.JSON).get();
+        client().prepareIndex("test").setId("1").setSource("{\"foo\": \"bar\"}", MediaTypeRegistry.JSON).get();
         IndexShard shard = indexService.getShard(0);
         assertBusy(() -> assertFalse(shard.isSyncNeeded()));
     }
@@ -375,7 +377,7 @@ public class IndexServiceTests extends OpenSearchSingleNodeTestCase {
 
         assertNotNull(indexService.getFsyncTask());
         assertTrue(indexService.getFsyncTask().mustReschedule());
-        client().prepareIndex("test").setId("1").setSource("{\"foo\": \"bar\"}", XContentType.JSON).get();
+        client().prepareIndex("test").setId("1").setSource("{\"foo\": \"bar\"}", MediaTypeRegistry.JSON).get();
         assertNotNull(indexService.getFsyncTask());
         final IndexShard shard = indexService.getShard(0);
         assertBusy(() -> assertFalse(shard.isSyncNeeded()));
@@ -402,7 +404,7 @@ public class IndexServiceTests extends OpenSearchSingleNodeTestCase {
         IndexService indexService = createIndex("test", settings);
         ensureGreen("test");
         assertTrue(indexService.getTrimTranslogTask().mustReschedule());
-        client().prepareIndex("test").setId("1").setSource("{\"foo\": \"bar\"}", XContentType.JSON).get();
+        client().prepareIndex("test").setId("1").setSource("{\"foo\": \"bar\"}", MediaTypeRegistry.JSON).get();
         client().admin().indices().prepareFlush("test").get();
         client().admin()
             .indices()
@@ -429,7 +431,11 @@ public class IndexServiceTests extends OpenSearchSingleNodeTestCase {
         int translogOps = 0;
         final int numDocs = scaledRandomIntBetween(10, 100);
         for (int i = 0; i < numDocs; i++) {
-            client().prepareIndex().setIndex(indexName).setId(String.valueOf(i)).setSource("{\"foo\": \"bar\"}", XContentType.JSON).get();
+            client().prepareIndex()
+                .setIndex(indexName)
+                .setId(String.valueOf(i))
+                .setSource("{\"foo\": \"bar\"}", MediaTypeRegistry.JSON)
+                .get();
             translogOps++;
             if (randomBoolean()) {
                 client().admin().indices().prepareFlush(indexName).get();
@@ -446,12 +452,7 @@ public class IndexServiceTests extends OpenSearchSingleNodeTestCase {
         assertTrue(indexService.getTrimTranslogTask().mustReschedule());
 
         final Engine readOnlyEngine = getEngine(indexService.getShard(0));
-        assertBusy(
-            () -> assertThat(
-                readOnlyEngine.translogManager().getTranslogStats().getTranslogSizeInBytes(),
-                equalTo((long) Translog.DEFAULT_HEADER_SIZE_IN_BYTES)
-            )
-        );
+        assertBusy(() -> assertTrue(isTranslogEmpty(readOnlyEngine)));
 
         assertAcked(client().admin().indices().prepareOpen("test").setWaitForActiveShards(ActiveShardCount.DEFAULT));
 
@@ -459,6 +460,12 @@ public class IndexServiceTests extends OpenSearchSingleNodeTestCase {
         translog = IndexShardTestCase.getTranslog(indexService.getShard(0));
         assertThat(translog.totalOperations(), equalTo(0));
         assertThat(translog.stats().estimatedNumberOfOperations(), equalTo(0));
+    }
+
+    boolean isTranslogEmpty(Engine engine) {
+        long tlogSize = engine.translogManager().getTranslogStats().getTranslogSizeInBytes();
+        // translog contains 1(or 2 in some corner cases) empty readers.
+        return tlogSize == Translog.DEFAULT_HEADER_SIZE_IN_BYTES || tlogSize == 2 * Translog.DEFAULT_HEADER_SIZE_IN_BYTES;
     }
 
     public void testIllegalFsyncInterval() {
@@ -521,5 +528,77 @@ public class IndexServiceTests extends OpenSearchSingleNodeTestCase {
             .get();
         indexMetadata = client().admin().cluster().prepareState().execute().actionGet().getState().metadata().index("test");
         assertEquals("20s", indexMetadata.getSettings().get(IndexSettings.INDEX_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING.getKey()));
+    }
+
+    public void testIndexSort() {
+        Settings settings = Settings.builder()
+            .put(IndexSettings.INDEX_TRANSLOG_SYNC_INTERVAL_SETTING.getKey(), "0ms") // disable
+            .putList("index.sort.field", "sortfield")
+            .build();
+        try {
+            // Integer index sort should be remained to int sort type
+            IndexService index = createIndex("test", settings, createTestMapping("integer"));
+            assertTrue(index.getIndexSortSupplier().get().getSort()[0].getType() == SortField.Type.INT);
+
+            // Long index sort should be remained to long sort type
+            index = createIndex("test", settings, createTestMapping("long"));
+            assertTrue(index.getIndexSortSupplier().get().getSort()[0].getType() == SortField.Type.LONG);
+
+            // Float index sort should be remained to float sort type
+            index = createIndex("test", settings, createTestMapping("float"));
+            assertTrue(index.getIndexSortSupplier().get().getSort()[0].getType() == SortField.Type.FLOAT);
+
+            // Double index sort should be remained to double sort type
+            index = createIndex("test", settings, createTestMapping("double"));
+            assertTrue(index.getIndexSortSupplier().get().getSort()[0].getType() == SortField.Type.DOUBLE);
+
+            // String index sort should be remained to string sort type
+            index = createIndex("test", settings, createTestMapping("string"));
+            assertTrue(index.getIndexSortSupplier().get().getSort()[0].getType() == SortField.Type.STRING);
+        } catch (IllegalArgumentException ex) {
+            assertEquals("failed to parse value [0ms] for setting [index.translog.sync_interval], must be >= [100ms]", ex.getMessage());
+        }
+    }
+
+    public void testIndexSortBackwardCompatible() {
+        Settings settings = Settings.builder()
+            .put(IndexSettings.INDEX_TRANSLOG_SYNC_INTERVAL_SETTING.getKey(), "0ms") // disable
+            .put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), Version.V_2_6_1)
+            .putList("index.sort.field", "sortfield")
+            .build();
+        try {
+            // Integer index sort should be converted to long sort type
+            IndexService index = createIndex("test", settings, createTestMapping("integer"));
+            assertTrue(index.getIndexSortSupplier().get().getSort()[0].getType() == SortField.Type.LONG);
+
+            // Long index sort should be remained to long sort type
+            index = createIndex("test", settings, createTestMapping("long"));
+            assertTrue(index.getIndexSortSupplier().get().getSort()[0].getType() == SortField.Type.LONG);
+
+            // Float index sort should be remained to float sort type
+            index = createIndex("test", settings, createTestMapping("float"));
+            assertTrue(index.getIndexSortSupplier().get().getSort()[0].getType() == SortField.Type.FLOAT);
+
+            // Double index sort should be remained to double sort type
+            index = createIndex("test", settings, createTestMapping("double"));
+            assertTrue(index.getIndexSortSupplier().get().getSort()[0].getType() == SortField.Type.DOUBLE);
+
+            // String index sort should be remained to string sort type
+            index = createIndex("test", settings, createTestMapping("string"));
+            assertTrue(index.getIndexSortSupplier().get().getSort()[0].getType() == SortField.Type.STRING);
+        } catch (IllegalArgumentException ex) {
+            assertEquals("failed to parse value [0ms] for setting [index.translog.sync_interval], must be >= [100ms]", ex.getMessage());
+        }
+    }
+
+    private static String createTestMapping(String type) {
+        return "  \"properties\": {\n"
+            + "    \"test\": {\n"
+            + "      \"type\": \"text\"\n"
+            + "    },\n"
+            + "    \"sortfield\": {\n"
+            + "      \"type\": \" + type + \"\n"
+            + "    }\n"
+            + "  }";
     }
 }

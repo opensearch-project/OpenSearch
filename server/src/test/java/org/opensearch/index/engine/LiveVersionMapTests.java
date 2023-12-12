@@ -32,11 +32,11 @@
 
 package org.opensearch.index.engine;
 
+import org.apache.lucene.tests.util.RamUsageTester;
+import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.Constants;
-import org.apache.lucene.tests.util.RamUsageTester;
-import org.apache.lucene.tests.util.TestUtil;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.test.OpenSearchTestCase;

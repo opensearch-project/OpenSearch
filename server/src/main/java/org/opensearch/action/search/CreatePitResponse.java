@@ -8,14 +8,15 @@
 
 package org.opensearch.action.search;
 
-import org.opensearch.action.ActionResponse;
+import org.opensearch.common.annotation.PublicApi;
+import org.opensearch.common.xcontent.StatusToXContentObject;
 import org.opensearch.core.ParseField;
+import org.opensearch.core.action.ActionResponse;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
-import org.opensearch.common.xcontent.StatusToXContentObject;
+import org.opensearch.core.rest.RestStatus;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.core.rest.RestStatus;
 import org.opensearch.rest.action.RestActions;
 
 import java.io.IOException;
@@ -26,7 +27,10 @@ import static org.opensearch.core.xcontent.XContentParserUtils.ensureExpectedTok
 
 /**
  * Create point in time response with point in time id and shard success / failures
+ *
+ * @opensearch.api
  */
+@PublicApi(since = "2.3.0")
 public class CreatePitResponse extends ActionResponse implements StatusToXContentObject {
     private static final ParseField ID = new ParseField("pit_id");
     private static final ParseField CREATION_TIME = new ParseField("creation_time");

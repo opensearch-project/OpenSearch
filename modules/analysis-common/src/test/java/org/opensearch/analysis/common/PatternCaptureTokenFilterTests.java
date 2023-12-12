@@ -39,8 +39,8 @@ import org.opensearch.env.Environment;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.analysis.IndexAnalyzers;
 import org.opensearch.index.analysis.NamedAnalyzer;
-import org.opensearch.test.OpenSearchTokenStreamTestCase;
 import org.opensearch.test.IndexSettingsModule;
+import org.opensearch.test.OpenSearchTokenStreamTestCase;
 
 import static org.opensearch.test.OpenSearchTestCase.createTestAnalysis;
 import static org.hamcrest.Matchers.containsString;

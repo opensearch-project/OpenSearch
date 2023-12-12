@@ -33,7 +33,7 @@
 package org.opensearch.action.bulk;
 
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.OpenSearchIntegTestCase.ClusterScope;
 import org.opensearch.test.OpenSearchIntegTestCase.Scope;
@@ -50,9 +50,9 @@ public class BulkProcessorClusterSettingsIT extends OpenSearchIntegTestCase {
         client().admin().cluster().prepareHealth("willwork").setWaitForGreenStatus().execute().actionGet();
 
         BulkRequestBuilder bulkRequestBuilder = client().prepareBulk();
-        bulkRequestBuilder.add(client().prepareIndex("willwork").setId("1").setSource("{\"foo\":1}", XContentType.JSON));
-        bulkRequestBuilder.add(client().prepareIndex("wontwork").setId("2").setSource("{\"foo\":2}", XContentType.JSON));
-        bulkRequestBuilder.add(client().prepareIndex("willwork").setId("3").setSource("{\"foo\":3}", XContentType.JSON));
+        bulkRequestBuilder.add(client().prepareIndex("willwork").setId("1").setSource("{\"foo\":1}", MediaTypeRegistry.JSON));
+        bulkRequestBuilder.add(client().prepareIndex("wontwork").setId("2").setSource("{\"foo\":2}", MediaTypeRegistry.JSON));
+        bulkRequestBuilder.add(client().prepareIndex("willwork").setId("3").setSource("{\"foo\":3}", MediaTypeRegistry.JSON));
         BulkResponse br = bulkRequestBuilder.get();
         BulkItemResponse[] responses = br.getItems();
         assertEquals(3, responses.length);

@@ -45,8 +45,8 @@ import org.opensearch.common.UUIDs;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.BigArrays;
-import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.common.util.io.IOUtils;
+import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.seqno.SequenceNumbers;
@@ -194,7 +194,8 @@ public class TruncateTranslogAction {
                 shardPath.getShardId(),
                 translogPath,
                 indexSettings,
-                BigArrays.NON_RECYCLING_INSTANCE
+                BigArrays.NON_RECYCLING_INSTANCE,
+                ""
             );
             long primaryTerm = indexSettings.getIndexMetadata().primaryTerm(shardPath.getShardId().id());
             // We open translog to check for corruption, do not clean anything.

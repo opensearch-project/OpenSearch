@@ -32,8 +32,9 @@
 
 package org.opensearch.client;
 
+import org.apache.hc.core5.http.ParseException;
+import org.apache.hc.core5.http.io.entity.EntityUtils;
 import org.opensearch.OpenSearchParseException;
-import org.opensearch.action.ActionListener;
 import org.opensearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
 import org.opensearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.opensearch.action.admin.cluster.node.tasks.list.TaskGroup;
@@ -48,21 +49,21 @@ import org.opensearch.client.cluster.RemoteInfoResponse;
 import org.opensearch.client.indices.CreateIndexRequest;
 import org.opensearch.common.Booleans;
 import org.opensearch.common.CheckedRunnable;
-import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.ThreadContext;
-import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.xcontent.json.JsonXContent;
-import org.opensearch.common.util.io.IOUtils;
+import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.tasks.TaskId;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.ingest.Pipeline;
 import org.opensearch.search.SearchHit;
 import org.opensearch.search.SearchModule;
-import org.opensearch.tasks.TaskId;
 import org.opensearch.test.rest.OpenSearchRestTestCase;
-import org.apache.hc.core5.http.ParseException;
-import org.apache.hc.core5.http.io.entity.EntityUtils;
 import org.junit.AfterClass;
 import org.junit.Before;
 
@@ -223,7 +224,7 @@ public abstract class OpenSearchRestHighLevelClientTestCase extends OpenSearchRe
             .endArray()
             .endObject();
 
-        createPipeline(new PutPipelineRequest(id, BytesReference.bytes(pipeline), XContentType.JSON));
+        createPipeline(new PutPipelineRequest(id, BytesReference.bytes(pipeline), MediaTypeRegistry.JSON));
     }
 
     protected static void createPipeline(String pipelineId) throws IOException {

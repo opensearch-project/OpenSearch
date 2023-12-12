@@ -62,6 +62,20 @@ public class WriteContext {
     }
 
     /**
+     * Copy constructor used by overriding class
+     */
+    protected WriteContext(WriteContext writeContext) {
+        this.fileName = writeContext.fileName;
+        this.streamContextSupplier = writeContext.streamContextSupplier;
+        this.fileSize = writeContext.fileSize;
+        this.failIfAlreadyExists = writeContext.failIfAlreadyExists;
+        this.writePriority = writeContext.writePriority;
+        this.uploadFinalizer = writeContext.uploadFinalizer;
+        this.doRemoteDataIntegrityCheck = writeContext.doRemoteDataIntegrityCheck;
+        this.expectedChecksum = writeContext.expectedChecksum;
+    }
+
+    /**
      * @return The file name
      */
     public String getFileName() {

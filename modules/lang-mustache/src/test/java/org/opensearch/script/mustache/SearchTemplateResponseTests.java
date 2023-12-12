@@ -35,13 +35,13 @@ package org.opensearch.script.mustache;
 import org.apache.lucene.search.TotalHits;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.action.search.ShardSearchFailure;
+import org.opensearch.common.xcontent.XContentFactory;
+import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.search.SearchHit;
 import org.opensearch.search.SearchHits;
 import org.opensearch.search.internal.InternalSearchResponse;
@@ -130,7 +130,7 @@ public class SearchTemplateResponseTests extends AbstractXContentTestCase<Search
         assertEquals(expectedSource == null, newSource == null);
         if (expectedSource != null) {
             try {
-                assertToXContentEquivalent(expectedSource, newSource, XContentType.JSON);
+                assertToXContentEquivalent(expectedSource, newSource, MediaTypeRegistry.JSON);
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }

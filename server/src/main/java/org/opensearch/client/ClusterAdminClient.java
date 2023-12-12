@@ -32,8 +32,6 @@
 
 package org.opensearch.client;
 
-import org.opensearch.action.ActionFuture;
-import org.opensearch.action.ActionListener;
 import org.opensearch.action.admin.cluster.allocation.ClusterAllocationExplainRequest;
 import org.opensearch.action.admin.cluster.allocation.ClusterAllocationExplainRequestBuilder;
 import org.opensearch.action.admin.cluster.allocation.ClusterAllocationExplainResponse;
@@ -59,9 +57,6 @@ import org.opensearch.action.admin.cluster.node.reload.NodesReloadSecureSettings
 import org.opensearch.action.admin.cluster.node.stats.NodesStatsRequest;
 import org.opensearch.action.admin.cluster.node.stats.NodesStatsRequestBuilder;
 import org.opensearch.action.admin.cluster.node.stats.NodesStatsResponse;
-import org.opensearch.action.admin.cluster.remotestore.stats.RemoteStoreStatsRequest;
-import org.opensearch.action.admin.cluster.remotestore.stats.RemoteStoreStatsRequestBuilder;
-import org.opensearch.action.admin.cluster.remotestore.stats.RemoteStoreStatsResponse;
 import org.opensearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
 import org.opensearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequestBuilder;
 import org.opensearch.action.admin.cluster.node.tasks.cancel.CancelTasksResponse;
@@ -76,6 +71,9 @@ import org.opensearch.action.admin.cluster.node.usage.NodesUsageRequestBuilder;
 import org.opensearch.action.admin.cluster.node.usage.NodesUsageResponse;
 import org.opensearch.action.admin.cluster.remotestore.restore.RestoreRemoteStoreRequest;
 import org.opensearch.action.admin.cluster.remotestore.restore.RestoreRemoteStoreResponse;
+import org.opensearch.action.admin.cluster.remotestore.stats.RemoteStoreStatsRequest;
+import org.opensearch.action.admin.cluster.remotestore.stats.RemoteStoreStatsRequestBuilder;
+import org.opensearch.action.admin.cluster.remotestore.stats.RemoteStoreStatsResponse;
 import org.opensearch.action.admin.cluster.repositories.cleanup.CleanupRepositoryRequest;
 import org.opensearch.action.admin.cluster.repositories.cleanup.CleanupRepositoryRequestBuilder;
 import org.opensearch.action.admin.cluster.repositories.cleanup.CleanupRepositoryResponse;
@@ -158,17 +156,21 @@ import org.opensearch.action.search.GetSearchPipelineRequest;
 import org.opensearch.action.search.GetSearchPipelineResponse;
 import org.opensearch.action.search.PutSearchPipelineRequest;
 import org.opensearch.action.support.master.AcknowledgedResponse;
+import org.opensearch.common.action.ActionFuture;
+import org.opensearch.common.annotation.PublicApi;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.bytes.BytesReference;
-import org.opensearch.common.xcontent.XContentType;
-import org.opensearch.tasks.TaskId;
+import org.opensearch.core.tasks.TaskId;
+import org.opensearch.core.xcontent.MediaType;
 
 /**
  * Administrative actions/operations against indices.
  *
  * @see AdminClient#cluster()
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public interface ClusterAdminClient extends OpenSearchClient {
 
     /**
@@ -669,7 +671,7 @@ public interface ClusterAdminClient extends OpenSearchClient {
     /**
      * Stores an ingest pipeline
      */
-    PutPipelineRequestBuilder preparePutPipeline(String id, BytesReference source, XContentType xContentType);
+    PutPipelineRequestBuilder preparePutPipeline(String id, BytesReference source, MediaType mediaType);
 
     /**
      * Deletes a stored ingest pipeline
@@ -719,7 +721,7 @@ public interface ClusterAdminClient extends OpenSearchClient {
     /**
      * Simulates an ingest pipeline
      */
-    SimulatePipelineRequestBuilder prepareSimulatePipeline(BytesReference source, XContentType xContentType);
+    SimulatePipelineRequestBuilder prepareSimulatePipeline(BytesReference source, MediaType mediaType);
 
     /**
      * Explain the allocation of a shard

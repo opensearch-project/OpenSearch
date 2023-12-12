@@ -37,7 +37,7 @@ import java.util.List;
 
 /**
  * Stores measurement samples.
- *
+ * <p>
  * This class is NOT threadsafe.
  */
 public final class SampleRecorder {

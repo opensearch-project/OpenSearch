@@ -34,12 +34,12 @@ package org.opensearch.search.sort;
 
 import org.opensearch.common.geo.GeoPoint;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.xcontent.XContentFactory;
+import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.search.SearchModule;
 import org.opensearch.test.OpenSearchTestCase;
 import org.junit.AfterClass;

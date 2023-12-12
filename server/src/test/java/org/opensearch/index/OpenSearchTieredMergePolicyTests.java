@@ -32,8 +32,17 @@
 
 package org.opensearch.index;
 
+import org.apache.lucene.index.MergePolicy;
+import org.apache.lucene.index.SegmentCommitInfo;
+import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.TieredMergePolicy;
+import org.apache.lucene.util.InfoStream;
+import org.apache.lucene.util.Version;
 import org.opensearch.test.OpenSearchTestCase;
+
+import java.io.IOException;
+import java.util.Collections;
+import java.util.Set;
 
 public class OpenSearchTieredMergePolicyTests extends OpenSearchTestCase {
 
@@ -79,5 +88,33 @@ public class OpenSearchTieredMergePolicyTests extends OpenSearchTestCase {
         OpenSearchTieredMergePolicy policy = new OpenSearchTieredMergePolicy();
         policy.setDeletesPctAllowed(42);
         assertEquals(42, policy.regularMergePolicy.getDeletesPctAllowed(), 0);
+    }
+
+    public void testFindDeleteMergesReturnsNullOnEmptySegmentInfos() throws IOException {
+        MergePolicy.MergeSpecification mergeSpecification = new OpenSearchTieredMergePolicy().findForcedDeletesMerges(
+            new SegmentInfos(Version.LATEST.major),
+            new MergePolicy.MergeContext() {
+                @Override
+                public int numDeletesToMerge(SegmentCommitInfo info) {
+                    return 0;
+                }
+
+                @Override
+                public int numDeletedDocs(SegmentCommitInfo info) {
+                    return 0;
+                }
+
+                @Override
+                public InfoStream getInfoStream() {
+                    return InfoStream.NO_OUTPUT;
+                }
+
+                @Override
+                public Set<SegmentCommitInfo> getMergingSegments() {
+                    return Collections.emptySet();
+                }
+            }
+        );
+        assertNull(mergeSpecification);
     }
 }

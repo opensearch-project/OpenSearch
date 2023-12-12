@@ -33,11 +33,11 @@
 package org.opensearch.action.admin.indices.alias.get;
 
 import org.opensearch.action.ActionType;
-import org.opensearch.action.ActionResponse;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.action.support.clustermanager.ClusterManagerNodeReadOperationRequestBuilder;
 import org.opensearch.client.OpenSearchClient;
 import org.opensearch.common.util.ArrayUtils;
+import org.opensearch.core.action.ActionResponse;
 
 /**
  * Base request builder for listing index aliases
@@ -81,7 +81,7 @@ public abstract class BaseAliasesRequestBuilder<
 
     /**
      * Specifies what type of requested indices to ignore and wildcard indices expressions.
-     *
+     * <p>
      * For example indices that don't exist.
      */
     @SuppressWarnings("unchecked")

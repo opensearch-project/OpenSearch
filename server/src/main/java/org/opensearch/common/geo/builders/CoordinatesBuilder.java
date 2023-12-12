@@ -33,12 +33,13 @@
 package org.opensearch.common.geo.builders;
 
 import org.opensearch.OpenSearchException;
-import org.locationtech.jts.geom.Coordinate;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
+
+import org.locationtech.jts.geom.Coordinate;
 
 /**
  * A builder for a list of coordinates.

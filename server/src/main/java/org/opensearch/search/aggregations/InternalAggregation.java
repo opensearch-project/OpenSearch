@@ -31,15 +31,18 @@
 
 package org.opensearch.search.aggregations;
 
+import org.opensearch.common.annotation.PublicApi;
+import org.opensearch.common.util.BigArrays;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.NamedWriteable;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
-import org.opensearch.common.util.BigArrays;
-import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.rest.action.search.RestSearchAction;
 import org.opensearch.script.ScriptService;
+import org.opensearch.search.aggregations.bucket.LocalBucketCountThresholds;
+import org.opensearch.search.aggregations.bucket.terms.TermsAggregator;
 import org.opensearch.search.aggregations.pipeline.PipelineAggregator;
 import org.opensearch.search.aggregations.pipeline.PipelineAggregator.PipelineTree;
 import org.opensearch.search.aggregations.support.AggregationPath;
@@ -59,14 +62,16 @@ import static java.util.Objects.requireNonNull;
 /**
  * An internal implementation of {@link Aggregation}. Serves as a base class for all aggregation implementations.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public abstract class InternalAggregation implements Aggregation, NamedWriteable {
     /**
      * Builds {@link ReduceContext}.
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public interface ReduceContextBuilder {
         /**
          * Build a {@linkplain ReduceContext} to perform a partial reduction.
@@ -82,8 +87,9 @@ public abstract class InternalAggregation implements Aggregation, NamedWriteable
     /**
      * The reduce context
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public static class ReduceContext {
         private final BigArrays bigArrays;
         private final ScriptService scriptService;
@@ -158,6 +164,18 @@ public abstract class InternalAggregation implements Aggregation, NamedWriteable
 
         public boolean isSliceLevel() {
             return this.isSliceLevel;
+        }
+
+        /**
+         * For slice level partial reduce we will apply shard level `shard_size` and `shard_min_doc_count` limits
+         * whereas for coordinator level partial reduce it will use top level `size` and `min_doc_count`
+         */
+        public LocalBucketCountThresholds asLocalBucketCountThresholds(TermsAggregator.BucketCountThresholds bucketCountThresholds) {
+            if (isSliceLevel()) {
+                return new LocalBucketCountThresholds(bucketCountThresholds.getShardMinDocCount(), bucketCountThresholds.getShardSize());
+            } else {
+                return new LocalBucketCountThresholds(bucketCountThresholds.getMinDocCount(), bucketCountThresholds.getRequiredSize());
+            }
         }
 
         public BigArrays bigArrays() {
@@ -380,7 +398,7 @@ public abstract class InternalAggregation implements Aggregation, NamedWriteable
 
     @Override
     public String toString() {
-        return Strings.toString(XContentType.JSON, this);
+        return Strings.toString(MediaTypeRegistry.JSON, this);
     }
 
     /**

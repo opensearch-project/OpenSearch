@@ -9,6 +9,7 @@
 package org.opensearch.cluster.routing.allocation.allocator;
 
 import org.apache.logging.log4j.Logger;
+import org.opensearch.cluster.routing.RecoverySource;
 import org.opensearch.cluster.routing.RoutingNode;
 import org.opensearch.cluster.routing.RoutingNodes;
 import org.opensearch.cluster.routing.RoutingPool;
@@ -20,7 +21,6 @@ import org.opensearch.cluster.routing.allocation.RoutingAllocation;
 import org.opensearch.cluster.routing.allocation.decider.Decision;
 import org.opensearch.cluster.routing.allocation.decider.DiskThresholdDecider;
 import org.opensearch.common.Randomness;
-import org.opensearch.cluster.routing.RecoverySource;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -406,7 +406,7 @@ public final class RemoteShardsBalancer extends ShardsBalancer {
                     allocation.metadata(),
                     allocation.routingTable()
                 );
-                ShardRouting initShard = routingNodes.initializeShard(shard, node.nodeId(), null, shardSize, allocation.changes());
+                routingNodes.initializeShard(shard, node.nodeId(), null, shardSize, allocation.changes());
                 nodeQueue.offer(node);
                 allocated = true;
                 break;
@@ -444,7 +444,6 @@ public final class RemoteShardsBalancer extends ShardsBalancer {
 
                 // Break out if all nodes in the queue have been checked for this shard
                 if (nodeQueue.stream().allMatch(rn -> nodesCheckedForShard.contains(rn.nodeId()))) {
-                    throttled = true;
                     break;
                 }
             }

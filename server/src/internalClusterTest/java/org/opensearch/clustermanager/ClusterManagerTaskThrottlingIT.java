@@ -8,15 +8,15 @@
 
 package org.opensearch.clustermanager;
 
-import org.opensearch.action.ActionListener;
 import org.opensearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.opensearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.opensearch.cluster.metadata.ProcessClusterEventTimeoutException;
 import org.opensearch.cluster.service.ClusterManagerThrottlingException;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.test.OpenSearchIntegTestCase;
-import org.opensearch.transport.TransportService;
 import org.opensearch.transport.TransportMessageListener;
+import org.opensearch.transport.TransportService;
 
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;

@@ -30,6 +30,7 @@
 package org.opensearch.common.logging;
 
 import com.fasterxml.jackson.core.io.JsonStringEncoder;
+
 import org.apache.logging.log4j.core.LogEvent;
 import org.apache.logging.log4j.core.config.Configuration;
 import org.apache.logging.log4j.core.config.plugins.Plugin;
@@ -46,7 +47,7 @@ import java.util.StringJoiner;
 
  * Outputs the Throwable portion of the LoggingEvent as a Json formatted field with array
  * "exception": [ "stacktrace", "lines", "as", "array", "elements" ]
- *
+ * <p>
  * Reusing @link org.apache.logging.log4j.core.pattern.ExtendedThrowablePatternConverter which already converts a Throwable from
  * LoggingEvent into a multiline string
  *

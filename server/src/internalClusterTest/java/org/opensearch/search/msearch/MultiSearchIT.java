@@ -32,26 +32,52 @@
 
 package org.opensearch.search.msearch;
 
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.opensearch.action.search.MultiSearchRequest;
 import org.opensearch.action.search.MultiSearchResponse;
-import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.FeatureFlags;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.index.query.QueryBuilders;
-import org.opensearch.test.OpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedOpenSearchIntegTestCase;
 
+import java.util.Arrays;
+import java.util.Collection;
+
+import static org.opensearch.search.SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertFirstHit;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertNoFailures;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.hasId;
 import static org.hamcrest.Matchers.equalTo;
 
-public class MultiSearchIT extends OpenSearchIntegTestCase {
+public class MultiSearchIT extends ParameterizedOpenSearchIntegTestCase {
 
-    public void testSimpleMultiSearch() {
+    public MultiSearchIT(Settings dynamicSettings) {
+        super(dynamicSettings);
+    }
+
+    @ParametersFactory
+    public static Collection<Object[]> parameters() {
+        return Arrays.asList(
+            new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), false).build() },
+            new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), true).build() }
+        );
+    }
+
+    @Override
+    protected Settings featureFlagSettings() {
+        return Settings.builder().put(super.featureFlagSettings()).put(FeatureFlags.CONCURRENT_SEGMENT_SEARCH, "true").build();
+    }
+
+    public void testSimpleMultiSearch() throws InterruptedException {
         createIndex("test");
         ensureGreen();
         client().prepareIndex("test").setId("1").setSource("field", "xxx").get();
         client().prepareIndex("test").setId("2").setSource("field", "yyy").get();
         refresh();
+        indexRandomForConcurrentSearch("test");
         MultiSearchResponse response = client().prepareMultiSearch()
             .add(client().prepareSearch("test").setQuery(QueryBuilders.termQuery("field", "xxx")))
             .add(client().prepareSearch("test").setQuery(QueryBuilders.termQuery("field", "yyy")))
@@ -69,13 +95,14 @@ public class MultiSearchIT extends OpenSearchIntegTestCase {
         assertFirstHit(response.getResponses()[1].getResponse(), hasId("2"));
     }
 
-    public void testSimpleMultiSearchMoreRequests() {
+    public void testSimpleMultiSearchMoreRequests() throws InterruptedException {
         createIndex("test");
         int numDocs = randomIntBetween(0, 16);
         for (int i = 0; i < numDocs; i++) {
-            client().prepareIndex("test").setId(Integer.toString(i)).setSource("{}", XContentType.JSON).get();
+            client().prepareIndex("test").setId(Integer.toString(i)).setSource("{}", MediaTypeRegistry.JSON).get();
         }
         refresh();
+        indexRandomForConcurrentSearch("test");
 
         int numSearchRequests = randomIntBetween(1, 64);
         MultiSearchRequest request = new MultiSearchRequest();

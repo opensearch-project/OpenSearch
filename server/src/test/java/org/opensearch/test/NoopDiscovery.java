@@ -31,10 +31,10 @@
 
 package org.opensearch.test;
 
-import org.opensearch.action.ActionListener;
 import org.opensearch.cluster.ClusterChangedEvent;
 import org.opensearch.common.lifecycle.Lifecycle;
 import org.opensearch.common.lifecycle.LifecycleListener;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.discovery.Discovery;
 import org.opensearch.discovery.DiscoveryStats;
 

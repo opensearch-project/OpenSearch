@@ -32,9 +32,9 @@
 
 package org.opensearch.index.query;
 
+import org.apache.lucene.queries.intervals.IntervalQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.queries.intervals.IntervalQuery;
 import org.opensearch.core.common.ParsingException;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;

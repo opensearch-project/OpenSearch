@@ -32,13 +32,13 @@
 package org.opensearch.common.geo.parsers;
 
 import org.opensearch.OpenSearchParseException;
-import org.opensearch.core.ParseField;
 import org.opensearch.common.geo.builders.ShapeBuilder;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
+import org.opensearch.core.ParseField;
+import org.opensearch.core.xcontent.MapXContentParser;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.XContent;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.core.xcontent.MapXContentParser;
 import org.opensearch.index.mapper.AbstractGeometryFieldMapper;
 import org.opensearch.index.mapper.AbstractShapeGeometryFieldMapper;
 

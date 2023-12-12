@@ -31,17 +31,21 @@
 
 package org.opensearch.search.aggregations.bucket;
 
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.opensearch.OpenSearchException;
 import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.action.search.SearchPhaseExecutionException;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.script.MockScriptPlugin;
 import org.opensearch.script.Script;
 import org.opensearch.script.ScriptType;
 import org.opensearch.search.aggregations.AggregationExecutionException;
+import org.opensearch.search.aggregations.BucketOrder;
 import org.opensearch.search.aggregations.InternalAggregation;
 import org.opensearch.search.aggregations.bucket.filter.Filter;
 import org.opensearch.search.aggregations.bucket.histogram.DoubleBounds;
@@ -51,12 +55,13 @@ import org.opensearch.search.aggregations.metrics.Avg;
 import org.opensearch.search.aggregations.metrics.Max;
 import org.opensearch.search.aggregations.metrics.Stats;
 import org.opensearch.search.aggregations.metrics.Sum;
-import org.opensearch.search.aggregations.BucketOrder;
 import org.opensearch.test.OpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedOpenSearchIntegTestCase;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -69,6 +74,7 @@ import java.util.function.Function;
 import static java.util.Collections.emptyMap;
 import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.opensearch.index.query.QueryBuilders.matchAllQuery;
+import static org.opensearch.search.SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING;
 import static org.opensearch.search.aggregations.AggregationBuilders.avg;
 import static org.opensearch.search.aggregations.AggregationBuilders.filter;
 import static org.opensearch.search.aggregations.AggregationBuilders.histogram;
@@ -85,7 +91,7 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.core.IsNull.notNullValue;
 
 @OpenSearchIntegTestCase.SuiteScopeTestCase
-public class HistogramIT extends OpenSearchIntegTestCase {
+public class HistogramIT extends ParameterizedOpenSearchIntegTestCase {
 
     private static final String SINGLE_VALUED_FIELD_NAME = "l_value";
     private static final String MULTI_VALUED_FIELD_NAME = "l_values";
@@ -95,6 +101,23 @@ public class HistogramIT extends OpenSearchIntegTestCase {
     static int numValueBuckets, numValuesBuckets;
     static long[] valueCounts, valuesCounts;
     static Map<Long, Map<String, Object>> expectedMultiSortBuckets;
+
+    public HistogramIT(Settings dynamicSettings) {
+        super(dynamicSettings);
+    }
+
+    @ParametersFactory
+    public static Collection<Object[]> parameters() {
+        return Arrays.asList(
+            new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), false).build() },
+            new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), true).build() }
+        );
+    }
+
+    @Override
+    protected Settings featureFlagSettings() {
+        return Settings.builder().put(super.featureFlagSettings()).put(FeatureFlags.CONCURRENT_SEGMENT_SEARCH, "true").build();
+    }
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
@@ -1144,6 +1167,7 @@ public class HistogramIT extends OpenSearchIntegTestCase {
         assertEquals(1, buckets.get(0).getDocCount());
         assertEquals(0.05, (double) buckets.get(1).getKey(), 0.01d);
         assertEquals(1, buckets.get(1).getDocCount());
+        internalCluster().wipeIndices("decimal_values");
     }
 
     /**
@@ -1285,6 +1309,7 @@ public class HistogramIT extends OpenSearchIntegTestCase {
                 .getMissCount(),
             equalTo(2L)
         );
+        internalCluster().wipeIndices("cache_test_idx");
     }
 
     public void testSingleValuedFieldOrderedBySingleValueSubAggregationAscAndKeyDesc() throws Exception {
@@ -1388,6 +1413,7 @@ public class HistogramIT extends OpenSearchIntegTestCase {
         buckets = histogram.getBuckets();
         assertEquals(1, buckets.size());
         assertEquals(0.1, (double) buckets.get(0).getKey(), 0.01d);
+        internalCluster().wipeIndices("test");
 
     }
 

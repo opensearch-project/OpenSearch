@@ -34,8 +34,8 @@ package org.opensearch.index.mapper.size;
 import org.opensearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.opensearch.action.get.GetResponse;
 import org.opensearch.action.support.master.AcknowledgedResponse;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.plugin.mapper.MapperSizePlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.test.OpenSearchIntegTestCase;
@@ -123,7 +123,7 @@ public class SizeMappingIT extends OpenSearchIntegTestCase {
     public void testBasic() throws Exception {
         assertAcked(prepareCreate("test").setMapping("_size", "enabled=true"));
         final String source = "{\"f\":10}";
-        indexRandom(true, client().prepareIndex("test").setId("1").setSource(source, XContentType.JSON));
+        indexRandom(true, client().prepareIndex("test").setId("1").setSource(source, MediaTypeRegistry.JSON));
         GetResponse getResponse = client().prepareGet("test", "1").setStoredFields("_size").get();
         assertNotNull(getResponse.getField("_size"));
         assertEquals(source.length(), (int) getResponse.getField("_size").getValue());

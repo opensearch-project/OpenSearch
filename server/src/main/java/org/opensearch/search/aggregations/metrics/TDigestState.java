@@ -31,13 +31,14 @@
 
 package org.opensearch.search.aggregations.metrics;
 
-import com.tdunning.math.stats.AVLTreeDigest;
-import com.tdunning.math.stats.Centroid;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 
 import java.io.IOException;
 import java.util.Iterator;
+
+import com.tdunning.math.stats.AVLTreeDigest;
+import com.tdunning.math.stats.Centroid;
 
 /**
  * Extension of {@link com.tdunning.math.stats.TDigest} with custom serialization.

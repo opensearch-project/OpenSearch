@@ -32,11 +32,11 @@
 
 package org.opensearch.index.query.functionscore;
 
+import org.opensearch.common.lucene.search.function.ScoreFunction;
+import org.opensearch.common.lucene.search.function.WeightFactorFunction;
 import org.opensearch.core.common.io.stream.NamedWriteable;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
-import org.opensearch.common.lucene.search.function.ScoreFunction;
-import org.opensearch.common.lucene.search.function.WeightFactorFunction;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.query.QueryShardContext;

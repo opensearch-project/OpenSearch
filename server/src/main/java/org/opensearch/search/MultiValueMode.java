@@ -42,6 +42,7 @@ import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
@@ -59,8 +60,9 @@ import java.util.Locale;
 /**
  * Defines what values to pick in the case a document contains multiple values for a particular field.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public enum MultiValueMode implements Writeable {
     /**
      * Pick the sum of all the values.
@@ -542,7 +544,7 @@ public enum MultiValueMode implements Writeable {
      * Return a {@link NumericDocValues} instance that can be used to sort documents
      * with this mode and the provided values. When a document has no value,
      * <code>missingValue</code> is returned.
-     *
+     * <p>
      * Allowed Modes: SUM, AVG, MEDIAN, MIN, MAX
      */
     public NumericDocValues select(final SortedNumericDocValues values) {
@@ -583,12 +585,12 @@ public enum MultiValueMode implements Writeable {
     /**
      * Return a {@link NumericDocValues} instance that can be used to sort root documents
      * with this mode, the provided values and filters for root/inner documents.
-     *
+     * <p>
      * For every root document, the values of its inner documents will be aggregated.
      * If none of the inner documents has a value, then <code>missingValue</code> is returned.
-     *
+     * <p>
      * Allowed Modes: SUM, AVG, MIN, MAX
-     *
+     * <p>
      * NOTE: Calling the returned instance on docs that are not root docs is illegal
      *       The returned instance can only be evaluate the current and upcoming docs
      */
@@ -658,7 +660,7 @@ public enum MultiValueMode implements Writeable {
      * Return a {@link NumericDoubleValues} instance that can be used to sort documents
      * with this mode and the provided values. When a document has no value,
      * <code>missingValue</code> is returned.
-     *
+     * <p>
      * Allowed Modes: SUM, AVG, MEDIAN, MIN, MAX
      */
     public NumericDoubleValues select(final SortedNumericDoubleValues values) {
@@ -694,12 +696,12 @@ public enum MultiValueMode implements Writeable {
     /**
      * Return a {@link NumericDoubleValues} instance that can be used to sort root documents
      * with this mode, the provided values and filters for root/inner documents.
-     *
+     * <p>
      * For every root document, the values of its inner documents will be aggregated.
      * If none of the inner documents has a value, then <code>missingValue</code> is returned.
-     *
+     * <p>
      * Allowed Modes: SUM, AVG, MIN, MAX
-     *
+     * <p>
      * NOTE: Calling the returned instance on docs that are not root docs is illegal
      *       The returned instance can only be evaluate the current and upcoming docs
      */
@@ -761,7 +763,7 @@ public enum MultiValueMode implements Writeable {
      * Return a {@link BinaryDocValues} instance that can be used to sort documents
      * with this mode and the provided values. When a document has no value,
      * <code>missingValue</code> is returned.
-     *
+     * <p>
      * Allowed Modes: MIN, MAX
      */
     public BinaryDocValues select(final SortedBinaryDocValues values, final BytesRef missingValue) {
@@ -816,12 +818,12 @@ public enum MultiValueMode implements Writeable {
     /**
      * Return a {@link BinaryDocValues} instance that can be used to sort root documents
      * with this mode, the provided values and filters for root/inner documents.
-     *
+     * <p>
      * For every root document, the values of its inner documents will be aggregated.
      * If none of the inner documents has a value, then <code>missingValue</code> is returned.
-     *
+     * <p>
      * Allowed Modes: MIN, MAX
-     *
+     * <p>
      * NOTE: Calling the returned instance on docs that are not root docs is illegal
      *       The returned instance can only be evaluate the current and upcoming docs
      */
@@ -889,7 +891,7 @@ public enum MultiValueMode implements Writeable {
     /**
      * Return a {@link SortedDocValues} instance that can be used to sort documents
      * with this mode and the provided values.
-     *
+     * <p>
      * Allowed Modes: MIN, MAX
      */
     public SortedDocValues select(final SortedSetDocValues values) {
@@ -949,11 +951,11 @@ public enum MultiValueMode implements Writeable {
     /**
      * Return a {@link SortedDocValues} instance that can be used to sort root documents
      * with this mode, the provided values and filters for root/inner documents.
-     *
+     * <p>
      * For every root document, the values of its inner documents will be aggregated.
-     *
+     * <p>
      * Allowed Modes: MIN, MAX
-     *
+     * <p>
      * NOTE: Calling the returned instance on docs that are not root docs is illegal
      *       The returned instance can only be evaluate the current and upcoming docs
      */

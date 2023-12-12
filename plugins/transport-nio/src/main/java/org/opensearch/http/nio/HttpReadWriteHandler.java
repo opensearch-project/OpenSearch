@@ -32,13 +32,6 @@
 
 package org.opensearch.http.nio;
 
-import io.netty.channel.ChannelHandler;
-import io.netty.handler.codec.ByteToMessageDecoder;
-import io.netty.handler.codec.http.HttpContentCompressor;
-import io.netty.handler.codec.http.HttpContentDecompressor;
-import io.netty.handler.codec.http.HttpObjectAggregator;
-import io.netty.handler.codec.http.HttpRequestDecoder;
-import io.netty.handler.codec.http.HttpResponseEncoder;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.http.HttpHandlingSettings;
 import org.opensearch.http.HttpPipelinedRequest;
@@ -57,6 +50,14 @@ import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
 import java.util.function.LongSupplier;
+
+import io.netty.channel.ChannelHandler;
+import io.netty.handler.codec.ByteToMessageDecoder;
+import io.netty.handler.codec.http.HttpContentCompressor;
+import io.netty.handler.codec.http.HttpContentDecompressor;
+import io.netty.handler.codec.http.HttpObjectAggregator;
+import io.netty.handler.codec.http.HttpRequestDecoder;
+import io.netty.handler.codec.http.HttpResponseEncoder;
 
 public class HttpReadWriteHandler implements NioChannelHandler {
 

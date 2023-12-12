@@ -34,21 +34,23 @@ package org.opensearch.common.settings;
 
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.Version;
-import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.io.stream.BytesStreamOutput;
+import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.settings.SecureString;
 import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.core.common.unit.ByteSizeValue;
-import org.opensearch.common.unit.TimeValue;
-import org.opensearch.core.common.settings.SecureString;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -63,7 +65,9 @@ import java.util.concurrent.TimeUnit;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
@@ -90,6 +94,15 @@ public class SettingsTests extends OpenSearchTestCase {
             .replacePropertyPlaceholders(name -> name.equals("HOSTNAME") ? hostname : name.equals("HOSTIP") ? hostip : null)
             .build();
         assertThat(settings.getAsList("setting1"), contains(hostname, hostip));
+    }
+
+    public void testReplacePropertiesPlaceholderSystemPropertyEmptyList() {
+        final Settings settings = Settings.builder()
+            .put("setting1", "${HOSTNAMES}")
+            .replacePropertyPlaceholders(name -> name.equals("HOSTNAMES") ? "[]" : null)
+            .build();
+        assertThat(settings.getAsList("setting1"), empty());
+        assertThat(settings.get("setting1"), equalTo("[]"));
     }
 
     public void testReplacePropertiesPlaceholderSystemVariablesHaveNoEffect() {
@@ -298,6 +311,20 @@ public class SettingsTests extends OpenSearchTestCase {
 
         assertThat(settings.size(), equalTo(1));
         assertThat(settings.get("foo.test"), equalTo("test"));
+    }
+
+    public void testPrefixNormalizationArchived() {
+        Settings settings = Settings.builder().put("archived.foo.bar", "baz").normalizePrefix("foo.").build();
+
+        assertThat(settings.size(), equalTo(1));
+        assertThat(settings.get("foo.archived.foo.bar"), nullValue());
+        assertThat(settings.get("archived.foo.bar"), equalTo("baz"));
+
+        settings = Settings.builder().put("archived.foo.*", "baz").normalizePrefix("foo.").build();
+
+        assertThat(settings.size(), equalTo(1));
+        assertThat(settings.get("foo.archived.foo.*"), nullValue());
+        assertThat(settings.get("archived.foo.*"), equalTo("baz"));
     }
 
     public void testFilteredMap() {
@@ -514,7 +541,7 @@ public class SettingsTests extends OpenSearchTestCase {
             .putNull("foo.null.baz")
             .build();
         final boolean flatSettings = randomBoolean();
-        XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent());
+        XContentBuilder builder = MediaTypeRegistry.JSON.contentBuilder();
         builder.startObject();
         settings.toXContent(builder, new ToXContent.MapParams(Collections.singletonMap("flat_settings", "" + flatSettings)));
         builder.endObject();
@@ -547,20 +574,20 @@ public class SettingsTests extends OpenSearchTestCase {
     public void testToXContent() throws IOException {
         // this is just terrible but it's the existing behavior!
         Settings test = Settings.builder().putList("foo.bar", "1", "2", "3").put("foo.bar.baz", "test").build();
-        XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent());
+        XContentBuilder builder = XContentBuilder.builder(MediaTypeRegistry.JSON.xContent());
         builder.startObject();
         test.toXContent(builder, new ToXContent.MapParams(Collections.emptyMap()));
         builder.endObject();
         assertEquals("{\"foo\":{\"bar.baz\":\"test\",\"bar\":[\"1\",\"2\",\"3\"]}}", builder.toString());
 
         test = Settings.builder().putList("foo.bar", "1", "2", "3").build();
-        builder = XContentBuilder.builder(XContentType.JSON.xContent());
+        builder = XContentBuilder.builder(MediaTypeRegistry.JSON.xContent());
         builder.startObject();
         test.toXContent(builder, new ToXContent.MapParams(Collections.emptyMap()));
         builder.endObject();
         assertEquals("{\"foo\":{\"bar\":[\"1\",\"2\",\"3\"]}}", builder.toString());
 
-        builder = XContentBuilder.builder(XContentType.JSON.xContent());
+        builder = XContentBuilder.builder(MediaTypeRegistry.JSON.xContent());
         builder.startObject();
         test.toXContent(builder, new ToXContent.MapParams(Collections.singletonMap("flat_settings", "true")));
         builder.endObject();
@@ -588,6 +615,18 @@ public class SettingsTests extends OpenSearchTestCase {
         assertThat(settings.getAsList("test1.test3").size(), equalTo(2));
         assertThat(settings.getAsList("test1.test3").get(0), equalTo("test3-1"));
         assertThat(settings.getAsList("test1.test3").get(1), equalTo("test3-2"));
+        assertThat(settings.getAsList("test1.test4"), empty());
+    }
+
+    public void testYamlPlaceholder() throws IOException {
+        try (InputStream in = new ByteArrayInputStream("hosts: ${HOSTNAMES}".getBytes(StandardCharsets.UTF_8))) {
+            Settings settings = Settings.builder()
+                .loadFromStream("foo.yml", in, false)
+                .replacePropertyPlaceholders(name -> name.equals("HOSTNAMES") ? "[\"h1\", \"h2\"]" : null)
+                .build();
+            assertThat(settings.getAsList("hosts"), hasSize(2));
+            assertThat(settings.getAsList("hosts"), containsInAnyOrder("h1", "h2"));
+        }
     }
 
     public void testYamlLegacyList() throws IOException {
@@ -707,14 +746,14 @@ public class SettingsTests extends OpenSearchTestCase {
 
     public void testProcessSetting() throws IOException {
         Settings test = Settings.builder().put("ant", "value1").put("ant.bee.cat", "value2").put("bee.cat", "value3").build();
-        XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent());
+        XContentBuilder builder = XContentBuilder.builder(MediaTypeRegistry.JSON.xContent());
         builder.startObject();
         test.toXContent(builder, new ToXContent.MapParams(Collections.emptyMap()));
         builder.endObject();
         assertEquals("{\"ant.bee\":{\"cat\":\"value2\"},\"ant\":\"value1\",\"bee\":{\"cat\":\"value3\"}}", builder.toString());
 
         test = Settings.builder().put("ant", "value1").put("ant.bee.cat", "value2").put("ant.bee.cat.dog.ewe", "value3").build();
-        builder = XContentBuilder.builder(XContentType.JSON.xContent());
+        builder = XContentBuilder.builder(MediaTypeRegistry.JSON.xContent());
         builder.startObject();
         test.toXContent(builder, new ToXContent.MapParams(Collections.emptyMap()));
         builder.endObject();

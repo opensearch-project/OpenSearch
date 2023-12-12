@@ -67,11 +67,12 @@ import org.opensearch.geometry.Polygon;
 import org.opensearch.geometry.Rectangle;
 import org.opensearch.index.mapper.AbstractShapeGeometryFieldMapper;
 import org.opensearch.index.mapper.LegacyGeoShapeFieldMapper;
-import org.locationtech.jts.geom.Coordinate;
-import org.locationtech.spatial4j.shape.Shape;
 
 import java.util.ArrayList;
 import java.util.List;
+
+import org.locationtech.jts.geom.Coordinate;
+import org.locationtech.spatial4j.shape.Shape;
 
 import static org.opensearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
 

@@ -31,23 +31,29 @@
 
 package org.opensearch.search.aggregations.bucket;
 
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.common.util.FeatureFlags;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.search.aggregations.BucketOrder;
 import org.opensearch.search.aggregations.bucket.filter.InternalFilter;
 import org.opensearch.search.aggregations.bucket.terms.SignificantTerms;
 import org.opensearch.search.aggregations.bucket.terms.SignificantTermsAggregatorFactory;
 import org.opensearch.search.aggregations.bucket.terms.Terms;
-import org.opensearch.test.OpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedOpenSearchIntegTestCase;
 
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
 import java.util.List;
 
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
+import static org.opensearch.search.SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING;
 import static org.opensearch.search.aggregations.AggregationBuilders.filter;
 import static org.opensearch.search.aggregations.AggregationBuilders.significantTerms;
 import static org.opensearch.search.aggregations.AggregationBuilders.terms;
@@ -55,8 +61,26 @@ import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.equalTo;
 
-public class TermsShardMinDocCountIT extends OpenSearchIntegTestCase {
+public class TermsShardMinDocCountIT extends ParameterizedOpenSearchIntegTestCase {
+
     private static final String index = "someindex";
+
+    public TermsShardMinDocCountIT(Settings dynamicSettings) {
+        super(dynamicSettings);
+    }
+
+    @ParametersFactory
+    public static Collection<Object[]> parameters() {
+        return Arrays.asList(
+            new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), false).build() },
+            new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), true).build() }
+        );
+    }
+
+    @Override
+    protected Settings featureFlagSettings() {
+        return Settings.builder().put(super.featureFlagSettings()).put(FeatureFlags.CONCURRENT_SEGMENT_SEARCH, "true").build();
+    }
 
     private static String randomExecutionHint() {
         return randomBoolean() ? null : randomFrom(SignificantTermsAggregatorFactory.ExecutionMode.values()).toString();
@@ -124,10 +148,10 @@ public class TermsShardMinDocCountIT extends OpenSearchIntegTestCase {
         String sourceClass = "{\"text\": \"" + term + "\", \"class\":" + "true" + "}";
         String sourceNotClass = "{\"text\": \"" + term + "\", \"class\":" + "false" + "}";
         for (int i = 0; i < numInClass; i++) {
-            builders.add(client().prepareIndex(index).setSource(sourceClass, XContentType.JSON));
+            builders.add(client().prepareIndex(index).setSource(sourceClass, MediaTypeRegistry.JSON));
         }
         for (int i = 0; i < numNotInClass; i++) {
-            builders.add(client().prepareIndex(index).setSource(sourceNotClass, XContentType.JSON));
+            builders.add(client().prepareIndex(index).setSource(sourceNotClass, MediaTypeRegistry.JSON));
         }
     }
 
@@ -188,7 +212,7 @@ public class TermsShardMinDocCountIT extends OpenSearchIntegTestCase {
     private static void addTermsDocs(String term, int numDocs, List<IndexRequestBuilder> builders) {
         String sourceClass = "{\"text\": \"" + term + "\"}";
         for (int i = 0; i < numDocs; i++) {
-            builders.add(client().prepareIndex(index).setSource(sourceClass, XContentType.JSON));
+            builders.add(client().prepareIndex(index).setSource(sourceClass, MediaTypeRegistry.JSON));
         }
     }
 }

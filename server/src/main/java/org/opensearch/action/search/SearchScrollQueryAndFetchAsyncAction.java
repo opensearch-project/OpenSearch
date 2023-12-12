@@ -33,10 +33,10 @@
 package org.opensearch.action.search;
 
 import org.apache.logging.log4j.Logger;
-import org.opensearch.action.ActionListener;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.util.concurrent.AtomicArray;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.search.fetch.QueryFetchSearchResult;
 import org.opensearch.search.fetch.ScrollQueryFetchSearchResult;
 import org.opensearch.search.internal.InternalScrollSearchRequest;

@@ -39,15 +39,12 @@ import org.apache.lucene.document.LatLonDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.document.StoredField;
-import org.apache.lucene.tests.index.AssertingDirectoryReader;
 import org.apache.lucene.index.CompositeReaderContext;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexReaderContext;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.sandbox.document.HalfFloatPoint;
-import org.apache.lucene.tests.search.AssertingIndexSearcher;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
@@ -57,25 +54,31 @@ import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.index.AssertingDirectoryReader;
+import org.apache.lucene.tests.index.RandomIndexWriter;
+import org.apache.lucene.tests.search.AssertingIndexSearcher;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
 import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.CheckedConsumer;
 import org.opensearch.common.TriFunction;
-import org.opensearch.core.common.breaker.CircuitBreaker;
-import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.common.lease.Releasable;
+import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.lucene.index.OpenSearchDirectoryReader;
 import org.opensearch.common.network.NetworkAddress;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.util.MockBigArrays;
 import org.opensearch.common.util.MockPageCacheRecycler;
-import org.opensearch.common.lease.Releasable;
-import org.opensearch.common.lease.Releasables;
+import org.opensearch.core.common.breaker.CircuitBreaker;
+import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.index.Index;
+import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.core.indices.breaker.CircuitBreakerService;
+import org.opensearch.core.indices.breaker.NoneCircuitBreakerService;
 import org.opensearch.core.xcontent.ContextParser;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.core.index.Index;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.analysis.AnalysisRegistry;
 import org.opensearch.index.analysis.AnalyzerScope;
@@ -108,10 +111,7 @@ import org.opensearch.index.mapper.RangeType;
 import org.opensearch.index.mapper.TextFieldMapper;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.index.shard.IndexShard;
-import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.indices.IndicesModule;
-import org.opensearch.core.indices.breaker.CircuitBreakerService;
-import org.opensearch.core.indices.breaker.NoneCircuitBreakerService;
 import org.opensearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.opensearch.indices.mapper.MapperRegistry;
 import org.opensearch.plugins.SearchPlugin;
@@ -132,8 +132,8 @@ import org.opensearch.search.fetch.subphase.FetchSourcePhase;
 import org.opensearch.search.internal.ContextIndexSearcher;
 import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.lookup.SearchLookup;
-import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.InternalAggregationTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.junit.After;
 import org.junit.Before;
 
@@ -350,6 +350,7 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
         when(searchContext.aggregations()).thenReturn(new SearchContextAggregations(AggregatorFactories.EMPTY, bucketConsumer));
         when(searchContext.query()).thenReturn(query);
         when(searchContext.bucketCollectorProcessor()).thenReturn(new BucketCollectorProcessor());
+        when(searchContext.asLocalBucketCountThresholds(any())).thenCallRealMethod();
         /*
          * Always use the circuit breaking big arrays instance so that the CircuitBreakerService
          * we're passed gets a chance to break.
@@ -684,7 +685,7 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
      * Implementors should return a list of {@link ValuesSourceType} that the aggregator supports.
      * This is used to test the matrix of supported/unsupported field types against the aggregator
      * and verify it works (or doesn't) as expected.
-     *
+     * <p>
      * If this method is implemented, {@link AggregatorTestCase#createAggBuilderForTypeTest(MappedFieldType, String)}
      * should be implemented as well.
      *
@@ -701,7 +702,7 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
      * The field type and name are provided, and the implementor is expected to return an AggBuilder accordingly.
      * The AggBuilder should be returned even if the aggregation does not support the field type, because
      * the test will check if an exception is thrown in that case.
-     *
+     * <p>
      * The list of supported types are provided by {@link AggregatorTestCase#getSupportedValuesSourceTypes()},
      * which must also be implemented.
      *
@@ -719,7 +720,7 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
      * A method that allows implementors to specifically denylist particular field types (based on their content_name).
      * This is needed in some areas where the ValuesSourceType is not granular enough, for example integer values
      * vs floating points, or `keyword` bytes vs `binary` bytes (which are not searchable)
-     *
+     * <p>
      * This is a denylist instead of an allowlist because there are vastly more field types than ValuesSourceTypes,
      * and it's expected that these unsupported cases are exceptional rather than common
      */
@@ -733,7 +734,7 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
      * is provided by the implementor class, and it is executed against each field type in turn.  If
      * an exception is thrown when the field is supported, that will fail the test.  Similarly, if
      * an exception _is not_ thrown when a field is unsupported, that will also fail the test.
-     *
+     * <p>
      * Exception types/messages are not currently checked, just presence/absence of an exception.
      */
     public void testSupportedFieldTypes() throws IOException {
@@ -824,7 +825,7 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
 
     /**
      * Helper method to write a single document with a single value specific to the requested fieldType.
-     *
+     * <p>
      * Throws an exception if it encounters an unknown field type, to prevent new ones from sneaking in without
      * being tested.
      */
@@ -1057,6 +1058,11 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
                             return null;
                         }
                     };
+                }
+
+                @Override
+                protected boolean supportsConcurrentSegmentSearch() {
+                    return true;
                 }
             };
         }

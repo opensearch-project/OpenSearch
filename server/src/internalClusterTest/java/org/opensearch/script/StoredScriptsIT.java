@@ -31,9 +31,9 @@
 
 package org.opensearch.script;
 
-import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.common.bytes.BytesArray;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
@@ -69,7 +69,7 @@ public class StoredScriptsIT extends OpenSearchIntegTestCase {
                 .cluster()
                 .preparePutStoredScript()
                 .setId("foobar")
-                .setContent(new BytesArray("{\"script\": {\"lang\": \"" + LANG + "\", \"source\": \"1\"} }"), XContentType.JSON)
+                .setContent(new BytesArray("{\"script\": {\"lang\": \"" + LANG + "\", \"source\": \"1\"} }"), MediaTypeRegistry.JSON)
         );
         String script = client().admin().cluster().prepareGetStoredScript("foobar").get().getSource().getSource();
         assertNotNull(script);
@@ -81,7 +81,12 @@ public class StoredScriptsIT extends OpenSearchIntegTestCase {
 
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> client().admin().cluster().preparePutStoredScript().setId("id#").setContent(new BytesArray("{}"), XContentType.JSON).get()
+            () -> client().admin()
+                .cluster()
+                .preparePutStoredScript()
+                .setId("id#")
+                .setContent(new BytesArray("{}"), MediaTypeRegistry.JSON)
+                .get()
         );
         assertEquals("Validation Failed: 1: id cannot contain '#' for stored script;", e.getMessage());
     }
@@ -95,7 +100,7 @@ public class StoredScriptsIT extends OpenSearchIntegTestCase {
                 .setId("foobar")
                 .setContent(
                     new BytesArray("{\"script\": { \"lang\": \"" + LANG + "\"," + " \"source\":\"0123456789abcdef\"} }"),
-                    XContentType.JSON
+                    MediaTypeRegistry.JSON
                 )
                 .get()
         );

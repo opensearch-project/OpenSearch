@@ -36,13 +36,14 @@ import org.opensearch.cluster.AbstractDiffable;
 import org.opensearch.cluster.Diff;
 import org.opensearch.cluster.metadata.DataStream.TimestampField;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.annotation.PublicApi;
+import org.opensearch.core.ParseField;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
-import org.opensearch.common.xcontent.XContentType;
-import org.opensearch.core.ParseField;
 import org.opensearch.core.xcontent.ConstructingObjectParser;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
@@ -63,8 +64,9 @@ import static java.util.Collections.unmodifiableMap;
  * ids corresponding to component templates that should be composed in order when creating a new
  * index.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class ComposableIndexTemplate extends AbstractDiffable<ComposableIndexTemplate> implements ToXContentObject {
     private static final ParseField INDEX_PATTERNS = new ParseField("index_patterns");
     private static final ParseField TEMPLATE = new ParseField("template");
@@ -278,14 +280,15 @@ public class ComposableIndexTemplate extends AbstractDiffable<ComposableIndexTem
 
     @Override
     public String toString() {
-        return Strings.toString(XContentType.JSON, this);
+        return Strings.toString(MediaTypeRegistry.JSON, this);
     }
 
     /**
      * Template for data stream.
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public static class DataStreamTemplate implements Writeable, ToXContentObject {
 
         private static final ParseField TIMESTAMP_FIELD_FIELD = new ParseField("timestamp_field");

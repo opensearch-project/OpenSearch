@@ -46,13 +46,14 @@
 
 package org.opensearch.transport;
 
-import io.netty.channel.socket.nio.NioServerSocketChannel;
-import io.netty.util.internal.SocketUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import java.nio.channels.SocketChannel;
 import java.util.List;
+
+import io.netty.channel.socket.nio.NioServerSocketChannel;
+import io.netty.util.internal.SocketUtils;
 
 /**
  * This class is adapted from {@link NioServerSocketChannel} class in the Netty project. It overrides the

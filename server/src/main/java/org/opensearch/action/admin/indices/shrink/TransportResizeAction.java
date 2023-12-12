@@ -33,7 +33,6 @@
 package org.opensearch.action.admin.indices.shrink;
 
 import org.apache.lucene.index.IndexWriter;
-import org.opensearch.action.ActionListener;
 import org.opensearch.action.admin.indices.create.CreateIndexClusterStateUpdateRequest;
 import org.opensearch.action.admin.indices.create.CreateIndexRequest;
 import org.opensearch.action.admin.indices.stats.IndexShardStats;
@@ -49,22 +48,25 @@ import org.opensearch.cluster.metadata.MetadataCreateIndexService;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
-import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.unit.ByteSizeValue;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.shard.DocsStats;
-import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.index.store.StoreStats;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
-import org.opensearch.core.common.unit.ByteSizeValue;
-import org.opensearch.index.store.StoreStats;
 
 import java.io.IOException;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.IntFunction;
+
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 
 /**
  * Main class to initiate resizing (shrink / split) an index into a new index
@@ -138,25 +140,78 @@ public class TransportResizeAction extends TransportClusterManagerNodeAction<Res
         // there is no need to fetch docs stats for split but we keep it simple and do it anyway for simplicity of the code
         final String sourceIndex = indexNameExpressionResolver.resolveDateMathExpression(resizeRequest.getSourceIndex());
         final String targetIndex = indexNameExpressionResolver.resolveDateMathExpression(resizeRequest.getTargetIndexRequest().index());
-        client.admin()
-            .indices()
-            .prepareStats(sourceIndex)
-            .clear()
-            .setDocs(true)
-            .setStore(true)
-            .execute(ActionListener.delegateFailure(listener, (delegatedListener, indicesStatsResponse) -> {
-                CreateIndexClusterStateUpdateRequest updateRequest = prepareCreateIndexRequest(resizeRequest, state, i -> {
-                    IndexShardStats shard = indicesStatsResponse.getIndex(sourceIndex).getIndexShards().get(i);
-                    return shard == null ? null : shard.getPrimary().getDocs();
-                }, indicesStatsResponse.getPrimaries().store, sourceIndex, targetIndex);
-                createIndexService.createIndex(
-                    updateRequest,
-                    ActionListener.map(
-                        delegatedListener,
-                        response -> new ResizeResponse(response.isAcknowledged(), response.isShardsAcknowledged(), updateRequest.index())
-                    )
-                );
-            }));
+
+        IndexMetadata indexMetadata = state.metadata().index(sourceIndex);
+        if (resizeRequest.getResizeType().equals(ResizeType.SHRINK)
+            && state.metadata().isSegmentReplicationEnabled(sourceIndex)
+            && indexMetadata != null
+            && Integer.valueOf(indexMetadata.getSettings().get(SETTING_NUMBER_OF_REPLICAS)) > 0) {
+            client.admin()
+                .indices()
+                .prepareRefresh(sourceIndex)
+                .execute(ActionListener.delegateFailure(listener, (delegatedRefreshListener, refreshResponse) -> {
+                    client.admin()
+                        .indices()
+                        .prepareStats(sourceIndex)
+                        .clear()
+                        .setDocs(true)
+                        .setStore(true)
+                        .setSegments(true)
+                        .execute(ActionListener.delegateFailure(listener, (delegatedIndicesStatsListener, indicesStatsResponse) -> {
+                            CreateIndexClusterStateUpdateRequest updateRequest = prepareCreateIndexRequest(resizeRequest, state, i -> {
+                                IndexShardStats shard = indicesStatsResponse.getIndex(sourceIndex).getIndexShards().get(i);
+                                return shard == null ? null : shard.getPrimary().getDocs();
+                            }, indicesStatsResponse.getPrimaries().store, sourceIndex, targetIndex);
+
+                            if (indicesStatsResponse.getIndex(sourceIndex)
+                                .getTotal()
+                                .getSegments()
+                                .getReplicationStats().maxBytesBehind != 0) {
+                                throw new IllegalStateException(
+                                    " For index ["
+                                        + sourceIndex
+                                        + "] replica shards haven't caught up with primary, please retry after sometime."
+                                );
+                            }
+
+                            createIndexService.createIndex(
+                                updateRequest,
+                                ActionListener.map(
+                                    delegatedIndicesStatsListener,
+                                    response -> new ResizeResponse(
+                                        response.isAcknowledged(),
+                                        response.isShardsAcknowledged(),
+                                        updateRequest.index()
+                                    )
+                                )
+                            );
+                        }));
+                }));
+        } else {
+            client.admin()
+                .indices()
+                .prepareStats(sourceIndex)
+                .clear()
+                .setDocs(true)
+                .setStore(true)
+                .execute(ActionListener.delegateFailure(listener, (delegatedListener, indicesStatsResponse) -> {
+                    CreateIndexClusterStateUpdateRequest updateRequest = prepareCreateIndexRequest(resizeRequest, state, i -> {
+                        IndexShardStats shard = indicesStatsResponse.getIndex(sourceIndex).getIndexShards().get(i);
+                        return shard == null ? null : shard.getPrimary().getDocs();
+                    }, indicesStatsResponse.getPrimaries().store, sourceIndex, targetIndex);
+                    createIndexService.createIndex(
+                        updateRequest,
+                        ActionListener.map(
+                            delegatedListener,
+                            response -> new ResizeResponse(
+                                response.isAcknowledged(),
+                                response.isShardsAcknowledged(),
+                                updateRequest.index()
+                            )
+                        )
+                    );
+                }));
+        }
 
     }
 

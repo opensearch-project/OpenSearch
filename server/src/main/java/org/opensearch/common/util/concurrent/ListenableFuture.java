@@ -32,10 +32,10 @@
 
 package org.opensearch.common.util.concurrent;
 
-import org.opensearch.action.ActionListener;
 import org.opensearch.action.ActionRunnable;
 import org.opensearch.action.support.ContextPreservingActionListener;
 import org.opensearch.common.collect.Tuple;
+import org.opensearch.core.action.ActionListener;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -73,7 +73,7 @@ public final class ListenableFuture<V> extends BaseFuture<V> implements ActionLi
      * notified of a response or exception in a runnable submitted to the ExecutorService provided.
      * If the future has completed, the listener will be notified immediately without forking to
      * a different thread.
-     *
+     * <p>
      * It will apply the provided ThreadContext (if not null) when executing the listening.
      */
     public void addListener(ActionListener<V> listener, ExecutorService executor, ThreadContext threadContext) {

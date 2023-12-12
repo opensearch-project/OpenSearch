@@ -31,18 +31,20 @@
 
 package org.opensearch.search.suggest;
 
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
-import org.apache.lucene.tests.util.LuceneTestCase.SuppressCodecs;
 
+import org.apache.lucene.tests.util.LuceneTestCase.SuppressCodecs;
 import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.action.index.IndexResponse;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.common.geo.GeoPoint;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.Fuzziness;
+import org.opensearch.common.util.FeatureFlags;
+import org.opensearch.core.rest.RestStatus;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.core.rest.RestStatus;
 import org.opensearch.search.suggest.CompletionSuggestSearchIT.CompletionMappingBuilder;
 import org.opensearch.search.suggest.completion.CompletionSuggestionBuilder;
 import org.opensearch.search.suggest.completion.context.CategoryContextMapping;
@@ -51,11 +53,12 @@ import org.opensearch.search.suggest.completion.context.ContextBuilder;
 import org.opensearch.search.suggest.completion.context.ContextMapping;
 import org.opensearch.search.suggest.completion.context.GeoContextMapping;
 import org.opensearch.search.suggest.completion.context.GeoQueryContext;
-import org.opensearch.test.OpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedOpenSearchIntegTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -64,12 +67,29 @@ import java.util.Locale;
 import java.util.Map;
 
 import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.opensearch.search.SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertNoFailures;
 import static org.hamcrest.core.IsEqual.equalTo;
 
 @SuppressCodecs("*") // requires custom completion format
-public class ContextCompletionSuggestSearchIT extends OpenSearchIntegTestCase {
+public class ContextCompletionSuggestSearchIT extends ParameterizedOpenSearchIntegTestCase {
+    public ContextCompletionSuggestSearchIT(Settings settings) {
+        super(settings);
+    }
+
+    @ParametersFactory
+    public static Collection<Object[]> parameters() {
+        return Arrays.asList(
+            new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), false).build() },
+            new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), true).build() }
+        );
+    }
+
+    @Override
+    protected Settings featureFlagSettings() {
+        return Settings.builder().put(super.featureFlagSettings()).put(FeatureFlags.CONCURRENT_SEGMENT_SEARCH, "true").build();
+    }
 
     private final String INDEX = RandomStrings.randomAsciiOfLength(random(), 10).toLowerCase(Locale.ROOT);
     private final String FIELD = RandomStrings.randomAsciiOfLength(random(), 10).toLowerCase(Locale.ROOT);

@@ -134,29 +134,27 @@ public class StringTerms extends InternalMappedTerms<StringTerms, StringTerms.Bu
         String name,
         BucketOrder reduceOrder,
         BucketOrder order,
-        int requiredSize,
-        long minDocCount,
         Map<String, Object> metadata,
         DocValueFormat format,
         int shardSize,
         boolean showTermDocCountError,
         long otherDocCount,
         List<Bucket> buckets,
-        long docCountError
+        long docCountError,
+        TermsAggregator.BucketCountThresholds bucketCountThresholds
     ) {
         super(
             name,
             reduceOrder,
             order,
-            requiredSize,
-            minDocCount,
             metadata,
             format,
             shardSize,
             showTermDocCountError,
             otherDocCount,
             buckets,
-            docCountError
+            docCountError,
+            bucketCountThresholds
         );
     }
 
@@ -178,15 +176,14 @@ public class StringTerms extends InternalMappedTerms<StringTerms, StringTerms.Bu
             name,
             reduceOrder,
             order,
-            requiredSize,
-            minDocCount,
             metadata,
             format,
             shardSize,
             showTermDocCountError,
             otherDocCount,
             buckets,
-            docCountError
+            docCountError,
+            bucketCountThresholds
         );
     }
 
@@ -213,15 +210,14 @@ public class StringTerms extends InternalMappedTerms<StringTerms, StringTerms.Bu
             name,
             reduceOrder,
             order,
-            requiredSize,
-            minDocCount,
             getMetadata(),
             format,
             shardSize,
             showTermDocCountError,
             otherDocCount,
             buckets,
-            docCountError
+            docCountError,
+            bucketCountThresholds
         );
     }
 

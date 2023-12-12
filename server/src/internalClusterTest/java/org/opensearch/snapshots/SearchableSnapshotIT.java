@@ -6,7 +6,7 @@ package org.opensearch.snapshots;
 
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
-import org.hamcrest.MatcherAssert;
+
 import org.opensearch.action.admin.cluster.node.stats.NodeStats;
 import org.opensearch.action.admin.cluster.node.stats.NodesStatsRequest;
 import org.opensearch.action.admin.cluster.node.stats.NodesStatsResponse;
@@ -39,6 +39,7 @@ import org.opensearch.index.store.remote.filecache.FileCacheStats;
 import org.opensearch.monitor.fs.FsInfo;
 import org.opensearch.node.Node;
 import org.opensearch.repositories.fs.FsRepository;
+import org.hamcrest.MatcherAssert;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -50,13 +51,13 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
+import static org.opensearch.action.admin.cluster.node.stats.NodesStatsRequest.Metric.FS;
+import static org.opensearch.core.common.util.CollectionUtils.iterableAsArrayList;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
-import static org.opensearch.action.admin.cluster.node.stats.NodesStatsRequest.Metric.FS;
-import static org.opensearch.core.common.util.CollectionUtils.iterableAsArrayList;
 
 @ThreadLeakFilters(filters = CleanerDaemonThreadLeakFilter.class)
 public final class SearchableSnapshotIT extends AbstractSnapshotIntegTestCase {
@@ -457,7 +458,9 @@ public final class SearchableSnapshotIT extends AbstractSnapshotIntegTestCase {
 
     private void testUpdateIndexSettingsOnlyAllowedSettings(String index) {
         final UpdateSettingsRequestBuilder builder = client().admin().indices().prepareUpdateSettings(index);
-        builder.setSettings(Map.of("index.max_result_window", 1000, "index.search.slowlog.threshold.query.warn", "10s"));
+        builder.setSettings(
+            Map.of("index.max_result_window", 1000, "index.search.slowlog.threshold.query.warn", "10s", "index.number_of_replicas", 0)
+        );
         AcknowledgedResponse settingsResponse = builder.execute().actionGet();
         assertThat(settingsResponse, notNullValue());
     }

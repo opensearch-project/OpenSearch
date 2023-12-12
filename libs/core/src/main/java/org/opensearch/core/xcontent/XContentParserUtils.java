@@ -33,8 +33,8 @@
 package org.opensearch.core.xcontent;
 
 import org.opensearch.core.common.ParsingException;
-import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.Strings;
+import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.xcontent.XContentParser.Token;
 
 import java.io.IOException;
@@ -142,10 +142,10 @@ public final class XContentParserUtils {
      * This method expects that the current field name is the concatenation of a type, a delimiter and a name
      * (ex: terms#foo where "terms" refers to the type of a registered {@link NamedXContentRegistry.Entry},
      * "#" is the delimiter and "foo" the name of the object to parse).
-     *
+     * <p>
      * It also expected that following this field name is either an Object or an array xContent structure and
      * the cursor points to the start token of this structure.
-     *
+     * <p>
      * The method splits the field's name to extract the type and name and then parses the object
      * using the {@link XContentParser#namedObject(Class, String, Object)} method.
      *

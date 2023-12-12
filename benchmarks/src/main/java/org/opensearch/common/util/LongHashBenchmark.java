@@ -8,6 +8,7 @@
 
 package org.opensearch.common.util;
 
+import org.opensearch.common.lease.Releasable;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -20,7 +21,6 @@ import org.openjdk.jmh.annotations.Setup;
 import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.annotations.Warmup;
 import org.openjdk.jmh.infra.Blackhole;
-import org.opensearch.common.lease.Releasable;
 
 import java.util.Random;
 import java.util.concurrent.TimeUnit;

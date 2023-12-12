@@ -36,7 +36,6 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.opensearch.action.ActionListener;
 import org.opensearch.action.LatchedActionListener;
 import org.opensearch.action.admin.cluster.node.stats.NodeStats;
 import org.opensearch.action.admin.cluster.node.stats.NodesStatsRequest;
@@ -57,6 +56,7 @@ import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.index.store.StoreStats;
 import org.opensearch.index.store.remote.filecache.FileCacheStats;
@@ -82,7 +82,7 @@ import java.util.stream.Collectors;
  * to 30 seconds). The InternalClusterInfoService only runs on the cluster-manager node.
  * Listens for changes in the number of data nodes and immediately submits a
  * ClusterInfoUpdateJob if a node has been added.
- *
+ * <p>
  * Every time the timer runs, gathers information about the disk usage and
  * shard sizes across the cluster.
  *

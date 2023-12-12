@@ -47,6 +47,7 @@ import org.gradle.process.ExecSpec;
 import org.gradle.process.JavaExecSpec;
 
 import javax.inject.Inject;
+
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;

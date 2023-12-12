@@ -8,10 +8,11 @@
 
 package org.opensearch.indices.replication.common;
 
+import org.opensearch.common.annotation.PublicApi;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
-import org.opensearch.common.unit.TimeValue;
 
 import java.io.IOException;
 
@@ -19,8 +20,9 @@ import java.io.IOException;
  * A serializable timer that is used to measure the time taken for
  * file replication operations like recovery.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class ReplicationTimer implements Writeable {
     private long startTime = 0;
     private long startNanoTime = 0;

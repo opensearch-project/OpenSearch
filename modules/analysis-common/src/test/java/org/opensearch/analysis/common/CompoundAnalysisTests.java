@@ -47,8 +47,8 @@ import org.opensearch.index.analysis.TokenFilterFactory;
 import org.opensearch.indices.analysis.AnalysisModule;
 import org.opensearch.indices.analysis.AnalysisModule.AnalysisProvider;
 import org.opensearch.plugins.AnalysisPlugin;
-import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.IndexSettingsModule;
+import org.opensearch.test.OpenSearchTestCase;
 import org.hamcrest.MatcherAssert;
 
 import java.io.IOException;

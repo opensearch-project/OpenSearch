@@ -43,19 +43,20 @@ import org.apache.lucene.store.Directory;
 import org.opensearch.Version;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.UUIDs;
-import org.opensearch.core.common.bytes.BytesArray;
-import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lucene.uid.Versions;
 import org.opensearch.common.metrics.MeanMetric;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.util.concurrent.ThreadContext;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.util.io.IOUtils;
-import org.opensearch.common.lease.Releasable;
-import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.core.common.bytes.BytesArray;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.index.Index;
+import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.core.indices.breaker.NoneCircuitBreakerService;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.codec.CodecService;
 import org.opensearch.index.engine.Engine;
@@ -71,10 +72,9 @@ import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.index.translog.TranslogConfig;
-import org.opensearch.core.indices.breaker.NoneCircuitBreakerService;
 import org.opensearch.test.DummyShardLock;
-import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.IndexSettingsModule;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.Scheduler.Cancellable;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
@@ -133,7 +133,8 @@ public class RefreshListenersTests extends OpenSearchTestCase {
             shardId,
             createTempDir("translog"),
             indexSettings,
-            BigArrays.NON_RECYCLING_INSTANCE
+            BigArrays.NON_RECYCLING_INSTANCE,
+            ""
         );
         Engine.EventListener eventListener = new Engine.EventListener() {
             @Override
@@ -438,7 +439,16 @@ public class RefreshListenersTests extends OpenSearchTestCase {
         document.add(seqID.seqNoDocValue);
         document.add(seqID.primaryTerm);
         BytesReference source = new BytesArray(new byte[] { 1 });
-        ParsedDocument doc = new ParsedDocument(versionField, seqID, id, null, Arrays.asList(document), source, XContentType.JSON, null);
+        ParsedDocument doc = new ParsedDocument(
+            versionField,
+            seqID,
+            id,
+            null,
+            Arrays.asList(document),
+            source,
+            MediaTypeRegistry.JSON,
+            null
+        );
         Engine.Index index = new Engine.Index(new Term("_id", doc.id()), engine.config().getPrimaryTermSupplier().getAsLong(), doc);
         return engine.index(index);
     }

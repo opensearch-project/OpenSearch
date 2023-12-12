@@ -36,15 +36,15 @@ import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.Query;
 import org.opensearch.common.Explicit;
-import org.opensearch.core.ParseField;
 import org.opensearch.common.geo.GeoJsonGeometryFormat;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
+import org.opensearch.common.xcontent.support.XContentMapValues;
+import org.opensearch.core.ParseField;
+import org.opensearch.core.xcontent.MapXContentParser;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.common.xcontent.XContentType;
-import org.opensearch.core.xcontent.MapXContentParser;
-import org.opensearch.common.xcontent.support.XContentMapValues;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.index.query.QueryShardException;
 import org.opensearch.search.lookup.SearchLookup;
@@ -121,7 +121,7 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
 
         /**
          * Given a parsed value and a format string, formats the value into a plain Java object.
-         *
+         * <p>
          * Supported formats include 'geojson' and 'wkt'. The different formats are defined
          * as subclasses of {@link org.opensearch.common.geo.GeometryFormat}.
          */
@@ -129,7 +129,7 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
 
         /**
          * Parses the given value, then formats it according to the 'format' string.
-         *
+         * <p>
          * By default, this method simply parses the value using {@link Parser#parse}, then formats
          * it with {@link Parser#format}. However some {@link Parser} implementations override this
          * as they can avoid parsing the value if it is already in the right format.
@@ -141,7 +141,7 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
                     NamedXContentRegistry.EMPTY,
                     LoggingDeprecationHandler.INSTANCE,
                     Collections.singletonMap("dummy_field", value),
-                    XContentType.JSON
+                    MediaTypeRegistry.JSON
                 )
             ) {
                 parser.nextToken(); // start object

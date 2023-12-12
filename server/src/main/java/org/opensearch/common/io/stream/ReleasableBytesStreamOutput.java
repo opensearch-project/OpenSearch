@@ -33,10 +33,10 @@
 package org.opensearch.common.io.stream;
 
 import org.opensearch.common.bytes.ReleasableBytesReference;
-import org.opensearch.common.util.BigArrays;
-import org.opensearch.common.util.PageCacheRecycler;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lease.Releasables;
+import org.opensearch.common.util.BigArrays;
+import org.opensearch.common.util.PageCacheRecycler;
 
 /**
  * An bytes stream output that allows providing a {@link BigArrays} instance

@@ -103,4 +103,8 @@ public class BinaryRangeAggregatorFactory extends ValuesSourceAggregatorFactory 
             .build(name, factories, config.getValuesSource(), config.format(), ranges, keyed, searchContext, parent, cardinality, metadata);
     }
 
+    @Override
+    protected boolean supportsConcurrentSegmentSearch() {
+        return true;
+    }
 }

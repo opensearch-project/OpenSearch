@@ -32,7 +32,6 @@
 
 package org.opensearch.repositories;
 
-import org.opensearch.common.UUIDs;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.test.OpenSearchTestCase;
 
@@ -122,14 +121,11 @@ public class RepositoriesStatsArchiveTests extends OpenSearchTestCase {
 
     private RepositoryStatsSnapshot createRepositoryStats(RepositoryStats repositoryStats, long clusterVersion) {
         RepositoryInfo repositoryInfo = new RepositoryInfo(
-            UUIDs.randomBase64UUID(),
             randomAlphaOfLength(10),
             randomAlphaOfLength(10),
-            Map.of("bucket", randomAlphaOfLength(10)),
-            System.currentTimeMillis(),
-            null
+            Map.of("bucket", randomAlphaOfLength(10))
         );
-        return new RepositoryStatsSnapshot(repositoryInfo, repositoryStats, clusterVersion, true);
+        return new RepositoryStatsSnapshot(repositoryInfo, repositoryStats, clusterVersion);
     }
 
 }

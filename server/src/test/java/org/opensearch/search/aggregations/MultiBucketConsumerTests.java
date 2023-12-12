@@ -8,12 +8,13 @@
 
 package org.opensearch.search.aggregations;
 
-import org.mockito.Mockito;
 import org.opensearch.core.common.breaker.CircuitBreaker;
 import org.opensearch.core.common.breaker.CircuitBreakingException;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.concurrent.atomic.LongAdder;
+
+import org.mockito.Mockito;
 
 import static org.opensearch.search.aggregations.MultiBucketConsumerService.DEFAULT_MAX_BUCKETS;
 

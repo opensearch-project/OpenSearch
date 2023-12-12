@@ -34,8 +34,8 @@ package org.opensearch.core.action;
 
 import org.opensearch.common.Nullable;
 import org.opensearch.core.common.io.stream.Writeable;
-import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.core.rest.RestStatus;
+import org.opensearch.core.xcontent.ToXContentObject;
 
 import java.util.Objects;
 

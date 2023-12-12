@@ -36,8 +36,8 @@ import org.apache.logging.log4j.Logger;
 import org.opensearch.Version;
 import org.opensearch.action.OriginalIndices;
 import org.opensearch.common.Nullable;
-import org.opensearch.common.util.concurrent.AtomicArray;
 import org.opensearch.common.lease.Releasable;
+import org.opensearch.common.util.concurrent.AtomicArray;
 import org.opensearch.search.SearchPhaseResult;
 import org.opensearch.search.SearchShardTarget;
 import org.opensearch.search.internal.InternalSearchResponse;
@@ -65,11 +65,16 @@ public final class MockSearchPhaseContext implements SearchPhaseContext {
     final List<ShardSearchFailure> failures = Collections.synchronizedList(new ArrayList<>());
     SearchTransportService searchTransport;
     final Set<ShardSearchContextId> releasedSearchContexts = new HashSet<>();
-    final SearchRequest searchRequest = new SearchRequest();
+    final SearchRequest searchRequest;
     final AtomicReference<SearchResponse> searchResponse = new AtomicReference<>();
 
     public MockSearchPhaseContext(int numShards) {
+        this(numShards, new SearchRequest());
+    }
+
+    public MockSearchPhaseContext(int numShards, SearchRequest searchRequest) {
         this.numShards = numShards;
+        this.searchRequest = searchRequest;
         numSuccess = new AtomicInteger(numShards);
     }
 
@@ -97,6 +102,11 @@ public final class MockSearchPhaseContext implements SearchPhaseContext {
     @Override
     public SearchRequest getRequest() {
         return searchRequest;
+    }
+
+    @Override
+    public SearchPhase getCurrentPhase() {
+        return null;
     }
 
     @Override

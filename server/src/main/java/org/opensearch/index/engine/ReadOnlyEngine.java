@@ -48,11 +48,11 @@ import org.opensearch.index.seqno.SeqNoStats;
 import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.translog.DefaultTranslogDeletionPolicy;
-import org.opensearch.index.translog.Translog;
-import org.opensearch.index.translog.TranslogManager;
 import org.opensearch.index.translog.NoOpTranslogManager;
+import org.opensearch.index.translog.Translog;
 import org.opensearch.index.translog.TranslogConfig;
 import org.opensearch.index.translog.TranslogDeletionPolicy;
+import org.opensearch.index.translog.TranslogManager;
 import org.opensearch.index.translog.TranslogStats;
 import org.opensearch.search.suggest.completion.CompletionStats;
 import org.opensearch.transport.Transports;
@@ -278,7 +278,7 @@ public class ReadOnlyEngine extends Engine {
                     config.getGlobalCheckpointSupplier(),
                     config.getPrimaryTermSupplier(),
                     seqNo -> {},
-                    config.getPrimaryModeSupplier()
+                    config.getStartedPrimarySupplier()
                 )
         ) {
             return translog.stats();

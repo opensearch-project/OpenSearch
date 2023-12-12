@@ -35,15 +35,16 @@ package org.opensearch.action.admin.cluster.storedscripts;
 import org.opensearch.Version;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.support.master.AcknowledgedRequest;
+import org.opensearch.common.annotation.PublicApi;
+import org.opensearch.common.xcontent.XContentHelper;
+import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
-import org.opensearch.core.common.Strings;
 import org.opensearch.core.xcontent.MediaType;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentHelper;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.script.StoredScriptSource;
 
 import java.io.IOException;
@@ -54,8 +55,9 @@ import static org.opensearch.action.ValidateActions.addValidationError;
 /**
  * Transport request for putting stored script
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class PutStoredScriptRequest extends AcknowledgedRequest<PutStoredScriptRequest> implements ToXContentFragment {
 
     private String id;
@@ -140,10 +142,10 @@ public class PutStoredScriptRequest extends AcknowledgedRequest<PutStoredScriptR
     /**
      * Set the script source and the content type of the bytes.
      */
-    public PutStoredScriptRequest content(BytesReference content, XContentType xContentType) {
+    public PutStoredScriptRequest content(BytesReference content, MediaType mediaType) {
         this.content = content;
-        this.mediaType = Objects.requireNonNull(xContentType);
-        this.source = StoredScriptSource.parse(content, xContentType);
+        this.mediaType = Objects.requireNonNull(mediaType);
+        this.source = StoredScriptSource.parse(content, mediaType);
         return this;
     }
 

@@ -36,15 +36,15 @@ import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.DocWriteRequest;
 import org.opensearch.action.support.ActiveShardCount;
 import org.opensearch.action.support.replication.ReplicationResponse;
-import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.common.io.stream.BytesStreamOutput;
+import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.unit.ByteSizeValue;
-import org.opensearch.common.xcontent.XContentType;
-import org.opensearch.index.VersionType;
-import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.rest.RestStatus;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
+import org.opensearch.index.VersionType;
+import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
@@ -99,19 +99,19 @@ public class IndexRequestTests extends OpenSearchTestCase {
     public void testIndexingRejectsLongIds() {
         String id = randomAlphaOfLength(511);
         IndexRequest request = new IndexRequest("index").id(id);
-        request.source("{}", XContentType.JSON);
+        request.source("{}", MediaTypeRegistry.JSON);
         ActionRequestValidationException validate = request.validate();
         assertNull(validate);
 
         id = randomAlphaOfLength(512);
         request = new IndexRequest("index").id(id);
-        request.source("{}", XContentType.JSON);
+        request.source("{}", MediaTypeRegistry.JSON);
         validate = request.validate();
         assertNull(validate);
 
         id = randomAlphaOfLength(513);
         request = new IndexRequest("index").id(id);
-        request.source("{}", XContentType.JSON);
+        request.source("{}", MediaTypeRegistry.JSON);
         validate = request.validate();
         assertThat(validate, notNullValue());
         assertThat(validate.getMessage(), containsString("id [" + id + "] is too long, must be no longer than 512 bytes but was: 513"));
@@ -182,15 +182,15 @@ public class IndexRequestTests extends OpenSearchTestCase {
     public void testIndexRequestXContentSerialization() throws IOException {
         IndexRequest indexRequest = new IndexRequest("foo").id("1");
         boolean isRequireAlias = randomBoolean();
-        indexRequest.source("{}", XContentType.JSON);
+        indexRequest.source("{}", MediaTypeRegistry.JSON);
         indexRequest.setRequireAlias(isRequireAlias);
-        assertEquals(XContentType.JSON, indexRequest.getContentType());
+        assertEquals(MediaTypeRegistry.JSON, indexRequest.getContentType());
 
         BytesStreamOutput out = new BytesStreamOutput();
         indexRequest.writeTo(out);
         StreamInput in = StreamInput.wrap(out.bytes().toBytesRef().bytes);
         IndexRequest serialized = new IndexRequest(in);
-        assertEquals(XContentType.JSON, serialized.getContentType());
+        assertEquals(MediaTypeRegistry.JSON, serialized.getContentType());
         assertEquals(new BytesArray("{}"), serialized.source());
         assertEquals(isRequireAlias, serialized.isRequireAlias());
     }
@@ -215,11 +215,11 @@ public class IndexRequestTests extends OpenSearchTestCase {
         IndexRequest request = new IndexRequest("index");
 
         String source = "{\"name\":\"value\"}";
-        request.source(source, XContentType.JSON);
+        request.source(source, MediaTypeRegistry.JSON);
         assertEquals("index {[index][null], source[" + source + "]}", request.toString());
 
         source = "{\"name\":\"" + randomUnicodeOfLength(IndexRequest.MAX_SOURCE_LENGTH_IN_TOSTRING) + "\"}";
-        request.source(source, XContentType.JSON);
+        request.source(source, MediaTypeRegistry.JSON);
         int actualBytes = source.getBytes("UTF-8").length;
         assertEquals(
             "index {[index][null], source[n/a, actual length: ["
@@ -233,7 +233,7 @@ public class IndexRequestTests extends OpenSearchTestCase {
 
     public void testRejectsEmptyStringPipeline() {
         IndexRequest request = new IndexRequest("index");
-        request.source("{}", XContentType.JSON);
+        request.source("{}", MediaTypeRegistry.JSON);
         request.setPipeline("");
         ActionRequestValidationException validate = request.validate();
         assertThat(validate, notNullValue());

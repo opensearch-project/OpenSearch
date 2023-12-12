@@ -8,7 +8,6 @@
 
 package org.opensearch.indices.replication.common;
 
-import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.store.ByteBuffersDataOutput;
 import org.apache.lucene.store.ByteBuffersIndexOutput;
@@ -38,7 +37,6 @@ public class CopyState extends AbstractRefCounted {
     private final ReplicationCheckpoint replicationCheckpoint;
     private final Map<String, StoreFileMetadata> metadataMap;
     private final byte[] infosBytes;
-    private GatedCloseable<IndexCommit> commitRef;
     private final IndexShard shard;
 
     public CopyState(ReplicationCheckpoint requestedReplicationCheckpoint, IndexShard shard) throws IOException {
@@ -51,7 +49,6 @@ public class CopyState extends AbstractRefCounted {
         this.replicationCheckpoint = latestSegmentInfosAndCheckpoint.v2();
         SegmentInfos segmentInfos = this.segmentInfosRef.get();
         this.metadataMap = shard.store().getSegmentMetadataMap(segmentInfos);
-        this.commitRef = shard.acquireLastIndexCommit(false);
 
         ByteBuffersDataOutput buffer = new ByteBuffersDataOutput();
         // resource description and name are not used, but resource description cannot be null
@@ -65,10 +62,6 @@ public class CopyState extends AbstractRefCounted {
     protected void closeInternal() {
         try {
             segmentInfosRef.close();
-            // commitRef may be null if there were no pending delete files
-            if (commitRef != null) {
-                commitRef.close();
-            }
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }

@@ -32,10 +32,10 @@
 
 package org.opensearch.common.network;
 
-import org.opensearch.action.ActionFuture;
-import org.opensearch.action.ActionListener;
 import org.opensearch.action.support.PlainActionFuture;
+import org.opensearch.common.action.ActionFuture;
 import org.opensearch.common.util.io.IOUtils;
+import org.opensearch.core.action.ActionListener;
 
 import java.io.Closeable;
 import java.io.IOException;

@@ -65,13 +65,9 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.Version;
 import org.opensearch.ExceptionsHelper;
-import org.opensearch.common.CheckedConsumer;
 import org.opensearch.common.UUIDs;
-import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.io.stream.BytesStreamOutput;
-import org.opensearch.core.common.io.stream.StreamInput;
-import org.opensearch.core.common.io.stream.StreamOutput;
-import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.common.logging.Loggers;
 import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.lucene.store.ByteArrayIndexInput;
@@ -81,8 +77,13 @@ import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.AbstractRefCounted;
 import org.opensearch.common.util.concurrent.RefCounted;
-import org.opensearch.common.util.iterable.Iterables;
 import org.opensearch.common.util.io.IOUtils;
+import org.opensearch.common.util.iterable.Iterables;
+import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.common.io.stream.Writeable;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.env.ShardLock;
 import org.opensearch.env.ShardLockObtainFailedException;
@@ -92,7 +93,7 @@ import org.opensearch.index.engine.Engine;
 import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.shard.AbstractIndexShardComponent;
 import org.opensearch.index.shard.IndexShard;
-import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.index.shard.ShardPath;
 import org.opensearch.index.translog.Translog;
 
 import java.io.Closeable;
@@ -105,7 +106,6 @@ import java.io.UncheckedIOException;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -124,7 +124,6 @@ import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;
 import static org.opensearch.index.seqno.SequenceNumbers.LOCAL_CHECKPOINT_KEY;
 import static org.opensearch.index.store.Store.MetadataSnapshot.loadMetadata;
-import static org.opensearch.indices.replication.SegmentReplicationTarget.REPLICATION_PREFIX;
 
 /**
  * A Store provides plain access to files written by an opensearch index shard. Each shard
@@ -146,8 +145,9 @@ import static org.opensearch.indices.replication.SegmentReplicationTarget.REPLIC
  *      }
  * </pre>
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class Store extends AbstractIndexShardComponent implements Closeable, RefCounted {
     /**
      * This is an escape hatch for lucenes internal optimization that checks if the IndexInput is an instance of ByteBufferIndexInput
@@ -182,10 +182,10 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
     private final ReentrantReadWriteLock metadataLock = new ReentrantReadWriteLock();
     private final ShardLock shardLock;
     private final OnClose onClose;
+    private final ShardPath shardPath;
 
     // used to ref count files when a new Reader is opened for PIT/Scroll queries
     // prevents segment files deletion until the PIT/Scroll expires or is discarded
-    private final ReplicaFileTracker replicaFileTracker;
 
     private final AbstractRefCounted refCounter = new AbstractRefCounted("store") {
         @Override
@@ -196,10 +196,17 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
     };
 
     public Store(ShardId shardId, IndexSettings indexSettings, Directory directory, ShardLock shardLock) {
-        this(shardId, indexSettings, directory, shardLock, OnClose.EMPTY);
+        this(shardId, indexSettings, directory, shardLock, OnClose.EMPTY, null);
     }
 
-    public Store(ShardId shardId, IndexSettings indexSettings, Directory directory, ShardLock shardLock, OnClose onClose) {
+    public Store(
+        ShardId shardId,
+        IndexSettings indexSettings,
+        Directory directory,
+        ShardLock shardLock,
+        OnClose onClose,
+        ShardPath shardPath
+    ) {
         super(shardId, indexSettings);
         final TimeValue refreshInterval = indexSettings.getValue(INDEX_STORE_STATS_REFRESH_INTERVAL_SETTING);
         logger.debug("store stats are refreshed with refresh_interval [{}]", refreshInterval);
@@ -207,8 +214,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         this.directory = new StoreDirectory(sizeCachingDir, Loggers.getLogger("index.store.deletes", shardId));
         this.shardLock = shardLock;
         this.onClose = onClose;
-        this.replicaFileTracker = indexSettings.isSegRepEnabled() ? new ReplicaFileTracker() : null;
-
+        this.shardPath = shardPath;
         assert onClose != null;
         assert shardLock != null;
         assert shardLock.getShardId().equals(shardId);
@@ -217,6 +223,10 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
     public Directory directory() {
         ensureOpen();
         return directory;
+    }
+
+    public ShardPath shardPath() {
+        return shardPath;
     }
 
     /**
@@ -289,14 +299,15 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
     /**
      * Returns a new MetadataSnapshot for the given commit. If the given commit is <code>null</code>
      * the latest commit point is used.
-     *
+     * <p>
      * Note that this method requires the caller verify it has the right to access the store and
      * no concurrent file changes are happening. If in doubt, you probably want to use one of the following:
-     *
+     * <p>
      * {@link #readMetadataSnapshot(Path, ShardId, NodeEnvironment.ShardLocker, Logger)} to read a meta data while locking
      * {@link IndexShard#snapshotStoreMetadata()} to safely read from an existing shard
      * {@link IndexShard#acquireLastIndexCommit(boolean)} to get an {@link IndexCommit} which is safe to use but has to be freed
-     * @param commit the index commit to read the snapshot from or <code>null</code> if the latest snapshot should be read from the
+     *
+     * @param commit the index commit to read the snapshot from or {@code null} if the latest snapshot should be read from the
      *               directory
      * @throws CorruptIndexException      if the lucene index is corrupted. This can be caused by a checksum mismatch or an
      *                                    unexpected exception when opening the index reading the segments file.
@@ -320,10 +331,10 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
     /**
      * Returns a new MetadataSnapshot for the given commit. If the given commit is <code>null</code>
      * the latest commit point is used.
-     *
+     * <p>
      * Note that this method requires the caller verify it has the right to access the store and
      * no concurrent file changes are happening. If in doubt, you probably want to use one of the following:
-     *
+     * <p>
      * {@link #readMetadataSnapshot(Path, ShardId, NodeEnvironment.ShardLocker, Logger)} to read a meta data while locking
      * {@link IndexShard#snapshotStoreMetadata()} to safely read from an existing shard
      * {@link IndexShard#acquireLastIndexCommit(boolean)} to get an {@link IndexCommit} which is safe to use but has to be freed
@@ -375,7 +386,13 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
      */
     public Map<String, StoreFileMetadata> getSegmentMetadataMap(SegmentInfos segmentInfos) throws IOException {
         assert indexSettings.isSegRepEnabled();
-        return loadMetadata(segmentInfos, directory, logger, true).fileMetadata;
+        failIfCorrupted();
+        try {
+            return loadMetadata(segmentInfos, directory, logger, true).fileMetadata;
+        } catch (NoSuchFileException | CorruptIndexException | IndexFormatTooOldException | IndexFormatTooNewException ex) {
+            markStoreCorrupted(ex);
+            throw ex;
+        }
     }
 
     /**
@@ -789,89 +806,16 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
     }
 
     /**
-     * Segment Replication method
-     * This method deletes files in store that are not referenced by latest on-disk commit point
-     *
-     * @param reason         the reason for this cleanup operation logged for each deleted file
-     * @param fileToConsiderForCleanUp Files to consider for clean up.
-     *
-     * @throws IOException Exception on locking.
-     */
-    public void cleanupAndPreserveLatestCommitPoint(Collection<String> fileToConsiderForCleanUp, String reason) throws IOException {
-        assert indexSettings.isSegRepEnabled();
-        // fetch a snapshot from the latest on disk Segments_N file. This can be behind
-        // the passed in local in memory snapshot, so we want to ensure files it references are not removed.
-        metadataLock.writeLock().lock();
-        try (Lock writeLock = directory.obtainLock(IndexWriter.WRITE_LOCK_NAME)) {
-            cleanupFiles(fileToConsiderForCleanUp, reason, this.readLastCommittedSegmentsInfo().files(true));
-        } finally {
-            metadataLock.writeLock().unlock();
-        }
-    }
-
-    private void cleanupFiles(Collection<String> filesToConsiderForCleanup, String reason, Collection<String> lastCommittedSegmentInfos) {
-        assert metadataLock.isWriteLockedByCurrentThread();
-        for (String existingFile : filesToConsiderForCleanup) {
-            if (Store.isAutogenerated(existingFile) || lastCommittedSegmentInfos != null && lastCommittedSegmentInfos.contains(existingFile)
-            // also ensure we are not deleting a file referenced by an active reader.
-                || replicaFileTracker != null && replicaFileTracker.canDelete(existingFile) == false
-                // Prevent temporary replication files as it should be cleaned up MultiFileWriter
-                || existingFile.startsWith(REPLICATION_PREFIX)) {
-                // don't delete snapshot file, or the checksums file (note, this is extra protection since the Store won't delete
-                // checksum)
-                continue;
-            }
-            try {
-                directory.deleteFile(reason, existingFile);
-            } catch (IOException ex) {
-                if (existingFile.startsWith(IndexFileNames.SEGMENTS) || existingFile.startsWith(CORRUPTED_MARKER_NAME_PREFIX)) {
-                    // TODO do we need to also fail this if we can't delete the pending commit file?
-                    // if one of those files can't be deleted we better fail the cleanup otherwise we might leave an old commit
-                    // point around?
-                    throw new IllegalStateException("Can't delete " + existingFile + " - cleanup failed", ex);
-                }
-                logger.debug(() -> new ParameterizedMessage("failed to delete file [{}]", existingFile), ex);
-                // ignore, we don't really care, will get deleted later on
-            }
-        }
-    }
-
-    /**
      * Segment replication method
-     *
+     * <p>
      * This method takes the segment info bytes to build SegmentInfos. It inc'refs files pointed by passed in SegmentInfos
      * bytes to ensure they are not deleted.
      *
-     * @param tmpToFileName Map of temporary replication file to actual file name
      * @param infosBytes bytes[] of SegmentInfos supposed to be sent over by primary excluding segment_N file
      * @param segmentsGen segment generation number
-     * @param finalizeConsumer consumer for action on passed in SegmentInfos
-     * @param renameConsumer consumer for action on temporary copied over files
      * @throws IOException Exception while reading store and building segment infos
      */
-    public void buildInfosFromBytes(
-        Map<String, String> tmpToFileName,
-        byte[] infosBytes,
-        long segmentsGen,
-        CheckedConsumer<SegmentInfos, IOException> finalizeConsumer,
-        CheckedConsumer<Map<String, String>, IOException> renameConsumer
-    ) throws IOException {
-        metadataLock.writeLock().lock();
-        try {
-            final List<String> values = new ArrayList<>(tmpToFileName.values());
-            incRefFileDeleter(values);
-            try {
-                renameConsumer.accept(tmpToFileName);
-                finalizeConsumer.accept(buildSegmentInfos(infosBytes, segmentsGen));
-            } finally {
-                decRefFileDeleter(values);
-            }
-        } finally {
-            metadataLock.writeLock().unlock();
-        }
-    }
-
-    private SegmentInfos buildSegmentInfos(byte[] infosBytes, long segmentsGen) throws IOException {
+    public SegmentInfos buildSegmentInfos(byte[] infosBytes, long segmentsGen) throws IOException {
         try (final ChecksumIndexInput input = toIndexInput(infosBytes)) {
             return SegmentInfos.readCommit(directory, input, segmentsGen);
         }
@@ -938,7 +882,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
      * have the ability to create a writer directly from a SegmentInfos object.  To promote the replica as a primary and avoid reindexing, we must first commit
      * on the replica so that it can be opened with a writeable engine. Further, InternalEngine currently invokes `trimUnsafeCommits` which reverts the engine to a previous safeCommit where the max seqNo is less than or equal
      * to the current global checkpoint. It is likely that the replica has a maxSeqNo that is higher than the global cp and a new commit will be wiped.
-     *
+     * <p>
      * To get around these limitations, this method first creates an IndexCommit directly from SegmentInfos, it then
      * uses an appending IW to create an IndexCommit from the commit created on SegmentInfos.
      * This ensures that 1. All files in the new commit are fsynced and 2. Deletes older commit points so the only commit to start from is our new commit.
@@ -959,7 +903,6 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
             latestSegmentInfos.commit(directory());
             directory.sync(latestSegmentInfos.files(true));
             directory.syncMetaData();
-            cleanupAndPreserveLatestCommitPoint(List.of(this.directory.listAll()), "After commit");
         } finally {
             metadataLock.writeLock().unlock();
         }
@@ -1030,14 +973,14 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
             long fileSize = from.fileLength(src);
             beforeDownload(fileSize);
             boolean success = false;
+            long startTime = System.currentTimeMillis();
             try {
-                long startTime = System.currentTimeMillis();
                 super.copyFrom(from, src, dest, context);
                 success = true;
                 afterDownload(fileSize, startTime);
             } finally {
                 if (!success) {
-                    downloadFailed(fileSize);
+                    downloadFailed(fileSize, startTime);
                 }
             }
         }
@@ -1063,8 +1006,8 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         /**
          * Updates the amount of bytes failed in download
          */
-        private void downloadFailed(long fileSize) {
-            directoryFileTransferTracker.addTransferredBytesFailed(fileSize);
+        private void downloadFailed(long fileSize, long startTimeInMs) {
+            directoryFileTransferTracker.addTransferredBytesFailed(fileSize, startTimeInMs);
         }
     }
 
@@ -1079,8 +1022,9 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
      *
      * @see StoreFileMetadata
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public static final class MetadataSnapshot implements Iterable<StoreFileMetadata>, Writeable {
         private final Map<String, StoreFileMetadata> metadata;
 
@@ -1486,8 +1430,9 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
      *
      * @see MetadataSnapshot#recoveryDiff(org.opensearch.index.store.Store.MetadataSnapshot)
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public static final class RecoveryDiff {
         /**
          * Files that exist in both snapshots and they can be considered the same ie. they don't need to be recovered
@@ -1827,13 +1772,13 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         };
     }
 
-    /**
-     * creates an empty lucene index and a corresponding empty translog. Any existing data will be deleted.
-     */
-    public void createEmpty(Version luceneVersion) throws IOException {
+    public void createEmpty(Version luceneVersion, String translogUUID) throws IOException {
         metadataLock.writeLock().lock();
         try (IndexWriter writer = newEmptyIndexWriter(directory, luceneVersion)) {
             final Map<String, String> map = new HashMap<>();
+            if (translogUUID != null) {
+                map.put(Translog.TRANSLOG_UUID_KEY, translogUUID);
+            }
             map.put(Engine.HISTORY_UUID_KEY, UUIDs.randomBase64UUID());
             map.put(SequenceNumbers.LOCAL_CHECKPOINT_KEY, Long.toString(SequenceNumbers.NO_OPS_PERFORMED));
             map.put(SequenceNumbers.MAX_SEQ_NO, Long.toString(SequenceNumbers.NO_OPS_PERFORMED));
@@ -1842,6 +1787,13 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         } finally {
             metadataLock.writeLock().unlock();
         }
+    }
+
+    /**
+     * creates an empty lucene index and a corresponding empty translog. Any existing data will be deleted.
+     */
+    public void createEmpty(Version luceneVersion) throws IOException {
+        createEmpty(luceneVersion, null);
     }
 
     /**
@@ -2016,24 +1968,5 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
             // later once we stared it up otherwise we would need to wait for it here
             // we also don't specify a codec here and merges should use the engines for this index
             .setMergePolicy(NoMergePolicy.INSTANCE);
-    }
-
-    public void incRefFileDeleter(Collection<String> files) {
-        if (this.indexSettings.isSegRepEnabled()) {
-            this.replicaFileTracker.incRef(files);
-        }
-    }
-
-    public void decRefFileDeleter(Collection<String> files) {
-        if (this.indexSettings.isSegRepEnabled()) {
-            this.replicaFileTracker.decRef(files);
-            try {
-                this.cleanupAndPreserveLatestCommitPoint(files, "On reader close");
-            } catch (IOException e) {
-                // Log but do not rethrow - we can try cleaning up again after next replication cycle.
-                // If that were to fail, the shard will as well.
-                logger.error("Unable to clean store after reader closed", e);
-            }
-        }
     }
 }

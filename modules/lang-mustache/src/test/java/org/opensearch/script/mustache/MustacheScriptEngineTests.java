@@ -33,10 +33,10 @@ package org.opensearch.script.mustache;
 
 import com.github.mustachejava.MustacheFactory;
 
-import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.common.xcontent.json.JsonXContent;
-import org.opensearch.script.TemplateScript;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.script.Script;
+import org.opensearch.script.TemplateScript;
 import org.opensearch.test.OpenSearchTestCase;
 import org.junit.Before;
 
@@ -200,7 +200,7 @@ public class MustacheScriptEngineTests extends OpenSearchTestCase {
 
     /**
      * From https://www.ietf.org/rfc/rfc4627.txt:
-     *
+     * <p>
      * All Unicode characters may be placed within the
      * quotation marks except for the characters that must be escaped:
      * quotation mark, reverse solidus, and the control characters (U+0000

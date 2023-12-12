@@ -34,7 +34,6 @@ package org.opensearch.transport;
 
 import org.opensearch.Version;
 import org.opensearch.common.SetOnce;
-import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.network.NetworkModule;
 import org.opensearch.common.network.NetworkService;
 import org.opensearch.common.settings.ClusterSettings;
@@ -42,12 +41,14 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.util.PageCacheRecycler;
+import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.core.indices.breaker.CircuitBreakerService;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.http.HttpServerTransport;
 import org.opensearch.http.netty4.Netty4HttpServerTransport;
-import org.opensearch.core.indices.breaker.CircuitBreakerService;
 import org.opensearch.plugins.NetworkPlugin;
 import org.opensearch.plugins.Plugin;
+import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.netty4.Netty4Transport;
 
@@ -95,7 +96,8 @@ public class Netty4ModulePlugin extends Plugin implements NetworkPlugin {
         PageCacheRecycler pageCacheRecycler,
         CircuitBreakerService circuitBreakerService,
         NamedWriteableRegistry namedWriteableRegistry,
-        NetworkService networkService
+        NetworkService networkService,
+        Tracer tracer
     ) {
         return Collections.singletonMap(
             NETTY_TRANSPORT_NAME,
@@ -107,7 +109,8 @@ public class Netty4ModulePlugin extends Plugin implements NetworkPlugin {
                 pageCacheRecycler,
                 namedWriteableRegistry,
                 circuitBreakerService,
-                getSharedGroupFactory(settings)
+                getSharedGroupFactory(settings),
+                tracer
             )
         );
     }
@@ -122,7 +125,8 @@ public class Netty4ModulePlugin extends Plugin implements NetworkPlugin {
         NamedXContentRegistry xContentRegistry,
         NetworkService networkService,
         HttpServerTransport.Dispatcher dispatcher,
-        ClusterSettings clusterSettings
+        ClusterSettings clusterSettings,
+        Tracer tracer
     ) {
         return Collections.singletonMap(
             NETTY_HTTP_TRANSPORT_NAME,
@@ -134,12 +138,13 @@ public class Netty4ModulePlugin extends Plugin implements NetworkPlugin {
                 xContentRegistry,
                 dispatcher,
                 clusterSettings,
-                getSharedGroupFactory(settings)
+                getSharedGroupFactory(settings),
+                tracer
             )
         );
     }
 
-    private SharedGroupFactory getSharedGroupFactory(Settings settings) {
+    SharedGroupFactory getSharedGroupFactory(Settings settings) {
         SharedGroupFactory groupFactory = this.groupFactory.get();
         if (groupFactory != null) {
             assert groupFactory.getSettings().equals(settings) : "Different settings than originally provided";

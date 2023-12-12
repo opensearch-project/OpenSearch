@@ -8,12 +8,14 @@
 
 package org.opensearch.identity.shiro;
 
-import java.util.List;
 import org.opensearch.OpenSearchException;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.identity.IdentityService;
 import org.opensearch.plugins.IdentityPlugin;
 import org.opensearch.test.OpenSearchTestCase;
+
+import java.util.List;
+
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;

@@ -33,10 +33,11 @@
 package org.opensearch.grok;
 
 import org.opensearch.grok.GrokCaptureConfig.NativeExtracterMap;
-import org.joni.Region;
 
 import java.nio.charset.StandardCharsets;
 import java.util.function.Consumer;
+
+import org.joni.Region;
 
 /**
  * The type defined for the field in the pattern.

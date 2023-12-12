@@ -32,18 +32,19 @@
 package org.opensearch.action.admin.indices.close;
 
 import org.opensearch.OpenSearchException;
-import org.opensearch.core.action.support.DefaultShardOperationFailedException;
 import org.opensearch.action.support.master.ShardsAcknowledgedResponse;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.annotation.PublicApi;
+import org.opensearch.core.action.support.DefaultShardOperationFailedException;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.core.common.util.CollectionUtils;
-import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.index.Index;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.core.index.Index;
 
 import java.io.IOException;
 import java.util.List;
@@ -54,8 +55,9 @@ import static java.util.Collections.unmodifiableList;
 /**
  * Transport response for closing an index
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class CloseIndexResponse extends ShardsAcknowledgedResponse {
 
     private final List<IndexResult> indices;
@@ -93,14 +95,15 @@ public class CloseIndexResponse extends ShardsAcknowledgedResponse {
 
     @Override
     public String toString() {
-        return Strings.toString(XContentType.JSON, this);
+        return Strings.toString(MediaTypeRegistry.JSON, this);
     }
 
     /**
      * Inner index result
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public static class IndexResult implements Writeable, ToXContentFragment {
 
         private final Index index;
@@ -192,15 +195,16 @@ public class CloseIndexResponse extends ShardsAcknowledgedResponse {
 
         @Override
         public String toString() {
-            return Strings.toString(XContentType.JSON, this);
+            return Strings.toString(MediaTypeRegistry.JSON, this);
         }
     }
 
     /**
      * Shard Result from Close Index Response
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public static class ShardResult implements Writeable, ToXContentFragment {
 
         private final int id;
@@ -251,14 +255,15 @@ public class CloseIndexResponse extends ShardsAcknowledgedResponse {
 
         @Override
         public String toString() {
-            return Strings.toString(XContentType.JSON, this);
+            return Strings.toString(MediaTypeRegistry.JSON, this);
         }
 
         /**
          * Inner Failure if something goes wrong
          *
-         * @opensearch.internal
+         * @opensearch.api
          */
+        @PublicApi(since = "1.0.0")
         public static class Failure extends DefaultShardOperationFailedException {
 
             private @Nullable String nodeId;
@@ -297,7 +302,7 @@ public class CloseIndexResponse extends ShardsAcknowledgedResponse {
 
             @Override
             public String toString() {
-                return Strings.toString(XContentType.JSON, this);
+                return Strings.toString(MediaTypeRegistry.JSON, this);
             }
 
             static Failure readFailure(final StreamInput in) throws IOException {

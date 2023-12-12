@@ -42,11 +42,11 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.core.index.Index;
 
 import java.util.Arrays;
-import java.util.Optional;
-import java.util.Map;
-import java.util.List;
 import java.util.Collections;
 import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.opensearch.cluster.metadata.IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING;
@@ -54,7 +54,7 @@ import static org.opensearch.cluster.metadata.IndexMetadata.INDEX_NUMBER_OF_SHAR
 /**
  * This class contains the logic used to check the cluster-wide shard limit before shards are created and ensuring that the limit is
  * updated correctly on setting updates, etc.
- *
+ * <p>
  * NOTE: This is the limit applied at *shard creation time*. If you are looking for the limit applied at *allocation* time, which is
  * controlled by a different setting,
  * see {@link org.opensearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider}.

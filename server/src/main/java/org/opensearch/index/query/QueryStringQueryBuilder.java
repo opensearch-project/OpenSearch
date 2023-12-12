@@ -36,14 +36,14 @@ import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.automaton.Operations;
-import org.opensearch.core.ParseField;
-import org.opensearch.core.common.ParsingException;
-import org.opensearch.core.common.io.stream.StreamInput;
-import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.common.lucene.search.Queries;
 import org.opensearch.common.regex.Regex;
 import org.opensearch.common.unit.Fuzziness;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
+import org.opensearch.core.ParseField;
+import org.opensearch.core.common.ParsingException;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.analysis.NamedAnalyzer;
@@ -119,7 +119,7 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
      * currently _ALL. Uses a TreeMap to hold the fields so boolean clauses are
      * always sorted in same order for generated Lucene query for easier
      * testing.
-     *
+     * <p>
      * Can be changed back to HashMap once https://issues.apache.org/jira/browse/LUCENE-6305 is fixed.
      */
     private final Map<String, Float> fieldsAndWeights = new TreeMap<>();

@@ -33,7 +33,6 @@
 package org.opensearch.action.bulk;
 
 import org.opensearch.Version;
-import org.opensearch.action.ActionListener;
 import org.opensearch.action.admin.indices.create.CreateIndexResponse;
 import org.opensearch.action.delete.DeleteRequest;
 import org.opensearch.action.index.IndexRequest;
@@ -49,11 +48,13 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.AtomicArray;
 import org.opensearch.common.util.concurrent.OpenSearchExecutors;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.index.IndexingPressureService;
 import org.opensearch.index.VersionType;
 import org.opensearch.indices.SystemIndices;
 import org.opensearch.tasks.Task;
+import org.opensearch.telemetry.tracing.noop.NoopTracer;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.VersionUtils;
 import org.opensearch.threadpool.ThreadPool;
@@ -154,7 +155,9 @@ public class TransportBulkActionIndicesThatCannotBeCreatedTests extends OpenSear
                 Settings.EMPTY,
                 new ClusterService(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), null)
             ),
-            new SystemIndices(emptyMap())
+            null,
+            new SystemIndices(emptyMap()),
+            NoopTracer.INSTANCE
         ) {
             @Override
             void executeBulk(

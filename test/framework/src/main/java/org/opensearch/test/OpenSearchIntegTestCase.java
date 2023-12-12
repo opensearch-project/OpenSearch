@@ -44,7 +44,6 @@ import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.OpenSearchException;
-import org.opensearch.action.ActionListener;
 import org.opensearch.action.DocWriteResponse;
 import org.opensearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.opensearch.action.admin.cluster.health.ClusterHealthResponse;
@@ -71,8 +70,8 @@ import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.action.index.IndexResponse;
 import org.opensearch.action.search.ClearScrollResponse;
 import org.opensearch.action.search.SearchResponse;
-import org.opensearch.core.action.support.DefaultShardOperationFailedException;
 import org.opensearch.action.support.IndicesOptions;
+import org.opensearch.action.support.WriteRequest;
 import org.opensearch.client.AdminClient;
 import org.opensearch.client.Client;
 import org.opensearch.client.ClusterAdminClient;
@@ -96,9 +95,7 @@ import org.opensearch.cluster.routing.allocation.decider.EnableAllocationDecider
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.Priority;
-import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.collect.Tuple;
-import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.network.NetworkAddress;
 import org.opensearch.common.network.NetworkModule;
 import org.opensearch.common.regex.Regex;
@@ -106,18 +103,25 @@ import org.opensearch.common.settings.FeatureFlagSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.core.common.transport.TransportAddress;
-import org.opensearch.core.common.unit.ByteSizeUnit;
-import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.util.concurrent.ThreadContext;
+import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.xcontent.smile.SmileXContent;
-import org.opensearch.common.util.io.IOUtils;
+import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.action.support.DefaultShardOperationFailedException;
 import org.opensearch.core.common.Strings;
+import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.core.common.transport.TransportAddress;
+import org.opensearch.core.common.unit.ByteSizeUnit;
+import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
+import org.opensearch.core.index.Index;
+import org.opensearch.core.rest.RestStatus;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
@@ -125,12 +129,11 @@ import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.env.Environment;
 import org.opensearch.env.TestEnvironment;
 import org.opensearch.http.HttpInfo;
-import org.opensearch.core.index.Index;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexSettings;
-import org.opensearch.index.MergePolicyConfig;
 import org.opensearch.index.MergeSchedulerConfig;
 import org.opensearch.index.MockEngineFactoryPlugin;
+import org.opensearch.index.TieredMergePolicyProvider;
 import org.opensearch.index.codec.CodecService;
 import org.opensearch.index.engine.Segment;
 import org.opensearch.index.mapper.CompletionFieldMapper;
@@ -144,18 +147,19 @@ import org.opensearch.monitor.os.OsInfo;
 import org.opensearch.node.NodeMocksPlugin;
 import org.opensearch.plugins.NetworkPlugin;
 import org.opensearch.plugins.Plugin;
-import org.opensearch.core.rest.RestStatus;
 import org.opensearch.rest.action.RestCancellableNodeClient;
 import org.opensearch.script.MockScriptService;
 import org.opensearch.search.MockSearchService;
 import org.opensearch.search.SearchHit;
 import org.opensearch.search.SearchService;
+import org.opensearch.telemetry.TelemetrySettings;
 import org.opensearch.test.client.RandomizingClient;
 import org.opensearch.test.disruption.NetworkDisruption;
 import org.opensearch.test.disruption.ServiceDisruptionScheme;
 import org.opensearch.test.store.MockFSIndexStore;
-import org.opensearch.test.transport.MockTransportService;
 import org.opensearch.test.telemetry.MockTelemetryPlugin;
+import org.opensearch.test.telemetry.tracing.StrictCheckSpanProcessor;
+import org.opensearch.test.transport.MockTransportService;
 import org.opensearch.transport.TransportInterceptor;
 import org.opensearch.transport.TransportRequest;
 import org.opensearch.transport.TransportRequestHandler;
@@ -279,9 +283,9 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
      */
     public static final List<String> CODECS = List.of(
         CodecService.DEFAULT_CODEC,
+        CodecService.LZ4,
         CodecService.BEST_COMPRESSION_CODEC,
-        CodecService.ZSTD_CODEC,
-        CodecService.ZSTD_NO_DICT_CODEC
+        CodecService.ZLIB
     );
 
     /**
@@ -497,7 +501,7 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
     private static Settings.Builder setRandomIndexMergeSettings(Random random, Settings.Builder builder) {
         if (random.nextBoolean()) {
             builder.put(
-                MergePolicyConfig.INDEX_COMPOUND_FORMAT_SETTING.getKey(),
+                TieredMergePolicyProvider.INDEX_COMPOUND_FORMAT_SETTING.getKey(),
                 (random.nextBoolean() ? random.nextDouble() : random.nextBoolean()).toString()
             );
         }
@@ -781,8 +785,33 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
         for (Setting builtInFlag : FeatureFlagSettings.BUILT_IN_FEATURE_FLAGS) {
             featureSettings.put(builtInFlag.getKey(), builtInFlag.getDefaultRaw(Settings.EMPTY));
         }
+        // Enabling Telemetry setting by default
         featureSettings.put(FeatureFlags.TELEMETRY_SETTING.getKey(), true);
         return featureSettings.build();
+    }
+
+    /**
+     * Represent if it needs to trigger remote state restore or not.
+     * For tests with remote store enabled domain, it will be overridden to true.
+     *
+     * @return if needs to perform remote state restore or not
+     */
+    protected boolean triggerRemoteStateRestore() {
+        return false;
+    }
+
+    /**
+     * For tests with remote cluster state, it will reset the cluster and cluster state will be
+     * restored from remote.
+     */
+    protected void performRemoteStoreTestAction() {
+        if (triggerRemoteStateRestore()) {
+            String clusterUUIDBefore = clusterService().state().metadata().clusterUUID();
+            internalCluster().resetCluster();
+            String clusterUUIDAfter = clusterService().state().metadata().clusterUUID();
+            // assertion that UUID is changed post restore.
+            assertFalse(clusterUUIDBefore.equals(clusterUUIDAfter));
+        }
     }
 
     /**
@@ -1339,7 +1368,7 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
 
     /**
      * Ensures that all nodes in the cluster are connected to each other.
-     *
+     * <p>
      * Some network disruptions may leave nodes that are not the cluster-manager disconnected from each other.
      * {@link org.opensearch.cluster.NodeConnectionsService} will eventually reconnect but it's
      * handy to be able to ensure this happens faster
@@ -1401,7 +1430,7 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
      */
     @Deprecated
     protected final IndexResponse index(String index, String type, String id, String source) {
-        return client().prepareIndex(index).setId(id).setSource(source, XContentType.JSON).execute().actionGet();
+        return client().prepareIndex(index).setId(id).setSource(source, MediaTypeRegistry.JSON).execute().actionGet();
     }
 
     /**
@@ -1448,6 +1477,18 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
     protected ForceMergeResponse forceMerge() {
         waitForRelocation();
         ForceMergeResponse actionGet = client().admin().indices().prepareForceMerge().setMaxNumSegments(1).execute().actionGet();
+        assertNoFailures(actionGet);
+        return actionGet;
+    }
+
+    protected ForceMergeResponse forceMerge(int maxNumSegments) {
+        waitForRelocation();
+        ForceMergeResponse actionGet = client().admin()
+            .indices()
+            .prepareForceMerge()
+            .setMaxNumSegments(maxNumSegments)
+            .execute()
+            .actionGet();
         assertNoFailures(actionGet);
         return actionGet;
     }
@@ -1573,7 +1614,7 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
                 String index = RandomPicks.randomFrom(random, indices);
                 bogusIds.add(Arrays.asList(index, id));
                 // We configure a routing key in case the mapping requires it
-                builders.add(client().prepareIndex().setIndex(index).setId(id).setSource("{}", XContentType.JSON).setRouting(id));
+                builders.add(client().prepareIndex().setIndex(index).setId(id).setSource("{}", MediaTypeRegistry.JSON).setRouting(id));
             }
         }
         Collections.shuffle(builders, random());
@@ -1606,6 +1647,7 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
             for (List<IndexRequestBuilder> segmented : partition) {
                 BulkRequestBuilder bulkBuilder = client().prepareBulk();
                 for (IndexRequestBuilder indexRequestBuilder : segmented) {
+                    indexRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.NONE);
                     bulkBuilder.add(indexRequestBuilder);
                 }
                 BulkResponse actionGet = bulkBuilder.execute().actionGet();
@@ -1626,6 +1668,7 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
             }
         }
         assertThat(actualErrors, emptyIterable());
+
         if (!bogusIds.isEmpty()) {
             // delete the bogus types again - it might trigger merges or at least holes in the segments and enforces deleted docs!
             for (List<String> doc : bogusIds) {
@@ -1641,6 +1684,63 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
                 client().admin().indices().prepareRefresh(indicesArray).setIndicesOptions(IndicesOptions.lenientExpandOpen()).get()
             );
         }
+        if (dummyDocuments) {
+            indexRandomForMultipleSlices(indicesArray);
+        }
+    }
+
+    /*
+    * This method ingests bogus documents for the given indices such that multiple slices
+    * are formed. This is useful for testing with the concurrent search use-case as it creates
+    * multiple slices based on segment count.
+    * @param indices         the indices in which bogus documents should be ingested
+    * */
+    protected void indexRandomForMultipleSlices(String... indices) throws InterruptedException {
+        Set<List<String>> bogusIds = new HashSet<>();
+        int refreshCount = randomIntBetween(2, 3);
+        for (String index : indices) {
+            int numDocs = getNumShards(index).totalNumShards * randomIntBetween(2, 10);
+            while (refreshCount-- > 0) {
+                final CopyOnWriteArrayList<Tuple<IndexRequestBuilder, Exception>> errors = new CopyOnWriteArrayList<>();
+                List<CountDownLatch> inFlightAsyncOperations = new ArrayList<>();
+                for (int i = 0; i < numDocs; i++) {
+                    String id = "bogus_doc_" + randomRealisticUnicodeOfLength(between(1, 10)) + dummmyDocIdGenerator.incrementAndGet();
+                    IndexRequestBuilder indexRequestBuilder = client().prepareIndex()
+                        .setIndex(index)
+                        .setId(id)
+                        .setSource("{}", MediaTypeRegistry.JSON)
+                        .setRouting(id);
+                    indexRequestBuilder.execute(
+                        new PayloadLatchedActionListener<>(indexRequestBuilder, newLatch(inFlightAsyncOperations), errors)
+                    );
+                    bogusIds.add(Arrays.asList(index, id));
+                }
+                for (CountDownLatch operation : inFlightAsyncOperations) {
+                    operation.await();
+                }
+                final List<Exception> actualErrors = new ArrayList<>();
+                for (Tuple<IndexRequestBuilder, Exception> tuple : errors) {
+                    Throwable t = ExceptionsHelper.unwrapCause(tuple.v2());
+                    if (t instanceof OpenSearchRejectedExecutionException) {
+                        logger.debug("Error indexing doc: " + t.getMessage() + ", reindexing.");
+                        tuple.v1().execute().actionGet(); // re-index if rejected
+                    } else {
+                        actualErrors.add(tuple.v2());
+                    }
+                }
+                assertThat(actualErrors, emptyIterable());
+                refresh(index);
+            }
+        }
+        for (List<String> doc : bogusIds) {
+            assertEquals(
+                "failed to delete a dummy doc [" + doc.get(0) + "][" + doc.get(1) + "]",
+                DocWriteResponse.Result.DELETED,
+                client().prepareDelete(doc.get(0), doc.get(1)).setRouting(doc.get(1)).get().getResult()
+            );
+        }
+        // refresh is called to make sure the bogus docs doesn't affect the search results
+        refresh();
     }
 
     private final AtomicInteger dummmyDocIdGenerator = new AtomicInteger();
@@ -1891,6 +1991,7 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
      * In other words subclasses must ensure this method is idempotent.
      */
     protected Settings nodeSettings(int nodeOrdinal) {
+        final Settings featureFlagSettings = featureFlagSettings();
         Settings.Builder builder = Settings.builder()
             // Default the watermarks to absurdly low to prevent the tests
             // from failing on nodes without enough disk space
@@ -1908,6 +2009,17 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
             .putList(DISCOVERY_SEED_HOSTS_SETTING.getKey()) // empty list disables a port scan for other nodes
             .putList(DISCOVERY_SEED_PROVIDERS_SETTING.getKey(), "file")
             .put(featureFlagSettings());
+
+        // Enable tracer only when Telemetry Setting is enabled
+        if (featureFlagSettings().getAsBoolean(FeatureFlags.TELEMETRY_SETTING.getKey(), false)) {
+            builder.put(TelemetrySettings.TRACER_FEATURE_ENABLED_SETTING.getKey(), true);
+            builder.put(TelemetrySettings.TRACER_ENABLED_SETTING.getKey(), true);
+        }
+        if (FeatureFlags.CONCURRENT_SEGMENT_SEARCH_SETTING.get(featureFlagSettings)) {
+            // By default, for tests we will put the target slice count of 2. This will increase the probability of having multiple slices
+            // when tests are run with concurrent segment search enabled
+            builder.put(SearchService.CONCURRENT_SEGMENT_SEARCH_TARGET_MAX_SLICE_COUNT_KEY, 2);
+        }
         return builder.build();
     }
 
@@ -2064,6 +2176,15 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
     }
 
     /**
+     * Returns {@code true} if this test cluster should have tracing enabled with MockTelemetryPlugin
+     * Disabling this for now as the existing way of strict check do not support multiple nodes internal cluster.
+     * @return boolean.
+     */
+    protected boolean addMockTelemetryPlugin() {
+        return true;
+    }
+
+    /**
      * Returns a function that allows to wrap / filter all clients that are exposed by the test cluster. This is useful
      * for debugging or request / response pre and post processing. It also allows to intercept all calls done by the test
      * framework. By default this method returns an identity function {@link Function#identity()}.
@@ -2107,8 +2228,9 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
         if (addMockGeoShapeFieldMapper()) {
             mocks.add(TestGeoShapeFieldMapperPlugin.class);
         }
-        mocks.add(MockTelemetryPlugin.class);
-
+        if (addMockTelemetryPlugin()) {
+            mocks.add(MockTelemetryPlugin.class);
+        }
         return Collections.unmodifiableList(mocks);
     }
 
@@ -2264,6 +2386,7 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
                 INSTANCE.afterInternal(true);
                 checkStaticState(true);
             }
+            StrictCheckSpanProcessor.validateTracingStateOnShutdown();
         } finally {
             SUITE_SEED = null;
             currentCluster = null;
@@ -2273,16 +2396,20 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
 
     private static void initializeSuiteScope() throws Exception {
         Class<?> targetClass = getTestClass();
-        /**
-         * Note we create these test class instance via reflection
-         * since JUnit creates a new instance per test and that is also
-         * the reason why INSTANCE is static since this entire method
-         * must be executed in a static context.
+        /*
+          Note we create these test class instance via reflection
+          since JUnit creates a new instance per test and that is also
+          the reason why INSTANCE is static since this entire method
+          must be executed in a static context.
          */
         assert INSTANCE == null;
         if (isSuiteScopedTest(targetClass)) {
-            // note we need to do this this way to make sure this is reproducible
-            INSTANCE = (OpenSearchIntegTestCase) targetClass.getConstructor().newInstance();
+            // note we need to do this way to make sure this is reproducible
+            if (isSuiteScopedTestParameterized(targetClass)) {
+                INSTANCE = (OpenSearchIntegTestCase) targetClass.getConstructor(Settings.class).newInstance(Settings.EMPTY);
+            } else {
+                INSTANCE = (OpenSearchIntegTestCase) targetClass.getConstructor().newInstance();
+            }
             boolean success = false;
             try {
                 INSTANCE.printTestMessage("setup");
@@ -2375,6 +2502,16 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
 
     private static boolean isSuiteScopedTest(Class<?> clazz) {
         return clazz.getAnnotation(SuiteScopeTestCase.class) != null;
+    }
+
+    /*
+    * For tests defined with, SuiteScopeTestCase return true if the
+    * class has a constructor that takes a single Settings parameter
+    * */
+    private static boolean isSuiteScopedTestParameterized(Class<?> clazz) {
+        return Arrays.stream(clazz.getConstructors())
+            .filter(x -> x.getParameterTypes().length == 1)
+            .anyMatch(x -> x.getParameterTypes()[0].equals(Settings.class));
     }
 
     /**

@@ -8,14 +8,15 @@
 
 package org.opensearch.telemetry.tracing;
 
+import org.opensearch.test.OpenSearchTestCase;
+
 import io.opentelemetry.api.trace.Span;
 import io.opentelemetry.api.trace.SpanContext;
 import io.opentelemetry.api.trace.TraceFlags;
 import io.opentelemetry.api.trace.TraceState;
-import org.opensearch.test.OpenSearchTestCase;
 
-import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class OTelSpanTests extends OpenSearchTestCase {

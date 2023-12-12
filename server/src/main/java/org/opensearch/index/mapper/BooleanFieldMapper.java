@@ -42,8 +42,8 @@ import org.apache.lucene.search.TermRangeQuery;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.common.Booleans;
 import org.opensearch.common.Nullable;
-import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.common.xcontent.support.XContentMapValues;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.fielddata.IndexFieldData;
 import org.opensearch.index.fielddata.IndexNumericFieldData.NumericType;
 import org.opensearch.index.fielddata.plain.SortedNumericIndexFieldData;
@@ -193,7 +193,7 @@ public class BooleanFieldMapper extends ParametrizedFieldMapper {
                         return (Boolean) value;
                     } else {
                         String textValue = value.toString();
-                        return Booleans.parseBoolean(textValue.toCharArray(), 0, textValue.length(), false);
+                        return Booleans.parseBooleanStrict(textValue, false);
                     }
                 }
             };

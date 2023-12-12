@@ -31,18 +31,18 @@
 
 package org.opensearch.transport;
 
-import org.opensearch.action.ActionListener;
 import org.opensearch.action.admin.cluster.state.ClusterStateAction;
 import org.opensearch.action.admin.cluster.state.ClusterStateRequest;
 import org.opensearch.action.admin.cluster.state.ClusterStateResponse;
 import org.opensearch.action.support.ContextPreservingActionListener;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
-import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.common.util.io.IOUtils;
+import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
@@ -54,10 +54,10 @@ import java.util.function.Function;
  * current node is part of the cluster and it won't receive cluster state updates from the remote cluster. Remote clusters are also not
  * fully connected with the current node. From a connection perspective a local cluster forms a bi-directional star network while in the
  * remote case we only connect to a subset of the nodes in the cluster in an uni-directional fashion.
- *
+ * <p>
  * This class also handles the discovery of nodes from the remote cluster. The initial list of seed nodes is only used to discover all nodes
  * in the remote cluster and connects to all eligible nodes, for details see {@link RemoteClusterService#REMOTE_NODE_ATTRIBUTE}.
- *
+ * <p>
  * In the case of a disconnection, this class will issue a re-connect task to establish at most
  * {@link SniffConnectionStrategy#REMOTE_CONNECTIONS_PER_CLUSTER} until either all eligible nodes are exhausted or the maximum number of
  * connections per cluster has been reached.
@@ -123,7 +123,7 @@ final class RemoteClusterConnection implements Closeable {
     /**
      * Collects all nodes on the connected cluster and returns / passes a nodeID to {@link DiscoveryNode} lookup function
      * that returns <code>null</code> if the node ID is not found.
-     *
+     * <p>
      * The requests to get cluster state on the connected cluster are made in the system context because logically
      * they are equivalent to checking a single detail in the local cluster state and should not require that the
      * user who made the request that is using this method in its implementation is authorized to view the entire

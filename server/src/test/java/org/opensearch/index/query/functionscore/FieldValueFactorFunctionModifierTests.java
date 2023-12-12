@@ -33,8 +33,8 @@
 package org.opensearch.index.query.functionscore;
 
 import org.opensearch.common.io.stream.BytesStreamOutput;
-import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.common.lucene.search.function.FieldValueFactorFunction;
+import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.test.OpenSearchTestCase;
 
 import static org.hamcrest.Matchers.equalTo;

@@ -35,14 +35,14 @@ package org.opensearch.index.query;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
-import org.opensearch.core.ParseField;
-import org.opensearch.core.common.ParsingException;
 import org.opensearch.common.geo.ShapeRelation;
-import org.opensearch.core.common.io.stream.StreamInput;
-import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.common.time.DateFormatter;
 import org.opensearch.common.time.DateMathParser;
+import org.opensearch.core.ParseField;
+import org.opensearch.core.common.ParsingException;
 import org.opensearch.core.common.Strings;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.mapper.FieldNamesFieldMapper;
@@ -504,9 +504,9 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
     @Override
     protected Query doToQuery(QueryShardContext context) throws IOException {
         if (from == null && to == null) {
-            /**
-             * Open bounds on both side, we can rewrite to an exists query
-             * if the {@link FieldNamesFieldMapper} is enabled.
+            /*
+              Open bounds on both side, we can rewrite to an exists query
+              if the {@link FieldNamesFieldMapper} is enabled.
              */
             final FieldNamesFieldMapper.FieldNamesFieldType fieldNamesFieldType = (FieldNamesFieldMapper.FieldNamesFieldType) context
                 .getMapperService()

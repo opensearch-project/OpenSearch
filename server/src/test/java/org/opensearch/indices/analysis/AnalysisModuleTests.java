@@ -34,7 +34,6 @@ package org.opensearch.indices.analysis;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.CharFilter;
-import org.apache.lucene.tests.analysis.MockTokenizer;
 import org.apache.lucene.analysis.TokenFilter;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.Tokenizer;
@@ -42,6 +41,7 @@ import org.apache.lucene.analysis.hunspell.Dictionary;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.NIOFSDirectory;
+import org.apache.lucene.tests.analysis.MockTokenizer;
 import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.io.Streams;
@@ -55,18 +55,18 @@ import org.opensearch.index.analysis.AnalysisRegistry;
 import org.opensearch.index.analysis.CharFilterFactory;
 import org.opensearch.index.analysis.CustomAnalyzer;
 import org.opensearch.index.analysis.IndexAnalyzers;
+import org.opensearch.index.analysis.MyFilterTokenFilterFactory;
 import org.opensearch.index.analysis.PreConfiguredCharFilter;
 import org.opensearch.index.analysis.PreConfiguredTokenFilter;
 import org.opensearch.index.analysis.PreConfiguredTokenizer;
 import org.opensearch.index.analysis.StandardTokenizerFactory;
 import org.opensearch.index.analysis.StopTokenFilterFactory;
 import org.opensearch.index.analysis.TokenFilterFactory;
-import org.opensearch.index.analysis.MyFilterTokenFilterFactory;
 import org.opensearch.index.analysis.TokenizerFactory;
 import org.opensearch.indices.analysis.AnalysisModule.AnalysisProvider;
 import org.opensearch.plugins.AnalysisPlugin;
-import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.IndexSettingsModule;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.VersionUtils;
 import org.hamcrest.MatcherAssert;
 
@@ -86,10 +86,10 @@ import java.util.Set;
 
 import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
-import static org.apache.lucene.tests.analysis.BaseTokenStreamTestCase.assertTokenStreamContents;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.apache.lucene.tests.analysis.BaseTokenStreamTestCase.assertTokenStreamContents;
 
 public class AnalysisModuleTests extends OpenSearchTestCase {
     private final Settings emptyNodeSettings = Settings.builder()

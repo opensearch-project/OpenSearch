@@ -34,7 +34,6 @@ package org.opensearch.recovery;
 
 import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.tests.util.English;
-import org.opensearch.action.ActionFuture;
 import org.opensearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.opensearch.action.admin.cluster.reroute.ClusterRerouteResponse;
 import org.opensearch.action.admin.indices.stats.ShardStats;
@@ -52,9 +51,11 @@ import org.opensearch.cluster.routing.allocation.decider.EnableAllocationDecider
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.Priority;
+import org.opensearch.common.action.ActionFuture;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.IndexSettings;
@@ -64,18 +65,17 @@ import org.opensearch.index.seqno.RetentionLease;
 import org.opensearch.index.shard.IndexEventListener;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexShardState;
-import org.opensearch.core.index.shard.ShardId;
-import org.opensearch.indices.recovery.PeerRecoveryTargetService;
 import org.opensearch.indices.recovery.FileChunkRequest;
+import org.opensearch.indices.recovery.PeerRecoveryTargetService;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.search.SearchHit;
 import org.opensearch.search.SearchHits;
 import org.opensearch.test.BackgroundIndexer;
+import org.opensearch.test.InternalSettingsPlugin;
+import org.opensearch.test.MockIndexEventListener;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.OpenSearchIntegTestCase.ClusterScope;
 import org.opensearch.test.OpenSearchIntegTestCase.Scope;
-import org.opensearch.test.InternalSettingsPlugin;
-import org.opensearch.test.MockIndexEventListener;
 import org.opensearch.test.transport.MockTransportService;
 import org.opensearch.test.transport.StubbableTransport;
 import org.opensearch.transport.Transport;
@@ -374,12 +374,12 @@ public class RelocationIT extends OpenSearchIntegTestCase {
 
             List<IndexRequestBuilder> builders1 = new ArrayList<>();
             for (int numDocs = randomIntBetween(10, 30); numDocs > 0; numDocs--) {
-                builders1.add(client().prepareIndex("test").setSource("{}", XContentType.JSON));
+                builders1.add(client().prepareIndex("test").setSource("{}", MediaTypeRegistry.JSON));
             }
 
             List<IndexRequestBuilder> builders2 = new ArrayList<>();
             for (int numDocs = randomIntBetween(10, 30); numDocs > 0; numDocs--) {
-                builders2.add(client().prepareIndex("test").setSource("{}", XContentType.JSON));
+                builders2.add(client().prepareIndex("test").setSource("{}", MediaTypeRegistry.JSON));
             }
 
             logger.info("--> START relocate the shard from {} to {}", nodes[fromNode], nodes[toNode]);
@@ -439,7 +439,7 @@ public class RelocationIT extends OpenSearchIntegTestCase {
         List<IndexRequestBuilder> requests = new ArrayList<>();
         int numDocs = scaledRandomIntBetween(25, 250);
         for (int i = 0; i < numDocs; i++) {
-            requests.add(client().prepareIndex(indexName).setSource("{}", XContentType.JSON));
+            requests.add(client().prepareIndex(indexName).setSource("{}", MediaTypeRegistry.JSON));
         }
         indexRandom(true, requests);
         assertFalse(client().admin().cluster().prepareHealth().setWaitForNodes("3").setWaitForGreenStatus().get().isTimedOut());

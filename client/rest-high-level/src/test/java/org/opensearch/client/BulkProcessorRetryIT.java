@@ -40,8 +40,8 @@ import org.opensearch.action.bulk.BulkResponse;
 import org.opensearch.action.get.MultiGetRequest;
 import org.opensearch.action.index.IndexRequest;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.rest.RestStatus;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.transport.RemoteTransportException;
 
 import java.util.Collections;
@@ -170,7 +170,7 @@ public class BulkProcessorRetryIT extends OpenSearchRestHighLevelClientTestCase 
         for (int i = 1; i <= numDocs; i++) {
             processor.add(
                 new IndexRequest(INDEX_NAME).id(Integer.toString(i))
-                    .source(XContentType.JSON, "field", randomRealisticUnicodeOfCodepointLengthBetween(1, 30))
+                    .source(MediaTypeRegistry.JSON, "field", randomRealisticUnicodeOfCodepointLengthBetween(1, 30))
             );
             multiGetRequest.add(INDEX_NAME, Integer.toString(i));
         }
@@ -180,7 +180,7 @@ public class BulkProcessorRetryIT extends OpenSearchRestHighLevelClientTestCase 
     /**
      * Internal helper class to correlate backoff states with bulk responses. This is needed to check whether we maxed out the number
      * of retries but still got rejected (which is perfectly fine and can also happen from time to time under heavy load).
-     *
+     * <p>
      * This implementation relies on an implementation detail in Retry, namely that the bulk listener is notified on the same thread
      * as the last call to the backoff policy's iterator. The advantage is that this is non-invasive to the rest of the production code.
      */

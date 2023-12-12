@@ -38,17 +38,18 @@ import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
 import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.cluster.node.DiscoveryNode;
-import org.opensearch.common.lifecycle.Lifecycle;
 import org.opensearch.common.io.stream.BytesStreamOutput;
+import org.opensearch.common.lifecycle.Lifecycle;
 import org.opensearch.common.network.NetworkService;
 import org.opensearch.common.network.NetworkUtils;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.core.common.transport.TransportAddress;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.util.MockPageCacheRecycler;
+import org.opensearch.core.common.transport.TransportAddress;
 import org.opensearch.core.indices.breaker.NoneCircuitBreakerService;
-import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.telemetry.tracing.noop.NoopTracer;
 import org.opensearch.test.MockLogAppender;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.junit.annotations.TestLogging;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
@@ -255,7 +256,8 @@ public class TcpTransportTests extends OpenSearchTestCase {
                 new MockPageCacheRecycler(settings),
                 new NoneCircuitBreakerService(),
                 writableRegistry(),
-                new NetworkService(Collections.emptyList())
+                new NetworkService(Collections.emptyList()),
+                NoopTracer.INSTANCE
             ) {
 
                 @Override

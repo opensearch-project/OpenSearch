@@ -44,7 +44,6 @@ import org.apache.lucene.analysis.tokenattributes.TypeAttribute;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
-
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.index.analysis.AnalyzerScope;
 import org.opensearch.index.analysis.IndexAnalyzers;
@@ -74,9 +73,9 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /** A {@link FieldMapper} for full-text fields with annotation markup e.g.
- *
+ * <p>
  *    "New mayor is [John Smith](type=person&amp;value=John%20Smith) "
- *
+ * <p>
  * A special Analyzer wraps the default choice of analyzer in order
  * to strip the text field of annotation markup and inject the related
  * entity annotation tokens as supplementary tokens at the relevant points

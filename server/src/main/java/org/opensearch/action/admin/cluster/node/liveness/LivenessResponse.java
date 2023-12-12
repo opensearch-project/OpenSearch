@@ -32,9 +32,9 @@
 
 package org.opensearch.action.admin.cluster.node.liveness;
 
-import org.opensearch.action.ActionResponse;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.core.action.ActionResponse;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 

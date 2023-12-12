@@ -35,9 +35,9 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.misc.search.DiversifiedTopDocsCollector;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.util.RamUsageEstimator;
+import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
 import org.opensearch.core.ParseField;
-import org.opensearch.common.lease.Releasables;
 import org.opensearch.search.aggregations.AggregationExecutionException;
 import org.opensearch.search.aggregations.Aggregator;
 import org.opensearch.search.aggregations.AggregatorFactories;
@@ -55,7 +55,7 @@ import java.util.Map;
 
 /**
  * Aggregate on only the top-scoring docs on a shard.
- *
+ * <p>
  * TODO currently the diversity feature of this agg offers only 'script' and
  * 'field' as a means of generating a de-dup value. In future it would be nice
  * if users could use any of the "bucket" aggs syntax (geo, date histogram...)

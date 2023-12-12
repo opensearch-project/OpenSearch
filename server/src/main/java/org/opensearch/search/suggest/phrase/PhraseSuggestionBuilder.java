@@ -33,12 +33,12 @@ package org.opensearch.search.suggest.phrase;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.opensearch.OpenSearchParseException;
+import org.opensearch.common.lucene.BytesRefs;
 import org.opensearch.core.ParseField;
 import org.opensearch.core.common.ParsingException;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
-import org.opensearch.common.lucene.BytesRefs;
 import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
@@ -222,7 +222,7 @@ public class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSuggestionB
      * misspellings in order to form a correction. This method accepts a float
      * value in the range [0..1) as a fraction of the actual query terms a
      * number {@code &gt;=1} as an absolute number of query terms.
-     *
+     * <p>
      * The default is set to {@code 1.0} which corresponds to that only
      * corrections with at most 1 misspelled term are returned.
      */

@@ -32,11 +32,11 @@
 
 package org.opensearch.core.common.io.stream;
 
+import org.opensearch.test.OpenSearchTestCase;
+
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
-
-import org.opensearch.test.OpenSearchTestCase;
 
 public class NamedWriteableRegistryTests extends OpenSearchTestCase {
 

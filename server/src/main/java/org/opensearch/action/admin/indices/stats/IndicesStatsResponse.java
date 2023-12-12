@@ -33,15 +33,16 @@
 package org.opensearch.action.admin.indices.stats;
 
 import org.opensearch.action.admin.indices.stats.IndexStats.IndexStatsBuilder;
-import org.opensearch.core.action.support.DefaultShardOperationFailedException;
 import org.opensearch.action.support.broadcast.BroadcastResponse;
 import org.opensearch.cluster.routing.ShardRouting;
+import org.opensearch.common.annotation.PublicApi;
+import org.opensearch.core.action.support.DefaultShardOperationFailedException;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
-import org.opensearch.common.xcontent.XContentType;
-import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.index.Index;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
+import org.opensearch.core.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -54,8 +55,9 @@ import static java.util.Collections.unmodifiableMap;
 /**
  * Transport response for retrieving indices stats
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class IndicesStatsResponse extends BroadcastResponse {
 
     private ShardStats[] shards;
@@ -226,6 +228,6 @@ public class IndicesStatsResponse extends BroadcastResponse {
 
     @Override
     public String toString() {
-        return Strings.toString(XContentType.JSON, this, true, false);
+        return Strings.toString(MediaTypeRegistry.JSON, this, true, false);
     }
 }

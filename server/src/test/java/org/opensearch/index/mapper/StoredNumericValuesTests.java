@@ -37,12 +37,12 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.store.ByteBuffersDirectory;
-import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.util.set.Sets;
 import org.opensearch.common.xcontent.XContentFactory;
-import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.index.fieldvisitor.CustomFieldsVisitor;
 import org.opensearch.index.mapper.MapperService.MergeReason;
 import org.opensearch.test.OpenSearchSingleNodeTestCase;
@@ -135,7 +135,7 @@ public class StoredNumericValuesTests extends OpenSearchSingleNodeTestCase {
                         .field("field11", "1")
                         .endObject()
                 ),
-                XContentType.JSON
+                MediaTypeRegistry.JSON
             )
         );
 

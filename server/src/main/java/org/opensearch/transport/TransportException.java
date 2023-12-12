@@ -33,6 +33,7 @@
 package org.opensearch.transport;
 
 import org.opensearch.OpenSearchException;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.io.stream.StreamInput;
 
 import java.io.IOException;
@@ -40,8 +41,9 @@ import java.io.IOException;
 /**
  * Thrown for any transport errors
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class TransportException extends OpenSearchException {
     public TransportException(Throwable cause) {
         super(cause);

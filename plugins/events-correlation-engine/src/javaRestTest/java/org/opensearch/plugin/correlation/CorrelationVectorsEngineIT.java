@@ -11,7 +11,6 @@ package org.opensearch.plugin.correlation;
 import org.apache.hc.core5.http.Header;
 import org.apache.hc.core5.http.HttpEntity;
 import org.apache.lucene.index.VectorSimilarityFunction;
-import org.junit.Assert;
 import org.opensearch.client.Request;
 import org.opensearch.client.RequestOptions;
 import org.opensearch.client.Response;
@@ -26,6 +25,7 @@ import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.test.rest.OpenSearchRestTestCase;
+import org.junit.Assert;
 
 import java.io.IOException;
 import java.util.Arrays;

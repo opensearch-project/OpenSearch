@@ -33,11 +33,12 @@
 package org.opensearch.search.profile.query;
 
 import org.opensearch.Version;
+import org.opensearch.common.annotation.PublicApi;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.ParseField;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
-import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.core.xcontent.XContentBuilder;
@@ -55,8 +56,9 @@ import static org.opensearch.core.xcontent.XContentParserUtils.ensureExpectedTok
  * Collectors used in the search.  Children CollectorResult's may be
  * embedded inside of a parent CollectorResult
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class CollectorResult implements ToXContentObject, Writeable {
 
     public static final String REASON_SEARCH_COUNT = "search_count";

@@ -34,6 +34,7 @@ package org.opensearch.common.ssl;
 
 import javax.net.ssl.SSLEngine;
 import javax.net.ssl.X509ExtendedTrustManager;
+
 import java.net.Socket;
 import java.nio.file.Path;
 import java.security.cert.X509Certificate;

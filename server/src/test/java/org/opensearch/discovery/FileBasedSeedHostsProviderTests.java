@@ -33,15 +33,16 @@
 package org.opensearch.discovery;
 
 import org.opensearch.Version;
-import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.network.NetworkService;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.core.common.transport.BoundTransportAddress;
-import org.opensearch.core.common.transport.TransportAddress;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.CancellableThreads;
 import org.opensearch.common.util.PageCacheRecycler;
+import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.core.common.transport.BoundTransportAddress;
+import org.opensearch.core.common.transport.TransportAddress;
 import org.opensearch.core.indices.breaker.NoneCircuitBreakerService;
+import org.opensearch.telemetry.tracing.noop.NoopTracer;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.transport.MockTransportService;
 import org.opensearch.threadpool.TestThreadPool;
@@ -99,7 +100,8 @@ public class FileBasedSeedHostsProviderTests extends OpenSearchTestCase {
             new NetworkService(Collections.emptyList()),
             PageCacheRecycler.NON_RECYCLING_INSTANCE,
             new NamedWriteableRegistry(Collections.emptyList()),
-            new NoneCircuitBreakerService()
+            new NoneCircuitBreakerService(),
+            NoopTracer.INSTANCE
         ) {
             @Override
             public BoundTransportAddress boundAddress() {
@@ -114,7 +116,8 @@ public class FileBasedSeedHostsProviderTests extends OpenSearchTestCase {
             transport,
             threadPool,
             TransportService.NOOP_TRANSPORT_INTERCEPTOR,
-            null
+            null,
+            NoopTracer.INSTANCE
         );
     }
 

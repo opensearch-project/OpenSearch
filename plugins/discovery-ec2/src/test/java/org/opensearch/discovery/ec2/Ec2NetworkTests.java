@@ -39,7 +39,6 @@ import org.opensearch.common.network.NetworkService;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.rest.RestStatus;
-
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;

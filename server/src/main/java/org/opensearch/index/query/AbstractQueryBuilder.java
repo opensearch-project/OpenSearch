@@ -36,15 +36,15 @@ import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
+import org.opensearch.common.lucene.BytesRefs;
+import org.opensearch.common.xcontent.SuggestingErrorOnUnknown;
+import org.opensearch.core.ParseField;
 import org.opensearch.core.common.ParsingException;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
-import org.opensearch.common.lucene.BytesRefs;
-import org.opensearch.common.xcontent.SuggestingErrorOnUnknown;
-import org.opensearch.common.xcontent.XContentType;
-import org.opensearch.core.ParseField;
 import org.opensearch.core.xcontent.AbstractObjectParser;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.NamedObjectNotFoundException;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentLocation;
@@ -298,7 +298,7 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
 
     /**
      * For internal usage only!
-     *
+     * <p>
      * Extracts the inner hits from the query tree.
      * While it extracts inner hits, child inner hits are inlined into the inner hit builder they belong to.
      */
@@ -395,6 +395,6 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
 
     @Override
     public final String toString() {
-        return Strings.toString(XContentType.JSON, this, true, true);
+        return Strings.toString(MediaTypeRegistry.JSON, this, true, true);
     }
 }

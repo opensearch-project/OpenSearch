@@ -14,11 +14,11 @@ import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.ShardIndexingPressureTracker.OperationTracker;
 import org.opensearch.index.ShardIndexingPressureTracker.PerformanceTracker;
 import org.opensearch.index.ShardIndexingPressureTracker.RejectionTracker;
 import org.opensearch.index.ShardIndexingPressureTracker.StatsTracker;
-import org.opensearch.core.index.shard.ShardId;
 
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
@@ -30,16 +30,16 @@ import java.util.function.ToLongFunction;
 /**
  * The Shard Indexing Pressure Memory Manager is the construct responsible for increasing and decreasing the allocated shard limit
  * based on incoming requests. A shard limits defines the maximum memory that a shard can occupy in the heap for request objects.
- *
+ * <p>
  * Based on the overall memory utilization on the node, and current traffic needs shard limits will be modified:
- *
+ * <p>
  * 1. If the limits assigned to a shard is breached (Primary Parameter) while the node level overall occupancy across all shards
  * is not greater than primary_parameter.node.soft_limit, MemoryManager will increase the shard limits without any deeper evaluation.
  * 2. If the limits assigned to the shard is breached(Primary Parameter) and the node level overall occupancy across all shards
  * is greater than primary_parameter.node.soft_limit, then MemoryManager will evaluate deeper parameters for shards to identify any
  * issues, such as throughput degradation (Secondary Parameter - 1) and time since last request was successful (Secondary Parameter - 2).
  * This helps identify detect any duress state with the shard, requesting more memory.
- *
+ * <p>
  * Secondary Parameters covered above:
  * 1. ThroughputDegradationLimitsBreached - When the moving window throughput average has increased by a factor compared to
  * the historical throughput average. If the factor by which it has increased is greater than the degradation limit threshold, this
@@ -47,7 +47,7 @@ import java.util.function.ToLongFunction;
  * 2. LastSuccessfulRequestDurationLimitsBreached - When the time since the last successful request completed is greater than the max
  * timeout threshold value, while there a number of outstanding requests greater than the max outstanding requests then this parameter
  * is considered to be breached.
- *
+ * <p>
  * MemoryManager attempts to increase of decrease the shard limits in case the shard utilization goes below operating_factor.lower or
  * goes above operating_factor.upper of current shard limits. MemoryManager attempts to update the new shard limit such that the new value
  * remains withing the operating_factor.optimal range of current shard utilization.
