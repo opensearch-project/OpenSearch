@@ -32,11 +32,13 @@
 
 package org.opensearch.script.mustache;
 
+import org.opensearch.action.search.SearchRequest;
 import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.script.ScriptType;
 import org.opensearch.search.RandomSearchRequestGenerator;
 import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.test.AbstractWireSerializingTestCase;
+import org.junit.Test;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -109,5 +111,16 @@ public class SearchTemplateRequestTests extends AbstractWireSerializingTestCase<
 
         request.setRequest(RandomSearchRequestGenerator.randomSearchRequest(SearchSourceBuilder::searchSource));
         return request;
+    }
+
+    @Test
+    public void testSimulatedSearchTemplateRequest() {
+        SearchTemplateRequest request = createRandomRequest();
+        request.setRequest(null);
+        request.setSimulate(true);
+
+        assertEquals(0, request.indices().length);
+        assertEquals(SearchRequest.DEFAULT_INDICES_OPTIONS, request.indicesOptions());
+        assertNull(request.indices("index1", "index2"));
     }
 }
