@@ -35,7 +35,6 @@ package org.opensearch.gateway;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
-import org.opensearch.action.ActionListener;
 import org.opensearch.action.ActionType;
 import org.opensearch.action.FailedNodeException;
 import org.opensearch.action.support.ActionFilters;
@@ -49,25 +48,28 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.inject.Inject;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.action.ActionListener;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
-import org.opensearch.common.settings.Settings;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.shard.IndexShard;
-import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.shard.ShardPath;
 import org.opensearch.index.shard.ShardStateMetadata;
 import org.opensearch.index.store.Store;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
+import org.opensearch.indices.store.ShardAttributes;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportRequest;
 import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 /**
@@ -124,7 +126,10 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesAction
     }
 
     @Override
-    public void list(ShardId shardId, String customDataPath, DiscoveryNode[] nodes, ActionListener<NodesGatewayStartedShards> listener) {
+    public void list(Map<ShardId, ShardAttributes> shardAttributesMap, DiscoveryNode[] nodes, ActionListener<NodesGatewayStartedShards> listener) {
+        assert shardAttributesMap.size() == 1 : "only one shard should be specified";
+        final ShardId shardId = shardAttributesMap.keySet().iterator().next();
+        final String customDataPath = shardAttributesMap.get(shardId).getCustomDataPath();
         execute(new Request(shardId, customDataPath, nodes), listener);
     }
 

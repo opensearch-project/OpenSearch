@@ -11,7 +11,6 @@ package org.opensearch.gateway;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
-import org.opensearch.action.ActionListener;
 import org.opensearch.action.ActionType;
 import org.opensearch.action.FailedNodeException;
 import org.opensearch.action.support.ActionFilters;
@@ -24,14 +23,15 @@ import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
-import org.opensearch.common.settings.Settings;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.shard.IndexShard;
-import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.shard.ShardPath;
 import org.opensearch.index.shard.ShardStateMetadata;
 import org.opensearch.index.store.Store;
@@ -47,7 +47,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.stream.Collectors;
 
 /**
  * This transport action is used to fetch batch of unassigned shard version from each node during primary allocation in {@link GatewayAllocator}.
@@ -56,15 +55,15 @@ import java.util.stream.Collectors;
  *
  * @opensearch.internal
  */
-public class TransportNodesListGatewayStartedShardsBatch extends TransportNodesAction<
-    TransportNodesListGatewayStartedShardsBatch.Request,
-    TransportNodesListGatewayStartedShardsBatch.NodesGatewayStartedShardsBatch,
-    TransportNodesListGatewayStartedShardsBatch.NodeRequest,
-    TransportNodesListGatewayStartedShardsBatch.NodeGatewayStartedShardsBatch>
+public class TransportNodesListGatewayStartedBatchShards extends TransportNodesAction<
+    TransportNodesListGatewayStartedBatchShards.Request,
+    TransportNodesListGatewayStartedBatchShards.NodesGatewayStartedShardsBatch,
+    TransportNodesListGatewayStartedBatchShards.NodeRequest,
+    TransportNodesListGatewayStartedBatchShards.NodeGatewayStartedShardsBatch>
     implements
         AsyncShardFetch.Lister<
-            TransportNodesListGatewayStartedShardsBatch.NodesGatewayStartedShardsBatch,
-            TransportNodesListGatewayStartedShardsBatch.NodeGatewayStartedShardsBatch> {
+            TransportNodesListGatewayStartedBatchShards.NodesGatewayStartedShardsBatch,
+            TransportNodesListGatewayStartedBatchShards.NodeGatewayStartedShardsBatch> {
 
     public static final String ACTION_NAME = "internal:gateway/local/started_shards_batch";
     public static final ActionType<NodesGatewayStartedShardsBatch> TYPE = new ActionType<>(
@@ -78,7 +77,7 @@ public class TransportNodesListGatewayStartedShardsBatch extends TransportNodesA
     private final NamedXContentRegistry namedXContentRegistry;
 
     @Inject
-    public TransportNodesListGatewayStartedShardsBatch(
+    public TransportNodesListGatewayStartedBatchShards(
         Settings settings,
         ThreadPool threadPool,
         ClusterService clusterService,
@@ -107,11 +106,11 @@ public class TransportNodesListGatewayStartedShardsBatch extends TransportNodesA
 
     @Override
     public void list(
-        Map<ShardId, String> shardIdsWithCustomDataPath,
+        Map<ShardId, ShardAttributes> shardAttributesMap,
         DiscoveryNode[] nodes,
         ActionListener<NodesGatewayStartedShardsBatch> listener
     ) {
-        execute(new Request(nodes, shardIdsWithCustomDataPath), listener);
+        execute(new Request(nodes, shardAttributesMap), listener);
     }
 
     @Override
@@ -142,8 +141,8 @@ public class TransportNodesListGatewayStartedShardsBatch extends TransportNodesA
      */
     @Override
     protected NodeGatewayStartedShardsBatch nodeOperation(NodeRequest request) {
-        Map<ShardId, NodeGatewayStartedShard> shardsOnNode = new HashMap<>();
-        for (ShardAttributes shardAttr: request.shardAttributes) {
+        Map<ShardId, NodeGatewayStartedShards> shardsOnNode = new HashMap<>();
+        for (ShardAttributes shardAttr: request.shardAttributes.values()) {
             final ShardId shardId = shardAttr.getShardId();
             try {
                 logger.trace("{} loading local shard state info", shardId);
@@ -191,7 +190,7 @@ public class TransportNodesListGatewayStartedShardsBatch extends TransportNodesA
                             String allocationId = shardStateMetadata.allocationId != null ? shardStateMetadata.allocationId.getId() : null;
                             shardsOnNode.put(
                                 shardId,
-                                new NodeGatewayStartedShard(allocationId, shardStateMetadata.primary, null, exception)
+                                new NodeGatewayStartedShards(allocationId, shardStateMetadata.primary, null, exception)
                             );
                             continue;
                         }
@@ -202,7 +201,7 @@ public class TransportNodesListGatewayStartedShardsBatch extends TransportNodesA
                     final IndexShard shard = indicesService.getShardOrNull(shardId);
                     shardsOnNode.put(
                         shardId,
-                        new NodeGatewayStartedShard(
+                        new NodeGatewayStartedShards(
                             allocationId,
                             shardStateMetadata.primary,
                             shard != null ? shard.getLatestReplicationCheckpoint() : null
@@ -211,11 +210,11 @@ public class TransportNodesListGatewayStartedShardsBatch extends TransportNodesA
                     continue;
                 }
                 logger.trace("{} no local shard info found", shardId);
-                shardsOnNode.put(shardId, new NodeGatewayStartedShard(null, false, null));
+                shardsOnNode.put(shardId, new NodeGatewayStartedShards(null, false, null));
             } catch (Exception e) {
                 shardsOnNode.put(
                     shardId,
-                    new NodeGatewayStartedShard(null, false, null, new OpenSearchException("failed to load started shards", e))
+                    new NodeGatewayStartedShards(null, false, null, new OpenSearchException("failed to load started shards", e))
                 );
             }
         }
@@ -229,26 +228,25 @@ public class TransportNodesListGatewayStartedShardsBatch extends TransportNodesA
      * @opensearch.internal
      */
     public static class Request extends BaseNodesRequest<Request> {
-        private final List<ShardAttributes> shardAttributes;
+        private final Map<ShardId, ShardAttributes> shardAttributes;
 
         public Request(StreamInput in) throws IOException {
             super(in);
-            shardAttributes = in.readList(ShardAttributes::new);
+            shardAttributes = in.readMap(ShardId::new, ShardAttributes::new);
         }
 
-        public Request(DiscoveryNode[] nodes, Map<ShardId, String> shardIdStringMap) {
+        public Request(DiscoveryNode[] nodes, Map<ShardId, ShardAttributes> shardAttributes) {
             super(nodes);
-            this.shardAttributes = Objects.requireNonNull(shardIdStringMap).entrySet().stream().map(entry ->
-                new ShardAttributes(entry.getKey(), entry.getValue())).collect(Collectors.toList());
+            this.shardAttributes = Objects.requireNonNull(shardAttributes);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            out.writeList(shardAttributes);
+            out.writeMap(shardAttributes, (o,k)-> k.writeTo(o), (o,v) -> v.writeTo(o));
         }
 
-        public List<ShardAttributes> getShardAttributes() {
+        public Map<ShardId, ShardAttributes> getShardAttributes() {
             return shardAttributes;
         }
     }
@@ -291,11 +289,11 @@ public class TransportNodesListGatewayStartedShardsBatch extends TransportNodesA
      * @opensearch.internal
      */
     public static class NodeRequest extends TransportRequest {
-        private final List<ShardAttributes> shardAttributes;
+        private final Map<ShardId, ShardAttributes> shardAttributes;
 
         public NodeRequest(StreamInput in) throws IOException {
             super(in);
-            shardAttributes = in.readList(ShardAttributes::new);
+            shardAttributes = in.readMap(ShardId::new, ShardAttributes::new);
         }
 
         public NodeRequest(Request request) {
@@ -305,7 +303,7 @@ public class TransportNodesListGatewayStartedShardsBatch extends TransportNodesA
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            out.writeList(shardAttributes);
+            out.writeMap(shardAttributes, (o,k)-> k.writeTo(o), (o,v) -> v.writeTo(o));
         }
     }
 
@@ -314,13 +312,13 @@ public class TransportNodesListGatewayStartedShardsBatch extends TransportNodesA
      *
      * @opensearch.internal
      */
-    public static class NodeGatewayStartedShard {
+    public static class NodeGatewayStartedShards {
         private final String allocationId;
         private final boolean primary;
         private final Exception storeException;
         private final ReplicationCheckpoint replicationCheckpoint;
 
-        public NodeGatewayStartedShard(StreamInput in) throws IOException {
+        public NodeGatewayStartedShards(StreamInput in) throws IOException {
             allocationId = in.readOptionalString();
             primary = in.readBoolean();
             if (in.readBoolean()) {
@@ -335,11 +333,11 @@ public class TransportNodesListGatewayStartedShardsBatch extends TransportNodesA
             }
         }
 
-        public NodeGatewayStartedShard(String allocationId, boolean primary, ReplicationCheckpoint replicationCheckpoint) {
+        public NodeGatewayStartedShards(String allocationId, boolean primary, ReplicationCheckpoint replicationCheckpoint) {
             this(allocationId, primary, replicationCheckpoint, null);
         }
 
-        public NodeGatewayStartedShard(
+        public NodeGatewayStartedShards(
             String allocationId,
             boolean primary,
             ReplicationCheckpoint replicationCheckpoint,
@@ -395,7 +393,7 @@ public class TransportNodesListGatewayStartedShardsBatch extends TransportNodesA
                 return false;
             }
 
-            NodeGatewayStartedShard that = (NodeGatewayStartedShard) o;
+            NodeGatewayStartedShards that = (NodeGatewayStartedShards) o;
 
             return primary == that.primary
                 && Objects.equals(allocationId, that.allocationId)
@@ -435,15 +433,15 @@ public class TransportNodesListGatewayStartedShardsBatch extends TransportNodesA
      * @opensearch.internal
      */
     public static class NodeGatewayStartedShardsBatch extends BaseNodeResponse {
-        private final Map<ShardId, NodeGatewayStartedShard> nodeGatewayStartedShardsBatch;
+        private final Map<ShardId, NodeGatewayStartedShards> nodeGatewayStartedShardsBatch;
 
-        public Map<ShardId, NodeGatewayStartedShard> getNodeGatewayStartedShardsBatch() {
+        public Map<ShardId, NodeGatewayStartedShards> getNodeGatewayStartedShardsBatch() {
             return nodeGatewayStartedShardsBatch;
         }
 
         public NodeGatewayStartedShardsBatch(StreamInput in) throws IOException {
             super(in);
-            this.nodeGatewayStartedShardsBatch = in.readMap(ShardId::new, NodeGatewayStartedShard::new);
+            this.nodeGatewayStartedShardsBatch = in.readMap(ShardId::new, NodeGatewayStartedShards::new);
         }
 
         @Override
@@ -452,7 +450,7 @@ public class TransportNodesListGatewayStartedShardsBatch extends TransportNodesA
             out.writeMap(nodeGatewayStartedShardsBatch, (o, k) -> k.writeTo(o), (o, v) -> v.writeTo(o));
         }
 
-        public NodeGatewayStartedShardsBatch(DiscoveryNode node, Map<ShardId, NodeGatewayStartedShard> nodeGatewayStartedShardsBatch) {
+        public NodeGatewayStartedShardsBatch(DiscoveryNode node, Map<ShardId, NodeGatewayStartedShards> nodeGatewayStartedShardsBatch) {
             super(node);
             this.nodeGatewayStartedShardsBatch = nodeGatewayStartedShardsBatch;
         }
