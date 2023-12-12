@@ -12,3 +12,7 @@
 - Bump `io.projectreactor:reactor-core` from 3.4.23 to 3.4.34 and reactor-netty from 1.0.24 to 1.0.39 ([#11500](https://github.com/opensearch-project/OpenSearch/pull/11500))
 - Bump `logback-core` and `logback-classic` to 1.2.13 ([#11521](https://github.com/opensearch-project/OpenSearch/pull/11521))
 - Bumps `jetty` version from 9.4.52.v20230823 to 9.4.53.v20231009 ([#11539](https://github.com/opensearch-project/OpenSearch/pull/11539))
+
+### Bug Fixes
+- Use iterative approach to evaluate Regex.simpleMatch ([#11060](https://github.com/opensearch-project/OpenSearch/pull/11060))
+- Improve compressed request handling ([#10261](https://github.com/opensearch-project/OpenSearch/pull/10261))
