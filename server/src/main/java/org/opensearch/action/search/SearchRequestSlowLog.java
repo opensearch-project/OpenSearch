@@ -37,6 +37,7 @@ import com.fasterxml.jackson.core.io.JsonStringEncoder;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.inject.Inject;
 import org.opensearch.common.logging.Loggers;
 import org.opensearch.common.logging.OpenSearchLogMessage;
 import org.opensearch.common.logging.SlowLogLevel;
@@ -108,12 +109,18 @@ public final class SearchRequestSlowLog extends SearchRequestOperationsListener 
 
     private static final ToXContent.Params FORMAT_PARAMS = new ToXContent.MapParams(Collections.singletonMap("pretty", "false"));
 
-    public SearchRequestSlowLog(ClusterService clusterService) {
-        this(clusterService, LogManager.getLogger(CLUSTER_SEARCH_REQUEST_SLOWLOG_PREFIX)); // logger configured in log4j2.properties
+    @Inject
+    public SearchRequestSlowLog(
+        ClusterService clusterService,
+        SearchRequestListenerManager searchRequestListenerManager
+        ) {
+        this(clusterService, searchRequestListenerManager, LogManager.getLogger(CLUSTER_SEARCH_REQUEST_SLOWLOG_PREFIX)); // logger configured in log4j2.properties
     }
 
-    SearchRequestSlowLog(ClusterService clusterService, Logger logger) {
+    @Inject
+    SearchRequestSlowLog(ClusterService clusterService, SearchRequestListenerManager searchRequestListenerManager, Logger logger) {
         this.logger = logger;
+        this.searchRequestListenerManager = searchRequestListenerManager;
         Loggers.setLevel(this.logger, SlowLogLevel.TRACE.name());
 
         this.warnThreshold = clusterService.getClusterSettings().get(CLUSTER_SEARCH_REQUEST_SLOWLOG_THRESHOLD_WARN_SETTING).nanos();
@@ -158,22 +165,6 @@ public final class SearchRequestSlowLog extends SearchRequestOperationsListener 
         } else if (traceThreshold >= 0 && tookInNanos > traceThreshold && level.isLevelEnabledFor(SlowLogLevel.TRACE)) {
             logger.trace(new SearchRequestSlowLogMessage(context, tookInNanos, searchRequestContext));
         }
-    }
-
-    /**
-     * register this listener to TransportSearchAction
-     */
-    @Override
-    protected void register() {
-        TransportSearchAction.addSearchOperationsListener(this);
-    }
-
-    /**
-     * deregister this listener to TransportSearchAction
-     */
-    @Override
-    protected void deregister() {
-        TransportSearchAction.removeSearchOperationsListener(this);
     }
 
     /**
@@ -249,22 +240,22 @@ public final class SearchRequestSlowLog extends SearchRequestOperationsListener 
 
     void setWarnThreshold(TimeValue warnThreshold) {
         this.warnThreshold = warnThreshold.nanos();
-        changeEnabledIfNeeded();
+        setEnabled();
     }
 
     void setInfoThreshold(TimeValue infoThreshold) {
         this.infoThreshold = infoThreshold.nanos();
-        changeEnabledIfNeeded();
+        setEnabled();
     }
 
     void setDebugThreshold(TimeValue debugThreshold) {
         this.debugThreshold = debugThreshold.nanos();
-        changeEnabledIfNeeded();
+        setEnabled();
     }
 
     void setTraceThreshold(TimeValue traceThreshold) {
         this.traceThreshold = traceThreshold.nanos();
-        changeEnabledIfNeeded();
+        setEnabled();
     }
 
     void setLevel(SlowLogLevel level) {
@@ -291,7 +282,7 @@ public final class SearchRequestSlowLog extends SearchRequestOperationsListener 
         return level;
     }
 
-    private void changeEnabledIfNeeded() {
+    private void setEnabled() {
         super.setEnabled(this.warnThreshold >= 0
             || this.debugThreshold >= 0
             || this.infoThreshold >= 0

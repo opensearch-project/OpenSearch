@@ -21,7 +21,7 @@ import java.util.List;
  */
 @InternalApi
 abstract class SearchRequestOperationsListener {
-    protected boolean enabled;
+    protected SearchRequestListenerManager searchRequestListenerManager;
 
     abstract void onPhaseStart(SearchPhaseContext context);
 
@@ -34,7 +34,6 @@ abstract class SearchRequestOperationsListener {
     void onRequestEnd(SearchPhaseContext context, SearchRequestContext searchRequestContext) {}
 
     public void setEnabled(boolean enabled) {
-        this.enabled = enabled;
         if (enabled) {
             register();
         } else {
@@ -47,13 +46,21 @@ abstract class SearchRequestOperationsListener {
      * Handler function to register this listener to certain components
      * This function will be called when the listener is enabled.
      */
-    protected void register() {}
+    protected void register() {
+        if (this.searchRequestListenerManager != null) {
+            this.searchRequestListenerManager.addListener(this);
+        }
+    }
 
     /**
      * Handler function to deregister this listener from certain components
      * This function will be called when the listener is disabled.
      */
-    protected void deregister() {}
+    protected void deregister() {
+        if (this.searchRequestListenerManager != null) {
+            this.searchRequestListenerManager.removeListener(this);
+        }
+    }
 
     /**
      * Holder of Composite Listeners

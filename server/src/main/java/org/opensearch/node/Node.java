@@ -46,6 +46,7 @@ import org.opensearch.action.ActionType;
 import org.opensearch.action.admin.cluster.snapshots.status.TransportNodesSnapshotsStatus;
 import org.opensearch.action.search.SearchExecutionStatsCollector;
 import org.opensearch.action.search.SearchPhaseController;
+import org.opensearch.action.search.SearchRequestListenerManager;
 import org.opensearch.action.search.SearchRequestSlowLog;
 import org.opensearch.action.search.SearchRequestStats;
 import org.opensearch.action.search.SearchTransportService;
@@ -782,9 +783,10 @@ public class Node implements Closeable {
                 repositoriesServiceReference::get,
                 threadPool
             );
+            final SearchRequestListenerManager searchRequestListenerManager = new SearchRequestListenerManager(clusterService);
 
-            final SearchRequestStats searchRequestStats = new SearchRequestStats(clusterService);
-            final SearchRequestSlowLog searchRequestSlowLog = new SearchRequestSlowLog(clusterService);
+            final SearchRequestStats searchRequestStats = new SearchRequestStats(clusterService, searchRequestListenerManager);
+            final SearchRequestSlowLog searchRequestSlowLog = new SearchRequestSlowLog(clusterService, searchRequestListenerManager);
 
             remoteStoreStatsTrackerFactory = new RemoteStoreStatsTrackerFactory(clusterService, settings);
             final IndicesService indicesService = new IndicesService(
@@ -1275,6 +1277,7 @@ public class Node implements Closeable {
                 b.bind(RemoteClusterStateService.class).toProvider(() -> remoteClusterStateService);
                 b.bind(PersistedStateRegistry.class).toInstance(persistedStateRegistry);
                 b.bind(SegmentReplicationStatsTracker.class).toInstance(segmentReplicationStatsTracker);
+                b.bind(SearchRequestListenerManager.class).toInstance(searchRequestListenerManager);
             });
             injector = modules.createInjector();
 

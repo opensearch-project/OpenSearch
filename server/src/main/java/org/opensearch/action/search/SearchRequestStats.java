@@ -37,27 +37,15 @@ public final class SearchRequestStats extends SearchRequestOperationsListener {
     );
 
     @Inject
-    public SearchRequestStats(ClusterService clusterService) {
+    public SearchRequestStats(
+        ClusterService clusterService,
+        SearchRequestListenerManager searchRequestListenerManager
+    ) {
         clusterService.getClusterSettings().addSettingsUpdateConsumer(SEARCH_REQUEST_STATS_ENABLED, this::setEnabled);
         for (SearchPhaseName searchPhaseName : SearchPhaseName.values()) {
             phaseStatsMap.put(searchPhaseName, new StatsHolder());
         }
-    }
-
-    /**
-     * register this listener to TransportSearchAction
-     */
-    @Override
-    protected void register() {
-        TransportSearchAction.addSearchOperationsListener(this);
-    }
-
-    /**
-     * deregister this listener to TransportSearchAction
-     */
-    @Override
-    protected void deregister() {
-        TransportSearchAction.removeSearchOperationsListener(this);
+        this.searchRequestListenerManager = searchRequestListenerManager;
     }
 
     public long getPhaseCurrent(SearchPhaseName searchPhaseName) {

@@ -34,6 +34,7 @@ package org.opensearch.action.admin.cluster.node.stats;
 
 import org.opensearch.action.admin.indices.stats.CommonStats;
 import org.opensearch.action.admin.indices.stats.CommonStatsFlags;
+import org.opensearch.action.search.SearchRequestListenerManager;
 import org.opensearch.action.search.SearchRequestStats;
 import org.opensearch.cluster.coordination.PendingClusterStateStats;
 import org.opensearch.cluster.coordination.PersistedStateStats;
@@ -41,9 +42,12 @@ import org.opensearch.cluster.coordination.PublishClusterStateStats;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.routing.WeightedRoutingStats;
 import org.opensearch.cluster.service.ClusterManagerThrottlingStats;
+import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.cluster.service.ClusterStateStats;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.metrics.OperationStats;
+import org.opensearch.common.settings.ClusterSettings;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.indices.breaker.AllCircuitBreakerStats;
@@ -961,7 +965,13 @@ public class NodeStatsTests extends OpenSearchTestCase {
     private static NodeIndicesStats getNodeIndicesStats(boolean remoteStoreStats) {
         NodeIndicesStats indicesStats = null;
         if (remoteStoreStats) {
-            indicesStats = new NodeIndicesStats(new CommonStats(CommonStatsFlags.ALL), new HashMap<>(), new SearchRequestStats());
+            ClusterService clusterService = new ClusterService(
+                Settings.EMPTY,
+                new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+                null
+            );
+            SearchRequestListenerManager listenerManager = new SearchRequestListenerManager(clusterService);
+            indicesStats = new NodeIndicesStats(new CommonStats(CommonStatsFlags.ALL), new HashMap<>(), new SearchRequestStats(clusterService, listenerManager));
             RemoteSegmentStats remoteSegmentStats = indicesStats.getSegments().getRemoteSegmentStats();
             remoteSegmentStats.addUploadBytesStarted(10L);
             remoteSegmentStats.addUploadBytesSucceeded(10L);

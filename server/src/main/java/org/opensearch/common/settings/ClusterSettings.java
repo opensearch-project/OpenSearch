@@ -34,10 +34,7 @@ package org.opensearch.common.settings;
 import org.apache.logging.log4j.LogManager;
 import org.opensearch.action.admin.cluster.configuration.TransportAddVotingConfigExclusionsAction;
 import org.opensearch.action.admin.indices.close.TransportCloseIndexAction;
-import org.opensearch.action.search.CreatePitController;
-import org.opensearch.action.search.SearchRequestSlowLog;
-import org.opensearch.action.search.SearchRequestStats;
-import org.opensearch.action.search.TransportSearchAction;
+import org.opensearch.action.search.*;
 import org.opensearch.action.support.AutoCreateIndex;
 import org.opensearch.action.support.DestructiveOperations;
 import org.opensearch.action.support.replication.TransportReplicationAction;
@@ -381,8 +378,8 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 SearchService.DEFAULT_ALLOW_PARTIAL_SEARCH_RESULTS,
                 TransportSearchAction.SHARD_COUNT_LIMIT_SETTING,
                 TransportSearchAction.SEARCH_CANCEL_AFTER_TIME_INTERVAL_SETTING,
-                TransportSearchAction.SEARCH_PHASE_TOOK_ENABLED,
                 TransportSearchAction.SEARCH_QUERY_METRICS_ENABLED_SETTING,
+                SearchRequestListenerManager.SEARCH_PHASE_TOOK_ENABLED,
                 SearchRequestStats.SEARCH_REQUEST_STATS_ENABLED,
                 RemoteClusterService.REMOTE_CLUSTER_SKIP_UNAVAILABLE,
                 SniffConnectionStrategy.REMOTE_CONNECTIONS_PER_CLUSTER,
