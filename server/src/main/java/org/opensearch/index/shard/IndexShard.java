@@ -3433,12 +3433,21 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             + "] does not contain relocation target ["
             + routingEntry()
             + "]";
-        assert getLocalCheckpoint() == primaryContext.getCheckpointStates().get(routingEntry().allocationId().getId()).getLocalCheckpoint()
+        assert getLocalCheckpoint() >= primaryContext.getCheckpointStates().get(routingEntry().allocationId().getId()).getLocalCheckpoint()
             || indexSettings().getTranslogDurability() == Durability.ASYNC : "local checkpoint ["
                 + getLocalCheckpoint()
                 + "] does not match checkpoint from primary context ["
                 + primaryContext
                 + "]";
+        if (isRemoteStoreEnabled()) {
+            assert getLocalCheckpoint() == primaryContext.getCheckpointStates()
+                .get(primaryContext.getRoutingTable().primaryShard().allocationId().getId())
+                .getLocalCheckpoint() || indexSettings().getTranslogDurability() == Durability.ASYNC : "local checkpoint ["
+                    + getLocalCheckpoint()
+                    + "] does not match checkpoint from local checkpoint of old primary for remote store backed index ["
+                    + primaryContext
+                    + "]";
+        }
         synchronized (mutex) {
             replicationTracker.activateWithPrimaryContext(primaryContext); // make changes to primaryMode flag only under mutex
         }
