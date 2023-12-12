@@ -1,4 +1,4 @@
-## 2023-09-14 Version 1.3.14 Release Notes
+## 2023-12-12 Version 1.3.14 Release Notes
 
 ### Upgrades
 - Bump asm from 9.5 to 9.6 ([#10302](https://github.com/opensearch-project/OpenSearch/pull/10302))
