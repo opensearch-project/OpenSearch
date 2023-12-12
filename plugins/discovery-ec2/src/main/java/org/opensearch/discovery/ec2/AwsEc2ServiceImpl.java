@@ -111,7 +111,7 @@ class AwsEc2ServiceImpl implements AwsEc2Service {
     }
 
     protected String getFullEndpoint(String endpoint) {
-        if (endpoint == null) {
+        if (!Strings.hasText(endpoint)) {
             return null;
         }
         if (endpoint.startsWith("http")) {
