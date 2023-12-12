@@ -99,13 +99,7 @@ class AwsEc2ServiceImpl implements AwsEc2Service {
 
         if (Strings.hasText(endpoint)) {
             logger.debug("using explicit ec2 endpoint [{}]", endpoint);
-            URI uri = URI.create(endpoint);
-            if (uri.getScheme() == null) {
-                // if no scheme is provided, default to https
-                logger.debug("no scheme found in endpoint [{}], defaulting to https", endpoint);
-                uri = URI.create("https://" + endpoint);
-            }
-            builder.endpointOverride(uri);
+            builder.endpointOverride(URI.create(getFullEndpoint(endpoint)));
         }
 
         if (Strings.hasText(region)) {
@@ -114,6 +108,19 @@ class AwsEc2ServiceImpl implements AwsEc2Service {
         }
 
         return SocketAccess.doPrivileged(builder::build);
+    }
+
+    protected String getFullEndpoint(String endpoint) {
+        if (endpoint == null) {
+            return null;
+        }
+        if (endpoint.startsWith("http")) {
+            return endpoint;
+        }
+
+        // if no scheme is provided, default to https
+        logger.debug("no scheme found in endpoint [{}], defaulting to https", endpoint);
+        return "https://" + endpoint;
     }
 
     static ProxyConfiguration buildProxyConfiguration(Logger logger, Ec2ClientSettings clientSettings) {
