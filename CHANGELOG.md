@@ -3,6 +3,8 @@ Inspired from [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ## [Unreleased 1.x]
 ### Added
+- Maintainer approval check ([#11378](https://github.com/opensearch-project/OpenSearch/pull/11378))
+
 ### Dependencies
 - Bump `netty` from 4.1.96.Final to 4.1.97.Final ([#9553](https://github.com/opensearch-project/OpenSearch/pull/9553))
 - Bump `netty` from 4.1.100.Final to 4.1.101.Final ([#11294](https://github.com/opensearch-project/OpenSearch/pull/11294))
