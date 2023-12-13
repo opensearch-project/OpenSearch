@@ -88,6 +88,8 @@ spotless {
 if (BuildParams.runtimeJavaVersion >= JavaVersion.VERSION_20) {
   // Add support for incubator modules on supported Java versions.
   run.jvmArgs += ['--add-modules=jdk.incubator.vector']
+  run.classpath += files(jar.archiveFile)
+  run.classpath -= sourceSets.main.output
   evaluationDependsOn(':libs:opensearch-common')
 
   sourceSets {
