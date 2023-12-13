@@ -10,35 +10,25 @@ package org.opensearch.indices.store;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.OpenSearchException;
-import org.opensearch.action.ActionListener;
 import org.opensearch.action.ActionType;
 import org.opensearch.action.FailedNodeException;
+import org.opensearch.action.ActionListener;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.nodes.BaseNodeResponse;
 import org.opensearch.action.support.nodes.BaseNodesRequest;
 import org.opensearch.action.support.nodes.BaseNodesResponse;
 import org.opensearch.action.support.nodes.TransportNodesAction;
 import org.opensearch.cluster.ClusterName;
-import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
-import org.opensearch.core.common.io.stream.Writeable;
-import org.opensearch.common.settings.Settings;
-import org.opensearch.common.unit.TimeValue;
-import org.opensearch.env.NodeEnvironment;
-import org.opensearch.gateway.AsyncBatchShardFetch;
-import org.opensearch.index.IndexService;
-import org.opensearch.index.IndexSettings;
-import org.opensearch.index.seqno.ReplicationTracker;
-import org.opensearch.index.seqno.RetentionLease;
-import org.opensearch.index.shard.IndexShard;
 import org.opensearch.core.index.shard.ShardId;
-import org.opensearch.index.shard.ShardPath;
+import org.opensearch.env.NodeEnvironment;
+import org.opensearch.gateway.AsyncShardFetch;
 import org.opensearch.index.store.Store;
-import org.opensearch.index.store.StoreFileMetadata;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportRequest;
@@ -47,12 +37,9 @@ import org.opensearch.transport.TransportService;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.concurrent.TimeUnit;
-import java.util.stream.Collectors;
 
 /**
  * Transport action for fetching the batch of shard stores Metadata from a list of transport nodes
@@ -65,9 +52,9 @@ public class TransportNodesListShardStoreMetadataBatch extends TransportNodesAct
     TransportNodesListShardStoreMetadataBatch.NodeRequest,
     TransportNodesListShardStoreMetadataBatch.NodeStoreFilesMetadataBatch>
     implements
-        AsyncBatchShardFetch.Lister<
-            TransportNodesListShardStoreMetadataBatch.NodesStoreFilesMetadataBatch,
-            TransportNodesListShardStoreMetadataBatch.NodeStoreFilesMetadataBatch> {
+    AsyncShardFetch.Lister<
+        TransportNodesListShardStoreMetadataBatch.NodesStoreFilesMetadataBatch,
+        TransportNodesListShardStoreMetadataBatch.NodeStoreFilesMetadataBatch> {
 
     public static final String ACTION_NAME = "internal:cluster/nodes/indices/shard/store/batch";
     public static final ActionType<TransportNodesListShardStoreMetadataBatch.NodesStoreFilesMetadataBatch> TYPE = new ActionType<>(
@@ -107,11 +94,11 @@ public class TransportNodesListShardStoreMetadataBatch extends TransportNodesAct
 
     @Override
     public void list(
+        Map<ShardId, ShardAttributes> shardAttributes,
         DiscoveryNode[] nodes,
-        Map<ShardId, String> shardIdsWithCustomDataPath,
         ActionListener<NodesStoreFilesMetadataBatch> listener
     ) {
-        execute(new TransportNodesListShardStoreMetadataBatch.Request(shardIdsWithCustomDataPath.entrySet().stream().map(entry -> new ShardAttributes(entry.getKey(), entry.getValue())).collect(Collectors.toList()), nodes), listener);
+        execute(new TransportNodesListShardStoreMetadataBatch.Request(shardAttributes, nodes), listener);
     }
 
     @Override
@@ -138,132 +125,34 @@ public class TransportNodesListShardStoreMetadataBatch extends TransportNodesAct
         try {
             return new NodeStoreFilesMetadataBatch(clusterService.localNode(), listStoreMetadata(request));
         } catch (IOException e) {
-            throw new OpenSearchException("Failed to list store metadata for shards [" + request.getShardAttributes().stream().map(ShardAttributes::getShardId) + "]", e);
+            throw new OpenSearchException(
+                "Failed to list store metadata for shards [" + request.getShardAttributes().keySet().stream().map(ShardId::toString) + "]",
+                e
+            );
         }
     }
 
     /**
-     * This method is similar to listStoreMetadata method of {@link TransportNodesListShardStoreMetadata} we loop over
-     * the shards here and populate the data about the shard store information held by the local node.
-     *
-     * @param request Request containing the map shardIdsWithCustomDataPath.
-     * @return NodeStoreFilesMetadata contains the data about the shard store held by the local node
+     * This method is similar to listStoreMetadata method of {@link TransportNodesListShardStoreMetadata}
+     * In this case we fetch the shard store files for batch of shards instead of one shard.
      */
     private Map<ShardId, NodeStoreFilesMetadata> listStoreMetadata(NodeRequest request) throws IOException {
         Map<ShardId, NodeStoreFilesMetadata> shardStoreMetadataMap = new HashMap<ShardId, NodeStoreFilesMetadata>();
-        for (ShardAttributes  shardAttributes : request.getShardAttributes()) {
+        for (ShardAttributes shardAttributes : request.getShardAttributes().values()) {
             final ShardId shardId = shardAttributes.getShardId();
-            logger.trace("listing store meta data for {}", shardId);
-            long startTimeNS = System.nanoTime();
-            boolean exists = false;
             try {
-                IndexService indexService = indicesService.indexService(shardId.getIndex());
-                if (indexService != null) {
-                    IndexShard indexShard = indexService.getShardOrNull(shardId.id());
-                    if (indexShard != null) {
-                        try {
-                            final StoreFilesMetadata storeFilesMetadata = new StoreFilesMetadata(
-                                shardId,
-                                indexShard.snapshotStoreMetadata(),
-                                indexShard.getPeerRecoveryRetentionLeases()
-                            );
-                            exists = true;
-                            shardStoreMetadataMap.put(shardId, new NodeStoreFilesMetadata(storeFilesMetadata, null));
-                            continue;
-                        } catch (org.apache.lucene.index.IndexNotFoundException e) {
-                            logger.trace(new ParameterizedMessage("[{}] node is missing index, responding with empty", shardId), e);
-                            shardStoreMetadataMap.put(
-                                shardId,
-                                new NodeStoreFilesMetadata(
-                                    new StoreFilesMetadata(shardId, Store.MetadataSnapshot.EMPTY, Collections.emptyList()),
-                                    e
-                                )
-                            );
-                            continue;
-                        } catch (IOException e) {
-                            logger.warn(new ParameterizedMessage("[{}] can't read metadata from store, responding with empty", shardId), e);
-                            shardStoreMetadataMap.put(
-                                shardId,
-                                new NodeStoreFilesMetadata(
-                                    new StoreFilesMetadata(shardId, Store.MetadataSnapshot.EMPTY, Collections.emptyList()),
-                                    e
-                                )
-                            );
-                            continue;
-                        }
-                    }
-                }
-                final String customDataPath;
-                if (shardAttributes.getCustomDataPath() != null) {
-                    customDataPath = shardAttributes.getCustomDataPath();
-                } else {
-                    // TODO: Fallback for BWC with older predecessor (ES) versions.
-                    // Remove this once request.getCustomDataPath() always returns non-null
-                    if (indexService != null) {
-                        customDataPath = indexService.getIndexSettings().customDataPath();
-                    } else {
-                        IndexMetadata metadata = clusterService.state().metadata().index(shardId.getIndex());
-                        if (metadata != null) {
-                            customDataPath = new IndexSettings(metadata, settings).customDataPath();
-                        } else {
-                            logger.trace("{} node doesn't have meta data for the requests index", shardId);
-                            shardStoreMetadataMap.put(
-                                shardId,
-                                new NodeStoreFilesMetadata(
-                                    new StoreFilesMetadata(shardId, Store.MetadataSnapshot.EMPTY, Collections.emptyList()),
-                                    new OpenSearchException("node doesn't have meta data for index " + shardId.getIndex())
-                                )
-                            );
-                            continue;
-                        }
-                    }
-                }
-                final ShardPath shardPath = ShardPath.loadShardPath(logger, nodeEnv, shardId, customDataPath);
-                if (shardPath == null) {
-                    shardStoreMetadataMap.put(
-                        shardId,
-                        new NodeStoreFilesMetadata(
-                            new StoreFilesMetadata(shardId, Store.MetadataSnapshot.EMPTY, Collections.emptyList()),
-                            null
-                        )
-                    );
-                    continue;
-                }
-                // note that this may fail if it can't get access to the shard lock. Since we check above there is an active shard, this
-                // means:
-                // 1) a shard is being constructed, which means the cluster-manager will not use a copy of this replica
-                // 2) A shard is shutting down and has not cleared it's content within lock timeout. In this case the cluster-manager may
-                // not
-                // reuse local resources.
-                final Store.MetadataSnapshot metadataSnapshot = Store.readMetadataSnapshot(
-                    shardPath.resolveIndex(),
+                StoreFilesMetadata storeFilesMetadata = TransportNodesListShardStoreMetadataHelper.getListShardMetadataOnLocalNode(
+                    logger,
                     shardId,
-                    nodeEnv::shardLock,
-                    logger
+                    nodeEnv,
+                    indicesService,
+                    shardAttributes.getCustomDataPath(),
+                    settings,
+                    clusterService
                 );
-                // We use peer recovery retention leases from the primary for allocating replicas. We should always have retention leases
-                // when
-                // we refresh shard info after the primary has started. Hence, we can ignore retention leases if there is no active shard.
-                shardStoreMetadataMap.put(
-                    shardId,
-                    new NodeStoreFilesMetadata(new StoreFilesMetadata(shardId, metadataSnapshot, Collections.emptyList()), null)
-                );
-            } catch (Exception e) {
-                logger.trace("{} failed to load store metadata {}", shardId, e);
-                shardStoreMetadataMap.put(
-                    shardId,
-                    new NodeStoreFilesMetadata(
-                        new StoreFilesMetadata(shardId, Store.MetadataSnapshot.EMPTY, Collections.emptyList()),
-                        new OpenSearchException("failed to load store metadata", e)
-                    )
-                );
-            } finally {
-                TimeValue took = new TimeValue(System.nanoTime() - startTimeNS, TimeUnit.NANOSECONDS);
-                if (exists) {
-                    logger.debug("{} loaded store meta data (took [{}])", shardId, took);
-                } else {
-                    logger.trace("{} didn't find any store meta data to load (took [{}])", shardId, took);
-                }
+                shardStoreMetadataMap.put(shardId, new NodeStoreFilesMetadata(storeFilesMetadata, null));
+            } catch (IOException | OpenSearchException e) {
+                shardStoreMetadataMap.put(shardId, new NodeStoreFilesMetadata(new StoreFilesMetadata(shardId, Store.MetadataSnapshot.EMPTY, Collections.emptyList()), e));
             }
         }
         return shardStoreMetadataMap;
@@ -277,26 +166,26 @@ public class TransportNodesListShardStoreMetadataBatch extends TransportNodesAct
      */
     public static class Request extends BaseNodesRequest<Request> {
 
-        private final List<ShardAttributes> shardAttributes;
+        private final Map<ShardId, ShardAttributes> shardAttributes;
 
         public Request(StreamInput in) throws IOException {
             super(in);
-            shardAttributes = in.readList(ShardAttributes::new);
+            shardAttributes = in.readMap(ShardId::new, ShardAttributes::new);
         }
 
-        public Request(List<ShardAttributes> shardAttributes, DiscoveryNode[] nodes) {
+        public Request(Map<ShardId, ShardAttributes> shardAttributes, DiscoveryNode[] nodes) {
             super(nodes);
             this.shardAttributes = Objects.requireNonNull(shardAttributes);
         }
 
-        public List<ShardAttributes> getShardAttributes() {
+        public Map<ShardId, ShardAttributes> getShardAttributes() {
             return shardAttributes;
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            out.writeList(shardAttributes);
+            out.writeMap(shardAttributes, (o, k) -> k.writeTo(o), (o, v) -> v.writeTo(o));
         }
     }
 
@@ -394,11 +283,11 @@ public class TransportNodesListShardStoreMetadataBatch extends TransportNodesAct
      */
     public static class NodeRequest extends TransportRequest {
 
-        private final List<ShardAttributes> shardAttributes;
+        private final Map<ShardId, ShardAttributes> shardAttributes;
 
         public NodeRequest(StreamInput in) throws IOException {
             super(in);
-            shardAttributes = in.readList(ShardAttributes::new);
+            shardAttributes = in.readMap(ShardId::new, ShardAttributes::new);
         }
 
         public NodeRequest(Request request) {
@@ -408,10 +297,10 @@ public class TransportNodesListShardStoreMetadataBatch extends TransportNodesAct
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            out.writeList(shardAttributes);
+            out.writeMap(shardAttributes, (o, k) -> k.writeTo(o), (o, v) -> v.writeTo(o));
         }
 
-        public List<ShardAttributes> getShardAttributes() {
+        public Map<ShardId, ShardAttributes> getShardAttributes() {
             return shardAttributes;
         }
     }
