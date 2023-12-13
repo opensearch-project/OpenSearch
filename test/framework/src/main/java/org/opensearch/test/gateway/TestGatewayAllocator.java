@@ -40,15 +40,12 @@ import org.opensearch.cluster.routing.allocation.RoutingAllocation;
 import org.opensearch.gateway.AsyncShardFetch;
 import org.opensearch.gateway.GatewayAllocator;
 import org.opensearch.gateway.PrimaryShardAllocator;
-import org.opensearch.gateway.PrimaryShardBatchAllocator;
 import org.opensearch.gateway.ReplicaShardAllocator;
-import org.opensearch.gateway.ReplicaShardBatchAllocator;
 import org.opensearch.gateway.TransportNodesListGatewayStartedShards.NodeGatewayStartedShards;
 import org.opensearch.gateway.TransportNodesListGatewayStartedBatchShards;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
 import org.opensearch.indices.store.TransportNodesListShardStoreMetadata.NodeStoreFilesMetadata;
-import org.opensearch.indices.store.TransportNodesListShardStoreMetadataBatch;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -102,44 +99,13 @@ public class TestGatewayAllocator extends GatewayAllocator {
                     )
                 );
 
-            return new AsyncShardFetch.FetchResult<>(shardId, foundShards, ignoreNodes);
-        }
-    };
-
-
-    PrimaryShardBatchAllocator primaryShardBatchAllocator = new PrimaryShardBatchAllocator() {
-        @Override
-        protected AsyncShardFetch.FetchResult<TransportNodesListGatewayStartedBatchShards.NodeGatewayStartedShardsBatch> fetchData(Set<ShardRouting> shardsEligibleForFetch,
-                                                                                                                                   Set<ShardRouting> inEligibleShards,
-                                                                                                                                   RoutingAllocation allocation) {
-            Map<DiscoveryNode, TransportNodesListGatewayStartedBatchShards.NodeGatewayStartedShardsBatch> foundShards = new HashMap<>();
-            HashMap<ShardId, Set<String>> shardsToIgnoreNodes = new HashMap<>();
-            for (Map.Entry<String, Map<ShardId, ShardRouting>> entry : knownAllocations.entrySet()) {
-                String nodeId = entry.getKey();
-                Map<ShardId, ShardRouting> shardsOnNode = entry.getValue();
-                HashMap<ShardId, TransportNodesListGatewayStartedBatchShards.NodeGatewayStartedShards> adaptedResponse = new HashMap<>();
-
-                for (ShardRouting shardRouting : shardsEligibleForFetch) {
-                    ShardId shardId = shardRouting.shardId();
-                    Set<String> ignoreNodes = allocation.getIgnoreNodes(shardId);
-
-                    if (shardsOnNode.containsKey(shardId) && ignoreNodes.contains(nodeId) == false && currentNodes.nodeExists(nodeId)) {
-                        TransportNodesListGatewayStartedBatchShards.NodeGatewayStartedShards nodeShard = new TransportNodesListGatewayStartedBatchShards.NodeGatewayStartedShards(
-                            shardRouting.allocationId().getId(),
-                            shardRouting.primary(),
-                            getReplicationCheckpoint(shardId, nodeId)
-                        );
-                        adaptedResponse.put(shardId, nodeShard);
-                        shardsToIgnoreNodes.put(shardId, ignoreNodes);
-                    }
-                    foundShards.put(currentNodes.get(nodeId),
-                        new TransportNodesListGatewayStartedBatchShards.NodeGatewayStartedShardsBatch(currentNodes.get(nodeId), adaptedResponse));
+            return new AsyncShardFetch.FetchResult<>(foundShards, new HashMap<>() {
+                {
+                    put(shardId, ignoreNodes);
                 }
-            }
-            return new AsyncShardFetch.FetchResult<>(foundShards, shardsToIgnoreNodes);
+            });
         }
     };
-
 
     private ReplicationCheckpoint getReplicationCheckpoint(ShardId shardId, String nodeName) {
         return shardIdNodeToReplicationCheckPointMap.getOrDefault(getReplicationCheckPointKey(shardId, nodeName), null);
@@ -150,7 +116,11 @@ public class TestGatewayAllocator extends GatewayAllocator {
         protected AsyncShardFetch.FetchResult<NodeStoreFilesMetadata> fetchData(ShardRouting shard, RoutingAllocation allocation) {
             // for now, just pretend no node has data
             final ShardId shardId = shard.shardId();
-            return new AsyncShardFetch.FetchResult<>(shardId, Collections.emptyMap(), allocation.getIgnoreNodes(shardId));
+            return new AsyncShardFetch.FetchResult<>(Collections.emptyMap(), new HashMap<>() {
+                {
+                    put(shardId, allocation.getIgnoreNodes(shardId));
+                }
+            });
         }
 
         @Override
@@ -159,19 +129,6 @@ public class TestGatewayAllocator extends GatewayAllocator {
         }
     };
 
-    ReplicaShardBatchAllocator replicaShardBatchAllocator = new ReplicaShardBatchAllocator() {
-
-        @Override
-        protected AsyncShardFetch.FetchResult<TransportNodesListShardStoreMetadataBatch.NodeStoreFilesMetadataBatch> fetchData(Set<ShardRouting> shardsEligibleForFetch,
-                                                                                                                               Set<ShardRouting> inEligibleShards,
-                                                                                                                               RoutingAllocation allocation) {
-            return new AsyncShardFetch.FetchResult<>(Collections.emptyMap(), Collections.emptyMap());
-        }
-        @Override
-        protected boolean hasInitiatedFetching(ShardRouting shard) {
-            return true;
-        }
-    };
     @Override
     public void applyStartedShards(List<ShardRouting> startedShards, RoutingAllocation allocation) {
         currentNodes = allocation.nodes();
@@ -209,12 +166,6 @@ public class TestGatewayAllocator extends GatewayAllocator {
         innerAllocatedUnassigned(allocation, primaryShardAllocator, replicaShardAllocator, shardRouting, unassignedAllocationHandler);
     }
 
-    @Override
-    public void allocateUnassignedBatch(RoutingAllocation allocation, boolean primary){
-        currentNodes = allocation.nodes();
-        innerAllocateUnassignedBatch(allocation, primaryShardBatchAllocator, replicaShardBatchAllocator, primary);
-    }
-
     /**
      * manually add a specific shard to the allocations the gateway keeps track of
      */
@@ -230,29 +181,4 @@ public class TestGatewayAllocator extends GatewayAllocator {
         shardIdNodeToReplicationCheckPointMap.putIfAbsent(getReplicationCheckPointKey(shardId, nodeName), replicationCheckpoint);
     }
 
-
-    public Set<String> createAndUpdateBatches(RoutingAllocation allocation, boolean primary) {
-        return super.createAndUpdateBatches(allocation, primary);
-    }
-
-    public void safelyRemoveShardFromBatch(ShardRouting shard){
-        super.safelyRemoveShardFromBatch(shard);
-    }
-
-
-    public void safelyRemoveShardFromBothBatch(ShardRouting shardRouting) {
-        super.safelyRemoveShardFromBothBatch(shardRouting);
-    }
-
-    public String getBatchId(ShardRouting shard, boolean primary) {
-        return super.getBatchId(shard, primary);
-    }
-
-    public Map<String, GatewayAllocator.ShardsBatch> getBatchIdToStartedShardBatch(){
-        return batchIdToStartedShardBatch;
-    }
-
-    public Map<String, GatewayAllocator.ShardsBatch> getBatchIdToStoreShardBatch(){
-        return batchIdToStoreShardBatch;
-    }
 }

@@ -90,6 +90,7 @@ import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.common.util.set.Sets;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.gateway.GatewayAllocator;
+import org.opensearch.gateway.ShardsBatchGatewayAllocator;
 import org.opensearch.ingest.IngestMetadata;
 import org.opensearch.persistent.PersistentTasksCustomMetadata;
 import org.opensearch.persistent.PersistentTasksNodeService;
@@ -421,6 +422,7 @@ public class ClusterModule extends AbstractModule {
     @Override
     protected void configure() {
         bind(GatewayAllocator.class).asEagerSingleton();
+        bind(ShardsBatchGatewayAllocator.class).asEagerSingleton();
         bind(AllocationService.class).toInstance(allocationService);
         bind(ClusterService.class).toInstance(clusterService);
         bind(NodeConnectionsService.class).asEagerSingleton();
@@ -440,10 +442,8 @@ public class ClusterModule extends AbstractModule {
         bind(ShardsAllocator.class).toInstance(shardsAllocator);
     }
 
-    public void setExistingShardsAllocators(GatewayAllocator gatewayAllocator) {
-        final Map<String, ExistingShardsAllocator> existingShardsAllocators = new HashMap<>();
-        existingShardsAllocators.put(GatewayAllocator.ALLOCATOR_NAME, gatewayAllocator);
-
+    public void setExistingShardsAllocators(Map<String, GatewayAllocator> gatewayAllocators) {
+        final Map<String, ExistingShardsAllocator> existingShardsAllocators = new HashMap<>(gatewayAllocators);
         for (ClusterPlugin clusterPlugin : clusterPlugins) {
             for (Map.Entry<String, ExistingShardsAllocator> existingShardsAllocatorEntry : clusterPlugin.getExistingShardsAllocators()
                 .entrySet()) {
