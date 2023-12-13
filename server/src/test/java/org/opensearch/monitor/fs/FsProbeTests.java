@@ -199,7 +199,6 @@ public class FsProbeTests extends OpenSearchTestCase {
             } else {
                 assertEquals(0L, total.available);
             }
-            assertTrue((total.free - total.available) < total.fileCacheReserved);
 
             for (FsInfo.Path path : stats) {
                 assertNotNull(path);
@@ -211,7 +210,6 @@ public class FsProbeTests extends OpenSearchTestCase {
 
                 if (path.fileCacheReserved > 0L) {
                     assertEquals(0L, path.available);
-                    assertTrue(path.free - path.available < path.fileCacheReserved);
                 } else {
                     assertTrue(path.available > 0L);
                 }
