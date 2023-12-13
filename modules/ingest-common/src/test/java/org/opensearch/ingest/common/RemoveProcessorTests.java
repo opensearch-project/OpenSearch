@@ -180,5 +180,21 @@ public class RemoveProcessorTests extends OpenSearchTestCase {
                         assertThat(ingestDocument.hasField(metadataFieldName), equalTo(false));
                     }
         }
+
+        // test remove _id when _version_type is null
+        IngestDocument ingestDocumentWithNoVersionType = new IngestDocument(
+            RandomDocumentPicks.randomString(random()),
+            RandomDocumentPicks.randomString(random()),
+            RandomDocumentPicks.randomString(random()),
+            null,
+            null,
+            RandomDocumentPicks.randomSource(random())
+        );
+        Map<String, Object> config = new HashMap<>();
+        config.put("field", IngestDocument.Metadata.ID.getFieldName());
+        String processorTag = randomAlphaOfLength(10);
+        Processor processor = new RemoveProcessor.Factory(TestTemplateService.instance()).create(null, processorTag, null, config);
+        processor.execute(ingestDocumentWithNoVersionType);
+        assertThat(ingestDocumentWithNoVersionType.hasField(IngestDocument.Metadata.ID.getFieldName()), equalTo(false));
     }
 }

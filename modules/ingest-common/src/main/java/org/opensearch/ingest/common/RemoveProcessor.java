@@ -88,16 +88,18 @@ public final class RemoveProcessor extends AbstractProcessor {
                 throw new IllegalArgumentException("cannot remove metadata field [" + path + "]");
             }
             // removing _id is disallowed when there's an external version specified in the request
-            String versionType = document.getFieldValue(IngestDocument.Metadata.VERSION_TYPE.getFieldName(), String.class);
-            if (path.equals(IngestDocument.Metadata.ID.getFieldName())
-                && !Objects.equals(versionType, VersionType.toString(VersionType.INTERNAL))) {
-                Long version = document.getFieldValue(IngestDocument.Metadata.VERSION.getFieldName(), Long.class);
-                throw new IllegalArgumentException(
-                    "cannot remove metadata field [_id] when specifying external version for the document, version: "
-                        + version
-                        + ", version_type: "
-                        + versionType
-                );
+            if (path.equals(IngestDocument.Metadata.ID.getFieldName())) {
+                String versionType = document.getFieldValue(IngestDocument.Metadata.VERSION_TYPE.getFieldName(), String.class, true);
+                if (Objects.equals(versionType, VersionType.toString(VersionType.EXTERNAL))
+                    || Objects.equals(versionType, VersionType.toString(VersionType.EXTERNAL_GTE))) {
+                    Long version = document.getFieldValue(IngestDocument.Metadata.VERSION.getFieldName(), Long.class, true);
+                    throw new IllegalArgumentException(
+                        "cannot remove metadata field [_id] when specifying external version for the document, version: "
+                            + version
+                            + ", version_type: "
+                            + versionType
+                    );
+                }
             }
             document.removeField(path);
         });
