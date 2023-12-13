@@ -31,13 +31,16 @@
 
 package org.opensearch.search.fetch.subphase;
 
+import org.opensearch.common.annotation.PublicApi;
+
 import java.util.List;
 
 /**
  * The context needed to retrieve fields.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class FetchFieldsContext {
     private final List<FieldAndFormat> fields;
 

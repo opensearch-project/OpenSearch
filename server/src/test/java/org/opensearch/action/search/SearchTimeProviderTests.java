@@ -47,7 +47,7 @@ public class SearchTimeProviderTests extends OpenSearchTestCase {
             long startTime = System.nanoTime() - TimeUnit.MILLISECONDS.toNanos(tookTimeInMillis);
             when(mockSearchPhase.getStartTimeInNanos()).thenReturn(startTime);
             assertNull(testTimeProvider.getPhaseTookTime(searchPhaseName));
-            testTimeProvider.onPhaseEnd(ctx);
+            testTimeProvider.onPhaseEnd(ctx, new SearchRequestContext());
             assertThat(testTimeProvider.getPhaseTookTime(searchPhaseName), greaterThanOrEqualTo(tookTimeInMillis));
         }
     }

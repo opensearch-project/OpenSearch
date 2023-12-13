@@ -532,7 +532,7 @@ public abstract class TopDocsCollectorContext extends QueryCollectorContext {
                     float score = collector.getMaxScore();
                     if (Float.isNaN(maxScore)) {
                         maxScore = score;
-                    } else {
+                    } else if (!Float.isNaN(score)) {
                         maxScore = Math.max(maxScore, score);
                     }
                 }

@@ -31,6 +31,7 @@
 
 package org.opensearch.repositories;
 
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.blobstore.DeleteResult;
 import org.opensearch.core.ParseField;
 import org.opensearch.core.common.Strings;
@@ -47,8 +48,9 @@ import java.io.IOException;
 /**
  * Result of a repository cleanup action
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public final class RepositoryCleanupResult implements Writeable, ToXContentObject {
 
     public static final ObjectParser<RepositoryCleanupResult, Void> PARSER = new ObjectParser<>(

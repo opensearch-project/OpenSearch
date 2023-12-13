@@ -15,7 +15,6 @@ import org.opensearch.common.util.concurrent.ThreadContextStatePropagator;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 
 /**
  * Core's ThreadContext based TracerContextStorage implementation
@@ -79,17 +78,7 @@ public class ThreadContextBasedTracerContextStorage implements TracerContextStor
     }
 
     Span getCurrentSpan(String key) {
-        Optional<Span> optionalSpanFromContext = spanFromThreadContext(key);
-        return optionalSpanFromContext.orElse(spanFromHeader());
-    }
-
-    private Optional<Span> spanFromThreadContext(String key) {
         SpanReference currentSpanRef = threadContext.getTransient(key);
-        return (currentSpanRef == null) ? Optional.empty() : Optional.ofNullable(currentSpanRef.getSpan());
-    }
-
-    private Span spanFromHeader() {
-        Optional<Span> span = tracingTelemetry.getContextPropagator().extract(threadContext.getHeaders());
-        return span.orElse(null);
+        return (currentSpanRef == null) ? null : currentSpanRef.getSpan();
     }
 }

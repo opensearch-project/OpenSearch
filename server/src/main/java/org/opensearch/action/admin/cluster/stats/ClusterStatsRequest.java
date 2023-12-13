@@ -33,6 +33,7 @@
 package org.opensearch.action.admin.cluster.stats;
 
 import org.opensearch.action.support.nodes.BaseNodesRequest;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 
@@ -41,8 +42,9 @@ import java.io.IOException;
 /**
  * A request to get cluster level stats.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class ClusterStatsRequest extends BaseNodesRequest<ClusterStatsRequest> {
 
     public ClusterStatsRequest(StreamInput in) throws IOException {

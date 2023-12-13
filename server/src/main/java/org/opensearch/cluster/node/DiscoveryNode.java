@@ -44,7 +44,6 @@ import org.opensearch.core.common.transport.TransportAddress;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.node.Node;
-import org.opensearch.node.remotestore.RemoteStoreNodeService;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -281,27 +280,6 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
         Map<String, String> attributes = Node.NODE_ATTRIBUTES.getAsMap(settings);
         Set<DiscoveryNodeRole> roles = getRolesFromSettings(settings);
         return new DiscoveryNode(Node.NODE_NAME_SETTING.get(settings), nodeId, publishAddress, attributes, roles, Version.CURRENT);
-    }
-
-    /** Creates a DiscoveryNode representing the local node and verifies the repository. */
-    public static DiscoveryNode createRemoteNodeLocal(
-        Settings settings,
-        TransportAddress publishAddress,
-        String nodeId,
-        RemoteStoreNodeService remoteStoreNodeService
-    ) {
-        Map<String, String> attributes = Node.NODE_ATTRIBUTES.getAsMap(settings);
-        Set<DiscoveryNodeRole> roles = getRolesFromSettings(settings);
-        DiscoveryNode discoveryNode = new DiscoveryNode(
-            Node.NODE_NAME_SETTING.get(settings),
-            nodeId,
-            publishAddress,
-            attributes,
-            roles,
-            Version.CURRENT
-        );
-        remoteStoreNodeService.createAndVerifyRepositories(discoveryNode);
-        return discoveryNode;
     }
 
     /** extract node roles from the given settings */
