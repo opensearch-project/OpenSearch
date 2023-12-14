@@ -222,6 +222,8 @@ public class AwsEc2ServiceImplTests extends AbstractEc2DiscoveryTestCase {
         String endpoint = awsEc2ServiceImpl.getFullEndpoint(clientSettings.endpoint);
         assertEquals("https://ec2.us-west-2.amazonaws.com", endpoint);
 
+        assertEquals("https://httpserver.example.com", awsEc2ServiceImpl.getFullEndpoint("httpserver.example.com"));
+
         assertNull(awsEc2ServiceImpl.getFullEndpoint(""));
     }
 }
