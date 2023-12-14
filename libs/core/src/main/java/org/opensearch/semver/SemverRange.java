@@ -17,11 +17,9 @@ import org.opensearch.semver.expr.Expression;
 import org.opensearch.semver.expr.Tilde;
 
 import java.io.IOException;
-import java.util.Locale;
 import java.util.Objects;
 import java.util.Optional;
 
-import static java.lang.String.format;
 import static java.util.Arrays.stream;
 
 /**
@@ -43,10 +41,7 @@ public class SemverRange implements ToXContentFragment {
      * @return a {@code SemverRange}
      */
     public static SemverRange fromString(final String range) {
-        Optional<RangeOperator> operator = stream(RangeOperator.values()).filter(
-            rangeOperator -> rangeOperator != RangeOperator.DEFAULT && range.startsWith(rangeOperator.asString())
-        ).findFirst();
-        RangeOperator rangeOperator = operator.orElse(RangeOperator.DEFAULT);
+        RangeOperator rangeOperator = RangeOperator.fromRange(range);
         String version = range.replaceFirst(rangeOperator.asString(), "");
         if (!Version.stringHasLength(version)) {
             throw new IllegalArgumentException("Version cannot be empty");
@@ -73,34 +68,22 @@ public class SemverRange implements ToXContentFragment {
     /**
      * Check if range is satisfied by given version string.
      *
-     * @param version version to check
+     * @param versionToEvaluate version to check
      * @return {@code true} if range is satisfied by version, {@code false} otherwise
      */
-    public boolean isSatisfiedBy(final String version) {
-        return isSatisfiedBy(Version.fromString(version));
+    public boolean isSatisfiedBy(final String versionToEvaluate) {
+        return isSatisfiedBy(Version.fromString(versionToEvaluate));
     }
 
     /**
      * Check if range is satisfied by given version.
      *
-     * @param version version to check
+     * @param versionToEvaluate version to check
      * @return {@code true} if range is satisfied by version, {@code false} otherwise
      * @see #isSatisfiedBy(String)
      */
-    public boolean isSatisfiedBy(final Version version) {
-        Expression expression = null;
-        switch (rangeOperator) {
-            case DEFAULT:
-            case EQ:
-                expression = new Equal(rangeVersion);
-                break;
-            case TILDE:
-                expression = new Tilde(rangeVersion);
-                break;
-            default:
-                throw new RuntimeException(format(Locale.ROOT, "Unsupported range operator: %s", rangeOperator));
-        }
-        return expression.evaluate(version);
+    public boolean isSatisfiedBy(final Version versionToEvaluate) {
+        return this.rangeOperator.expression.evaluate(this.rangeVersion, versionToEvaluate);
     }
 
     @Override
@@ -135,14 +118,16 @@ public class SemverRange implements ToXContentFragment {
      */
     public enum RangeOperator {
 
-        EQ("="),
-        TILDE("~"),
-        DEFAULT("");
+        EQ("=", new Equal()),
+        TILDE("~", new Tilde()),
+        DEFAULT("", new Equal());
 
         private final String operator;
+        private final Expression expression;
 
-        RangeOperator(final String operator) {
+        RangeOperator(final String operator, final Expression expression) {
             this.operator = operator;
+            this.expression = expression;
         }
 
         /**
@@ -152,6 +137,13 @@ public class SemverRange implements ToXContentFragment {
          */
         public String asString() {
             return operator;
+        }
+
+        public static RangeOperator fromRange(final String range) {
+            Optional<RangeOperator> rangeOperator = stream(values()).filter(
+                operator -> operator != DEFAULT && range.startsWith(operator.asString())
+            ).findFirst();
+            return rangeOperator.orElse(DEFAULT);
         }
     }
 }

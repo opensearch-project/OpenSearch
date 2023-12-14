@@ -14,8 +14,9 @@ import org.opensearch.test.OpenSearchTestCase;
 public class EqualTests extends OpenSearchTestCase {
 
     public void testEquality() {
-        Equal equalExpr = new Equal(Version.fromString("1.2.3"));
-        assertTrue(equalExpr.evaluate(Version.fromString("1.2.3")));
-        assertFalse(equalExpr.evaluate(Version.fromString("1.2.4")));
+        Equal equalExpr = new Equal();
+        Version rangeVersion = Version.fromString("1.2.3");
+        assertTrue(equalExpr.evaluate(rangeVersion, Version.fromString("1.2.3")));
+        assertFalse(equalExpr.evaluate(rangeVersion, Version.fromString("1.2.4")));
     }
 }

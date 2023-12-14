@@ -15,25 +15,15 @@ import org.opensearch.Version;
  */
 public class Equal implements Expression {
 
-    private final Version version;
-
     /**
-     * Constructs a {@code Equal} expression with the given version.
+     * Checks if a given version matches a certain range version.
      *
-     * @param version given version
-     */
-    public Equal(final Version version) {
-        this.version = version;
-    }
-
-    /**
-     * Checks if the current version equals the member version.
-     *
-     * @param version the version to evaluate
+     * @param rangeVersion the version specified in range
+     * @param versionToEvaluate the version to evaluate
      * @return {@code true} if the versions are equal {@code false} otherwise
      */
     @Override
-    public boolean evaluate(final Version version) {
-        return version.equals(this.version);
+    public boolean evaluate(final Version rangeVersion, final Version versionToEvaluate) {
+        return versionToEvaluate.equals(rangeVersion);
     }
 }

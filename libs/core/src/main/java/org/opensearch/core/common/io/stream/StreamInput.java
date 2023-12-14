@@ -751,6 +751,8 @@ public abstract class StreamInput extends InputStream {
                 return readCollection(StreamInput::readGenericValue, HashSet::new, Collections.emptySet());
             case 26:
                 return readBigInteger();
+            case 27:
+                return readSemverRange();
             default:
                 throw new IOException("Can't read unknown type [" + type + "]");
         }

@@ -785,6 +785,10 @@ public abstract class StreamOutput extends OutputStream {
             o.writeByte((byte) 26);
             o.writeString(v.toString());
         });
+        writers.put(SemverRange.class, (o, v) -> {
+            o.writeByte((byte) 27);
+            o.writeSemverRange((SemverRange) v);
+        });
         WRITERS = Collections.unmodifiableMap(writers);
     }
 

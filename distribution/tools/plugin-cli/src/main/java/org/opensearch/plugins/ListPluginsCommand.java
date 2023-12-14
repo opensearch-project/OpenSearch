@@ -83,7 +83,7 @@ class ListPluginsCommand extends EnvironmentAwareCommand {
                 "WARNING: plugin ["
                     + info.getName()
                     + "] was built for OpenSearch version "
-                    + info.getOpenSearchVersionRange().toString()
+                    + info.getOpenSearchVersionRangesString()
                     + " and is not compatible with "
                     + Version.CURRENT
             );

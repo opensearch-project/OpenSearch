@@ -720,7 +720,27 @@ public class PluginsServiceTests extends OpenSearchTestCase {
     }
 
     public void testCompatibleOpenSearchVersionRange() {
-        SemverRange pluginCompatibilityRange = new SemverRange(Version.CURRENT, SemverRange.RangeOperator.TILDE);
+        List<SemverRange> pluginCompatibilityRange = List.of(new SemverRange(Version.CURRENT, SemverRange.RangeOperator.TILDE));
+        PluginInfo info = new PluginInfo(
+            "my_plugin",
+            "desc",
+            "1.0",
+            pluginCompatibilityRange,
+            "1.8",
+            "FakePlugin",
+            null,
+            Collections.emptyList(),
+            false
+        );
+        PluginsService.verifyCompatibility(info);
+    }
+
+    public void testCompatibleOpenSearchVersionRanges() {
+        List<SemverRange> pluginCompatibilityRange = List.of(
+            new SemverRange(Version.CURRENT, SemverRange.RangeOperator.TILDE),
+            new SemverRange(Version.CURRENT, SemverRange.RangeOperator.EQ),
+            new SemverRange(Version.CURRENT, SemverRange.RangeOperator.DEFAULT)
+        );
         PluginInfo info = new PluginInfo(
             "my_plugin",
             "desc",
@@ -737,9 +757,11 @@ public class PluginsServiceTests extends OpenSearchTestCase {
 
     public void testIncompatibleOpenSearchVersionRange() {
         // Version.CURRENT is behind by one with respect to patch version in the range
-        SemverRange pluginCompatibilityRange = new SemverRange(
-            VersionUtils.getVersion(Version.CURRENT.major, Version.CURRENT.minor, (byte) (Version.CURRENT.revision + 1)),
-            SemverRange.RangeOperator.TILDE
+        List<SemverRange> pluginCompatibilityRange = List.of(
+            new SemverRange(
+                VersionUtils.getVersion(Version.CURRENT.major, Version.CURRENT.minor, (byte) (Version.CURRENT.revision + 1)),
+                SemverRange.RangeOperator.TILDE
+            )
         );
         PluginInfo info = new PluginInfo(
             "my_plugin",
@@ -753,7 +775,32 @@ public class PluginsServiceTests extends OpenSearchTestCase {
             false
         );
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> PluginsService.verifyCompatibility(info));
-        assertThat(e.getMessage(), containsString("was built for OpenSearch version " + pluginCompatibilityRange));
+        assertThat(e.getMessage(), containsString("was built for OpenSearch version "));
+    }
+
+    public void testIncompatibleOpenSearchVersionRanges() {
+        List<SemverRange> pluginCompatibilityRange = List.of(
+            new SemverRange(Version.CURRENT, SemverRange.RangeOperator.EQ),
+            new SemverRange(Version.CURRENT, SemverRange.RangeOperator.DEFAULT),
+            new SemverRange(
+                // Core version will not satisfy this range
+                VersionUtils.getVersion(Version.CURRENT.major, Version.CURRENT.minor, (byte) (Version.CURRENT.revision + 1)),
+                SemverRange.RangeOperator.TILDE
+            )
+        );
+        PluginInfo info = new PluginInfo(
+            "my_plugin",
+            "desc",
+            "1.0",
+            pluginCompatibilityRange,
+            "1.8",
+            "FakePlugin",
+            null,
+            Collections.emptyList(),
+            false
+        );
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> PluginsService.verifyCompatibility(info));
+        assertThat(e.getMessage(), containsString("was built for OpenSearch version "));
     }
 
     public void testIncompatibleJavaVersion() throws Exception {
@@ -1106,7 +1153,7 @@ public class PluginsServiceTests extends OpenSearchTestCase {
             "my_plugin",
             "desc",
             "1.0",
-            SemverRange.fromString(semverRange),
+            List.of(SemverRange.fromString(semverRange)),
             "1.8",
             "FakePlugin",
             null,

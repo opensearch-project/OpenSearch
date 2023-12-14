@@ -18,8 +18,9 @@ public interface Expression {
     /**
      * Evaluates an expression.
      *
-     * @param version the version to evaluate
+     * @param rangeVersion the version specified in range
+     * @param versionToEvaluate the version to evaluate
      * @return the result of the expression evaluation
      */
-    boolean evaluate(final Version version);
+    boolean evaluate(final Version rangeVersion, final Version versionToEvaluate);
 }

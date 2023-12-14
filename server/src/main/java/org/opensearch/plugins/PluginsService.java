@@ -52,6 +52,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.service.ReportingService;
 import org.opensearch.index.IndexModule;
+import org.opensearch.semver.SemverRange;
 import org.opensearch.threadpool.ExecutorBuilder;
 import org.opensearch.transport.TransportSettings;
 
@@ -392,7 +393,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
                 "Plugin ["
                     + info.getName()
                     + "] was built for OpenSearch version "
-                    + info.getOpenSearchVersionRange()
+                    + info.getOpenSearchVersionRangesString()
                     + " but version "
                     + Version.CURRENT
                     + " is running"
@@ -402,7 +403,13 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
     }
 
     public static boolean isPluginVersionCompatible(final PluginInfo pluginInfo, final Version coreVersion) {
-        return pluginInfo.getOpenSearchVersionRange().isSatisfiedBy(coreVersion);
+        // Core version must satisfy all ranges of opensearch version
+        for (SemverRange range : pluginInfo.getOpenSearchVersionRanges()) {
+            if (!range.isSatisfiedBy(coreVersion)) {
+                return false;
+            }
+        }
+        return true;
     }
 
     static void checkForFailedPluginRemovals(final Path pluginsDirectory) throws IOException {

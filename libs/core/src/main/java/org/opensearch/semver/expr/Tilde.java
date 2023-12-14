@@ -15,28 +15,17 @@ import org.opensearch.Version;
  */
 public class Tilde implements Expression {
 
-    private final Version rangeVersion;
-
     /**
-     * Constructs a {@code Tilde} expression with the given range version.
-     *
-     * @param rangeVersion rangeVersion
-     */
-    public Tilde(final Version rangeVersion) {
-        this.rangeVersion = rangeVersion;
-    }
-
-    /**
-     * Checks if the given input version is compatible with the rangeVersion allowing for patch version variability.
+     * Checks if the given version is compatible with a range version allowing for patch version variability.
      * Allows all versions starting from the rangeVersion upto next minor version (exclusive).
-     *
-     * @param version the version to evaluate
+     * @param rangeVersion the version specified in range
+     * @param versionToEvaluate the version to evaluate
      * @return {@code true} if the versions are compatible {@code false} otherwise
      */
     @Override
-    public boolean evaluate(final Version version) {
+    public boolean evaluate(final Version rangeVersion, final Version versionToEvaluate) {
         Version lower = rangeVersion;
         Version upper = Version.fromString(rangeVersion.major + "." + (rangeVersion.minor + 1) + "." + 0);
-        return version.onOrAfter(lower) && version.before(upper);
+        return versionToEvaluate.onOrAfter(lower) && versionToEvaluate.before(upper);
     }
 }

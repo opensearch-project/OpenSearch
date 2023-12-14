@@ -48,6 +48,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -71,7 +72,7 @@ public class PluginInfo implements Writeable, ToXContentObject {
     private final String name;
     private final String description;
     private final String version;
-    private final SemverRange opensearchVersionRange;
+    private final List<SemverRange> opensearchVersionRanges;
     private final String javaVersion;
     private final String classname;
     private final String customFolderName;
@@ -106,7 +107,7 @@ public class PluginInfo implements Writeable, ToXContentObject {
             name,
             description,
             version,
-            SemverRange.fromString(opensearchVersion.toString()),
+            List.of(SemverRange.fromString(opensearchVersion.toString())),
             javaVersion,
             classname,
             customFolderName,
@@ -119,7 +120,7 @@ public class PluginInfo implements Writeable, ToXContentObject {
         String name,
         String description,
         String version,
-        SemverRange opensearchVersionRange,
+        List<SemverRange> opensearchVersionRanges,
         String javaVersion,
         String classname,
         String customFolderName,
@@ -129,7 +130,7 @@ public class PluginInfo implements Writeable, ToXContentObject {
         this.name = name;
         this.description = description;
         this.version = version;
-        this.opensearchVersionRange = opensearchVersionRange;
+        this.opensearchVersionRanges = opensearchVersionRanges;
         this.javaVersion = javaVersion;
         this.classname = classname;
         this.customFolderName = customFolderName;
@@ -178,14 +179,15 @@ public class PluginInfo implements Writeable, ToXContentObject {
      * @param in the stream
      * @throws IOException if an I/O exception occurred reading the plugin info from the stream
      */
+    @SuppressWarnings("unchecked")
     public PluginInfo(final StreamInput in) throws IOException {
         this.name = in.readString();
         this.description = in.readString();
         this.version = in.readString();
         if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
-            this.opensearchVersionRange = in.readSemverRange();
+            this.opensearchVersionRanges = (List<SemverRange>) in.readGenericValue();
         } else {
-            this.opensearchVersionRange = new SemverRange(in.readVersion(), SemverRange.RangeOperator.DEFAULT);
+            this.opensearchVersionRanges = List.of(new SemverRange(in.readVersion(), SemverRange.RangeOperator.DEFAULT));
         }
         this.javaVersion = in.readString();
         this.classname = in.readString();
@@ -200,9 +202,13 @@ public class PluginInfo implements Writeable, ToXContentObject {
         out.writeString(description);
         out.writeString(version);
         if (out.getVersion().onOrAfter(Version.V_3_0_0)) {
-            out.writeSemverRange(opensearchVersionRange);
+            out.writeGenericValue(opensearchVersionRanges);
         } else {
-            out.writeVersion(opensearchVersionRange.getRangeVersion());
+            /*
+            This works for currently supported range notations (=,~)
+            As more notations get added, then a suitable version must be picked.
+             */
+            out.writeVersion(opensearchVersionRanges.get(0).getRangeVersion());
         }
         out.writeString(javaVersion);
         out.writeString(classname);
@@ -260,9 +266,9 @@ public class PluginInfo implements Writeable, ToXContentObject {
             );
         }
 
-        final SemverRange opensearchVersionRange;
+        final List<SemverRange> opensearchVersionRanges = new ArrayList<>();
         if (opensearchVersionString != null) {
-            opensearchVersionRange = new SemverRange(Version.fromString(opensearchVersionString), SemverRange.RangeOperator.DEFAULT);
+            opensearchVersionRanges.add(SemverRange.fromString(opensearchVersionString));
         } else {
             Map<String, String> dependenciesMap = new Gson().fromJson(dependenciesValue, Map.class);
             if (dependenciesMap.size() != 1) {
@@ -271,9 +277,15 @@ public class PluginInfo implements Writeable, ToXContentObject {
                 );
             }
             if (dependenciesMap.keySet().stream().noneMatch(s -> s.equals("opensearch"))) {
-                throw new IllegalArgumentException("Only OpenSearch is allowed to be specified as a plugin dependency: " + dependenciesMap);
+                throw new IllegalArgumentException("Only opensearch is allowed to be specified as a plugin dependency: " + dependenciesMap);
             }
-            opensearchVersionRange = SemverRange.fromString(dependenciesMap.get("opensearch"));
+            String[] ranges = dependenciesMap.get("opensearch").split(",");
+            for (String range : ranges) {
+                opensearchVersionRanges.add(SemverRange.fromString(range.trim()));
+            }
+            if (opensearchVersionRanges.isEmpty()) {
+                throw new IllegalArgumentException("Invalid version specified in dependencies for the plugin [" + name + "]");
+            }
         }
 
         final String javaVersionString = propsMap.remove("java.version");
@@ -331,7 +343,7 @@ public class PluginInfo implements Writeable, ToXContentObject {
             name,
             description,
             version,
-            opensearchVersionRange,
+            opensearchVersionRanges,
             javaVersionString,
             classname,
             customFolderName,
@@ -395,12 +407,26 @@ public class PluginInfo implements Writeable, ToXContentObject {
     }
 
     /**
-     * The range of OpenSearch versions the plugin is compatible with.
+     * The list of OpenSearch version ranges the plugin is compatible with.
      *
-     * @return an OpenSearch version range
+     * @return a list of OpenSearch version ranges
      */
-    public SemverRange getOpenSearchVersionRange() {
-        return opensearchVersionRange;
+    public List<SemverRange> getOpenSearchVersionRanges() {
+        return opensearchVersionRanges;
+    }
+
+    /**
+     * Pretty print the semver ranges and return the string.
+     * @return semver ranges string
+     */
+    public String getOpenSearchVersionRangesString() {
+        if (opensearchVersionRanges == null || opensearchVersionRanges.isEmpty()) {
+            return "";
+        }
+        if (opensearchVersionRanges.size() == 1) {
+            return opensearchVersionRanges.get(0).toString();
+        }
+        return opensearchVersionRanges.stream().map(Object::toString).collect(Collectors.joining(",", "[", "]"));
     }
 
     /**
@@ -436,7 +462,7 @@ public class PluginInfo implements Writeable, ToXContentObject {
         {
             builder.field("name", name);
             builder.field("version", version);
-            builder.field("opensearch_version", opensearchVersionRange);
+            builder.field("opensearch_version", opensearchVersionRanges);
             builder.field("java_version", javaVersion);
             builder.field("description", description);
             builder.field("classname", classname);
@@ -490,7 +516,7 @@ public class PluginInfo implements Writeable, ToXContentObject {
             .append("\n")
             .append(prefix)
             .append("OpenSearch Version: ")
-            .append(opensearchVersionRange)
+            .append(getOpenSearchVersionRangesString())
             .append("\n")
             .append(prefix)
             .append("Java Version: ")
