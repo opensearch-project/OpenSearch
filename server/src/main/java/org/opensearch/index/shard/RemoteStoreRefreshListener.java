@@ -172,11 +172,29 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
             // When the shouldSync is called the first time, then 1st condition on primary term is true. But after that
             // we update the primary term and the same condition would not evaluate to true again in syncSegments.
             // Below check ensures that if there is commit, then that gets picked up by both 1st and 2nd shouldSync call.
-            || isRefreshAfterCommitSafe();
+            || isRefreshAfterCommitSafe()
+            || isRemoteSegmentStoreInSync();
         if (shouldSync || skipPrimaryTermCheck) {
             return shouldSync;
         }
         return this.primaryTerm != indexShard.getOperationPrimaryTerm();
+    }
+
+    /**
+     * Checks if all files present in local store are uploaded to remote store or part of excluded files.
+     *
+     * Different from IndexShard#isRemoteSegmentStoreInSync as it uses files uploaded cache in RemoteDirectory
+     * And it doesn't make a remote store call.
+     *
+     * @return true iff all the local files are uploaded to remote store.
+     */
+     boolean isRemoteSegmentStoreInSync() {
+        try (GatedCloseable<SegmentInfos> segmentInfosGatedCloseable = indexShard.getSegmentInfosSnapshot()) {
+            return segmentInfosGatedCloseable.get().files(true).stream().allMatch(this::skipUpload);
+        } catch (Throwable throwable) {
+            logger.error("Throwable thrown during isRemoteSegmentStoreInSync", throwable);
+        }
+        return false;
     }
 
     /*
