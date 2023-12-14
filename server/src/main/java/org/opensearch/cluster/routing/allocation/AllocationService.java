@@ -59,11 +59,13 @@ import org.opensearch.common.collect.ImmutableOpenMap;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.gateway.GatewayAllocator;
 import org.opensearch.gateway.PriorityComparator;
+import org.opensearch.gateway.ShardsBatchGatewayAllocator;
 import org.opensearch.snapshots.SnapshotsInfoService;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
@@ -571,12 +573,21 @@ public class AllocationService {
             // if not fallback to single assignment
             ExistingShardsAllocator allocator = verifySameAllocatorForAllUnassignedShards(allocation);
             if (allocator != null) {
+                // use batch mode implementation of GatewayAllocator
+                if (allocator.getClass() == GatewayAllocator.class) {
+                    allocator = existingShardsAllocators.get(ShardsBatchGatewayAllocator.ALLOCATOR_NAME);
+                }
+
                 allocator.allocateUnassignedBatch(allocation, true);
                 for (final ExistingShardsAllocator existingShardsAllocator : existingShardsAllocators.values()) {
                     existingShardsAllocator.afterPrimariesBeforeReplicas(allocation);
                 }
                 allocator.allocateUnassignedBatch(allocation, false);
                 return;
+            } else {
+                // it means though batch mode is enabled but some indices have custom allocator set and we cant do Batch recover in that
+                // case fallback to single assignment and
+                logger.debug("Batch mode is enabled but some indices have custom allocator set. Falling back to single assignment");
             }
         }
 
