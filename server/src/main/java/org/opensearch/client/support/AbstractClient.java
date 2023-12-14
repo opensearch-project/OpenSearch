@@ -56,10 +56,6 @@ import org.opensearch.action.admin.cluster.health.ClusterHealthAction;
 import org.opensearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.opensearch.action.admin.cluster.health.ClusterHealthRequestBuilder;
 import org.opensearch.action.admin.cluster.health.ClusterHealthResponse;
-import org.opensearch.action.admin.cluster.insights.top_queries.TopQueriesAction;
-import org.opensearch.action.admin.cluster.insights.top_queries.TopQueriesRequest;
-import org.opensearch.action.admin.cluster.insights.top_queries.TopQueriesRequestBuilder;
-import org.opensearch.action.admin.cluster.insights.top_queries.TopQueriesResponse;
 import org.opensearch.action.admin.cluster.node.hotthreads.NodesHotThreadsAction;
 import org.opensearch.action.admin.cluster.node.hotthreads.NodesHotThreadsRequest;
 import org.opensearch.action.admin.cluster.node.hotthreads.NodesHotThreadsRequestBuilder;
@@ -1513,21 +1509,6 @@ public abstract class AbstractClient implements Client {
         @Override
         public ActionFuture<AcknowledgedResponse> deleteSearchPipeline(DeleteSearchPipelineRequest request) {
             return execute(DeleteSearchPipelineAction.INSTANCE, request);
-        }
-
-        @Override
-        public ActionFuture<TopQueriesResponse> topQueries(final TopQueriesRequest request) {
-            return execute(TopQueriesAction.INSTANCE, request);
-        }
-
-        @Override
-        public void topQueries(final TopQueriesRequest request, final ActionListener<TopQueriesResponse> listener) {
-            execute(TopQueriesAction.INSTANCE, request, listener);
-        }
-
-        @Override
-        public TopQueriesRequestBuilder prepareTopQueries(String... nodesIds) {
-            return new TopQueriesRequestBuilder(this, TopQueriesAction.INSTANCE).setNodesIds(nodesIds);
         }
     }
 

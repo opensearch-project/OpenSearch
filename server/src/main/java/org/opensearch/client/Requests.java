@@ -36,7 +36,6 @@ import org.opensearch.action.admin.cluster.decommission.awareness.delete.DeleteD
 import org.opensearch.action.admin.cluster.decommission.awareness.get.GetDecommissionStateRequest;
 import org.opensearch.action.admin.cluster.decommission.awareness.put.DecommissionRequest;
 import org.opensearch.action.admin.cluster.health.ClusterHealthRequest;
-import org.opensearch.action.admin.cluster.insights.top_queries.TopQueriesRequest;
 import org.opensearch.action.admin.cluster.node.info.NodesInfoRequest;
 import org.opensearch.action.admin.cluster.node.stats.NodesStatsRequest;
 import org.opensearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
@@ -608,28 +607,5 @@ public class Requests {
      */
     public static DeleteDecommissionStateRequest deleteDecommissionStateRequest() {
         return new DeleteDecommissionStateRequest();
-    }
-
-
-    /**
-     * Creates a cluster level top queries request
-     *
-     * @return The top queries request
-     * @see org.opensearch.client.ClusterAdminClient#topQueries(TopQueriesRequest)
-     */
-    public static TopQueriesRequest topQueriesRequest() {
-        return new TopQueriesRequest();
-    }
-
-
-    /**
-     * Creates a top queries request against one or more nodes. Pass {@code null} or an empty array for all nodes.
-     *
-     * @param nodesIds The nodes ids to get top queries for
-     * @return The top queries request
-     * @see org.opensearch.client.ClusterAdminClient#topQueries(TopQueriesRequest)
-     */
-    public static TopQueriesRequest topQueriesRequest(String... nodesIds) {
-        return new TopQueriesRequest(nodesIds);
     }
 }

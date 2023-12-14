@@ -1,0 +1,51 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * The OpenSearch Contributors require contributions made to
+ * this file be licensed under the Apache-2.0 license or a
+ * compatible open source license.
+ *
+ * Modifications Copyright OpenSearch Contributors. See
+ * GitHub history for details.
+ */
+
+//apply plugin: 'opensearch.java-rest-test'
+//apply plugin: 'opensearch.internal-cluster-test'
+
+import org.opensearch.gradle.testclusters.RunTask
+import org.opensearch.gradle.test.RestIntegTestTask
+apply plugin: 'opensearch.testclusters'
+
+opensearchplugin {
+  description 'OpenSearch Query Insights Plugin.'
+  classname 'org.opensearch.plugin.insights.QueryInsightsPlugin'
+}
+
+dependencies {
+}
+
+task integTest(type: RestIntegTestTask) {
+  description = "Run tests against a cluster"
+  testClassesDirs = sourceSets.test.output.classesDirs
+  classpath = sourceSets.test.runtimeClasspath
+}
+tasks.named("check").configure { dependsOn(integTest) }
+
+integTest {
+  // The --debug-jvm command-line option makes the cluster debuggable; this makes the tests debuggable
+  if (System.getProperty("test.debug") != null) {
+    jvmArgs '-agentlib:jdwp=transport=dt_socket,server=y,suspend=y,address=*:5005'
+  }
+}
+
+testClusters.integTest {
+  testDistribution = "INTEG_TEST"
+
+  // This installs our plugin into the testClusters
+  plugin(project.tasks.bundlePlugin.archiveFile)
+}
+
+run {
+  useCluster testClusters.integTest
+}
+
