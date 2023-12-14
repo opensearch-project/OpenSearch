@@ -3442,12 +3442,13 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     + primaryContext
                     + "]";
         } else {
-            assert getLocalCheckpoint() == primaryContext.getCheckpointStates().get(routingEntry().allocationId().getId()).getLocalCheckpoint()
-                || indexSettings().getTranslogDurability() == Durability.ASYNC : "local checkpoint ["
-                + getLocalCheckpoint()
-                + "] does not match checkpoint from primary context ["
-                + primaryContext
-                + "]";
+            assert getLocalCheckpoint() == primaryContext.getCheckpointStates()
+                .get(routingEntry().allocationId().getId())
+                .getLocalCheckpoint() || indexSettings().getTranslogDurability() == Durability.ASYNC : "local checkpoint ["
+                    + getLocalCheckpoint()
+                    + "] does not match checkpoint from primary context ["
+                    + primaryContext
+                    + "]";
         }
         synchronized (mutex) {
             replicationTracker.activateWithPrimaryContext(primaryContext); // make changes to primaryMode flag only under mutex
