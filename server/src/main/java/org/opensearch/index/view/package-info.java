@@ -6,5 +6,5 @@
  * compatible open source license.
  */
 
-/** Responsible for handling all projection of data in OpenSearch */
-package org.opensearch.index.views;
+/** Core classes responsible for handling all view operations */
+package org.opensearch.index.view;
