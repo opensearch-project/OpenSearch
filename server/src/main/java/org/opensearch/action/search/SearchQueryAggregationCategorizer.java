@@ -1,3 +1,11 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * The OpenSearch Contributors require contributions made to
+ * this file be licensed under the Apache-2.0 license or a
+ * compatible open source license.
+ */
+
 package org.opensearch.action.search;
 
 import org.opensearch.search.aggregations.AggregationBuilder;
@@ -46,38 +54,38 @@ public class SearchQueryAggregationCategorizer {
     private Map<Class<? extends AggregationBuilder>, Function<AggregationBuilder, String>> initializeAggregationHandlers() {
         Map<Class<? extends AggregationBuilder>, Function<AggregationBuilder, String>> handlers = new HashMap<>();
 
-        handlers.put(TermsAggregationBuilder.class, aggregationBuilder -> ((TermsAggregationBuilder) aggregationBuilder).NAME);
-        handlers.put(AvgAggregationBuilder.class, aggregationBuilder -> ((AvgAggregationBuilder) aggregationBuilder).NAME);
-        handlers.put(SumAggregationBuilder.class, aggregationBuilder -> ((SumAggregationBuilder) aggregationBuilder).NAME);
-        handlers.put(MaxAggregationBuilder.class, aggregationBuilder -> ((MaxAggregationBuilder) aggregationBuilder).NAME);
-        handlers.put(MinAggregationBuilder.class, aggregationBuilder -> ((MinAggregationBuilder) aggregationBuilder).NAME);
-        handlers.put(ScriptedMetricAggregationBuilder.class, aggregationBuilder -> ((ScriptedMetricAggregationBuilder) aggregationBuilder).NAME);
-        handlers.put(ExtendedStatsAggregationBuilder.class, aggregationBuilder -> ((ExtendedStatsAggregationBuilder) aggregationBuilder).NAME);
-        handlers.put(FilterAggregationBuilder.class, aggregationBuilder -> ((FilterAggregationBuilder) aggregationBuilder).NAME);
-        handlers.put(FiltersAggregationBuilder.class, aggregationBuilder -> ((FiltersAggregationBuilder) aggregationBuilder).NAME);
-        handlers.put(AdjacencyMatrixAggregationBuilder.class, aggregationBuilder -> ((AdjacencyMatrixAggregationBuilder) aggregationBuilder).NAME);
-        handlers.put(SamplerAggregationBuilder.class, aggregationBuilder -> ((SamplerAggregationBuilder) aggregationBuilder).NAME);
-        handlers.put(DiversifiedAggregationBuilder.class, aggregationBuilder -> ((DiversifiedAggregationBuilder) aggregationBuilder).NAME);
-        handlers.put(GlobalAggregationBuilder.class, aggregationBuilder -> ((GlobalAggregationBuilder) aggregationBuilder).NAME);
-        handlers.put(MissingAggregationBuilder.class, aggregationBuilder -> ((MissingAggregationBuilder) aggregationBuilder).NAME);
-        handlers.put(NestedAggregationBuilder.class, aggregationBuilder -> ((NestedAggregationBuilder) aggregationBuilder).NAME);
-        handlers.put(ReverseNestedAggregationBuilder.class, aggregationBuilder -> ((ReverseNestedAggregationBuilder) aggregationBuilder).NAME);
-        handlers.put(GeoDistanceAggregationBuilder.class, aggregationBuilder -> ((GeoDistanceAggregationBuilder) aggregationBuilder).NAME);
-        handlers.put(HistogramAggregationBuilder.class, aggregationBuilder -> ((HistogramAggregationBuilder) aggregationBuilder).NAME);
-        handlers.put(SignificantTermsAggregationBuilder.class, aggregationBuilder -> ((SignificantTermsAggregationBuilder) aggregationBuilder).NAME);
-        handlers.put(SignificantTextAggregationBuilder.class, aggregationBuilder -> ((SignificantTextAggregationBuilder) aggregationBuilder).NAME);
-        handlers.put(DateHistogramAggregationBuilder.class, aggregationBuilder -> ((DateHistogramAggregationBuilder) aggregationBuilder).NAME);
-        handlers.put(RangeAggregationBuilder.class, aggregationBuilder -> ((RangeAggregationBuilder) aggregationBuilder).NAME);
-        handlers.put(DateRangeAggregationBuilder.class, aggregationBuilder -> ((DateRangeAggregationBuilder) aggregationBuilder).NAME);
-        handlers.put(IpRangeAggregationBuilder.class, aggregationBuilder -> ((IpRangeAggregationBuilder) aggregationBuilder).NAME);
-        handlers.put(PercentilesAggregationBuilder.class, aggregationBuilder -> ((PercentilesAggregationBuilder) aggregationBuilder).NAME);
-        handlers.put(PercentileRanksAggregationBuilder.class, aggregationBuilder -> ((PercentileRanksAggregationBuilder) aggregationBuilder).NAME);
-        handlers.put(MedianAbsoluteDeviationAggregationBuilder.class, aggregationBuilder -> ((MedianAbsoluteDeviationAggregationBuilder) aggregationBuilder).NAME);
-        handlers.put(CardinalityAggregationBuilder.class, aggregationBuilder -> ((CardinalityAggregationBuilder) aggregationBuilder).NAME);
-        handlers.put(TopHitsAggregationBuilder.class, aggregationBuilder -> ((TopHitsAggregationBuilder) aggregationBuilder).NAME);
-        handlers.put(GeoCentroidAggregationBuilder.class, aggregationBuilder -> ((GeoCentroidAggregationBuilder) aggregationBuilder).NAME);
-        handlers.put(CompositeAggregationBuilder.class, aggregationBuilder -> ((CompositeAggregationBuilder) aggregationBuilder).NAME);
-        handlers.put(MultiTermsAggregationBuilder.class, aggregationBuilder -> ((MultiTermsAggregationBuilder) aggregationBuilder).NAME);
+        handlers.put(TermsAggregationBuilder.class, aggregationBuilder -> TermsAggregationBuilder.NAME);
+        handlers.put(AvgAggregationBuilder.class, aggregationBuilder -> AvgAggregationBuilder.NAME);
+        handlers.put(SumAggregationBuilder.class, aggregationBuilder -> SumAggregationBuilder.NAME);
+        handlers.put(MaxAggregationBuilder.class, aggregationBuilder -> MaxAggregationBuilder.NAME);
+        handlers.put(MinAggregationBuilder.class, aggregationBuilder -> MinAggregationBuilder.NAME);
+        handlers.put(ScriptedMetricAggregationBuilder.class, aggregationBuilder -> ScriptedMetricAggregationBuilder.NAME);
+        handlers.put(ExtendedStatsAggregationBuilder.class, aggregationBuilder -> ExtendedStatsAggregationBuilder.NAME);
+        handlers.put(FilterAggregationBuilder.class, aggregationBuilder -> FilterAggregationBuilder.NAME);
+        handlers.put(FiltersAggregationBuilder.class, aggregationBuilder -> FiltersAggregationBuilder.NAME);
+        handlers.put(AdjacencyMatrixAggregationBuilder.class, aggregationBuilder -> AdjacencyMatrixAggregationBuilder.NAME);
+        handlers.put(SamplerAggregationBuilder.class, aggregationBuilder -> SamplerAggregationBuilder.NAME);
+        handlers.put(DiversifiedAggregationBuilder.class, aggregationBuilder -> DiversifiedAggregationBuilder.NAME);
+        handlers.put(GlobalAggregationBuilder.class, aggregationBuilder -> GlobalAggregationBuilder.NAME);
+        handlers.put(MissingAggregationBuilder.class, aggregationBuilder -> MissingAggregationBuilder.NAME);
+        handlers.put(NestedAggregationBuilder.class, aggregationBuilder -> NestedAggregationBuilder.NAME);
+        handlers.put(ReverseNestedAggregationBuilder.class, aggregationBuilder -> ReverseNestedAggregationBuilder.NAME);
+        handlers.put(GeoDistanceAggregationBuilder.class, aggregationBuilder -> GeoDistanceAggregationBuilder.NAME);
+        handlers.put(HistogramAggregationBuilder.class, aggregationBuilder -> HistogramAggregationBuilder.NAME);
+        handlers.put(SignificantTermsAggregationBuilder.class, aggregationBuilder -> SignificantTermsAggregationBuilder.NAME);
+        handlers.put(SignificantTextAggregationBuilder.class, aggregationBuilder -> SignificantTextAggregationBuilder.NAME);
+        handlers.put(DateHistogramAggregationBuilder.class, aggregationBuilder -> DateHistogramAggregationBuilder.NAME);
+        handlers.put(RangeAggregationBuilder.class, aggregationBuilder -> RangeAggregationBuilder.NAME);
+        handlers.put(DateRangeAggregationBuilder.class, aggregationBuilder -> DateRangeAggregationBuilder.NAME);
+        handlers.put(IpRangeAggregationBuilder.class, aggregationBuilder -> IpRangeAggregationBuilder.NAME);
+        handlers.put(PercentilesAggregationBuilder.class, aggregationBuilder -> PercentilesAggregationBuilder.NAME);
+        handlers.put(PercentileRanksAggregationBuilder.class, aggregationBuilder -> PercentileRanksAggregationBuilder.NAME);
+        handlers.put(MedianAbsoluteDeviationAggregationBuilder.class, aggregationBuilder -> MedianAbsoluteDeviationAggregationBuilder.NAME);
+        handlers.put(CardinalityAggregationBuilder.class, aggregationBuilder -> CardinalityAggregationBuilder.NAME);
+        handlers.put(TopHitsAggregationBuilder.class, aggregationBuilder -> TopHitsAggregationBuilder.NAME);
+        handlers.put(GeoCentroidAggregationBuilder.class, aggregationBuilder -> GeoCentroidAggregationBuilder.NAME);
+        handlers.put(CompositeAggregationBuilder.class, aggregationBuilder -> CompositeAggregationBuilder.NAME);
+        handlers.put(MultiTermsAggregationBuilder.class, aggregationBuilder -> MultiTermsAggregationBuilder.NAME);
 
         return handlers;
     }
