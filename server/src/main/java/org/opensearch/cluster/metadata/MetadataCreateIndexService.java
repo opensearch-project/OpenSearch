@@ -907,6 +907,12 @@ public class MetadataCreateIndexService {
             );
         }
 
+        // Validate index settings here to validate replication type where replication type is updated via templates or
+        // resize index requests
+        List<String> validationErrors = new ArrayList<>();
+        validateIndexReplicationTypeSettings(indexSettingsBuilder.build(), clusterSettings).ifPresent(validationErrors::add);
+        validateErrors(request.index(), validationErrors);
+
         Settings indexSettings = indexSettingsBuilder.build();
         /*
          * We can not validate settings until we have applied templates, otherwise we do not know the actual settings
@@ -1240,13 +1246,23 @@ public class MetadataCreateIndexService {
 
     private void validate(CreateIndexClusterStateUpdateRequest request, ClusterState state) {
         validateIndexName(request.index(), state);
-        validateIndexSettings(request.index(), request.settings(), forbidPrivateIndexSettings);
+        validateIndexSettings(request.index(), request.settings(), forbidPrivateIndexSettings, false);
     }
 
-    public void validateIndexSettings(String indexName, final Settings settings, final boolean forbidPrivateIndexSettings)
-        throws IndexCreationException {
-        List<String> validationErrors = getIndexSettingsValidationErrors(settings, forbidPrivateIndexSettings, indexName);
+    public void validateIndexSettings(
+        String indexName,
+        final Settings settings,
+        final boolean forbidPrivateIndexSettings,
+        final boolean ignoreRestrictReplicationTypeSetting
+    ) throws IndexCreationException {
+        List<String> validationErrors = getIndexSettingsValidationErrors(settings, forbidPrivateIndexSettings, Optional.of(indexName));
+        if (ignoreRestrictReplicationTypeSetting == false) {
+            validateIndexReplicationTypeSettings(settings, clusterService.getClusterSettings()).ifPresent(validationErrors::add);
+        }
+        validateErrors(indexName, validationErrors);
+    }
 
+    private static void validateErrors(String indexName, List<String> validationErrors) {
         if (validationErrors.isEmpty() == false) {
             ValidationException validationException = new ValidationException();
             validationException.addValidationErrors(validationErrors);
@@ -1320,6 +1336,27 @@ public class MetadataCreateIndexService {
             }
         }
         return validationErrors;
+    }
+
+    /**
+     * Validates {@code index.replication.type} is matches with cluster level setting {@code cluster.indices.replication.strategy}
+     * when {@code cluster.force.index.replication_type} is set to true.
+     *
+     * @param requestSettings settings passed in during index create request
+     * @param clusterSettings cluster setting
+     */
+    private static Optional<String> validateIndexReplicationTypeSettings(Settings requestSettings, ClusterSettings clusterSettings) {
+        if (clusterSettings.get(IndicesService.CLUSTER_RESTRICT_INDEX_REPLICATION_TYPE_SETTING)
+            && requestSettings.hasValue(SETTING_REPLICATION_TYPE)
+            && requestSettings.get(INDEX_REPLICATION_TYPE_SETTING.getKey())
+                .equals(clusterSettings.get(CLUSTER_REPLICATION_TYPE_SETTING).name()) == false) {
+            return Optional.of(
+                "index setting [index.replication.type] is not allowed to be set as ["
+                    + IndicesService.CLUSTER_RESTRICT_INDEX_REPLICATION_TYPE_SETTING.getKey()
+                    + "=true]"
+            );
+        }
+        return Optional.empty();
     }
 
     /**
