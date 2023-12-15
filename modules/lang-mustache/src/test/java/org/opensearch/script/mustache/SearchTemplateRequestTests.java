@@ -114,10 +114,17 @@ public class SearchTemplateRequestTests extends AbstractWireSerializingTestCase<
 
     public void testSimulatedSearchTemplateRequest() {
         SearchTemplateRequest request = createRandomRequest();
+        request.setRequest(null);
         request.setSimulate(true);
 
         assertEquals(0, request.indices().length);
         assertEquals(SearchRequest.DEFAULT_INDICES_OPTIONS, request.indicesOptions());
         assertEquals(2, request.indices("index1", "index2").indices().length);
+
+        SearchTemplateRequest randomRequest = createRandomRequest();
+        int expectedIndicesLength = randomRequest.indices().length;
+        request.setSimulate(true);
+
+        assertEquals(expectedIndicesLength, randomRequest.indices().length);
     }
 }

@@ -120,7 +120,7 @@ public class SearchTemplateRequest extends ActionRequest implements IndicesReque
     }
 
     public void setSimulate(boolean simulate) {
-        if (simulate) {
+        if (simulate && request == null) {
             this.request = SIMULATED_REQUEST;
         }
         this.simulate = simulate;
