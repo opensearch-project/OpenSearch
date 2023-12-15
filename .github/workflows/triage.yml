@@ -15,7 +15,7 @@ jobs:
             const { issue, repository } = context.payload;
             const { number, body } = issue;
             const { owner, name } = repository;
-            const regex = /###\sRelated\scomponent\n\n(\w*)\n/gm;
+            const regex = /###\sRelated\scomponent\n\n(\w.*)\n/gm;
             let match;
             while ( ( match = regex.exec( body ) ) ) {
               const [ , component_label ] = match;
