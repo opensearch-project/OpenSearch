@@ -306,7 +306,7 @@ public class IndicesService extends AbstractLifecycleComponent
      * with the replication type index setting, set at cluster level i.e. 'cluster.indices.replication.strategy'.
      * If disabled, the replication type can be specified.
      */
-    public static final Setting<Boolean> CLUSTER_RESTRICT_INDEX_REPLICATION_TYPE_SETTING = Setting.boolSetting(
+    public static final Setting<Boolean> CLUSTER_FORCE_INDEX_REPLICATION_TYPE_SETTING = Setting.boolSetting(
         "cluster.force.index.replication_type",
         false,
         Property.NodeScope,

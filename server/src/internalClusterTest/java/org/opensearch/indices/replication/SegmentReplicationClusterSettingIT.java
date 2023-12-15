@@ -31,7 +31,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
 
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REPLICATION_TYPE;
-import static org.opensearch.indices.IndicesService.CLUSTER_RESTRICT_INDEX_REPLICATION_TYPE_SETTING;
+import static org.opensearch.indices.IndicesService.CLUSTER_FORCE_INDEX_REPLICATION_TYPE_SETTING;
 import static org.opensearch.indices.IndicesService.CLUSTER_SETTING_REPLICATION_TYPE;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.hasSize;
@@ -346,7 +346,7 @@ public class SegmentReplicationClusterSettingIT extends OpenSearchIntegTestCase 
 
         Settings settings = Settings.builder()
             .put(CLUSTER_SETTING_REPLICATION_TYPE, clusterLevelReplication)
-            .put(CLUSTER_RESTRICT_INDEX_REPLICATION_TYPE_SETTING.getKey(), restrictIndexLevelReplicationTypeSetting)
+            .put(CLUSTER_FORCE_INDEX_REPLICATION_TYPE_SETTING.getKey(), restrictIndexLevelReplicationTypeSetting)
             .build();
         internalCluster().startClusterManagerOnlyNode(settings);
         final String dataNodeOne = internalCluster().startDataOnlyNode(settings);

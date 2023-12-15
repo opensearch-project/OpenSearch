@@ -31,7 +31,7 @@ import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REPLICATION_TYPE;
-import static org.opensearch.indices.IndicesService.CLUSTER_RESTRICT_INDEX_REPLICATION_TYPE_SETTING;
+import static org.opensearch.indices.IndicesService.CLUSTER_FORCE_INDEX_REPLICATION_TYPE_SETTING;
 import static org.opensearch.indices.IndicesService.CLUSTER_SETTING_REPLICATION_TYPE;
 import static org.opensearch.indices.replication.SegmentReplicationBaseIT.waitForSearchableDocs;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
@@ -47,6 +47,9 @@ public class SegmentReplicationSnapshotIT extends AbstractSnapshotIntegTestCase 
 
     private static final String REPOSITORY_NAME = "test-segrep-repo";
     private static final String SNAPSHOT_NAME = "test-segrep-snapshot";
+
+    protected static final String REPLICATION_MISMATCH_VALIDATION_ERROR =
+        "Validation Failed: 1: index setting [index.replication.type] is not allowed to be set as [cluster.force.index.replication_type=true];";
 
     public Settings segRepEnableIndexSettings() {
         return getShardSettings().put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT).build();
@@ -327,6 +330,7 @@ public class SegmentReplicationSnapshotIT extends AbstractSnapshotIntegTestCase 
                 // we want to override cluster replication setting by passing a index replication setting
                 .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.DOCUMENT)
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, REPLICA_COUNT)
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, SHARD_COUNT)
         ).get();
         ensureYellowAndNoInitializingShards(INDEX_NAME);
         final String replicaNode = internalCluster().startDataOnlyNode();
@@ -345,8 +349,10 @@ public class SegmentReplicationSnapshotIT extends AbstractSnapshotIntegTestCase 
         // Start new set of nodes with cluster level replication type setting and restrict replication type setting.
         Settings settings = Settings.builder()
             .put(CLUSTER_SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
-            .put(CLUSTER_RESTRICT_INDEX_REPLICATION_TYPE_SETTING.getKey(), true)
+            .put(CLUSTER_FORCE_INDEX_REPLICATION_TYPE_SETTING.getKey(), true)
             .build();
+
+        // Start new cluster manager node
         String newClusterManagerNode = internalCluster().startClusterManagerOnlyNode(settings);
 
         // Remove older nodes
@@ -357,21 +363,10 @@ public class SegmentReplicationSnapshotIT extends AbstractSnapshotIntegTestCase 
         String newPrimaryNode = internalCluster().startDataOnlyNode(settings);
         String newReplicaNode = internalCluster().startDataOnlyNode(settings);
 
-        RestoreSnapshotResponse restoreSnapshotResponse = restoreSnapshotWithSettings(restoreIndexSegRepSettings());
+        // Perform snapshot restore
+        logger.info("--> Performing snapshot restore to target index");
 
-        // Assertions
-        assertEquals(restoreSnapshotResponse.status(), RestStatus.ACCEPTED);
-        ensureGreen(RESTORED_INDEX_NAME);
-        logger.info("--> ClusterState {}", client().admin().cluster().prepareState().execute().actionGet().getState());
-        GetSettingsResponse settingsResponse = client().admin()
-            .indices()
-            .getSettings(new GetSettingsRequest().indices(RESTORED_INDEX_NAME).includeDefaults(true))
-            .get();
-        assertEquals(settingsResponse.getSetting(RESTORED_INDEX_NAME, SETTING_REPLICATION_TYPE), ReplicationType.DOCUMENT.toString());
-
-        // Verify index setting isSegRepEnabled.
-        Index index = resolveIndex(RESTORED_INDEX_NAME);
-        IndicesService indicesService = internalCluster().getInstance(IndicesService.class);
-        assertEquals(indicesService.indexService(index).getIndexSettings().isSegRepEnabled(), false);
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> restoreSnapshotWithSettings(null));
+        assertEquals(REPLICATION_MISMATCH_VALIDATION_ERROR, exception.getMessage());
     }
 }
