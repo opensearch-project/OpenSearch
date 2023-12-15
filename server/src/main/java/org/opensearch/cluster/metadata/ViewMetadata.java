@@ -28,7 +28,7 @@ import static org.opensearch.cluster.metadata.ComposableIndexTemplateMetadata.MI
  - org.opensearch.index.store.RemoteSegmentStoreDirectoryTests.testDeleteStaleCommitsDeleteDedup
  - org.opensearch.index.store.RemoteSegmentStoreDirectoryTests.testDeleteStaleCommitsActualDeleteNoSuchFileException
  - org.opensearch.index.store.RemoteSegmentStoreDirectoryTests.testDeleteStaleCommitsActualDelete
- * 
+ *
  */
 
 public class ViewMetadata implements Metadata.Custom {
