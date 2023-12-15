@@ -42,7 +42,6 @@ import org.opensearch.telemetry.metrics.tags.Tags;
 
 import java.util.HashMap;
 import java.util.Map;
-import java.util.function.Consumer;
 
 /**
  * Class to visit the query builder tree and also track the level information.
