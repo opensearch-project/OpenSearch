@@ -1,0 +1,33 @@
+name: Maintainers approval
+
+on:
+  pull_request_review:
+    types: [submitted]
+
+jobs:
+  maintainer-approved-check:
+    name: Minimum approval count
+    runs-on: ubuntu-latest
+    steps:
+      - id: find-maintainers
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          result-encoding: string
+          script: |
+            // Get the collaborators - filtered to maintainer permissions
+            const maintainersResponse = await github.request('GET /repos/{owner}/{repo}/collaborators', {
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                permission: 'maintain',
+                affiliation: 'all',
+                per_page: 100
+            });
+
+            return maintainersResponse.data.map(item => item.login).join(', ');
+
+      - uses: peternied/required-approval@v1.2
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          min-required: 1
+          required-approvers-list: ${{ steps.find-maintainers.outputs.result }}
