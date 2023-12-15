@@ -15,7 +15,6 @@ import org.opensearch.index.query.QueryBuilderVisitor;
 import org.opensearch.index.query.QueryShapeVisitor;
 import org.opensearch.search.aggregations.AggregatorFactories;
 import org.opensearch.search.builder.SearchSourceBuilder;
-import org.opensearch.search.fetch.subphase.FieldAndFormat;
 import org.opensearch.search.sort.SortBuilder;
 import org.opensearch.telemetry.metrics.MetricsRegistry;
 import org.opensearch.telemetry.metrics.tags.Tags;
