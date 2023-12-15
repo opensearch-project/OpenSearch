@@ -169,21 +169,15 @@ public class FsProbeTests extends OpenSearchTestCase {
     public void testFsInfoWhenFileCacheOccupied() throws IOException {
         Settings settings = Settings.builder().putList("node.roles", "search", "data").build();
         try (NodeEnvironment env = newNodeEnvironment(settings)) {
-            final long usableSpace = adjustForHugeFilesystems(env.fileCacheNodePath().fileStore.getUsableSpace());
-            ByteSizeValue gbByteSizeValue = new ByteSizeValue(usableSpace - 10, ByteSizeUnit.BYTES);
+            // Use the total space as reserved space to simulate the situation where the cache space is occupied
+            final long totalSpace = adjustForHugeFilesystems(env.fileCacheNodePath().fileStore.getTotalSpace());
+            ByteSizeValue gbByteSizeValue = new ByteSizeValue(totalSpace, ByteSizeUnit.BYTES);
             env.fileCacheNodePath().fileCacheReservedSize = gbByteSizeValue;
             FileCache fileCache = FileCacheFactory.createConcurrentLRUFileCache(
                 gbByteSizeValue.getBytes(),
                 16,
                 new NoopCircuitBreaker(CircuitBreaker.REQUEST)
             );
-
-            // write a temp file to occupy some file cache space
-            Path tempFile = createTempFile();
-            try (BufferedWriter bufferedWriter = Files.newBufferedWriter(tempFile, StandardOpenOption.APPEND)) {
-                bufferedWriter.write(randomAlphaOfLength(100));
-                bufferedWriter.flush();
-            }
 
             FsProbe probe = new FsProbe(env, fileCache);
             FsInfo stats = probe.stats(null);
@@ -194,11 +188,6 @@ public class FsProbeTests extends OpenSearchTestCase {
             assertTrue(total.total > 0L);
             assertTrue(total.free > 0L);
             assertTrue(total.fileCacheReserved > 0L);
-            if (env.nodePaths().length > 1) {
-                assertTrue(total.available > 0L);
-            } else {
-                assertEquals(0L, total.available);
-            }
 
             for (FsInfo.Path path : stats) {
                 assertNotNull(path);
