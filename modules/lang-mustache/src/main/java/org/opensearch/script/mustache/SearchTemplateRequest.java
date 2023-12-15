@@ -60,6 +60,7 @@ import static org.opensearch.action.ValidateActions.addValidationError;
  */
 public class SearchTemplateRequest extends ActionRequest implements IndicesRequest.Replaceable, CompositeIndicesRequest, ToXContentObject {
 
+    private static SearchRequest SIMULATED_REQUEST = new SearchRequest(new String[0]);
     private SearchRequest request;
     private boolean simulate = false;
     private boolean explain = false;
@@ -119,6 +120,9 @@ public class SearchTemplateRequest extends ActionRequest implements IndicesReque
     }
 
     public void setSimulate(boolean simulate) {
+        if (simulate) {
+            this.request = SIMULATED_REQUEST;
+        }
         this.simulate = simulate;
     }
 
@@ -259,25 +263,16 @@ public class SearchTemplateRequest extends ActionRequest implements IndicesReque
 
     @Override
     public String[] indices() {
-        if (simulate) {
-            return new String[0];
-        }
         return request.indices();
     }
 
     @Override
     public IndicesOptions indicesOptions() {
-        if (simulate) {
-            return SearchRequest.DEFAULT_INDICES_OPTIONS;
-        }
         return request.indicesOptions();
     }
 
     @Override
     public IndicesRequest indices(String... indices) {
-        if (simulate) {
-            return request;
-        }
         return request.indices(indices);
     }
 }
