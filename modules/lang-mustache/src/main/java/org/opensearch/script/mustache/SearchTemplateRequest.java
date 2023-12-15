@@ -89,6 +89,7 @@ public class SearchTemplateRequest extends ActionRequest implements IndicesReque
     }
 
     public void setRequest(SearchRequest request) {
+        Objects.requireNonNull(request);
         this.request = request;
     }
 
