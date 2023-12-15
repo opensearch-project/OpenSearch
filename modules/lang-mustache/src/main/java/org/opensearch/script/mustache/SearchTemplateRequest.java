@@ -60,7 +60,7 @@ import static org.opensearch.action.ValidateActions.addValidationError;
  */
 public class SearchTemplateRequest extends ActionRequest implements IndicesRequest.Replaceable, CompositeIndicesRequest, ToXContentObject {
 
-    private static SearchRequest SIMULATED_REQUEST = new SearchRequest(new String[0]);
+    private static final SearchRequest SIMULATED_REQUEST = new SearchRequest(new String[0]);
     private SearchRequest request;
     private boolean simulate = false;
     private boolean explain = false;
