@@ -24,6 +24,7 @@ import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.BytesRestResponse;
 import org.opensearch.rest.NamedRoute;
+import org.opensearch.rest.RestChannel;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.RestResponse;
 
@@ -55,22 +56,39 @@ public class RestViewAction extends BaseRestHandler {
         final String viewIdParameter = "{" + VIEW_ID + "}";
 
         return List.of(
-            new NamedRoute.Builder().path("/views").method(GET).uniqueName("cluster.views.list").build(),
-            new NamedRoute.Builder().path("/views").method(POST).uniqueName("cluster.views.create").build(),
-            new NamedRoute.Builder().path("/views/" + viewIdParameter).method(GET).uniqueName("cluster.views.get").build(),
-            new NamedRoute.Builder().path("/views/" + viewIdParameter).method(DELETE).uniqueName("cluster.views.delete").build(),
-            new NamedRoute.Builder().path("/views/" + viewIdParameter).method(PUT).uniqueName("cluster.views.update").build()
+            new NamedRoute.Builder().path("/views").method(GET).uniqueName("cluster:views:list").build(),
+            new NamedRoute.Builder().path("/views").method(POST).uniqueName("cluster:views:create").build(),
+            new NamedRoute.Builder().path("/views/" + viewIdParameter).method(GET).uniqueName("cluster:views:get").build(),
+            new NamedRoute.Builder().path("/views/" + viewIdParameter).method(DELETE).uniqueName("cluster:views:delete").build(),
+            new NamedRoute.Builder().path("/views/" + viewIdParameter).method(PUT).uniqueName("cluster:views:update").build()
         );
     }
 
     @Override
     public String getName() {
-        return "refresh_action";
+        return "view_actions";
     }
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        return channel -> {};
+        if (!request.hasParam(VIEW_ID)) {
+            if (request.method() == RestRequest.Method.GET) {
+                return channel -> channel.sendResponse(handleGet(request, channel.newBuilder()));
+            }
+
+            if (request.method() == RestRequest.Method.POST) {
+                return channel -> handlePost(request, channel);
+            }
+
+        } else if (request.hasParam(VIEW_ID)) {
+            if (request.method() == RestRequest.Method.GET && request.hasParam(VIEW_ID)) {
+                return channel -> channel.sendResponse(handleSingleGet(request, channel.newBuilder()));
+            }
+
+        }
+
+        // Unhandled
+        return channel -> channel.sendResponse(new BytesRestResponse(RestStatus.BAD_REQUEST, "Unable to process this request"));
     }
 
     public RestResponse handleGet(final RestRequest r, final XContentBuilder builder) throws IOException {
@@ -80,16 +98,19 @@ public class RestViewAction extends BaseRestHandler {
             .map(v -> v.stream().collect(Collectors.toList()))
             .orElse(List.of());
 
-        return new BytesRestResponse(RestStatus.OK, builder.startObject().array("views", views).endObject());
+        return new BytesRestResponse(RestStatus.OK, builder.startObject().field("views", views).endObject());
     }
 
-    public RestResponse handlePost(final RestRequest r, final XContentBuilder builder) throws IOException {
-        final View view;
+    public RestResponse handlePost(final RestRequest r, final RestChannel channel) throws IOException {
+        final View inputView;
         try (final XContentParser parser = r.contentParser()) {
-            view = View.fromXContent(parser);
+            inputView = View.fromXContent(parser);
         }
 
-        var task = new ClusterStateUpdateTask() {
+        final long currentTime = System.currentTimeMillis();
+        final View view = new View(inputView.name, inputView.description, currentTime, currentTime, inputView.targets);
+
+        clusterService.submitStateUpdateTask("create_view_task", new ClusterStateUpdateTask() {
             @Override
             public ClusterState execute(final ClusterState currentState) throws Exception {
                 return new ClusterState.Builder(clusterService.state()).metadata(Metadata.builder(currentState.metadata()).put(view))
@@ -99,12 +120,19 @@ public class RestViewAction extends BaseRestHandler {
             @Override
             public void onFailure(final String source, final Exception e) {
                 LOG.error("Unable to create view, due to {}", source, e);
+                channel.sendResponse(new BytesRestResponse(RestStatus.INTERNAL_SERVER_ERROR, "Unknown error occurred, see the log for details."));
             }
-        };
 
-        clusterService.submitStateUpdateTask("create_view_task", task);
-
-        // TODO: How to unasync?
+            @Override
+            public void clusterStateProcessed(final String source, final ClusterState oldState, final ClusterState newState) {
+                try {
+                    channel.sendResponse(new BytesRestResponse(RestStatus.CREATED, channel.newBuilder().startObject().field(view.name, view).endObject()));
+                } catch (final IOException e) {
+                    // TODO?
+                    LOG.error(e);
+                }
+            }
+        });
         // TODO: Handle CREATED vs UPDATED
         return null;
     }

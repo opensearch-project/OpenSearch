@@ -19,11 +19,11 @@ import java.util.List;
 @ExperimentalApi
 public class View extends AbstractDiffable<View> implements ToXContentObject {
 
-    final String name;
-    final String description;
-    final long createdAt;
-    final long modifiedAt;
-    final List<Target> targets;
+    public final String name;
+    public final String description;
+    public final long createdAt;
+    public final long modifiedAt;
+    public final List<Target> targets;
 
     public View(final String name, final String description, final long createdAt, final long modifiedAt, final List<Target> targets) {
         this.name = name;
@@ -34,7 +34,7 @@ public class View extends AbstractDiffable<View> implements ToXContentObject {
     }
 
     public View(final StreamInput in) throws IOException {
-        this(in.readString(), in.readString(), in.readVLong(), in.readVLong(), in.readList(Target::new));
+        this(in.readString(), in.readOptionalString(), in.readVLong(), in.readVLong(), in.readList(Target::new));
     }
 
     public static Diff<View> readDiffFrom(StreamInput in) throws IOException {
@@ -62,9 +62,17 @@ public class View extends AbstractDiffable<View> implements ToXContentObject {
             builder.endObject();
             return builder;
         }
+ 
+        private static final ConstructingObjectParser<Target, Void> T_PARSER = new ConstructingObjectParser<>(
+            "target",
+            args -> new Target((String) args[0])
+        );
+        static {
+            T_PARSER.declareString(ConstructingObjectParser.constructorArg(), INDEX_PATTERN_FIELD);
+        }
 
-        public static ViewMetadata fromXContent(final XContentParser parser) throws IOException {
-            return null; // TODO
+        public static Target fromXContent(final XContentParser parser) throws IOException {
+            return T_PARSER.parse(parser, null);
         }
 
         @Override
@@ -87,9 +95,9 @@ public class View extends AbstractDiffable<View> implements ToXContentObject {
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), NAME_FIELD);
-        PARSER.declareString(ConstructingObjectParser.constructorArg(), DESCRIPTION_FIELD);
-        PARSER.declareLong(ConstructingObjectParser.constructorArg(), CREATED_AT_FIELD);
-        PARSER.declareLong(ConstructingObjectParser.constructorArg(), MODIFIED_AT_FIELD);
+        PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), DESCRIPTION_FIELD);
+        PARSER.declareLongOrNull(ConstructingObjectParser.optionalConstructorArg(), -1L, CREATED_AT_FIELD);
+        PARSER.declareLongOrNull(ConstructingObjectParser.optionalConstructorArg(), -1L, MODIFIED_AT_FIELD);
         PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(), (p, c) -> Target.fromXContent(p), TARGETS_FIELD);
     }
 
@@ -112,7 +120,7 @@ public class View extends AbstractDiffable<View> implements ToXContentObject {
     @Override
     public void writeTo(final StreamOutput out) throws IOException {
         out.writeString(name);
-        out.writeString(description);
+        out.writeOptionalString(description);
         out.writeVLong(createdAt);
         out.writeVLong(modifiedAt);
         out.writeList(targets);

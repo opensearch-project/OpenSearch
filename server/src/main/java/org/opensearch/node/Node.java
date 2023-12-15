@@ -203,6 +203,7 @@ import org.opensearch.ratelimitting.admissioncontrol.transport.AdmissionControlT
 import org.opensearch.repositories.RepositoriesModule;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.rest.RestController;
+import org.opensearch.rest.action.admin.indices.RestViewAction;
 import org.opensearch.script.ScriptContext;
 import org.opensearch.script.ScriptEngine;
 import org.opensearch.script.ScriptModule;
@@ -895,6 +896,8 @@ public class Node implements Closeable {
                 extensionsManager
             );
             modules.add(actionModule);
+
+            actionModule.getRestController().registerHandler(new RestViewAction(clusterService));
 
             final RestController restController = actionModule.getRestController();
 
