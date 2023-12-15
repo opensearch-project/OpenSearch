@@ -46,10 +46,6 @@ final class SearchQueryCategorizer {
         incrementQueryTypeCounters(topLevelQueryBuilder);
         incrementQueryAggregationCounters(source.aggregations());
         incrementQuerySortCounters(source.sorts());
-
-        List<FieldAndFormat> fields = source.fetchFields();
-        int numberOfInputFields = fields.size();
-        searchQueryCounters.numberOfInputFieldsCounter.add(1, Tags.create().addTag("number", numberOfInputFields));
     }
 
     private void incrementQuerySortCounters(List<SortBuilder<?>> sorts) {
