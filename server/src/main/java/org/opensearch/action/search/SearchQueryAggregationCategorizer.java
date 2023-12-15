@@ -29,7 +29,18 @@ import org.opensearch.search.aggregations.bucket.terms.MultiTermsAggregationBuil
 import org.opensearch.search.aggregations.bucket.terms.SignificantTermsAggregationBuilder;
 import org.opensearch.search.aggregations.bucket.terms.SignificantTextAggregationBuilder;
 import org.opensearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
-import org.opensearch.search.aggregations.metrics.*;
+import org.opensearch.search.aggregations.metrics.AvgAggregationBuilder;
+import org.opensearch.search.aggregations.metrics.CardinalityAggregationBuilder;
+import org.opensearch.search.aggregations.metrics.ExtendedStatsAggregationBuilder;
+import org.opensearch.search.aggregations.metrics.GeoCentroidAggregationBuilder;
+import org.opensearch.search.aggregations.metrics.MaxAggregationBuilder;
+import org.opensearch.search.aggregations.metrics.MedianAbsoluteDeviationAggregationBuilder;
+import org.opensearch.search.aggregations.metrics.MinAggregationBuilder;
+import org.opensearch.search.aggregations.metrics.PercentileRanksAggregationBuilder;
+import org.opensearch.search.aggregations.metrics.PercentilesAggregationBuilder;
+import org.opensearch.search.aggregations.metrics.ScriptedMetricAggregationBuilder;
+import org.opensearch.search.aggregations.metrics.SumAggregationBuilder;
+import org.opensearch.search.aggregations.metrics.TopHitsAggregationBuilder;
 import org.opensearch.telemetry.metrics.tags.Tags;
 
 import java.util.Collection;
