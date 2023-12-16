@@ -33,7 +33,6 @@ import org.opensearch.test.OpenSearchTestCase;
 import org.junit.Before;
 
 import java.util.Arrays;
-import java.util.Map;
 
 import org.mockito.ArgumentCaptor;
 
