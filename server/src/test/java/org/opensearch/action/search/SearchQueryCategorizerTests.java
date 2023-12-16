@@ -33,6 +33,7 @@ import org.opensearch.test.OpenSearchTestCase;
 import org.junit.Before;
 
 import java.util.Arrays;
+import java.util.Map;
 
 import org.mockito.ArgumentCaptor;
 
@@ -76,20 +77,18 @@ public final class SearchQueryCategorizerTests extends OpenSearchTestCase {
 
         verify(searchQueryCategorizer.searchQueryCounters.aggCounter).add(eq(1.0d), any(Tags.class));
 
-        // Now, capture the arguments passed to the aggCounter.add method
+        // capture the arguments passed to the aggCounter.add method
         ArgumentCaptor<Double> valueCaptor = ArgumentCaptor.forClass(Double.class);
         ArgumentCaptor<Tags> tagsCaptor = ArgumentCaptor.forClass(Tags.class);
 
         // Verify that aggCounter.add was called with the expected arguments
         verify(searchQueryCategorizer.searchQueryCounters.aggCounter).add(valueCaptor.capture(), tagsCaptor.capture());
 
-        // Assert the captured values
-        double capturedValue = valueCaptor.getValue();
-        Tags capturedTag = tagsCaptor.getValue();
+        double actualValue = valueCaptor.getValue();
+        String actualTag = (String) tagsCaptor.getValue().getTagsMap().get("type");
 
-        // Assert your expectations on the captured values
-        assertEquals(1.0d, capturedValue, 0.0001);
-        assertEquals(MULTI_TERMS_AGGREGATION, capturedTag.toString());
+        assertEquals(1.0d, actualValue, 0.0001);
+        assertEquals(MULTI_TERMS_AGGREGATION, actualTag);
     }
 
     public void testBoolQuery() {
