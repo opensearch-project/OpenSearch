@@ -154,7 +154,7 @@ public final class SearchQueryCategorizerTests extends OpenSearchTestCase {
 
         searchQueryCategorizer.categorize(sourceBuilder);
 
-        verify(searchQueryCategorizer.searchQueryCounters.otherQueryCounter, times(2)).add(eq(1.0d), any(Tags.class));
+        verify(searchQueryCategorizer.searchQueryCounters.otherQueryCounter, times(1)).add(eq(1.0d), any(Tags.class));
         verify(searchQueryCategorizer.searchQueryCounters.termCounter).add(eq(1.0d), any(Tags.class));
     }
 
@@ -241,6 +241,6 @@ public final class SearchQueryCategorizerTests extends OpenSearchTestCase {
         verify(searchQueryCategorizer.searchQueryCounters.matchCounter).add(eq(1.0d), any(Tags.class));
         verify(searchQueryCategorizer.searchQueryCounters.regexCounter).add(eq(1.0d), any(Tags.class));
         verify(searchQueryCategorizer.searchQueryCounters.boolCounter).add(eq(1.0d), any(Tags.class));
-        verify(searchQueryCategorizer.searchQueryCounters.aggCounter).add(eq(1.0d));
+        verify(searchQueryCategorizer.searchQueryCounters.aggCounter).add(eq(1.0d), any(Tags.class));
     }
 }
