@@ -44,10 +44,8 @@
               ]
             }
 
-  - match: { hits.total.value: 2 }
-  - length: { hits.hits.0.matched_queries: 2 }
-  - match: { hits.hits.0.matched_queries: [ "match_field_1", "match_field_2" ] }
-  - length: { hits.hits.1.matched_queries: 1 }
-  - match: { hits.hits.1.matched_queries: [ "match_field_1" ] }
-
-
+  - match: {hits.total.value: 2}
+  - length: {hits.hits.0.matched_queries: 2}
+  - match: {hits.hits.0.matched_queries: [ "match_field_1", "match_field_2" ]}
+  - length: {hits.hits.1.matched_queries: 1}
+  - match: {hits.hits.1.matched_queries: [ "match_field_1" ]}
