@@ -1,9 +1,10 @@
----
-"matched queries":
+setup:
   - skip:
     version: " - 2.12.0"
     reason: "implemented for versions post 2.12.0"
 
+---
+"matched queries":
   - do:
       indices.create:
         index: test
