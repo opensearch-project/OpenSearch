@@ -120,7 +120,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Allow changing number of replicas of searchable snapshot index ([#11317](https://github.com/opensearch-project/OpenSearch/pull/11317))
 - Adding slf4j license header to LoggerMessageFormat.java ([#11069](https://github.com/opensearch-project/OpenSearch/pull/11069))
 - [BWC and API enforcement] Introduce checks for enforcing the API restrictions ([#11175](https://github.com/opensearch-project/OpenSearch/pull/11175))
-- Create separate transport action for render search template action ([#11170](https://github.com/opensearch-project/OpenSearch/pull/11170))
+- Create separate transport action for render search template action ([#11170](https://github.com/opensearch-project/OpenSearch/pull/11170)))
 - Backwards compatible support for returning scores in matched queries ((https://github.com/opensearch-project/OpenSearch/pull/11549))
 
 ### Dependencies
