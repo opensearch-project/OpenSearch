@@ -536,6 +536,40 @@ public class BytesStreamsTests extends OpenSearchTestCase {
         assertThat(expected, equalTo(loaded));
     }
 
+    public void testReadOrderedMapEmpty() throws IOException {
+        BytesStreamOutput out = new BytesStreamOutput();
+        out.writeVInt(0);
+
+        StreamInput in = StreamInput.wrap(BytesReference.toBytes(out.bytes()));
+        Map<Integer, String> result = in.readOrderedMap(StreamInput::readInt, StreamInput::readString);
+        assertTrue("Map should be empty", result.isEmpty());
+
+        // If the map is empty, it's not necessarily a LinkedHashMap due to optimization
+        assertTrue("Resulting map should be immutable", Collections.emptyMap().getClass().isInstance(result));
+
+        in.close();
+        out.close();
+    }
+
+    public void testReadOrderedMapNonEmpty() throws IOException {
+        BytesStreamOutput out = new BytesStreamOutput();
+        out.writeVInt(2);
+        out.writeInt(1);
+        out.writeString("One");
+        out.writeInt(2);
+        out.writeString("Two");
+
+        StreamInput in = StreamInput.wrap(BytesReference.toBytes(out.bytes()));
+        Map<Integer, String> result = in.readOrderedMap(StreamInput::readInt, StreamInput::readString);
+        assertEquals("Map should have 2 elements", 2, result.size());
+        assertTrue("Resulting map should be a LinkedHashMap", result instanceof LinkedHashMap);
+        assertEquals("First element should be 'One'", "One", result.get(1));
+        assertEquals("Second element should be 'Two'", "Two", result.get(2));
+
+        in.close();
+        out.close();
+    }
+
     public void testWriteMapOfLists() throws IOException {
         final int size = randomIntBetween(0, 5);
         final Map<String, List<String>> expected = new HashMap<>(size);
