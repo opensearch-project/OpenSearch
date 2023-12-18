@@ -10,8 +10,6 @@ package org.opensearch.common.round;
 
 import org.opensearch.test.OpenSearchTestCase;
 
-import java.util.List;
-
 public class RoundableTests extends OpenSearchTestCase {
 
     public void testRoundingEmptyArray() {
@@ -33,7 +31,8 @@ public class RoundableTests extends OpenSearchTestCase {
         long[] values = randomArrayOfSortedValues(size);
         Roundable roundable = RoundableFactory.create(values, size);
 
-        assertTrue(List.of("BtreeSearcher", "BinarySearcher").contains(roundable.getClass().getSimpleName()));
+        boolean useBtreeSearcher = "forced".equalsIgnoreCase(System.getProperty("opensearch.experimental.feature.simd.rounding.enabled"));
+        assertEquals(useBtreeSearcher ? "BtreeSearcher" : "BinarySearcher", roundable.getClass().getSimpleName());
         assertRounding(roundable, values, size);
     }
 

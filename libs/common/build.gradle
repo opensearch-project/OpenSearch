@@ -94,7 +94,7 @@ if (BuildParams.runtimeJavaVersion >= JavaVersion.VERSION_20) {
   tasks.register('roundableSimdTest', Test) {
     group 'verification'
     include '**/RoundableTests.class'
-    systemProperty 'opensearch.experimental.feature.simd.rounding.enabled', 'true'
+    systemProperty 'opensearch.experimental.feature.simd.rounding.enabled', 'forced'
   }
 
   check.dependsOn(roundableSimdTest)
