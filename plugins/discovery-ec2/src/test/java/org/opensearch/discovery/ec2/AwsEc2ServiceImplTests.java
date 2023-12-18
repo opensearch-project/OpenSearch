@@ -202,4 +202,26 @@ public class AwsEc2ServiceImplTests extends AbstractEc2DiscoveryTestCase {
         assertTrue(clientOverrideConfiguration.retryPolicy().isPresent());
         assertThat(clientOverrideConfiguration.retryPolicy().get().numRetries(), is(10));
     }
+
+    public void testGetFullEndpointWithScheme() {
+        final Settings settings = Settings.builder().put("discovery.ec2.endpoint", "http://ec2.us-west-2.amazonaws.com").build();
+        Ec2ClientSettings clientSettings = Ec2ClientSettings.getClientSettings(settings);
+
+        AwsEc2ServiceImpl awsEc2ServiceImpl = new AwsEc2ServiceImpl();
+
+        String endpoint = awsEc2ServiceImpl.getFullEndpoint(clientSettings.endpoint);
+        assertEquals("http://ec2.us-west-2.amazonaws.com", endpoint);
+    }
+
+    public void testGetFullEndpointWithoutScheme() {
+        final Settings settings = Settings.builder().put("discovery.ec2.endpoint", "ec2.us-west-2.amazonaws.com").build();
+        Ec2ClientSettings clientSettings = Ec2ClientSettings.getClientSettings(settings);
+
+        AwsEc2ServiceImpl awsEc2ServiceImpl = new AwsEc2ServiceImpl();
+
+        String endpoint = awsEc2ServiceImpl.getFullEndpoint(clientSettings.endpoint);
+        assertEquals("https://ec2.us-west-2.amazonaws.com", endpoint);
+
+        assertNull(awsEc2ServiceImpl.getFullEndpoint(""));
+    }
 }
