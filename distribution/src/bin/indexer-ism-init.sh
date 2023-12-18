@@ -84,7 +84,24 @@ function generate_rollover_template() {
 # Loads the index templates for the rollover policy to the indexer.
 #########################################################################
 function load_templates() {
-    # Note: the wazuh-template.json could also be loaded here.
+    # Load wazuh-template.json, needed for initial indices creation.
+    local wazuh_template_path="/etc/wazuh-indexer/wazuh-template.json"
+    echo "Will create 'wazuh' index template"
+    if [ -f $wazuh_template_path ]; then
+        cat $wazuh_template_path |
+        if ! curl -s -k ${C_AUTH} \
+            -X PUT "${INDEXER_URL}/_template/wazuh" \
+            -o "${LOG_FILE}" --create-dirs \
+            -H 'Content-Type: application/json' -d @-; then
+            echo "  ERROR: 'wazuh' template creation failed"
+            exit 1
+        else
+            echo " SUCC: 'wazuh' template created or updated"
+        fi
+    else
+        echo "  ERROR: $wazuh_template_path not found"
+    fi
+
     echo "Will create index templates to configure the alias"
     for alias in "${aliases[@]}"; do
         generate_rollover_template "${alias}" |
