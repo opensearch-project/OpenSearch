@@ -91,6 +91,14 @@ if (BuildParams.runtimeJavaVersion >= JavaVersion.VERSION_20) {
     classpath -= sourceSets.main.output
   }
 
+  tasks.register('roundableSimdTest', Test) {
+    group 'verification'
+    include '**/RoundableTests.class'
+    systemProperty 'opensearch.experimental.feature.simd.rounding.enabled', 'true'
+  }
+
+  check.dependsOn(roundableSimdTest)
+
   forbiddenApisJava20 {
     failOnMissingClasses = false
     ignoreSignaturesOfMissingClasses = true
