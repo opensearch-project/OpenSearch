@@ -43,7 +43,7 @@ public class View extends AbstractDiffable<View> implements ToXContentObject {
 
     public static class Target implements Writeable, ToXContentObject {
 
-        private String indexPattern;
+        public final String indexPattern;
 
         private Target(final String indexPattern) {
             this.indexPattern = indexPattern;
@@ -62,7 +62,7 @@ public class View extends AbstractDiffable<View> implements ToXContentObject {
             builder.endObject();
             return builder;
         }
- 
+
         private static final ConstructingObjectParser<Target, Void> T_PARSER = new ConstructingObjectParser<>(
             "target",
             args -> new Target((String) args[0])

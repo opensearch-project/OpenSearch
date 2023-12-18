@@ -42,7 +42,7 @@ public class RestViewAction extends BaseRestHandler {
 
     private final static Logger LOG = LogManager.getLogger(RestViewAction.class);
 
-    private static final String VIEW_ID = "view_id";
+    static final String VIEW_ID = "view_id";
 
     private final ClusterService clusterService;
 
@@ -81,14 +81,22 @@ public class RestViewAction extends BaseRestHandler {
             }
 
         } else if (request.hasParam(VIEW_ID)) {
-            if (request.method() == RestRequest.Method.GET && request.hasParam(VIEW_ID)) {
+            if (request.method() == RestRequest.Method.GET) {
                 return channel -> channel.sendResponse(handleSingleGet(request, channel.newBuilder()));
             }
 
+            if (request.method() == RestRequest.Method.PUT) {
+                return channel -> handleSinglePut(request);
+            }
+
+            if (request.method() == RestRequest.Method.DELETE) {
+                return channel -> handleSingleDelete(request);
+            }
         }
 
-        // Unhandled
-        return channel -> channel.sendResponse(new BytesRestResponse(RestStatus.BAD_REQUEST, "Unable to process this request"));
+        return channel -> channel.sendResponse(
+            new BytesRestResponse(RestStatus.BAD_REQUEST, "Unable to process " + request.method() + " on this endpoint " + request.path())
+        );
     }
 
     public RestResponse handleGet(final RestRequest r, final XContentBuilder builder) throws IOException {
@@ -120,13 +128,17 @@ public class RestViewAction extends BaseRestHandler {
             @Override
             public void onFailure(final String source, final Exception e) {
                 LOG.error("Unable to create view, due to {}", source, e);
-                channel.sendResponse(new BytesRestResponse(RestStatus.INTERNAL_SERVER_ERROR, "Unknown error occurred, see the log for details."));
+                channel.sendResponse(
+                    new BytesRestResponse(RestStatus.INTERNAL_SERVER_ERROR, "Unknown error occurred, see the log for details.")
+                );
             }
 
             @Override
             public void clusterStateProcessed(final String source, final ClusterState oldState, final ClusterState newState) {
                 try {
-                    channel.sendResponse(new BytesRestResponse(RestStatus.CREATED, channel.newBuilder().startObject().field(view.name, view).endObject()));
+                    channel.sendResponse(
+                        new BytesRestResponse(RestStatus.CREATED, channel.newBuilder().startObject().field(view.name, view).endObject())
+                    );
                 } catch (final IOException e) {
                     // TODO?
                     LOG.error(e);
@@ -156,11 +168,11 @@ public class RestViewAction extends BaseRestHandler {
     }
 
     public RestResponse handleSinglePut(final RestRequest r) {
-        return null;
+        return new BytesRestResponse(RestStatus.NOT_IMPLEMENTED, "");
     }
 
     public RestResponse handleSingleDelete(final RestRequest r) {
-        return null;
+        return new BytesRestResponse(RestStatus.NOT_IMPLEMENTED, "");
     }
 
 }
