@@ -46,6 +46,7 @@ import org.opensearch.search.aggregations.AggregatorFactories;
 import org.opensearch.search.aggregations.AggregatorFactory;
 import org.opensearch.search.aggregations.bucket.filter.FilterAggregatorFactory;
 import org.opensearch.search.aggregations.bucket.nested.NestedAggregatorFactory;
+import org.opensearch.search.aggregations.bucket.nested.ReverseNestedAggregatorFactory;
 import org.opensearch.search.aggregations.support.ValuesSourceRegistry;
 
 import java.io.IOException;
@@ -244,11 +245,13 @@ public class CompositeAggregationBuilder extends AbstractAggregationBuilder<Comp
     private static AggregatorFactory checkParentIsSafe(AggregatorFactory factory) {
         if (factory == null) {
             return null;
-        } else if (factory instanceof NestedAggregatorFactory || factory instanceof FilterAggregatorFactory) {
-            return checkParentIsSafe(factory.getParent());
-        } else {
-            return factory;
-        }
+        } else if (factory instanceof NestedAggregatorFactory
+            || factory instanceof FilterAggregatorFactory
+            || factory instanceof ReverseNestedAggregatorFactory) {
+                return checkParentIsSafe(factory.getParent());
+            } else {
+                return factory;
+            }
     }
 
     private static void validateSources(List<CompositeValuesSourceBuilder<?>> sources) {
