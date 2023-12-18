@@ -8,36 +8,61 @@
 
 package org.opensearch.common.round;
 
+import org.opensearch.common.SuppressForbidden;
 import org.opensearch.test.OpenSearchTestCase;
 
-import java.util.List;
+import java.lang.invoke.MethodHandles;
+import java.lang.reflect.InvocationTargetException;
 
 public class RoundableTests extends OpenSearchTestCase {
 
-    public void testRoundingEmptyArray() {
-        Throwable throwable = assertThrows(IllegalArgumentException.class, () -> RoundableFactory.create(new long[0], 0));
+    public void testBidirectionalLinearSearcher() {
+        assertRounding(BidirectionalLinearSearcher::new);
+    }
+
+    public void testBinarySearcher() {
+        assertRounding(BinarySearcher::new);
+    }
+
+    @SuppressForbidden(reason = "Reflective construction of BtreeSearcher since it's not supported below Java 20")
+    public void testBtreeSearcher() {
+        RoundableSupplier supplier;
+
+        try {
+            Class<?> clz = MethodHandles.lookup().findClass("org.opensearch.common.round.BtreeSearcher");
+            supplier = (values, size) -> {
+                try {
+                    return (Roundable) clz.getDeclaredConstructor(long[].class, int.class).newInstance(values, size);
+                } catch (InvocationTargetException e) {
+                    // Failed to instantiate the class. Unwrap if the nested exception is already a runtime exception,
+                    // say due to an IllegalArgumentException due to bad constructor arguments.
+                    if (e.getCause() instanceof RuntimeException) {
+                        throw (RuntimeException) e.getCause();
+                    } else {
+                        throw new RuntimeException(e);
+                    }
+                } catch (Exception e) {
+                    throw new RuntimeException(e);
+                }
+            };
+        } catch (ClassNotFoundException e) {
+            assumeTrue("BtreeSearcher is not supported below Java 20", false);
+            return;
+        } catch (IllegalAccessException e) {
+            throw new RuntimeException(e);
+        }
+
+        assertRounding(supplier);
+    }
+
+    private void assertRounding(RoundableSupplier supplier) {
+        Throwable throwable = assertThrows(IllegalArgumentException.class, () -> supplier.get(new long[0], 0));
         assertEquals("at least one value must be present", throwable.getMessage());
-    }
 
-    public void testRoundingSmallArray() {
-        int size = randomIntBetween(1, 64);
+        int size = randomIntBetween(1, 256);
         long[] values = randomArrayOfSortedValues(size);
-        Roundable roundable = RoundableFactory.create(values, size);
+        Roundable roundable = supplier.get(values, size);
 
-        assertEquals("BidirectionalLinearSearcher", roundable.getClass().getSimpleName());
-        assertRounding(roundable, values, size);
-    }
-
-    public void testRoundingLargeArray() {
-        int size = randomIntBetween(65, 256);
-        long[] values = randomArrayOfSortedValues(size);
-        Roundable roundable = RoundableFactory.create(values, size);
-
-        assertTrue(List.of("BtreeSearcher", "BinarySearcher").contains(roundable.getClass().getSimpleName()));
-        assertRounding(roundable, values, size);
-    }
-
-    private void assertRounding(Roundable roundable, long[] values, int size) {
         for (int i = 0; i < 100000; i++) {
             // Index of the expected round-down point.
             int idx = randomIntBetween(0, size - 1);
@@ -55,7 +80,7 @@ public class RoundableTests extends OpenSearchTestCase {
             assertEquals(expected, roundable.floor(key));
         }
 
-        Throwable throwable = assertThrows(AssertionError.class, () -> roundable.floor(values[0] - 1));
+        throwable = assertThrows(AssertionError.class, () -> roundable.floor(values[0] - 1));
         assertEquals("key must be greater than or equal to " + values[0], throwable.getMessage());
     }
 
@@ -68,5 +93,10 @@ public class RoundableTests extends OpenSearchTestCase {
         }
 
         return values;
+    }
+
+    @FunctionalInterface
+    private interface RoundableSupplier {
+        Roundable get(long[] values, int size);
     }
 }
