@@ -47,6 +47,7 @@ import org.opensearch.action.admin.cluster.snapshots.status.TransportNodesSnapsh
 import org.opensearch.action.search.SearchExecutionStatsCollector;
 import org.opensearch.action.search.SearchPhaseController;
 import org.opensearch.action.search.SearchRequestListenerManager;
+import org.opensearch.action.search.SearchRequestOperationsListener;
 import org.opensearch.action.search.SearchRequestSlowLog;
 import org.opensearch.action.search.SearchRequestStats;
 import org.opensearch.action.search.SearchTransportService;
@@ -787,13 +788,6 @@ public class Node implements Closeable {
             final SearchRequestStats searchRequestStats = new SearchRequestStats(clusterService);
             final SearchRequestSlowLog searchRequestSlowLog = new SearchRequestSlowLog(clusterService);
 
-            // register all standard SearchRequestOperationsListeners to the SearchRequestListenerManager
-            final SearchRequestListenerManager searchRequestListenerManager = new SearchRequestListenerManager(clusterService);
-            searchRequestListenerManager.addListeners(
-                searchRequestStats,
-                searchRequestSlowLog
-            );
-
             remoteStoreStatsTrackerFactory = new RemoteStoreStatsTrackerFactory(clusterService, settings);
             final IndicesService indicesService = new IndicesService(
                 settings,
@@ -886,6 +880,16 @@ public class Node implements Closeable {
                     ).stream()
                 )
                 .collect(Collectors.toList());
+
+            // register all standard SearchRequestOperationsListeners to the SearchRequestListenerManager
+            final SearchRequestListenerManager searchRequestListenerManager = new SearchRequestListenerManager(
+                Stream.concat(
+                    Stream.of(searchRequestStats, searchRequestSlowLog),
+                    pluginComponents.stream()
+                        .filter(p -> p instanceof SearchRequestOperationsListener)
+                        .map(p -> (SearchRequestOperationsListener) p)
+                ).toArray(SearchRequestOperationsListener[]::new)
+            );
 
             ActionModule actionModule = new ActionModule(
                 settings,

@@ -154,6 +154,14 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         Setting.Property.NodeScope
     );
 
+    public static final String SEARCH_PHASE_TOOK_ENABLED_KEY = "search.phase_took_enabled";
+    public static final Setting<Boolean> SEARCH_PHASE_TOOK_ENABLED = Setting.boolSetting(
+        SEARCH_PHASE_TOOK_ENABLED_KEY,
+        false,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
     private final NodeClient client;
     private final ThreadPool threadPool;
     private final ClusterService clusterService;
@@ -277,7 +285,6 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         private final long absoluteStartMillis;
         private final long relativeStartNanos;
         private final LongSupplier relativeCurrentNanosProvider;
-        private boolean phaseTook = false;
 
         /**
          * Instantiates a new search time provider. The absolute start time is the real clock time
@@ -304,12 +311,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             return TimeUnit.NANOSECONDS.toMillis(relativeCurrentNanosProvider.getAsLong() - relativeStartNanos);
         }
 
-        public void setPhaseTook(boolean phaseTook) {
-            this.phaseTook = phaseTook;
-        }
-
         SearchResponse.PhaseTook getPhaseTook() {
-            if (phaseTook) {
+            if (getEnabled()) {
                 Map<String, Long> phaseTookMap = new HashMap<>();
                 // Convert Map<SearchPhaseName, Long> to Map<String, Long> for SearchResponse()
                 for (SearchPhaseName searchPhaseName : phaseStatsMap.keySet()) {
@@ -322,6 +325,20 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         }
 
         Map<SearchPhaseName, Long> phaseStatsMap = new EnumMap<>(SearchPhaseName.class);
+
+        /**
+         * Set if this listener is enabled based on the cluster level setting
+         * and per request enable flags.
+         *
+         * @param enabledAtClusterLevel if the SearchTimeProvider listener is enabled at cluster level
+         * @param searchRequest the original Search Request
+         * @opensearch.internal
+         */
+
+        void setEnabled(boolean enabledAtClusterLevel, SearchRequest searchRequest) {
+            // phase_took is enabled wi th request param and/or cluster setting
+            super.setEnabled(enabledAtClusterLevel || (searchRequest.isPhaseTook() != null && searchRequest.isPhaseTook()));
+        }
 
         @Override
         void onPhaseStart(SearchPhaseContext context) {}
@@ -462,8 +479,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             relativeStartNanos,
             System::nanoTime
         );
+        timeProvider.setEnabled(clusterService.getClusterSettings().get(SEARCH_PHASE_TOOK_ENABLED), originalSearchRequest);
         SearchRequestOperationsListener.CompositeListener requestOperationsListeners = searchRequestListenerManager.buildCompositeListener(
-            originalSearchRequest,
             logger,
             timeProvider
         );

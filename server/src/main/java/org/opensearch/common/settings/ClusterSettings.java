@@ -35,7 +35,6 @@ import org.apache.logging.log4j.LogManager;
 import org.opensearch.action.admin.cluster.configuration.TransportAddVotingConfigExclusionsAction;
 import org.opensearch.action.admin.indices.close.TransportCloseIndexAction;
 import org.opensearch.action.search.CreatePitController;
-import org.opensearch.action.search.SearchRequestListenerManager;
 import org.opensearch.action.search.SearchRequestSlowLog;
 import org.opensearch.action.search.SearchRequestStats;
 import org.opensearch.action.search.TransportSearchAction;
@@ -383,7 +382,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 TransportSearchAction.SHARD_COUNT_LIMIT_SETTING,
                 TransportSearchAction.SEARCH_CANCEL_AFTER_TIME_INTERVAL_SETTING,
                 TransportSearchAction.SEARCH_QUERY_METRICS_ENABLED_SETTING,
-                SearchRequestListenerManager.SEARCH_PHASE_TOOK_ENABLED,
+                TransportSearchAction.SEARCH_PHASE_TOOK_ENABLED,
                 SearchRequestStats.SEARCH_REQUEST_STATS_ENABLED,
                 RemoteClusterService.REMOTE_CLUSTER_SKIP_UNAVAILABLE,
                 SniffConnectionStrategy.REMOTE_CONNECTIONS_PER_CLUSTER,

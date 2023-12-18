@@ -26,6 +26,7 @@ public abstract class SearchRequestOperationsListener {
     protected SearchRequestOperationsListener() {
         this.enabled = false;
     }
+
     protected SearchRequestOperationsListener(boolean enabled) {
         this.enabled = enabled;
     }
@@ -39,7 +40,6 @@ public abstract class SearchRequestOperationsListener {
     void onRequestStart(SearchRequestContext searchRequestContext) {}
 
     void onRequestEnd(SearchPhaseContext context, SearchRequestContext searchRequestContext) {}
-
 
     boolean getEnabled() {
         return enabled;
@@ -62,6 +62,7 @@ public abstract class SearchRequestOperationsListener {
         CompositeListener(List<SearchRequestOperationsListener> listeners, Logger logger) {
             this.listeners = listeners;
             this.logger = logger;
+            this.setEnabled(true);
         }
 
         @Override
@@ -117,6 +118,10 @@ public abstract class SearchRequestOperationsListener {
                     logger.warn(() -> new ParameterizedMessage("onRequestEnd listener [{}] failed", listener), e);
                 }
             }
+        }
+
+        public List<SearchRequestOperationsListener> getListeners() {
+            return listeners;
         }
     }
 }

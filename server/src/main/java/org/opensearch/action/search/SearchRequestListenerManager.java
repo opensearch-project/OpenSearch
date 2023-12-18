@@ -9,14 +9,12 @@
 package org.opensearch.action.search;
 
 import org.apache.logging.log4j.Logger;
-import org.opensearch.cluster.service.ClusterService;
-import org.opensearch.common.settings.Setting;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
-
+import java.util.stream.Stream;
 
 /**
  * SearchRequestListenerManager manages listeners registered to search requests,
@@ -27,32 +25,18 @@ import java.util.stream.Collectors;
  * @opensearch.internal
  */
 public class SearchRequestListenerManager {
-
-    private final ClusterService clusterService;
-    public static final String SEARCH_PHASE_TOOK_ENABLED_KEY = "search.phase_took_enabled";
-    public static final Setting<Boolean> SEARCH_PHASE_TOOK_ENABLED = Setting.boolSetting(
-        SEARCH_PHASE_TOOK_ENABLED_KEY,
-        false,
-        Setting.Property.Dynamic,
-        Setting.Property.NodeScope
-    );
     private final List<SearchRequestOperationsListener> searchRequestListenersList;
 
-    public SearchRequestListenerManager(
-        ClusterService clusterService
-    ) {
-        this.clusterService = clusterService;
-        searchRequestListenersList = new ArrayList<>();
-    }
-
     /**
-     * Add multiple {@link SearchRequestOperationsListener} to the searchRequestListenersList.
+     * Create the SearchRequestListenerManager and add multiple {@link SearchRequestOperationsListener}
+     * to the searchRequestListenersList.
      * Those enabled listeners will be executed during each search request.
      *
      * @param listeners Multiple SearchRequestOperationsListener object to add.
      * @throws IllegalArgumentException if any input listener is null or already exists in the list.
      */
-    public void addListeners(SearchRequestOperationsListener... listeners) {
+    public SearchRequestListenerManager(SearchRequestOperationsListener... listeners) {
+        searchRequestListenersList = new ArrayList<>();
         for (SearchRequestOperationsListener listener : listeners) {
             if (listener == null) {
                 throw new IllegalArgumentException("listener must not be null");
@@ -65,22 +49,6 @@ public class SearchRequestListenerManager {
     }
 
     /**
-     * Remove a {@link SearchRequestOperationsListener} from the searchRequestListenersList,
-     *
-     * @param listener A SearchRequestOperationsListener object to remove.
-     * @throws IllegalArgumentException if the input listener is null or already exists in the list.
-     */
-    public void removeListener(SearchRequestOperationsListener listener) {
-        if (listener == null) {
-            throw new IllegalArgumentException("listener must not be null");
-        }
-        if (!searchRequestListenersList.contains(listener)) {
-            throw new IllegalArgumentException("listener does not exist in the listeners list");
-        }
-        searchRequestListenersList.remove(listener);
-    }
-
-    /**
      * Get searchRequestListenersList,
      *
      * @return List of SearchRequestOperationsListener
@@ -90,35 +58,23 @@ public class SearchRequestListenerManager {
         return searchRequestListenersList;
     }
 
-
     /**
      * Create the {@link SearchRequestOperationsListener.CompositeListener}
      * with the all listeners enabled at cluster-level and request-level.
      *
-     * @param searchRequest The SearchRequest object. SearchRequestListenerManager will decide which request-level listeners to add based on states/flags of the request
      * @param logger Logger to be attached to the {@link SearchRequestOperationsListener.CompositeListener}
      * @param perRequestListeners the per-request listeners that can be optionally added to the returned CompositeListener list.
      * @return SearchRequestOperationsListener.CompositeListener
      */
     public SearchRequestOperationsListener.CompositeListener buildCompositeListener(
-        SearchRequest searchRequest,
         Logger logger,
         SearchRequestOperationsListener... perRequestListeners
     ) {
-        final List<SearchRequestOperationsListener> searchListenersList = searchRequestListenersList.stream().filter(SearchRequestOperationsListener::getEnabled).collect(Collectors.toList());
+        final List<SearchRequestOperationsListener> searchListenersList = Stream.concat(
+            searchRequestListenersList.stream(),
+            Arrays.stream(perRequestListeners)
+        ).filter(SearchRequestOperationsListener::getEnabled).collect(Collectors.toList());
 
-        Arrays.stream(perRequestListeners).forEach((listener) -> {
-            if (listener != null && listener.getClass() == TransportSearchAction.SearchTimeProvider.class) {
-                TransportSearchAction.SearchTimeProvider timeProvider = (TransportSearchAction.SearchTimeProvider) listener;
-                // phase_took is enabled with request param and/or cluster setting
-                boolean phaseTookEnabled = (searchRequest.isPhaseTook() != null && searchRequest.isPhaseTook()) ||
-                    clusterService.getClusterSettings().get(SEARCH_PHASE_TOOK_ENABLED);
-                if (phaseTookEnabled) {
-                    timeProvider.setPhaseTook(true);
-                    searchListenersList.add(timeProvider);
-                }
-            }
-        });
         return new SearchRequestOperationsListener.CompositeListener(searchListenersList, logger);
     }
 

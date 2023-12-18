@@ -108,9 +108,7 @@ public final class SearchRequestSlowLog extends SearchRequestOperationsListener 
 
     private static final ToXContent.Params FORMAT_PARAMS = new ToXContent.MapParams(Collections.singletonMap("pretty", "false"));
 
-    public SearchRequestSlowLog(
-        ClusterService clusterService
-        ) {
+    public SearchRequestSlowLog(ClusterService clusterService) {
         this(clusterService, LogManager.getLogger(CLUSTER_SEARCH_REQUEST_SLOWLOG_PREFIX)); // logger configured in log4j2.properties
     }
 
@@ -118,11 +116,11 @@ public final class SearchRequestSlowLog extends SearchRequestOperationsListener 
         this.logger = logger;
         Loggers.setLevel(this.logger, SlowLogLevel.TRACE.name());
 
-        this.warnThreshold = clusterService.getClusterSettings().get(CLUSTER_SEARCH_REQUEST_SLOWLOG_THRESHOLD_WARN_SETTING).nanos();
-        this.infoThreshold = clusterService.getClusterSettings().get(CLUSTER_SEARCH_REQUEST_SLOWLOG_THRESHOLD_INFO_SETTING).nanos();
-        this.debugThreshold = clusterService.getClusterSettings().get(CLUSTER_SEARCH_REQUEST_SLOWLOG_THRESHOLD_DEBUG_SETTING).nanos();
-        this.traceThreshold = clusterService.getClusterSettings().get(CLUSTER_SEARCH_REQUEST_SLOWLOG_THRESHOLD_TRACE_SETTING).nanos();
-        this.level = clusterService.getClusterSettings().get(CLUSTER_SEARCH_REQUEST_SLOWLOG_LEVEL);
+        this.setWarnThreshold(clusterService.getClusterSettings().get(CLUSTER_SEARCH_REQUEST_SLOWLOG_THRESHOLD_WARN_SETTING));
+        this.setInfoThreshold(clusterService.getClusterSettings().get(CLUSTER_SEARCH_REQUEST_SLOWLOG_THRESHOLD_INFO_SETTING));
+        this.setDebugThreshold(clusterService.getClusterSettings().get(CLUSTER_SEARCH_REQUEST_SLOWLOG_THRESHOLD_DEBUG_SETTING));
+        this.setTraceThreshold(clusterService.getClusterSettings().get(CLUSTER_SEARCH_REQUEST_SLOWLOG_THRESHOLD_TRACE_SETTING));
+        this.setLevel(clusterService.getClusterSettings().get(CLUSTER_SEARCH_REQUEST_SLOWLOG_LEVEL));
 
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(CLUSTER_SEARCH_REQUEST_SLOWLOG_THRESHOLD_WARN_SETTING, this::setWarnThreshold);
@@ -235,22 +233,22 @@ public final class SearchRequestSlowLog extends SearchRequestOperationsListener 
 
     void setWarnThreshold(TimeValue warnThreshold) {
         this.warnThreshold = warnThreshold.nanos();
-        setEnabled();
+        setEnabledIfThresholdExceed();
     }
 
     void setInfoThreshold(TimeValue infoThreshold) {
         this.infoThreshold = infoThreshold.nanos();
-        setEnabled();
+        setEnabledIfThresholdExceed();
     }
 
     void setDebugThreshold(TimeValue debugThreshold) {
         this.debugThreshold = debugThreshold.nanos();
-        setEnabled();
+        setEnabledIfThresholdExceed();
     }
 
     void setTraceThreshold(TimeValue traceThreshold) {
         this.traceThreshold = traceThreshold.nanos();
-        setEnabled();
+        setEnabledIfThresholdExceed();
     }
 
     void setLevel(SlowLogLevel level) {
@@ -277,10 +275,7 @@ public final class SearchRequestSlowLog extends SearchRequestOperationsListener 
         return level;
     }
 
-    private void setEnabled() {
-        super.setEnabled(this.warnThreshold >= 0
-            || this.debugThreshold >= 0
-            || this.infoThreshold >= 0
-            || this.traceThreshold >= 0);
+    private void setEnabledIfThresholdExceed() {
+        super.setEnabled(this.warnThreshold >= 0 || this.debugThreshold >= 0 || this.infoThreshold >= 0 || this.traceThreshold >= 0);
     }
 }

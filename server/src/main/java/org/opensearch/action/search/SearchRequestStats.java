@@ -37,9 +37,8 @@ public final class SearchRequestStats extends SearchRequestOperationsListener {
     );
 
     @Inject
-    public SearchRequestStats(
-        ClusterService clusterService
-    ) {
+    public SearchRequestStats(ClusterService clusterService) {
+        this.setEnabled(clusterService.getClusterSettings().get(SEARCH_REQUEST_STATS_ENABLED));
         clusterService.getClusterSettings().addSettingsUpdateConsumer(SEARCH_REQUEST_STATS_ENABLED, this::setEnabled);
         for (SearchPhaseName searchPhaseName : SearchPhaseName.values()) {
             phaseStatsMap.put(searchPhaseName, new StatsHolder());

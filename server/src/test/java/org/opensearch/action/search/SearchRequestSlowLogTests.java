@@ -104,7 +104,7 @@ public class SearchRequestSlowLogTests extends OpenSearchTestCase {
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
             null
         );
-        SearchRequestListenerManager listenerManager2 = new SearchRequestListenerManager(clusterService2);
+        SearchRequestListenerManager listenerManager2 = new SearchRequestListenerManager();
         SearchRequestSlowLog searchRequestSlowLog2 = new SearchRequestSlowLog(clusterService2);
 
         int numberOfLoggersAfter = context.getLoggers().size();

@@ -2285,7 +2285,7 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                     writableRegistry(),
                     searchService::aggReduceContextBuilder
                 );
-                SearchRequestListenerManager listenerManager = new SearchRequestListenerManager(clusterService);
+                SearchRequestListenerManager listenerManager = new SearchRequestListenerManager();
                 actions.put(
                     SearchAction.INSTANCE,
                     new TransportSearchAction(
