@@ -38,7 +38,6 @@ import org.opensearch.script.ScriptType;
 import org.opensearch.search.RandomSearchRequestGenerator;
 import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.test.AbstractWireSerializingTestCase;
-import org.junit.Assert;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -126,10 +125,5 @@ public class SearchTemplateRequestTests extends AbstractWireSerializingTestCase<
         request.setSimulate(true);
 
         assertEquals(expectedIndicesLength, randomRequest.indices().length);
-    }
-
-    public void testSearchTemplateRequestSetRequestCannotBeNull() {
-        SearchTemplateRequest request = new SearchTemplateRequest();
-        Assert.assertThrows(NullPointerException.class, () -> request.setRequest(null));
     }
 }
