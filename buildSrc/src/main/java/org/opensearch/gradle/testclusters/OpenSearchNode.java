@@ -483,16 +483,16 @@ public class OpenSearchNode implements TestClusterConfiguration {
     @Override
     public synchronized void start() {
         LOGGER.info("Starting `{}`", this);
-        if (System.getProperty("tests.opensearch.secure") != null
-            && System.getProperty("tests.opensearch.secure").equalsIgnoreCase("true")) {
+        if (System.getProperty("tests.secure") != null
+            && System.getProperty("tests.secure").equalsIgnoreCase("true")) {
             secure = true;
         }
-        if (System.getProperty("tests.opensearch.username") != null) {
-            this.credentials.get(0).put("username", System.getProperty("tests.opensearch.username"));
+        if (System.getProperty("tests.username") != null) {
+            this.credentials.get(0).put("username", System.getProperty("tests.username"));
             LOGGER.info("Overwriting username to: " + this.getCredentials().get(0).get("username"));
         }
-        if (System.getProperty("tests.opensearch.password") != null) {
-            this.credentials.get(0).put("password", System.getProperty("tests.opensearch.password"));
+        if (System.getProperty("tests.password") != null) {
+            this.credentials.get(0).put("password", System.getProperty("tests.password"));
             LOGGER.info("Overwriting password to: " + this.getCredentials().get(0).get("password"));
         }
         if (Files.exists(getExtractedDistributionDir()) == false) {
