@@ -683,4 +683,14 @@ public class DateFormattersTests extends OpenSearchTestCase {
             }
         }
     }
+
+    public void testMissingDateMaxValFormat() {
+        DateFormatter formatter = DateFormatters.forPattern("basic_date_time_no_millis");
+        formatter.formatMillis(Long.MAX_VALUE);
+    }
+
+    public void testMissingDateMinValFormat() {
+        DateFormatter formatter = DateFormatters.forPattern("basic_date_time_no_millis");
+        formatter.formatMillis(Long.MIN_VALUE);
+    }
 }
