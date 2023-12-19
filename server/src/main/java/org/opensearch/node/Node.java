@@ -204,6 +204,7 @@ import org.opensearch.repositories.RepositoriesModule;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.rest.RestController;
 import org.opensearch.rest.action.admin.indices.RestViewAction;
+import org.opensearch.rest.action.admin.indices.RestViewSearchAction;
 import org.opensearch.script.ScriptContext;
 import org.opensearch.script.ScriptEngine;
 import org.opensearch.script.ScriptModule;
@@ -898,6 +899,7 @@ public class Node implements Closeable {
             modules.add(actionModule);
 
             actionModule.getRestController().registerHandler(new RestViewAction(clusterService));
+            actionModule.getRestController().registerHandler(new RestViewSearchAction(clusterService));
 
             final RestController restController = actionModule.getRestController();
 

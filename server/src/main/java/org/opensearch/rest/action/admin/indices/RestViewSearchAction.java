@@ -65,8 +65,8 @@ public class RestViewSearchAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
+        final String viewId = request.param(VIEW_ID);
         return channel -> {
-            final String viewId = request.param(VIEW_ID);
 
             if (Strings.isNullOrEmpty(viewId)) {
                 channel.sendResponse(new BytesRestResponse(RestStatus.NOT_FOUND, ""));
@@ -87,7 +87,7 @@ public class RestViewSearchAction extends BaseRestHandler {
                 parser -> RestSearchAction.parseSearchRequest(searchRequest, request, parser, client.getNamedWriteableRegistry(), setSize)
             );
 
-            // TODO: Only allow specific operations that are supported
+            // TODO: Only allow operations that are supported
 
             final String[] indices = view.get().targets.stream()
                 .map(target -> target.indexPattern)
@@ -95,7 +95,7 @@ public class RestViewSearchAction extends BaseRestHandler {
                 .toArray(new String[0]);
             searchRequest.indices(indices);
 
-            // Resource leak on cancelClient??? Note; is already leaking in
+            // TODO: Look into resource leak on cancelClient? Note; is already leaking in
             // server/src/main/java/org/opensearch/rest/action/search/RestSearchAction.java
             final RestCancellableNodeClient cancelClient = new RestCancellableNodeClient(client, request.getHttpChannel());
             cancelClient.execute(SearchAction.INSTANCE, searchRequest, new RestStatusToXContentListener<>(channel));
