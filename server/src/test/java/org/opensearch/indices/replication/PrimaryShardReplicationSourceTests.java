@@ -125,6 +125,7 @@ public class PrimaryShardReplicationSourceTests extends IndexShardTestCase {
             checkpoint,
             Arrays.asList(testMetadata),
             mock(IndexShard.class),
+            (fileName, bytesRecovered) -> {},
             mock(ActionListener.class)
         );
         CapturingTransport.CapturedRequest[] requestList = transport.getCapturedRequestsAndClear();
@@ -153,6 +154,7 @@ public class PrimaryShardReplicationSourceTests extends IndexShardTestCase {
             checkpoint,
             Arrays.asList(testMetadata),
             mock(IndexShard.class),
+            (fileName, bytesRecovered) -> {},
             mock(ActionListener.class)
         );
         CapturingTransport.CapturedRequest[] requestList = transport.getCapturedRequestsAndClear();
@@ -178,6 +180,7 @@ public class PrimaryShardReplicationSourceTests extends IndexShardTestCase {
             checkpoint,
             Arrays.asList(testMetadata),
             mock(IndexShard.class),
+            (fileName, bytesRecovered) -> {},
             new ActionListener<>() {
                 @Override
                 public void onResponse(GetSegmentFilesResponse getSegmentFilesResponse) {

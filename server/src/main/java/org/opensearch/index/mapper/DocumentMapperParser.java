@@ -34,6 +34,7 @@ package org.opensearch.index.mapper;
 
 import org.opensearch.Version;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.common.time.DateFormatter;
@@ -56,8 +57,9 @@ import static java.util.Collections.unmodifiableMap;
 /**
  * Parser for a document mapper
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class DocumentMapperParser {
 
     final MapperService mapperService;
@@ -197,7 +199,7 @@ public class DocumentMapperParser {
 
     /**
      * Given an optional type name and mapping definition, returns the type and a normalized form of the mappings.
-     *
+     * <p>
      * The provided mapping definition may or may not contain the type name as the root key in the map. This method
      * attempts to unwrap the mappings, so that they no longer contain a type name at the root. If no type name can
      * be found, through either the 'type' parameter or by examining the provided mappings, then an exception will be
@@ -205,7 +207,6 @@ public class DocumentMapperParser {
      *
      * @param type An optional type name.
      * @param root The mapping definition.
-     *
      * @return A tuple of the form (type, normalized mappings).
      */
     @SuppressWarnings({ "unchecked" })

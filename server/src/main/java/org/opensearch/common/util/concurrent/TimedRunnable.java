@@ -107,6 +107,14 @@ class TimedRunnable extends AbstractRunnable implements WrappedRunnable {
         return Math.max(finishTimeNanos - startTimeNanos, 1);
     }
 
+    long getWaitTimeNanos() {
+        if (startTimeNanos == -1) {
+            // There must have been an exception thrown, the total time is unknown (-1)
+            return -1;
+        }
+        return Math.max(startTimeNanos - creationTimeNanos, 1);
+    }
+
     /**
      * If the task was failed or rejected, return true.
      * Otherwise, false.

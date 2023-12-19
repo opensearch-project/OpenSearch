@@ -32,27 +32,51 @@
 
 package org.opensearch.search.aggregations.metrics;
 
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.OpenSearchException;
 import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.common.breaker.CircuitBreakingException;
 import org.opensearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.opensearch.search.aggregations.Aggregator;
 import org.opensearch.search.aggregations.BucketOrder;
-import org.opensearch.test.OpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedOpenSearchIntegTestCase;
 
+import java.util.Arrays;
+import java.util.Collection;
 import java.util.Map;
 import java.util.stream.IntStream;
 
+import static org.opensearch.search.SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING;
 import static org.opensearch.search.aggregations.AggregationBuilders.cardinality;
 import static org.opensearch.search.aggregations.AggregationBuilders.terms;
 
-public class CardinalityWithRequestBreakerIT extends OpenSearchIntegTestCase {
+public class CardinalityWithRequestBreakerIT extends ParameterizedOpenSearchIntegTestCase {
+
+    public CardinalityWithRequestBreakerIT(Settings dynamicSettings) {
+        super(dynamicSettings);
+    }
+
+    @ParametersFactory
+    public static Collection<Object[]> parameters() {
+        return Arrays.asList(
+            new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), false).build() },
+            new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), true).build() }
+        );
+    }
+
+    @Override
+    protected Settings featureFlagSettings() {
+        return Settings.builder().put(super.featureFlagSettings()).put(FeatureFlags.CONCURRENT_SEGMENT_SEARCH, "true").build();
+    }
 
     /**
      * Test that searches using cardinality aggregations returns all request breaker memory.
      */
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/10154")
     public void testRequestBreaker() throws Exception {
         final String requestBreaker = randomIntBetween(1, 10000) + "kb";
         logger.info("--> Using request breaker setting: {}", requestBreaker);
@@ -76,6 +100,7 @@ public class CardinalityWithRequestBreakerIT extends OpenSearchIntegTestCase {
             )
             .get();
 
+        indexRandomForConcurrentSearch("test");
         try {
             client().prepareSearch("test")
                 .addAggregation(

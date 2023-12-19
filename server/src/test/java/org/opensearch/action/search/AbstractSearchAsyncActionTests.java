@@ -38,8 +38,12 @@ import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.routing.GroupShardsIterator;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.collect.Tuple;
+import org.opensearch.common.util.concurrent.AtomicArray;
+import org.opensearch.common.util.concurrent.OpenSearchExecutors;
 import org.opensearch.common.util.set.Sets;
 import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.common.breaker.CircuitBreaker;
+import org.opensearch.core.common.breaker.NoopCircuitBreaker;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.query.MatchAllQueryBuilder;
@@ -51,7 +55,10 @@ import org.opensearch.search.internal.InternalSearchResponse;
 import org.opensearch.search.internal.ShardSearchContextId;
 import org.opensearch.search.internal.ShardSearchRequest;
 import org.opensearch.search.query.QuerySearchResult;
+import org.opensearch.test.InternalAggregationTestCase;
 import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.threadpool.TestThreadPool;
+import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.Transport;
 import org.junit.After;
 import org.junit.Before;
@@ -65,6 +72,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
@@ -77,18 +85,21 @@ import java.util.stream.IntStream;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.mockito.Mockito.mock;
 
 public class AbstractSearchAsyncActionTests extends OpenSearchTestCase {
 
     private final List<Tuple<String, String>> resolvedNodes = new ArrayList<>();
     private final Set<ShardSearchContextId> releasedContexts = new CopyOnWriteArraySet<>();
     private ExecutorService executor;
+    ThreadPool threadPool;
 
     @Before
     @Override
     public void setUp() throws Exception {
         super.setUp();
         executor = Executors.newFixedThreadPool(1);
+        threadPool = new TestThreadPool(getClass().getName());
     }
 
     @After
@@ -97,6 +108,7 @@ public class AbstractSearchAsyncActionTests extends OpenSearchTestCase {
         super.tearDown();
         executor.shutdown();
         assertTrue(executor.awaitTermination(1, TimeUnit.SECONDS));
+        ThreadPool.terminate(threadPool, 5, TimeUnit.SECONDS);
     }
 
     private AbstractSearchAsyncAction<SearchPhaseResult> createAction(
@@ -126,6 +138,7 @@ public class AbstractSearchAsyncActionTests extends OpenSearchTestCase {
         final AtomicLong expected,
         final SearchShardIterator... shards
     ) {
+
         final Runnable runnable;
         final TransportSearchAction.SearchTimeProvider timeProvider;
         if (controlled) {
@@ -161,7 +174,8 @@ public class AbstractSearchAsyncActionTests extends OpenSearchTestCase {
             null,
             results,
             request.getMaxConcurrentShardRequests(),
-            SearchResponse.Clusters.EMPTY
+            SearchResponse.Clusters.EMPTY,
+            new SearchRequestContext()
         ) {
             @Override
             protected SearchPhase getNextPhase(final SearchPhaseResults<SearchPhaseResult> results, SearchPhaseContext context) {
@@ -313,6 +327,53 @@ public class AbstractSearchAsyncActionTests extends OpenSearchTestCase {
         assertEquals(requestIds, releasedContexts);
     }
 
+    public void testOnPhaseFailureAndVerifyListeners() {
+        SearchRequestStats testListener = new SearchRequestStats();
+
+        final List<SearchRequestOperationsListener> requestOperationListeners = new ArrayList<>(List.of(testListener));
+        SearchQueryThenFetchAsyncAction action = createSearchQueryThenFetchAsyncAction(requestOperationListeners);
+        action.start();
+        assertEquals(1, testListener.getPhaseCurrent(action.getSearchPhaseName()));
+        action.onPhaseFailure(new SearchPhase("test") {
+            @Override
+            public void run() {
+
+            }
+        }, "message", null);
+        assertEquals(0, testListener.getPhaseCurrent(action.getSearchPhaseName()));
+        assertEquals(0, testListener.getPhaseTotal(action.getSearchPhaseName()));
+
+        SearchDfsQueryThenFetchAsyncAction searchDfsQueryThenFetchAsyncAction = createSearchDfsQueryThenFetchAsyncAction(
+            requestOperationListeners
+        );
+        searchDfsQueryThenFetchAsyncAction.start();
+        assertEquals(1, testListener.getPhaseCurrent(searchDfsQueryThenFetchAsyncAction.getSearchPhaseName()));
+        searchDfsQueryThenFetchAsyncAction.onPhaseFailure(new SearchPhase("test") {
+            @Override
+            public void run() {
+
+            }
+        }, "message", null);
+        assertEquals(0, testListener.getPhaseCurrent(action.getSearchPhaseName()));
+        assertEquals(0, testListener.getPhaseTotal(action.getSearchPhaseName()));
+
+        FetchSearchPhase fetchPhase = createFetchSearchPhase();
+        ShardId shardId = new ShardId(randomAlphaOfLengthBetween(5, 10), randomAlphaOfLength(10), randomInt());
+        SearchShardIterator searchShardIterator = new SearchShardIterator(null, shardId, Collections.emptyList(), OriginalIndices.NONE);
+        searchShardIterator.resetAndSkip();
+        action.skipShard(searchShardIterator);
+        action.executeNextPhase(action, fetchPhase);
+        assertEquals(1, testListener.getPhaseCurrent(fetchPhase.getSearchPhaseName()));
+        action.onPhaseFailure(new SearchPhase("test") {
+            @Override
+            public void run() {
+
+            }
+        }, "message", null);
+        assertEquals(0, testListener.getPhaseCurrent(fetchPhase.getSearchPhaseName()));
+        assertEquals(0, testListener.getPhaseTotal(fetchPhase.getSearchPhaseName()));
+    }
+
     public void testOnPhaseFailure() {
         SearchRequest searchRequest = new SearchRequest().allowPartialSearchResults(false);
         AtomicReference<Exception> exception = new AtomicReference<>();
@@ -321,6 +382,7 @@ public class AbstractSearchAsyncActionTests extends OpenSearchTestCase {
         List<Tuple<String, String>> nodeLookups = new ArrayList<>();
         ArraySearchPhaseResults<SearchPhaseResult> phaseResults = phaseResults(requestIds, nodeLookups, 0);
         AbstractSearchAsyncAction<SearchPhaseResult> action = createAction(searchRequest, phaseResults, listener, false, new AtomicLong());
+
         action.onPhaseFailure(new SearchPhase("test") {
             @Override
             public void run() {
@@ -526,6 +588,224 @@ public class AbstractSearchAsyncActionTests extends OpenSearchTestCase {
         assertSame(searchResponse.getProfileResults(), internalSearchResponse.profile());
         assertSame(searchResponse.getHits(), internalSearchResponse.hits());
         assertThat(searchResponse.getSuccessfulShards(), equalTo(shards.length));
+    }
+
+    public void testOnPhaseListenersWithQueryAndThenFetchType() throws InterruptedException {
+        SearchRequestStats testListener = new SearchRequestStats();
+        final List<SearchRequestOperationsListener> requestOperationListeners = new ArrayList<>(List.of(testListener));
+
+        long delay = (randomIntBetween(1, 5));
+        delay = delay * 10;
+
+        SearchQueryThenFetchAsyncAction action = createSearchQueryThenFetchAsyncAction(requestOperationListeners);
+        action.start();
+
+        // Verify queryPhase current metric
+        assertEquals(1, testListener.getPhaseCurrent(action.getSearchPhaseName()));
+        TimeUnit.MILLISECONDS.sleep(delay);
+
+        FetchSearchPhase fetchPhase = createFetchSearchPhase();
+        ShardId shardId = new ShardId(randomAlphaOfLengthBetween(5, 10), randomAlphaOfLength(10), randomInt());
+        SearchShardIterator searchShardIterator = new SearchShardIterator(null, shardId, Collections.emptyList(), OriginalIndices.NONE);
+        searchShardIterator.resetAndSkip();
+        action.skipShard(searchShardIterator);
+        action.executeNextPhase(action, fetchPhase);
+
+        // Verify queryPhase total, current and latency metrics
+        assertEquals(0, testListener.getPhaseCurrent(action.getSearchPhaseName()));
+        assertThat(testListener.getPhaseMetric(action.getSearchPhaseName()), greaterThanOrEqualTo(delay));
+        assertEquals(1, testListener.getPhaseTotal(action.getSearchPhaseName()));
+
+        // Verify fetchPhase current metric
+        assertEquals(1, testListener.getPhaseCurrent(fetchPhase.getSearchPhaseName()));
+        TimeUnit.MILLISECONDS.sleep(delay);
+
+        ExpandSearchPhase expandPhase = createExpandSearchPhase();
+        action.executeNextPhase(fetchPhase, expandPhase);
+        TimeUnit.MILLISECONDS.sleep(delay);
+
+        // Verify fetchPhase total, current and latency metrics
+        assertThat(testListener.getPhaseMetric(fetchPhase.getSearchPhaseName()), greaterThanOrEqualTo(delay));
+        assertEquals(1, testListener.getPhaseTotal(fetchPhase.getSearchPhaseName()));
+        assertEquals(0, testListener.getPhaseCurrent(fetchPhase.getSearchPhaseName()));
+
+        assertEquals(1, testListener.getPhaseCurrent(expandPhase.getSearchPhaseName()));
+
+        action.executeNextPhase(expandPhase, fetchPhase);
+
+        action.sendSearchResponse(mock(InternalSearchResponse.class), mock(String.valueOf(QuerySearchResult.class)));
+        assertThat(testListener.getPhaseMetric(expandPhase.getSearchPhaseName()), greaterThanOrEqualTo(delay));
+        assertEquals(1, testListener.getPhaseTotal(expandPhase.getSearchPhaseName()));
+        assertEquals(0, testListener.getPhaseCurrent(expandPhase.getSearchPhaseName()));
+    }
+
+    public void testOnPhaseListenersWithDfsType() throws InterruptedException {
+        SearchRequestStats testListener = new SearchRequestStats();
+        final List<SearchRequestOperationsListener> requestOperationListeners = new ArrayList<>(List.of(testListener));
+
+        SearchDfsQueryThenFetchAsyncAction searchDfsQueryThenFetchAsyncAction = createSearchDfsQueryThenFetchAsyncAction(
+            requestOperationListeners
+        );
+        long delay = (randomIntBetween(1, 5));
+
+        FetchSearchPhase fetchPhase = createFetchSearchPhase();
+        searchDfsQueryThenFetchAsyncAction.start();
+        assertEquals(1, testListener.getPhaseCurrent(searchDfsQueryThenFetchAsyncAction.getSearchPhaseName()));
+        TimeUnit.MILLISECONDS.sleep(delay);
+        ShardId shardId = new ShardId(randomAlphaOfLengthBetween(5, 10), randomAlphaOfLength(10), randomInt());
+        SearchShardIterator searchShardIterator = new SearchShardIterator(null, shardId, Collections.emptyList(), OriginalIndices.NONE);
+        searchShardIterator.resetAndSkip();
+
+        searchDfsQueryThenFetchAsyncAction.skipShard(searchShardIterator);
+        searchDfsQueryThenFetchAsyncAction.executeNextPhase(searchDfsQueryThenFetchAsyncAction, fetchPhase);
+
+        assertThat(testListener.getPhaseMetric(searchDfsQueryThenFetchAsyncAction.getSearchPhaseName()), greaterThanOrEqualTo(delay));
+        assertEquals(1, testListener.getPhaseTotal(searchDfsQueryThenFetchAsyncAction.getSearchPhaseName()));
+        assertEquals(0, testListener.getPhaseCurrent(searchDfsQueryThenFetchAsyncAction.getSearchPhaseName()));
+    }
+
+    private SearchDfsQueryThenFetchAsyncAction createSearchDfsQueryThenFetchAsyncAction(
+        List<SearchRequestOperationsListener> searchRequestOperationsListeners
+    ) {
+        SearchPhaseController controller = new SearchPhaseController(
+            writableRegistry(),
+            r -> InternalAggregationTestCase.emptyReduceContextBuilder()
+        );
+        SearchRequest searchRequest = new SearchRequest().allowPartialSearchResults(true);
+        SearchTask task = new SearchTask(0, "n/a", "n/a", () -> "test", null, Collections.emptyMap());
+        Executor executor = OpenSearchExecutors.newDirectExecutorService();
+        SearchShardIterator shards = new SearchShardIterator(null, null, Collections.emptyList(), null);
+        GroupShardsIterator<SearchShardIterator> shardsIter = new GroupShardsIterator<>(List.of(shards));
+        QueryPhaseResultConsumer resultConsumer = new QueryPhaseResultConsumer(
+            searchRequest,
+            executor,
+            new NoopCircuitBreaker(CircuitBreaker.REQUEST),
+            controller,
+            task.getProgressListener(),
+            writableRegistry(),
+            shardsIter.size(),
+            exc -> {}
+        );
+        AtomicReference<Exception> exception = new AtomicReference<>();
+        ActionListener<SearchResponse> listener = ActionListener.wrap(response -> fail("onResponse should not be called"), exception::set);
+        TransportSearchAction.SearchTimeProvider timeProvider = new TransportSearchAction.SearchTimeProvider(
+            0,
+            System.nanoTime(),
+            System::nanoTime
+        );
+        return new SearchDfsQueryThenFetchAsyncAction(
+            logger,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            executor,
+            resultConsumer,
+            searchRequest,
+            listener,
+            shardsIter,
+            timeProvider,
+            null,
+            task,
+            SearchResponse.Clusters.EMPTY,
+            new SearchRequestContext(new SearchRequestOperationsListener.CompositeListener(searchRequestOperationsListeners, logger))
+        );
+    }
+
+    private SearchQueryThenFetchAsyncAction createSearchQueryThenFetchAsyncAction(
+        List<SearchRequestOperationsListener> searchRequestOperationsListeners
+    ) {
+        SearchPhaseController controller = new SearchPhaseController(
+            writableRegistry(),
+            r -> InternalAggregationTestCase.emptyReduceContextBuilder()
+        );
+        SearchRequest searchRequest = new SearchRequest().allowPartialSearchResults(true);
+        SearchTask task = new SearchTask(0, "n/a", "n/a", () -> "test", null, Collections.emptyMap());
+        Executor executor = OpenSearchExecutors.newDirectExecutorService();
+        SearchShardIterator shards = new SearchShardIterator(null, null, Collections.emptyList(), null);
+        GroupShardsIterator<SearchShardIterator> shardsIter = new GroupShardsIterator<>(List.of(shards));
+        QueryPhaseResultConsumer resultConsumer = new QueryPhaseResultConsumer(
+            searchRequest,
+            executor,
+            new NoopCircuitBreaker(CircuitBreaker.REQUEST),
+            controller,
+            task.getProgressListener(),
+            writableRegistry(),
+            shardsIter.size(),
+            exc -> {}
+        );
+        AtomicReference<Exception> exception = new AtomicReference<>();
+        ActionListener<SearchResponse> listener = ActionListener.wrap(response -> fail("onResponse should not be called"), exception::set);
+        TransportSearchAction.SearchTimeProvider timeProvider = new TransportSearchAction.SearchTimeProvider(
+            0,
+            System.nanoTime(),
+            System::nanoTime
+        );
+        return new SearchQueryThenFetchAsyncAction(
+            logger,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            executor,
+            resultConsumer,
+            searchRequest,
+            listener,
+            shardsIter,
+            timeProvider,
+            null,
+            task,
+            SearchResponse.Clusters.EMPTY,
+            new SearchRequestContext(new SearchRequestOperationsListener.CompositeListener(searchRequestOperationsListeners, logger))
+        ) {
+            @Override
+            ShardSearchFailure[] buildShardFailures() {
+                return ShardSearchFailure.EMPTY_ARRAY;
+            }
+
+            @Override
+            public void sendSearchResponse(InternalSearchResponse internalSearchResponse, AtomicArray<SearchPhaseResult> queryResults) {
+                start();
+            }
+        };
+    }
+
+    private FetchSearchPhase createFetchSearchPhase() {
+        SearchPhaseController controller = new SearchPhaseController(
+            writableRegistry(),
+            r -> InternalAggregationTestCase.emptyReduceContextBuilder()
+        );
+        MockSearchPhaseContext mockSearchPhaseContext = new MockSearchPhaseContext(1);
+        QueryPhaseResultConsumer results = controller.newSearchPhaseResults(
+            OpenSearchExecutors.newDirectExecutorService(),
+            new NoopCircuitBreaker(CircuitBreaker.REQUEST),
+            SearchProgressListener.NOOP,
+            mockSearchPhaseContext.getRequest(),
+            1,
+            exc -> {}
+        );
+        return new FetchSearchPhase(
+            results,
+            controller,
+            null,
+            mockSearchPhaseContext,
+            (searchResponse, scrollId) -> new SearchPhase("test") {
+                @Override
+                public void run() {
+                    mockSearchPhaseContext.sendSearchResponse(searchResponse, null);
+                }
+            }
+        );
+    }
+
+    private ExpandSearchPhase createExpandSearchPhase() {
+        MockSearchPhaseContext mockSearchPhaseContext = new MockSearchPhaseContext(1);
+        InternalSearchResponse internalSearchResponse = new InternalSearchResponse(null, null, null, null, false, null, 1);
+        return new ExpandSearchPhase(mockSearchPhaseContext, internalSearchResponse, null);
     }
 
     private static final class PhaseResult extends SearchPhaseResult {

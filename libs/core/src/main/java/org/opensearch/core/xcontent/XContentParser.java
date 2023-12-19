@@ -33,6 +33,7 @@
 package org.opensearch.core.xcontent;
 
 import org.opensearch.common.CheckedFunction;
+import org.opensearch.common.annotation.PublicApi;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -44,7 +45,7 @@ import java.util.function.Supplier;
 
 /**
  * Interface for pull - parsing {@link XContent} see {@code XContentType} for supported types.
- *
+ * <p>
  * To obtain an instance of this class use the following pattern:
  *
  * <pre>
@@ -53,8 +54,9 @@ import java.util.function.Supplier;
  *          NamedXContentRegistry.EMPTY, ParserField."{\"key\" : \"value\"}");
  * </pre>
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public interface XContentParser extends Closeable {
 
     /**
@@ -202,11 +204,11 @@ public interface XContentParser extends Closeable {
     /**
      * Method that can be used to determine whether calling of textCharacters() would be the most efficient way to
      * access textual content for the event parser currently points to.
-     *
+     * <p>
      * Default implementation simply returns false since only actual
      * implementation class has knowledge of its internal buffering
      * state.
-     *
+     * <p>
      * This method shouldn't be used to check if the token contains text or not.
      */
     boolean hasTextCharacters();

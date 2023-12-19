@@ -47,8 +47,19 @@ import org.opensearch.repositories.s3.async.AsyncExecutorContainer;
 import org.opensearch.repositories.s3.async.AsyncTransferManager;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
+
+import static org.opensearch.repositories.s3.S3Repository.BUCKET_SETTING;
+import static org.opensearch.repositories.s3.S3Repository.BUFFER_SIZE_SETTING;
+import static org.opensearch.repositories.s3.S3Repository.BULK_DELETE_SIZE;
+import static org.opensearch.repositories.s3.S3Repository.CANNED_ACL_SETTING;
+import static org.opensearch.repositories.s3.S3Repository.REDIRECT_LARGE_S3_UPLOAD;
+import static org.opensearch.repositories.s3.S3Repository.SERVER_SIDE_ENCRYPTION_SETTING;
+import static org.opensearch.repositories.s3.S3Repository.STORAGE_CLASS_SETTING;
+import static org.opensearch.repositories.s3.S3Repository.UPLOAD_RETRY_ENABLED;
 
 class S3BlobStore implements BlobStore {
 
@@ -58,21 +69,28 @@ class S3BlobStore implements BlobStore {
 
     private final S3AsyncService s3AsyncService;
 
-    private final String bucket;
+    private volatile String bucket;
 
-    private final ByteSizeValue bufferSize;
+    private volatile ByteSizeValue bufferSize;
 
-    private final boolean serverSideEncryption;
+    private volatile boolean redirectLargeUploads;
 
-    private final ObjectCannedACL cannedACL;
+    private volatile boolean uploadRetryEnabled;
 
-    private final StorageClass storageClass;
+    private volatile boolean serverSideEncryption;
 
-    private final RepositoryMetadata repositoryMetadata;
+    private volatile ObjectCannedACL cannedACL;
+
+    private volatile StorageClass storageClass;
+
+    private volatile int bulkDeletesSize;
+
+    private volatile RepositoryMetadata repositoryMetadata;
 
     private final StatsMetricPublisher statsMetricPublisher = new StatsMetricPublisher();
 
     private final AsyncTransferManager asyncTransferManager;
+    private final AsyncExecutorContainer urgentExecutorBuilder;
     private final AsyncExecutorContainer priorityExecutorBuilder;
     private final AsyncExecutorContainer normalExecutorBuilder;
     private final boolean multipartUploadEnabled;
@@ -86,8 +104,10 @@ class S3BlobStore implements BlobStore {
         ByteSizeValue bufferSize,
         String cannedACL,
         String storageClass,
+        int bulkDeletesSize,
         RepositoryMetadata repositoryMetadata,
         AsyncTransferManager asyncTransferManager,
+        AsyncExecutorContainer urgentExecutorBuilder,
         AsyncExecutorContainer priorityExecutorBuilder,
         AsyncExecutorContainer normalExecutorBuilder
     ) {
@@ -99,14 +119,28 @@ class S3BlobStore implements BlobStore {
         this.bufferSize = bufferSize;
         this.cannedACL = initCannedACL(cannedACL);
         this.storageClass = initStorageClass(storageClass);
+        this.bulkDeletesSize = bulkDeletesSize;
         this.repositoryMetadata = repositoryMetadata;
         this.asyncTransferManager = asyncTransferManager;
         this.normalExecutorBuilder = normalExecutorBuilder;
         this.priorityExecutorBuilder = priorityExecutorBuilder;
+        this.urgentExecutorBuilder = urgentExecutorBuilder;
+        // Settings to initialize blobstore with.
+        this.redirectLargeUploads = REDIRECT_LARGE_S3_UPLOAD.get(repositoryMetadata.settings());
+        this.uploadRetryEnabled = UPLOAD_RETRY_ENABLED.get(repositoryMetadata.settings());
     }
 
-    public boolean isMultipartUploadEnabled() {
-        return multipartUploadEnabled;
+    @Override
+    public void reload(RepositoryMetadata repositoryMetadata) {
+        this.repositoryMetadata = repositoryMetadata;
+        this.bucket = BUCKET_SETTING.get(repositoryMetadata.settings());
+        this.serverSideEncryption = SERVER_SIDE_ENCRYPTION_SETTING.get(repositoryMetadata.settings());
+        this.bufferSize = BUFFER_SIZE_SETTING.get(repositoryMetadata.settings());
+        this.cannedACL = initCannedACL(CANNED_ACL_SETTING.get(repositoryMetadata.settings()));
+        this.storageClass = initStorageClass(STORAGE_CLASS_SETTING.get(repositoryMetadata.settings()));
+        this.bulkDeletesSize = BULK_DELETE_SIZE.get(repositoryMetadata.settings());
+        this.redirectLargeUploads = REDIRECT_LARGE_S3_UPLOAD.get(repositoryMetadata.settings());
+        this.uploadRetryEnabled = UPLOAD_RETRY_ENABLED.get(repositoryMetadata.settings());
     }
 
     @Override
@@ -119,11 +153,19 @@ class S3BlobStore implements BlobStore {
     }
 
     public AmazonAsyncS3Reference asyncClientReference() {
-        return s3AsyncService.client(repositoryMetadata, priorityExecutorBuilder, normalExecutorBuilder);
+        return s3AsyncService.client(repositoryMetadata, urgentExecutorBuilder, priorityExecutorBuilder, normalExecutorBuilder);
     }
 
     int getMaxRetries() {
         return service.settings(repositoryMetadata).maxRetries;
+    }
+
+    public boolean isRedirectLargeUploads() {
+        return redirectLargeUploads;
+    }
+
+    public boolean isUploadRetryEnabled() {
+        return uploadRetryEnabled;
     }
 
     public String bucket() {
@@ -136,6 +178,10 @@ class S3BlobStore implements BlobStore {
 
     public long bufferSizeInBytes() {
         return bufferSize.getBytes();
+    }
+
+    public int getBulkDeletesSize() {
+        return bulkDeletesSize;
     }
 
     @Override
@@ -156,6 +202,16 @@ class S3BlobStore implements BlobStore {
     @Override
     public Map<String, Long> stats() {
         return statsMetricPublisher.getStats().toMap();
+    }
+
+    @Override
+    public Map<Metric, Map<String, Long>> extendedStats() {
+        if (statsMetricPublisher.getExtendedStats() == null || statsMetricPublisher.getExtendedStats().isEmpty()) {
+            return Collections.emptyMap();
+        }
+        Map<Metric, Map<String, Long>> extendedStats = new HashMap<>();
+        statsMetricPublisher.getExtendedStats().forEach((k, v) -> extendedStats.put(k, v.toMap()));
+        return extendedStats;
     }
 
     public ObjectCannedACL getCannedACL() {

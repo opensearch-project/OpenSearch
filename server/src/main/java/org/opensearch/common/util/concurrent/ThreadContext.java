@@ -35,6 +35,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.action.support.ContextPreservingActionListener;
 import org.opensearch.client.OriginSettingClient;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.collect.MapBuilder;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.settings.Setting;
@@ -97,8 +98,9 @@ import static org.opensearch.http.HttpTransportSettings.SETTING_HTTP_MAX_WARNING
  *     // previous context is restored on StoredContext#close()
  * </pre>
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public final class ThreadContext implements Writeable {
 
     public static final String PREFIX = "request.headers";
@@ -143,10 +145,10 @@ public final class ThreadContext implements Writeable {
      */
     public StoredContext stashContext() {
         final ThreadContextStruct context = threadLocal.get();
-        /**
-         * X-Opaque-ID should be preserved in a threadContext in order to propagate this across threads.
-         * This is needed so the DeprecationLogger in another thread can see the value of X-Opaque-ID provided by a user.
-         * Otherwise when context is stash, it should be empty.
+        /*
+          X-Opaque-ID should be preserved in a threadContext in order to propagate this across threads.
+          This is needed so the DeprecationLogger in another thread can see the value of X-Opaque-ID provided by a user.
+          Otherwise when context is stash, it should be empty.
          */
 
         ThreadContextStruct threadContextStruct = DEFAULT_CONTEXT.putPersistent(context.persistentHeaders);
@@ -545,9 +547,10 @@ public final class ThreadContext implements Writeable {
     /**
      * A stored context
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
     @FunctionalInterface
+    @PublicApi(since = "1.0.0")
     public interface StoredContext extends AutoCloseable {
         @Override
         void close();

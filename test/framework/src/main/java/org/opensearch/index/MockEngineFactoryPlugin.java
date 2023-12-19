@@ -46,7 +46,7 @@ import java.util.Optional;
 
 /**
  * A plugin to use {@link MockEngineFactory}.
- *
+ * <p>
  * Subclasses may override the reader wrapper used.
  */
 public class MockEngineFactoryPlugin extends Plugin implements EnginePlugin {

@@ -12,6 +12,7 @@ import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.unit.TimeValue;
 
 /**
  * Wrapper class to encapsulate tracing related settings
@@ -27,6 +28,20 @@ public class TelemetrySettings {
         Setting.Property.Dynamic
     );
 
+    public static final Setting<Boolean> TRACER_FEATURE_ENABLED_SETTING = Setting.boolSetting(
+        "telemetry.feature.tracer.enabled",
+        false,
+        Setting.Property.NodeScope,
+        Setting.Property.Final
+    );
+
+    public static final Setting<Boolean> METRICS_FEATURE_ENABLED_SETTING = Setting.boolSetting(
+        "telemetry.feature.metrics.enabled",
+        false,
+        Setting.Property.NodeScope,
+        Setting.Property.Final
+    );
+
     /**
      * Probability of sampler
      */
@@ -39,12 +54,27 @@ public class TelemetrySettings {
         Setting.Property.Dynamic
     );
 
+    /**
+     * metrics publish interval in seconds.
+     */
+    public static final Setting<TimeValue> METRICS_PUBLISH_INTERVAL_SETTING = Setting.timeSetting(
+        "telemetry.otel.metrics.publish.interval",
+        TimeValue.timeValueSeconds(60),
+        Setting.Property.NodeScope,
+        Setting.Property.Final
+    );
+
     private volatile boolean tracingEnabled;
     private volatile double samplingProbability;
+
+    private final boolean tracingFeatureEnabled;
+    private final boolean metricsFeatureEnabled;
 
     public TelemetrySettings(Settings settings, ClusterSettings clusterSettings) {
         this.tracingEnabled = TRACER_ENABLED_SETTING.get(settings);
         this.samplingProbability = TRACER_SAMPLER_PROBABILITY.get(settings);
+        this.tracingFeatureEnabled = TRACER_FEATURE_ENABLED_SETTING.get(settings);
+        this.metricsFeatureEnabled = METRICS_FEATURE_ENABLED_SETTING.get(settings);
 
         clusterSettings.addSettingsUpdateConsumer(TRACER_ENABLED_SETTING, this::setTracingEnabled);
         clusterSettings.addSettingsUpdateConsumer(TRACER_SAMPLER_PROBABILITY, this::setSamplingProbability);
@@ -71,5 +101,13 @@ public class TelemetrySettings {
      */
     public double getSamplingProbability() {
         return samplingProbability;
+    }
+
+    public boolean isTracingFeatureEnabled() {
+        return tracingFeatureEnabled;
+    }
+
+    public boolean isMetricsFeatureEnabled() {
+        return metricsFeatureEnabled;
     }
 }

@@ -461,7 +461,7 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
 
     /**
      * Tests that indices are properly deleted even if there is a cluster-manager transition in between.
-     * Test for https://github.com/elastic/elasticsearch/issues/11665
+     * Test for <a href="https://github.com/elastic/elasticsearch/issues/11665">Elasticsearch issue #11665</a>
      */
     public void testIndicesDeleted() throws Exception {
         final String idxName = "test";

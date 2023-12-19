@@ -37,7 +37,7 @@ import org.opensearch.index.fielddata.MultiGeoPointValues;
 /**
  * Class representing {@link CellValues} whose values are filtered
  * according to whether they are within the specified {@link GeoBoundingBox}.
- *
+ * <p>
  * The specified bounding box is assumed to be bounded.
  *
  * @opensearch.internal

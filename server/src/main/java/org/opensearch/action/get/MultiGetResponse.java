@@ -34,6 +34,7 @@ package org.opensearch.action.get;
 
 import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.ParseField;
 import org.opensearch.core.action.ActionResponse;
 import org.opensearch.core.common.io.stream.StreamInput;
@@ -55,8 +56,9 @@ import java.util.List;
 /**
  * Transport response for a multi get.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class MultiGetResponse extends ActionResponse implements Iterable<MultiGetItemResponse>, ToXContentObject {
 
     private static final ParseField INDEX = new ParseField("_index");
@@ -71,8 +73,9 @@ public class MultiGetResponse extends ActionResponse implements Iterable<MultiGe
     /**
      * Represents a failure.
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public static class Failure implements Writeable, ToXContentObject {
 
         private final String index;

@@ -504,9 +504,9 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
     @Override
     protected Query doToQuery(QueryShardContext context) throws IOException {
         if (from == null && to == null) {
-            /**
-             * Open bounds on both side, we can rewrite to an exists query
-             * if the {@link FieldNamesFieldMapper} is enabled.
+            /*
+              Open bounds on both side, we can rewrite to an exists query
+              if the {@link FieldNamesFieldMapper} is enabled.
              */
             final FieldNamesFieldMapper.FieldNamesFieldType fieldNamesFieldType = (FieldNamesFieldMapper.FieldNamesFieldType) context
                 .getMapperService()

@@ -45,6 +45,13 @@ import java.io.IOException;
  * A {@code SizeUnit} does not maintain size information, but only
  * helps organize and use size representations that may be maintained
  * separately across various contexts.
+ * <p>
+ * It use conventional data storage values (base-2) :
+ * <ul>
+ *     <li>1KB = 1024 bytes</li>
+ *     <li>1MB = 1024KB</li>
+ *     <li> ... </li>
+ * </ul>
  *
  * @opensearch.api
  */

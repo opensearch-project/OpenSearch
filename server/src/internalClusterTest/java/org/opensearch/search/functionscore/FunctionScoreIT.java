@@ -32,10 +32,14 @@
 
 package org.opensearch.search.functionscore;
 
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.common.lucene.search.function.CombineFunction;
 import org.opensearch.common.lucene.search.function.FunctionScoreQuery;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.index.fielddata.ScriptDocValues;
 import org.opensearch.index.query.MatchAllQueryBuilder;
 import org.opensearch.index.query.functionscore.FunctionScoreQueryBuilder.FilterFunctionBuilder;
@@ -45,11 +49,12 @@ import org.opensearch.script.Script;
 import org.opensearch.script.ScriptType;
 import org.opensearch.search.SearchHit;
 import org.opensearch.search.aggregations.bucket.terms.Terms;
-import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.test.ParameterizedOpenSearchIntegTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -63,6 +68,7 @@ import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.opensearch.index.query.QueryBuilders.functionScoreQuery;
 import static org.opensearch.index.query.QueryBuilders.termQuery;
 import static org.opensearch.index.query.functionscore.ScoreFunctionBuilders.scriptFunction;
+import static org.opensearch.search.SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING;
 import static org.opensearch.search.aggregations.AggregationBuilders.terms;
 import static org.opensearch.search.builder.SearchSourceBuilder.searchSource;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
@@ -72,10 +78,27 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
-public class FunctionScoreIT extends OpenSearchIntegTestCase {
+public class FunctionScoreIT extends ParameterizedOpenSearchIntegTestCase {
 
     static final String TYPE = "type";
     static final String INDEX = "index";
+
+    public FunctionScoreIT(Settings dynamicSettings) {
+        super(dynamicSettings);
+    }
+
+    @ParametersFactory
+    public static Collection<Object[]> parameters() {
+        return Arrays.asList(
+            new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), false).build() },
+            new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), true).build() }
+        );
+    }
+
+    @Override
+    protected Settings featureFlagSettings() {
+        return Settings.builder().put(super.featureFlagSettings()).put(FeatureFlags.CONCURRENT_SEGMENT_SEARCH, "true").build();
+    }
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
@@ -103,10 +126,11 @@ public class FunctionScoreIT extends OpenSearchIntegTestCase {
         }
     }
 
-    public void testScriptScoresNested() throws IOException {
+    public void testScriptScoresNested() throws IOException, InterruptedException {
         createIndex(INDEX);
         index(INDEX, TYPE, "1", jsonBuilder().startObject().field("dummy_field", 1).endObject());
         refresh();
+        indexRandomForConcurrentSearch(INDEX);
 
         Script scriptOne = new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "1", Collections.emptyMap());
         Script scriptTwo = new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "get score value", Collections.emptyMap());
@@ -125,10 +149,11 @@ public class FunctionScoreIT extends OpenSearchIntegTestCase {
         assertThat(response.getHits().getAt(0).getScore(), equalTo(1.0f));
     }
 
-    public void testScriptScoresWithAgg() throws IOException {
+    public void testScriptScoresWithAgg() throws IOException, InterruptedException {
         createIndex(INDEX);
         index(INDEX, TYPE, "1", jsonBuilder().startObject().field("dummy_field", 1).endObject());
         refresh();
+        indexRandomForConcurrentSearch(INDEX);
 
         Script script = new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "get score value", Collections.emptyMap());
 
@@ -143,10 +168,11 @@ public class FunctionScoreIT extends OpenSearchIntegTestCase {
         assertThat(((Terms) response.getAggregations().asMap().get("score_agg")).getBuckets().get(0).getDocCount(), is(1L));
     }
 
-    public void testScriptScoresWithAggWithExplain() throws IOException {
+    public void testScriptScoresWithAggWithExplain() throws IOException, InterruptedException {
         createIndex(INDEX);
         index(INDEX, TYPE, "1", jsonBuilder().startObject().field("dummy_field", 1).endObject());
         refresh();
+        indexRandomForConcurrentSearch(INDEX);
 
         Script script = new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "get score value", Collections.emptyMap());
 
@@ -172,7 +198,7 @@ public class FunctionScoreIT extends OpenSearchIntegTestCase {
         assertThat(((Terms) response.getAggregations().asMap().get("score_agg")).getBuckets().get(0).getDocCount(), is(1L));
     }
 
-    public void testMinScoreFunctionScoreBasic() throws IOException {
+    public void testMinScoreFunctionScoreBasic() throws IOException, InterruptedException {
         float score = randomValueOtherThanMany((f) -> Float.compare(f, 0) < 0, OpenSearchTestCase::randomFloat);
         float minScore = randomValueOtherThanMany((f) -> Float.compare(f, 0) < 0, OpenSearchTestCase::randomFloat);
         index(
@@ -184,6 +210,7 @@ public class FunctionScoreIT extends OpenSearchIntegTestCase {
                 .endObject()
         );
         refresh();
+        indexRandomForConcurrentSearch(INDEX);
         ensureYellow();
 
         Script script = new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['random_score']", Collections.emptyMap());
@@ -268,6 +295,7 @@ public class FunctionScoreIT extends OpenSearchIntegTestCase {
         assertAcked(prepareCreate("test"));
         index("test", "testtype", "1", jsonBuilder().startObject().field("text", "test text").endObject());
         refresh();
+        indexRandomForConcurrentSearch("test");
 
         SearchResponse termQuery = client().search(searchRequest().source(searchSource().explain(true).query(termQuery("text", "text"))))
             .get();

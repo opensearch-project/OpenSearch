@@ -8,9 +8,7 @@
 
 package org.opensearch.remotestore;
 
-import org.opensearch.action.admin.cluster.remotestore.restore.RestoreRemoteStoreRequest;
 import org.opensearch.action.index.IndexResponse;
-import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.test.transport.MockTransportService;
@@ -20,7 +18,6 @@ import java.util.Collection;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
-import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
 
 public class BaseRemoteStoreRestoreIT extends RemoteStoreBaseIntegTestCase {
@@ -46,19 +43,10 @@ public class BaseRemoteStoreRestoreIT extends RemoteStoreBaseIntegTestCase {
     }
 
     protected void restore(String... indices) {
-        boolean restoreAllShards = randomBoolean();
-        if (restoreAllShards) {
-            assertAcked(client().admin().indices().prepareClose(indices));
-        }
-        client().admin()
-            .cluster()
-            .restoreRemoteStore(
-                new RestoreRemoteStoreRequest().indices(indices).restoreAllShards(restoreAllShards),
-                PlainActionFuture.newFuture()
-            );
+        restore(randomBoolean(), indices);
     }
 
-    protected void verifyRestoredData(Map<String, Long> indexStats, String indexName) throws Exception {
+    protected void verifyRestoredData(Map<String, Long> indexStats, String indexName, boolean indexMoreData) throws Exception {
         ensureYellowAndNoInitializingShards(indexName);
         ensureGreen(indexName);
         // This is to ensure that shards that were already assigned will get latest count
@@ -68,6 +56,8 @@ public class BaseRemoteStoreRestoreIT extends RemoteStoreBaseIntegTestCase {
             30,
             TimeUnit.SECONDS
         );
+        if (indexMoreData == false) return;
+
         IndexResponse response = indexSingleDoc(indexName);
         if (indexStats.containsKey(MAX_SEQ_NO_TOTAL + "-shard-" + response.getShardId().id())) {
             assertEquals(indexStats.get(MAX_SEQ_NO_TOTAL + "-shard-" + response.getShardId().id()) + 1, response.getSeqNo());
@@ -78,6 +68,10 @@ public class BaseRemoteStoreRestoreIT extends RemoteStoreBaseIntegTestCase {
             30,
             TimeUnit.SECONDS
         );
+    }
+
+    protected void verifyRestoredData(Map<String, Long> indexStats, String indexName) throws Exception {
+        verifyRestoredData(indexStats, indexName, true);
     }
 
     public void prepareCluster(int numClusterManagerNodes, int numDataOnlyNodes, String indices, int replicaCount, int shardCount) {

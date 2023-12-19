@@ -9,6 +9,7 @@
 package org.opensearch.action.admin.cluster.remotestore.stats;
 
 import org.opensearch.action.support.broadcast.BroadcastResponse;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.action.support.DefaultShardOperationFailedException;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.StreamInput;
@@ -25,8 +26,9 @@ import java.util.Map;
 /**
  * Remote Store stats response
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "2.8.0")
 public class RemoteStoreStatsResponse extends BroadcastResponse {
 
     private final RemoteStoreStats[] remoteStoreStats;

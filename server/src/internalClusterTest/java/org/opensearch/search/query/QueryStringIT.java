@@ -32,10 +32,13 @@
 
 package org.opensearch.search.query;
 
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.mapper.MapperService;
@@ -44,18 +47,21 @@ import org.opensearch.index.query.QueryStringQueryBuilder;
 import org.opensearch.search.SearchHit;
 import org.opensearch.search.SearchHits;
 import org.opensearch.search.SearchModule;
-import org.opensearch.test.OpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedOpenSearchIntegTestCase;
 import org.junit.Before;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
 import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.opensearch.index.query.QueryBuilders.queryStringQuery;
+import static org.opensearch.search.SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING;
 import static org.opensearch.test.StreamsUtils.copyToStringFromClasspath;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
@@ -64,9 +70,26 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
-public class QueryStringIT extends OpenSearchIntegTestCase {
+public class QueryStringIT extends ParameterizedOpenSearchIntegTestCase {
 
     private static int CLUSTER_MAX_CLAUSE_COUNT;
+
+    public QueryStringIT(Settings dynamicSettings) {
+        super(dynamicSettings);
+    }
+
+    @ParametersFactory
+    public static Collection<Object[]> parameters() {
+        return Arrays.asList(
+            new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), false).build() },
+            new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), true).build() }
+        );
+    }
+
+    @Override
+    protected Settings featureFlagSettings() {
+        return Settings.builder().put(super.featureFlagSettings()).put(FeatureFlags.CONCURRENT_SEGMENT_SEARCH, "true").build();
+    }
 
     @BeforeClass
     public static void createRandomClusterSetting() {
@@ -163,6 +186,7 @@ public class QueryStringIT extends OpenSearchIntegTestCase {
         String docBody = copyToStringFromClasspath("/org/opensearch/search/query/all-example-document.json");
         reqs.add(client().prepareIndex("test").setId("1").setSource(docBody, MediaTypeRegistry.JSON));
         indexRandom(true, false, reqs);
+        indexRandomForConcurrentSearch("test");
 
         SearchResponse resp = client().prepareSearch("test").setQuery(queryStringQuery("foo")).get();
         assertHits(resp.getHits(), "1");
@@ -202,6 +226,7 @@ public class QueryStringIT extends OpenSearchIntegTestCase {
         reqs.add(client().prepareIndex("test").setId("2").setSource("f1", "bar"));
         reqs.add(client().prepareIndex("test").setId("3").setSource("f1", "foo bar"));
         indexRandom(true, false, reqs);
+        indexRandomForConcurrentSearch("test");
 
         SearchResponse resp = client().prepareSearch("test").setQuery(queryStringQuery("foo")).get();
         assertHits(resp.getHits(), "3");
@@ -222,6 +247,7 @@ public class QueryStringIT extends OpenSearchIntegTestCase {
         indexRequests.add(client().prepareIndex("messages").setId("1").setSource("message", "message: this is a TLS handshake"));
         indexRequests.add(client().prepareIndex("messages").setId("2").setSource("message", "message: this is a tcp handshake"));
         indexRandom(true, false, indexRequests);
+        indexRandomForConcurrentSearch("messages");
 
         SearchResponse response = client().prepareSearch("messages").setQuery(queryStringQuery("/TLS/").defaultField("message")).get();
         assertNoFailures(response);
@@ -259,6 +285,7 @@ public class QueryStringIT extends OpenSearchIntegTestCase {
         List<IndexRequestBuilder> reqs = new ArrayList<>();
         reqs.add(client().prepareIndex("test_1").setId("1").setSource("f1", "foo", "f2", "eggplant"));
         indexRandom(true, false, reqs);
+        indexRandomForConcurrentSearch("test_1");
 
         SearchResponse resp = client().prepareSearch("test_1")
             .setQuery(queryStringQuery("foo eggplant").defaultOperator(Operator.AND))
@@ -351,6 +378,7 @@ public class QueryStringIT extends OpenSearchIntegTestCase {
 
         client().prepareIndex("testindex").setId("1").setSource("field_A0", "foo bar baz").get();
         refresh();
+        indexRandomForConcurrentSearch("testindex");
 
         // single field shouldn't trigger the limit
         doAssertOneHitForQueryString("field_A0:foo");
@@ -442,6 +470,7 @@ public class QueryStringIT extends OpenSearchIntegTestCase {
         List<IndexRequestBuilder> indexRequests = new ArrayList<>();
         indexRequests.add(client().prepareIndex("test").setId("1").setSource("f3", "text", "f2", "one"));
         indexRandom(true, false, indexRequests);
+        indexRandomForConcurrentSearch("test");
 
         // The wildcard field matches aliases for both a text and geo_point field.
         // By default, the geo_point field should be ignored when building the query.

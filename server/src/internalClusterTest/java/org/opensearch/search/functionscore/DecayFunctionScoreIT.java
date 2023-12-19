@@ -32,6 +32,8 @@
 
 package org.opensearch.search.functionscore;
 
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.opensearch.Version;
 import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.action.search.SearchPhaseExecutionException;
@@ -44,6 +46,7 @@ import org.opensearch.common.lucene.search.function.CombineFunction;
 import org.opensearch.common.lucene.search.function.FunctionScoreQuery;
 import org.opensearch.common.lucene.search.function.FunctionScoreQuery.ScoreMode;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.QueryBuilders;
@@ -53,12 +56,14 @@ import org.opensearch.index.query.functionscore.ScoreFunctionBuilders;
 import org.opensearch.search.MultiValueMode;
 import org.opensearch.search.SearchHit;
 import org.opensearch.search.SearchHits;
-import org.opensearch.test.OpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedOpenSearchIntegTestCase;
 import org.opensearch.test.VersionUtils;
 
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
 
@@ -72,6 +77,7 @@ import static org.opensearch.index.query.QueryBuilders.termQuery;
 import static org.opensearch.index.query.functionscore.ScoreFunctionBuilders.exponentialDecayFunction;
 import static org.opensearch.index.query.functionscore.ScoreFunctionBuilders.gaussDecayFunction;
 import static org.opensearch.index.query.functionscore.ScoreFunctionBuilders.linearDecayFunction;
+import static org.opensearch.search.SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING;
 import static org.opensearch.search.builder.SearchSourceBuilder.searchSource;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertNoFailures;
@@ -85,7 +91,24 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
 
-public class DecayFunctionScoreIT extends OpenSearchIntegTestCase {
+public class DecayFunctionScoreIT extends ParameterizedOpenSearchIntegTestCase {
+
+    public DecayFunctionScoreIT(Settings dynamicSettings) {
+        super(dynamicSettings);
+    }
+
+    @ParametersFactory
+    public static Collection<Object[]> parameters() {
+        return Arrays.asList(
+            new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), false).build() },
+            new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), true).build() }
+        );
+    }
+
+    @Override
+    protected Settings featureFlagSettings() {
+        return Settings.builder().put(super.featureFlagSettings()).put(FeatureFlags.CONCURRENT_SEGMENT_SEARCH, "true").build();
+    }
 
     @Override
     protected boolean forbidPrivateIndexSettings() {
@@ -375,6 +398,7 @@ public class DecayFunctionScoreIT extends OpenSearchIntegTestCase {
                 )
         );
         indexRandom(true, false, indexBuilders); // force no dummy docs
+        indexRandomForConcurrentSearch("test");
 
         // Test Gauss
         List<Float> lonlat = new ArrayList<>();
@@ -459,6 +483,7 @@ public class DecayFunctionScoreIT extends OpenSearchIntegTestCase {
             constantScoreQuery(termQuery("test", "value")),
             ScoreFunctionBuilders.weightFactorFunction(randomIntBetween(1, 10))
         );
+        indexRandomForConcurrentSearch("test");
         GeoPoint point = new GeoPoint(20, 11);
         ActionFuture<SearchResponse> response = client().search(
             searchRequest().searchType(SearchType.QUERY_THEN_FETCH)
@@ -512,6 +537,7 @@ public class DecayFunctionScoreIT extends OpenSearchIntegTestCase {
             .setRefreshPolicy(IMMEDIATE)
             .setSource(jsonBuilder().startObject().field("test", "value value").field("num", 1.0).endObject())
             .get();
+        indexRandomForConcurrentSearch("test");
         FunctionScoreQueryBuilder baseQuery = functionScoreQuery(
             constantScoreQuery(termQuery("test", "value")),
             ScoreFunctionBuilders.weightFactorFunction(2)
@@ -631,6 +657,7 @@ public class DecayFunctionScoreIT extends OpenSearchIntegTestCase {
             constantScoreQuery(termQuery("test", "value")).queryName("query1"),
             ScoreFunctionBuilders.weightFactorFunction(2, "weight1")
         );
+        indexRandomForConcurrentSearch("test");
         // decay score should return 0.5 for this function and baseQuery should return 2.0f as it's score
         ActionFuture<SearchResponse> response = client().search(
             searchRequest().searchType(SearchType.QUERY_THEN_FETCH)
@@ -739,6 +766,7 @@ public class DecayFunctionScoreIT extends OpenSearchIntegTestCase {
         ).actionGet();
         refresh();
 
+        indexRandomForConcurrentSearch("test");
         SearchResponse sr = client().search(
             searchRequest().source(
                 searchSource().query(functionScoreQuery(termQuery("test", "value"), gaussDecayFunction("num1", "now", "2d")))
@@ -794,6 +822,7 @@ public class DecayFunctionScoreIT extends OpenSearchIntegTestCase {
         ).actionGet();
 
         refresh();
+        indexRandomForConcurrentSearch("test");
 
         ActionFuture<SearchResponse> response = client().search(
             searchRequest().searchType(SearchType.QUERY_THEN_FETCH)
@@ -870,6 +899,7 @@ public class DecayFunctionScoreIT extends OpenSearchIntegTestCase {
         ).actionGet();
 
         refresh();
+        indexRandomForConcurrentSearch("test");
 
         ActionFuture<SearchResponse> response = client().search(
             searchRequest().searchType(SearchType.QUERY_THEN_FETCH)
@@ -951,6 +981,7 @@ public class DecayFunctionScoreIT extends OpenSearchIntegTestCase {
         List<Float> lonlat = new ArrayList<>();
         lonlat.add(100f);
         lonlat.add(110f);
+        indexRandomForConcurrentSearch("test");
         ActionFuture<SearchResponse> response = client().search(
             searchRequest().searchType(SearchType.QUERY_THEN_FETCH)
                 .source(
@@ -1084,6 +1115,7 @@ public class DecayFunctionScoreIT extends OpenSearchIntegTestCase {
         client().index(indexRequest("test").source(jsonBuilder().startObject().field("test", "value").field("num", 1.0).endObject()))
             .actionGet();
         refresh();
+        indexRandomForConcurrentSearch("test");
         // so, we indexed a string field, but now we try to score a num field
         ActionFuture<SearchResponse> response = client().search(
             searchRequest().searchType(SearchType.QUERY_THEN_FETCH)
@@ -1148,6 +1180,7 @@ public class DecayFunctionScoreIT extends OpenSearchIntegTestCase {
             );
 
         indexRandom(true, doc1, doc2);
+        indexRandomForConcurrentSearch("test");
 
         ActionFuture<SearchResponse> response = client().search(searchRequest().source(searchSource().query(baseQuery)));
         SearchResponse sr = response.actionGet();

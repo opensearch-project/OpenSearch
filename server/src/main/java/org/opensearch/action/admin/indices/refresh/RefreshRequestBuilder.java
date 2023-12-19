@@ -34,14 +34,16 @@ package org.opensearch.action.admin.indices.refresh;
 
 import org.opensearch.action.support.broadcast.BroadcastOperationRequestBuilder;
 import org.opensearch.client.OpenSearchClient;
+import org.opensearch.common.annotation.PublicApi;
 
 /**
  * A refresh request making all operations performed since the last refresh available for search. The (near) real-time
  * capabilities depends on the index engine used. For example, the internal one requires refresh to be called, but by
  * default a refresh is scheduled periodically.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class RefreshRequestBuilder extends BroadcastOperationRequestBuilder<RefreshRequest, RefreshResponse, RefreshRequestBuilder> {
 
     public RefreshRequestBuilder(OpenSearchClient client, RefreshAction action) {

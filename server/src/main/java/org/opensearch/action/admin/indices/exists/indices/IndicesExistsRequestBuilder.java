@@ -34,12 +34,14 @@ package org.opensearch.action.admin.indices.exists.indices;
 
 import org.opensearch.action.support.clustermanager.ClusterManagerNodeReadOperationRequestBuilder;
 import org.opensearch.client.OpenSearchClient;
+import org.opensearch.common.annotation.PublicApi;
 
 /**
  * Transport request builder for checking if an index exists
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class IndicesExistsRequestBuilder extends ClusterManagerNodeReadOperationRequestBuilder<
     IndicesExistsRequest,
     IndicesExistsResponse,

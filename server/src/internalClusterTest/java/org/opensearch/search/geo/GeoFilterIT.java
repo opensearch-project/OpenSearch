@@ -32,6 +32,8 @@
 
 package org.opensearch.search.geo;
 
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.spatial.prefix.RecursivePrefixTreeStrategy;
@@ -54,6 +56,7 @@ import org.opensearch.common.geo.builders.MultiPolygonBuilder;
 import org.opensearch.common.geo.builders.PointBuilder;
 import org.opensearch.common.geo.builders.PolygonBuilder;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.util.io.Streams;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.common.bytes.BytesReference;
@@ -61,7 +64,7 @@ import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.search.SearchHit;
-import org.opensearch.test.OpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedOpenSearchIntegTestCase;
 import org.opensearch.test.VersionUtils;
 import org.junit.BeforeClass;
 
@@ -70,6 +73,8 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
 import java.util.Random;
 import java.util.zip.GZIPInputStream;
 
@@ -84,6 +89,7 @@ import static org.opensearch.index.query.QueryBuilders.geoBoundingBoxQuery;
 import static org.opensearch.index.query.QueryBuilders.geoDistanceQuery;
 import static org.opensearch.index.query.QueryBuilders.matchAllQuery;
 import static org.opensearch.index.query.QueryBuilders.matchQuery;
+import static org.opensearch.search.SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertFirstHit;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.hasId;
@@ -93,7 +99,24 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
-public class GeoFilterIT extends OpenSearchIntegTestCase {
+public class GeoFilterIT extends ParameterizedOpenSearchIntegTestCase {
+
+    public GeoFilterIT(Settings dynamicSettings) {
+        super(dynamicSettings);
+    }
+
+    @ParametersFactory
+    public static Collection<Object[]> parameters() {
+        return Arrays.asList(
+            new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), false).build() },
+            new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), true).build() }
+        );
+    }
+
+    @Override
+    protected Settings featureFlagSettings() {
+        return Settings.builder().put(super.featureFlagSettings()).put(FeatureFlags.CONCURRENT_SEGMENT_SEARCH, "true").build();
+    }
 
     @Override
     protected boolean forbidPrivateIndexSettings() {
@@ -243,6 +266,7 @@ public class GeoFilterIT extends OpenSearchIntegTestCase {
 
         client().prepareIndex("shapes").setId("1").setSource(data, MediaTypeRegistry.JSON).get();
         client().admin().indices().prepareRefresh().get();
+        indexRandomForConcurrentSearch("shapes");
 
         // Point in polygon
         SearchResponse result = client().prepareSearch()
@@ -404,6 +428,7 @@ public class GeoFilterIT extends OpenSearchIntegTestCase {
 
         client().admin().indices().prepareCreate("countries").setSettings(settings).setMapping(xContentBuilder).get();
         BulkResponse bulk = client().prepareBulk().add(bulkAction, 0, bulkAction.length, null, xContentBuilder.contentType()).get();
+        indexRandomForConcurrentSearch("countries");
 
         for (BulkItemResponse item : bulk.getItems()) {
             assertFalse("unable to index data", item.isFailed());

@@ -11,7 +11,6 @@ package org.opensearch.index.query.functionscore;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.queries.function.FunctionValues;
 import org.apache.lucene.queries.function.valuesource.SumTotalTermFreqValueSource;
-import org.apache.lucene.queries.function.valuesource.TFValueSource;
 import org.apache.lucene.queries.function.valuesource.TermFreqValueSource;
 import org.apache.lucene.queries.function.valuesource.TotalTermFreqValueSource;
 import org.apache.lucene.search.IndexSearcher;
@@ -42,15 +41,6 @@ public class TermFrequencyFunctionFactory {
                 TermFreqValueSource termFreqValueSource = new TermFreqValueSource(field, term, field, BytesRefs.toBytesRef(term));
                 FunctionValues functionValues = termFreqValueSource.getValues(null, readerContext);
                 return docId -> functionValues.intVal(docId);
-            case TF:
-                TFValueSource tfValueSource = new TFValueSource(field, term, field, BytesRefs.toBytesRef(term));
-                Map<Object, Object> tfContext = new HashMap<>() {
-                    {
-                        put("searcher", indexSearcher);
-                    }
-                };
-                functionValues = tfValueSource.getValues(tfContext, readerContext);
-                return docId -> functionValues.floatVal(docId);
             case TOTAL_TERM_FREQ:
                 TotalTermFreqValueSource totalTermFreqValueSource = new TotalTermFreqValueSource(
                     field,
@@ -78,7 +68,6 @@ public class TermFrequencyFunctionFactory {
      */
     public enum TermFrequencyFunctionName {
         TERM_FREQ("termFreq"),
-        TF("tf"),
         TOTAL_TERM_FREQ("totalTermFreq"),
         SUM_TOTAL_TERM_FREQ("sumTotalTermFreq");
 

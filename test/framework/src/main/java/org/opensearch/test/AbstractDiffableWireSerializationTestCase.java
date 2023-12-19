@@ -40,8 +40,8 @@ import java.io.IOException;
 
 /**
  * An abstract test case to ensure correct behavior of Diffable.
- *
- * This class can be used as a based class for tests of ClusterState.Custom classes and other classes that support,
+ * <p>
+ * This class can be used as a based class for tests of ClusterState.Custom classes and other classes that support {@link org.opensearch.core.common.io.stream.Writeable } serialization and is diffable.
  * Writable serialization and is diffable.
  */
 public abstract class AbstractDiffableWireSerializationTestCase<T extends Diffable<T>> extends AbstractWireSerializingTestCase<T> {

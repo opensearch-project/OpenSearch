@@ -35,6 +35,7 @@ import org.opensearch.action.search.SearchResponse;
 import org.opensearch.common.geo.GeoBoundingBox;
 import org.opensearch.common.geo.GeoPoint;
 import org.opensearch.common.geo.GeoShapeDocValue;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.geo.search.aggregations.bucket.geogrid.GeoGrid;
 import org.opensearch.geo.search.aggregations.bucket.geogrid.GeoGridAggregationBuilder;
 import org.opensearch.geo.search.aggregations.common.GeoBoundsHelper;
@@ -63,6 +64,10 @@ import static org.hamcrest.Matchers.equalTo;
 public class GeoHashGridIT extends AbstractGeoBucketAggregationIntegTest {
 
     private static final String AGG_NAME = "geohashgrid";
+
+    public GeoHashGridIT(Settings dynamicSettings) {
+        super(dynamicSettings);
+    }
 
     @Override
     public void setupSuiteScopeCluster() throws Exception {

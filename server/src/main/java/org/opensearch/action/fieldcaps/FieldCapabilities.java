@@ -32,6 +32,7 @@
 
 package org.opensearch.action.fieldcaps;
 
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.ParseField;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.StreamInput;
@@ -60,8 +61,9 @@ import java.util.stream.Collectors;
 /**
  * Describes the capabilities of a field optionally merged across multiple indices.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class FieldCapabilities implements Writeable, ToXContentObject {
 
     private static final ParseField TYPE_FIELD = new ParseField("type");
