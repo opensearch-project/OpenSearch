@@ -46,6 +46,7 @@ import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.CancellableThreads;
@@ -91,8 +92,9 @@ import static org.opensearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
  * Note, it can be safely assumed that there will only be a single recovery per shard (index+id) and
  * not several of them (since we don't allocate several shard replicas to the same node).
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class PeerRecoveryTargetService implements IndexEventListener {
 
     private static final Logger logger = LogManager.getLogger(PeerRecoveryTargetService.class);
@@ -245,7 +247,18 @@ public class PeerRecoveryTargetService implements IndexEventListener {
                     indexShard.prepareForIndexRecovery();
                     final boolean hasRemoteSegmentStore = indexShard.indexSettings().isRemoteStoreEnabled();
                     if (hasRemoteSegmentStore) {
-                        indexShard.syncSegmentsFromRemoteSegmentStore(false, recoveryTarget::setLastAccessTime);
+                        // ToDo: This is a temporary mitigation to not fail the peer recovery flow in case there is
+                        // an exception while downloading segments from remote store. For remote backed indexes, we
+                        // plan to revamp this flow so that node-node segment copy will not happen.
+                        // GitHub Issue to track the revamp: https://github.com/opensearch-project/OpenSearch/issues/11331
+                        try {
+                            indexShard.syncSegmentsFromRemoteSegmentStore(false, recoveryTarget::setLastAccessTime);
+                        } catch (Exception e) {
+                            logger.error(
+                                "Exception while downloading segment files from remote store, will continue with peer to peer segment copy",
+                                e
+                            );
+                        }
                     }
                     final boolean hasRemoteTranslog = recoveryTarget.state().getPrimary() == false && indexShard.isRemoteTranslogEnabled();
                     final boolean hasNoTranslog = indexShard.indexSettings().isRemoteSnapshot();

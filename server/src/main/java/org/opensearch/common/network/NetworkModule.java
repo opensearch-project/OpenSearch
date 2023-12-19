@@ -55,6 +55,7 @@ import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.http.HttpServerTransport;
 import org.opensearch.index.shard.PrimaryReplicaSyncer.ResyncTask;
 import org.opensearch.plugins.NetworkPlugin;
+import org.opensearch.ratelimitting.admissioncontrol.enums.AdmissionControlActionType;
 import org.opensearch.tasks.RawTaskStatus;
 import org.opensearch.tasks.Task;
 import org.opensearch.telemetry.tracing.Tracer;
@@ -153,9 +154,6 @@ public final class NetworkModule {
         List<TransportInterceptor> transportInterceptors
     ) {
         this.settings = settings;
-        if (transportInterceptors != null) {
-            transportInterceptors.forEach(this::registerTransportInterceptor);
-        }
         for (NetworkPlugin plugin : plugins) {
             Map<String, Supplier<HttpServerTransport>> httpTransportFactory = plugin.getHttpTransports(
                 settings,
@@ -191,6 +189,10 @@ public final class NetworkModule {
             for (TransportInterceptor interceptor : pluginTransportInterceptors) {
                 registerTransportInterceptor(interceptor);
             }
+        }
+        // Adding last because interceptors are triggered from last to first order from the list
+        if (transportInterceptors != null) {
+            transportInterceptors.forEach(this::registerTransportInterceptor);
         }
     }
 
@@ -295,6 +297,30 @@ public final class NetworkModule {
         ) {
             for (TransportInterceptor interceptor : this.transportInterceptors) {
                 actualHandler = interceptor.interceptHandler(action, executor, forceExecution, actualHandler);
+            }
+            return actualHandler;
+        }
+
+        /**
+         * Intercept the transport action and perform admission control if applicable
+         * @param action The action the request handler is associated with
+         * @param executor The executor the request handling will be executed on
+         * @param forceExecution Force execution on the executor queue and never reject it
+         * @param actualHandler The handler itself that implements the request handling
+         * @param admissionControlActionType Admission control based on resource usage limits of provided action type
+         * @return returns the actual TransportRequestHandler after intercepting all previous handlers
+         * @param <T> transport request type
+         */
+        @Override
+        public <T extends TransportRequest> TransportRequestHandler<T> interceptHandler(
+            String action,
+            String executor,
+            boolean forceExecution,
+            TransportRequestHandler<T> actualHandler,
+            AdmissionControlActionType admissionControlActionType
+        ) {
+            for (TransportInterceptor interceptor : this.transportInterceptors) {
+                actualHandler = interceptor.interceptHandler(action, executor, forceExecution, actualHandler, admissionControlActionType);
             }
             return actualHandler;
         }

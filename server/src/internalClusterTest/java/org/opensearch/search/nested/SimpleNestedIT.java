@@ -126,6 +126,7 @@ public class SimpleNestedIT extends ParameterizedOpenSearchIntegTestCase {
             .get();
 
         waitForRelocation(ClusterHealthStatus.GREEN);
+        indexRandomForConcurrentSearch("test");
         GetResponse getResponse = client().prepareGet("test", "1").get();
         assertThat(getResponse.isExists(), equalTo(true));
         assertThat(getResponse.getSourceAsBytes(), notNullValue());
@@ -569,6 +570,7 @@ public class SimpleNestedIT extends ParameterizedOpenSearchIntegTestCase {
             )
             .get();
         refresh();
+        indexRandomForConcurrentSearch("test");
 
         SearchResponse searchResponse = client().prepareSearch("test")
             .setQuery(QueryBuilders.matchAllQuery())
@@ -677,6 +679,7 @@ public class SimpleNestedIT extends ParameterizedOpenSearchIntegTestCase {
             )
             .get();
         refresh();
+        indexRandomForConcurrentSearch("test");
 
         SearchRequestBuilder searchRequestBuilder = client().prepareSearch("test")
             .setQuery(QueryBuilders.matchAllQuery())
@@ -865,6 +868,7 @@ public class SimpleNestedIT extends ParameterizedOpenSearchIntegTestCase {
             )
             .get();
         refresh();
+        indexRandomForConcurrentSearch("test");
 
         // access id = 1, read, max value, asc, should use grault and quxx
         SearchResponse searchResponse = client().prepareSearch()
@@ -970,10 +974,6 @@ public class SimpleNestedIT extends ParameterizedOpenSearchIntegTestCase {
 
     // https://github.com/elastic/elasticsearch/issues/31554
     public void testLeakingSortValues() throws Exception {
-        assumeFalse(
-            "Concurrent search case muted pending fix: https://github.com/opensearch-project/OpenSearch/issues/11065",
-            internalCluster().clusterService().getClusterSettings().get(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING)
-        );
         assertAcked(
             prepareCreate("test").setSettings(Settings.builder().put("number_of_shards", 1))
                 .setMapping(
@@ -1222,6 +1222,7 @@ public class SimpleNestedIT extends ParameterizedOpenSearchIntegTestCase {
             )
             .get();
         refresh();
+        indexRandomForConcurrentSearch("test");
 
         // Without nested filter
         SearchResponse searchResponse = client().prepareSearch()
@@ -1602,6 +1603,7 @@ public class SimpleNestedIT extends ParameterizedOpenSearchIntegTestCase {
             .get();
         assertTrue(indexResponse2.getShardInfo().getSuccessful() > 0);
         refresh();
+        indexRandomForConcurrentSearch("test");
 
         SearchResponse searchResponse = client().prepareSearch("test")
             .addSort(SortBuilders.fieldSort("users.first").setNestedPath("users").order(SortOrder.ASC))

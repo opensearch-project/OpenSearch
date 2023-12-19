@@ -32,6 +32,7 @@
 
 package org.opensearch.index.analysis;
 
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
@@ -48,8 +49,9 @@ import java.util.Objects;
 /**
  * Provides the name and settings for an analyzer
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class NameOrDefinition implements Writeable, ToXContentFragment {
     // exactly one of these two members is not null
     public final String name;

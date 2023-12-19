@@ -32,14 +32,17 @@
 
 package org.opensearch.action;
 
+import org.opensearch.common.annotation.PublicApi;
+
 /**
  * Needs to be implemented by all {@link org.opensearch.action.ActionRequest} subclasses that relate to
  * one or more indices and one or more aliases. Meant to be used for aliases management requests (e.g. add/remove alias,
  * get aliases) that hold aliases and indices in separate fields.
  * Allows to retrieve which indices and aliases the action relates to.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public interface AliasesRequest extends IndicesRequest.Replaceable {
 
     /**

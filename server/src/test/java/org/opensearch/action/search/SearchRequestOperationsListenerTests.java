@@ -34,7 +34,7 @@ public class SearchRequestOperationsListenerTests extends OpenSearchTestCase {
             }
 
             @Override
-            public void onPhaseEnd(SearchPhaseContext context) {
+            public void onPhaseEnd(SearchPhaseContext context, SearchRequestContext searchRequestContext) {
                 searchPhaseMap.get(context.getCurrentPhase().getSearchPhaseName()).current.dec();
                 searchPhaseMap.get(context.getCurrentPhase().getSearchPhaseName()).total.inc();
             }

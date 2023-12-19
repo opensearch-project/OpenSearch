@@ -34,6 +34,7 @@ package org.opensearch.action.admin.indices.alias;
 
 import org.opensearch.OpenSearchGenerationException;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.ParseField;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.bytes.BytesArray;
@@ -54,8 +55,9 @@ import java.util.Map;
 /**
  * Represents an alias, to be associated with an index
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class Alias implements Writeable, ToXContentFragment {
 
     private static final ParseField FILTER = new ParseField("filter");

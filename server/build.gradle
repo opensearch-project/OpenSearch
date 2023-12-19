@@ -47,7 +47,7 @@ publishing {
 }
 
 base {
-  archivesBaseName = 'opensearch'
+  archivesName = 'opensearch'
 }
 
 sourceSets {
@@ -147,6 +147,7 @@ dependencies {
   api "org.apache.logging.log4j:log4j-jul:${versions.log4j}"
   api "org.apache.logging.log4j:log4j-core:${versions.log4j}", optional
   annotationProcessor "org.apache.logging.log4j:log4j-core:${versions.log4j}"
+  annotationProcessor project(':libs:opensearch-common')
 
   // jna
   api "net.java.dev.jna:jna:${versions.jna}"
@@ -178,7 +179,8 @@ tasks.withType(JavaCompile).configureEach {
 }
 
 compileJava {
-  options.compilerArgs += ['-processor', 'org.apache.logging.log4j.core.config.plugins.processor.PluginProcessor']
+  options.compilerArgs += ['-processor', ['org.apache.logging.log4j.core.config.plugins.processor.PluginProcessor',
+    'org.opensearch.common.annotation.processor.ApiAnnotationProcessor'].join(','), '-AcontinueOnFailingChecks']
 }
 
 tasks.named("internalClusterTest").configure {
@@ -403,6 +405,7 @@ tasks.named("licenseHeaders").configure {
 }
 
 tasks.test {
+    environment "node.roles.test", "[]"
     if (BuildParams.runtimeJavaVersion > JavaVersion.VERSION_1_8) {
         jvmArgs += ["--add-opens", "java.base/java.nio.file=ALL-UNNAMED"]
     }

@@ -22,13 +22,6 @@ import java.util.Map;
  */
 public interface Processor {
     /**
-     * Processor configuration key to let the factory know the context for pipeline creation.
-     * <p>
-     * See {@link PipelineSource}.
-     */
-    String PIPELINE_SOURCE = "pipeline_source";
-
-    /**
      * Gets the type of processor
      */
     String getType();

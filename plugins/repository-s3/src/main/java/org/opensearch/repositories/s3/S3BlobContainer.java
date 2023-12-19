@@ -91,6 +91,7 @@ import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.repositories.s3.async.UploadRequest;
 import org.opensearch.repositories.s3.utils.HttpRangeUtils;
 
+import java.io.BufferedInputStream;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -188,10 +189,38 @@ class S3BlobContainer extends AbstractBlobContainer implements AsyncMultiStreamB
             writeContext.getWritePriority(),
             writeContext.getUploadFinalizer(),
             writeContext.doRemoteDataIntegrityCheck(),
-            writeContext.getExpectedChecksum()
+            writeContext.getExpectedChecksum(),
+            blobStore.isUploadRetryEnabled()
         );
         try {
-            long partSize = blobStore.getAsyncTransferManager().calculateOptimalPartSize(writeContext.getFileSize());
+            if (uploadRequest.getContentLength() > ByteSizeUnit.GB.toBytes(10) && blobStore.isRedirectLargeUploads()) {
+                StreamContext streamContext = SocketAccess.doPrivileged(
+                    () -> writeContext.getStreamProvider(uploadRequest.getContentLength())
+                );
+                InputStreamContainer inputStream = streamContext.provideStream(0);
+                try {
+                    executeMultipartUpload(
+                        blobStore,
+                        uploadRequest.getKey(),
+                        inputStream.getInputStream(),
+                        uploadRequest.getContentLength()
+                    );
+                    completionListener.onResponse(null);
+                } catch (Exception ex) {
+                    logger.error(
+                        () -> new ParameterizedMessage(
+                            "Failed to upload large file {} of size {} ",
+                            uploadRequest.getKey(),
+                            uploadRequest.getContentLength()
+                        ),
+                        ex
+                    );
+                    completionListener.onFailure(ex);
+                }
+                return;
+            }
+            long partSize = blobStore.getAsyncTransferManager()
+                .calculateOptimalPartSize(writeContext.getFileSize(), writeContext.getWritePriority(), blobStore.isUploadRetryEnabled());
             StreamContext streamContext = SocketAccess.doPrivileged(() -> writeContext.getStreamProvider(partSize));
             try (AmazonAsyncS3Reference amazonS3Reference = SocketAccess.doPrivileged(blobStore::asyncClientReference)) {
 
@@ -537,8 +566,14 @@ class S3BlobContainer extends AbstractBlobContainer implements AsyncMultiStreamB
 
         PutObjectRequest putObjectRequest = putObjectRequestBuilder.build();
         try (AmazonS3Reference clientReference = blobStore.clientReference()) {
+            final InputStream requestInputStream;
+            if (blobStore.isUploadRetryEnabled()) {
+                requestInputStream = new BufferedInputStream(input, (int) (blobSize + 1));
+            } else {
+                requestInputStream = input;
+            }
             SocketAccess.doPrivilegedVoid(
-                () -> clientReference.get().putObject(putObjectRequest, RequestBody.fromInputStream(input, blobSize))
+                () -> clientReference.get().putObject(putObjectRequest, RequestBody.fromInputStream(requestInputStream, blobSize))
             );
         } catch (final SdkException e) {
             throw new IOException("Unable to upload object [" + blobName + "] using a single upload", e);
@@ -578,6 +613,13 @@ class S3BlobContainer extends AbstractBlobContainer implements AsyncMultiStreamB
             createMultipartUploadRequestBuilder.serverSideEncryption(ServerSideEncryption.AES256);
         }
 
+        final InputStream requestInputStream;
+        if (blobStore.isUploadRetryEnabled()) {
+            requestInputStream = new BufferedInputStream(input, (int) (partSize + 1));
+        } else {
+            requestInputStream = input;
+        }
+
         CreateMultipartUploadRequest createMultipartUploadRequest = createMultipartUploadRequestBuilder.build();
         try (AmazonS3Reference clientReference = blobStore.clientReference()) {
             uploadId.set(
@@ -601,10 +643,9 @@ class S3BlobContainer extends AbstractBlobContainer implements AsyncMultiStreamB
                     .build();
 
                 bytesCount += uploadPartRequest.contentLength();
-
                 final UploadPartResponse uploadResponse = SocketAccess.doPrivileged(
                     () -> clientReference.get()
-                        .uploadPart(uploadPartRequest, RequestBody.fromInputStream(input, uploadPartRequest.contentLength()))
+                        .uploadPart(uploadPartRequest, RequestBody.fromInputStream(requestInputStream, uploadPartRequest.contentLength()))
                 );
                 parts.add(CompletedPart.builder().partNumber(uploadPartRequest.partNumber()).eTag(uploadResponse.eTag()).build());
             }

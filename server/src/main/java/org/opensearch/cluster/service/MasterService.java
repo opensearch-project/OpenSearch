@@ -54,6 +54,7 @@ import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.routing.RoutingTable;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.Priority;
+import org.opensearch.common.annotation.DeprecatedApi;
 import org.opensearch.common.lifecycle.AbstractLifecycleComponent;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
@@ -87,10 +88,11 @@ import static org.opensearch.common.util.concurrent.OpenSearchExecutors.daemonTh
 /**
  * Main Master Node Service
  *
- * @opensearch.internal
+ * @opensearch.api
  * @deprecated As of 2.2, because supporting inclusive language, replaced by {@link ClusterManagerService}.
  */
 @Deprecated
+@DeprecatedApi(since = "2.2.0")
 public class MasterService extends AbstractLifecycleComponent {
     private static final Logger logger = LogManager.getLogger(MasterService.class);
 

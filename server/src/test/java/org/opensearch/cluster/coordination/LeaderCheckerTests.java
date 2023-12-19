@@ -38,6 +38,7 @@ import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.coordination.LeaderChecker.LeaderCheckRequest;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
+import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.transport.TransportResponse;
@@ -117,6 +118,7 @@ public class LeaderCheckerTests extends OpenSearchTestCase {
         final AtomicBoolean allResponsesFail = new AtomicBoolean();
 
         final Settings settings = settingsBuilder.build();
+        final ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         logger.info("--> using {}", settings);
 
         final DeterministicTaskQueue deterministicTaskQueue = new DeterministicTaskQueue(settings, random());
@@ -174,7 +176,7 @@ public class LeaderCheckerTests extends OpenSearchTestCase {
 
         final AtomicBoolean leaderFailed = new AtomicBoolean();
 
-        final LeaderChecker leaderChecker = new LeaderChecker(settings, transportService, e -> {
+        final LeaderChecker leaderChecker = new LeaderChecker(settings, clusterSettings, transportService, e -> {
             assertThat(e.getMessage(), matchesRegex("node \\[.*\\] failed \\[[1-9][0-9]*\\] consecutive checks"));
             assertTrue(leaderFailed.compareAndSet(false, true));
         }, () -> new StatusInfo(StatusInfo.Status.HEALTHY, "healthy-info"));
@@ -242,6 +244,7 @@ public class LeaderCheckerTests extends OpenSearchTestCase {
         final Response[] responseHolder = new Response[] { Response.SUCCESS };
 
         final Settings settings = Settings.builder().put(NODE_NAME_SETTING.getKey(), localNode.getId()).build();
+        final ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         final DeterministicTaskQueue deterministicTaskQueue = new DeterministicTaskQueue(settings, random());
         final MockTransport mockTransport = new MockTransport() {
             @Override
@@ -290,7 +293,7 @@ public class LeaderCheckerTests extends OpenSearchTestCase {
         transportService.acceptIncomingRequests();
 
         final AtomicBoolean leaderFailed = new AtomicBoolean();
-        final LeaderChecker leaderChecker = new LeaderChecker(settings, transportService, e -> {
+        final LeaderChecker leaderChecker = new LeaderChecker(settings, clusterSettings, transportService, e -> {
             assertThat(e.getMessage(), anyOf(endsWith("disconnected"), endsWith("disconnected during check")));
             assertTrue(leaderFailed.compareAndSet(false, true));
         }, () -> new StatusInfo(StatusInfo.Status.HEALTHY, "healthy-info"));
@@ -357,6 +360,7 @@ public class LeaderCheckerTests extends OpenSearchTestCase {
         final Response[] responseHolder = new Response[] { Response.SUCCESS };
 
         final Settings settings = Settings.builder().put(NODE_NAME_SETTING.getKey(), localNode.getId()).build();
+        final ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         final DeterministicTaskQueue deterministicTaskQueue = new DeterministicTaskQueue(settings, random());
         final MockTransport mockTransport = new MockTransport() {
             @Override
@@ -403,7 +407,7 @@ public class LeaderCheckerTests extends OpenSearchTestCase {
         transportService.acceptIncomingRequests();
 
         final AtomicBoolean leaderFailed = new AtomicBoolean();
-        final LeaderChecker leaderChecker = new LeaderChecker(settings, transportService, e -> {
+        final LeaderChecker leaderChecker = new LeaderChecker(settings, clusterSettings, transportService, e -> {
             assertThat(e.getMessage(), endsWith("failed health checks"));
             assertTrue(leaderFailed.compareAndSet(false, true));
         }, () -> new StatusInfo(StatusInfo.Status.HEALTHY, "healthy-info"));
@@ -432,6 +436,7 @@ public class LeaderCheckerTests extends OpenSearchTestCase {
         final DiscoveryNode localNode = new DiscoveryNode("local-node", buildNewFakeTransportAddress(), Version.CURRENT);
         final DiscoveryNode otherNode = new DiscoveryNode("other-node", buildNewFakeTransportAddress(), Version.CURRENT);
         final Settings settings = Settings.builder().put(NODE_NAME_SETTING.getKey(), localNode.getId()).build();
+        final ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         final DeterministicTaskQueue deterministicTaskQueue = new DeterministicTaskQueue(settings, random());
         final CapturingTransport capturingTransport = new CapturingTransport();
         AtomicReference<StatusInfo> nodeHealthServiceStatus = new AtomicReference<>(new StatusInfo(UNHEALTHY, "unhealthy-info"));
@@ -450,6 +455,7 @@ public class LeaderCheckerTests extends OpenSearchTestCase {
 
         final LeaderChecker leaderChecker = new LeaderChecker(
             settings,
+            clusterSettings,
             transportService,
             e -> fail("shouldn't be checking anything"),
             () -> nodeHealthServiceStatus.get()

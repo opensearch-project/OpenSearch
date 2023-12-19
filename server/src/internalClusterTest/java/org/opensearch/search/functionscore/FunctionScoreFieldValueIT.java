@@ -80,7 +80,7 @@ public class FunctionScoreFieldValueIT extends ParameterizedOpenSearchIntegTestC
         return Settings.builder().put(super.featureFlagSettings()).put(FeatureFlags.CONCURRENT_SEGMENT_SEARCH, "true").build();
     }
 
-    public void testFieldValueFactor() throws IOException {
+    public void testFieldValueFactor() throws IOException, InterruptedException {
         assertAcked(
             prepareCreate("test").setMapping(
                 jsonBuilder().startObject()
@@ -99,8 +99,8 @@ public class FunctionScoreFieldValueIT extends ParameterizedOpenSearchIntegTestC
         client().prepareIndex("test").setId("1").setSource("test", 5, "body", "foo").get();
         client().prepareIndex("test").setId("2").setSource("test", 17, "body", "foo").get();
         client().prepareIndex("test").setId("3").setSource("body", "bar").get();
-
         refresh();
+        indexRandomForConcurrentSearch("test");
 
         // document 2 scores higher because 17 > 5
         SearchResponse response = client().prepareSearch("test")
@@ -189,7 +189,7 @@ public class FunctionScoreFieldValueIT extends ParameterizedOpenSearchIntegTestC
         }
     }
 
-    public void testFieldValueFactorExplain() throws IOException {
+    public void testFieldValueFactorExplain() throws IOException, InterruptedException {
         assertAcked(
             prepareCreate("test").setMapping(
                 jsonBuilder().startObject()
@@ -210,6 +210,7 @@ public class FunctionScoreFieldValueIT extends ParameterizedOpenSearchIntegTestC
         client().prepareIndex("test").setId("3").setSource("body", "bar").get();
 
         refresh();
+        indexRandomForConcurrentSearch("test");
 
         // document 2 scores higher because 17 > 5
         final String functionName = "func1";

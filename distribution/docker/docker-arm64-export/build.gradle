@@ -11,3 +11,5 @@
 
 // This file is intentionally blank. All configuration of the
 // export is done in the parent project.
+
+// See please https://docs.gradle.org/8.5/userguide/upgrading_version_8.html#deprecated_missing_project_directory
