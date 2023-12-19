@@ -36,6 +36,7 @@ import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
 import org.opensearch.common.Booleans;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.ParseField;
@@ -91,8 +92,9 @@ import static org.opensearch.search.internal.SearchContext.TRACK_TOTAL_HITS_DISA
  *
  * @see org.opensearch.action.search.SearchRequest#source(SearchSourceBuilder)
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public final class SearchSourceBuilder implements Writeable, ToXContentObject, Rewriteable<SearchSourceBuilder> {
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(SearchSourceBuilder.class);
 
@@ -1493,8 +1495,9 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
     /**
      * Boosts on an index
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public static class IndexBoost implements Writeable, ToXContentObject {
         private final String index;
         private final float boost;
@@ -1594,8 +1597,9 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
     /**
      * Script field
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public static class ScriptField implements Writeable, ToXContentFragment {
 
         private final boolean ignoreFailure;

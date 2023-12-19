@@ -32,6 +32,7 @@
 
 package org.opensearch.ingest.common;
 
+import org.opensearch.core.common.Strings;
 import org.opensearch.ingest.AbstractProcessor;
 import org.opensearch.ingest.ConfigurationUtils;
 import org.opensearch.ingest.IngestDocument;
@@ -80,9 +81,12 @@ public final class RenameProcessor extends AbstractProcessor {
     @Override
     public IngestDocument execute(IngestDocument document) {
         String path = document.renderTemplate(field);
-        if (document.hasField(path, true) == false) {
+        final boolean fieldPathIsNullOrEmpty = Strings.isNullOrEmpty(path);
+        if (fieldPathIsNullOrEmpty || document.hasField(path, true) == false) {
             if (ignoreMissing) {
                 return document;
+            } else if (fieldPathIsNullOrEmpty) {
+                throw new IllegalArgumentException("field path cannot be null nor empty");
             } else {
                 throw new IllegalArgumentException("field [" + path + "] doesn't exist");
             }

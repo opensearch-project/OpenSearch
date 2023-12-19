@@ -56,6 +56,7 @@ import org.opensearch.nio.NioSelector;
 import org.opensearch.nio.NioSocketChannel;
 import org.opensearch.nio.ServerChannelContext;
 import org.opensearch.nio.SocketChannelContext;
+import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.nio.NioGroupFactory;
 import org.opensearch.transport.nio.PageAllocator;
@@ -106,9 +107,10 @@ public class NioHttpServerTransport extends AbstractHttpServerTransport {
         NamedXContentRegistry xContentRegistry,
         Dispatcher dispatcher,
         NioGroupFactory nioGroupFactory,
-        ClusterSettings clusterSettings
+        ClusterSettings clusterSettings,
+        Tracer tracer
     ) {
-        super(settings, networkService, bigArrays, threadPool, xContentRegistry, dispatcher, clusterSettings);
+        super(settings, networkService, bigArrays, threadPool, xContentRegistry, dispatcher, clusterSettings, tracer);
         this.pageAllocator = new PageAllocator(pageCacheRecycler);
         this.nioGroupFactory = nioGroupFactory;
 

@@ -48,10 +48,14 @@ public class TracerFactoryTests extends OpenSearchTestCase {
         Tracer tracer = tracerFactory.getTracer();
 
         assertTrue(tracer instanceof NoopTracer);
-        assertTrue(tracer.startSpan("foo") == NoopSpan.INSTANCE);
-        assertTrue(tracer.startScopedSpan(new SpanCreationContext("foo", Attributes.EMPTY)) == ScopedSpan.NO_OP);
-        assertTrue(tracer.startScopedSpan(new SpanCreationContext("foo", Attributes.EMPTY)) == ScopedSpan.NO_OP);
-        assertTrue(tracer.withSpanInScope(tracer.startSpan("foo")) == SpanScope.NO_OP);
+        assertTrue(tracer.startSpan(SpanCreationContext.internal().name("foo").attributes(Attributes.EMPTY)) == NoopSpan.INSTANCE);
+        assertTrue(tracer.startScopedSpan(SpanCreationContext.internal().name("foo").attributes(Attributes.EMPTY)) == ScopedSpan.NO_OP);
+        assertTrue(tracer.startScopedSpan(SpanCreationContext.internal().name("foo").attributes(Attributes.EMPTY)) == ScopedSpan.NO_OP);
+        assertTrue(
+            tracer.withSpanInScope(
+                tracer.startSpan(SpanCreationContext.internal().name("foo").attributes(Attributes.EMPTY))
+            ) == SpanScope.NO_OP
+        );
     }
 
     public void testGetTracerWithUnavailableTracingTelemetry() {
@@ -64,7 +68,7 @@ public class TracerFactoryTests extends OpenSearchTestCase {
         Tracer tracer = tracerFactory.getTracer();
 
         assertTrue(tracer instanceof NoopTracer);
-        assertTrue(tracer.startScopedSpan(new SpanCreationContext("foo", Attributes.EMPTY)) == ScopedSpan.NO_OP);
+        assertTrue(tracer.startScopedSpan(SpanCreationContext.internal().name("foo").attributes(Attributes.EMPTY)) == ScopedSpan.NO_OP);
     }
 
     public void testGetTracerWithAvailableTracingTelemetryReturnsWrappedTracer() {
@@ -76,6 +80,18 @@ public class TracerFactoryTests extends OpenSearchTestCase {
 
         Tracer tracer = tracerFactory.getTracer();
         assertTrue(tracer instanceof WrappedTracer);
+
+    }
+
+    public void testNullTracer() {
+        Settings settings = Settings.builder().put(TelemetrySettings.TRACER_FEATURE_ENABLED_SETTING.getKey(), false).build();
+        TelemetrySettings telemetrySettings = new TelemetrySettings(settings, new ClusterSettings(settings, getClusterSettings()));
+        Telemetry mockTelemetry = mock(Telemetry.class);
+        when(mockTelemetry.getTracingTelemetry()).thenReturn(null);
+        tracerFactory = new TracerFactory(telemetrySettings, Optional.of(mockTelemetry), new ThreadContext(Settings.EMPTY));
+
+        Tracer tracer = tracerFactory.getTracer();
+        assertTrue(tracer instanceof NoopTracer);
 
     }
 

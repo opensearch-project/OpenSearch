@@ -86,6 +86,10 @@ import static org.hamcrest.core.IsNull.notNullValue;
 @OpenSearchIntegTestCase.SuiteScopeTestCase
 public class LongTermsIT extends AbstractTermsTestCase {
 
+    public LongTermsIT(Settings dynamicSettings) {
+        super(dynamicSettings);
+    }
+
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Collections.singleton(CustomScriptPlugin.class);
@@ -1054,5 +1058,6 @@ public class LongTermsIT extends AbstractTermsTestCase {
                 .getMissCount(),
             equalTo(2L)
         );
+        internalCluster().wipeIndices("cache_test_idx");
     }
 }

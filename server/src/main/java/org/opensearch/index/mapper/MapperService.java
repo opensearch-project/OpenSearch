@@ -38,6 +38,7 @@ import org.apache.lucene.analysis.DelegatingAnalyzerWrapper;
 import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.MappingMetadata;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.regex.Regex;
@@ -89,8 +90,9 @@ import static java.util.Collections.unmodifiableMap;
 /**
  * The core field mapping service
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class MapperService extends AbstractIndexComponent implements Closeable {
 
     /**
@@ -98,6 +100,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
      *
      * @opensearch.internal
      */
+    @PublicApi(since = "1.0.0")
     public enum MergeReason {
         /**
          * Pre-flight check before sending a mapping update to the cluster-manager
@@ -172,9 +175,6 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     );
 
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(MapperService.class);
-    static final String DEFAULT_MAPPING_ERROR_MESSAGE = "[_default_] mappings are not allowed on new indices and should no "
-        + "longer be used. See [https://www.elastic.co/guide/en/elasticsearch/reference/current/breaking-changes-7.0.html"
-        + "#default-mapping-not-allowed] for more information.";
 
     private final IndexAnalyzers indexAnalyzers;
 

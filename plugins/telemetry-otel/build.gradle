@@ -28,9 +28,16 @@ dependencies {
   api "io.opentelemetry:opentelemetry-sdk-trace:${versions.opentelemetry}"
   api "io.opentelemetry:opentelemetry-sdk-metrics:${versions.opentelemetry}"
   api "io.opentelemetry:opentelemetry-exporter-logging:${versions.opentelemetry}"
-  api "io.opentelemetry:opentelemetry-semconv:${versions.opentelemetry}-alpha"
-  api "io.opentelemetry:opentelemetry-sdk-logs:${versions.opentelemetry}-alpha"
-  api "io.opentelemetry:opentelemetry-api-logs:${versions.opentelemetry}-alpha"
+  api "io.opentelemetry.semconv:opentelemetry-semconv:${versions.opentelemetrysemconv}"
+  api "io.opentelemetry:opentelemetry-sdk-logs:${versions.opentelemetry}"
+  api "io.opentelemetry:opentelemetry-exporter-otlp:${versions.opentelemetry}"
+  api "io.opentelemetry:opentelemetry-exporter-common:${versions.opentelemetry}"
+  api "io.opentelemetry:opentelemetry-exporter-otlp-common:${versions.opentelemetry}"
+  runtimeOnly "org.jetbrains.kotlin:kotlin-stdlib:${versions.kotlin}"
+  runtimeOnly "com.squareup.okhttp3:okhttp:4.11.0"
+  runtimeOnly "com.squareup.okio:okio-jvm:3.5.0"
+  runtimeOnly "io.opentelemetry:opentelemetry-exporter-sender-okhttp:${versions.opentelemetry}"
+  api "io.opentelemetry:opentelemetry-extension-incubator:${versions.opentelemetry}-alpha"
   testImplementation "io.opentelemetry:opentelemetry-sdk-testing:${versions.opentelemetry}"
 }
 
@@ -45,16 +52,43 @@ thirdPartyAudit {
   )
 
   ignoreMissingClasses(
+    'android.net.http.X509TrustManagerExtensions',
+    'android.net.ssl.SSLSockets',
+    'android.os.Build$VERSION',
+    'android.security.NetworkSecurityPolicy',
+    'android.util.Log',
+    'com.google.common.io.ByteStreams',
+    'com.google.common.util.concurrent.ListenableFuture',
+    'io.grpc.CallOptions',
+    'io.grpc.Channel',
+    'io.grpc.Drainable',
+    'io.grpc.KnownLength',
+    'io.grpc.ManagedChannel',
+    'io.grpc.MethodDescriptor',
+    'io.grpc.MethodDescriptor$Builder',
+    'io.grpc.MethodDescriptor$Marshaller',
+    'io.grpc.MethodDescriptor$MethodType',
+    'io.grpc.stub.AbstractFutureStub',
+    'io.grpc.stub.AbstractStub',
+    'io.grpc.stub.ClientCalls',
+    'org.bouncycastle.jsse.BCSSLParameters',
+    'org.bouncycastle.jsse.BCSSLSocket',
+    'org.conscrypt.Conscrypt',
+    'org.conscrypt.Conscrypt$Version',
+    'org.conscrypt.ConscryptHostnameVerifier',
+    'org.openjsse.javax.net.ssl.SSLParameters',
+    'org.openjsse.javax.net.ssl.SSLSocket',
+    'io.opentelemetry.api.events.EventBuilder',
     'io.opentelemetry.api.events.EventEmitter',
     'io.opentelemetry.api.events.EventEmitterBuilder',
     'io.opentelemetry.api.events.EventEmitterProvider',
-    'io.opentelemetry.extension.incubator.metrics.ExtendedDoubleHistogramBuilder',
-    'io.opentelemetry.extension.incubator.metrics.ExtendedLongHistogramBuilder',
-    'io.opentelemetry.extension.incubator.metrics.HistogramAdviceConfigurer',
     'io.opentelemetry.sdk.autoconfigure.spi.ConfigProperties',
     'io.opentelemetry.sdk.autoconfigure.spi.logs.ConfigurableLogRecordExporterProvider',
     'io.opentelemetry.sdk.autoconfigure.spi.metrics.ConfigurableMetricExporterProvider',
-    'io.opentelemetry.sdk.autoconfigure.spi.traces.ConfigurableSpanExporterProvider'
+    'io.opentelemetry.sdk.autoconfigure.spi.traces.ConfigurableSpanExporterProvider',
+    'kotlin.io.path.PathsKt',
+    'io.opentelemetry.sdk.autoconfigure.spi.traces.ConfigurableSpanExporterProvider',
+    'io.opentelemetry.sdk.autoconfigure.spi.internal.AutoConfigureListener'
   )
 }
 

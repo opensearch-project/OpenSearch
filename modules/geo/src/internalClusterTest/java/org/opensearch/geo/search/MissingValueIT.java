@@ -10,6 +10,7 @@ package org.opensearch.geo.search;
 
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.common.geo.GeoPoint;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.geo.GeoModulePluginIntegTestCase;
 import org.opensearch.geo.search.aggregations.common.GeoBoundsHelper;
 import org.opensearch.geo.search.aggregations.metrics.GeoBounds;
@@ -42,6 +43,10 @@ public class MissingValueIT extends GeoModulePluginIntegTestCase {
     private static GeoPoint indexedGeoPoint;
     private GeoPoint bottomRight;
     private GeoPoint topLeft;
+
+    public MissingValueIT(Settings dynamicSettings) {
+        super(dynamicSettings);
+    }
 
     @Override
     protected void setupSuiteScopeCluster() throws Exception {

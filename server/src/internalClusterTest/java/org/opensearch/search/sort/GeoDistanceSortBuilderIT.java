@@ -32,6 +32,8 @@
 
 package org.opensearch.search.sort;
 
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.opensearch.Version;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.cluster.metadata.IndexMetadata;
@@ -39,28 +41,47 @@ import org.opensearch.common.geo.GeoDistance;
 import org.opensearch.common.geo.GeoPoint;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.DistanceUnit;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.query.GeoValidationMethod;
 import org.opensearch.search.builder.SearchSourceBuilder;
-import org.opensearch.test.OpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedOpenSearchIntegTestCase;
 import org.opensearch.test.VersionUtils;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
 
 import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.opensearch.index.query.QueryBuilders.matchAllQuery;
+import static org.opensearch.search.SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING;
 import static org.opensearch.search.sort.SortBuilders.fieldSort;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertOrderedSearchHits;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertSortValues;
 import static org.hamcrest.Matchers.closeTo;
 
-public class GeoDistanceSortBuilderIT extends OpenSearchIntegTestCase {
+public class GeoDistanceSortBuilderIT extends ParameterizedOpenSearchIntegTestCase {
+    public GeoDistanceSortBuilderIT(Settings settings) {
+        super(settings);
+    }
+
+    @ParametersFactory
+    public static Collection<Object[]> parameters() {
+        return Arrays.asList(
+            new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), false).build() },
+            new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), true).build() }
+        );
+    }
+
+    @Override
+    protected Settings featureFlagSettings() {
+        return Settings.builder().put(super.featureFlagSettings()).put(FeatureFlags.CONCURRENT_SEGMENT_SEARCH, "true").build();
+    }
 
     private static final String LOCATION_FIELD = "location";
 
@@ -70,16 +91,16 @@ public class GeoDistanceSortBuilderIT extends OpenSearchIntegTestCase {
     }
 
     public void testManyToManyGeoPoints() throws ExecutionException, InterruptedException, IOException {
-        /**
-         * | q  |  d1    |   d2
-         * |    |        |
-         * |    |        |
-         * |    |        |
-         * |2  o|  x     |     x
-         * |    |        |
-         * |1  o|      x | x
-         * |___________________________
-         * 1   2   3   4   5   6   7
+        /*
+          | q  |  d1    |   d2
+          |    |        |
+          |    |        |
+          |    |        |
+          |2  o|  x     |     x
+          |    |        |
+          |1  o|      x | x
+          |___________________________
+          1   2   3   4   5   6   7
          */
         Version version = randomBoolean() ? Version.CURRENT : VersionUtils.randomIndexCompatibleVersion(random());
         Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, version).build();
@@ -166,11 +187,10 @@ public class GeoDistanceSortBuilderIT extends OpenSearchIntegTestCase {
     }
 
     public void testSingeToManyAvgMedian() throws ExecutionException, InterruptedException, IOException {
-        /**
-         * q  = (0, 0)
-         *
-         * d1 = (0, 1), (0, 4), (0, 10); so avg. distance is 5, median distance is 4
-         * d2 = (0, 1), (0, 5), (0, 6); so avg. distance is 4, median distance is 5
+        /*
+          q  = (0, 0)
+          d1 = (0, 1), (0, 4), (0, 10); so avg. distance is 5, median distance is 4
+          d2 = (0, 1), (0, 5), (0, 6); so avg. distance is 4, median distance is 5
          */
         Version version = randomBoolean() ? Version.CURRENT : VersionUtils.randomIndexCompatibleVersion(random());
         Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, version).build();
@@ -235,16 +255,17 @@ public class GeoDistanceSortBuilderIT extends OpenSearchIntegTestCase {
     }
 
     public void testManyToManyGeoPointsWithDifferentFormats() throws ExecutionException, InterruptedException, IOException {
-        /**   q     d1       d2
-         * |4  o|   x    |   x
-         * |    |        |
-         * |3  o|  x     |  x
-         * |    |        |
-         * |2  o| x      | x
-         * |    |        |
-         * |1  o|x       |x
-         * |______________________
-         * 1   2   3   4   5   6
+        /*
+           q     d1       d2
+          |4  o|   x    |   x
+          |    |        |
+          |3  o|  x     |  x
+          |    |        |
+          |2  o| x      | x
+          |    |        |
+          |1  o|x       |x
+          |______________________
+          1   2   3   4   5   6
          */
         Version version = randomBoolean() ? Version.CURRENT : VersionUtils.randomIndexCompatibleVersion(random());
         Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, version).build();

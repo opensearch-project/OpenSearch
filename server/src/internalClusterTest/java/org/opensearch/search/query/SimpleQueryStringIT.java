@@ -32,6 +32,8 @@
 
 package org.opensearch.search.query;
 
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.apache.lucene.analysis.TokenFilter;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
@@ -41,6 +43,7 @@ import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.action.search.SearchPhaseExecutionException;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
@@ -57,11 +60,12 @@ import org.opensearch.search.SearchHit;
 import org.opensearch.search.SearchHits;
 import org.opensearch.search.SearchModule;
 import org.opensearch.search.builder.SearchSourceBuilder;
-import org.opensearch.test.OpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedOpenSearchIntegTestCase;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
@@ -75,6 +79,7 @@ import static org.opensearch.index.query.QueryBuilders.boolQuery;
 import static org.opensearch.index.query.QueryBuilders.queryStringQuery;
 import static org.opensearch.index.query.QueryBuilders.simpleQueryStringQuery;
 import static org.opensearch.index.query.QueryBuilders.termQuery;
+import static org.opensearch.search.SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING;
 import static org.opensearch.test.StreamsUtils.copyToStringFromClasspath;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertFailures;
@@ -90,9 +95,26 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  * Tests for the {@code simple_query_string} query
  */
-public class SimpleQueryStringIT extends OpenSearchIntegTestCase {
+public class SimpleQueryStringIT extends ParameterizedOpenSearchIntegTestCase {
 
     private static int CLUSTER_MAX_CLAUSE_COUNT;
+
+    public SimpleQueryStringIT(Settings dynamicSettings) {
+        super(dynamicSettings);
+    }
+
+    @ParametersFactory
+    public static Collection<Object[]> parameters() {
+        return Arrays.asList(
+            new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), false).build() },
+            new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), true).build() }
+        );
+    }
+
+    @Override
+    protected Settings featureFlagSettings() {
+        return Settings.builder().put(super.featureFlagSettings()).put(FeatureFlags.CONCURRENT_SEGMENT_SEARCH, "true").build();
+    }
 
     @BeforeClass
     public static void createRandomClusterSetting() {
@@ -128,6 +150,7 @@ public class SimpleQueryStringIT extends OpenSearchIntegTestCase {
             client().prepareIndex("test").setId("5").setSource("body", "quux baz spaghetti"),
             client().prepareIndex("test").setId("6").setSource("otherbody", "spaghetti")
         );
+        indexRandomForConcurrentSearch("test");
 
         SearchResponse searchResponse = client().prepareSearch().setQuery(simpleQueryStringQuery("foo bar")).get();
         assertHitCount(searchResponse, 3L);
@@ -177,6 +200,7 @@ public class SimpleQueryStringIT extends OpenSearchIntegTestCase {
             client().prepareIndex("test").setId("3").setSource("body", "foo bar"),
             client().prepareIndex("test").setId("4").setSource("body", "foo baz bar")
         );
+        indexRandomForConcurrentSearch("test");
 
         logger.info("--> query 1");
         SearchResponse searchResponse = client().prepareSearch().setQuery(simpleQueryStringQuery("foo bar").minimumShouldMatch("2")).get();
@@ -213,6 +237,7 @@ public class SimpleQueryStringIT extends OpenSearchIntegTestCase {
             client().prepareIndex("test").setId("7").setSource("body2", "foo bar", "other", "foo"),
             client().prepareIndex("test").setId("8").setSource("body2", "foo baz bar", "other", "foo")
         );
+        indexRandomForConcurrentSearch("test");
 
         logger.info("--> query 5");
         searchResponse = client().prepareSearch()
@@ -234,7 +259,7 @@ public class SimpleQueryStringIT extends OpenSearchIntegTestCase {
         assertSearchHits(searchResponse, "6", "7", "8");
     }
 
-    public void testNestedFieldSimpleQueryString() throws IOException {
+    public void testNestedFieldSimpleQueryString() throws Exception {
         assertAcked(
             prepareCreate("test").setMapping(
                 jsonBuilder().startObject()
@@ -253,6 +278,7 @@ public class SimpleQueryStringIT extends OpenSearchIntegTestCase {
         );
         client().prepareIndex("test").setId("1").setSource("body", "foo bar baz").get();
         refresh();
+        indexRandomForConcurrentSearch("test");
 
         SearchResponse searchResponse = client().prepareSearch().setQuery(simpleQueryStringQuery("foo bar baz").field("body")).get();
         assertHitCount(searchResponse, 1L);
@@ -337,6 +363,8 @@ public class SimpleQueryStringIT extends OpenSearchIntegTestCase {
             client().prepareIndex("test2").setId("10").setSource("field", 5)
         );
         refresh();
+        indexRandomForConcurrentSearch("test1");
+        indexRandomForConcurrentSearch("test2");
 
         SearchResponse searchResponse = client().prepareSearch()
             .setAllowPartialSearchResults(true)
@@ -397,6 +425,7 @@ public class SimpleQueryStringIT extends OpenSearchIntegTestCase {
         client().prepareIndex("test").setId("2").setSource("foo", 234, "bar", "bcd").get();
 
         refresh();
+        indexRandomForConcurrentSearch("test");
 
         SearchResponse searchResponse = client().prepareSearch().setQuery(simpleQueryStringQuery("123").field("foo").field("bar")).get();
         assertHitCount(searchResponse, 1L);
@@ -408,6 +437,7 @@ public class SimpleQueryStringIT extends OpenSearchIntegTestCase {
         client().prepareIndex("test").setId("2").setSource("foo", 234, "bar", "bcd").get();
 
         refresh();
+        indexRandomForConcurrentSearch("test");
 
         SearchResponse searchResponse = client().prepareSearch().setQuery(simpleQueryStringQuery("test").field("_index")).get();
         assertHitCount(searchResponse, 2L);
@@ -447,6 +477,7 @@ public class SimpleQueryStringIT extends OpenSearchIntegTestCase {
         reqs.add(client().prepareIndex("test").setId("2").setSource("f2", "Bar"));
         reqs.add(client().prepareIndex("test").setId("3").setSource("f3", "foo bar baz"));
         indexRandom(true, false, reqs);
+        indexRandomForConcurrentSearch("test");
 
         SearchResponse resp = client().prepareSearch("test").setQuery(simpleQueryStringQuery("foo")).get();
         assertHitCount(resp, 2L);
@@ -470,6 +501,7 @@ public class SimpleQueryStringIT extends OpenSearchIntegTestCase {
         reqs.add(client().prepareIndex("test").setId("1").setSource("f1", "foo", "f_date", "2015/09/02"));
         reqs.add(client().prepareIndex("test").setId("2").setSource("f1", "bar", "f_date", "2015/09/01"));
         indexRandom(true, false, reqs);
+        indexRandomForConcurrentSearch("test");
 
         SearchResponse resp = client().prepareSearch("test").setQuery(simpleQueryStringQuery("foo bar")).get();
         assertHits(resp.getHits(), "1", "2");
@@ -501,6 +533,7 @@ public class SimpleQueryStringIT extends OpenSearchIntegTestCase {
             client().prepareIndex("test").setId("2").setSource("f1", "bar", "f_date", "2015/09/01", "f_float", "1.8", "f_ip", "127.0.0.2")
         );
         indexRandom(true, false, reqs);
+        indexRandomForConcurrentSearch("test");
 
         SearchResponse resp = client().prepareSearch("test").setQuery(simpleQueryStringQuery("foo bar")).get();
         assertHits(resp.getHits(), "1", "2");
@@ -528,6 +561,7 @@ public class SimpleQueryStringIT extends OpenSearchIntegTestCase {
         String docBody = copyToStringFromClasspath("/org/opensearch/search/query/all-example-document.json");
         reqs.add(client().prepareIndex("test").setId("1").setSource(docBody, MediaTypeRegistry.JSON));
         indexRandom(true, false, reqs);
+        indexRandomForConcurrentSearch("test");
 
         SearchResponse resp = client().prepareSearch("test").setQuery(simpleQueryStringQuery("foo")).get();
         assertHits(resp.getHits(), "1");
@@ -574,6 +608,7 @@ public class SimpleQueryStringIT extends OpenSearchIntegTestCase {
         reqs.add(client().prepareIndex("test").setId("2").setSource("f1", "bar"));
         reqs.add(client().prepareIndex("test").setId("3").setSource("f1", "foo bar"));
         indexRandom(true, false, reqs);
+        indexRandomForConcurrentSearch("test");
 
         SearchResponse resp = client().prepareSearch("test").setQuery(simpleQueryStringQuery("foo")).get();
         assertHits(resp.getHits(), "3");
@@ -641,6 +676,7 @@ public class SimpleQueryStringIT extends OpenSearchIntegTestCase {
         indexRequests.add(client().prepareIndex("test").setId("2").setSource("f3", "value", "f2", "two"));
         indexRequests.add(client().prepareIndex("test").setId("3").setSource("f3", "another value", "f2", "three"));
         indexRandom(true, false, indexRequests);
+        indexRandomForConcurrentSearch("test");
 
         SearchResponse response = client().prepareSearch("test").setQuery(simpleQueryStringQuery("value").field("f3_alias")).get();
 
@@ -659,6 +695,7 @@ public class SimpleQueryStringIT extends OpenSearchIntegTestCase {
         indexRequests.add(client().prepareIndex("test").setId("2").setSource("f3", "value", "f2", "two"));
         indexRequests.add(client().prepareIndex("test").setId("3").setSource("f3", "another value", "f2", "three"));
         indexRandom(true, false, indexRequests);
+        indexRandomForConcurrentSearch("test");
 
         SearchResponse response = client().prepareSearch("test").setQuery(simpleQueryStringQuery("value").field("f3_*")).get();
 
@@ -675,6 +712,7 @@ public class SimpleQueryStringIT extends OpenSearchIntegTestCase {
         List<IndexRequestBuilder> indexRequests = new ArrayList<>();
         indexRequests.add(client().prepareIndex("test").setId("1").setSource("f3", "text", "f2", "one"));
         indexRandom(true, false, indexRequests);
+        indexRandomForConcurrentSearch("test");
 
         // The wildcard field matches aliases for both a text and boolean field.
         // By default, the boolean field should be ignored when building the query.

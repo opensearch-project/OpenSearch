@@ -89,7 +89,7 @@ class PluginBuildPlugin implements Plugin<Project> {
             String name = extension1.name
 
             BasePluginExtension base = project.getExtensions().findByType(BasePluginExtension.class)
-            base.archivesBaseName = name
+            base.archivesName = name
             project.description = extension1.description
 
             if (extension1.name == null) {
@@ -155,7 +155,7 @@ class PluginBuildPlugin implements Plugin<Project> {
         // Only configure publishing if applied externally
         if (extension.hasClientJar) {
             project.pluginManager.apply('com.netflix.nebula.maven-base-publish')
-            // Only change Jar tasks, we don't want a -client zip so we can't change archivesBaseName
+            // Only change Jar tasks, we don't want a -client zip so we can't change archivesName
             project.tasks.withType(Jar) {
                 archiveBaseName = archiveBaseName.get() +  "-client"
             }
@@ -163,7 +163,7 @@ class PluginBuildPlugin implements Plugin<Project> {
             project.publishing.publications.nebula(MavenPublication).artifactId(extension.name + "-client")
             final BasePluginExtension base = project.getExtensions().findByType(BasePluginExtension.class)
             project.tasks.withType(GenerateMavenPom.class).configureEach { GenerateMavenPom generatePOMTask ->
-                generatePOMTask.destination = "${project.buildDir}/distributions/${base.archivesBaseName}-client-${project.versions.opensearch}.pom"
+                generatePOMTask.destination = "${project.buildDir}/distributions/${base.archivesName}-client-${project.versions.opensearch}.pom"
             }
         } else {
             if (project.plugins.hasPlugin(MavenPublishPlugin)) {

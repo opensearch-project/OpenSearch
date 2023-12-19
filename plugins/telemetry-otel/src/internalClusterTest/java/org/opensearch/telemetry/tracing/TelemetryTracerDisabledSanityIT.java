@@ -12,6 +12,7 @@ import org.opensearch.client.Client;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.plugins.Plugin;
+import org.opensearch.telemetry.IntegrationTestOTelTelemetryPlugin;
 import org.opensearch.telemetry.OTelTelemetrySettings;
 import org.opensearch.telemetry.TelemetrySettings;
 import org.opensearch.test.OpenSearchIntegTestCase;
@@ -63,6 +64,8 @@ public class TelemetryTracerDisabledSanityIT extends OpenSearchIntegTestCase {
 
         ensureGreen();
         refresh();
+        InMemorySingletonSpanExporter exporter = InMemorySingletonSpanExporter.INSTANCE;
+        exporter.reset();
 
         // Make the search call;
         client.prepareSearch().setQuery(queryStringQuery("fox")).get();
@@ -70,7 +73,6 @@ public class TelemetryTracerDisabledSanityIT extends OpenSearchIntegTestCase {
         // Sleep for about 3s to wait for traces are published (the delay is 1s)
         Thread.sleep(3000);
 
-        InMemorySingletonSpanExporter exporter = InMemorySingletonSpanExporter.create();
         assertTrue(exporter.getFinishedSpanItems().isEmpty());
     }
 

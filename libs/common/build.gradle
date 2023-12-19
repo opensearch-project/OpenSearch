@@ -14,7 +14,7 @@ import org.opensearch.gradle.info.BuildParams
 apply plugin: 'opensearch.publish'
 
 base {
-  archivesBaseName = 'opensearch-common'
+  archivesName = 'opensearch-common'
 }
 
 dependencies {

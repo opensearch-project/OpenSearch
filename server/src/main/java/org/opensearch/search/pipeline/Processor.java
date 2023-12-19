@@ -15,19 +15,12 @@ import java.util.Map;
  * Whether changes are made and what exactly is modified is up to the implementation.
  * <p>
  * Processors may get called concurrently and thus need to be thread-safe.
- *
+ * <p>
  * TODO: Refactor {@link org.opensearch.ingest.Processor} to extend this interface, and specialize to IngestProcessor.
  *
  * @opensearch.internal
  */
 public interface Processor {
-    /**
-     * Processor configuration key to let the factory know the context for pipeline creation.
-     * <p>
-     * See {@link PipelineSource}.
-     */
-    String PIPELINE_SOURCE = "pipeline_source";
-
     /**
      * Gets the type of processor
      */

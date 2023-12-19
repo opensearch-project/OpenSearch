@@ -32,6 +32,8 @@
 
 package org.opensearch.search.basic;
 
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.opensearch.action.admin.cluster.settings.ClusterUpdateSettingsResponse;
 import org.opensearch.action.search.SearchPhaseExecutionException;
 import org.opensearch.action.search.SearchResponse;
@@ -40,13 +42,18 @@ import org.opensearch.cluster.health.ClusterHealthStatus;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.ShardRoutingState;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.rest.RestStatus;
 import org.opensearch.search.SearchService;
 import org.opensearch.test.OpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedOpenSearchIntegTestCase;
 import org.junit.After;
 
+import java.util.Arrays;
+import java.util.Collection;
 import java.util.List;
 
+import static org.opensearch.search.SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -54,7 +61,24 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.lessThan;
 
 @OpenSearchIntegTestCase.ClusterScope(minNumDataNodes = 2)
-public class SearchRedStateIndexIT extends OpenSearchIntegTestCase {
+public class SearchRedStateIndexIT extends ParameterizedOpenSearchIntegTestCase {
+
+    public SearchRedStateIndexIT(Settings dynamicSettings) {
+        super(dynamicSettings);
+    }
+
+    @ParametersFactory
+    public static Collection<Object[]> parameters() {
+        return Arrays.asList(
+            new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), false).build() },
+            new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), true).build() }
+        );
+    }
+
+    @Override
+    protected Settings featureFlagSettings() {
+        return Settings.builder().put(super.featureFlagSettings()).put(FeatureFlags.CONCURRENT_SEGMENT_SEARCH, "true").build();
+    }
 
     public void testAllowPartialsWithRedState() throws Exception {
         final int numShards = cluster().numDataNodes() + 2;
@@ -129,6 +153,7 @@ public class SearchRedStateIndexIT extends OpenSearchIntegTestCase {
             client().prepareIndex("test").setId("" + i).setSource("field1", "value1").get();
         }
         refresh();
+        indexRandomForConcurrentSearch("test");
 
         internalCluster().stopRandomDataNode();
 

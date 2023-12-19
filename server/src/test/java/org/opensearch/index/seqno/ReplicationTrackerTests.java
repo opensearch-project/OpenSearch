@@ -1907,6 +1907,86 @@ public class ReplicationTrackerTests extends ReplicationTrackerTestCase {
         }
     }
 
+    public void testSegmentReplicationCheckpointForRelocatingPrimary() {
+        Settings settings = Settings.builder().put(SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT).build();
+        final long initialClusterStateVersion = randomNonNegativeLong();
+        final int numberOfActiveAllocationsIds = randomIntBetween(2, 2);
+        final int numberOfInitializingIds = randomIntBetween(2, 2);
+        final Tuple<Set<AllocationId>, Set<AllocationId>> activeAndInitializingAllocationIds = randomActiveAndInitializingAllocationIds(
+            numberOfActiveAllocationsIds,
+            numberOfInitializingIds
+        );
+        final Set<AllocationId> activeAllocationIds = activeAndInitializingAllocationIds.v1();
+        final Set<AllocationId> initializingIds = activeAndInitializingAllocationIds.v2();
+
+        AllocationId targetAllocationId = initializingIds.iterator().next();
+        AllocationId primaryId = activeAllocationIds.iterator().next();
+        String relocatingToNodeId = nodeIdFromAllocationId(targetAllocationId);
+
+        logger.info("--> activeAllocationIds {} Primary {}", activeAllocationIds, primaryId.getId());
+        logger.info("--> initializingIds {} Target {}", initializingIds, targetAllocationId);
+
+        final ShardId shardId = new ShardId("test", "_na_", 0);
+        final IndexShardRoutingTable.Builder builder = new IndexShardRoutingTable.Builder(shardId);
+        for (final AllocationId initializingId : initializingIds) {
+            boolean primaryRelocationTarget = initializingId.equals(targetAllocationId);
+            builder.addShard(
+                TestShardRouting.newShardRouting(
+                    shardId,
+                    nodeIdFromAllocationId(initializingId),
+                    null,
+                    primaryRelocationTarget,
+                    ShardRoutingState.INITIALIZING,
+                    initializingId
+                )
+            );
+        }
+        builder.addShard(
+            TestShardRouting.newShardRouting(
+                shardId,
+                nodeIdFromAllocationId(primaryId),
+                relocatingToNodeId,
+                true,
+                ShardRoutingState.STARTED,
+                primaryId
+            )
+        );
+        IndexShardRoutingTable routingTable = builder.build();
+        final ReplicationTracker tracker = newTracker(primaryId, settings);
+        tracker.updateFromClusterManager(initialClusterStateVersion, ids(activeAllocationIds), routingTable);
+        tracker.activatePrimaryMode(NO_OPS_PERFORMED);
+        assertThat(tracker.getReplicationGroup().getInSyncAllocationIds(), equalTo(ids(activeAllocationIds)));
+        assertThat(tracker.getReplicationGroup().getRoutingTable(), equalTo(routingTable));
+        assertTrue(activeAllocationIds.stream().allMatch(a -> tracker.getTrackedLocalCheckpointForShard(a.getId()).inSync));
+        initializingIds.forEach(aId -> markAsTrackingAndInSyncQuietly(tracker, aId.getId(), NO_OPS_PERFORMED));
+
+        final StoreFileMetadata segment_1 = new StoreFileMetadata("segment_1", 5L, "abcd", Version.LATEST);
+        final ReplicationCheckpoint initialCheckpoint = new ReplicationCheckpoint(
+            tracker.shardId(),
+            0L,
+            1,
+            1,
+            5L,
+            Codec.getDefault().getName(),
+            Map.of("segment_1", segment_1)
+        );
+        tracker.setLatestReplicationCheckpoint(initialCheckpoint);
+        tracker.startReplicationLagTimers(initialCheckpoint);
+
+        final Set<String> expectedIds = initializingIds.stream()
+            .filter(id -> id.equals(targetAllocationId))
+            .map(AllocationId::getId)
+            .collect(Collectors.toSet());
+
+        Set<SegmentReplicationShardStats> groupStats = tracker.getSegmentReplicationStats();
+        assertEquals(expectedIds.size(), groupStats.size());
+        for (SegmentReplicationShardStats shardStat : groupStats) {
+            assertEquals(1, shardStat.getCheckpointsBehindCount());
+            assertEquals(5L, shardStat.getBytesBehindCount());
+            assertTrue(shardStat.getCurrentReplicationLagMillis() >= shardStat.getCurrentReplicationTimeMillis());
+        }
+    }
+
     public void testSegmentReplicationCheckpointTrackingInvalidAllocationIDs() {
         Settings settings = Settings.builder().put(SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT).build();
         final long initialClusterStateVersion = randomNonNegativeLong();

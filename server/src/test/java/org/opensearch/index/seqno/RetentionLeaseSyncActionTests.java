@@ -49,6 +49,7 @@ import org.opensearch.index.IndexingPressureService;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.SystemIndices;
+import org.opensearch.telemetry.tracing.noop.NoopTracer;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.transport.CapturingTransport;
 import org.opensearch.threadpool.TestThreadPool;
@@ -84,7 +85,8 @@ public class RetentionLeaseSyncActionTests extends OpenSearchTestCase {
             TransportService.NOOP_TRANSPORT_INTERCEPTOR,
             boundAddress -> clusterService.localNode(),
             null,
-            Collections.emptySet()
+            Collections.emptySet(),
+            NoopTracer.INSTANCE
         );
         transportService.start();
         transportService.acceptIncomingRequests();
@@ -123,7 +125,8 @@ public class RetentionLeaseSyncActionTests extends OpenSearchTestCase {
             shardStateAction,
             new ActionFilters(Collections.emptySet()),
             new IndexingPressureService(Settings.EMPTY, clusterService),
-            new SystemIndices(emptyMap())
+            new SystemIndices(emptyMap()),
+            NoopTracer.INSTANCE
         );
         final RetentionLeases retentionLeases = mock(RetentionLeases.class);
         final RetentionLeaseSyncAction.Request request = new RetentionLeaseSyncAction.Request(indexShard.shardId(), retentionLeases);
@@ -160,7 +163,8 @@ public class RetentionLeaseSyncActionTests extends OpenSearchTestCase {
             shardStateAction,
             new ActionFilters(Collections.emptySet()),
             new IndexingPressureService(Settings.EMPTY, clusterService),
-            new SystemIndices(emptyMap())
+            new SystemIndices(emptyMap()),
+            NoopTracer.INSTANCE
         );
         final RetentionLeases retentionLeases = mock(RetentionLeases.class);
         final RetentionLeaseSyncAction.Request request = new RetentionLeaseSyncAction.Request(indexShard.shardId(), retentionLeases);
@@ -201,7 +205,8 @@ public class RetentionLeaseSyncActionTests extends OpenSearchTestCase {
             shardStateAction,
             new ActionFilters(Collections.emptySet()),
             new IndexingPressureService(Settings.EMPTY, clusterService),
-            new SystemIndices(emptyMap())
+            new SystemIndices(emptyMap()),
+            NoopTracer.INSTANCE
         );
 
         assertNull(action.indexBlockLevel());
@@ -231,7 +236,8 @@ public class RetentionLeaseSyncActionTests extends OpenSearchTestCase {
             shardStateAction,
             new ActionFilters(Collections.emptySet()),
             new IndexingPressureService(Settings.EMPTY, clusterService),
-            new SystemIndices(emptyMap())
+            new SystemIndices(emptyMap()),
+            NoopTracer.INSTANCE
         );
     }
 

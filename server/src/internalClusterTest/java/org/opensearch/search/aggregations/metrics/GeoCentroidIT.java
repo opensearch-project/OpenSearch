@@ -34,6 +34,7 @@ package org.opensearch.search.aggregations.metrics;
 
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.common.geo.GeoPoint;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.search.aggregations.InternalAggregation;
 import org.opensearch.search.aggregations.bucket.global.Global;
 import org.opensearch.test.OpenSearchIntegTestCase;
@@ -53,6 +54,10 @@ import static org.hamcrest.Matchers.sameInstance;
 @OpenSearchIntegTestCase.SuiteScopeTestCase
 public class GeoCentroidIT extends AbstractGeoTestCase {
     private static final String aggName = "geoCentroid";
+
+    public GeoCentroidIT(Settings dynamicSettings) {
+        super(dynamicSettings);
+    }
 
     public void testEmptyAggregation() throws Exception {
         SearchResponse response = client().prepareSearch(EMPTY_IDX_NAME)

@@ -69,7 +69,6 @@ dependencies {
   testImplementation project(':modules:transport-netty4')
   // for parent/child testing
   testImplementation project(':modules:parent-join')
-  testImplementation project(':plugins:custom-codecs')
 }
 
 restResources {
@@ -96,5 +95,4 @@ forbiddenPatterns {
 tasks.named("bundlePlugin").configure {
   dependsOn("copyParentJoinMetadata")
   dependsOn("copyTransportNetty4Metadata")
-  dependsOn("copyCustomCodecsMetadata")
 }

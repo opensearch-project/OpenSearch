@@ -33,6 +33,7 @@
 package org.opensearch.cluster.service;
 
 import org.opensearch.cluster.ClusterState;
+import org.opensearch.common.annotation.PublicApi;
 
 import java.util.function.Supplier;
 
@@ -59,7 +60,10 @@ public interface ClusterApplier {
 
     /**
      * Listener for results of cluster state application
+     *
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     interface ClusterApplyListener {
         /**
          * Called on successful cluster state application

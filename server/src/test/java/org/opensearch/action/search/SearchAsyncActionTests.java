@@ -135,7 +135,8 @@ public class SearchAsyncActionTests extends OpenSearchTestCase {
             null,
             new ArraySearchPhaseResults<>(shardsIter.size()),
             request.getMaxConcurrentShardRequests(),
-            SearchResponse.Clusters.EMPTY
+            SearchResponse.Clusters.EMPTY,
+            new SearchRequestContext()
         ) {
 
             @Override
@@ -253,7 +254,8 @@ public class SearchAsyncActionTests extends OpenSearchTestCase {
             null,
             new ArraySearchPhaseResults<>(shardsIter.size()),
             request.getMaxConcurrentShardRequests(),
-            SearchResponse.Clusters.EMPTY
+            SearchResponse.Clusters.EMPTY,
+            new SearchRequestContext()
         ) {
 
             @Override
@@ -370,7 +372,8 @@ public class SearchAsyncActionTests extends OpenSearchTestCase {
             null,
             new ArraySearchPhaseResults<>(shardsIter.size()),
             request.getMaxConcurrentShardRequests(),
-            SearchResponse.Clusters.EMPTY
+            SearchResponse.Clusters.EMPTY,
+            new SearchRequestContext()
         ) {
             TestSearchResponse response = new TestSearchResponse();
 
@@ -492,7 +495,8 @@ public class SearchAsyncActionTests extends OpenSearchTestCase {
             null,
             new ArraySearchPhaseResults<>(shardsIter.size()),
             request.getMaxConcurrentShardRequests(),
-            SearchResponse.Clusters.EMPTY
+            SearchResponse.Clusters.EMPTY,
+            new SearchRequestContext()
         ) {
             TestSearchResponse response = new TestSearchResponse();
 
@@ -605,9 +609,9 @@ public class SearchAsyncActionTests extends OpenSearchTestCase {
             null,
             new ArraySearchPhaseResults<>(shardsIter.size()),
             request.getMaxConcurrentShardRequests(),
-            SearchResponse.Clusters.EMPTY
+            SearchResponse.Clusters.EMPTY,
+            new SearchRequestContext()
         ) {
-
             @Override
             protected void executePhaseOnShard(
                 SearchShardIterator shardIt,

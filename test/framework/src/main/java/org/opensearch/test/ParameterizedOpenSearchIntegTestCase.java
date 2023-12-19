@@ -13,6 +13,8 @@ import org.opensearch.common.settings.SettingsModule;
 import org.junit.After;
 import org.junit.Before;
 
+import static org.opensearch.search.SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING;
+
 /**
  * Base class for running the tests with parameterization of the dynamic settings
  * For any class that wants to use parameterization, use @ParametersFactory to generate
@@ -43,5 +45,12 @@ public abstract class ParameterizedOpenSearchIntegTestCase extends OpenSearchInt
         final Settings.Builder settingsToUnset = Settings.builder();
         dynamicSettings.keySet().forEach(settingsToUnset::putNull);
         client().admin().cluster().prepareUpdateSettings().setPersistentSettings(settingsToUnset).get();
+    }
+
+    // This method shouldn't be called in setupSuiteScopeCluster(). Only call this method inside single test.
+    public void indexRandomForConcurrentSearch(String... indices) throws InterruptedException {
+        if (dynamicSettings.get(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey()).equals("true")) {
+            indexRandomForMultipleSlices(indices);
+        }
     }
 }

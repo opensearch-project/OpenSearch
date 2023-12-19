@@ -74,6 +74,10 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
 
+    public GetTermVectorsIT(Settings dynamicSettings) {
+        super(dynamicSettings);
+    }
+
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Collections.singleton(MockKeywordPlugin.class);

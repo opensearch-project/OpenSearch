@@ -247,13 +247,13 @@ public class BalanceConfigurationTests extends OpenSearchAllocationTestCase {
     /**
      * This test verifies the allocation logic when nodes breach multiple constraints and ensure node breaching min
      * constraints chosen for allocation.
-     *
+     * <p>
      * This test mimics a cluster state containing four nodes, where one node breaches two constraints while one breaches
      * only one. In order to have nodes breach constraints, test excludes two nodes (node2, node3) from allocation so
      * that other two nodes (node0, node1) have all shards assignments resulting in constraints breach. Test asserts that
      * the new primary shard assignment lands on the node breaching one constraint(node1), while replica land on the other
      * (node0). Final shard allocation state.
-     *
+     * <p>
      routing_nodes:
      -----node_id[node2][V]
      -----node_id[node3][V]
@@ -384,13 +384,13 @@ public class BalanceConfigurationTests extends OpenSearchAllocationTestCase {
      * This test mimics a cluster state which can not be rebalanced due to
      * {@link org.opensearch.cluster.routing.allocation.decider.SameShardAllocationDecider}
      * allocation decider which prevents shard relocation, leaving cluster unbalanced on primaries.
-     *
+     * <p>
      * There are two nodes (N1, N2) where all primaries land on N1 while replicas on N2.
      * N1        N2
      * ------  --------
      * P1        R1
      * P2        R2
-     *
+     * <p>
      * -----node_id[node_0][V]
      * --------[test][1], node[node_0], [P], s[STARTED], a[id=xqfZSToVSQaff2xvuxh_yA]
      * --------[test][0], node[node_0], [P], s[STARTED], a[id=VGjOeBGdSmu3pJR6T7v29A]
@@ -454,14 +454,14 @@ public class BalanceConfigurationTests extends OpenSearchAllocationTestCase {
      * This test mimics cluster state where re-balancing is not possible due to existing limitation of re-balancing
      * logic which applies at index level i.e. balance shards single index across all nodes. This will be solved when
      * primary shard count across indices, constraint is added.
-     *
+     * <p>
      * Please note, P1, P2 belongs to different index
-     *
+     * <p>
      * N1        N2
      * ------  --------
      * P1       R1
      * P2       R2
-     *
+     * <p>
      * -----node_id[node_0][V]
      * --------[test1][0], node[node_0], [P], s[STARTED], a[id=u7qtyy5AR42hgEa-JpeArg]
      * --------[test0][0], node[node_0], [P], s[STARTED], a[id=BQrLSo6sQyGlcLdVvGgqLQ]

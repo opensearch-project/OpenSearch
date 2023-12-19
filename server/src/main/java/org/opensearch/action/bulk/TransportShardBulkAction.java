@@ -98,7 +98,9 @@ import org.opensearch.index.translog.Translog;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.SystemIndices;
 import org.opensearch.node.NodeClosedException;
+import org.opensearch.ratelimitting.admissioncontrol.enums.AdmissionControlActionType;
 import org.opensearch.tasks.Task;
+import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.threadpool.ThreadPool.Names;
 import org.opensearch.transport.TransportChannel;
@@ -161,7 +163,8 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         IndexingPressureService indexingPressureService,
         SegmentReplicationPressureService segmentReplicationPressureService,
         RemoteStorePressureService remoteStorePressureService,
-        SystemIndices systemIndices
+        SystemIndices systemIndices,
+        Tracer tracer
     ) {
         super(
             settings,
@@ -177,7 +180,9 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             EXECUTOR_NAME_FUNCTION,
             false,
             indexingPressureService,
-            systemIndices
+            systemIndices,
+            tracer,
+            AdmissionControlActionType.INDEXING
         );
         this.updateHelper = updateHelper;
         this.mappingUpdatedAction = mappingUpdatedAction;

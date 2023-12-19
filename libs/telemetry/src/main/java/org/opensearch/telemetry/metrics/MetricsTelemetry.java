@@ -16,6 +16,6 @@ import org.opensearch.common.annotation.ExperimentalApi;
  * @opensearch.experimental
  */
 @ExperimentalApi
-public interface MetricsTelemetry {
+public interface MetricsTelemetry extends MetricsRegistry {
 
 }

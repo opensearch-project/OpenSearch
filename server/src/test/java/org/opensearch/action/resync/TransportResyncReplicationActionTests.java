@@ -64,6 +64,7 @@ import org.opensearch.index.translog.Translog;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.SystemIndices;
 import org.opensearch.tasks.Task;
+import org.opensearch.telemetry.tracing.noop.NoopTracer;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.transport.MockTransportService;
 import org.opensearch.threadpool.TestThreadPool;
@@ -134,7 +135,8 @@ public class TransportResyncReplicationActionTests extends OpenSearchTestCase {
                     new NetworkService(emptyList()),
                     PageCacheRecycler.NON_RECYCLING_INSTANCE,
                     new NamedWriteableRegistry(emptyList()),
-                    new NoneCircuitBreakerService()
+                    new NoneCircuitBreakerService(),
+                    NoopTracer.INSTANCE
                 )
             ) {
 
@@ -145,7 +147,8 @@ public class TransportResyncReplicationActionTests extends OpenSearchTestCase {
                     NOOP_TRANSPORT_INTERCEPTOR,
                     x -> clusterService.localNode(),
                     null,
-                    Collections.emptySet()
+                    Collections.emptySet(),
+                    NoopTracer.INSTANCE
                 );
                 transportService.start();
                 transportService.acceptIncomingRequests();
@@ -200,7 +203,8 @@ public class TransportResyncReplicationActionTests extends OpenSearchTestCase {
                     shardStateAction,
                     new ActionFilters(new HashSet<>()),
                     new IndexingPressureService(Settings.EMPTY, clusterService),
-                    new SystemIndices(emptyMap())
+                    new SystemIndices(emptyMap()),
+                    NoopTracer.INSTANCE
                 );
 
                 assertThat(action.globalBlockLevel(), nullValue());
@@ -253,7 +257,8 @@ public class TransportResyncReplicationActionTests extends OpenSearchTestCase {
             mock(ShardStateAction.class),
             new ActionFilters(new HashSet<>()),
             mock(IndexingPressureService.class),
-            new SystemIndices(emptyMap())
+            new SystemIndices(emptyMap()),
+            NoopTracer.INSTANCE
         );
     }
 }

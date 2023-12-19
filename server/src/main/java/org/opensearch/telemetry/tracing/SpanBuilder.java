@@ -8,11 +8,14 @@
 
 package org.opensearch.telemetry.tracing;
 
+import org.opensearch.action.bulk.BulkShardRequest;
+import org.opensearch.action.support.replication.ReplicatedWriteRequest;
 import org.opensearch.common.annotation.InternalApi;
 import org.opensearch.core.common.Strings;
 import org.opensearch.http.HttpRequest;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.telemetry.tracing.attributes.Attributes;
+import org.opensearch.transport.TcpChannel;
 import org.opensearch.transport.Transport;
 
 import java.util.Arrays;
@@ -45,7 +48,7 @@ public final class SpanBuilder {
      * @return context.
      */
     public static SpanCreationContext from(HttpRequest request) {
-        return new SpanCreationContext(createSpanName(request), buildSpanAttributes(request));
+        return SpanCreationContext.server().name(createSpanName(request)).attributes(buildSpanAttributes(request));
     }
 
     /**
@@ -54,7 +57,7 @@ public final class SpanBuilder {
      * @return context
      */
     public static SpanCreationContext from(RestRequest request) {
-        return new SpanCreationContext(createSpanName(request), buildSpanAttributes(request));
+        return SpanCreationContext.client().name(createSpanName(request)).attributes(buildSpanAttributes(request));
     }
 
     /**
@@ -64,7 +67,11 @@ public final class SpanBuilder {
      * @return context
      */
     public static SpanCreationContext from(String action, Transport.Connection connection) {
-        return new SpanCreationContext(createSpanName(action, connection), buildSpanAttributes(action, connection));
+        return SpanCreationContext.server().name(createSpanName(action, connection)).attributes(buildSpanAttributes(action, connection));
+    }
+
+    public static SpanCreationContext from(String spanName, String nodeId, ReplicatedWriteRequest request) {
+        return SpanCreationContext.server().name(spanName).attributes(buildSpanAttributes(nodeId, request));
     }
 
     private static String createSpanName(HttpRequest httpRequest) {
@@ -82,7 +89,9 @@ public final class SpanBuilder {
 
     private static void populateHeader(HttpRequest httpRequest, Attributes attributes) {
         HEADERS_TO_BE_ADDED_AS_ATTRIBUTES.forEach(x -> {
-            if (httpRequest.getHeaders() != null && httpRequest.getHeaders().get(x) != null) {
+            if (httpRequest.getHeaders() != null
+                && httpRequest.getHeaders().get(x) != null
+                && (httpRequest.getHeaders().get(x).isEmpty() == false)) {
                 attributes.addAttribute(x, Strings.collectionToCommaDelimitedString(httpRequest.getHeaders().get(x)));
             }
         });
@@ -121,6 +130,42 @@ public final class SpanBuilder {
         Attributes attributes = Attributes.create().addAttribute(AttributeNames.TRANSPORT_ACTION, action);
         if (connection != null && connection.getNode() != null) {
             attributes.addAttribute(AttributeNames.TRANSPORT_TARGET_HOST, connection.getNode().getHostAddress());
+        }
+        return attributes;
+    }
+
+    /**
+     * Creates {@link SpanCreationContext} from Inbound Handler.
+     * @param action action.
+     * @param tcpChannel tcp channel.
+     * @return context
+     */
+    public static SpanCreationContext from(String action, TcpChannel tcpChannel) {
+        return SpanCreationContext.server().name(createSpanName(action, tcpChannel)).attributes(buildSpanAttributes(action, tcpChannel));
+    }
+
+    private static String createSpanName(String action, TcpChannel tcpChannel) {
+        return action + SEPARATOR + (tcpChannel.getRemoteAddress() != null
+            ? tcpChannel.getRemoteAddress().getHostString()
+            : tcpChannel.getLocalAddress().getHostString());
+    }
+
+    private static Attributes buildSpanAttributes(String action, TcpChannel tcpChannel) {
+        Attributes attributes = Attributes.create().addAttribute(AttributeNames.TRANSPORT_ACTION, action);
+        attributes.addAttribute(AttributeNames.TRANSPORT_HOST, tcpChannel.getLocalAddress().getHostString());
+        return attributes;
+    }
+
+    private static Attributes buildSpanAttributes(String nodeId, ReplicatedWriteRequest request) {
+        Attributes attributes = Attributes.create()
+            .addAttribute(AttributeNames.NODE_ID, nodeId)
+            .addAttribute(AttributeNames.REFRESH_POLICY, request.getRefreshPolicy().getValue());
+        if (request.shardId() != null) {
+            attributes.addAttribute(AttributeNames.INDEX, request.shardId().getIndexName())
+                .addAttribute(AttributeNames.SHARD_ID, request.shardId().getId());
+        }
+        if (request instanceof BulkShardRequest) {
+            attributes.addAttribute(AttributeNames.BULK_REQUEST_ITEMS, ((BulkShardRequest) request).items().length);
         }
         return attributes;
     }

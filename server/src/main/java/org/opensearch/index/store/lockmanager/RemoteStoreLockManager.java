@@ -8,14 +8,18 @@
 
 package org.opensearch.index.store.lockmanager;
 
+import org.opensearch.common.annotation.PublicApi;
+
 import java.io.IOException;
 
 /**
  * An Interface that defines Remote Store Lock Manager.
  * This will provide the functionality to acquire lock, release lock or to check if a lock is acquired on a specific
  * file in remote store.
- * @opensearch.internal
+ *
+ * @opensearch.api
  */
+@PublicApi(since = "2.8.0")
 public interface RemoteStoreLockManager {
     /**
      *

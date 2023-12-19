@@ -31,32 +31,58 @@
 
 package org.opensearch.search.source;
 
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.apache.lucene.search.join.ScoreMode;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.action.search.SearchPhaseExecutionException;
 import org.opensearch.action.search.SearchResponse;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.index.query.InnerHitBuilder;
 import org.opensearch.index.query.NestedQueryBuilder;
 import org.opensearch.index.query.TermQueryBuilder;
 import org.opensearch.search.SearchException;
 import org.opensearch.search.SearchHits;
 import org.opensearch.search.fetch.subphase.FetchSourceContext;
-import org.opensearch.test.OpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedOpenSearchIntegTestCase;
 
+import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 
+import static org.opensearch.search.SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-public class MetadataFetchingIT extends OpenSearchIntegTestCase {
-    public void testSimple() {
+public class MetadataFetchingIT extends ParameterizedOpenSearchIntegTestCase {
+
+    public MetadataFetchingIT(Settings dynamicSettings) {
+        super(dynamicSettings);
+    }
+
+    @ParametersFactory
+    public static Collection<Object[]> parameters() {
+        return Arrays.asList(
+            new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), false).build() },
+            new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), true).build() }
+        );
+    }
+
+    @Override
+    protected Settings featureFlagSettings() {
+        return Settings.builder().put(super.featureFlagSettings()).put(FeatureFlags.CONCURRENT_SEGMENT_SEARCH, "true").build();
+    }
+
+    public void testSimple() throws InterruptedException {
         assertAcked(prepareCreate("test"));
         ensureGreen();
 
         client().prepareIndex("test").setId("1").setSource("field", "value").get();
         refresh();
+        indexRandomForConcurrentSearch("test");
 
         SearchResponse response = client().prepareSearch("test").storedFields("_none_").setFetchSource(false).setVersion(true).get();
         assertThat(response.getHits().getAt(0).getId(), nullValue());
@@ -68,12 +94,12 @@ public class MetadataFetchingIT extends OpenSearchIntegTestCase {
         assertThat(response.getHits().getAt(0).getSourceAsString(), nullValue());
     }
 
-    public void testInnerHits() {
+    public void testInnerHits() throws InterruptedException {
         assertAcked(prepareCreate("test").setMapping("nested", "type=nested"));
         ensureGreen();
         client().prepareIndex("test").setId("1").setSource("field", "value", "nested", Collections.singletonMap("title", "foo")).get();
         refresh();
-
+        indexRandomForConcurrentSearch("test");
         SearchResponse response = client().prepareSearch("test")
             .storedFields("_none_")
             .setFetchSource(false)
@@ -94,12 +120,13 @@ public class MetadataFetchingIT extends OpenSearchIntegTestCase {
         assertThat(hits.getAt(0).getSourceAsString(), nullValue());
     }
 
-    public void testWithRouting() {
+    public void testWithRouting() throws InterruptedException {
         assertAcked(prepareCreate("test"));
         ensureGreen();
 
         client().prepareIndex("test").setId("1").setSource("field", "value").setRouting("toto").get();
         refresh();
+        indexRandomForConcurrentSearch("test");
 
         SearchResponse response = client().prepareSearch("test").storedFields("_none_").setFetchSource(false).get();
         assertThat(response.getHits().getAt(0).getId(), nullValue());

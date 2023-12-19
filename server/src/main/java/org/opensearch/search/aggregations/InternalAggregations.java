@@ -32,6 +32,7 @@
 package org.opensearch.search.aggregations;
 
 import org.opensearch.Version;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
@@ -53,8 +54,9 @@ import java.util.stream.Collectors;
 /**
  * An internal implementation of {@link Aggregations}.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public final class InternalAggregations extends Aggregations implements Writeable {
 
     public static final InternalAggregations EMPTY = new InternalAggregations(Collections.emptyList());
@@ -125,7 +127,7 @@ public final class InternalAggregations extends Aggregations implements Writeabl
      * Begin the reduction process.  This should be the entry point for the "first" reduction, e.g. called by
      * SearchPhaseController or anywhere else that wants to initiate a reduction.  It _should not_ be called
      * as an intermediate reduction step (e.g. in the middle of an aggregation tree).
-     *
+     * <p>
      * This method first reduces the aggregations, and if it is the final reduce, then reduce the pipeline
      * aggregations (both embedded parent/sibling as well as top-level sibling pipelines)
      */

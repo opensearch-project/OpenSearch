@@ -31,6 +31,8 @@
 
 package org.opensearch.gateway;
 
+import org.opensearch.common.annotation.PublicApi;
+
 import java.io.IOError;
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -38,8 +40,9 @@ import java.io.UncheckedIOException;
 /**
  * This exception is thrown when there is a problem of writing state to disk.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class WriteStateException extends IOException {
     private final boolean dirty;
 

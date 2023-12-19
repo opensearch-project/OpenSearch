@@ -33,6 +33,7 @@
 package org.opensearch.search;
 
 import org.apache.lucene.util.BytesRef;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.lucene.Lucene;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
@@ -50,8 +51,9 @@ import java.util.Objects;
 /**
  * Values to sort during search
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class SearchSortValues implements ToXContentFragment, Writeable {
 
     private static final Object[] EMPTY_ARRAY = new Object[0];

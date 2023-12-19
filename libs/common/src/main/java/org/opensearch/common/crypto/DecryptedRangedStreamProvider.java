@@ -16,7 +16,9 @@ import java.util.function.UnaryOperator;
  */
 public class DecryptedRangedStreamProvider {
 
+    /** Adjusted range of partial encrypted content which needs to be used for decryption. */
     private final long[] adjustedRange;
+    /** Stream provider for decryption and range re-adjustment. */
     private final UnaryOperator<InputStream> decryptedStreamProvider;
 
     /**

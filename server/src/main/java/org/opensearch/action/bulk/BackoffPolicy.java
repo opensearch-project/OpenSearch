@@ -40,9 +40,9 @@ import java.util.NoSuchElementException;
 /**
  * Provides a backoff policy for bulk requests. Whenever a bulk request is rejected due to resource constraints (i.e. the client's internal
  * thread pool is full), the backoff policy decides how long the bulk processor will wait before the operation is retried internally.
- *
+ * <p>
  * Notes for implementing custom subclasses:
- *
+ * <p>
  * The underlying mathematical principle of <code>BackoffPolicy</code> are progressions which can be either finite or infinite although
  * the latter should not be used for retrying. A progression can be mapped to a <code>java.util.Iterator</code> with the following
  * semantics:
@@ -241,7 +241,7 @@ public abstract class BackoffPolicy implements Iterable<TimeValue> {
         /**
          * Retry limit to avoids integer overflow issues.
          * Post this limit, max delay will be returned with Equal Jitter.
-         *
+         * <p>
          * NOTE: If the value is greater than 30, there can be integer overflow
          * issues during delay calculation.
          **/

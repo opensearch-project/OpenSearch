@@ -161,6 +161,7 @@ public class LocalStorePeerRecoverySourceHandler extends RecoverySourceHandler {
                 }, shardId + " removing retention lease for [" + request.targetAllocationId() + "]", shard, cancellableThreads, logger);
 
                 deleteRetentionLeaseStep.whenComplete(ignored -> {
+                    logger.debug("deleteRetentionLeaseStep completed");
                     assert Transports.assertNotTransportThread(this + "[phase1]");
                     phase1(wrappedSafeCommit.get(), startingSeqNo, () -> estimateNumOps, sendFileStep, false);
                 }, onFailure);
@@ -172,12 +173,14 @@ public class LocalStorePeerRecoverySourceHandler extends RecoverySourceHandler {
         assert startingSeqNo >= 0 : "startingSeqNo must be non negative. got: " + startingSeqNo;
 
         sendFileStep.whenComplete(r -> {
+            logger.debug("sendFileStep completed");
             assert Transports.assertNotTransportThread(this + "[prepareTargetForTranslog]");
             // For a sequence based recovery, the target can keep its local translog
             prepareTargetForTranslog(countNumberOfHistoryOperations(startingSeqNo), prepareEngineStep);
         }, onFailure);
 
         prepareEngineStep.whenComplete(prepareEngineTime -> {
+            logger.debug("prepareEngineStep completed");
             assert Transports.assertNotTransportThread(this + "[phase2]");
             /*
              * add shard to replication group (shard will receive replication requests from this point on) now that engine is open.

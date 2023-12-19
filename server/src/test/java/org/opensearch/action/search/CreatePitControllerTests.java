@@ -32,6 +32,7 @@ import org.opensearch.search.SearchHits;
 import org.opensearch.search.aggregations.InternalAggregations;
 import org.opensearch.search.internal.InternalSearchResponse;
 import org.opensearch.tasks.Task;
+import org.opensearch.telemetry.tracing.noop.NoopTracer;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.transport.MockTransportService;
 import org.opensearch.threadpool.TestThreadPool;
@@ -180,7 +181,7 @@ public class CreatePitControllerTests extends OpenSearchTestCase {
                     Settings.EMPTY,
                     Version.CURRENT,
                     threadPool,
-                    null
+                    NoopTracer.INSTANCE
                 )
             ) {
                 transportService.start();
@@ -273,7 +274,7 @@ public class CreatePitControllerTests extends OpenSearchTestCase {
                     Settings.EMPTY,
                     Version.CURRENT,
                     threadPool,
-                    null
+                    NoopTracer.INSTANCE
                 )
             ) {
                 transportService.start();
@@ -338,8 +339,8 @@ public class CreatePitControllerTests extends OpenSearchTestCase {
                 createListener.onFailure(new Exception("Exception occurred in phase 1"));
                 latch.await();
                 assertEquals(0, updateNodesInvoked.size());
-                /**
-                 * cleanup is not called on create pit phase one failure
+                /*
+                  cleanup is not called on create pit phase one failure
                  */
                 assertEquals(0, deleteNodesInvoked.size());
             }
@@ -366,7 +367,7 @@ public class CreatePitControllerTests extends OpenSearchTestCase {
                     Settings.EMPTY,
                     Version.CURRENT,
                     threadPool,
-                    null
+                    NoopTracer.INSTANCE
                 )
             ) {
                 transportService.start();
@@ -437,8 +438,8 @@ public class CreatePitControllerTests extends OpenSearchTestCase {
                 createListener.onResponse(searchResponse);
                 latch.await();
                 assertEquals(3, updateNodesInvoked.size());
-                /**
-                 * check if cleanup is called for all nodes in case of update pit failure
+                /*
+                  check if cleanup is called for all nodes in case of update pit failure
                  */
                 assertEquals(3, deleteNodesInvoked.size());
             }
@@ -462,7 +463,7 @@ public class CreatePitControllerTests extends OpenSearchTestCase {
                     Settings.EMPTY,
                     Version.CURRENT,
                     threadPool,
-                    null
+                    NoopTracer.INSTANCE
                 )
             ) {
                 transportService.start();
@@ -525,8 +526,8 @@ public class CreatePitControllerTests extends OpenSearchTestCase {
                 createListener.onResponse(searchResponse);
                 latch.await();
                 assertEquals(3, updateNodesInvoked.size());
-                /**
-                 * check if cleanup is called for all nodes in case of update pit failure
+                /*
+                  check if cleanup is called for all nodes in case of update pit failure
                  */
                 assertEquals(3, deleteNodesInvoked.size());
             }
