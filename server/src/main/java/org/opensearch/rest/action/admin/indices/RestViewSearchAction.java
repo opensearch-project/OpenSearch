@@ -35,6 +35,7 @@ import java.util.stream.Collectors;
 import static org.opensearch.rest.RestRequest.Method.GET;
 import static org.opensearch.rest.RestRequest.Method.POST;
 
+/** TODO */
 public class RestViewSearchAction extends BaseRestHandler {
 
     private final static Logger LOG = LogManager.getLogger(RestViewSearchAction.class);

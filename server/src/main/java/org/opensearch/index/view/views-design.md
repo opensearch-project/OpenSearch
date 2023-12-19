@@ -55,7 +55,7 @@ curl localhost:9200/views \
 curl localhost:9200/views/hi/_search
 ```
 
-### Appendix
+## Appendix
 
 VIEW MODEL
 {

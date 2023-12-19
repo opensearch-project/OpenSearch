@@ -16,6 +16,7 @@ import org.opensearch.core.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.List;
 
+/** TODO */
 @ExperimentalApi
 public class View extends AbstractDiffable<View> implements ToXContentObject {
 
@@ -25,11 +26,11 @@ public class View extends AbstractDiffable<View> implements ToXContentObject {
     public final long modifiedAt;
     public final List<Target> targets;
 
-    public View(final String name, final String description, final long createdAt, final long modifiedAt, final List<Target> targets) {
+    public View(final String name, final String description, final Long createdAt, final Long modifiedAt, final List<Target> targets) {
         this.name = name;
         this.description = description;
-        this.createdAt = createdAt;
-        this.modifiedAt = modifiedAt;
+        this.createdAt = createdAt != null ? createdAt : -1;
+        this.modifiedAt = modifiedAt != null ? modifiedAt : -1;
         this.targets = targets;
     }
 
@@ -37,10 +38,11 @@ public class View extends AbstractDiffable<View> implements ToXContentObject {
         this(in.readString(), in.readOptionalString(), in.readVLong(), in.readVLong(), in.readList(Target::new));
     }
 
-    public static Diff<View> readDiffFrom(StreamInput in) throws IOException {
+    public static Diff<View> readDiffFrom(final StreamInput in) throws IOException {
         return readDiffFrom(View::new, in);
     }
 
+    /** TODO */
     public static class Target implements Writeable, ToXContentObject {
 
         public final String indexPattern;
@@ -76,7 +78,7 @@ public class View extends AbstractDiffable<View> implements ToXContentObject {
         }
 
         @Override
-        public void writeTo(StreamOutput out) throws IOException {
+        public void writeTo(final StreamOutput out) throws IOException {
             out.writeString(indexPattern);
         }
     }
