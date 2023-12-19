@@ -238,7 +238,7 @@ public abstract class ValuesSource {
              */
             public static class FieldData extends WithOrdinals {
 
-                protected final IndexOrdinalsFieldData indexFieldData;
+                public final IndexOrdinalsFieldData indexFieldData;
 
                 public FieldData(IndexOrdinalsFieldData indexFieldData) {
                     this.indexFieldData = indexFieldData;

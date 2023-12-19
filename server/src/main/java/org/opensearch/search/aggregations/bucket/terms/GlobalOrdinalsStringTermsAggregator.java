@@ -37,6 +37,9 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
+import org.apache.lucene.index.Terms;
+import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.PriorityQueue;
@@ -61,6 +64,7 @@ import org.opensearch.search.aggregations.bucket.LocalBucketCountThresholds;
 import org.opensearch.search.aggregations.bucket.terms.SignificanceLookup.BackgroundFrequencyForBytes;
 import org.opensearch.search.aggregations.bucket.terms.heuristic.SignificanceHeuristic;
 import org.opensearch.search.aggregations.support.ValuesSource;
+import org.opensearch.search.aggregations.support.ValuesSource.Bytes.WithOrdinals;
 import org.opensearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -70,6 +74,7 @@ import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.function.LongPredicate;
 import java.util.function.LongUnaryOperator;
+import java.util.logging.Logger;
 
 import static org.opensearch.search.aggregations.InternalOrder.isKeyOrder;
 import static org.apache.lucene.index.SortedSetDocValues.NO_MORE_ORDS;
@@ -80,11 +85,16 @@ import static org.apache.lucene.index.SortedSetDocValues.NO_MORE_ORDS;
  * @opensearch.internal
  */
 public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggregator {
+
+    // testing only - will remove
+    protected Logger logger = Logger.getLogger(GlobalOrdinalsStringTermsAggregator.class.getName());
     protected final ResultStrategy<?, ?, ?> resultStrategy;
     protected final ValuesSource.Bytes.WithOrdinals valuesSource;
 
     private final LongPredicate acceptedGlobalOrdinals;
     private final long valueCount;
+
+    private Weight weight;
     private final GlobalOrdLookupFunction lookupGlobalOrd;
     protected final CollectionStrategy collectionStrategy;
     protected int segmentsWithSingleValuedOrds = 0;
@@ -142,8 +152,24 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         return collectionStrategy.describe();
     }
 
+    public void setWeight(Weight weight) {
+        this.weight = weight;
+    }
+
     @Override
     public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub) throws IOException {
+        if (weight != null && weight.getQuery() instanceof MatchAllDocsQuery) {
+            if ((weight.count(ctx) == 0)
+                && Terms.getTerms(ctx.reader(), String.valueOf(((WithOrdinals.FieldData) valuesSource).indexFieldData.getFieldName()))
+                    .size() == 0) {
+                return LeafBucketCollector.NO_OP_COLLECTOR;
+                // } else if (weight.count(ctx) == ctx.reader().maxDoc() && weight.getQuery() instanceof MatchAllDocsQuery) {
+                // no deleted documents & top level query matches everything
+                // iterate over the terms - doc frequency for each termsEnum directly
+                // return appropriate LeafCollector
+            }
+        }
+
         SortedSetDocValues globalOrds = valuesSource.globalOrdinalsValues(ctx);
         collectionStrategy.globalOrdsReady(globalOrds);
         SortedDocValues singleValues = DocValues.unwrapSingleton(globalOrds);
