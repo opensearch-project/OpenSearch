@@ -703,7 +703,24 @@ public class OpenSearchNode implements TestClusterConfiguration {
     }
 
     @Override
-    public void user(Map<String, String> userSpec) {}
+    public void user(Map<String, String> userSpec) {
+        if (userSpec == null) {
+            return;
+        }
+
+        if (userSpec.containsKey("username") && userSpec.containsKey("password")) {
+            this.credentials.get(0).put("username", userSpec.get("username"));
+            this.credentials.get(0).put("password",  userSpec.get("password"));
+            return;
+        }
+
+        if (!userSpec.containsKey("username")) {
+            LOGGER.warn("Unable to set user. userSpec must contain username.");
+        }
+        if (!userSpec.containsKey("password")) {
+            LOGGER.warn("Unable to set user. userSpec must contain password.");
+        }
+    }
 
     private void runOpenSearchBinScriptWithInput(String input, String tool, CharSequence... args) {
         if (Files.exists(getDistroDir().resolve("bin").resolve(tool)) == false
