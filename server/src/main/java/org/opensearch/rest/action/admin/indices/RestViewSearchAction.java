@@ -13,6 +13,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.action.search.SearchAction;
 import org.opensearch.action.search.SearchRequest;
+import org.opensearch.action.search.ViewSearchRequest;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.cluster.metadata.View;
 import org.opensearch.cluster.service.ClusterService;
@@ -73,33 +74,34 @@ public class RestViewSearchAction extends BaseRestHandler {
                 channel.sendResponse(new BytesRestResponse(RestStatus.NOT_FOUND, ""));
             }
 
-            final Optional<View> view = Optional.ofNullable(clusterService.state().getMetadata())
+            final Optional<View> optView = Optional.ofNullable(clusterService.state().getMetadata())
                 .map(m -> m.views())
                 .map(views -> views.get(viewId));
 
-            if (view.isEmpty()) {
+            if (optView.isEmpty()) {
                 channel.sendResponse(new BytesRestResponse(RestStatus.NOT_FOUND, ""));
             }
+            final View view = optView.get();
 
-            final SearchRequest searchRequest = new SearchRequest();
-            final IntConsumer setSize = size -> searchRequest.source().size(size);
+            final ViewSearchRequest viewSearchRequest = new ViewSearchRequest(view);
+            final IntConsumer setSize = size -> viewSearchRequest.source().size(size);
 
             request.withContentOrSourceParamParserOrNull(
-                parser -> RestSearchAction.parseSearchRequest(searchRequest, request, parser, client.getNamedWriteableRegistry(), setSize)
+                parser -> RestSearchAction.parseSearchRequest(viewSearchRequest, request, parser, client.getNamedWriteableRegistry(), setSize)
             );
 
             // TODO: Only allow operations that are supported
 
-            final String[] indices = view.get().targets.stream()
+            final String[] indices = view.targets.stream()
                 .map(target -> target.indexPattern)
                 .collect(Collectors.toList())
                 .toArray(new String[0]);
-            searchRequest.indices(indices);
+            viewSearchRequest.indices(indices);
 
             // TODO: Look into resource leak on cancelClient? Note; is already leaking in
             // server/src/main/java/org/opensearch/rest/action/search/RestSearchAction.java
             final RestCancellableNodeClient cancelClient = new RestCancellableNodeClient(client, request.getHttpChannel());
-            cancelClient.execute(SearchAction.INSTANCE, searchRequest, new RestStatusToXContentListener<>(channel));
+            cancelClient.execute(SearchAction.INSTANCE, viewSearchRequest, new RestStatusToXContentListener<>(channel));
         };
     }
 }

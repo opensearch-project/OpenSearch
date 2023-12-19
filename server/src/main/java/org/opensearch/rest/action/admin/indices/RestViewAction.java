@@ -43,7 +43,7 @@ public class RestViewAction extends BaseRestHandler {
 
     private final static Logger LOG = LogManager.getLogger(RestViewAction.class);
 
-    static final String VIEW_ID = "view_id";
+    public static final String VIEW_ID = "view_id";
 
     private final ClusterService clusterService;
 

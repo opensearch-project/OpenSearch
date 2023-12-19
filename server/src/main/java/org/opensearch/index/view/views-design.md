@@ -57,6 +57,7 @@ curl localhost:9200/views/hi/_search
 
 ## Appendix
 
+```
 VIEW MODEL
 {
    name: STRING,        // [Optional] Friendly name resolves to ID
@@ -77,34 +78,45 @@ VIEW MODEL
    ],
    documentTransformer: SCRIPT  // P2 Convert the results in some way
 }
+```
+
+### View Operations
+
+| Method | Path |
+| - | - |
+| POST   | /views |
+| GET    | /views/{view_id} |
+| PUT    | /views/{view_id} | 
+| PATCH  | /views/{view_id} | 
+| DELETE | /views/{view_id} |
+
+### Enumerate Views
+
+| Method | Path |
+| - | - |
+| GET | /views |
+
+### Perform a Search on a view
+| Method | Path |
+| - | - |
+| GET  | /views/{view_id}/_search |
+| POST | /views/{view_id}/_search |
+
+### Search Views // P2?
+| Method | Path |
+| - | - |
+| GET  | /views/_search |
+| POST | /views/_search |
+
+### Mapping // P2?  Need to understand the utility / impact of not having this
+| Method | Path |
+| - | - |
+| GET   | /views/{view_id}/_mappings |
+| PUT   | /views/{view_id}/_mappings |
+| PATCH | /views/{view_id}/_mappings |
 
 
-View Operations
-POST   /views
-GET    /views/{view_id}
-PUT    /views/{view_id}
-PATCH  /views/{view_id}
-DELETE /views/{view_id}
-
-Enumerate Views
-GET    /views
-
-Search Views // P2?
-GET    /views/_search
-POST   /views/_search
-
-Mapping // P2?  Need to understand the utility / impact of not having this
-GET    /views/{view_id}/_mappings
-PUT    /views/{view_id}/_mappings
-PATCH  /views/{view_id}/_mappings
-
-Search Views
-GET    /views/{view_id}/_search
-POST   /views/{view_id}/_search
-
-// Results do not include any fields '_', how to protect leaking data?
-
-
+*Results do not include any fields '_', how to protect leaking data?*
 
 ### Response on Create/Enumerate/Search
 
@@ -141,8 +153,8 @@ index:views.create
 
 Search does not expose information about the targets or associated mappings.  Internally used to resolve all indices and check permissions.
 
+```
 GET /views/{view_id}/_resolveTargets
-
 {
 targets: [
    {
@@ -157,5 +169,4 @@ targets: [
 ],
 fields: [ FIELD_NAME,... ]
 }
-
-
+```
