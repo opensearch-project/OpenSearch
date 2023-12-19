@@ -30,6 +30,11 @@ sequenceDiagram
     HTTP_Request-->>Client: Return
 ```
 
+### Frequently Asked Questions
+
+#### How do views work with fine grain access control of index data?
+
+#### What happens with existing DLS and FLS rules and searches on views? 
 
 ### Local Testing
 

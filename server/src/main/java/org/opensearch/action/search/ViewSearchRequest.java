@@ -107,7 +107,7 @@ public class ViewSearchRequest extends SearchRequest implements ResourceRequest 
     }
 
     @Override
-    public Map<String, String> getResourceIds() {
+    public Map<String, String> getResourceTypeAndIds() {
         return Map.of(RestViewAction.VIEW_ID, view.name);
     }
 }
