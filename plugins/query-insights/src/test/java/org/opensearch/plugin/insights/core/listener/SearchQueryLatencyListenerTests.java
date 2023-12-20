@@ -8,20 +8,19 @@
 
 package org.opensearch.plugin.insights.core.listener;
 
-import org.opensearch.action.search.SearchRequestContext;
 import org.opensearch.action.search.SearchPhaseContext;
-import org.opensearch.action.search.SearchType;
 import org.opensearch.action.search.SearchRequest;
-
+import org.opensearch.action.search.SearchRequestContext;
+import org.opensearch.action.search.SearchType;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.plugin.insights.core.service.TopQueriesByLatencyService;
 import org.opensearch.plugin.insights.settings.QueryInsightsSettings;
 import org.opensearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.opensearch.search.aggregations.support.ValueType;
 import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.test.OpenSearchTestCase;
-import org.opensearch.plugin.insights.core.service.TopQueriesByLatencyService;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -37,6 +36,9 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+/**
+ * Unit Tests for {@link SearchQueryLatencyListener}.
+ */
 public class SearchQueryLatencyListenerTests extends OpenSearchTestCase {
 
     public void testOnRequestEnd() {
@@ -44,7 +46,6 @@ public class SearchQueryLatencyListenerTests extends OpenSearchTestCase {
         final SearchPhaseContext searchPhaseContext = mock(SearchPhaseContext.class);
         final SearchRequest searchRequest = mock(SearchRequest.class);
         final TopQueriesByLatencyService topQueriesByLatencyService = mock(TopQueriesByLatencyService.class);
-
 
         Settings.Builder settingsBuilder = Settings.builder();
         Settings settings = settingsBuilder.build();
@@ -59,14 +60,10 @@ public class SearchQueryLatencyListenerTests extends OpenSearchTestCase {
         SearchType searchType = SearchType.QUERY_THEN_FETCH;
 
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
-        searchSourceBuilder.aggregation(
-            new TermsAggregationBuilder("agg1")
-                .userValueTypeHint(ValueType.STRING)
-                .field("type.keyword")
-        );
+        searchSourceBuilder.aggregation(new TermsAggregationBuilder("agg1").userValueTypeHint(ValueType.STRING).field("type.keyword"));
         searchSourceBuilder.size(0);
 
-        String[] indices = new String[]{"index-1", "index-2"};
+        String[] indices = new String[] { "index-1", "index-2" };
 
         Map<String, Long> phaseLatencyMap = new HashMap<>();
         phaseLatencyMap.put("expand", 0L);
@@ -84,7 +81,6 @@ public class SearchQueryLatencyListenerTests extends OpenSearchTestCase {
         when(searchRequestContext.phaseTookMap()).thenReturn(phaseLatencyMap);
         when(searchPhaseContext.getRequest()).thenReturn(searchRequest);
         when(searchPhaseContext.getNumShards()).thenReturn(numberOfShards);
-
 
         searchQueryLatencyListener.onRequestEnd(searchPhaseContext, searchRequestContext);
 
@@ -114,19 +110,14 @@ public class SearchQueryLatencyListenerTests extends OpenSearchTestCase {
 
         ClusterService clusterService = new ClusterService(settings, clusterSettings, null);
 
-
         Long timestamp = System.currentTimeMillis() - 100L;
         SearchType searchType = SearchType.QUERY_THEN_FETCH;
 
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
-        searchSourceBuilder.aggregation(
-            new TermsAggregationBuilder("agg1")
-                .userValueTypeHint(ValueType.STRING)
-                .field("type.keyword")
-        );
+        searchSourceBuilder.aggregation(new TermsAggregationBuilder("agg1").userValueTypeHint(ValueType.STRING).field("type.keyword"));
         searchSourceBuilder.size(0);
 
-        String[] indices = new String[]{"index-1", "index-2"};
+        String[] indices = new String[] { "index-1", "index-2" };
 
         Map<String, Long> phaseLatencyMap = new HashMap<>();
         phaseLatencyMap.put("expand", 0L);
@@ -145,16 +136,13 @@ public class SearchQueryLatencyListenerTests extends OpenSearchTestCase {
         when(searchPhaseContext.getRequest()).thenReturn(searchRequest);
         when(searchPhaseContext.getNumShards()).thenReturn(numberOfShards);
 
-
         int numRequests = 50;
         Thread[] threads = new Thread[numRequests];
         Phaser phaser = new Phaser(numRequests + 1);
         CountDownLatch countDownLatch = new CountDownLatch(numRequests);
 
         for (int i = 0; i < numRequests; i++) {
-            searchListenersList.add(
-                new SearchQueryLatencyListener(clusterService, topQueriesByLatencyService)
-            );
+            searchListenersList.add(new SearchQueryLatencyListener(clusterService, topQueriesByLatencyService));
         }
 
         for (int i = 0; i < numRequests; i++) {

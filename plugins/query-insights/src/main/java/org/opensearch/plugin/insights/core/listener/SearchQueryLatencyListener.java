@@ -42,20 +42,25 @@ public final class SearchQueryLatencyListener extends SearchRequestOperationsLis
     @Inject
     public SearchQueryLatencyListener(ClusterService clusterService, TopQueriesByLatencyService topQueriesByLatencyService) {
         this.topQueriesByLatencyService = topQueriesByLatencyService;
+        this.setEnabled(clusterService.getClusterSettings().get(TOP_N_LATENCY_QUERIES_ENABLED));
+        this.topQueriesByLatencyService.setTopNSize(clusterService.getClusterSettings().get(TOP_N_LATENCY_QUERIES_SIZE));
+        this.topQueriesByLatencyService.setWindowSize(clusterService.getClusterSettings().get(TOP_N_LATENCY_QUERIES_WINDOW_SIZE));
         clusterService.getClusterSettings().addSettingsUpdateConsumer(TOP_N_LATENCY_QUERIES_ENABLED, this::setEnabled);
-        clusterService.getClusterSettings().addSettingsUpdateConsumer(TOP_N_LATENCY_QUERIES_SIZE, this.topQueriesByLatencyService::setTopNSize);
-        clusterService.getClusterSettings().addSettingsUpdateConsumer(TOP_N_LATENCY_QUERIES_WINDOW_SIZE, this.topQueriesByLatencyService::setWindowSize);
+        clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(TOP_N_LATENCY_QUERIES_SIZE, this.topQueriesByLatencyService::setTopNSize);
+        clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(TOP_N_LATENCY_QUERIES_WINDOW_SIZE, this.topQueriesByLatencyService::setWindowSize);
     }
 
     @Override
-    public void setEnabled(boolean enabled){
+    public void setEnabled(boolean enabled) {
         super.setEnabled(enabled);
         this.topQueriesByLatencyService.setEnabled(enabled);
     }
 
     @Override
-    public boolean getEnabled(){
-        return super.getEnabled();
+    public boolean isEnabled() {
+        return super.isEnabled();
     }
 
     @Override

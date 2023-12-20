@@ -44,9 +44,10 @@ import java.util.Objects;
  *
  * @opensearch.internal
  */
-public class QueryInsightLocalIndexExporter<T extends SearchQueryRecord<?>> extends QueryInsightExporter<T> {
+public class QueryInsightsLocalIndexExporter<T extends SearchQueryRecord<?>> extends QueryInsightsExporter<T> {
 
-    private static final Logger log = LogManager.getLogger(QueryInsightLocalIndexExporter.class);
+    private static final Logger log = LogManager.getLogger(QueryInsightsLocalIndexExporter.class);
+    private static final int INDEX_TIMEOUT = 60;
 
     private final ClusterService clusterService;
     private final Client client;
@@ -57,7 +58,7 @@ public class QueryInsightLocalIndexExporter<T extends SearchQueryRecord<?>> exte
     /** The mapping for the local index that holds the data */
     private final InputStream localIndexMapping;
 
-    public QueryInsightLocalIndexExporter(
+    public QueryInsightsLocalIndexExporter(
         boolean enabled,
         ClusterService clusterService,
         Client client,
@@ -166,7 +167,7 @@ public class QueryInsightLocalIndexExporter<T extends SearchQueryRecord<?>> exte
      */
     private synchronized void bulkRecord(List<T> records) throws IOException {
         BulkRequest bulkRequest = new BulkRequest().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-            .timeout(TimeValue.timeValueSeconds(60));
+            .timeout(TimeValue.timeValueSeconds(INDEX_TIMEOUT));
         for (T record : records) {
             bulkRequest.add(
                 new IndexRequest(localIndexName).source(record.toXContent(XContentFactory.jsonBuilder(), ToXContent.EMPTY_PARAMS))
@@ -198,7 +199,7 @@ public class QueryInsightLocalIndexExporter<T extends SearchQueryRecord<?>> exte
     private synchronized void indexRecord(T record) throws IOException {
         IndexRequest indexRequest = new IndexRequest(localIndexName).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
             .source(record.toXContent(XContentFactory.jsonBuilder(), ToXContent.EMPTY_PARAMS))
-            .timeout(TimeValue.timeValueSeconds(60));
+            .timeout(TimeValue.timeValueSeconds(INDEX_TIMEOUT));
 
         client.index(indexRequest, new ActionListener<>() {
             @Override

@@ -69,4 +69,19 @@ public final class SearchQueryLatencyRecord extends SearchQueryRecord<Long> {
         super.writeTo(out);
         out.writeMap(phaseLatencyMap, StreamOutput::writeString, StreamOutput::writeLong);
     }
+
+    public boolean equals(SearchQueryLatencyRecord other) {
+        if (!super.equals(other)) {
+            return false;
+        }
+        for (String key : phaseLatencyMap.keySet()) {
+            if (!other.getPhaseLatencyMap().containsKey(key)) {
+                return false;
+            }
+            if (!phaseLatencyMap.get(key).equals(other.getPhaseLatencyMap().get(key))) {
+                return false;
+            }
+        }
+        return true;
+    }
 }

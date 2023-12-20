@@ -12,6 +12,7 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.common.unit.TimeValue;
 
 import java.util.concurrent.TimeUnit;
+
 import static org.opensearch.plugin.insights.core.service.TopQueriesByLatencyService.DEFAULT_TOP_N_SIZE;
 import static org.opensearch.plugin.insights.core.service.TopQueriesByLatencyService.DEFAULT_WINDOW_SIZE;
 

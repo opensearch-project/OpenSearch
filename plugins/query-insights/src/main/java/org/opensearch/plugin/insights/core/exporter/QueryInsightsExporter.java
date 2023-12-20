@@ -20,12 +20,12 @@ import java.util.List;
  *
  * @opensearch.internal
  */
-public abstract class QueryInsightExporter<T extends SearchQueryRecord<?>> {
+public abstract class QueryInsightsExporter<T extends SearchQueryRecord<?>> {
 
     private boolean enabled = false;
 
     /** The export interval of this exporter, default to 60 seconds */
-    private TimeValue exportInterval = TimeValue.timeValueSeconds(5);
+    private TimeValue exportInterval = TimeValue.timeValueSeconds(60);
 
     /**
      * Export the data with the exporter.

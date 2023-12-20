@@ -13,7 +13,7 @@ import org.apache.logging.log4j.Logger;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.lifecycle.AbstractLifecycleComponent;
-import org.opensearch.plugin.insights.core.exporter.QueryInsightExporter;
+import org.opensearch.plugin.insights.core.exporter.QueryInsightsExporter;
 import org.opensearch.plugin.insights.rules.model.SearchQueryRecord;
 import org.opensearch.threadpool.Scheduler;
 import org.opensearch.threadpool.ThreadPool;
@@ -34,9 +34,9 @@ import java.util.Locale;
  *
  * @opensearch.internal
  */
-public abstract class QueryInsightService<R extends SearchQueryRecord<?>, S extends Collection<R>, E extends QueryInsightExporter<R>>
+public abstract class QueryInsightsService<R extends SearchQueryRecord<?>, S extends Collection<R>, E extends QueryInsightsExporter<R>>
     extends AbstractLifecycleComponent {
-    private static final Logger log = LogManager.getLogger(QueryInsightService.class);
+    private static final Logger log = LogManager.getLogger(QueryInsightsService.class);
     private boolean enabled;
 
     /** The internal store that holds the query insight data */
@@ -52,7 +52,7 @@ public abstract class QueryInsightService<R extends SearchQueryRecord<?>, S exte
     private volatile Scheduler.Cancellable scheduledFuture;
 
     @Inject
-    public QueryInsightService(ThreadPool threadPool, @Nullable S store, @Nullable E exporter) {
+    public QueryInsightsService(ThreadPool threadPool, @Nullable S store, @Nullable E exporter) {
         this.threadPool = threadPool;
         this.store = store;
         this.exporter = exporter;
@@ -112,7 +112,11 @@ public abstract class QueryInsightService<R extends SearchQueryRecord<?>, S exte
     @Override
     protected void doStart() {
         if (exporter != null && exporter.getEnabled()) {
-            scheduledFuture = threadPool.scheduleWithFixedDelay(this::doExportAndClear, exporter.getExportInterval(), ThreadPool.Names.GENERIC);
+            scheduledFuture = threadPool.scheduleWithFixedDelay(
+                this::doExportAndClear,
+                exporter.getExportInterval(),
+                ThreadPool.Names.GENERIC
+            );
         }
     }
 

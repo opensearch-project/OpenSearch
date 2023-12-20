@@ -30,7 +30,6 @@ import org.opensearch.plugin.insights.rules.resthandler.top_queries.RestTopQueri
 import org.opensearch.plugin.insights.rules.transport.top_queries.TransportTopQueriesAction;
 import org.opensearch.plugin.insights.settings.QueryInsightsSettings;
 import org.opensearch.plugins.ActionPlugin;
-import org.opensearch.plugins.EnginePlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.plugins.SearchPlugin;
 import org.opensearch.repositories.RepositoriesService;
@@ -47,7 +46,7 @@ import java.util.function.Supplier;
 /**
  * Plugin class for Query Insights.
  */
-public class QueryInsightsPlugin extends Plugin implements ActionPlugin, SearchPlugin, EnginePlugin {
+public class QueryInsightsPlugin extends Plugin implements ActionPlugin, SearchPlugin {
     /**
      * Default constructor
      */

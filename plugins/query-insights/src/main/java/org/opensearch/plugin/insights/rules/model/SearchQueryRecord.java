@@ -16,7 +16,6 @@ import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.plugin.insights.core.listener.SearchQueryLatencyListener;
 
 import java.io.IOException;
 import java.util.Locale;
@@ -156,6 +155,32 @@ public abstract class SearchQueryRecord<T extends Number & Comparable<T>>
     @Override
     public int compareTo(SearchQueryRecord<T> otherRecord) {
         return value.compareTo(otherRecord.getValue());
+    }
+
+    public boolean equals(SearchQueryRecord<T> other) {
+        if (false == this.timestamp.equals(other.getTimestamp())
+            && this.searchType.equals(other.getSearchType())
+            && this.source.equals(other.getSource())
+            && this.totalShards == other.getTotalShards()
+            && this.indices.length == other.getIndices().length
+            && this.propertyMap.size() == other.getPropertyMap().size()
+            && this.value.equals(other.getValue())) {
+            return false;
+        }
+        for (int i = 0; i < indices.length; i++) {
+            if (!indices[i].equals(other.getIndices()[i])) {
+                return false;
+            }
+        }
+        for (String key : propertyMap.keySet()) {
+            if (!other.getPropertyMap().containsKey(key)) {
+                return false;
+            }
+            if (!propertyMap.get(key).equals(other.getPropertyMap().get(key))) {
+                return false;
+            }
+        }
+        return true;
     }
 
     @SuppressWarnings("unchecked")

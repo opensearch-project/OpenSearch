@@ -6,7 +6,6 @@
  * compatible open source license.
  */
 
-
 package org.opensearch.plugin.insights.rules.resthandler.top_queries;
 
 import org.opensearch.plugin.insights.rules.action.top_queries.TopQueriesRequest;
@@ -15,10 +14,10 @@ import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.rest.FakeRestRequest;
 
 import java.util.HashMap;
+import java.util.Locale;
 import java.util.Map;
 
 import static org.opensearch.plugin.insights.rules.resthandler.top_queries.RestTopQueriesAction.ALLOWED_METRICS;
-
 
 public class RestTopQueriesActionTests extends OpenSearchTestCase {
 
@@ -44,13 +43,14 @@ public class RestTopQueriesActionTests extends OpenSearchTestCase {
 
     public void testInValidType() {
         Map<String, String> params = new HashMap<>();
-        params.put("type", randomAlphaOfLengthBetween(5, 10).toUpperCase());
+        params.put("type", randomAlphaOfLengthBetween(5, 10).toUpperCase(Locale.ROOT));
 
         RestRequest restRequest = buildRestRequest(params);
-        Exception exception = assertThrows(IllegalArgumentException.class, () -> {
-            RestTopQueriesAction.prepareRequest(restRequest);
-        });
-        assertEquals(String.format("request [/_insights/top_queries] contains invalid metric type [%s]", params.get("type")), exception.getMessage());
+        Exception exception = assertThrows(IllegalArgumentException.class, () -> { RestTopQueriesAction.prepareRequest(restRequest); });
+        assertEquals(
+            String.format(Locale.ROOT, "request [/_insights/top_queries] contains invalid metric type [%s]", params.get("type")),
+            exception.getMessage()
+        );
     }
 
     private FakeRestRequest buildRestRequest(Map<String, String> params) {

@@ -15,7 +15,7 @@ import org.opensearch.client.Client;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.plugin.insights.core.exporter.QueryInsightLocalIndexExporter;
+import org.opensearch.plugin.insights.core.exporter.QueryInsightsLocalIndexExporter;
 import org.opensearch.plugin.insights.rules.model.SearchQueryLatencyRecord;
 import org.opensearch.threadpool.ThreadPool;
 
@@ -29,10 +29,10 @@ import java.util.concurrent.PriorityBlockingQueue;
  *
  * @opensearch.internal
  */
-public class TopQueriesByLatencyService extends QueryInsightService<
+public class TopQueriesByLatencyService extends QueryInsightsService<
     SearchQueryLatencyRecord,
     PriorityBlockingQueue<SearchQueryLatencyRecord>,
-    QueryInsightLocalIndexExporter<SearchQueryLatencyRecord>> {
+    QueryInsightsLocalIndexExporter<SearchQueryLatencyRecord>> {
     private static final Logger log = LogManager.getLogger(TopQueriesByLatencyService.class);
 
     /** Default window size in seconds to keep the top N queries with latency data in query insight store */
