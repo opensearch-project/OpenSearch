@@ -571,7 +571,7 @@ public class AllocationService {
         if (batchModeEnabled && allocation.nodes().getMinNodeVersion().onOrAfter(Version.CURRENT)) {
             // since allocators is per index setting, to have batch assignment verify allocators same for all shards
             // if not fallback to single assignment
-            ExistingShardsAllocator allocator = verifySameAllocatorForAllUnassignedShards(allocation);
+            ExistingShardsAllocator allocator = getAndVerifySameAllocatorForAllUnassignedShards(allocation);
             if (allocator != null) {
                 // use batch mode implementation of GatewayAllocator
                 if (allocator.getClass() == GatewayAllocator.class) {
@@ -618,7 +618,7 @@ public class AllocationService {
      * @param allocation {@link RoutingAllocation}
      * @return {@link ExistingShardsAllocator} or null
      */
-    private ExistingShardsAllocator verifySameAllocatorForAllUnassignedShards(RoutingAllocation allocation) {
+    private ExistingShardsAllocator getAndVerifySameAllocatorForAllUnassignedShards(RoutingAllocation allocation) {
         // if there is a single Allocator set in Allocation Service then use it for all shards
         if (existingShardsAllocators.size() == 1) {
             return existingShardsAllocators.values().iterator().next();
@@ -627,8 +627,7 @@ public class AllocationService {
         RoutingNodes.UnassignedShards.UnassignedIterator iterator = unassignedShards.iterator();
         ExistingShardsAllocator currentAllocatorForShard = null;
         if (unassignedShards.size() > 0) {
-            ShardRouting shard = iterator.next();
-            currentAllocatorForShard = getAllocatorForShard(shard, allocation);
+            currentAllocatorForShard = getAllocatorForShard(iterator.next(), allocation);
             while (iterator.hasNext()) {
                 ExistingShardsAllocator allocatorForShard = getAllocatorForShard(iterator.next(), allocation);
                 if (currentAllocatorForShard.getClass().getName().equals(allocatorForShard.getClass().getName()) == false) {
