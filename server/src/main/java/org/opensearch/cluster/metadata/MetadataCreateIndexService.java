@@ -1332,19 +1332,19 @@ public class MetadataCreateIndexService {
 
     /**
      * Validates {@code index.replication.type} is matches with cluster level setting {@code cluster.indices.replication.strategy}
-     * when {@code cluster.force.index.replication.type} is set to true.
+     * when {@code cluster.index.restrict.replication.type} is set to true.
      *
      * @param requestSettings settings passed in during index create request
      * @param clusterSettings cluster setting
      */
     private static Optional<String> validateIndexReplicationTypeSettings(Settings requestSettings, ClusterSettings clusterSettings) {
-        if (clusterSettings.get(IndicesService.CLUSTER_FORCE_INDEX_REPLICATION_TYPE_SETTING)
+        if (clusterSettings.get(IndicesService.CLUSTER_INDEX_RESTRICT_REPLICATION_TYPE_SETTING)
             && requestSettings.hasValue(SETTING_REPLICATION_TYPE)
             && requestSettings.get(INDEX_REPLICATION_TYPE_SETTING.getKey())
                 .equals(clusterSettings.get(CLUSTER_REPLICATION_TYPE_SETTING).name()) == false) {
             return Optional.of(
                 "index setting [index.replication.type] is not allowed to be set as ["
-                    + IndicesService.CLUSTER_FORCE_INDEX_REPLICATION_TYPE_SETTING.getKey()
+                    + IndicesService.CLUSTER_INDEX_RESTRICT_REPLICATION_TYPE_SETTING.getKey()
                     + "=true]"
             );
         }

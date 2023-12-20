@@ -31,7 +31,7 @@ import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REPLICATION_TYPE;
-import static org.opensearch.indices.IndicesService.CLUSTER_FORCE_INDEX_REPLICATION_TYPE_SETTING;
+import static org.opensearch.indices.IndicesService.CLUSTER_INDEX_RESTRICT_REPLICATION_TYPE_SETTING;
 import static org.opensearch.indices.IndicesService.CLUSTER_SETTING_REPLICATION_TYPE;
 import static org.opensearch.indices.replication.SegmentReplicationBaseIT.waitForSearchableDocs;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
@@ -49,7 +49,7 @@ public class SegmentReplicationSnapshotIT extends AbstractSnapshotIntegTestCase 
     private static final String SNAPSHOT_NAME = "test-segrep-snapshot";
 
     protected static final String REPLICATION_MISMATCH_VALIDATION_ERROR =
-        "Validation Failed: 1: index setting [index.replication.type] is not allowed to be set as [cluster.force.index.replication.type=true];";
+        "Validation Failed: 1: index setting [index.replication.type] is not allowed to be set as [cluster.index.restrict.replication.type=true];";
 
     public Settings segRepEnableIndexSettings() {
         return getShardSettings().put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT).build();
@@ -314,7 +314,7 @@ public class SegmentReplicationSnapshotIT extends AbstractSnapshotIntegTestCase 
     /**
     * 1. Create index in DOCUMENT replication type
     * 2. Snapshot index
-    * 3. Add new set of nodes with `cluster.indices.replication.strategy` set to SEGMENT and `cluster.force.index.replication.type`
+    * 3. Add new set of nodes with `cluster.indices.replication.strategy` set to SEGMENT and `cluster.index.restrict.replication.type`
     *    set to true.
     * 4. Perform restore on new set of nodes to validate restored index has `DOCUMENT` replication.
     */
@@ -349,7 +349,7 @@ public class SegmentReplicationSnapshotIT extends AbstractSnapshotIntegTestCase 
         // Start new set of nodes with cluster level replication type setting and restrict replication type setting.
         Settings settings = Settings.builder()
             .put(CLUSTER_SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
-            .put(CLUSTER_FORCE_INDEX_REPLICATION_TYPE_SETTING.getKey(), true)
+            .put(CLUSTER_INDEX_RESTRICT_REPLICATION_TYPE_SETTING.getKey(), true)
             .build();
 
         // Start new cluster manager node

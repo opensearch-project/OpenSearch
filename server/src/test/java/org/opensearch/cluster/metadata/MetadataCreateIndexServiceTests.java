@@ -138,7 +138,7 @@ import static org.opensearch.index.IndexSettings.INDEX_REMOTE_TRANSLOG_BUFFER_IN
 import static org.opensearch.index.IndexSettings.INDEX_SOFT_DELETES_SETTING;
 import static org.opensearch.index.IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING;
 import static org.opensearch.indices.IndicesService.CLUSTER_DEFAULT_INDEX_REFRESH_INTERVAL_SETTING;
-import static org.opensearch.indices.IndicesService.CLUSTER_FORCE_INDEX_REPLICATION_TYPE_SETTING;
+import static org.opensearch.indices.IndicesService.CLUSTER_INDEX_RESTRICT_REPLICATION_TYPE_SETTING;
 import static org.opensearch.indices.IndicesService.CLUSTER_MINIMUM_INDEX_REFRESH_INTERVAL_SETTING;
 import static org.opensearch.indices.IndicesService.CLUSTER_REMOTE_INDEX_RESTRICT_ASYNC_DURABILITY_SETTING;
 import static org.opensearch.indices.IndicesService.CLUSTER_REPLICATION_TYPE_SETTING;
@@ -169,7 +169,7 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
         + REMOTE_STORE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEY;
 
     final String REPLICATION_MISMATCH_VALIDATION_ERROR =
-        "Validation Failed: 1: index setting [index.replication.type] is not allowed to be set as [cluster.force.index.replication.type=true];";
+        "Validation Failed: 1: index setting [index.replication.type] is not allowed to be set as [cluster.index.restrict.replication.type=true];";
 
     @Before
     public void setup() throws Exception {
@@ -1247,7 +1247,7 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
     public void testClusterForceReplicationTypeInAggregateSettings() {
         Settings settings = Settings.builder()
             .put(CLUSTER_REPLICATION_TYPE_SETTING.getKey(), ReplicationType.SEGMENT)
-            .put(CLUSTER_FORCE_INDEX_REPLICATION_TYPE_SETTING.getKey(), true)
+            .put(CLUSTER_INDEX_RESTRICT_REPLICATION_TYPE_SETTING.getKey(), true)
             .build();
         ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         Settings matchingReplicationIndexSettings = Settings.builder()
@@ -1301,7 +1301,7 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
         // Enforce cluster level replication type setting
         final Settings forceClusterSettingEnabled = Settings.builder()
             .put(CLUSTER_REPLICATION_TYPE_SETTING.getKey(), ReplicationType.SEGMENT)
-            .put(CLUSTER_FORCE_INDEX_REPLICATION_TYPE_SETTING.getKey(), true)
+            .put(CLUSTER_INDEX_RESTRICT_REPLICATION_TYPE_SETTING.getKey(), true)
             .build();
         ClusterSettings clusterSettings = new ClusterSettings(forceClusterSettingEnabled, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         when(clusterService.getSettings()).thenReturn(forceClusterSettingEnabled);
@@ -1335,7 +1335,7 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
         // Cluster level replication type setting not enforced
         final Settings forceClusterSettingDisabled = Settings.builder()
             .put(CLUSTER_REPLICATION_TYPE_SETTING.getKey(), ReplicationType.SEGMENT)
-            .put(CLUSTER_FORCE_INDEX_REPLICATION_TYPE_SETTING.getKey(), false)
+            .put(CLUSTER_INDEX_RESTRICT_REPLICATION_TYPE_SETTING.getKey(), false)
             .build();
         clusterSettings = new ClusterSettings(forceClusterSettingDisabled, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
