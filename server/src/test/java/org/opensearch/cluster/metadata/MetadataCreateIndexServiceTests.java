@@ -1250,11 +1250,11 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
             .put(CLUSTER_INDEX_RESTRICT_REPLICATION_TYPE_SETTING.getKey(), true)
             .build();
         ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        Settings matchingReplicationIndexSettings = Settings.builder()
+        Settings nonMatchingReplicationIndexSettings = Settings.builder()
             .put(INDEX_REPLICATION_TYPE_SETTING.getKey(), ReplicationType.DOCUMENT)
             .build();
         request = new CreateIndexClusterStateUpdateRequest("create index", "test", "test");
-        request.settings(matchingReplicationIndexSettings);
+        request.settings(nonMatchingReplicationIndexSettings);
         IndexCreationException exception = expectThrows(
             IndexCreationException.class,
             () -> aggregateIndexSettings(
@@ -1271,10 +1271,10 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
         );
         assertEquals(REPLICATION_MISMATCH_VALIDATION_ERROR, exception.getCause().getMessage());
 
-        Settings nonMatchingReplicationIndexSettings = Settings.builder()
+        Settings matchingReplicationIndexSettings = Settings.builder()
             .put(INDEX_REPLICATION_TYPE_SETTING.getKey(), ReplicationType.SEGMENT)
             .build();
-        request.settings(nonMatchingReplicationIndexSettings);
+        request.settings(matchingReplicationIndexSettings);
         Settings aggregateIndexSettings = aggregateIndexSettings(
             ClusterState.EMPTY_STATE,
             request,
