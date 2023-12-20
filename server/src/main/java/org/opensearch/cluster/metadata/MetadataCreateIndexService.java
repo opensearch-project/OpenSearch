@@ -1332,7 +1332,7 @@ public class MetadataCreateIndexService {
 
     /**
      * Validates {@code index.replication.type} is matches with cluster level setting {@code cluster.indices.replication.strategy}
-     * when {@code cluster.force.index.replication_type} is set to true.
+     * when {@code cluster.force.index.replication.type} is set to true.
      *
      * @param requestSettings settings passed in during index create request
      * @param clusterSettings cluster setting

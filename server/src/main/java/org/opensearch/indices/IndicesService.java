@@ -302,12 +302,13 @@ public class IndicesService extends AbstractLifecycleComponent
     );
 
     /**
-     * This setting is used to prevents creation of indices where the 'index.replication.type' setting does not match
-     * with the replication type index setting, set at cluster level i.e. 'cluster.indices.replication.strategy'.
-     * If disabled, the replication type can be specified.
+     * If enabled, this setting enforces that indexes will be created with a replication type matching the cluster setting
+     * defined in cluster.indices.replication.strategy by rejecting any request that specifies a replication type that
+     * does not match the cluster setting. If disabled, a user can choose a replication type on a per-index basis using
+     * the index.replication.type setting.
      */
     public static final Setting<Boolean> CLUSTER_FORCE_INDEX_REPLICATION_TYPE_SETTING = Setting.boolSetting(
-        "cluster.force.index.replication_type",
+        "cluster.force.index.replication.type",
         false,
         Property.NodeScope,
         Property.Final

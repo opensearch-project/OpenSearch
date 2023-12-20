@@ -45,7 +45,7 @@ public class SegmentReplicationClusterSettingIT extends OpenSearchIntegTestCase 
     protected static final int REPLICA_COUNT = 1;
 
     protected static final String REPLICATION_MISMATCH_VALIDATION_ERROR =
-        "Validation Failed: 1: index setting [index.replication.type] is not allowed to be set as [cluster.force.index.replication_type=true];";
+        "Validation Failed: 1: index setting [index.replication.type] is not allowed to be set as [cluster.force.index.replication.type=true];";
 
     @Override
     public Settings indexSettings() {
@@ -142,18 +142,6 @@ public class SegmentReplicationClusterSettingIT extends OpenSearchIntegTestCase 
         executeTest(true, consumer, INDEX_NAME, documentCount);
     }
 
-    public void testDifferentReplicationTypes_CreateIndex_NonStrictMode() throws Throwable {
-        final int documentCount = scaledRandomIntBetween(1, 10);
-        BiConsumer<List<ReplicationType>, List<String>> consumer = (replicationList, dataNodesList) -> {
-            Settings indexSettings = Settings.builder().put(indexSettings()).put(SETTING_REPLICATION_TYPE, replicationList.get(1)).build();
-            createIndex(INDEX_NAME, indexSettings);
-            for (int i = 0; i < documentCount; i++) {
-                client().prepareIndex(INDEX_NAME).setId(String.valueOf(i)).setSource("foo", "bar").get();
-            }
-        };
-        executeTest(false, consumer, INDEX_NAME, documentCount);
-    }
-
     public void testDifferentReplicationTypes_IndexTemplates_StrictMode() throws Throwable {
         final int documentCount = scaledRandomIntBetween(1, 10);
 
@@ -172,30 +160,6 @@ public class SegmentReplicationClusterSettingIT extends OpenSearchIntegTestCase 
             createIndex(INDEX_NAME);
         };
         executeTest(true, consumer, INDEX_NAME, documentCount);
-    }
-
-    public void testDifferentReplicationTypes_IndexTemplates_NonStrictMode() throws Throwable {
-        final int documentCount = scaledRandomIntBetween(1, 10);
-
-        // Create an index using current cluster level settings
-        BiConsumer<List<ReplicationType>, List<String>> consumer = (replicationList, dataNodesList) -> {
-            client().admin()
-                .indices()
-                .preparePutTemplate("template_1")
-                .setPatterns(Collections.singletonList("test-idx*"))
-                .setSettings(Settings.builder().put(indexSettings()).put(SETTING_REPLICATION_TYPE, replicationList.get(1)).build())
-                .setOrder(0)
-                .get();
-
-            GetIndexTemplatesResponse response = client().admin().indices().prepareGetTemplates().get();
-            assertThat(response.getIndexTemplates(), hasSize(1));
-
-            createIndex(INDEX_NAME);
-            for (int i = 0; i < documentCount; i++) {
-                client().prepareIndex(INDEX_NAME).setId(String.valueOf(i)).setSource("foo", "bar").get();
-            }
-        };
-        executeTest(false, consumer, INDEX_NAME, documentCount);
     }
 
     public void testMismatchingReplicationType_ResizeAction_StrictMode() throws Throwable {
@@ -264,74 +228,8 @@ public class SegmentReplicationClusterSettingIT extends OpenSearchIntegTestCase 
         executeTest(true, consumer, targetIndexName, documentCount);
     }
 
-    public void testMismatchingReplicationType_ResizeAction_NonStrictMode() throws Throwable {
-        final int initialShardCount = 2;
-        // Define resize action and target shard count.
-        List<Tuple<ResizeType, Integer>> resizeActionsList = new ArrayList<>();
-        resizeActionsList.add(new Tuple<>(ResizeType.SPLIT, 2 * initialShardCount));
-        resizeActionsList.add(new Tuple<>(ResizeType.SHRINK, SHARD_COUNT));
-        resizeActionsList.add(new Tuple<>(ResizeType.CLONE, initialShardCount));
-
-        Tuple<ResizeType, Integer> resizeActionTuple = resizeActionsList.get(random().nextInt(resizeActionsList.size()));
-        final String targetIndexName = resizeActionTuple.v1().name().toLowerCase(Locale.ROOT) + "-target";
-        final int documentCount = scaledRandomIntBetween(1, 10);
-
-        logger.info("--> Performing resize action {} with shard count {}", resizeActionTuple.v1(), resizeActionTuple.v2());
-
-        // Create an index using current cluster level settings
-        BiConsumer<List<ReplicationType>, List<String>> consumer = (replicationList, dataNodesList) -> {
-            Settings indexSettings = Settings.builder()
-                .put(indexSettings())
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, initialShardCount)
-                .put(SETTING_REPLICATION_TYPE, replicationList.get(0))
-                .build();
-
-            createIndex(INDEX_NAME, indexSettings);
-
-            for (int i = 0; i < documentCount; i++) {
-                client().prepareIndex(INDEX_NAME).setId(String.valueOf(i)).setSource("foo", "bar").get();
-            }
-
-            // Block writes
-            client().admin()
-                .indices()
-                .prepareUpdateSettings(INDEX_NAME)
-                .setSettings(Settings.builder().put("index.blocks.write", true))
-                .get();
-            ensureGreen();
-
-            try {
-                for (String node : dataNodesList) {
-                    assertBusy(() -> {
-                        assertHitCount(
-                            client(node).prepareSearch(INDEX_NAME).setSize(100).setQuery(new TermsQueryBuilder("foo", "bar")).get(),
-                            documentCount
-                        );
-                    }, 30, TimeUnit.SECONDS);
-                }
-            } catch (Exception e) {
-                throw new RuntimeException(e);
-            }
-
-            client().admin()
-                .indices()
-                .prepareResizeIndex(INDEX_NAME, targetIndexName)
-                .setResizeType(resizeActionTuple.v1())
-                .setSettings(
-                    Settings.builder()
-                        .put("index.number_of_replicas", 0)
-                        .put("index.number_of_shards", resizeActionTuple.v2())
-                        .putNull("index.blocks.write")
-                        .put(SETTING_REPLICATION_TYPE, replicationList.get(1))
-                        .build()
-                )
-                .get();
-        };
-        executeTest(false, consumer, targetIndexName, documentCount);
-    }
-
     // Creates a cluster with mis-matching cluster level and index level replication strategies and validates that index
-    // creation fails when cluster level setting `cluster.force.index.replication_type` is set to true and creation goes
+    // creation fails when cluster level setting `cluster.force.index.replication.type` is set to true and creation goes
     // through when it is false.
     private void executeTest(
         boolean restrictIndexLevelReplicationTypeSetting,

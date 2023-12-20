@@ -49,7 +49,7 @@ public class SegmentReplicationSnapshotIT extends AbstractSnapshotIntegTestCase 
     private static final String SNAPSHOT_NAME = "test-segrep-snapshot";
 
     protected static final String REPLICATION_MISMATCH_VALIDATION_ERROR =
-        "Validation Failed: 1: index setting [index.replication.type] is not allowed to be set as [cluster.force.index.replication_type=true];";
+        "Validation Failed: 1: index setting [index.replication.type] is not allowed to be set as [cluster.force.index.replication.type=true];";
 
     public Settings segRepEnableIndexSettings() {
         return getShardSettings().put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT).build();
@@ -314,7 +314,7 @@ public class SegmentReplicationSnapshotIT extends AbstractSnapshotIntegTestCase 
     /**
     * 1. Create index in DOCUMENT replication type
     * 2. Snapshot index
-    * 3. Add new set of nodes with `cluster.indices.replication.strategy` set to SEGMENT and `cluster.force.index.replication_type`
+    * 3. Add new set of nodes with `cluster.indices.replication.strategy` set to SEGMENT and `cluster.force.index.replication.type`
     *    set to true.
     * 4. Perform restore on new set of nodes to validate restored index has `DOCUMENT` replication.
     */
