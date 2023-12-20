@@ -1,0 +1,42 @@
+setup:
+  - do:
+      indices.create:
+          index: index_1
+          body:
+            settings:
+              number_of_shards: 1
+            mappings:
+              properties:
+                created_at:
+                   type: date
+                   #format: "strict_date" - passed ok
+                   format: "basic_date" ## failed with "java.time.DateTimeException: Field Year cannot be printed as the value -292275055 exceeds the maximum print width of 4"
+
+---
+"test sorting missing basic_* format":
+
+  - skip:
+      version:  " - 7.6.99" # TODO ????
+      reason:   "distributed sort optimization was added in 7.7.0"
+  - do:
+      index:
+        index: index_1
+        id: 1
+        body: { "created_at": "20160101"} #strict "2016-01-01"
+  - do:
+      index:
+        index: index_1
+        id: 2
+        body: { "name": "foo" }
+
+  - do:
+      indices.refresh: {}
+
+  # check that empty responses are correctly handled when rewriting to match_no_docs
+  - do:
+      search:
+        # ensure that one shard can return empty response
+        max_concurrent_shard_requests: 1
+        body: { "size" : 2, "sort": { "created_at": {"order":"desc"}} }
+
+  - match: { hits.total.value: 2 }
