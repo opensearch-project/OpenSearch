@@ -710,7 +710,7 @@ public class OpenSearchNode implements TestClusterConfiguration {
 
         if (userSpec.containsKey("username") && userSpec.containsKey("password")) {
             this.credentials.get(0).put("username", userSpec.get("username"));
-            this.credentials.get(0).put("password",  userSpec.get("password"));
+            this.credentials.get(0).put("password", userSpec.get("password"));
             return;
         }
 
