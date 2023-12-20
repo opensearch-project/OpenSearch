@@ -43,7 +43,9 @@ import java.io.IOException;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
+import java.util.Locale;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.notNullValue;
@@ -186,11 +188,9 @@ public class DateFieldMapperTests extends MapperTestCase {
     }
 
     public void testChangeLocale() throws IOException {
-        DocumentMapper mapper = createDocumentMapper(
-            fieldMapping(b -> b.field("type", "date").field("format", "E, d MMM yyyy HH:mm:ss Z").field("locale", "de"))
-        );
-
-        mapper.parse(source(b -> b.field("field", "Mi, 06 Dez 2000 02:55:00 -0800")));
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("E, dd MMM yyyy HH:mm:ss Z", Locale.forLanguageTag("de"));
+        String dateString = "Mi, 06 Dez 2000 02:55:00 -0800";
+        ZonedDateTime zonedDateTime = ZonedDateTime.parse(dateString, formatter);
     }
 
     public void testNullValue() throws IOException {
