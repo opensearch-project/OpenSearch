@@ -148,7 +148,7 @@ public class SegmentReplicationClusterSettingIT extends OpenSearchIntegTestCase 
         // Generate mutually exclusive replication strategies at cluster and index level
         List<ReplicationType> replicationStrategies = getRandomReplicationTypesAsList();
         ReplicationType clusterLevelReplication = replicationStrategies.get(0);
-        ReplicationType indexLevelReplication = replicationStrategies.get(1);
+        ReplicationType templateReplicationType = replicationStrategies.get(1);
         Settings nodeSettings = Settings.builder()
             .put(CLUSTER_SETTING_REPLICATION_TYPE, clusterLevelReplication)
             .put(CLUSTER_INDEX_RESTRICT_REPLICATION_TYPE_SETTING.getKey(), true)
@@ -157,8 +157,8 @@ public class SegmentReplicationClusterSettingIT extends OpenSearchIntegTestCase 
         internalCluster().startDataOnlyNode(nodeSettings);
         internalCluster().startDataOnlyNode(nodeSettings);
         logger.info(
-            "--> Create index with index level replication {} and cluster level replication {}",
-            indexLevelReplication,
+            "--> Create index with template replication {} and cluster level replication {}",
+            templateReplicationType,
             clusterLevelReplication
         );
         // Create index template
@@ -166,7 +166,7 @@ public class SegmentReplicationClusterSettingIT extends OpenSearchIntegTestCase 
             .indices()
             .preparePutTemplate("template_1")
             .setPatterns(Collections.singletonList("test-idx*"))
-            .setSettings(Settings.builder().put(indexSettings()).put(SETTING_REPLICATION_TYPE, ReplicationType.DOCUMENT).build())
+            .setSettings(Settings.builder().put(indexSettings()).put(SETTING_REPLICATION_TYPE, templateReplicationType).build())
             .setOrder(0)
             .get();
 
