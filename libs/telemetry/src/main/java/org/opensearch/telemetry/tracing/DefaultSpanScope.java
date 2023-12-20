@@ -21,6 +21,7 @@ import java.util.Objects;
 class DefaultSpanScope implements SpanScope {
     private final Span span;
     private final SpanScope previousSpanScope;
+    private final Span beforeSpan;
     private static final ThreadLocal<SpanScope> spanScopeThreadLocal = new ThreadLocal<>();
     private final TracerContextStorage<String, Span> tracerContextStorage;
 
@@ -29,8 +30,14 @@ class DefaultSpanScope implements SpanScope {
      * @param span span
      * @param previousSpanScope before attached span scope.
      */
-    private DefaultSpanScope(Span span, SpanScope previousSpanScope, TracerContextStorage<String, Span> tracerContextStorage) {
+    private DefaultSpanScope(
+        Span span,
+        final Span beforeSpan,
+        SpanScope previousSpanScope,
+        TracerContextStorage<String, Span> tracerContextStorage
+    ) {
         this.span = Objects.requireNonNull(span);
+        this.beforeSpan = beforeSpan;
         this.previousSpanScope = previousSpanScope;
         this.tracerContextStorage = tracerContextStorage;
     }
@@ -43,7 +50,8 @@ class DefaultSpanScope implements SpanScope {
      */
     public static SpanScope create(Span span, TracerContextStorage<String, Span> tracerContextStorage) {
         final SpanScope beforeSpanScope = spanScopeThreadLocal.get();
-        SpanScope newSpanScope = new DefaultSpanScope(span, beforeSpanScope, tracerContextStorage);
+        final Span beforeSpan = tracerContextStorage.get(TracerContextStorage.CURRENT_SPAN);
+        SpanScope newSpanScope = new DefaultSpanScope(span, beforeSpan, beforeSpanScope, tracerContextStorage);
         return newSpanScope;
     }
 
@@ -61,8 +69,8 @@ class DefaultSpanScope implements SpanScope {
 
     private void detach() {
         spanScopeThreadLocal.set(previousSpanScope);
-        if (previousSpanScope != null) {
-            tracerContextStorage.put(TracerContextStorage.CURRENT_SPAN, previousSpanScope.getSpan());
+        if (beforeSpan != null) {
+            tracerContextStorage.put(TracerContextStorage.CURRENT_SPAN, beforeSpan);
         } else {
             tracerContextStorage.put(TracerContextStorage.CURRENT_SPAN, null);
         }
