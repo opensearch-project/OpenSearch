@@ -72,8 +72,15 @@ public final class ShardRequestCache {
         statsHolder.get(tierType).missCount.inc();
     }
 
-    public void onCached(Accountable key, BytesReference value, TierType tierType) {
-        statsHolder.get(tierType).totalMetric.inc(key.ramBytesUsed() + value.ramBytesUsed());
+    public void onCached(Accountable key, BytesReference value, CacheStoreType cacheStoreType) {
+        long valueByteSize;
+        if (cacheStoreType == CacheStoreType.DISK) {
+            valueByteSize = value.length(); // Ehcache trims trailing zeros from incoming byte[]
+        } else {
+            valueByteSize = value.ramBytesUsed();
+        }
+        defaultStatsHolder.get(cacheStoreType).totalMetric.inc(key.ramBytesUsed() + valueByteSize);
+        defaultStatsHolder.get(cacheStoreType).entries.inc();
     }
 
     public void onRemoval(Accountable key, BytesReference value, boolean evicted, TierType tierType) {
