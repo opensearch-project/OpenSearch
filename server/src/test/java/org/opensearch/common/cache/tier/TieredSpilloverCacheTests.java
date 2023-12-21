@@ -14,17 +14,12 @@ import org.opensearch.common.cache.store.StoreAwareCache;
 import org.opensearch.common.cache.store.StoreAwareCacheRemovalNotification;
 import org.opensearch.common.cache.store.builders.StoreAwareCacheBuilder;
 import org.opensearch.common.cache.store.enums.CacheStoreType;
-import org.opensearch.common.cache.store.listeners.EventType;
 import org.opensearch.common.cache.store.listeners.StoreAwareCacheEventListener;
-import org.opensearch.common.cache.store.listeners.StoreAwareCacheEventListenerConfiguration;
-import org.opensearch.common.cache.store.listeners.dispatchers.StoreAwareCacheEventListenerDispatcher;
-import org.opensearch.common.cache.store.listeners.dispatchers.StoreAwareCacheListenerDispatcherDefaultImpl;
 import org.opensearch.common.metrics.CounterMetric;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.ArrayList;
 import java.util.EnumMap;
-import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -35,14 +30,10 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
     public void testComputeIfAbsentWithoutAnyOnHeapCacheEviction() throws Exception {
         int onHeapCacheSize = randomIntBetween(10, 30);
         MockCacheEventListener<String, String> eventListener = new MockCacheEventListener<String, String>();
-        StoreAwareCacheEventListenerConfiguration<String, String> eventListenerConfiguration =
-            new StoreAwareCacheEventListenerConfiguration.Builder<String, String>().setEventListener(eventListener)
-                .setEventTypes(EnumSet.of(EventType.ON_CACHED, EventType.ON_HIT, EventType.ON_MISS, EventType.ON_REMOVAL))
-                .build();
         TieredSpilloverCache<String, String> tieredSpilloverCache = intializeTieredSpilloverCache(
             onHeapCacheSize,
             randomIntBetween(1, 4),
-            eventListenerConfiguration
+            eventListener
         );
         int numOfItems1 = randomIntBetween(1, onHeapCacheSize / 2 - 1);
         List<String> keys = new ArrayList<>();
@@ -83,14 +74,10 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
         int diskCacheSize = randomIntBetween(60, 100);
         int totalSize = onHeapCacheSize + diskCacheSize;
         MockCacheEventListener<String, String> eventListener = new MockCacheEventListener<String, String>();
-        StoreAwareCacheEventListenerConfiguration<String, String> eventListenerConfiguration =
-            new StoreAwareCacheEventListenerConfiguration.Builder<String, String>().setEventListener(eventListener)
-                .setEventTypes(EnumSet.of(EventType.ON_CACHED, EventType.ON_HIT, EventType.ON_MISS, EventType.ON_REMOVAL))
-                .build();
         TieredSpilloverCache<String, String> tieredSpilloverCache = intializeTieredSpilloverCache(
             onHeapCacheSize,
             diskCacheSize,
-            eventListenerConfiguration
+            eventListener
         );
 
         // Put values in cache more than it's size and cause evictions from onHeap.
@@ -154,14 +141,10 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
         int totalSize = onHeapCacheSize + diskCacheSize;
 
         MockCacheEventListener<String, String> eventListener = new MockCacheEventListener<String, String>();
-        StoreAwareCacheEventListenerConfiguration<String, String> eventListenerConfiguration =
-            new StoreAwareCacheEventListenerConfiguration.Builder<String, String>().setEventListener(eventListener)
-                .setEventTypes(EnumSet.of(EventType.ON_CACHED, EventType.ON_HIT, EventType.ON_MISS, EventType.ON_REMOVAL))
-                .build();
         TieredSpilloverCache<String, String> tieredSpilloverCache = intializeTieredSpilloverCache(
             onHeapCacheSize,
             diskCacheSize,
-            eventListenerConfiguration
+            eventListener
         );
 
         int numOfItems = randomIntBetween(totalSize + 1, totalSize * 3);
@@ -179,14 +162,10 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
         int totalSize = onHeapCacheSize + diskCacheSize;
 
         MockCacheEventListener<String, String> eventListener = new MockCacheEventListener<String, String>();
-        StoreAwareCacheEventListenerConfiguration<String, String> eventListenerConfiguration =
-            new StoreAwareCacheEventListenerConfiguration.Builder<String, String>().setEventListener(eventListener)
-                .setEventTypes(EnumSet.of(EventType.ON_CACHED, EventType.ON_HIT, EventType.ON_MISS, EventType.ON_REMOVAL))
-                .build();
         TieredSpilloverCache<String, String> tieredSpilloverCache = intializeTieredSpilloverCache(
             onHeapCacheSize,
             diskCacheSize,
-            eventListenerConfiguration
+            eventListener
         );
 
         int numOfItems1 = randomIntBetween(onHeapCacheSize + 1, totalSize);
@@ -223,17 +202,13 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
     public void testWithDiskTierNull() throws Exception {
         int onHeapCacheSize = randomIntBetween(10, 30);
         MockCacheEventListener<String, String> eventListener = new MockCacheEventListener<String, String>();
-        StoreAwareCacheEventListenerConfiguration<String, String> eventListenerConfiguration =
-            new StoreAwareCacheEventListenerConfiguration.Builder<String, String>().setEventListener(eventListener)
-                .setEventTypes(EnumSet.of(EventType.ON_CACHED, EventType.ON_HIT, EventType.ON_MISS, EventType.ON_REMOVAL))
-                .build();
 
         StoreAwareCacheBuilder<String, String> onHeapCacheBuilder = new MockOnHeapCache.Builder<String, String>().setMaxSize(
             onHeapCacheSize
         );
         TieredSpilloverCache<String, String> tieredSpilloverCache = new TieredSpilloverCache.Builder<String, String>()
             .setOnHeapCacheBuilder(onHeapCacheBuilder)
-            .setListenerConfiguration(eventListenerConfiguration)
+            .setListener(eventListener)
             .build();
 
         int numOfItems = randomIntBetween(onHeapCacheSize + 1, onHeapCacheSize * 3);
@@ -252,14 +227,10 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
         int diskCacheSize = randomIntBetween(onHeapCacheSize + 1, 100);
 
         MockCacheEventListener<String, String> eventListener = new MockCacheEventListener<>();
-        StoreAwareCacheEventListenerConfiguration<String, String> eventListenerConfiguration =
-            new StoreAwareCacheEventListenerConfiguration.Builder<String, String>().setEventListener(eventListener)
-                .setEventTypes(EnumSet.of(EventType.ON_CACHED, EventType.ON_HIT, EventType.ON_MISS, EventType.ON_REMOVAL))
-                .build();
         TieredSpilloverCache<String, String> tieredSpilloverCache = intializeTieredSpilloverCache(
             onHeapCacheSize,
             diskCacheSize,
-            eventListenerConfiguration
+            eventListener
         );
         String key = UUID.randomUUID().toString();
         String value = UUID.randomUUID().toString();
@@ -273,14 +244,10 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
         int diskCacheSize = 10;
 
         MockCacheEventListener<String, String> eventListener = new MockCacheEventListener<>();
-        StoreAwareCacheEventListenerConfiguration<String, String> eventListenerConfiguration =
-            new StoreAwareCacheEventListenerConfiguration.Builder<String, String>().setEventListener(eventListener)
-                .setEventTypes(EnumSet.of(EventType.ON_CACHED, EventType.ON_HIT, EventType.ON_MISS, EventType.ON_REMOVAL))
-                .build();
         TieredSpilloverCache<String, String> tieredSpilloverCache = intializeTieredSpilloverCache(
             onHeapCacheSize,
             diskCacheSize,
-            eventListenerConfiguration
+            eventListener
         );
         String key = UUID.randomUUID().toString();
         String value = UUID.randomUUID().toString();
@@ -308,14 +275,10 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
     public void testComputeWithoutAnyOnHeapEvictions() throws Exception {
         int onHeapCacheSize = randomIntBetween(10, 30);
         MockCacheEventListener<String, String> eventListener = new MockCacheEventListener<String, String>();
-        StoreAwareCacheEventListenerConfiguration<String, String> eventListenerConfiguration =
-            new StoreAwareCacheEventListenerConfiguration.Builder<String, String>().setEventListener(eventListener)
-                .setEventTypes(EnumSet.of(EventType.ON_CACHED, EventType.ON_HIT, EventType.ON_MISS, EventType.ON_REMOVAL))
-                .build();
         TieredSpilloverCache<String, String> spilloverStrategyService = intializeTieredSpilloverCache(
             onHeapCacheSize,
             randomIntBetween(1, 4),
-            eventListenerConfiguration
+            eventListener
         );
         int numOfItems1 = randomIntBetween(1, onHeapCacheSize / 2 - 1);
         List<String> keys = new ArrayList<>();
@@ -335,14 +298,10 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
         int totalSize = onHeapCacheSize + diskCacheSize;
 
         MockCacheEventListener<String, String> eventListener = new MockCacheEventListener<>();
-        StoreAwareCacheEventListenerConfiguration<String, String> eventListenerConfiguration =
-            new StoreAwareCacheEventListenerConfiguration.Builder<String, String>().setEventListener(eventListener)
-                .setEventTypes(EnumSet.of(EventType.ON_CACHED, EventType.ON_HIT, EventType.ON_MISS, EventType.ON_REMOVAL))
-                .build();
         TieredSpilloverCache<String, String> tieredSpilloverCache = intializeTieredSpilloverCache(
             onHeapCacheSize,
             diskCacheSize,
-            eventListenerConfiguration
+            eventListener
         );
         // Put values in cache more than it's size and cause evictions from onHeap.
         int numOfItems1 = randomIntBetween(onHeapCacheSize + 1, totalSize);
@@ -392,14 +351,10 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
         int diskCacheSize = randomIntBetween(60, 100);
 
         MockCacheEventListener<String, String> eventListener = new MockCacheEventListener<>();
-        StoreAwareCacheEventListenerConfiguration<String, String> eventListenerConfiguration =
-            new StoreAwareCacheEventListenerConfiguration.Builder<String, String>().setEventListener(eventListener)
-                .setEventTypes(EnumSet.of(EventType.ON_CACHED, EventType.ON_HIT, EventType.ON_MISS, EventType.ON_REMOVAL))
-                .build();
         TieredSpilloverCache<String, String> tieredSpilloverCache = intializeTieredSpilloverCache(
             onHeapCacheSize,
             diskCacheSize,
-            eventListenerConfiguration
+            eventListener
         );
         tieredSpilloverCache.refresh(CacheStoreType.ON_HEAP);
         tieredSpilloverCache.refresh(CacheStoreType.DISK);
@@ -412,14 +367,10 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
         int totalSize = onHeapCacheSize + diskCacheSize;
 
         MockCacheEventListener<String, String> eventListener = new MockCacheEventListener<>();
-        StoreAwareCacheEventListenerConfiguration<String, String> eventListenerConfiguration =
-            new StoreAwareCacheEventListenerConfiguration.Builder<String, String>().setEventListener(eventListener)
-                .setEventTypes(EnumSet.of(EventType.ON_CACHED, EventType.ON_HIT, EventType.ON_MISS, EventType.ON_REMOVAL))
-                .build();
         TieredSpilloverCache<String, String> tieredSpilloverCache = intializeTieredSpilloverCache(
             onHeapCacheSize,
             diskCacheSize,
-            eventListenerConfiguration
+            eventListener
         );
         // Put values in cache more than it's size and cause evictions from onHeap.
         int numOfItems1 = randomIntBetween(onHeapCacheSize + 1, totalSize);
@@ -504,7 +455,7 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
     private TieredSpilloverCache<String, String> intializeTieredSpilloverCache(
         int onHeapCacheSize,
         int diksCacheSize,
-        StoreAwareCacheEventListenerConfiguration<String, String> listenerConfiguration
+        StoreAwareCacheEventListener<String, String> eventListener
     ) {
         StoreAwareCacheBuilder<String, String> diskCacheBuilder = new MockOnDiskCache.Builder<String, String>().setMaxSize(diksCacheSize);
         StoreAwareCacheBuilder<String, String> onHeapCacheBuilder = new MockOnHeapCache.Builder<String, String>().setMaxSize(
@@ -512,7 +463,7 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
         );
         return new TieredSpilloverCache.Builder<String, String>().setOnHeapCacheBuilder(onHeapCacheBuilder)
             .setOnDiskCacheBuilder(diskCacheBuilder)
-            .setListenerConfiguration(listenerConfiguration)
+            .setListener(eventListener)
             .build();
     }
 }
@@ -521,11 +472,11 @@ class MockOnDiskCache<K, V> implements StoreAwareCache<K, V> {
 
     Map<K, V> cache;
     int maxSize;
-    StoreAwareCacheEventListenerDispatcher<K, V> eventDispatcher;
+    StoreAwareCacheEventListener<K, V> eventListener;
 
-    MockOnDiskCache(int maxSize, StoreAwareCacheEventListenerConfiguration<K, V> eventListenerConfiguration) {
+    MockOnDiskCache(int maxSize, StoreAwareCacheEventListener<K, V> eventListener) {
         this.maxSize = maxSize;
-        this.eventDispatcher = new StoreAwareCacheListenerDispatcherDefaultImpl<>(eventListenerConfiguration);
+        this.eventListener = eventListener;
         this.cache = new ConcurrentHashMap<K, V>();
     }
 
@@ -533,9 +484,9 @@ class MockOnDiskCache<K, V> implements StoreAwareCache<K, V> {
     public V get(K key) {
         V value = cache.get(key);
         if (value != null) {
-            eventDispatcher.dispatch(key, value, CacheStoreType.DISK, EventType.ON_HIT);
+            eventListener.onHit(key, value, CacheStoreType.DISK);
         } else {
-            eventDispatcher.dispatch(key, null, CacheStoreType.DISK, EventType.ON_MISS);
+            eventListener.onMiss(key, CacheStoreType.DISK);
         }
         return value;
     }
@@ -543,13 +494,11 @@ class MockOnDiskCache<K, V> implements StoreAwareCache<K, V> {
     @Override
     public void put(K key, V value) {
         if (this.cache.size() >= maxSize) { // For simplification
-            eventDispatcher.dispatchRemovalEvent(
-                new StoreAwareCacheRemovalNotification<>(key, value, RemovalReason.EVICTED, CacheStoreType.DISK)
-            );
+            eventListener.onRemoval(new StoreAwareCacheRemovalNotification<>(key, value, RemovalReason.EVICTED, CacheStoreType.DISK));
             return;
         }
         this.cache.put(key, value);
-        eventDispatcher.dispatch(key, value, CacheStoreType.DISK, EventType.ON_CACHED);
+        eventListener.onCached(key, value, CacheStoreType.DISK);
     }
 
     @Override
@@ -562,10 +511,10 @@ class MockOnDiskCache<K, V> implements StoreAwareCache<K, V> {
             }
         });
         if (!loader.isLoaded()) {
-            eventDispatcher.dispatch(key, value, CacheStoreType.DISK, EventType.ON_HIT);
+            eventListener.onHit(key, value, CacheStoreType.DISK);
         } else {
-            eventDispatcher.dispatch(key, value, CacheStoreType.DISK, EventType.ON_MISS);
-            eventDispatcher.dispatch(key, value, CacheStoreType.DISK, EventType.ON_CACHED);
+            eventListener.onMiss(key, CacheStoreType.DISK);
+            eventListener.onCached(key, value, CacheStoreType.DISK);
         }
         return value;
     }
@@ -573,9 +522,7 @@ class MockOnDiskCache<K, V> implements StoreAwareCache<K, V> {
     @Override
     public void invalidate(K key) {
         if (this.cache.containsKey(key)) {
-            eventDispatcher.dispatchRemovalEvent(
-                new StoreAwareCacheRemovalNotification<>(key, null, RemovalReason.INVALIDATED, CacheStoreType.DISK)
-            );
+            eventListener.onRemoval(new StoreAwareCacheRemovalNotification<>(key, null, RemovalReason.INVALIDATED, CacheStoreType.DISK));
         }
         this.cache.remove(key);
     }
@@ -583,7 +530,7 @@ class MockOnDiskCache<K, V> implements StoreAwareCache<K, V> {
     @Override
     public V compute(K key, LoadAwareCacheLoader<K, V> loader) throws Exception {
         if (this.cache.size() >= maxSize) { // If it exceeds, just notify for evict.
-            eventDispatcher.dispatchRemovalEvent(
+            eventListener.onRemoval(
                 new StoreAwareCacheRemovalNotification<>(key, loader.load(key), RemovalReason.EVICTED, CacheStoreType.DISK)
             );
             return loader.load(key);
@@ -595,7 +542,7 @@ class MockOnDiskCache<K, V> implements StoreAwareCache<K, V> {
                 throw new RuntimeException(e);
             }
         }));
-        eventDispatcher.dispatch(key, value, CacheStoreType.DISK, EventType.ON_CACHED);
+        eventListener.onCached(key, value, CacheStoreType.DISK);
         return value;
     }
 
@@ -628,7 +575,7 @@ class MockOnDiskCache<K, V> implements StoreAwareCache<K, V> {
 
         @Override
         public StoreAwareCache<K, V> build() {
-            return new MockOnDiskCache<K, V>(maxSize, this.getListenerConfiguration());
+            return new MockOnDiskCache<K, V>(maxSize, this.getEventListener());
         }
 
         public Builder<K, V> setMaxSize(int maxSize) {
@@ -642,21 +589,21 @@ class MockOnHeapCache<K, V> implements StoreAwareCache<K, V> {
 
     Map<K, V> cache;
     int maxSize;
-    StoreAwareCacheEventListenerDispatcher<K, V> eventDispatcher;
+    StoreAwareCacheEventListener<K, V> eventListener;
 
-    MockOnHeapCache(int size, StoreAwareCacheEventListenerConfiguration<K, V> eventListenerConfiguration) {
+    MockOnHeapCache(int size, StoreAwareCacheEventListener<K, V> eventListener) {
         maxSize = size;
         this.cache = new ConcurrentHashMap<K, V>();
-        this.eventDispatcher = new StoreAwareCacheListenerDispatcherDefaultImpl<>(eventListenerConfiguration);
+        this.eventListener = eventListener;
     }
 
     @Override
     public V get(K key) {
         V value = cache.get(key);
         if (value != null) {
-            eventDispatcher.dispatch(key, value, CacheStoreType.ON_HEAP, EventType.ON_HIT);
+            eventListener.onHit(key, value, CacheStoreType.ON_HEAP);
         } else {
-            eventDispatcher.dispatch(key, null, CacheStoreType.ON_HEAP, EventType.ON_MISS);
+            eventListener.onMiss(key, CacheStoreType.ON_HEAP);
         }
         return value;
     }
@@ -664,19 +611,17 @@ class MockOnHeapCache<K, V> implements StoreAwareCache<K, V> {
     @Override
     public void put(K key, V value) {
         if (this.cache.size() >= maxSize) {
-            eventDispatcher.dispatchRemovalEvent(
-                new StoreAwareCacheRemovalNotification<>(key, value, RemovalReason.EVICTED, CacheStoreType.ON_HEAP)
-            );
+            eventListener.onRemoval(new StoreAwareCacheRemovalNotification<>(key, value, RemovalReason.EVICTED, CacheStoreType.ON_HEAP));
             return;
         }
         this.cache.put(key, value);
-        eventDispatcher.dispatch(key, value, CacheStoreType.ON_HEAP, EventType.ON_CACHED);
+        eventListener.onCached(key, value, CacheStoreType.ON_HEAP);
     }
 
     @Override
     public V computeIfAbsent(K key, LoadAwareCacheLoader<K, V> loader) throws Exception {
         if (this.cache.size() >= maxSize) { // If it exceeds, just notify for evict.
-            eventDispatcher.dispatchRemovalEvent(
+            eventListener.onRemoval(
                 new StoreAwareCacheRemovalNotification<>(key, loader.load(key), RemovalReason.EVICTED, CacheStoreType.ON_HEAP)
             );
             return loader.load(key);
@@ -689,10 +634,10 @@ class MockOnHeapCache<K, V> implements StoreAwareCache<K, V> {
             }
         });
         if (!loader.isLoaded()) {
-            eventDispatcher.dispatch(key, value, CacheStoreType.ON_HEAP, EventType.ON_HIT);
+            eventListener.onHit(key, value, CacheStoreType.ON_HEAP);
         } else {
-            eventDispatcher.dispatch(key, value, CacheStoreType.ON_HEAP, EventType.ON_MISS);
-            eventDispatcher.dispatch(key, value, CacheStoreType.ON_HEAP, EventType.ON_CACHED);
+            eventListener.onMiss(key, CacheStoreType.ON_HEAP);
+            eventListener.onCached(key, value, CacheStoreType.ON_HEAP);
         }
         return value;
     }
@@ -700,9 +645,7 @@ class MockOnHeapCache<K, V> implements StoreAwareCache<K, V> {
     @Override
     public void invalidate(K key) {
         if (this.cache.containsKey(key)) {
-            eventDispatcher.dispatchRemovalEvent(
-                new StoreAwareCacheRemovalNotification<>(key, null, RemovalReason.INVALIDATED, CacheStoreType.ON_HEAP)
-            );
+            eventListener.onRemoval(new StoreAwareCacheRemovalNotification<>(key, null, RemovalReason.INVALIDATED, CacheStoreType.ON_HEAP));
         }
         this.cache.remove(key);
 
@@ -711,7 +654,7 @@ class MockOnHeapCache<K, V> implements StoreAwareCache<K, V> {
     @Override
     public V compute(K key, LoadAwareCacheLoader<K, V> loader) throws Exception {
         if (this.cache.size() >= maxSize) { // If it exceeds, just notify for evict.
-            eventDispatcher.dispatchRemovalEvent(
+            eventListener.onRemoval(
                 new StoreAwareCacheRemovalNotification<>(key, loader.load(key), RemovalReason.EVICTED, CacheStoreType.ON_HEAP)
             );
             return loader.load(key);
@@ -723,7 +666,7 @@ class MockOnHeapCache<K, V> implements StoreAwareCache<K, V> {
                 throw new RuntimeException(e);
             }
         }));
-        eventDispatcher.dispatch(key, value, CacheStoreType.ON_HEAP, EventType.ON_CACHED);
+        eventListener.onCached(key, value, CacheStoreType.ON_HEAP);
         return value;
     }
 
@@ -758,7 +701,7 @@ class MockOnHeapCache<K, V> implements StoreAwareCache<K, V> {
 
         @Override
         public StoreAwareCache<K, V> build() {
-            return new MockOnHeapCache<>(maxSize, this.getListenerConfiguration());
+            return new MockOnHeapCache<>(maxSize, this.getEventListener());
         }
 
         public Builder<K, V> setMaxSize(int maxSize) {

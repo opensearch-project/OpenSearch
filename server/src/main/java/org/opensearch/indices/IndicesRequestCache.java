@@ -39,18 +39,11 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.opensearch.common.CheckedSupplier;
-import org.opensearch.common.cache.LoadAwareCacheLoader;
+import org.opensearch.common.cache.Cache;
+import org.opensearch.common.cache.CacheBuilder;
+import org.opensearch.common.cache.CacheLoader;
+import org.opensearch.common.cache.RemovalListener;
 import org.opensearch.common.cache.RemovalNotification;
-import org.opensearch.common.cache.store.Cache;
-import org.opensearch.common.cache.store.OpenSearchOnHeapCache;
-import org.opensearch.common.cache.store.StoreAwareCacheRemovalNotification;
-import org.opensearch.common.cache.store.builders.StoreAwareCacheBuilder;
-import org.opensearch.common.cache.store.enums.CacheStoreType;
-import org.opensearch.common.cache.store.listeners.EventType;
-import org.opensearch.common.cache.store.listeners.StoreAwareCacheEventListener;
-import org.opensearch.common.cache.store.listeners.StoreAwareCacheEventListenerConfiguration;
-import org.opensearch.common.cache.tier.TieredCache;
-import org.opensearch.common.cache.tier.TieredSpilloverCache;
 import org.opensearch.common.lucene.index.OpenSearchDirectoryReader;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
@@ -64,7 +57,6 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Objects;
@@ -86,7 +78,7 @@ import java.util.concurrent.ConcurrentMap;
  *
  * @opensearch.internal
  */
-public final class IndicesRequestCache implements StoreAwareCacheEventListener<IndicesRequestCache.Key, BytesReference>, Closeable {
+public final class IndicesRequestCache implements RemovalListener<IndicesRequestCache.Key, BytesReference>, Closeable {
 
     private static final Logger logger = LogManager.getLogger(IndicesRequestCache.class);
 
@@ -121,18 +113,14 @@ public final class IndicesRequestCache implements StoreAwareCacheEventListener<I
         this.size = INDICES_CACHE_QUERY_SIZE.get(settings);
         this.expire = INDICES_CACHE_QUERY_EXPIRE.exists(settings) ? INDICES_CACHE_QUERY_EXPIRE.get(settings) : null;
         long sizeInBytes = size.getBytes();
-        StoreAwareCacheBuilder<Key, BytesReference> openSearchOnHeapCacheBuilder = new OpenSearchOnHeapCache.Builder<Key, BytesReference>()
-            .setWeigher((k, v) -> k.ramBytesUsed() + v.ramBytesUsed())
-            .setMaximumWeightInBytes(sizeInBytes)
-            .setExpireAfterAccess(expire);
-
-        cache = new TieredSpilloverCache.Builder<Key, BytesReference>().setOnHeapCacheBuilder(openSearchOnHeapCacheBuilder)
-            .setListenerConfiguration(
-                new StoreAwareCacheEventListenerConfiguration.Builder<Key, BytesReference>().setEventListener(this)
-                    .setEventTypes(EnumSet.of(EventType.ON_CACHED, EventType.ON_HIT, EventType.ON_MISS, EventType.ON_REMOVAL))
-                    .build()
-            )
-            .build();
+        CacheBuilder<Key, BytesReference> cacheBuilder = CacheBuilder.<Key, BytesReference>builder()
+            .setMaximumWeight(sizeInBytes)
+            .weigher((k, v) -> k.ramBytesUsed() + v.ramBytesUsed())
+            .removalListener(this);
+        if (expire != null) {
+            cacheBuilder.setExpireAfterAccess(expire);
+        }
+        cache = cacheBuilder.build();
     }
 
     @Override
@@ -146,23 +134,8 @@ public final class IndicesRequestCache implements StoreAwareCacheEventListener<I
     }
 
     @Override
-    public void onMiss(Key key, CacheStoreType cacheStoreType) {
-        key.entity.onMiss(cacheStoreType);
-    }
-
-    @Override
-    public void onRemoval(StoreAwareCacheRemovalNotification<Key, BytesReference> notification) {
+    public void onRemoval(RemovalNotification<Key, BytesReference> notification) {
         notification.getKey().entity.onRemoval(notification);
-    }
-
-    @Override
-    public void onHit(Key key, BytesReference value, CacheStoreType cacheStoreType) {
-        key.entity.onHit(cacheStoreType);
-    }
-
-    @Override
-    public void onCached(Key key, BytesReference value, CacheStoreType cacheStoreType) {
-        key.entity.onCached(key, value, cacheStoreType);
     }
 
     BytesReference getOrCompute(
@@ -176,6 +149,7 @@ public final class IndicesRequestCache implements StoreAwareCacheEventListener<I
         Loader cacheLoader = new Loader(cacheEntity, loader);
         BytesReference value = cache.computeIfAbsent(key, cacheLoader);
         if (cacheLoader.isLoaded()) {
+            key.entity.onMiss();
             // see if its the first time we see this reader, and make sure to register a cleanup key
             CleanupKey cleanupKey = new CleanupKey(cacheEntity, reader.getReaderCacheHelper().getKey());
             if (!registeredClosedListeners.containsKey(cleanupKey)) {
@@ -184,6 +158,8 @@ public final class IndicesRequestCache implements StoreAwareCacheEventListener<I
                     OpenSearchDirectoryReader.addReaderCloseListener(reader, cleanupKey);
                 }
             }
+        } else {
+            key.entity.onHit();
         }
         return value;
     }
@@ -204,7 +180,7 @@ public final class IndicesRequestCache implements StoreAwareCacheEventListener<I
      *
      * @opensearch.internal
      */
-    private static class Loader implements LoadAwareCacheLoader<Key, BytesReference> {
+    private static class Loader implements CacheLoader<Key, BytesReference> {
 
         private final CacheEntity entity;
         private final CheckedSupplier<BytesReference, IOException> loader;
@@ -222,6 +198,7 @@ public final class IndicesRequestCache implements StoreAwareCacheEventListener<I
         @Override
         public BytesReference load(Key key) throws Exception {
             BytesReference value = loader.get();
+            entity.onCached(key, value);
             loaded = true;
             return value;
         }
@@ -235,7 +212,7 @@ public final class IndicesRequestCache implements StoreAwareCacheEventListener<I
         /**
          * Called after the value was loaded.
          */
-        void onCached(Key key, BytesReference value, CacheStoreType cacheStoreType);
+        void onCached(Key key, BytesReference value);
 
         /**
          * Returns <code>true</code> iff the resource behind this entity is still open ie.
@@ -252,12 +229,12 @@ public final class IndicesRequestCache implements StoreAwareCacheEventListener<I
         /**
          * Called each time this entity has a cache hit.
          */
-        void onHit(CacheStoreType cacheStoreType);
+        void onHit();
 
         /**
          * Called each time this entity has a cache miss.
          */
-        void onMiss(CacheStoreType cacheStoreType);
+        void onMiss();
 
         /**
          * Called when this entity instance is removed
@@ -370,7 +347,7 @@ public final class IndicesRequestCache implements StoreAwareCacheEventListener<I
             }
         }
         if (!currentKeysToClean.isEmpty() || !currentFullClean.isEmpty()) {
-            for (Iterator<Key> iterator = getIterable(CacheStoreType.ON_HEAP).iterator(); iterator.hasNext();) {
+            for (Iterator<Key> iterator = cache.keys().iterator(); iterator.hasNext();) {
                 Key key = iterator.next();
                 if (currentFullClean.contains(key.entity.getCacheIdentity())) {
                     iterator.remove();
@@ -381,29 +358,13 @@ public final class IndicesRequestCache implements StoreAwareCacheEventListener<I
                 }
             }
         }
-        refresh(CacheStoreType.ON_HEAP);
-    }
-
-    private Iterable<Key> getIterable(CacheStoreType cacheStoreType) {
-        if (cache instanceof TieredCache) {
-            return ((TieredCache<Key, BytesReference>) cache).cacheKeys(cacheStoreType);
-        } else {
-            return cache.keys();
-        }
-    }
-
-    private void refresh(CacheStoreType cacheStoreType) {
-        if (cache instanceof TieredCache) {
-            ((TieredCache<Key, BytesReference>) cache).refresh(cacheStoreType);
-        } else {
-            cache.refresh();
-        }
+        cache.refresh();
     }
 
     /**
      * Returns the current size of the cache
      */
-    long count() {
+    int count() {
         return cache.count();
     }
 

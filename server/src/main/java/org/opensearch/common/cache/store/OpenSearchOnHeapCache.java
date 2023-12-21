@@ -15,20 +15,20 @@ import org.opensearch.common.cache.RemovalListener;
 import org.opensearch.common.cache.RemovalNotification;
 import org.opensearch.common.cache.store.builders.StoreAwareCacheBuilder;
 import org.opensearch.common.cache.store.enums.CacheStoreType;
-import org.opensearch.common.cache.store.listeners.EventType;
-import org.opensearch.common.cache.store.listeners.dispatchers.StoreAwareCacheEventListenerDispatcher;
-import org.opensearch.common.cache.store.listeners.dispatchers.StoreAwareCacheListenerDispatcherDefaultImpl;
+import org.opensearch.common.cache.store.listeners.StoreAwareCacheEventListener;
 
 /**
  * This variant of on-heap cache uses OpenSearch custom cache implementation.
  * @param <K> Type of key.
  * @param <V> Type of value.
+ *
+ * @opensearch.experimental
  */
 public class OpenSearchOnHeapCache<K, V> implements StoreAwareCache<K, V>, RemovalListener<K, V> {
 
     private final Cache<K, V> cache;
 
-    private final StoreAwareCacheEventListenerDispatcher<K, V> eventDispatcher;
+    private final StoreAwareCacheEventListener<K, V> eventListener;
 
     public OpenSearchOnHeapCache(Builder<K, V> builder) {
         CacheBuilder<K, V> cacheBuilder = CacheBuilder.<K, V>builder()
@@ -39,16 +39,16 @@ public class OpenSearchOnHeapCache<K, V> implements StoreAwareCache<K, V>, Remov
             cacheBuilder.setExpireAfterAccess(builder.getExpireAfterAcess());
         }
         cache = cacheBuilder.build();
-        this.eventDispatcher = new StoreAwareCacheListenerDispatcherDefaultImpl<>(builder.getListenerConfiguration());
+        this.eventListener = builder.getEventListener();
     }
 
     @Override
     public V get(K key) {
         V value = cache.get(key);
         if (value != null) {
-            eventDispatcher.dispatch(key, value, CacheStoreType.ON_HEAP, EventType.ON_HIT);
+            eventListener.onHit(key, value, CacheStoreType.ON_HEAP);
         } else {
-            eventDispatcher.dispatch(key, null, CacheStoreType.ON_HEAP, EventType.ON_MISS);
+            eventListener.onMiss(key, CacheStoreType.ON_HEAP);
         }
         return value;
     }
@@ -56,17 +56,17 @@ public class OpenSearchOnHeapCache<K, V> implements StoreAwareCache<K, V>, Remov
     @Override
     public void put(K key, V value) {
         cache.put(key, value);
-        eventDispatcher.dispatch(key, value, CacheStoreType.ON_HEAP, EventType.ON_CACHED);
+        eventListener.onCached(key, value, CacheStoreType.ON_HEAP);
     }
 
     @Override
     public V computeIfAbsent(K key, LoadAwareCacheLoader<K, V> loader) throws Exception {
         V value = cache.computeIfAbsent(key, key1 -> loader.load(key));
         if (!loader.isLoaded()) {
-            eventDispatcher.dispatch(key, value, CacheStoreType.ON_HEAP, EventType.ON_HIT);
+            eventListener.onHit(key, value, CacheStoreType.ON_HEAP);
         } else {
-            eventDispatcher.dispatch(key, value, CacheStoreType.ON_HEAP, EventType.ON_MISS);
-            eventDispatcher.dispatch(key, value, CacheStoreType.ON_HEAP, EventType.ON_CACHED);
+            eventListener.onMiss(key, CacheStoreType.ON_HEAP);
+            eventListener.onCached(key, value, CacheStoreType.ON_HEAP);
         }
         return value;
     }
@@ -79,7 +79,7 @@ public class OpenSearchOnHeapCache<K, V> implements StoreAwareCache<K, V>, Remov
     @Override
     public V compute(K key, LoadAwareCacheLoader<K, V> loader) throws Exception {
         V value = cache.compute(key, key1 -> loader.load(key));
-        eventDispatcher.dispatch(key, value, CacheStoreType.ON_HEAP, EventType.ON_CACHED);
+        eventListener.onCached(key, value, CacheStoreType.ON_HEAP);
         return value;
     }
 
@@ -110,7 +110,7 @@ public class OpenSearchOnHeapCache<K, V> implements StoreAwareCache<K, V>, Remov
 
     @Override
     public void onRemoval(RemovalNotification<K, V> notification) {
-        eventDispatcher.dispatchRemovalEvent(
+        eventListener.onRemoval(
             new StoreAwareCacheRemovalNotification<>(
                 notification.getKey(),
                 notification.getValue(),

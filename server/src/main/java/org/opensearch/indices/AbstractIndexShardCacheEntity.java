@@ -34,8 +34,6 @@ package org.opensearch.indices;
 
 import org.opensearch.common.cache.RemovalNotification;
 import org.opensearch.common.cache.RemovalReason;
-import org.opensearch.common.cache.store.StoreAwareCacheRemovalNotification;
-import org.opensearch.common.cache.store.enums.CacheStoreType;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.index.cache.request.ShardRequestCache;
 import org.opensearch.index.shard.IndexShard;
@@ -53,31 +51,22 @@ abstract class AbstractIndexShardCacheEntity implements IndicesRequestCache.Cach
     protected abstract ShardRequestCache stats();
 
     @Override
-    public final void onCached(IndicesRequestCache.Key key, BytesReference value, CacheStoreType cacheStoreType) {
-        stats().onCached(key, value, cacheStoreType);
+    public final void onCached(IndicesRequestCache.Key key, BytesReference value) {
+        stats().onCached(key, value);
     }
 
     @Override
-    public final void onHit(CacheStoreType cacheStoreType) {
-        stats().onHit(cacheStoreType);
+    public final void onHit() {
+        stats().onHit();
     }
 
     @Override
-    public final void onMiss(CacheStoreType cacheStoreType) {
-        stats().onMiss(cacheStoreType);
+    public final void onMiss() {
+        stats().onMiss();
     }
 
     @Override
     public final void onRemoval(RemovalNotification<IndicesRequestCache.Key, BytesReference> notification) {
-        if (notification instanceof StoreAwareCacheRemovalNotification) {
-            stats().onRemoval(
-                notification.getKey(),
-                notification.getValue(),
-                notification.getRemovalReason() == RemovalReason.EVICTED,
-                ((StoreAwareCacheRemovalNotification<IndicesRequestCache.Key, BytesReference>) notification).getCacheStoreType()
-            );
-        } else {
-            stats().onRemoval(notification.getKey(), notification.getValue(), notification.getRemovalReason() == RemovalReason.EVICTED);
-        }
+        stats().onRemoval(notification.getKey(), notification.getValue(), notification.getRemovalReason() == RemovalReason.EVICTED);
     }
 }

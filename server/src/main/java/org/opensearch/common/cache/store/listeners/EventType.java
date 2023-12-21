@@ -10,6 +10,8 @@ package org.opensearch.common.cache.store.listeners;
 
 /**
  * Describes various event types which is used to notify the called via listener.
+ *
+ * @opensearch.internal
  */
 public enum EventType {
 

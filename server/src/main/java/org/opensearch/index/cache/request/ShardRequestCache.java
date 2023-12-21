@@ -34,11 +34,8 @@ package org.opensearch.index.cache.request;
 
 import org.apache.lucene.util.Accountable;
 import org.opensearch.common.annotation.PublicApi;
-import org.opensearch.common.cache.store.enums.CacheStoreType;
 import org.opensearch.common.metrics.CounterMetric;
 import org.opensearch.core.common.bytes.BytesReference;
-
-import java.util.EnumMap;
 
 /**
  * Tracks the portion of the request cache in use for a particular shard.
@@ -48,43 +45,30 @@ import java.util.EnumMap;
 @PublicApi(since = "1.0.0")
 public final class ShardRequestCache {
 
-    private EnumMap<CacheStoreType, StatsHolder> statsHolder = new EnumMap<>(CacheStoreType.class);
-
-    public ShardRequestCache() {
-        for (CacheStoreType cacheStoreType : CacheStoreType.values()) {
-            statsHolder.put(cacheStoreType, new StatsHolder());
-        }
-    }
+    final CounterMetric evictionsMetric = new CounterMetric();
+    final CounterMetric totalMetric = new CounterMetric();
+    final CounterMetric hitCount = new CounterMetric();
+    final CounterMetric missCount = new CounterMetric();
 
     public RequestCacheStats stats() {
-        // TODO: Change RequestCacheStats to support disk tier stats.
-        return new RequestCacheStats(
-            statsHolder.get(CacheStoreType.ON_HEAP).totalMetric.count(),
-            statsHolder.get(CacheStoreType.ON_HEAP).evictionsMetric.count(),
-            statsHolder.get(CacheStoreType.ON_HEAP).hitCount.count(),
-            statsHolder.get(CacheStoreType.ON_HEAP).missCount.count()
-        );
+        return new RequestCacheStats(totalMetric.count(), evictionsMetric.count(), hitCount.count(), missCount.count());
     }
 
-    public void onHit(CacheStoreType cacheStoreType) {
-        statsHolder.get(cacheStoreType).hitCount.inc();
+    public void onHit() {
+        hitCount.inc();
     }
 
-    public void onMiss(CacheStoreType cacheStoreType) {
-        statsHolder.get(cacheStoreType).missCount.inc();
+    public void onMiss() {
+        missCount.inc();
     }
 
-    public void onCached(Accountable key, BytesReference value, CacheStoreType cacheStoreType) {
-        statsHolder.get(cacheStoreType).totalMetric.inc(key.ramBytesUsed() + value.ramBytesUsed());
+    public void onCached(Accountable key, BytesReference value) {
+        totalMetric.inc(key.ramBytesUsed() + value.ramBytesUsed());
     }
 
     public void onRemoval(Accountable key, BytesReference value, boolean evicted) {
-        onRemoval(key, value, evicted, CacheStoreType.ON_HEAP); // By default On heap cache.
-    }
-
-    public void onRemoval(Accountable key, BytesReference value, boolean evicted, CacheStoreType cacheStoreType) {
         if (evicted) {
-            statsHolder.get(cacheStoreType).evictionsMetric.inc();
+            evictionsMetric.inc();
         }
         long dec = 0;
         if (key != null) {
@@ -93,14 +77,6 @@ public final class ShardRequestCache {
         if (value != null) {
             dec += value.ramBytesUsed();
         }
-        statsHolder.get(cacheStoreType).totalMetric.dec(dec);
-    }
-
-    static class StatsHolder {
-
-        final CounterMetric evictionsMetric = new CounterMetric();
-        final CounterMetric totalMetric = new CounterMetric();
-        final CounterMetric hitCount = new CounterMetric();
-        final CounterMetric missCount = new CounterMetric();
+        totalMetric.dec(dec);
     }
 }

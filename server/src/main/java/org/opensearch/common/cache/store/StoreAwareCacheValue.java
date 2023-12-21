@@ -13,6 +13,8 @@ import org.opensearch.common.cache.store.enums.CacheStoreType;
 /**
  * Represents a store aware cache value.
  * @param <V> Type of value.
+ *
+ * @opensearch.internal
  */
 public class StoreAwareCacheValue<V> {
     private final V value;

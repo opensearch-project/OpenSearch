@@ -9,7 +9,7 @@
 package org.opensearch.common.cache.store.builders;
 
 import org.opensearch.common.cache.store.StoreAwareCache;
-import org.opensearch.common.cache.store.listeners.StoreAwareCacheEventListenerConfiguration;
+import org.opensearch.common.cache.store.listeners.StoreAwareCacheEventListener;
 import org.opensearch.common.unit.TimeValue;
 
 import java.util.function.ToLongBiFunction;
@@ -18,6 +18,8 @@ import java.util.function.ToLongBiFunction;
  * Builder for store aware cache.
  * @param <K> Type of key.
  * @param <V> Type of value.
+ *
+ * @opensearch.internal
  */
 public abstract class StoreAwareCacheBuilder<K, V> {
 
@@ -27,7 +29,7 @@ public abstract class StoreAwareCacheBuilder<K, V> {
 
     private TimeValue expireAfterAcess;
 
-    private StoreAwareCacheEventListenerConfiguration<K, V> listenerConfiguration;
+    private StoreAwareCacheEventListener<K, V> eventListener;
 
     public StoreAwareCacheBuilder() {}
 
@@ -46,10 +48,8 @@ public abstract class StoreAwareCacheBuilder<K, V> {
         return this;
     }
 
-    public StoreAwareCacheBuilder<K, V> setEventListenerConfiguration(
-        StoreAwareCacheEventListenerConfiguration<K, V> listenerConfiguration
-    ) {
-        this.listenerConfiguration = listenerConfiguration;
+    public StoreAwareCacheBuilder<K, V> setEventListener(StoreAwareCacheEventListener<K, V> eventListener) {
+        this.eventListener = eventListener;
         return this;
     }
 
@@ -65,8 +65,8 @@ public abstract class StoreAwareCacheBuilder<K, V> {
         return weigher;
     }
 
-    public StoreAwareCacheEventListenerConfiguration<K, V> getListenerConfiguration() {
-        return listenerConfiguration;
+    public StoreAwareCacheEventListener<K, V> getEventListener() {
+        return eventListener;
     }
 
     public abstract StoreAwareCache<K, V> build();

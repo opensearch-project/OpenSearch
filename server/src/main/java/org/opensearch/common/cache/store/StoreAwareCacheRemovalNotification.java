@@ -16,6 +16,8 @@ import org.opensearch.common.cache.store.enums.CacheStoreType;
  * Removal notification for store aware cache.
  * @param <K> Type of key.
  * @param <V> Type of value.
+ *
+ * @opensearch.internal
  */
 public class StoreAwareCacheRemovalNotification<K, V> extends RemovalNotification<K, V> {
     private final CacheStoreType cacheStoreType;

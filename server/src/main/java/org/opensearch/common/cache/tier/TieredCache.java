@@ -8,15 +8,17 @@
 
 package org.opensearch.common.cache.tier;
 
-import org.opensearch.common.cache.store.Cache;
+import org.opensearch.common.cache.ICache;
 import org.opensearch.common.cache.store.enums.CacheStoreType;
 
 /**
  * This represents a cache comprising of multiple tiers/layers.
  * @param <K> Type of key
  * @param <V> Type of value
+ *
+ * @opensearch.experimental
  */
-public interface TieredCache<K, V> extends Cache<K, V> {
+public interface TieredCache<K, V> extends ICache<K, V> {
     Iterable<K> cacheKeys(CacheStoreType type);
 
     void refresh(CacheStoreType type);

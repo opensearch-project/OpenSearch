@@ -15,6 +15,8 @@ import org.opensearch.common.cache.store.enums.CacheStoreType;
  * This can be used to listen to tiered caching events
  * @param <K> Type of key
  * @param <V> Type of value
+ *
+ * @opensearch.internal
  */
 public interface StoreAwareCacheEventListener<K, V> {
 
