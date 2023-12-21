@@ -12,6 +12,8 @@ package org.opensearch.common.cache;
  * Extends a cache loader with awareness of whether the data is loaded or not.
  * @param <K> Type of key.
  * @param <V> Type of value.
+ *
+ * @opensearch.internal
  */
 public interface LoadAwareCacheLoader<K, V> extends CacheLoader<K, V> {
     boolean isLoaded();
