@@ -33,6 +33,7 @@
 package org.opensearch.index.query;
 
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
+import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.spans.SpanNearQuery;
 import org.apache.lucene.queries.spans.SpanOrQuery;
@@ -43,6 +44,7 @@ import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.DisjunctionMaxQuery;
 import org.apache.lucene.search.FuzzyQuery;
+import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.PhraseQuery;
@@ -52,6 +54,7 @@ import org.apache.lucene.search.SynonymQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.tests.analysis.MockSynonymAnalyzer;
 import org.apache.lucene.tests.util.TestUtil;
+import org.apache.lucene.util.BytesRef;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.search.SimpleQueryStringQueryParser;
@@ -305,7 +308,9 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
             for (Query disjunct : maxQuery.getDisjuncts()) {
                 assertThat(
                     disjunct,
-                    either(instanceOf(TermQuery.class)).or(instanceOf(BoostQuery.class)).or(instanceOf(MatchNoDocsQuery.class))
+                    either(instanceOf(TermQuery.class)).or(instanceOf(BoostQuery.class))
+                        .or(instanceOf(MatchNoDocsQuery.class))
+                        .or(instanceOf(IndexOrDocValuesQuery.class))
                 );
                 Query termQuery = disjunct;
                 if (disjunct instanceof BoostQuery) {
@@ -330,7 +335,11 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
             );
             if (query instanceof DisjunctionMaxQuery) {
                 for (Query disjunct : (DisjunctionMaxQuery) query) {
-                    assertThat(disjunct, either(instanceOf(TermQuery.class)).or(instanceOf(MatchNoDocsQuery.class)));
+                    assertThat(
+                        disjunct,
+                        either(instanceOf(TermQuery.class)).or(instanceOf(MatchNoDocsQuery.class))
+                            .or(instanceOf(IndexOrDocValuesQuery.class))
+                    );
                 }
             }
         } else {
@@ -624,7 +633,13 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
             createShardContext()
         );
         assertEquals(new TermQuery(new Term(TEXT_FIELD_NAME, "bar")), parser.parse("bar"));
-        assertEquals(new TermQuery(new Term(KEYWORD_FIELD_NAME, "bar")), parser.parse("\"bar\""));
+        assertEquals(
+            new IndexOrDocValuesQuery(
+                new TermQuery(new Term(KEYWORD_FIELD_NAME, "bar")),
+                SortedSetDocValuesField.newSlowExactQuery(KEYWORD_FIELD_NAME, new BytesRef("bar"))
+            ),
+            parser.parse("\"bar\"")
+        );
 
         // Now check what happens if the quote field does not exist
         settings.quoteFieldSuffix(".quote");
@@ -670,7 +685,13 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
             Query expected = new DisjunctionMaxQuery(
                 Arrays.asList(
                     new TermQuery(new Term(TEXT_FIELD_NAME, "hello")),
-                    new BoostQuery(new TermQuery(new Term(KEYWORD_FIELD_NAME, "hello")), 5.0f)
+                    new BoostQuery(
+                        new IndexOrDocValuesQuery(
+                            new TermQuery(new Term(KEYWORD_FIELD_NAME, "hello")),
+                            SortedSetDocValuesField.newSlowExactQuery(KEYWORD_FIELD_NAME, new BytesRef("hello"))
+                        ),
+                        5.0f
+                    )
                 ),
                 1.0f
             );
@@ -736,14 +757,26 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
             .toQuery(createShardContext());
         expected = new BooleanQuery.Builder().add(
             new DisjunctionMaxQuery(
-                Arrays.asList(new TermQuery(new Term(TEXT_FIELD_NAME, "quick")), new TermQuery(new Term(KEYWORD_FIELD_NAME, "quick"))),
+                Arrays.asList(
+                    new TermQuery(new Term(TEXT_FIELD_NAME, "quick")),
+                    new IndexOrDocValuesQuery(
+                        new TermQuery(new Term(KEYWORD_FIELD_NAME, "quick")),
+                        SortedSetDocValuesField.newSlowExactQuery(KEYWORD_FIELD_NAME, new BytesRef("quick"))
+                    )
+                ),
                 1.0f
             ),
             BooleanClause.Occur.SHOULD
         )
             .add(
                 new DisjunctionMaxQuery(
-                    Arrays.asList(new TermQuery(new Term(TEXT_FIELD_NAME, "fox")), new TermQuery(new Term(KEYWORD_FIELD_NAME, "fox"))),
+                    Arrays.asList(
+                        new TermQuery(new Term(TEXT_FIELD_NAME, "fox")),
+                        new IndexOrDocValuesQuery(
+                            new TermQuery(new Term(KEYWORD_FIELD_NAME, "fox")),
+                            SortedSetDocValuesField.newSlowExactQuery(KEYWORD_FIELD_NAME, new BytesRef("fox"))
+                        )
+                    ),
                     1.0f
                 ),
                 BooleanClause.Occur.SHOULD
@@ -834,7 +867,13 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
         assertEquals(9, noMatchNoDocsQueries);
         assertThat(
             disjunctionMaxQuery.getDisjuncts(),
-            hasItems(new TermQuery(new Term(TEXT_FIELD_NAME, "hello")), new TermQuery(new Term(KEYWORD_FIELD_NAME, "hello")))
+            hasItems(
+                new TermQuery(new Term(TEXT_FIELD_NAME, "hello")),
+                new IndexOrDocValuesQuery(
+                    new TermQuery(new Term(KEYWORD_FIELD_NAME, "hello")),
+                    SortedSetDocValuesField.newSlowExactQuery(KEYWORD_FIELD_NAME, new BytesRef("hello"))
+                )
+            )
         );
     }
 

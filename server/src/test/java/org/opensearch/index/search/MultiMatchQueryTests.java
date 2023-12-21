@@ -32,12 +32,14 @@
 
 package org.opensearch.index.search;
 
+import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.BlendedTermQuery;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.DisjunctionMaxQuery;
+import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.PhraseQuery;
 import org.apache.lucene.search.Query;
@@ -321,13 +323,43 @@ public class MultiMatchQueryTests extends OpenSearchSingleNodeTestCase {
         Query query = parser.parse(MultiMatchQueryBuilder.Type.BEST_FIELDS, fieldNames, "Foo Bar", null);
         DisjunctionMaxQuery expected = new DisjunctionMaxQuery(
             Arrays.asList(
-                new TermQuery(new Term("field_normalizer", "foo bar")),
-                new TermQuery(new Term("field", "Foo Bar")),
-                new BooleanQuery.Builder().add(new TermQuery(new Term("field_split", "Foo")), BooleanClause.Occur.SHOULD)
-                    .add(new TermQuery(new Term("field_split", "Bar")), BooleanClause.Occur.SHOULD)
+                new IndexOrDocValuesQuery(
+                    new TermQuery(new Term("field_normalizer", "foo bar")),
+                    SortedSetDocValuesField.newSlowExactQuery("field_normalizer", new BytesRef("foo bar"))
+                ),
+                new IndexOrDocValuesQuery(
+                    new TermQuery(new Term("field", "Foo Bar")),
+                    SortedSetDocValuesField.newSlowExactQuery("field", new BytesRef("Foo Bar"))
+                ),
+                new BooleanQuery.Builder().add(
+                    new IndexOrDocValuesQuery(
+                        new TermQuery(new Term("field_split", "Foo")),
+                        SortedSetDocValuesField.newSlowExactQuery("field_split", new BytesRef("Foo"))
+                    ),
+                    BooleanClause.Occur.SHOULD
+                )
+                    .add(
+                        new IndexOrDocValuesQuery(
+                            new TermQuery(new Term("field_split", "Bar")),
+                            SortedSetDocValuesField.newSlowExactQuery("field_split", new BytesRef("Bar"))
+                        ),
+                        BooleanClause.Occur.SHOULD
+                    )
                     .build(),
-                new BooleanQuery.Builder().add(new TermQuery(new Term("field_split_normalizer", "foo")), BooleanClause.Occur.SHOULD)
-                    .add(new TermQuery(new Term("field_split_normalizer", "bar")), BooleanClause.Occur.SHOULD)
+                new BooleanQuery.Builder().add(
+                    new IndexOrDocValuesQuery(
+                        new TermQuery(new Term("field_split_normalizer", "foo")),
+                        SortedSetDocValuesField.newSlowExactQuery("fied_split_normalizer", new BytesRef("foo"))
+                    ),
+                    BooleanClause.Occur.SHOULD
+                )
+                    .add(
+                        new IndexOrDocValuesQuery(
+                            new TermQuery(new Term("field_split_normalizer", "bar")),
+                            SortedSetDocValuesField.newSlowExactQuery("field_split_normalizer", new BytesRef("bar"))
+                        ),
+                        BooleanClause.Occur.SHOULD
+                    )
                     .build()
             ),
             0.0f

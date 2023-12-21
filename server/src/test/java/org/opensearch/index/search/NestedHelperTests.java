@@ -32,16 +32,19 @@
 
 package org.opensearch.index.search;
 
+import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.MultiReader;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.join.ScoreMode;
+import org.apache.lucene.util.BytesRef;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.xcontent.XContentBuilder;
@@ -339,7 +342,10 @@ public class NestedHelperTests extends OpenSearchSingleNodeTestCase {
         query = (OpenSearchToParentBlockJoinQuery) queryBuilder.toQuery(context);
 
         // this time we do not add a filter since the inner query only matches inner docs
-        expectedChildQuery = new TermQuery(new Term("nested1.foo", "bar"));
+        expectedChildQuery = new IndexOrDocValuesQuery(
+            new TermQuery(new Term("nested1.foo", "bar")),
+            SortedSetDocValuesField.newSlowExactQuery("nested1.foo", new BytesRef("bar"))
+        );
         assertEquals(expectedChildQuery, query.getChildQuery());
 
         assertFalse(new NestedHelper(mapperService).mightMatchNestedDocs(query));
@@ -352,9 +358,13 @@ public class NestedHelperTests extends OpenSearchSingleNodeTestCase {
         query = (OpenSearchToParentBlockJoinQuery) queryBuilder.toQuery(context);
 
         // we need to add the filter again because of include_in_parent
-        expectedChildQuery = new BooleanQuery.Builder().add(new TermQuery(new Term("nested2.foo", "bar")), Occur.MUST)
-            .add(new TermQuery(new Term(NestedPathFieldMapper.NAME, "nested2")), Occur.FILTER)
-            .build();
+        expectedChildQuery = new BooleanQuery.Builder().add(
+            new IndexOrDocValuesQuery(
+                new TermQuery(new Term("nested2.foo", "bar")),
+                SortedSetDocValuesField.newSlowExactQuery("nested2.foo", new BytesRef("bar"))
+            ),
+            Occur.MUST
+        ).add(new TermQuery(new Term(NestedPathFieldMapper.NAME, "nested2")), Occur.FILTER).build();
         assertEquals(expectedChildQuery, query.getChildQuery());
 
         assertFalse(new NestedHelper(mapperService).mightMatchNestedDocs(query));
@@ -367,9 +377,13 @@ public class NestedHelperTests extends OpenSearchSingleNodeTestCase {
         query = (OpenSearchToParentBlockJoinQuery) queryBuilder.toQuery(context);
 
         // we need to add the filter again because of include_in_root
-        expectedChildQuery = new BooleanQuery.Builder().add(new TermQuery(new Term("nested3.foo", "bar")), Occur.MUST)
-            .add(new TermQuery(new Term(NestedPathFieldMapper.NAME, "nested3")), Occur.FILTER)
-            .build();
+        expectedChildQuery = new BooleanQuery.Builder().add(
+            new IndexOrDocValuesQuery(
+                new TermQuery(new Term("nested3.foo", "bar")),
+                SortedSetDocValuesField.newSlowExactQuery("nested3.foo", new BytesRef("bar"))
+            ),
+            Occur.MUST
+        ).add(new TermQuery(new Term(NestedPathFieldMapper.NAME, "nested3")), Occur.FILTER).build();
         assertEquals(expectedChildQuery, query.getChildQuery());
 
         assertFalse(new NestedHelper(mapperService).mightMatchNestedDocs(query));

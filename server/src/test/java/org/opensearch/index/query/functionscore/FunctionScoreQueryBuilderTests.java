@@ -35,6 +35,7 @@ package org.opensearch.index.query.functionscore;
 import com.fasterxml.jackson.core.JsonParseException;
 
 import org.apache.lucene.index.Term;
+import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
@@ -621,7 +622,10 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
         ).toQuery(context);
         assertThat(parsedQuery, instanceOf(FunctionScoreQuery.class));
         FunctionScoreQuery functionScoreQuery = (FunctionScoreQuery) parsedQuery;
-        assertThat(((TermQuery) functionScoreQuery.getSubQuery()).getTerm(), equalTo(new Term(KEYWORD_FIELD_NAME, "banon")));
+        assertThat(
+            (((IndexOrDocValuesQuery) functionScoreQuery.getSubQuery()).getIndexQuery()),
+            equalTo(new TermQuery(new Term(KEYWORD_FIELD_NAME, "banon")))
+        );
         assertThat((double) (functionScoreQuery.getFunctions()[0]).getWeight(), closeTo(1.3, 0.001));
     }
 

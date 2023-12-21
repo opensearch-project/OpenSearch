@@ -39,6 +39,7 @@ import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.MultiTermQuery;
@@ -46,6 +47,7 @@ import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.RegexpQuery;
 import org.apache.lucene.search.TermInSetQuery;
+import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TermRangeQuery;
 import org.apache.lucene.search.WildcardQuery;
 import org.apache.lucene.util.BytesRef;
@@ -385,6 +387,22 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
                 value = ((BytesRef) value).utf8ToString();
             }
             return getTextSearchInfo().getSearchAnalyzer().normalize(name(), value.toString());
+        }
+
+        @Override
+        public Query termQuery(Object value, QueryShardContext context) {
+            failIfNotIndexedAndNoDocValues();
+            Query query = new TermQuery(new Term(name(), indexedValueForSearch(value)));
+            if (boost() != 1f) {
+                query = new BoostQuery(query, boost());
+            }
+            if (isSearchable() && hasDocValues()) {
+                return new IndexOrDocValuesQuery(query, SortedSetDocValuesField.newSlowExactQuery(name(), indexedValueForSearch(value)));
+            }
+            if (hasDocValues()) {
+                return SortedSetDocValuesField.newSlowExactQuery(name(), indexedValueForSearch(value));
+            }
+            return query;
         }
 
         @Override

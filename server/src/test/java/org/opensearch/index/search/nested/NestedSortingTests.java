@@ -35,6 +35,7 @@ package org.opensearch.index.search.nested;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.IntPoint;
+import org.apache.lucene.document.KeywordField;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.StringField;
@@ -518,7 +519,7 @@ public class NestedSortingTests extends AbstractFieldDataTestCase {
             document.add(new NumericDocValuesField("chapters.read_time_seconds", 1400));
             book.add(document);
             document = new Document();
-            document.add(new StringField("genre", "science fiction", Field.Store.NO));
+            document.add(new KeywordField("genre", "science fiction", Field.Store.NO));
             document.add(new StringField("_id", "1", Field.Store.YES));
             document.add(new NumericDocValuesField(PRIMARY_TERM_NAME, 0));
             book.add(document);
@@ -540,7 +541,7 @@ public class NestedSortingTests extends AbstractFieldDataTestCase {
             document.add(new NumericDocValuesField("chapters.read_time_seconds", 20));
             book.add(document);
             document = new Document();
-            document.add(new StringField("genre", "romance", Field.Store.NO));
+            document.add(new KeywordField("genre", "romance", Field.Store.NO));
             document.add(new StringField("_id", "2", Field.Store.YES));
             document.add(new NumericDocValuesField(PRIMARY_TERM_NAME, 0));
             book.add(document);
@@ -562,7 +563,7 @@ public class NestedSortingTests extends AbstractFieldDataTestCase {
             document.add(new NumericDocValuesField("chapters.read_time_seconds", 1200));
             book.add(document);
             document = new Document();
-            document.add(new StringField("genre", "horror", Field.Store.NO));
+            document.add(new KeywordField("genre", "horror", Field.Store.NO));
             document.add(new StringField("_id", "3", Field.Store.YES));
             document.add(new NumericDocValuesField(PRIMARY_TERM_NAME, 0));
             book.add(document);
@@ -611,7 +612,7 @@ public class NestedSortingTests extends AbstractFieldDataTestCase {
             document.add(new NumericDocValuesField("chapters.read_time_seconds", 10));
             book.add(document);
             document = new Document();
-            document.add(new StringField("genre", "cooking", Field.Store.NO));
+            document.add(new KeywordField("genre", "cooking", Field.Store.NO));
             document.add(new StringField("_id", "4", Field.Store.YES));
             document.add(new NumericDocValuesField(PRIMARY_TERM_NAME, 0));
             book.add(document);
@@ -620,7 +621,7 @@ public class NestedSortingTests extends AbstractFieldDataTestCase {
         {
             List<Document> book = new ArrayList<>();
             Document document = new Document();
-            document.add(new StringField("genre", "unknown", Field.Store.NO));
+            document.add(new KeywordField("genre", "unknown", Field.Store.NO));
             document.add(new StringField("_id", "5", Field.Store.YES));
             document.add(new NumericDocValuesField(PRIMARY_TERM_NAME, 0));
             book.add(document);

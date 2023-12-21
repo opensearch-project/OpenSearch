@@ -33,6 +33,7 @@ package org.opensearch.search.aggregations.bucket.filter;
 
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
+import org.apache.lucene.document.KeywordField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.IndexSearcher;
@@ -96,7 +97,7 @@ public class FilterAggregatorTests extends AggregatorTestCase {
             }
             int value = randomInt(maxTerm - 1);
             expectedBucketCount[value] += 1;
-            document.add(new Field("field", Integer.toString(value), KeywordFieldMapper.Defaults.FIELD_TYPE));
+            document.add(new KeywordField("field", Integer.toString(value), Field.Store.NO));
             indexWriter.addDocument(document);
             document.clear();
         }

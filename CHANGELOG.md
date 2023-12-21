@@ -174,7 +174,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Change error message when per shard document limit is breached ([#11312](https://github.com/opensearch-project/OpenSearch/pull/11312))
 - Automatically add scheme to discovery.ec2.endpoint ([#11512](https://github.com/opensearch-project/OpenSearch/pull/11512))
 - Restore support for Java 8 for RestClient ([#11562](https://github.com/opensearch-project/OpenSearch/pull/11562))
-
+- Update `termQuery` in KeyWordField to be searchable through `doc_values` ([#11639](https://github.com/opensearch-project/OpenSearch/pull/11639))
 ### Deprecated
 
 ### Removed

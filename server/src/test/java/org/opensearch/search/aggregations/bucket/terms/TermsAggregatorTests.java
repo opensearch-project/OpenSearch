@@ -35,12 +35,12 @@ import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.InetAddressPoint;
+import org.apache.lucene.document.KeywordField;
 import org.apache.lucene.document.LatLonDocValuesField;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.SortedSetDocValuesField;
-import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexableField;
@@ -716,7 +716,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                             Document document = new Document();
                             document.add(luceneFieldFactory.apply(entry.getKey(), false));
                             if (randomBoolean()) {
-                                document.add(new StringField("include", "yes", Field.Store.NO));
+                                document.add(new KeywordField("include", "yes", Field.Store.NO));
                                 filteredCounts.computeIfPresent(entry.getKey(), (key, integer) -> integer + 1);
                             }
                             indexWriter.addDocument(document);

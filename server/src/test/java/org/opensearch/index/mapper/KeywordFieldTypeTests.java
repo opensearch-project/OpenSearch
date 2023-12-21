@@ -41,6 +41,7 @@ import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.core.WhitespaceTokenizer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.document.FieldType;
+import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.FuzzyQuery;
@@ -102,11 +103,17 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
 
     public void testTermQuery() {
         MappedFieldType ft = new KeywordFieldType("field");
-        assertEquals(new TermQuery(new Term("field", "foo")), ft.termQuery("foo", null));
+        assertEquals(
+            new IndexOrDocValuesQuery(
+                new TermQuery(new Term("field", "foo")),
+                SortedSetDocValuesField.newSlowExactQuery("field", new BytesRef("foo"))
+            ),
+            ft.termQuery("foo", null)
+        );
 
-        MappedFieldType unsearchable = new KeywordFieldType("field", false, true, Collections.emptyMap());
+        MappedFieldType unsearchable = new KeywordFieldType("field", false, false, Collections.emptyMap());
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> unsearchable.termQuery("bar", null));
-        assertEquals("Cannot search on field [field] since it is not indexed.", e.getMessage());
+        assertEquals("Cannot search on field [field] since it is both not indexed, and does not have doc_values enabled.", e.getMessage());
     }
 
     public void testTermQueryWithNormalizer() {
@@ -124,7 +131,13 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
             }
         };
         MappedFieldType ft = new KeywordFieldType("field", new NamedAnalyzer("my_normalizer", AnalyzerScope.INDEX, normalizer));
-        assertEquals(new TermQuery(new Term("field", "foo bar")), ft.termQuery("fOo BaR", null));
+        assertEquals(
+            new IndexOrDocValuesQuery(
+                new TermQuery(new Term("field", "foo bar")),
+                SortedSetDocValuesField.newSlowExactQuery("field", new BytesRef("foo bar"))
+            ),
+            ft.termQuery("fOo BaR", null)
+        );
     }
 
     public void testTermsQuery() {
@@ -338,9 +351,21 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
 
     public void testNormalizeQueries() {
         MappedFieldType ft = new KeywordFieldType("field");
-        assertEquals(new TermQuery(new Term("field", new BytesRef("FOO"))), ft.termQuery("FOO", null));
+        assertEquals(
+            new IndexOrDocValuesQuery(
+                new TermQuery(new Term("field", new BytesRef("FOO"))),
+                SortedSetDocValuesField.newSlowExactQuery("field", new BytesRef("FOO"))
+            ),
+            ft.termQuery("FOO", null)
+        );
         ft = new KeywordFieldType("field", Lucene.STANDARD_ANALYZER);
-        assertEquals(new TermQuery(new Term("field", new BytesRef("foo"))), ft.termQuery("FOO", null));
+        assertEquals(
+            new IndexOrDocValuesQuery(
+                new TermQuery(new Term("field", new BytesRef("foo"))),
+                SortedSetDocValuesField.newSlowExactQuery("field", new BytesRef("foo"))
+            ),
+            ft.termQuery("FOO", null)
+        );
     }
 
     public void testFetchSourceValue() throws IOException {

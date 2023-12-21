@@ -38,6 +38,7 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NoMergePolicy;
+import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
@@ -121,9 +122,15 @@ public class QueryBuilderStoreTests extends OpenSearchTestCase {
                 CheckedFunction<Integer, Query, IOException> queries = queryStore.getQueries(leafContext);
                 assertEquals(queryBuilders.length, leafContext.reader().numDocs());
                 for (int i = 0; i < queryBuilders.length; i++) {
-                    TermQuery query = (TermQuery) queries.apply(i);
-                    assertEquals(queryBuilders[i].fieldName(), query.getTerm().field());
-                    assertEquals(queryBuilders[i].value(), query.getTerm().text());
+                    TermQuery termQuery;
+                    if (fieldMapper.fieldType().typeName().equals("binary")) {
+                        IndexOrDocValuesQuery query = (IndexOrDocValuesQuery) queries.apply(i);
+                        termQuery = (TermQuery) query.getIndexQuery();
+                    } else {
+                        termQuery = (TermQuery) queries.apply(i);
+                    }
+                    assertEquals(queryBuilders[i].fieldName(), termQuery.getTerm().field());
+                    assertEquals(queryBuilders[i].value(), termQuery.getTerm().text());
                 }
             }
         }

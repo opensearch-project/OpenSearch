@@ -33,6 +33,7 @@ package org.opensearch.search.aggregations.bucket.filter;
 
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
+import org.apache.lucene.document.KeywordField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.IndexSearcher;
@@ -87,28 +88,28 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
         Directory directory = newDirectory();
         RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory);
         Document document = new Document();
-        document.add(new Field("field", "foo", KeywordFieldMapper.Defaults.FIELD_TYPE));
+        document.add(new KeywordField("field", "foo", Field.Store.NO));
         indexWriter.addDocument(document);
         document.clear();
-        document.add(new Field("field", "else", KeywordFieldMapper.Defaults.FIELD_TYPE));
+        document.add(new KeywordField("field", "else", Field.Store.NO));
         indexWriter.addDocument(document);
         // make sure we have more than one segment to test the merge
         indexWriter.commit();
-        document.add(new Field("field", "foo", KeywordFieldMapper.Defaults.FIELD_TYPE));
+        document.add(new KeywordField("field", "foo", Field.Store.NO));
         indexWriter.addDocument(document);
         document.clear();
-        document.add(new Field("field", "bar", KeywordFieldMapper.Defaults.FIELD_TYPE));
+        document.add(new KeywordField("field", "bar", Field.Store.NO));
         indexWriter.addDocument(document);
         document.clear();
-        document.add(new Field("field", "foobar", KeywordFieldMapper.Defaults.FIELD_TYPE));
-        indexWriter.addDocument(document);
-        indexWriter.commit();
-        document.clear();
-        document.add(new Field("field", "something", KeywordFieldMapper.Defaults.FIELD_TYPE));
+        document.add(new KeywordField("field", "foobar", Field.Store.NO));
         indexWriter.addDocument(document);
         indexWriter.commit();
         document.clear();
-        document.add(new Field("field", "foobar", KeywordFieldMapper.Defaults.FIELD_TYPE));
+        document.add(new KeywordField("field", "something", Field.Store.NO));
+        indexWriter.addDocument(document);
+        indexWriter.commit();
+        document.clear();
+        document.add(new KeywordField("field", "foobar", Field.Store.NO));
         indexWriter.addDocument(document);
         indexWriter.close();
 
@@ -154,7 +155,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
             }
             int value = randomInt(maxTerm - 1);
             expectedBucketCount[value] += 1;
-            document.add(new Field("field", Integer.toString(value), KeywordFieldMapper.Defaults.FIELD_TYPE));
+            document.add(new KeywordField("field", Integer.toString(value), Field.Store.NO));
             indexWriter.addDocument(document);
             document.clear();
         }
