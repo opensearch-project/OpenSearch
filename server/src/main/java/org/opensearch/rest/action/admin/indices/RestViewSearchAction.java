@@ -12,7 +12,6 @@ import joptsimple.internal.Strings;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.action.search.SearchAction;
-import org.opensearch.action.search.SearchRequest;
 import org.opensearch.action.search.ViewSearchRequest;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.cluster.metadata.View;
@@ -87,7 +86,13 @@ public class RestViewSearchAction extends BaseRestHandler {
             final IntConsumer setSize = size -> viewSearchRequest.source().size(size);
 
             request.withContentOrSourceParamParserOrNull(
-                parser -> RestSearchAction.parseSearchRequest(viewSearchRequest, request, parser, client.getNamedWriteableRegistry(), setSize)
+                parser -> RestSearchAction.parseSearchRequest(
+                    viewSearchRequest,
+                    request,
+                    parser,
+                    client.getNamedWriteableRegistry(),
+                    setSize
+                )
             );
 
             // TODO: Only allow operations that are supported
