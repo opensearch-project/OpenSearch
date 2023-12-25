@@ -270,6 +270,17 @@ public final class IndexSettings {
     );
 
     /**
+     * Index setting describing the maximum number of nested scopes in queries.
+     * The default maximum of 20. 0 means no nesting allowed.
+     */
+    public static final Setting<Integer> MAX_NESTED_QUERY_DEPTH_SETTING = Setting.intSetting(
+        "index.query.max_nested_depth",
+        20,
+        0,
+        Property.Dynamic,
+        Property.IndexScope
+    );
+    /**
      * Index setting describing for NGramTokenizer and NGramTokenFilter
      * the maximum difference between
      * max_gram (maximum length of characters in a gram) and
@@ -747,6 +758,8 @@ public final class IndexSettings {
     private volatile TimeValue searchIdleAfter;
     private volatile int maxAnalyzedOffset;
     private volatile int maxTermsCount;
+
+    private volatile int maxNestedQueryDepth;
     private volatile String defaultPipeline;
     private volatile String requiredPipeline;
     private volatile boolean searchThrottled;
@@ -902,6 +915,7 @@ public final class IndexSettings {
         maxSlicesPerPit = scopedSettings.get(MAX_SLICES_PER_PIT);
         maxAnalyzedOffset = scopedSettings.get(MAX_ANALYZED_OFFSET_SETTING);
         maxTermsCount = scopedSettings.get(MAX_TERMS_COUNT_SETTING);
+        maxNestedQueryDepth = scopedSettings.get(MAX_NESTED_QUERY_DEPTH_SETTING);
         maxRegexLength = scopedSettings.get(MAX_REGEX_LENGTH_SETTING);
         this.tieredMergePolicyProvider = new TieredMergePolicyProvider(logger, this);
         this.logByteSizeMergePolicyProvider = new LogByteSizeMergePolicyProvider(logger, this);
@@ -1007,6 +1021,7 @@ public final class IndexSettings {
         scopedSettings.addSettingsUpdateConsumer(MAX_REFRESH_LISTENERS_PER_SHARD, this::setMaxRefreshListeners);
         scopedSettings.addSettingsUpdateConsumer(MAX_ANALYZED_OFFSET_SETTING, this::setHighlightMaxAnalyzedOffset);
         scopedSettings.addSettingsUpdateConsumer(MAX_TERMS_COUNT_SETTING, this::setMaxTermsCount);
+        scopedSettings.addSettingsUpdateConsumer(MAX_NESTED_QUERY_DEPTH_SETTING, this::setMaxNestedQueryDepth);
         scopedSettings.addSettingsUpdateConsumer(MAX_SLICES_PER_SCROLL, this::setMaxSlicesPerScroll);
         scopedSettings.addSettingsUpdateConsumer(MAX_SLICES_PER_PIT, this::setMaxSlicesPerPit);
         scopedSettings.addSettingsUpdateConsumer(DEFAULT_FIELD_SETTING, this::setDefaultFields);
@@ -1515,6 +1530,17 @@ public final class IndexSettings {
 
     private void setMaxTermsCount(int maxTermsCount) {
         this.maxTermsCount = maxTermsCount;
+    }
+
+    /**
+     * @return max level of nested queries and documents
+     */
+    public int getMaxNestedQueryDepth() {
+        return this.maxNestedQueryDepth;
+    }
+
+    private void setMaxNestedQueryDepth(int maxNestedQueryDepth) {
+        this.maxNestedQueryDepth = maxNestedQueryDepth;
     }
 
     /**

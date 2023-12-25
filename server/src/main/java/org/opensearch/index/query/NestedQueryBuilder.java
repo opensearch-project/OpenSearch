@@ -319,9 +319,9 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
         }
 
         BitSetProducer previousParentFilter = context.getParentFilter();
+        context.nestedScope().nextLevel(nestedObjectMapper);
         try {
             context.setParentFilter(parentFilter);
-            context.nestedScope().nextLevel(nestedObjectMapper);
             innerQuery = this.query.toQuery(context);
         } finally {
             context.setParentFilter(previousParentFilter);
