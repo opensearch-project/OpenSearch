@@ -68,6 +68,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `org.wiremock:wiremock-standalone` from 3.1.0 to 3.3.1 ([#11555](https://github.com/opensearch-project/OpenSearch/pull/11555))
 - Bump `org.apache.commons:commons-compress` from 1.24.0 to 1.25.0 ([#11556](https://github.com/opensearch-project/OpenSearch/pull/11556))
 - Bump `com.maxmind.db:maxmind-db` from 3.0.0 to 3.1.0 ([#11693](https://github.com/opensearch-project/OpenSearch/pull/11693))
+- Bump `com.netflix.nebula:nebula-publishing-plugin` from 20.3.0 to 21.0.0 ([#11671](https://github.com/opensearch-project/OpenSearch/pull/11671))
 
 ### Changed
 - Force merge with `only_expunge_deletes` honors max segment size ([#10036](https://github.com/opensearch-project/OpenSearch/pull/10036))
