@@ -71,6 +71,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `org.apache.commons:commons-compress` from 1.24.0 to 1.25.0 ([#11556](https://github.com/opensearch-project/OpenSearch/pull/11556))
 - Bump `com.maxmind.db:maxmind-db` from 3.0.0 to 3.1.0 ([#11693](https://github.com/opensearch-project/OpenSearch/pull/11693))
 - Bump `com.netflix.nebula:nebula-publishing-plugin` from 20.3.0 to 21.0.0 ([#11671](https://github.com/opensearch-project/OpenSearch/pull/11671))
+- Bump `com.maxmind.geoip2:geoip2` from 4.1.0 to 4.2.0 ([#11559](https://github.com/opensearch-project/OpenSearch/pull/11559))
 
 ### Changed
 - Force merge with `only_expunge_deletes` honors max segment size ([#10036](https://github.com/opensearch-project/OpenSearch/pull/10036))
