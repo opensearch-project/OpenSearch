@@ -324,13 +324,13 @@ apply plugin: 'com.netflix.nebula.ospackage-base'
 
 // this is package indepdendent configuration
 ospackage {
-  maintainer ='OpenSearch Team <opensearch@amazon.com>'
+  maintainer = 'Wazuh, Inc <info@wazuh.com>'
   summary = 'Distributed RESTful search engine built for the cloud'
   packageDescription = '''
     Reference documentation can be found at
-    https://github.com/opensearch-project/OpenSearch
+    https://documentation.wazuh.com/current/getting-started/components/wazuh-indexer.html
   '''.stripIndent().trim()
-  url = 'https://github.com/opensearch-project/OpenSearch'
+  url = 'https://documentation.wazuh.com/current/getting-started/components/wazuh-indexer.html'
 
   // signing setup
   if (project.hasProperty('signing.password') && BuildParams.isSnapshotBuild() == false) {

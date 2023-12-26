@@ -1,0 +1,58 @@
+name: Assemble (reusable)
+
+# This workflow runs when any of the following occur:
+# - Run from another workflow
+on:
+  workflow_call:
+    inputs:
+      distribution:
+        description: 'One of [ "tar", "rpm", "deb" ]'
+        default: "rpm"
+        required: false
+        type: string
+      architecture:
+        description: 'One of [ "x64", "arm64" ]'
+        default: "x64"
+        required: false
+        type: string
+      min:
+        description: The name of the package to download.
+        required: true
+        type: string
+      name:
+        description: The name of the package to upload.
+        required: true
+        type: string
+
+jobs:
+  r_assemble:
+    runs-on: ubuntu-latest
+    # Permissions to upload the package
+    permissions:
+      packages: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ inputs.min }}
+          path: artifacts/dist
+
+      - name: Run `assemble.sh`
+        run: |
+          bash scripts/assemble.sh -v ${{ vars.OPENSEARCH_VERSION }} -p linux -a ${{ inputs.architecture }} -d ${{ inputs.distribution }}
+
+      # The package's name is stored in artifacts/artifact_name.txt.
+      - name: Set package name
+        id: get_name
+        run: |
+          echo "name=$(cat artifacts/artifact_name.txt)" >> $GITHUB_OUTPUT
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ inputs.name }}
+          path: artifacts/dist/${{ steps.get_name.outputs.name }}
+          if-no-files-found: error
+

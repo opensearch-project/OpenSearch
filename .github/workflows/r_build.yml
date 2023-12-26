@@ -1,0 +1,53 @@
+name: Build (reusable)
+
+# This workflow runs when any of the following occur:
+# - Run from another workflow
+on:
+  workflow_call:
+    inputs:
+      distribution:
+        description: 'One of [ "tar", "rpm", "deb" ]'
+        default: "rpm"
+        required: false
+        type: string
+      architecture:
+        description: 'One of [ "x64", "arm64" ]'
+        default: "x64"
+        required: false
+        type: string
+      name:
+        type: string
+
+jobs:
+  r_build:
+    runs-on: ubuntu-latest
+    # Permissions to upload the package
+    permissions:
+      packages: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 11
+
+      - name: Setup Gradle
+        uses: gradle/gradle-build-action@v2.9.0
+
+      - name: Run `build.sh`
+        run: |
+          bash scripts/build.sh -v ${{ vars.OPENSEARCH_VERSION }} -s false -p linux -a ${{ inputs.architecture }} -d ${{ inputs.distribution }}
+
+      # The package's name is stored in artifacts/artifact_name.txt.
+      - name: Set package name
+        id: get_name
+        run: |
+          echo "name=$(cat artifacts/artifact_name.txt)" >> $GITHUB_OUTPUT
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ inputs.name }}
+          path: artifacts/dist/${{ steps.get_name.outputs.name }}
+          if-no-files-found: error

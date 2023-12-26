@@ -1,4 +1,5 @@
 artifacts/
+.git/
 
 # intellij files
 .idea/

@@ -1,0 +1,22 @@
+name: Version (reusable)
+
+# This workflow runs when any of the following occur:
+# - Run from another workflow
+on:
+  workflow_call:
+    outputs:
+      version:
+        description: "Returns the version of Wazuh"
+        value: ${{ jobs.r_version.outputs.version }}
+
+jobs:
+  r_version:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.get_version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Read 'VERSION'
+        id: get_version
+        run: |
+          echo "version=$(cat VERSION)" >> $GITHUB_OUTPUT

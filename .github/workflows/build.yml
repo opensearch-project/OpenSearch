@@ -1,62 +1,60 @@
-name: Build slim packages
+name: Build packages
 
 # This workflow runs when any of the following occur:
-  # - Run manually
+# - Run manually
 on:
   workflow_dispatch:
+    inputs:
+      revision:
+        # description:
+        default: "1"
+        required: false
+        type: string
 
-
-# Used to run locally using https://github.com/nektos/act
-env:
-  ACT: 
-  VERSION: 2.11.0
-  SNAPSHOT: false
-  PLATFORM: linux
-  BUILD: bash scripts/build.sh
-
+# ==========================
+# Bibliography
+# ==========================
+#
+# * Reusable workflows: limitations
+#   | https://docs.github.com/en/actions/using-workflows/reusing-workflows#limitations
+# * Using matrix in reusable workflows:
+#   | https://docs.github.com/en/actions/using-workflows/reusing-workflows#using-a-matrix-strategy-with-a-reusable-workflow
+# * Reading input from the called workflow
+#   | https://docs.github.com/en/enterprise-cloud@latest/actions/using-workflows/workflow-syntax-for-github-actions#onworkflow_callinputs
 
 jobs:
+  version:
+    uses: ./.github/workflows/r_version.yml
+
   build:
-    runs-on: ubuntu-latest
-    # Permissions to upload the package
-    permissions:
-      packages: write
-      contents: read
+    needs: version
     strategy:
-        matrix:
-          # act is resource-heavy. Avoid running parallel builds with it:
-          # DISTRIBUTION: [ rpm ]
-          # ARCHITECTURE: [ x64 ]
-          DISTRIBUTION: [ tar, rpm, deb ]
-          ARCHITECTURE: [ x64, arm64 ]
-    steps:
-    - uses: actions/checkout@v4
-    - uses: actions/setup-java@v3
-      with:
-        distribution: temurin
-        java-version: 11
-        
-    - name: Setup Gradle
-      uses: gradle/gradle-build-action@v2.9.0
-    
-    - name: Execute build script
-      run: |
-        $BUILD -v $VERSION -s $SNAPSHOT -p $PLATFORM -a ${{ matrix.ARCHITECTURE }} -d ${{ matrix.DISTRIBUTION }}
+      matrix:
+        distribution: [tar, rpm, deb]
+        architecture: [x64, arm64]
+    uses: ./.github/workflows/r_build.yml
+    with:
+      architecture: ${{ matrix.architecture }}
+      distribution: ${{ matrix.distribution }}
+      name: wazuh-indexer-min_${{ needs.version.outputs.version }}-${{ inputs.revision }}-${{ matrix.architecture }}_${{ github.sha }}.${{ matrix.distribution }}
+      # wazuh-indexer-min_4.8.0-rc1_x64_ff98475f.deb
+      # TODO arm64 != amd64 (deb), x64 != x86_64 (rpm)
+      # TODO use short SHA https://stackoverflow.com/a/59819441/13918537
 
-    # The package name is stored in the artifacts/artifact_name.txt file
-    - name: Read package name
-      id: package_name
-      run: |
-        echo $(ls -la)
-        echo "package_name=$(cat artifacts/artifact_name.txt)" >> $GITHUB_OUTPUT
-        echo "$(cat artifacts/artifact_name.txt)"
+  assemble:
+    needs: [version, build]
+    strategy:
+      matrix:
+        distribution: [tar, rpm, deb]
+        architecture: [x64, arm64]
+        exclude:
+          # skip arm64 until we have arm runners
+          - architecture: arm64
+          - distribution: [tar, deb] # Exclude deb assembly until it's implemented
 
-    - name: Upload artifact
-      uses: actions/upload-artifact@v3
-      with:
-        name: ${{ steps.package_name.outputs.package_name }}
-        path: artifacts/dist/${{ steps.package_name.outputs.package_name }}
-        if-no-files-found: error
-
-  # assemble:
-  # release:
+    uses: ./.github/workflows/r_assemble.yml
+    with:
+      architecture: ${{ matrix.architecture }}
+      distribution: ${{ matrix.distribution }}
+      min: wazuh-indexer-min_${{ needs.version.outputs.version }}-${{ inputs.revision }}-${{ matrix.architecture }}_${{ github.sha }}.${{ matrix.distribution }}
+      name: wazuh-indexer_${{ needs.version.outputs.version }}-${{ inputs.revision }}-${{ matrix.architecture }}_${{ github.sha }}.${{ matrix.distribution }}
