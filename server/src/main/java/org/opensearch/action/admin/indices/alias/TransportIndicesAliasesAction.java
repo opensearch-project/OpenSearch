@@ -85,7 +85,7 @@ public class TransportIndicesAliasesAction extends TransportClusterManagerNodeAc
     private final MetadataIndexAliasesService indexAliasesService;
     private final RequestValidators<IndicesAliasesRequest> requestValidators;
 
-    private final Set<Setting<Boolean>> REMOTE_SNAPSHOT_SETTINGS_CHECKLIST = Set.of(
+    protected final static Set<Setting<Boolean>> REMOTE_SNAPSHOT_SETTINGS_CHECKLIST = Set.of(
         IndexMetadata.INDEX_READ_ONLY_SETTING,
         IndexMetadata.INDEX_BLOCKS_METADATA_SETTING,
         IndexMetadata.INDEX_BLOCKS_READ_ONLY_ALLOW_DELETE_SETTING
