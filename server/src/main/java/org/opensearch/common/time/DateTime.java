@@ -9,6 +9,7 @@
 package org.opensearch.common.time;
 
 import java.time.DateTimeException;
+import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.time.temporal.ChronoField;
@@ -157,6 +158,15 @@ class DateTime {
             return OffsetDateTime.of(year, month, day, hour, minute, second, nano, offset);
         }
         throw new DateTimeException("No zone offset information found");
+    }
+
+    /**
+     * Creates an {@link java.time.LocalDateTime}
+     *
+     * return the {@link java.time.LocalDateTime}
+     */
+    public LocalDateTime toLocalDatetime() {
+        return LocalDateTime.of(year, month, day, hour, minute, second, nano);
     }
 
     /**

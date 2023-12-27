@@ -10,6 +10,7 @@ package org.opensearch.common.time;
 
 import java.text.ParsePosition;
 import java.time.DateTimeException;
+import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
@@ -18,11 +19,11 @@ import java.time.temporal.TemporalAccessor;
 import java.util.Locale;
 
 /**
- * Defines a close profile of RFC3339 datetime format where the date is mandatory and the time is optional.
+ * Defines a local datetime format where the date is mandatory and the time is optional.
  * <p>
  * The returned formatter can only be used for parsing, printing is unsupported.
  * <p>
- * This parser can parse zoned datetimes.
+ * This parser can parse local datetimes without zone information.
  * The parser is strict by default, thus time string {@code 24:00} cannot be parsed.
  * <p>
  * It accepts formats described by the following syntax:
@@ -34,12 +35,12 @@ import java.util.Locale;
  *    Complete date:
  *       YYYY-MM-DD (eg 1997-07-16)
  *    Complete date plus hours and minutes:
- *       YYYY-MM-DDThh:mmTZD (eg 1997-07-16T19:20+01:00)
+ *       YYYY-MM-DDTSPhh:mm (eg 1997-07-16 19:20)
  *    Complete date plus hours, minutes and seconds:
- *       YYYY-MM-DDThh:mm:ssTZD (eg 1997-07-16T19:20:30+01:00)
+ *       YYYY-MM-DDTSPhh:mm:ss (eg 1997-07-16 19:20:30)
  *    Complete date plus hours, minutes, seconds and a decimal fraction of a second
- *       YYYY-MM-DDThh:mm:ss.sTZD (eg 1997-07-16T19:20:30.45+01:00)
- *       YYYY-MM-DDThh:mm:ss,sTZD (eg 1997-07-16T19:20:30,45+01:00)
+ *       YYYY-MM-DDTSPhh:mm:ss.s (eg 1997-07-16T19:20:30.45)
+ *       YYYY-MM-DDTSPhh:mm:ss,s (eg 1997-07-16T19:20:30,45)
  * where:
  *
  *      YYYY = four-digit year
@@ -49,34 +50,34 @@ import java.util.Locale;
  *      mm   = two digits of minute (00 through 59)
  *      ss   = two digits of second (00 through 59)
  *      s    = one or more(max 9) digits representing a decimal fraction of a second
- *      TZD  = time zone designator (Z or z or +hh:mm or -hh:mm)
+ *      TSP  = date time seperator (T or " ")
  * </pre>
  */
-final class RFC3339DateTimeFormatter extends OpenSearchDateTimeFormatter {
+final class LocalDateTimeFormatter extends OpenSearchDateTimeFormatter {
 
     private ZoneId zone;
 
-    public RFC3339DateTimeFormatter(String pattern) {
+    public LocalDateTimeFormatter(String pattern) {
         super(pattern);
     }
 
-    public RFC3339DateTimeFormatter(java.time.format.DateTimeFormatter formatter) {
+    public LocalDateTimeFormatter(java.time.format.DateTimeFormatter formatter) {
         super(formatter);
     }
 
-    public RFC3339DateTimeFormatter(java.time.format.DateTimeFormatter formatter, ZoneId zone) {
+    public LocalDateTimeFormatter(java.time.format.DateTimeFormatter formatter, ZoneId zone) {
         super(formatter);
         this.zone = zone;
     }
 
     @Override
     public OpenSearchDateTimeFormatter withZone(ZoneId zoneId) {
-        return new RFC3339DateTimeFormatter(getFormatter().withZone(zoneId), zoneId);
+        return new LocalDateTimeFormatter(getFormatter().withZone(zoneId), zoneId);
     }
 
     @Override
     public OpenSearchDateTimeFormatter withLocale(Locale locale) {
-        return new RFC3339DateTimeFormatter(getFormatter().withLocale(locale));
+        return new LocalDateTimeFormatter(getFormatter().withLocale(locale));
     }
 
     @Override
@@ -90,8 +91,8 @@ final class RFC3339DateTimeFormatter extends OpenSearchDateTimeFormatter {
 
     @Override
     public TemporalAccessor parse(final String dateTime) {
-        OffsetDateTime parsedDatetime = parse(dateTime, new ParsePosition(0)).toOffsetDatetime();
-        return zone == null ? parsedDatetime : parsedDatetime.atZoneSameInstant(zone);
+        LocalDateTime parsedDatetime = parse(dateTime, new ParsePosition(0)).toLocalDatetime();
+        return zone == null ? parsedDatetime : parsedDatetime.atZone(zone);
     }
 
     public DateTime parse(String date, ParsePosition pos) {
@@ -154,51 +155,9 @@ final class RFC3339DateTimeFormatter extends OpenSearchDateTimeFormatter {
         return DateUtils.readInt(chars, pos, 2);
     }
 
-    private static ZoneOffset parseTimezone(char[] chars, ParsePosition pos) {
-        int offset = pos.getIndex();
-        final int left = chars.length - offset;
-        if (DateUtils.checkPositionContains(chars, pos, DateUtils.ZULU_LOWER, DateUtils.ZULU_UPPER)) {
-            DateUtils.consumeNextChar(chars, pos);
-            DateUtils.assertNoMoreChars(chars, pos);
-            return ZoneOffset.UTC;
-        }
-
-        if (left != 6) {
-            throw new DateTimeParseException("Invalid timezone offset", new String(chars, offset, left), offset);
-        }
-
-        final char sign = chars[offset];
-        DateUtils.consumeNextChar(chars, pos);
-        int hours = getHour(chars, pos);
-        DateUtils.consumeChar(chars, pos, DateUtils.TIME_SEPARATOR);
-        int minutes = getMinute(chars, pos);
-        if (sign == DateUtils.MINUS) {
-            if (hours == 0 && minutes == 0) {
-                throw new DateTimeParseException("Unknown 'Local Offset Convention' date-time not allowed", new String(chars), offset);
-            }
-            hours = -hours;
-            minutes = -minutes;
-        } else if (sign != DateUtils.PLUS) {
-            throw new DateTimeParseException("Invalid character starting at position " + offset, new String(chars), offset);
-        }
-
-        return ZoneOffset.ofHoursMinutes(hours, minutes);
-    }
-
     private static DateTime handleTime(char[] chars, ParsePosition pos, int year, int month, int day, int hour, int minute) {
-        switch (chars[pos.getIndex()]) {
-            case DateUtils.TIME_SEPARATOR:
-                DateUtils.consumeChar(chars, pos, DateUtils.TIME_SEPARATOR);
-                return handleSeconds(year, month, day, hour, minute, chars, pos);
-
-            case DateUtils.PLUS:
-            case DateUtils.MINUS:
-            case DateUtils.ZULU_UPPER:
-            case DateUtils.ZULU_LOWER:
-                final ZoneOffset zoneOffset = parseTimezone(chars, pos);
-                return DateTime.of(year, month, day, hour, minute, zoneOffset);
-        }
-        throw new DateTimeParseException("Unexpected character " + " at position " + pos.getIndex(), new String(chars), pos.getIndex());
+        DateUtils.consumeChar(chars, pos, DateUtils.TIME_SEPARATOR);
+        return handleSeconds(year, month, day, hour, minute, chars, pos);
     }
 
     private static int getMonth(final char[] chars, ParsePosition pos) {
@@ -249,37 +208,24 @@ final class RFC3339DateTimeFormatter extends OpenSearchDateTimeFormatter {
             return DateTime.of(year, month, day, hour, minute, seconds, 0, null, 0);
         }
 
-        ZoneOffset offset = null;
         int fractions = 0;
         int fractionDigits = 0;
-        if (remaining == 1 && DateUtils.checkPositionContains(chars, pos, DateUtils.ZULU_LOWER, DateUtils.ZULU_UPPER)) {
-            DateUtils.consumeNextChar(chars, pos);
-            // Do nothing we are done
-            offset = ZoneOffset.UTC;
-            DateUtils.assertNoMoreChars(chars, pos);
-        } else if (remaining >= 1 && DateUtils.checkPositionContains(chars, pos, DateUtils.FRACTION_SEPARATOR_1, DateUtils.FRACTION_SEPARATOR_2)) {
+        if (remaining >= 1 && DateUtils.checkPositionContains(chars, pos, DateUtils.FRACTION_SEPARATOR_1, DateUtils.FRACTION_SEPARATOR_2)) {
             // We have fractional seconds;
             DateUtils.consumeNextChar(chars, pos);
             ParsePosition initPosition = new ParsePosition(pos.getIndex());
             DateUtils.consumeDigits(chars, pos);
-            if (pos.getErrorIndex() == -1) {
-                // We have an end of fractions
-                final int len = pos.getIndex() - initPosition.getIndex();
-                fractions = getFractions(chars, initPosition, len);
-                fractionDigits = len;
-                offset = parseTimezone(chars, pos);
-            } else {
-                throw new DateTimeParseException("No timezone information", new String(chars), pos.getIndex());
-            }
-        } else if (remaining >= 1 && DateUtils.checkPositionContains(chars, pos, DateUtils.PLUS, DateUtils.MINUS)) {
-            // No fractional sections
-            offset = parseTimezone(chars, pos);
+            // We have an end of fractions
+            final int len = pos.getIndex() - initPosition.getIndex();
+            fractions = getFractions(chars, initPosition, len);
+            fractionDigits = len;
+            DateUtils.assertNoMoreChars(chars, pos);
         } else {
             throw new DateTimeParseException("Unexpected character at position " + (pos.getIndex()), new String(chars), pos.getIndex());
         }
 
         return fractionDigits > 0
-            ? DateTime.of(year, month, day, hour, minute, seconds, fractions, offset, fractionDigits)
-            : DateTime.of(year, month, day, hour, minute, seconds, offset);
+            ? DateTime.of(year, month, day, hour, minute, seconds, fractions, null, fractionDigits)
+            : DateTime.of(year, month, day, hour, minute, seconds, null);
     }
 }

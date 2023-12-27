@@ -601,6 +601,62 @@ public class DateFormattersTests extends OpenSearchTestCase {
         }
     }
 
+    public void testLocalDateTimeParsing() {
+        DateFormatter formatter = DateFormatters.forPattern("local_date_time");
+
+        // timezone not allowed with just date
+        formatter.format(formatter.parse("2018"));
+        formatter.format(formatter.parse("2018-05"));
+        formatter.format(formatter.parse("2018-05-15"));
+
+        formatter.format(formatter.parse("2018-05-15T17:14"));
+        formatter.format(formatter.parse("2018-05-15 17:14"));
+        formatter.format(formatter.parse("2018-05-15T17:14"));
+        formatter.format(formatter.parse("2018-05-15 17:14"));
+
+        formatter.format(formatter.parse("2018-05-15T17:14:56"));
+        formatter.format(formatter.parse("2018-05-15 17:14:56"));
+
+        // milliseconds can be separated using comma or decimal point
+        formatter.format(formatter.parse("2018-05-15 17:14:56.123"));
+        formatter.format(formatter.parse("2018-05-15T17:14:56.123"));
+        formatter.format(formatter.parse("2018-05-15 17:14:56,123"));
+        formatter.format(formatter.parse("2018-05-15T17:14:56,123"));
+
+        // microseconds can be separated using comma or decimal point
+        formatter.format(formatter.parse("2018-05-15T17:14:56.123456"));
+        formatter.format(formatter.parse("2018-05-15 17:14:56.123456"));
+        formatter.format(formatter.parse("2018-05-15T17:14:56,123456"));
+        formatter.format(formatter.parse("2018-05-15 17:14:56,123456"));
+
+        // nanoseconds can be separated using comma or decimal point
+        formatter.format(formatter.parse("2018-05-15T17:14:56.123456789"));
+        formatter.format(formatter.parse("2018-05-15 17:14:56.123456789"));
+        formatter.format(formatter.parse("2018-05-15T17:14:56,123456789"));
+        formatter.format(formatter.parse("2018-05-15 17:14:56,123456789"));
+
+        // Invalid dates should throw an exception
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> formatter.parse("abc"));
+        assertThat(e.getMessage(), is("failed to parse date field [abc] with format [local_date_time]"));
+        // offset not applicable
+        e = expectThrows(IllegalArgumentException.class, () -> formatter.parse("2017-02-21T15:27:39+01:00"));
+        assertThat(e.getMessage(), is("failed to parse date field [2017-02-21T15:27:39+01:00] with format [local_date_time]"));
+        e = expectThrows(IllegalArgumentException.class, () -> formatter.parse("2017-02-21T15:27:39Z"));
+        assertThat(e.getMessage(), is("failed to parse date field [2017-02-21T15:27:39Z] with format [local_date_time]"));
+        e = expectThrows(IllegalArgumentException.class, () -> formatter.parse("2017-02-21T15:27:39_00:00"));
+        assertThat(e.getMessage(), is("failed to parse date field [2017-02-21T15:27:39_00:00] with format [local_date_time]"));
+
+        // Invalid fraction
+        e = expectThrows(IllegalArgumentException.class, () -> formatter.parse("2017-02-21T15:27:39.abcZ"));
+        assertThat(e.getMessage(), is("failed to parse date field [2017-02-21T15:27:39.abcZ] with format [local_date_time]"));
+        // Invalid date
+        e = expectThrows(IllegalArgumentException.class, () -> formatter.parse("201702-21T15:27:39.123456"));
+        assertThat(e.getMessage(), is("failed to parse date field [201702-21T15:27:39.123456] with format [local_date_time]"));
+        // More than 9 digits of nanosecond resolution
+        e = expectThrows(IllegalArgumentException.class, () -> formatter.parse("2017-02-21T15:00:00.1234567891"));
+        assertThat(e.getMessage(), is("failed to parse date field [2017-02-21T15:00:00.1234567891] with format [local_date_time]"));
+    }
+
     public void testRoundupFormatterWithEpochDates() {
         assertRoundupFormatter("epoch_millis", "1234567890", 1234567890L);
         // also check nanos of the epoch_millis formatter if it is rounded up to the nano second
