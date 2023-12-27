@@ -81,6 +81,48 @@ function generate_rollover_template() {
 }
 
 #########################################################################
+# Creates an index template to disable replicas on ISM configurastion indices.
+# Returns:
+#   The index template as a JSON string.
+#########################################################################
+function generate_ism_config_template() {
+    cat <<-EOF
+        {
+            "order": 1,
+            "index_patterns": [
+                ".opendistro-ism-managed-index-history-*",
+                ".opendistro-ism-config",
+                ".opendistro-job-scheduler-lock"
+            ],
+            "settings": {
+                "number_of_replicas": 0
+            }
+        }
+	EOF
+}
+
+#########################################################################
+# Creates persistent cluster's settings to disable replicas for ISM history.
+# Returns:
+#   The setting as a JSON string.
+#########################################################################
+function generate_ism_config() {
+    cat <<-EOF
+    {
+        "persistent": {
+            "plugins": {
+                "index_state_management": {
+                    "history": {
+                        "number_of_replicas": "0"
+                    }
+                }
+            }
+        }
+    }
+	EOF
+}
+
+#########################################################################
 # Loads the index templates for the rollover policy to the indexer.
 #########################################################################
 function load_templates() {
@@ -89,18 +131,44 @@ function load_templates() {
     echo "Will create 'wazuh' index template"
     if [ -f $wazuh_template_path ]; then
         cat $wazuh_template_path |
-        if ! curl -s -k ${C_AUTH} \
-            -X PUT "${INDEXER_URL}/_template/wazuh" \
-            -o "${LOG_FILE}" --create-dirs \
-            -H 'Content-Type: application/json' -d @-; then
-            echo "  ERROR: 'wazuh' template creation failed"
-            exit 1
-        else
-            echo " SUCC: 'wazuh' template created or updated"
-        fi
+            if ! curl -s -k ${C_AUTH} \
+                -X PUT "${INDEXER_URL}/_template/wazuh" \
+                -o "${LOG_FILE}" --create-dirs \
+                -H 'Content-Type: application/json' -d @-; then
+                echo "  ERROR: 'wazuh' template creation failed"
+                return 1
+            else
+                echo " SUCC: 'wazuh' template created or updated"
+            fi
     else
         echo "  ERROR: $wazuh_template_path not found"
     fi
+
+    # Load template for ISM configuration indices
+    echo "Will create 'ism_history_indices' index template"
+    generate_ism_config_template |
+        if ! curl -s -k ${C_AUTH} \
+            -X PUT "${INDEXER_URL}/_template/ism_history_indices" \
+            -o "${LOG_FILE}" --create-dirs \
+            -H 'Content-Type: application/json' -d @-; then
+            echo "  ERROR: 'ism_history_indices' template creation failed"
+            return 1
+        else
+            echo " SUCC: 'ism_history_indices' template created or updated"
+        fi
+
+    # Make settings persistent
+    echo "Will disable replicas for 'plugins.index_state_management.history' indices"
+    generate_ism_config |
+        if ! curl -s -k ${C_AUTH} \
+            -X PUT "${INDEXER_URL}/_cluster/settings" \
+            -o "${LOG_FILE}" --create-dirs \
+            -H 'Content-Type: application/json' -d @-; then
+            echo "  ERROR: cluster's settings update failed"
+            return 1
+        else
+            echo " SUCC: cluster's settings saved"
+        fi
 
     echo "Will create index templates to configure the alias"
     for alias in "${aliases[@]}"; do
@@ -201,7 +269,7 @@ function create_write_index() {
         -H 'Content-Type: application/json' \
         -d "$(generate_write_index_alias "${1}")"; then
         echo "  ERROR: creating '${1}' write index"
-        exit 1
+        return 1
     else
         echo "  SUCC: '${1}' write index created"
     fi
@@ -263,7 +331,7 @@ function show_help() {
     echo -e "        -v, --verbose"
     echo -e "                Set verbose mode. Prints more information."
     echo -e ""
-    exit 1
+    return 1
 }
 
 #########################################################################
@@ -353,7 +421,7 @@ function main() {
         echo "SUCC: Indexer ISM initialization finished successfully."
     else
         echo "ERROR: Indexer ISM initialization failed. Check ${LOG_FILE} for more information."
-        exit 1
+        return 1
     fi
 }
 
