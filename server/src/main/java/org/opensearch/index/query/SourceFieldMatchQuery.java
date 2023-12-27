@@ -34,12 +34,12 @@ import java.util.Objects;
  * Useful to query against field type which doesn't store positional data and field is not stored/computed dynamically.
  */
 public class SourceFieldMatchQuery extends Query {
-    final private Query delegateQuery;
-    final private Query filter;
-    final private SearchLookup lookup;
-    final private MappedFieldType fieldType;
-    final private SourceValueFetcher valueFetcher;
-    final private QueryShardContext context;
+    private final Query delegateQuery;
+    private final Query filter;
+    private final SearchLookup lookup;
+    private final MappedFieldType fieldType;
+    private final SourceValueFetcher valueFetcher;
+    private final QueryShardContext context;
 
     /**
      * Constructs a SourceFieldMatchQuery.
