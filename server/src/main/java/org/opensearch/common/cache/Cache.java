@@ -429,7 +429,7 @@ public class Cache<K, V> {
         return value;
     }
 
-    public V compute(K key, CacheLoader<K, V> loader) throws ExecutionException {
+    private V compute(K key, CacheLoader<K, V> loader) throws ExecutionException {
         long now = now();
         // we need to synchronize loading of a value for a given key; however, holding the segment lock while
         // invoking load can lead to deadlock against another thread due to dependent key loading; therefore, we
