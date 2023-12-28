@@ -17,6 +17,7 @@ import org.opensearch.common.cache.store.StoreAwareCacheValue;
 import org.opensearch.common.cache.store.builders.StoreAwareCacheBuilder;
 import org.opensearch.common.cache.store.enums.CacheStoreType;
 import org.opensearch.common.cache.store.listeners.StoreAwareCacheEventListener;
+import org.opensearch.common.util.concurrent.ReleasableLock;
 import org.opensearch.common.util.iterable.Iterables;
 
 import java.util.Arrays;
@@ -24,6 +25,8 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.concurrent.locks.ReadWriteLock;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.Function;
 
 /**
@@ -38,9 +41,13 @@ import java.util.function.Function;
  */
 public class TieredSpilloverCache<K, V> implements TieredCache<K, V>, StoreAwareCacheEventListener<K, V> {
 
+    // TODO: Remove optional when diskCache implementation is integrated.
     private final Optional<StoreAwareCache<K, V>> onDiskCache;
     private final StoreAwareCache<K, V> onHeapCache;
     private final StoreAwareCacheEventListener<K, V> listener;
+    ReadWriteLock readWriteLock = new ReentrantReadWriteLock();
+    ReleasableLock readLock = new ReleasableLock(readWriteLock.readLock());
+    ReleasableLock writeLock = new ReleasableLock(readWriteLock.writeLock());
 
     /**
      * Maintains caching tiers in ascending order of cache latency.
@@ -59,6 +66,16 @@ public class TieredSpilloverCache<K, V> implements TieredCache<K, V>, StoreAware
         this.cacheList = this.onDiskCache.map(diskTier -> Arrays.asList(this.onHeapCache, diskTier)).orElse(List.of(this.onHeapCache));
     }
 
+    // Package private for testing
+    StoreAwareCache<K, V> getOnHeapCache() {
+        return onHeapCache;
+    }
+
+    // Package private for testing
+    Optional<StoreAwareCache<K, V>> getOnDiskCache() {
+        return onDiskCache;
+    }
+
     @Override
     public V get(K key) {
         StoreAwareCacheValue<V> cacheValue = getValueFromTieredCache().apply(key);
@@ -70,16 +87,22 @@ public class TieredSpilloverCache<K, V> implements TieredCache<K, V>, StoreAware
 
     @Override
     public void put(K key, V value) {
-        onHeapCache.put(key, value);
+        try (ReleasableLock ignore = writeLock.acquire()) {
+            onHeapCache.put(key, value);
+        }
     }
 
     @Override
     public V computeIfAbsent(K key, LoadAwareCacheLoader<K, V> loader) throws Exception {
         StoreAwareCacheValue<V> cacheValue = getValueFromTieredCache().apply(key);
         if (cacheValue == null) {
-            // Add the value to the onHeap cache. Any items if evicted will be moved to lower tier.
-            V value = onHeapCache.compute(key, loader);
-            return value;
+            // Add the value to the onHeap cache. We are calling computeIfAbsent which does another get inside.
+            // This is needed as there can be many requests for the same key at the same time and we only want to load
+            // the value once.
+            try (ReleasableLock ignore = writeLock.acquire()) {
+                V value = onHeapCache.computeIfAbsent(key, loader);
+                return value;
+            }
         }
         return cacheValue.getValue();
     }
@@ -89,8 +112,10 @@ public class TieredSpilloverCache<K, V> implements TieredCache<K, V>, StoreAware
         // We are trying to invalidate the key from all caches though it would be present in only of them.
         // Doing this as we don't know where it is located. We could do a get from both and check that, but what will
         // also trigger a hit/miss listener event, so ignoring it for now.
-        for (StoreAwareCache<K, V> storeAwareCache : cacheList) {
-            storeAwareCache.invalidate(key);
+        try (ReleasableLock ignore = writeLock.acquire()) {
+            for (StoreAwareCache<K, V> storeAwareCache : cacheList) {
+                storeAwareCache.invalidate(key);
+            }
         }
     }
 
@@ -101,8 +126,10 @@ public class TieredSpilloverCache<K, V> implements TieredCache<K, V>, StoreAware
 
     @Override
     public void invalidateAll() {
-        for (StoreAwareCache<K, V> storeAwareCache : cacheList) {
-            storeAwareCache.invalidateAll();
+        try (ReleasableLock ignore = writeLock.acquire()) {
+            for (StoreAwareCache<K, V> storeAwareCache : cacheList) {
+                storeAwareCache.invalidateAll();
+            }
         }
     }
 
@@ -174,7 +201,9 @@ public class TieredSpilloverCache<K, V> implements TieredCache<K, V>, StoreAware
             || RemovalReason.CAPACITY.equals(notification.getRemovalReason())) {
             switch (notification.getCacheStoreType()) {
                 case ON_HEAP:
-                    onDiskCache.ifPresent(diskTier -> { diskTier.put(notification.getKey(), notification.getValue()); });
+                    try (ReleasableLock ignore = writeLock.acquire()) {
+                        onDiskCache.ifPresent(diskTier -> { diskTier.put(notification.getKey(), notification.getValue()); });
+                    }
                     break;
                 default:
                     break;
@@ -195,10 +224,12 @@ public class TieredSpilloverCache<K, V> implements TieredCache<K, V>, StoreAware
 
     private Function<K, StoreAwareCacheValue<V>> getValueFromTieredCache() {
         return key -> {
-            for (StoreAwareCache<K, V> storeAwareCache : cacheList) {
-                V value = storeAwareCache.get(key);
-                if (value != null) {
-                    return new StoreAwareCacheValue<>(value, storeAwareCache.getTierType());
+            try (ReleasableLock ignore = readLock.acquire()) {
+                for (StoreAwareCache<K, V> storeAwareCache : cacheList) {
+                    V value = storeAwareCache.get(key);
+                    if (value != null) {
+                        return new StoreAwareCacheValue<>(value, storeAwareCache.getTierType());
+                    }
                 }
             }
             return null;
