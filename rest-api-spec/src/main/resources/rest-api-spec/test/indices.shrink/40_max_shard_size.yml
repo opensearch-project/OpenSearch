@@ -4,8 +4,8 @@
   # number_of_shards for the target index.
 
   - skip:
-      version: " - 2.99.99"
-      reason: "only available in 3.0+"
+      version: " - 2.4.99"
+      reason: "max_shard_size was introduced in 2.5.0"
       features: allowed_warnings
 
   - do:
