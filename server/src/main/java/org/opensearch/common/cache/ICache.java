@@ -24,8 +24,6 @@ public interface ICache<K, V> {
 
     void invalidate(K key);
 
-    V compute(K key, LoadAwareCacheLoader<K, V> loader) throws Exception;
-
     void invalidateAll();
 
     Iterable<K> keys();

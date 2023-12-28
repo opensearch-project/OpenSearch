@@ -78,7 +78,7 @@ public class TieredSpilloverCache<K, V> implements TieredCache<K, V>, StoreAware
 
     @Override
     public V get(K key) {
-        StoreAwareCacheValue<V> cacheValue = getValueFromTieredCache().apply(key);
+        StoreAwareCacheValue<V> cacheValue = getValueFromTieredCache(true).apply(key);
         if (cacheValue == null) {
             return null;
         }
@@ -89,20 +89,37 @@ public class TieredSpilloverCache<K, V> implements TieredCache<K, V>, StoreAware
     public void put(K key, V value) {
         try (ReleasableLock ignore = writeLock.acquire()) {
             onHeapCache.put(key, value);
+            listener.onCached(key, value, CacheStoreType.ON_HEAP);
         }
     }
 
     @Override
     public V computeIfAbsent(K key, LoadAwareCacheLoader<K, V> loader) throws Exception {
-        StoreAwareCacheValue<V> cacheValue = getValueFromTieredCache().apply(key);
+        // We are skipping calling event listeners at this step as we do another get inside below computeIfAbsent.
+        // Where we might end up calling onMiss twice for a key not present in onHeap cache.
+        // Similary we might end up calling both onMiss and onHit for a key, in case we are received concurrent
+        // requests for the same key which requires loading only once.
+        StoreAwareCacheValue<V> cacheValue = getValueFromTieredCache(false).apply(key);
         if (cacheValue == null) {
             // Add the value to the onHeap cache. We are calling computeIfAbsent which does another get inside.
             // This is needed as there can be many requests for the same key at the same time and we only want to load
             // the value once.
+            V value = null;
             try (ReleasableLock ignore = writeLock.acquire()) {
-                V value = onHeapCache.computeIfAbsent(key, loader);
-                return value;
+                value = onHeapCache.computeIfAbsent(key, loader);
             }
+            if (loader.isLoaded()) {
+                listener.onMiss(key, CacheStoreType.ON_HEAP);
+                onDiskCache.ifPresent(diskTier -> listener.onMiss(key, CacheStoreType.DISK));
+                listener.onCached(key, value, CacheStoreType.ON_HEAP);
+            } else {
+                listener.onHit(key, value, CacheStoreType.ON_HEAP);
+            }
+            return value;
+        }
+        listener.onHit(key, cacheValue.getValue(), cacheValue.getSource());
+        if (cacheValue.getSource().equals(CacheStoreType.DISK)) {
+            listener.onMiss(key, CacheStoreType.ON_HEAP);
         }
         return cacheValue.getValue();
     }
@@ -117,11 +134,6 @@ public class TieredSpilloverCache<K, V> implements TieredCache<K, V>, StoreAware
                 storeAwareCache.invalidate(key);
             }
         }
-    }
-
-    @Override
-    public V compute(K key, LoadAwareCacheLoader<K, V> loader) throws Exception {
-        return onHeapCache.compute(key, loader);
     }
 
     @Override
@@ -192,7 +204,7 @@ public class TieredSpilloverCache<K, V> implements TieredCache<K, V>, StoreAware
 
     @Override
     public void onMiss(K key, CacheStoreType cacheStoreType) {
-        listener.onMiss(key, cacheStoreType);
+        // Misses for tiered cache are tracked here itself.
     }
 
     @Override
@@ -204,6 +216,9 @@ public class TieredSpilloverCache<K, V> implements TieredCache<K, V>, StoreAware
                     try (ReleasableLock ignore = writeLock.acquire()) {
                         onDiskCache.ifPresent(diskTier -> { diskTier.put(notification.getKey(), notification.getValue()); });
                     }
+                    onDiskCache.ifPresent(
+                        diskTier -> listener.onCached(notification.getKey(), notification.getValue(), CacheStoreType.DISK)
+                    );
                     break;
                 default:
                     break;
@@ -214,21 +229,28 @@ public class TieredSpilloverCache<K, V> implements TieredCache<K, V>, StoreAware
 
     @Override
     public void onHit(K key, V value, CacheStoreType cacheStoreType) {
-        listener.onHit(key, value, cacheStoreType);
+        // Hits for tiered cache are tracked here itself.
     }
 
     @Override
     public void onCached(K key, V value, CacheStoreType cacheStoreType) {
-        listener.onCached(key, value, cacheStoreType);
+        // onCached events for tiered cache are tracked here itself.
     }
 
-    private Function<K, StoreAwareCacheValue<V>> getValueFromTieredCache() {
+    private Function<K, StoreAwareCacheValue<V>> getValueFromTieredCache(boolean triggerEventListener) {
         return key -> {
             try (ReleasableLock ignore = readLock.acquire()) {
                 for (StoreAwareCache<K, V> storeAwareCache : cacheList) {
                     V value = storeAwareCache.get(key);
                     if (value != null) {
+                        if (triggerEventListener) {
+                            listener.onHit(key, value, storeAwareCache.getTierType());
+                        }
                         return new StoreAwareCacheValue<>(value, storeAwareCache.getTierType());
+                    } else {
+                        if (triggerEventListener) {
+                            listener.onMiss(key, storeAwareCache.getTierType());
+                        }
                     }
                 }
             }

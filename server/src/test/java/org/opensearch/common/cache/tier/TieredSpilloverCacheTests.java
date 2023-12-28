@@ -80,12 +80,18 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
         int diskCacheSize = randomIntBetween(60, 100);
         int totalSize = onHeapCacheSize + diskCacheSize;
         MockCacheEventListener<String, String> eventListener = new MockCacheEventListener<String, String>();
-        TieredSpilloverCache<String, String> tieredSpilloverCache = intializeTieredSpilloverCache(
-            onHeapCacheSize,
-            diskCacheSize,
-            eventListener,
-            0
-        );
+        StoreAwareCacheBuilder<String, String> cacheBuilder = new OpenSearchOnHeapCache.Builder<String, String>().setMaximumWeightInBytes(
+            onHeapCacheSize * 50
+        ).setWeigher((k, v) -> 50); // Will support onHeapCacheSize entries.
+
+        StoreAwareCacheBuilder<String, String> diskCacheBuilder = new MockOnDiskCache.Builder<String, String>().setMaxSize(diskCacheSize)
+            .setDeliberateDelay(0);
+
+        TieredSpilloverCache<String, String> tieredSpilloverCache = new TieredSpilloverCache.Builder<String, String>()
+            .setOnHeapCacheBuilder(cacheBuilder)
+            .setOnDiskCacheBuilder(diskCacheBuilder)
+            .setListener(eventListener)
+            .build();
 
         // Put values in cache more than it's size and cause evictions from onHeap.
         int numOfItems1 = randomIntBetween(onHeapCacheSize + 1, totalSize);
@@ -93,24 +99,25 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
         List<String> diskTierKeys = new ArrayList<>();
         for (int iter = 0; iter < numOfItems1; iter++) {
             String key = UUID.randomUUID().toString();
-            if (iter > (onHeapCacheSize - 1)) {
-                // All these are bound to go to disk based cache.
-                diskTierKeys.add(key);
-            } else {
-                onHeapKeys.add(key);
-            }
             LoadAwareCacheLoader<String, String> tieredCacheLoader = getLoadAwareCacheLoader();
             tieredSpilloverCache.computeIfAbsent(key, tieredCacheLoader);
         }
+        long actualDiskCacheSize = tieredSpilloverCache.getOnDiskCache().get().count();
         assertEquals(numOfItems1, eventListener.enumMap.get(CacheStoreType.ON_HEAP).missCount.count());
         assertEquals(0, eventListener.enumMap.get(CacheStoreType.ON_HEAP).hitCount.count());
-        assertTrue(eventListener.enumMap.get(CacheStoreType.ON_HEAP).evictionsMetric.count() > 0);
+        assertEquals(actualDiskCacheSize, eventListener.enumMap.get(CacheStoreType.ON_HEAP).evictionsMetric.count());
 
         assertEquals(
             eventListener.enumMap.get(CacheStoreType.ON_HEAP).evictionsMetric.count(),
             eventListener.enumMap.get(CacheStoreType.DISK).cachedCount.count()
         );
-        assertEquals(diskTierKeys.size(), eventListener.enumMap.get(CacheStoreType.DISK).cachedCount.count());
+        assertEquals(actualDiskCacheSize, eventListener.enumMap.get(CacheStoreType.DISK).cachedCount.count());
+
+        tieredSpilloverCache.cacheKeys(CacheStoreType.ON_HEAP).forEach(onHeapKeys::add);
+        tieredSpilloverCache.cacheKeys(CacheStoreType.DISK).forEach(diskTierKeys::add);
+
+        assertEquals(tieredSpilloverCache.getOnHeapCache().count(), onHeapKeys.size());
+        assertEquals(tieredSpilloverCache.getOnDiskCache().get().count(), diskTierKeys.size());
 
         // Try to hit cache again with some randomization.
         int numOfItems2 = randomIntBetween(50, 200);
@@ -118,22 +125,25 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
         int diskCacheHit = 0;
         int cacheMiss = 0;
         for (int iter = 0; iter < numOfItems2; iter++) {
-            if (randomBoolean()) {
-                if (randomBoolean()) { // Hit cache with key stored in onHeap cache.
-                    onHeapCacheHit++;
-                    int index = randomIntBetween(0, onHeapKeys.size() - 1);
-                    tieredSpilloverCache.computeIfAbsent(onHeapKeys.get(index), getLoadAwareCacheLoader());
-                } else { // Hit cache with key stored in disk cache.
-                    diskCacheHit++;
-                    int index = randomIntBetween(0, diskTierKeys.size() - 1);
-                    tieredSpilloverCache.computeIfAbsent(diskTierKeys.get(index), getLoadAwareCacheLoader());
-                }
-            } else {
-                // Hit cache with randomized key which is expected to miss cache always.
-                LoadAwareCacheLoader<String, String> tieredCacheLoader = getLoadAwareCacheLoader();
-                tieredSpilloverCache.computeIfAbsent(UUID.randomUUID().toString(), tieredCacheLoader);
-                cacheMiss++;
+            if (randomBoolean()) { // Hit cache with key stored in onHeap cache.
+                onHeapCacheHit++;
+                int index = randomIntBetween(0, onHeapKeys.size() - 1);
+                LoadAwareCacheLoader<String, String> loadAwareCacheLoader = getLoadAwareCacheLoader();
+                tieredSpilloverCache.computeIfAbsent(onHeapKeys.get(index), loadAwareCacheLoader);
+                assertFalse(loadAwareCacheLoader.isLoaded());
+            } else { // Hit cache with key stored in disk cache.
+                diskCacheHit++;
+                int index = randomIntBetween(0, diskTierKeys.size() - 1);
+                LoadAwareCacheLoader<String, String> loadAwareCacheLoader = getLoadAwareCacheLoader();
+                tieredSpilloverCache.computeIfAbsent(diskTierKeys.get(index), loadAwareCacheLoader);
+                assertFalse(loadAwareCacheLoader.isLoaded());
             }
+        }
+        for (int iter = 0; iter < randomIntBetween(50, 200); iter++) {
+            // Hit cache with randomized key which is expected to miss cache always.
+            LoadAwareCacheLoader<String, String> tieredCacheLoader = getLoadAwareCacheLoader();
+            tieredSpilloverCache.computeIfAbsent(UUID.randomUUID().toString(), tieredCacheLoader);
+            cacheMiss++;
         }
         // On heap cache misses would also include diskCacheHits as it means it missed onHeap cache.
         assertEquals(numOfItems1 + cacheMiss + diskCacheHit, eventListener.enumMap.get(CacheStoreType.ON_HEAP).missCount.count());
@@ -281,27 +291,6 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
         tieredSpilloverCache.invalidate(key2);
         assertEquals(1, eventListener.enumMap.get(CacheStoreType.DISK).invalidationMetric.count());
         assertEquals(1, tieredSpilloverCache.count());
-    }
-
-    public void testComputeWithoutAnyOnHeapEvictions() throws Exception {
-        int onHeapCacheSize = randomIntBetween(10, 30);
-        MockCacheEventListener<String, String> eventListener = new MockCacheEventListener<String, String>();
-        TieredSpilloverCache<String, String> spilloverStrategyService = intializeTieredSpilloverCache(
-            onHeapCacheSize,
-            randomIntBetween(1, 4),
-            eventListener,
-            0
-        );
-        int numOfItems1 = randomIntBetween(1, onHeapCacheSize / 2 - 1);
-        List<String> keys = new ArrayList<>();
-        // Put values in cache.
-        for (int iter = 0; iter < numOfItems1; iter++) {
-            String key = UUID.randomUUID().toString();
-            keys.add(key);
-            LoadAwareCacheLoader<String, String> tieredCacheLoader = getLoadAwareCacheLoader();
-            spilloverStrategyService.compute(key, tieredCacheLoader);
-        }
-        assertEquals(numOfItems1, eventListener.enumMap.get(CacheStoreType.ON_HEAP).cachedCount.count());
     }
 
     public void testCacheKeys() throws Exception {
@@ -696,25 +685,6 @@ class MockOnDiskCache<K, V> implements StoreAwareCache<K, V> {
     }
 
     @Override
-    public V compute(K key, LoadAwareCacheLoader<K, V> loader) throws Exception {
-        if (this.cache.size() >= maxSize) { // If it exceeds, just notify for evict.
-            eventListener.onRemoval(
-                new StoreAwareCacheRemovalNotification<>(key, loader.load(key), RemovalReason.EVICTED, CacheStoreType.DISK)
-            );
-            return loader.load(key);
-        }
-        V value = this.cache.compute(key, ((k, v) -> {
-            try {
-                return loader.load(key);
-            } catch (Exception e) {
-                throw new RuntimeException(e);
-            }
-        }));
-        eventListener.onCached(key, value, CacheStoreType.DISK);
-        return value;
-    }
-
-    @Override
     public void invalidateAll() {
         this.cache.clear();
     }
@@ -823,25 +793,6 @@ class MockOnHeapCache<K, V> implements StoreAwareCache<K, V> {
         }
         this.cache.remove(key);
 
-    }
-
-    @Override
-    public V compute(K key, LoadAwareCacheLoader<K, V> loader) throws Exception {
-        if (this.cache.size() >= maxSize) { // If it exceeds, just notify for evict.
-            eventListener.onRemoval(
-                new StoreAwareCacheRemovalNotification<>(key, loader.load(key), RemovalReason.EVICTED, CacheStoreType.ON_HEAP)
-            );
-            return loader.load(key);
-        }
-        V value = this.cache.compute(key, ((k, v) -> {
-            try {
-                return loader.load(key);
-            } catch (Exception e) {
-                throw new RuntimeException(e);
-            }
-        }));
-        eventListener.onCached(key, value, CacheStoreType.ON_HEAP);
-        return value;
     }
 
     @Override

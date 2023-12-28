@@ -77,13 +77,6 @@ public class OpenSearchOnHeapCache<K, V> implements StoreAwareCache<K, V>, Remov
     }
 
     @Override
-    public V compute(K key, LoadAwareCacheLoader<K, V> loader) throws Exception {
-        V value = cache.compute(key, key1 -> loader.load(key));
-        eventListener.onCached(key, value, CacheStoreType.ON_HEAP);
-        return value;
-    }
-
-    @Override
     public void invalidateAll() {
         cache.invalidateAll();
     }
