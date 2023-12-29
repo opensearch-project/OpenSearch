@@ -43,7 +43,7 @@ import static org.hamcrest.core.Is.is;
 public class MatchOnlyTextFieldMapperTests extends TextFieldMapperTests {
 
     @Before
-    public void setup() {
+    public void setupMatchOnlyTextFieldMapper() {
         textFieldName = "match_only_text";
     }
 
