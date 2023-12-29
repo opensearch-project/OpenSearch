@@ -29,7 +29,7 @@ import org.opensearch.index.query.MatchPhraseQueryBuilder;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.index.query.SourceFieldMatchQuery;
 import org.opensearch.index.search.MatchQuery;
-import org.junit.BeforeClass;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -42,8 +42,8 @@ import static org.hamcrest.core.Is.is;
 
 public class MatchOnlyTextFieldMapperTests extends TextFieldMapperTests {
 
-    @BeforeClass
-    public static void beforeClass() {
+    @Before
+    public void setup() {
         textFieldName = "match_only_text";
     }
 

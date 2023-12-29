@@ -81,6 +81,7 @@ import org.opensearch.index.query.MatchPhrasePrefixQueryBuilder;
 import org.opensearch.index.query.MatchPhraseQueryBuilder;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.index.search.MatchQuery;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -95,7 +96,12 @@ import static org.hamcrest.core.Is.is;
 
 public class TextFieldMapperTests extends MapperTestCase {
 
-    public static String textFieldName = "text";
+    public String textFieldName = "text";
+
+    @Before
+    public void setup() {
+        textFieldName = "text";
+    }
 
     @Override
     protected void writeFieldValue(XContentBuilder builder) throws IOException {
