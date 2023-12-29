@@ -114,12 +114,13 @@ public final class IndicesRequestCache implements TieredCacheEventListener<Indic
     private final ByteSizeValue size;
     private final TimeValue expire;
     private final TieredCacheService<Key, BytesReference> tieredCacheService;
-
+    private final IndicesService indicesService;
 
     IndicesRequestCache(Settings settings, IndicesService indicesService) {
         this.size = INDICES_CACHE_QUERY_SIZE.get(settings);
         this.expire = INDICES_CACHE_QUERY_EXPIRE.exists(settings) ? INDICES_CACHE_QUERY_EXPIRE.get(settings) : null;
         long sizeInBytes = size.getBytes();
+        this.indicesService = indicesService;
 
         // Initialize onHeap cache tier first.
         OnHeapCachingTier<Key, BytesReference> openSearchOnHeapCache = new OpenSearchOnHeapCache.Builder<Key, BytesReference>().setWeigher(
@@ -241,7 +242,7 @@ public final class IndicesRequestCache implements TieredCacheEventListener<Indic
             IndexReader.CacheHelper cacheHelper = ((OpenSearchDirectoryReader) reader).getDelegatingCacheHelper();
             readerCacheKeyId = ((OpenSearchDirectoryReader.DelegatingCacheHelper) cacheHelper).getDelegatingCacheKey().getId();
         }
-        cache.invalidate(new Key(cacheEntity, cacheKey, readerCacheKeyId));
+        tieredCacheService.invalidate(new Key(cacheEntity, cacheKey, readerCacheKeyId));
     }
 
     /**
@@ -316,8 +317,8 @@ public final class IndicesRequestCache implements TieredCacheEventListener<Indic
      *
      * @opensearch.internal
      */
-    public static class Key implements Accountable {
-        private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(Key.class);
+    public class Key implements Accountable {
+        private final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(Key.class);
 
         public final CacheEntity entity; // use as identity equality
         public final String readerCacheKeyId;
@@ -363,13 +364,6 @@ public final class IndicesRequestCache implements TieredCacheEventListener<Indic
             result = 31 * result + readerCacheKeyId.hashCode();
             result = 31 * result + value.hashCode();
             return result;
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeOptionalWriteable(entity);
-            out.writeOptionalString(readerCacheKeyId);
-            out.writeBytesReference(value);
         }
     }
 

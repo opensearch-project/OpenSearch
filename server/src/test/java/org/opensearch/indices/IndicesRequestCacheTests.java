@@ -469,32 +469,6 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
         assertNotEquals(key1, key5);
     }
 
-    public void testSerializationDeserializationOfCacheKey() throws Exception {
-        TermQueryBuilder termQuery = new TermQueryBuilder("id", "0");
-        BytesReference termBytes = XContentHelper.toXContent(termQuery, MediaTypeRegistry.JSON, false);
-        ShardRequestCache shardRequestCache = new ShardRequestCache();
-        IndicesService indicesService = getInstanceFromNode(IndicesService.class);
-        IndicesRequestCache indicesRequestCache = indicesService.indicesRequestCache;
-        IndexService indexService = createIndex("test");
-        IndexShard indexShard = indexService.getShard(0);
-        IndicesService.IndexShardCacheEntity shardCacheEntity = indicesService.new IndexShardCacheEntity(indexShard);
-        String readerCacheKeyId = UUID.randomUUID().toString();
-        IndicesRequestCache.Key key1 = indicesRequestCache.new Key(shardCacheEntity, termBytes, readerCacheKeyId);
-        BytesReference bytesReference = null;
-        try (BytesStreamOutput out = new BytesStreamOutput()) {
-            key1.writeTo(out);
-            bytesReference = out.bytes();
-        }
-        StreamInput in = bytesReference.streamInput();
-
-        IndicesRequestCache.Key key2 = indicesRequestCache.new Key(in);
-
-        assertEquals(readerCacheKeyId, key2.readerCacheKeyId);
-        assertEquals(shardCacheEntity.getCacheIdentity(), key2.entity.getCacheIdentity());
-        assertEquals(termBytes, key2.value);
-
-    }
-
     private class TestBytesReference extends AbstractBytesReference {
 
         int dummyValue;
