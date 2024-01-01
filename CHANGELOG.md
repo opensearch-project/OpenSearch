@@ -155,6 +155,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `com.netflix.nebula:nebula-publishing-plugin` from 20.3.0 to 21.0.0 ([#11671](https://github.com/opensearch-project/OpenSearch/pull/11671))
 - Bump `commons-cli:commons-cli` from 1.5.0 to 1.6.0 ([#10996](https://github.com/opensearch-project/OpenSearch/pull/10996))
 - Bump `com.maxmind.geoip2:geoip2` from 4.1.0 to 4.2.0 ([#11559](https://github.com/opensearch-project/OpenSearch/pull/11559))
+- Bump `org.apache.commons:commons-lang3` from 3.13.0 to 3.14.0 ([#11691](https://github.com/opensearch-project/OpenSearch/pull/11691))
 
 ### Changed
 - Mute the query profile IT with concurrent execution ([#9840](https://github.com/opensearch-project/OpenSearch/pull/9840))
