@@ -99,7 +99,7 @@ public class EhCacheDiskCachingTier<K, V> implements DiskCachingTier<K, V> {
     private EhCacheDiskCachingTier(Builder<K, V> builder) {
         this.keyType = Objects.requireNonNull(builder.keyType, "Key type shouldn't be null");
         this.valueType = Objects.requireNonNull(builder.valueType, "Value type shouldn't be null");
-        this.expireAfterAccess = Objects.requireNonNull(builder.expireAfterAcess, "ExpireAfterAccess value shouldn't " + "be null");
+        this.expireAfterAccess = Objects.requireNonNull(builder.expireAfterAccess, "ExpireAfterAccess value shouldn't " + "be null");
         this.keySerializer = Objects.requireNonNull(builder.keySerializer, "Key serializer shouldn't be null");
         this.valueSerializer = Objects.requireNonNull(builder.valueSerializer, "Value serializer shouldn't be null");
         this.ehCacheEventListener = new EhCacheEventListener<K, V>(this.valueSerializer);
@@ -124,9 +124,6 @@ public class EhCacheDiskCachingTier<K, V> implements DiskCachingTier<K, V> {
         close();
         cacheManager = buildCacheManager();
         this.cache = buildCache(Duration.ofMillis(expireAfterAccess.getMillis()), builder);
-
-        long keystoreMaxWeight = builder.keystoreMaxWeightInBytes;
-        this.keystore = new RBMIntKeyLookupStore(keystoreMaxWeight);
     }
 
     private PersistentCacheManager buildCacheManager() {
@@ -196,7 +193,6 @@ public class EhCacheDiskCachingTier<K, V> implements DiskCachingTier<K, V> {
 
     @Override
     public V get(K key) {
-        // Optimize it by adding key store.
         return valueSerializer.deserialize(cache.get(key));
     }
 
@@ -403,7 +399,7 @@ public class EhCacheDiskCachingTier<K, V> implements DiskCachingTier<K, V> {
      */
     public static class Builder<K, V> {
         private long maxWeightInBytes;
-        private TimeValue expireAfterAcess;
+        private TimeValue expireAfterAccess;
 
         private Class<K> keyType;
 
@@ -423,7 +419,6 @@ public class EhCacheDiskCachingTier<K, V> implements DiskCachingTier<K, V> {
         private boolean isEventListenerModeSync;
         private Serializer<K, byte[]> keySerializer;
         private Serializer<V, byte[]> valueSerializer;
-        private long keystoreMaxWeightInBytes = 0;
 
         public Builder() {}
 
@@ -435,8 +430,8 @@ public class EhCacheDiskCachingTier<K, V> implements DiskCachingTier<K, V> {
             return this;
         }
 
-        public EhCacheDiskCachingTier.Builder<K, V> setExpireAfterAccess(TimeValue expireAfterAcess) {
-            this.expireAfterAcess = expireAfterAcess;
+        public EhCacheDiskCachingTier.Builder<K, V> setExpireAfterAccess(TimeValue expireAfterAccess) {
+            this.expireAfterAccess = expireAfterAccess;
             return this;
         }
 
@@ -488,11 +483,6 @@ public class EhCacheDiskCachingTier<K, V> implements DiskCachingTier<K, V> {
 
         public EhCacheDiskCachingTier.Builder<K, V> setValueSerializer(Serializer<V, byte[]> valueSerializer) {
             this.valueSerializer = valueSerializer;
-            return this;
-        }
-
-        public EhCacheDiskCachingTier.Builder<K, V> setKeyStoreMaxWeightInBytes(long weight) {
-            this.keystoreMaxWeightInBytes = weight;
             return this;
         }
 

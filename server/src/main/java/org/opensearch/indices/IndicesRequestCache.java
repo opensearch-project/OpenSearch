@@ -55,7 +55,6 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.ConcurrentCollections;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.io.stream.StreamInput;
-import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.core.common.unit.ByteSizeValue;
 
@@ -127,44 +126,12 @@ public final class IndicesRequestCache implements TieredCacheEventListener<Indic
             (k, v) -> k.ramBytesUsed() + v.ramBytesUsed()
         ).setMaximumWeight(sizeInBytes).setExpireAfterAccess(expire).build();
 
-        Function<BytesReference, QuerySearchResult> transformationFunction = (data) -> {
-            try {
-                return convertBytesReferenceToQSR(data);
-            } catch (IOException e) {
-                throw new RuntimeException(e);
-            }
-        };
-        // enabling this for testing purposes. Remove/tweak!!
-        long CACHE_SIZE_IN_BYTES = 1000000L;
-        String SETTING_PREFIX = "indices.request.cache";
-        String STORAGE_PATH = indicesService.getNodePaths()[0].indicesPath.toString() + "/request_cache";
-
-        double diskTierKeystoreWeightFraction = 0.05; // Allocate 5% of the on-heap weight to the disk tier's keystore
-        long keystoreMaxWeight = (long) (diskTierKeystoreWeightFraction * INDICES_CACHE_QUERY_SIZE.get(settings).getBytes());
-
-        EhCacheDiskCachingTier<Key, BytesReference> ehcacheDiskTier = new EhCacheDiskCachingTier.Builder<Key, BytesReference>()
-            .setKeyType(Key.class)
-            .setValueType(BytesReference.class)
-            .setExpireAfterAccess(TimeValue.MAX_VALUE)
-            .setSettings(settings)
-            .setThreadPoolAlias("ehcacheTest")
-            .setMaximumWeightInBytes(CACHE_SIZE_IN_BYTES)
-            .setStoragePath(STORAGE_PATH)
-            .setSettingPrefix(SETTING_PREFIX)
-            .setKeySerializer(new IRCKeyWriteableSerializer(this))
-            .setValueSerializer(new BytesReferenceSerializer())
-            .setKeyStoreMaxWeightInBytes(keystoreMaxWeight)
-            .build();
-
         // Initialize tiered cache service. TODO: Enable Disk tier when tiered support is turned on.
 
-        tieredCacheService = new TieredCacheSpilloverStrategyService.Builder<Key, BytesReference, QuerySearchResult>()
+        tieredCacheService = new TieredCacheSpilloverStrategyService.Builder<Key, BytesReference>()
             .setOnHeapCachingTier(openSearchOnHeapCache)
-            .setOnDiskCachingTier(ehcacheDiskTier)
             .setTieredCacheEventListener(this)
-            .withPreDiskCachingPolicyFunction(transformationFunction)
             .build();
-        this.indicesService = indicesService;
     }
 
     @Override
