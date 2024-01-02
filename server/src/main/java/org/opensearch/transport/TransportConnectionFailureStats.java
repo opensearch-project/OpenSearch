@@ -16,7 +16,6 @@ import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
@@ -74,5 +73,26 @@ public class TransportConnectionFailureStats implements ToXContentFragment, Writ
     @Override
     public int hashCode() {
         return Objects.hash(connectionFailureMap);
+    }
+
+    public boolean equals(Object o) {
+        if (this == o) {
+            return true;
+        } else if (o != null && this.getClass() == o.getClass()) {
+            TransportConnectionFailureStats that = (TransportConnectionFailureStats) o;
+
+            if (this.connectionFailureMap.size() == that.connectionFailureMap.size()) {
+                for (Map.Entry<String, Integer> entry : this.connectionFailureMap.entrySet()) {
+                    if (that.connectionFailureMap.get(entry.getKey()) == null) {
+                        return false;
+                    }
+                    if (that.connectionFailureMap.get(entry.getKey()) != entry.getValue()) {
+                        return false;
+                    }
+                }
+                return true;
+            }
+        }
+        return false;
     }
 }

@@ -245,9 +245,13 @@ public class SearchWeightedRoutingIT extends OpenSearchIntegTestCase {
         nodeMap.put("c", nodes_in_zone_c);
 
         logger.info("--> waiting for nodes to form a cluster");
-        int totalNodes = nodeCountPerAZ*3+1;
-        ClusterHealthResponse health =
-            client().admin().cluster().prepareHealth().setWaitForNodes(Integer.toString(totalNodes)).execute().actionGet();
+        int totalNodes = nodeCountPerAZ * 3 + 1;
+        ClusterHealthResponse health = client().admin()
+            .cluster()
+            .prepareHealth()
+            .setWaitForNodes(Integer.toString(totalNodes))
+            .execute()
+            .actionGet();
         assertThat(health.isTimedOut(), equalTo(false));
 
         ensureGreen();
@@ -1463,86 +1467,6 @@ public class SearchWeightedRoutingIT extends OpenSearchIntegTestCase {
         NodeStats nodeStatsC = stats.get(nodeIDMap.get(nodeMap.get("c").get(0)));
         assertEquals(failOpenShardCount, nodeStatsC.getWeightedRoutingStats().getFailOpenCount());
         WeightedRoutingStats.getInstance().resetFailOpenCount();
-    }
-
-    public void testTransportConnectionFailureStats() throws Exception {
-
-        Settings commonSettings = Settings.builder()
-            .put("cluster.routing.allocation.awareness.attributes", "zone")
-            .put("cluster.routing.allocation.awareness.force.zone.values", "a,b,c")
-            .build();
-
-        int nodeCountPerAZ = 1;
-        Map<String, List<String>> nodeMap = setupCluster(nodeCountPerAZ, commonSettings);
-
-        int numShards = 10;
-        int numReplicas = 1;
-        setUpIndexing(numShards, numReplicas);
-
-        logger.info("--> creating network partition disruption");
-        final String clusterManagerNode1 = internalCluster().getClusterManagerName();
-        Set<String> nodesInOneSide =
-            Stream.of(nodeMap.get("b").get(0), nodeMap.get("c").get(0)).collect(Collectors.toCollection(HashSet::new));
-        Set<String> nodesInOtherSide = Stream.of(nodeMap.get("a").get(0)).collect(Collectors.toCollection(HashSet::new));
-
-        NetworkDisruption networkDisruption = new NetworkDisruption(
-            new NetworkDisruption.TwoPartitions(nodesInOneSide, nodesInOtherSide),
-            NetworkDisruption.DISCONNECT
-        );
-        internalCluster().setDisruptionScheme(networkDisruption);
-
-        DiscoveryNodes dataNodes = internalCluster().clusterService().state().nodes();
-
-        Map<String, String> nodeIDMap = new HashMap<>();
-        for (DiscoveryNode node : dataNodes) {
-            nodeIDMap.put(node.getName(), node.getId());
-        }
-
-        logger.info("--> network disruption is started");
-        networkDisruption.startDisrupting();
-
-        Set<String> hitNodes = new HashSet<>();
-        logger.info("--> making search requests");
-
-        Future<SearchResponse>[] responses = new Future[50];
-        logger.info("--> making search requests");
-        for (int i = 0; i < 50; i++) {
-            responses[i] = internalCluster().client(nodeMap.get("a").get(0))
-                .prepareSearch("test")
-                .setQuery(QueryBuilders.matchAllQuery())
-                .execute();
-        }
-
-        logger.info("--> network disruption is stopped");
-        networkDisruption.stopDisrupting();
-
-        int failedShardCount = 0;
-        for (int i = 0; i < 50; i++) {
-            try {
-                SearchResponse searchResponse = responses[i].get();
-                failedShardCount += searchResponse.getFailedShards();
-
-            } catch (Exception t) {
-                fail("search should not fail");
-            }
-        }
-
-
-
-        Map<String, Integer> failures = TransportConnectionFailureStats.getInstance().getConnectionFailure();
-
-        NodesStatsResponse nodeStats =
-            client().admin().cluster().prepareNodesStats().addMetric("transport_connection_failure").execute().actionGet();
-        Map<String, NodeStats> stats = nodeStats.getNodesMap();
-        System.out.println("completed");
-
-        NodeStats nodeStatsC = stats.get(nodeIDMap.get(nodeMap.get("c").get(0)));
-        NodeStats nodeStatsB = stats.get(nodeIDMap.get(nodeMap.get("b").get(0)));
-        NodeStats nodeStatsA = stats.get(nodeIDMap.get(nodeMap.get("a").get(0)));
-        System.out.println("completed");
-
-//        assertEquals(failOpenShardCount, nodeStatsC.getWeightedRoutingStats().getFailOpenCount());
-
     }
 
 }
