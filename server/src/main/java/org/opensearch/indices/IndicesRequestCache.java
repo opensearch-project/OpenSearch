@@ -106,6 +106,8 @@ public final class IndicesRequestCache implements RemovalListener<IndicesRequest
         Property.NodeScope
     );
 
+    private final static long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(Key.class);
+
     private final ConcurrentMap<CleanupKey, Boolean> registeredClosedListeners = ConcurrentCollections.newConcurrentMap();
     private final Set<CleanupKey> keysToClean = ConcurrentCollections.newConcurrentSet();
     private final ByteSizeValue size;
@@ -265,8 +267,6 @@ public final class IndicesRequestCache implements RemovalListener<IndicesRequest
      * @opensearch.internal
      */
     class Key implements Accountable, Writeable {
-        private final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(Key.class);
-
         public final CacheEntity entity; // use as identity equality
         public final String readerCacheKeyId;
         public final BytesReference value;

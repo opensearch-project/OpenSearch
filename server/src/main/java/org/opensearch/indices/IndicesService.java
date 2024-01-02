@@ -301,6 +301,8 @@ public class IndicesService extends AbstractLifecycleComponent
         Property.Final
     );
 
+    private static long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(IndexShardCacheEntity.class);
+
     /**
      * The node's settings.
      */
@@ -1757,7 +1759,6 @@ public class IndicesService extends AbstractLifecycleComponent
      * @opensearch.internal
      */
     public final class IndexShardCacheEntity extends AbstractIndexShardCacheEntity {
-        private final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(IndexShardCacheEntity.class);
         private final IndexShard indexShard;
 
         public IndexShardCacheEntity(IndexShard indexShard) {
