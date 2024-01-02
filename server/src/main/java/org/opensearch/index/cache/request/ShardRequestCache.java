@@ -33,11 +33,8 @@
 package org.opensearch.index.cache.request;
 
 import org.apache.lucene.util.Accountable;
-import org.opensearch.common.cache.tier.TierType;
 import org.opensearch.common.metrics.CounterMetric;
 import org.opensearch.core.common.bytes.BytesReference;
-
-import java.util.EnumMap;
 
 /**
  * Tracks the portion of the request cache in use for a particular shard.
@@ -46,39 +43,31 @@ import java.util.EnumMap;
  */
 public final class ShardRequestCache {
 
-    private EnumMap<TierType, StatsHolder> statsHolder = new EnumMap<>(TierType.class);
-
-    public ShardRequestCache() {
-        for (TierType tierType : TierType.values()) {
-            statsHolder.put(tierType, new StatsHolder());
-        }
-    }
+    final CounterMetric evictionsMetric = new CounterMetric();
+    final CounterMetric totalMetric = new CounterMetric();
+    final CounterMetric hitCount = new CounterMetric();
+    final CounterMetric missCount = new CounterMetric();
 
     public RequestCacheStats stats() {
         // TODO: Change RequestCacheStats to support disk tier stats.
-        return new RequestCacheStats(
-            statsHolder.get(TierType.ON_HEAP).totalMetric.count(),
-            statsHolder.get(TierType.ON_HEAP).evictionsMetric.count(),
-            statsHolder.get(TierType.ON_HEAP).hitCount.count(),
-            statsHolder.get(TierType.ON_HEAP).missCount.count()
-        );
+        return new RequestCacheStats(totalMetric.count(), evictionsMetric.count(), hitCount.count(), missCount.count());
     }
 
-    public void onHit(TierType tierType) {
-        statsHolder.get(tierType).hitCount.inc();
+    public void onHit() {
+        hitCount.inc();
     }
 
-    public void onMiss(TierType tierType) {
-        statsHolder.get(tierType).missCount.inc();
+    public void onMiss() {
+        missCount.inc();
     }
 
-    public void onCached(Accountable key, BytesReference value, TierType tierType) {
-        statsHolder.get(tierType).totalMetric.inc(key.ramBytesUsed() + value.ramBytesUsed());
+    public void onCached(Accountable key, BytesReference value) {
+        totalMetric.inc(key.ramBytesUsed() + value.ramBytesUsed());
     }
 
-    public void onRemoval(Accountable key, BytesReference value, boolean evicted, TierType tierType) {
+    public void onRemoval(Accountable key, BytesReference value, boolean evicted) {
         if (evicted) {
-            statsHolder.get(tierType).evictionsMetric.inc();
+            evictionsMetric.inc();
         }
         long dec = 0;
         if (key != null) {
@@ -87,14 +76,6 @@ public final class ShardRequestCache {
         if (value != null) {
             dec += value.ramBytesUsed();
         }
-        statsHolder.get(tierType).totalMetric.dec(dec);
-    }
-
-    static class StatsHolder {
-
-        final CounterMetric evictionsMetric = new CounterMetric();
-        final CounterMetric totalMetric = new CounterMetric();
-        final CounterMetric hitCount = new CounterMetric();
-        final CounterMetric missCount = new CounterMetric();
+        totalMetric.dec(dec);
     }
 }
