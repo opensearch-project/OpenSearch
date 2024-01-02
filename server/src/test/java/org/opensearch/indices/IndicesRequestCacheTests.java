@@ -250,8 +250,7 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
         }
         IndicesRequestCache cache = new IndicesRequestCache(
             Settings.builder().put(IndicesRequestCache.INDICES_CACHE_QUERY_SIZE.getKey(), size.getBytes() + 1 + "b").build(),
-            getInstanceFromNode(IndicesService.class),
-            dummyClusterSettings
+            getInstanceFromNode(IndicesService.class)
         );
         AtomicBoolean indexShard = new AtomicBoolean(true);
         ShardRequestCache requestCacheStats = new ShardRequestCache();

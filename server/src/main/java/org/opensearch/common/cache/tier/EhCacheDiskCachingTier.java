@@ -246,13 +246,13 @@ public class EhCacheDiskCachingTier<K, V> implements DiskCachingTier<K, V> {
 
     @Override
     public void close() {
-        cacheManager.removeCache(DISK_CACHE_ALIAS);
-        cacheManager.close();
         try {
             cacheManager.destroyCache(DISK_CACHE_ALIAS);
+            cacheManager.close();
+            cacheManager = null;
         } catch (CachePersistenceException e) {
             throw new OpenSearchException("Exception occurred while destroying ehcache and associated data", e);
-        }
+        } catch (NullPointerException ignored) {} // Another test node has already destroyed the cache manager
     }
 
     /**
