@@ -34,8 +34,8 @@ import org.opensearch.test.transport.MockTransportService;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.RemoteClusterConnectionTests;
 import org.opensearch.transport.Transport;
-import org.junit.Before;
 import org.opensearch.transport.TransportService;
+import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -268,19 +268,14 @@ public class TransportDeletePitActionTests extends OpenSearchTestCase {
         ActionFilters actionFilters = mock(ActionFilters.class);
         when(actionFilters.filters()).thenReturn(new ActionFilter[0]);
         List<DiscoveryNode> knownNodes = new CopyOnWriteArrayList<>();
-        try (
-            MockTransportService cluster1Transport = startTransport("cluster_1_node", knownNodes, Version.CURRENT)
-        ) {
+        try (MockTransportService cluster1Transport = startTransport("cluster_1_node", knownNodes, Version.CURRENT)) {
             knownNodes.add(cluster1Transport.getLocalDiscoNode());
             TransportService mockTransportService = mock(TransportService.class);
             PitService pitService = new PitService(clusterServiceMock, mock(SearchTransportService.class), mockTransportService, client) {
                 @Override
                 public void getAllPits(ActionListener<GetAllPitNodesResponse> getAllPitsListener) {
                     List<ListPitInfo> list = new ArrayList<>();
-                    GetAllPitNodeResponse getAllPitNodeResponse = new GetAllPitNodeResponse(
-                        cluster1Transport.getLocalDiscoNode(),
-                        list
-                    );
+                    GetAllPitNodeResponse getAllPitNodeResponse = new GetAllPitNodeResponse(cluster1Transport.getLocalDiscoNode(), list);
                     List<GetAllPitNodeResponse> nodeList = new ArrayList();
                     nodeList.add(getAllPitNodeResponse);
                     getAllPitsListener.onResponse(new GetAllPitNodesResponse(new ClusterName("cn"), nodeList, new ArrayList()));
