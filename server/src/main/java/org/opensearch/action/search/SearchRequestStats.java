@@ -8,11 +8,11 @@
 
 package org.opensearch.action.search;
 
-import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.metrics.CounterMetric;
 import org.opensearch.common.metrics.MeanMetric;
+import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 
 import java.util.EnumMap;
@@ -37,9 +37,9 @@ public final class SearchRequestStats extends SearchRequestOperationsListener {
     );
 
     @Inject
-    public SearchRequestStats(ClusterService clusterService) {
-        this.setEnabled(clusterService.getClusterSettings().get(SEARCH_REQUEST_STATS_ENABLED));
-        clusterService.getClusterSettings().addSettingsUpdateConsumer(SEARCH_REQUEST_STATS_ENABLED, this::setEnabled);
+    public SearchRequestStats(ClusterSettings clusterSettings) {
+        this.setEnabled(clusterSettings.get(SEARCH_REQUEST_STATS_ENABLED));
+        clusterSettings.addSettingsUpdateConsumer(SEARCH_REQUEST_STATS_ENABLED, this::setEnabled);
         for (SearchPhaseName searchPhaseName : SearchPhaseName.values()) {
             phaseStatsMap.put(searchPhaseName, new StatsHolder());
         }

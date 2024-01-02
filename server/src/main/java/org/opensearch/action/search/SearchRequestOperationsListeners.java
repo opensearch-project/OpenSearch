@@ -17,32 +17,29 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 /**
- * SearchRequestListenerManager manages listeners registered to search requests,
+ * SearchRequestOperationsListeners contains listeners registered to search requests,
  * and is responsible for creating the {@link SearchRequestOperationsListener.CompositeListener}
  * with the all listeners enabled at cluster-level and request-level.
  *
  *
  * @opensearch.internal
  */
-public class SearchRequestListenerManager {
+public class SearchRequestOperationsListeners {
     private final List<SearchRequestOperationsListener> searchRequestListenersList;
 
     /**
-     * Create the SearchRequestListenerManager and add multiple {@link SearchRequestOperationsListener}
+     * Create the SearchRequestOperationsListeners and add multiple {@link SearchRequestOperationsListener}
      * to the searchRequestListenersList.
      * Those enabled listeners will be executed during each search request.
      *
      * @param listeners Multiple SearchRequestOperationsListener object to add.
-     * @throws IllegalArgumentException if any input listener is null or already exists in the list.
+     * @throws IllegalArgumentException if any input listener is null.
      */
-    public SearchRequestListenerManager(SearchRequestOperationsListener... listeners) {
+    public SearchRequestOperationsListeners(SearchRequestOperationsListener... listeners) {
         searchRequestListenersList = new ArrayList<>();
         for (SearchRequestOperationsListener listener : listeners) {
             if (listener == null) {
                 throw new IllegalArgumentException("listener must not be null");
-            }
-            if (searchRequestListenersList.contains(listener)) {
-                throw new IllegalArgumentException("listener already added");
             }
             searchRequestListenersList.add(listener);
         }

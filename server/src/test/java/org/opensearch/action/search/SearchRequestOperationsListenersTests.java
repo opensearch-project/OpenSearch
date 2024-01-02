@@ -14,31 +14,31 @@ import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.List;
 
-public class SearchRequestListenerManagerTests extends OpenSearchTestCase {
+public class SearchRequestOperationsListenersTests extends OpenSearchTestCase {
     public void testAddAndGetListeners() {
         SearchRequestOperationsListener testListener = createTestSearchRequestOperationsListener();
-        SearchRequestListenerManager listenerManager = new SearchRequestListenerManager(testListener);
-        assertEquals(1, listenerManager.getListeners().size());
-        assertEquals(testListener, listenerManager.getListeners().get(0));
+        SearchRequestOperationsListeners requestListeners = new SearchRequestOperationsListeners(testListener);
+        assertEquals(1, requestListeners.getListeners().size());
+        assertEquals(testListener, requestListeners.getListeners().get(0));
     }
 
     public void testStandardListenersEnabled() {
         SearchRequestOperationsListener testListener1 = createTestSearchRequestOperationsListener();
         SearchRequestOperationsListener testListener2 = createTestSearchRequestOperationsListener();
-        SearchRequestListenerManager listenerManager = new SearchRequestListenerManager(testListener1, testListener2);
+        SearchRequestOperationsListeners requestListeners = new SearchRequestOperationsListeners(testListener1, testListener2);
         testListener2.setEnabled(true);
-        SearchRequestOperationsListener.CompositeListener compositeListener = listenerManager.buildCompositeListener(logger);
+        SearchRequestOperationsListener.CompositeListener compositeListener = requestListeners.buildCompositeListener(logger);
         List<SearchRequestOperationsListener> listeners = compositeListener.getListeners();
         assertEquals(1, listeners.size());
         assertEquals(testListener2, listeners.get(0));
-        assertEquals(2, listenerManager.getListeners().size());
-        assertEquals(testListener1, listenerManager.getListeners().get(0));
-        assertEquals(testListener2, listenerManager.getListeners().get(1));
+        assertEquals(2, requestListeners.getListeners().size());
+        assertEquals(testListener1, requestListeners.getListeners().get(0));
+        assertEquals(testListener2, requestListeners.getListeners().get(1));
     }
 
     public void testStandardListenersAndTimeProvider() {
         SearchRequestOperationsListener testListener1 = createTestSearchRequestOperationsListener();
-        SearchRequestListenerManager listenerManager = new SearchRequestListenerManager(testListener1);
+        SearchRequestOperationsListeners requestListeners = new SearchRequestOperationsListeners(testListener1);
 
         testListener1.setEnabled(true);
         TransportSearchAction.SearchTimeProvider timeProviderListener = new TransportSearchAction.SearchTimeProvider(
@@ -50,7 +50,7 @@ public class SearchRequestListenerManagerTests extends OpenSearchTestCase {
         SearchRequest searchRequest = new SearchRequest().source(source);
         searchRequest.setPhaseTook(true);
         timeProviderListener.setEnabled(false, searchRequest);
-        SearchRequestOperationsListener.CompositeListener compositeListener = listenerManager.buildCompositeListener(
+        SearchRequestOperationsListener.CompositeListener compositeListener = requestListeners.buildCompositeListener(
             logger,
             timeProviderListener
         );
@@ -58,13 +58,13 @@ public class SearchRequestListenerManagerTests extends OpenSearchTestCase {
         assertEquals(2, listeners.size());
         assertEquals(testListener1, listeners.get(0));
         assertEquals(timeProviderListener, listeners.get(1));
-        assertEquals(1, listenerManager.getListeners().size());
-        assertEquals(testListener1, listenerManager.getListeners().get(0));
+        assertEquals(1, requestListeners.getListeners().size());
+        assertEquals(testListener1, requestListeners.getListeners().get(0));
     }
 
     public void testStandardListenersDisabledAndTimeProvider() {
         SearchRequestOperationsListener testListener1 = createTestSearchRequestOperationsListener();
-        SearchRequestListenerManager listenerManager = new SearchRequestListenerManager(testListener1);
+        SearchRequestOperationsListeners requestListeners = new SearchRequestOperationsListeners(testListener1);
         TransportSearchAction.SearchTimeProvider timeProviderListener = new TransportSearchAction.SearchTimeProvider(
             0,
             System.nanoTime(),
@@ -74,21 +74,21 @@ public class SearchRequestListenerManagerTests extends OpenSearchTestCase {
         SearchRequest searchRequest = new SearchRequest().source(source);
         searchRequest.setPhaseTook(true);
         timeProviderListener.setEnabled(false, searchRequest);
-        SearchRequestOperationsListener.CompositeListener compositeListener = listenerManager.buildCompositeListener(
+        SearchRequestOperationsListener.CompositeListener compositeListener = requestListeners.buildCompositeListener(
             logger,
             timeProviderListener
         );
         List<SearchRequestOperationsListener> listeners = compositeListener.getListeners();
         assertEquals(1, listeners.size());
         assertEquals(timeProviderListener, listeners.get(0));
-        assertEquals(1, listenerManager.getListeners().size());
-        assertEquals(testListener1, listenerManager.getListeners().get(0));
-        assertFalse(listenerManager.getListeners().get(0).getEnabled());
+        assertEquals(1, requestListeners.getListeners().size());
+        assertEquals(testListener1, requestListeners.getListeners().get(0));
+        assertFalse(requestListeners.getListeners().get(0).getEnabled());
     }
 
     public void testStandardListenerAndTimeProviderDisabled() {
         SearchRequestOperationsListener testListener1 = createTestSearchRequestOperationsListener();
-        SearchRequestListenerManager listenerManager = new SearchRequestListenerManager(testListener1);
+        SearchRequestOperationsListeners requestListeners = new SearchRequestOperationsListeners(testListener1);
 
         testListener1.setEnabled(true);
         SearchRequestOperationsListener timeProviderListener = new TransportSearchAction.SearchTimeProvider(
@@ -99,15 +99,15 @@ public class SearchRequestListenerManagerTests extends OpenSearchTestCase {
         SearchSourceBuilder source = SearchSourceBuilder.searchSource().query(QueryBuilders.matchAllQuery());
         SearchRequest searchRequest = new SearchRequest().source(source);
         searchRequest.setPhaseTook(false);
-        SearchRequestOperationsListener.CompositeListener compositeListener = listenerManager.buildCompositeListener(
+        SearchRequestOperationsListener.CompositeListener compositeListener = requestListeners.buildCompositeListener(
             logger,
             timeProviderListener
         );
         List<SearchRequestOperationsListener> listeners = compositeListener.getListeners();
         assertEquals(1, listeners.size());
         assertEquals(testListener1, listeners.get(0));
-        assertEquals(1, listenerManager.getListeners().size());
-        assertEquals(testListener1, listenerManager.getListeners().get(0));
+        assertEquals(1, requestListeners.getListeners().size());
+        assertEquals(testListener1, requestListeners.getListeners().get(0));
     }
 
     public SearchRequestOperationsListener createTestSearchRequestOperationsListener() {

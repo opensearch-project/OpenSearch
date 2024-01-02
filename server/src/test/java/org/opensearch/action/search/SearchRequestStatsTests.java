@@ -8,7 +8,6 @@
 
 package org.opensearch.action.search;
 
-import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.test.OpenSearchTestCase;
@@ -25,12 +24,8 @@ import static org.mockito.Mockito.when;
 
 public class SearchRequestStatsTests extends OpenSearchTestCase {
     public void testSearchRequestPhaseFailure() {
-        ClusterService clusterService = new ClusterService(
-            Settings.EMPTY,
-            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-            null
-        );
-        SearchRequestStats testRequestStats = new SearchRequestStats(clusterService);
+        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        SearchRequestStats testRequestStats = new SearchRequestStats(clusterSettings);
         SearchPhaseContext ctx = mock(SearchPhaseContext.class);
         SearchPhase mockSearchPhase = mock(SearchPhase.class);
         when(ctx.getCurrentPhase()).thenReturn(mockSearchPhase);
@@ -45,12 +40,8 @@ public class SearchRequestStatsTests extends OpenSearchTestCase {
     }
 
     public void testSearchRequestStats() {
-        ClusterService clusterService = new ClusterService(
-            Settings.EMPTY,
-            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-            null
-        );
-        SearchRequestStats testRequestStats = new SearchRequestStats(clusterService);
+        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        SearchRequestStats testRequestStats = new SearchRequestStats(clusterSettings);
 
         SearchPhaseContext ctx = mock(SearchPhaseContext.class);
         SearchPhase mockSearchPhase = mock(SearchPhase.class);
@@ -71,12 +62,8 @@ public class SearchRequestStatsTests extends OpenSearchTestCase {
     }
 
     public void testSearchRequestStatsOnPhaseStartConcurrently() throws InterruptedException {
-        ClusterService clusterService = new ClusterService(
-            Settings.EMPTY,
-            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-            null
-        );
-        SearchRequestStats testRequestStats = new SearchRequestStats(clusterService);
+        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        SearchRequestStats testRequestStats = new SearchRequestStats(clusterSettings);
         int numTasks = randomIntBetween(5, 50);
         Thread[] threads = new Thread[numTasks * SearchPhaseName.values().length];
         Phaser phaser = new Phaser(numTasks * SearchPhaseName.values().length + 1);
@@ -103,12 +90,8 @@ public class SearchRequestStatsTests extends OpenSearchTestCase {
     }
 
     public void testSearchRequestStatsOnPhaseEndConcurrently() throws InterruptedException {
-        ClusterService clusterService = new ClusterService(
-            Settings.EMPTY,
-            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-            null
-        );
-        SearchRequestStats testRequestStats = new SearchRequestStats(clusterService);
+        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        SearchRequestStats testRequestStats = new SearchRequestStats(clusterSettings);
         int numTasks = randomIntBetween(5, 50);
         Thread[] threads = new Thread[numTasks * SearchPhaseName.values().length];
         Phaser phaser = new Phaser(numTasks * SearchPhaseName.values().length + 1);
@@ -144,12 +127,8 @@ public class SearchRequestStatsTests extends OpenSearchTestCase {
     }
 
     public void testSearchRequestStatsOnPhaseFailureConcurrently() throws InterruptedException {
-        ClusterService clusterService = new ClusterService(
-            Settings.EMPTY,
-            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-            null
-        );
-        SearchRequestStats testRequestStats = new SearchRequestStats(clusterService);
+        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        SearchRequestStats testRequestStats = new SearchRequestStats(clusterSettings);
         int numTasks = randomIntBetween(5, 50);
         Thread[] threads = new Thread[numTasks * SearchPhaseName.values().length];
         Phaser phaser = new Phaser(numTasks * SearchPhaseName.values().length + 1);

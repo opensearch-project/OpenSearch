@@ -37,7 +37,6 @@ import org.opensearch.action.search.SearchPhaseContext;
 import org.opensearch.action.search.SearchPhaseName;
 import org.opensearch.action.search.SearchRequestOperationsListenerSupport;
 import org.opensearch.action.search.SearchRequestStats;
-import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.search.stats.SearchStats.Stats;
@@ -80,12 +79,8 @@ public class SearchStatsTests extends OpenSearchTestCase implements SearchReques
         long paramValue = randomIntBetween(2, 50);
 
         // Testing for request stats
-        ClusterService clusterService = new ClusterService(
-            Settings.EMPTY,
-            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-            null
-        );
-        SearchRequestStats testRequestStats = new SearchRequestStats(clusterService);
+        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        SearchRequestStats testRequestStats = new SearchRequestStats(clusterSettings);
         SearchPhaseContext ctx = mock(SearchPhaseContext.class);
         for (SearchPhaseName searchPhaseName : SearchPhaseName.values()) {
             SearchPhase mockSearchPhase = mock(SearchPhase.class);

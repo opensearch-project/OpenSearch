@@ -46,8 +46,8 @@ import org.opensearch.action.ActionType;
 import org.opensearch.action.admin.cluster.snapshots.status.TransportNodesSnapshotsStatus;
 import org.opensearch.action.search.SearchExecutionStatsCollector;
 import org.opensearch.action.search.SearchPhaseController;
-import org.opensearch.action.search.SearchRequestListenerManager;
 import org.opensearch.action.search.SearchRequestOperationsListener;
+import org.opensearch.action.search.SearchRequestOperationsListeners;
 import org.opensearch.action.search.SearchRequestSlowLog;
 import org.opensearch.action.search.SearchRequestStats;
 import org.opensearch.action.search.SearchTransportService;
@@ -785,7 +785,7 @@ public class Node implements Closeable {
                 threadPool
             );
 
-            final SearchRequestStats searchRequestStats = new SearchRequestStats(clusterService);
+            final SearchRequestStats searchRequestStats = new SearchRequestStats(clusterService.getClusterSettings());
             final SearchRequestSlowLog searchRequestSlowLog = new SearchRequestSlowLog(clusterService);
 
             remoteStoreStatsTrackerFactory = new RemoteStoreStatsTrackerFactory(clusterService, settings);
@@ -881,8 +881,8 @@ public class Node implements Closeable {
                 )
                 .collect(Collectors.toList());
 
-            // register all standard SearchRequestOperationsListeners to the SearchRequestListenerManager
-            final SearchRequestListenerManager searchRequestListenerManager = new SearchRequestListenerManager(
+            // register all standard SearchRequestOperationsListeners to the SearchRequestOperationsListeners
+            final SearchRequestOperationsListeners searchRequestOperationsListeners = new SearchRequestOperationsListeners(
                 Stream.concat(
                     Stream.of(searchRequestStats, searchRequestSlowLog),
                     pluginComponents.stream()
@@ -1287,7 +1287,7 @@ public class Node implements Closeable {
                 b.bind(RemoteClusterStateService.class).toProvider(() -> remoteClusterStateService);
                 b.bind(PersistedStateRegistry.class).toInstance(persistedStateRegistry);
                 b.bind(SegmentReplicationStatsTracker.class).toInstance(segmentReplicationStatsTracker);
-                b.bind(SearchRequestListenerManager.class).toInstance(searchRequestListenerManager);
+                b.bind(SearchRequestOperationsListeners.class).toInstance(searchRequestOperationsListeners);
             });
             injector = modules.createInjector();
 

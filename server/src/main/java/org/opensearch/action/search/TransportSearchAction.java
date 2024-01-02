@@ -173,7 +173,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
     private final NamedWriteableRegistry namedWriteableRegistry;
     private final CircuitBreaker circuitBreaker;
     private final SearchPipelineService searchPipelineService;
-    private final SearchRequestListenerManager searchRequestListenerManager;
+    private final SearchRequestOperationsListeners searchRequestOperationsListeners;
 
     private volatile boolean searchQueryMetricsEnabled;
 
@@ -196,7 +196,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         NamedWriteableRegistry namedWriteableRegistry,
         SearchPipelineService searchPipelineService,
         MetricsRegistry metricsRegistry,
-        SearchRequestListenerManager searchRequestListenerManager
+        SearchRequestOperationsListeners searchRequestOperationsListeners
     ) {
         super(SearchAction.NAME, transportService, actionFilters, (Writeable.Reader<SearchRequest>) SearchRequest::new);
         this.client = client;
@@ -213,7 +213,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         this.searchPipelineService = searchPipelineService;
         this.metricsRegistry = metricsRegistry;
         this.searchQueryMetricsEnabled = clusterService.getClusterSettings().get(SEARCH_QUERY_METRICS_ENABLED_SETTING);
-        this.searchRequestListenerManager = searchRequestListenerManager;
+        this.searchRequestOperationsListeners = searchRequestOperationsListeners;
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(SEARCH_QUERY_METRICS_ENABLED_SETTING, this::setSearchQueryMetricsEnabled);
     }
@@ -480,10 +480,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             System::nanoTime
         );
         timeProvider.setEnabled(clusterService.getClusterSettings().get(SEARCH_PHASE_TOOK_ENABLED), originalSearchRequest);
-        SearchRequestOperationsListener.CompositeListener requestOperationsListeners = searchRequestListenerManager.buildCompositeListener(
-            logger,
-            timeProvider
-        );
+        SearchRequestOperationsListener.CompositeListener requestOperationsListeners = searchRequestOperationsListeners
+            .buildCompositeListener(logger, timeProvider);
         SearchRequestContext searchRequestContext = new SearchRequestContext(requestOperationsListeners);
         searchRequestContext.getSearchRequestOperationsListener().onRequestStart(searchRequestContext);
 
