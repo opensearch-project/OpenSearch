@@ -23,8 +23,8 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.common.StreamContext;
 import org.opensearch.common.blobstore.stream.write.WritePriority;
 import org.opensearch.common.io.InputStreamContainer;
-import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.repositories.s3.SocketAccess;
+import org.opensearch.repositories.s3.StatsMetricPublisher;
 import org.opensearch.repositories.s3.io.CheckedContainer;
 
 import java.io.BufferedInputStream;
@@ -54,6 +54,7 @@ public class AsyncPartsHandler {
      * @param uploadId Upload Id against which multi-part is being performed
      * @param completedParts Reference of completed parts
      * @param inputStreamContainers Checksum containers
+     * @param statsMetricPublisher sdk metric publisher
      * @return list of completable futures
      * @throws IOException thrown in case of an IO error
      */
@@ -66,7 +67,9 @@ public class AsyncPartsHandler {
         StreamContext streamContext,
         String uploadId,
         AtomicReferenceArray<CompletedPart> completedParts,
-        AtomicReferenceArray<CheckedContainer> inputStreamContainers
+        AtomicReferenceArray<CheckedContainer> inputStreamContainers,
+        StatsMetricPublisher statsMetricPublisher,
+        boolean uploadRetryEnabled
     ) throws IOException {
         List<CompletableFuture<CompletedPart>> futures = new ArrayList<>();
         for (int partIdx = 0; partIdx < streamContext.getNumberOfParts(); partIdx++) {
@@ -77,6 +80,7 @@ public class AsyncPartsHandler {
                 .partNumber(partIdx + 1)
                 .key(uploadRequest.getKey())
                 .uploadId(uploadId)
+                .overrideConfiguration(o -> o.addMetricPublisher(statsMetricPublisher.multipartUploadMetricCollector))
                 .contentLength(inputStreamContainer.getContentLength());
             if (uploadRequest.doRemoteDataIntegrityCheck()) {
                 uploadPartRequestBuilder.checksumAlgorithm(ChecksumAlgorithm.CRC32);
@@ -91,7 +95,8 @@ public class AsyncPartsHandler {
                 futures,
                 uploadPartRequestBuilder.build(),
                 inputStreamContainer,
-                uploadRequest
+                uploadRequest,
+                uploadRetryEnabled
             );
         }
 
@@ -128,6 +133,18 @@ public class AsyncPartsHandler {
         }));
     }
 
+    public static InputStream maybeRetryInputStream(
+        InputStream inputStream,
+        WritePriority writePriority,
+        boolean uploadRetryEnabled,
+        long contentLength
+    ) {
+        if (uploadRetryEnabled == true && (writePriority == WritePriority.HIGH || writePriority == WritePriority.URGENT)) {
+            return new BufferedInputStream(inputStream, (int) (contentLength + 1));
+        }
+        return inputStream;
+    }
+
     private static void uploadPart(
         S3AsyncClient s3AsyncClient,
         ExecutorService executorService,
@@ -138,7 +155,8 @@ public class AsyncPartsHandler {
         List<CompletableFuture<CompletedPart>> futures,
         UploadPartRequest uploadPartRequest,
         InputStreamContainer inputStreamContainer,
-        UploadRequest uploadRequest
+        UploadRequest uploadRequest,
+        boolean uploadRetryEnabled
     ) {
         Integer partNumber = uploadPartRequest.partNumber();
 
@@ -150,9 +168,13 @@ public class AsyncPartsHandler {
         } else {
             streamReadExecutor = executorService;
         }
-        // Buffered stream is needed to allow mark and reset ops during IO errors so that only buffered
-        // data can be retried instead of retrying whole file by the application.
-        InputStream inputStream = new BufferedInputStream(inputStreamContainer.getInputStream(), (int) (ByteSizeUnit.MB.toBytes(1) + 1));
+
+        InputStream inputStream = maybeRetryInputStream(
+            inputStreamContainer.getInputStream(),
+            uploadRequest.getWritePriority(),
+            uploadRetryEnabled,
+            uploadPartRequest.contentLength()
+        );
         CompletableFuture<UploadPartResponse> uploadPartResponseFuture = SocketAccess.doPrivileged(
             () -> s3AsyncClient.uploadPart(
                 uploadPartRequest,

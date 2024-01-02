@@ -152,7 +152,7 @@ public class EngineConfigFactory {
         LongSupplier primaryTermSupplier,
         EngineConfig.TombstoneDocSupplier tombstoneDocSupplier,
         boolean isReadOnlyReplica,
-        BooleanSupplier primaryModeSupplier,
+        BooleanSupplier startedPrimarySupplier,
         TranslogFactory translogFactory,
         Comparator<LeafReader> leafSorter
     ) {
@@ -185,7 +185,7 @@ public class EngineConfigFactory {
             .primaryTermSupplier(primaryTermSupplier)
             .tombstoneDocSupplier(tombstoneDocSupplier)
             .readOnlyReplica(isReadOnlyReplica)
-            .primaryModeSupplier(primaryModeSupplier)
+            .startedPrimarySupplier(startedPrimarySupplier)
             .translogFactory(translogFactory)
             .leafSorter(leafSorter)
             .build();

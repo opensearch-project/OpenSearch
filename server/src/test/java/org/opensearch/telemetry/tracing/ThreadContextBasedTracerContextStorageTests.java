@@ -145,6 +145,87 @@ public class ThreadContextBasedTracerContextStorageTests extends OpenSearchTestC
         assertThat(threadContextStorage.get(ThreadContextBasedTracerContextStorage.CURRENT_SPAN), is(nullValue()));
     }
 
+    public void testNoThreadContextToPreserve() throws InterruptedException, ExecutionException, TimeoutException {
+        final Runnable r = new Runnable() {
+            @Override
+            public void run() {
+                assertThat(threadContext.getTransient(ThreadContextBasedTracerContextStorage.CURRENT_SPAN), is(nullValue()));
+                assertThat(threadContextStorage.get(ThreadContextBasedTracerContextStorage.CURRENT_SPAN), is(nullValue()));
+
+                final Span local1 = tracer.startSpan(SpanCreationContext.internal().name("test-local-1"));
+                try (SpanScope localScope = tracer.withSpanInScope(local1)) {
+                    try (StoredContext ignored = threadContext.stashContext()) {
+                        assertThat(local1.getParentSpan(), is(nullValue()));
+                        assertThat(threadContextStorage.get(ThreadContextBasedTracerContextStorage.CURRENT_SPAN), is(local1));
+                    }
+                }
+
+                final Span local2 = tracer.startSpan(SpanCreationContext.internal().name("test-local-2"));
+                try (SpanScope localScope = tracer.withSpanInScope(local2)) {
+                    try (StoredContext ignored = threadContext.stashContext()) {
+                        assertThat(local2.getParentSpan(), is(nullValue()));
+                        assertThat(threadContextStorage.get(ThreadContextBasedTracerContextStorage.CURRENT_SPAN), is(local2));
+                    }
+                }
+
+                final Span local3 = tracer.startSpan(SpanCreationContext.internal().name("test-local-3"));
+                try (SpanScope localScope = tracer.withSpanInScope(local3)) {
+                    try (StoredContext ignored = threadContext.stashContext()) {
+                        assertThat(local3.getParentSpan(), is(nullValue()));
+                        assertThat(threadContextStorage.get(ThreadContextBasedTracerContextStorage.CURRENT_SPAN), is(local3));
+                    }
+                }
+            }
+        };
+
+        executorService.submit(threadContext.preserveContext(r)).get(1, TimeUnit.SECONDS);
+
+        assertThat(threadContext.getTransient(ThreadContextBasedTracerContextStorage.CURRENT_SPAN), is(nullValue()));
+    }
+
+    public void testPreservingContextThreadContextMultipleSpans() throws InterruptedException, ExecutionException, TimeoutException {
+        final Span span = tracer.startSpan(SpanCreationContext.internal().name("test"));
+
+        try (SpanScope scope = tracer.withSpanInScope(span)) {
+            final Runnable r = new Runnable() {
+                @Override
+                public void run() {
+                    assertThat(threadContext.getTransient(ThreadContextBasedTracerContextStorage.CURRENT_SPAN), is(not(nullValue())));
+                    assertThat(threadContextStorage.get(ThreadContextBasedTracerContextStorage.CURRENT_SPAN), is(span));
+
+                    final Span local1 = tracer.startSpan(SpanCreationContext.internal().name("test-local-1"));
+                    try (SpanScope localScope = tracer.withSpanInScope(local1)) {
+                        try (StoredContext ignored = threadContext.stashContext()) {
+                            assertThat(local1.getParentSpan(), is(span));
+                            assertThat(threadContextStorage.get(ThreadContextBasedTracerContextStorage.CURRENT_SPAN), is(local1));
+                        }
+                    }
+
+                    final Span local2 = tracer.startSpan(SpanCreationContext.internal().name("test-local-2"));
+                    try (SpanScope localScope = tracer.withSpanInScope(local2)) {
+                        try (StoredContext ignored = threadContext.stashContext()) {
+                            assertThat(local2.getParentSpan(), is(span));
+                            assertThat(threadContextStorage.get(ThreadContextBasedTracerContextStorage.CURRENT_SPAN), is(local2));
+                        }
+                    }
+
+                    final Span local3 = tracer.startSpan(SpanCreationContext.internal().name("test-local-3"));
+                    try (SpanScope localScope = tracer.withSpanInScope(local3)) {
+                        try (StoredContext ignored = threadContext.stashContext()) {
+                            assertThat(local3.getParentSpan(), is(span));
+                            assertThat(threadContextStorage.get(ThreadContextBasedTracerContextStorage.CURRENT_SPAN), is(local3));
+                        }
+                    }
+                }
+            };
+
+            executorService.submit(threadContext.preserveContext(r)).get(1, TimeUnit.SECONDS);
+        }
+
+        assertThat(threadContext.getTransient(ThreadContextBasedTracerContextStorage.CURRENT_SPAN), is(not(nullValue())));
+        assertThat(threadContextStorage.get(ThreadContextBasedTracerContextStorage.CURRENT_SPAN), is(nullValue()));
+    }
+
     public void testPreservingContextAndStashingThreadContext() throws InterruptedException, ExecutionException, TimeoutException {
         final Span span = tracer.startSpan(SpanCreationContext.internal().name("test"));
 

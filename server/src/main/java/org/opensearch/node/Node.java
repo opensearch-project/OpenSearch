@@ -898,10 +898,22 @@ public class Node implements Closeable {
 
             final RestController restController = actionModule.getRestController();
 
+            final NodeResourceUsageTracker nodeResourceUsageTracker = new NodeResourceUsageTracker(
+                threadPool,
+                settings,
+                clusterService.getClusterSettings()
+            );
+            final ResourceUsageCollectorService resourceUsageCollectorService = new ResourceUsageCollectorService(
+                nodeResourceUsageTracker,
+                clusterService,
+                threadPool
+            );
+
             final AdmissionControlService admissionControlService = new AdmissionControlService(
                 settings,
-                clusterService.getClusterSettings(),
-                threadPool
+                clusterService,
+                threadPool,
+                resourceUsageCollectorService
             );
 
             AdmissionControlTransportInterceptor admissionControlTransportInterceptor = new AdmissionControlTransportInterceptor(
@@ -1105,16 +1117,6 @@ public class Node implements Closeable {
                 transportService.getTaskManager(),
                 taskCancellationMonitoringSettings
             );
-            final NodeResourceUsageTracker nodeResourceUsageTracker = new NodeResourceUsageTracker(
-                threadPool,
-                settings,
-                clusterService.getClusterSettings()
-            );
-            final ResourceUsageCollectorService resourceUsageCollectorService = new ResourceUsageCollectorService(
-                nodeResourceUsageTracker,
-                clusterService,
-                threadPool
-            );
             this.nodeService = new NodeService(
                 settings,
                 threadPool,
@@ -1139,7 +1141,8 @@ public class Node implements Closeable {
                 taskCancellationMonitoringService,
                 resourceUsageCollectorService,
                 segmentReplicationStatsTracker,
-                repositoryService
+                repositoryService,
+                admissionControlService
             );
 
             final SearchService searchService = newSearchService(
@@ -1411,6 +1414,7 @@ public class Node implements Closeable {
         assert transportService.getLocalNode().equals(localNodeFactory.getNode())
             : "transportService has a different local node than the factory provided";
         injector.getInstance(PeerRecoverySourceService.class).start();
+        injector.getInstance(SegmentReplicationTargetService.class).start();
         injector.getInstance(SegmentReplicationSourceService.class).start();
 
         final RemoteClusterStateService remoteClusterStateService = injector.getInstance(RemoteClusterStateService.class);
@@ -1599,6 +1603,7 @@ public class Node implements Closeable {
         toClose.add(injector.getInstance(IndicesStore.class));
         toClose.add(injector.getInstance(PeerRecoverySourceService.class));
         toClose.add(injector.getInstance(SegmentReplicationSourceService.class));
+        toClose.add(injector.getInstance(SegmentReplicationTargetService.class));
         toClose.add(() -> stopWatch.stop().start("cluster"));
         toClose.add(injector.getInstance(ClusterService.class));
         toClose.add(() -> stopWatch.stop().start("node_connections_service"));

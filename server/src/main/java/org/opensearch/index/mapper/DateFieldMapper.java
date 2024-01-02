@@ -409,6 +409,16 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
             return resolution.convert(DateFormatters.from(dateTimeFormatter().parse(value), dateTimeFormatter().locale()).toInstant());
         }
 
+        public long convertNanosToMillis(long nanoSecondsSinceEpoch) {
+            if (resolution.numericType.equals(NumericType.DATE_NANOSECONDS)) return DateUtils.toMilliSeconds(nanoSecondsSinceEpoch);
+            return nanoSecondsSinceEpoch;
+        }
+
+        public long convertRoundedMillisToNanos(long milliSecondsSinceEpoch) {
+            if (resolution.numericType.equals(NumericType.DATE_NANOSECONDS)) return DateUtils.toNanoSeconds(milliSecondsSinceEpoch);
+            return milliSecondsSinceEpoch;
+        }
+
         @Override
         public ValueFetcher valueFetcher(QueryShardContext context, SearchLookup searchLookup, String format) {
             DateFormatter defaultFormatter = dateTimeFormatter();

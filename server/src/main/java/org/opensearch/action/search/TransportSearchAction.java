@@ -300,7 +300,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
      *
      * @opensearch.internal
      */
-    static final class SearchTimeProvider implements SearchRequestOperationsListener {
+    static final class SearchTimeProvider extends SearchRequestOperationsListener {
 
         private final long absoluteStartMillis;
         private final long relativeStartNanos;
@@ -352,10 +352,10 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         Map<SearchPhaseName, Long> phaseStatsMap = new EnumMap<>(SearchPhaseName.class);
 
         @Override
-        public void onPhaseStart(SearchPhaseContext context) {}
+        void onPhaseStart(SearchPhaseContext context) {}
 
         @Override
-        public void onPhaseEnd(SearchPhaseContext context, SearchRequestContext searchRequestContext) {
+        void onPhaseEnd(SearchPhaseContext context, SearchRequestContext searchRequestContext) {
             phaseStatsMap.put(
                 context.getCurrentPhase().getSearchPhaseName(),
                 TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - context.getCurrentPhase().getStartTimeInNanos())
@@ -363,7 +363,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         }
 
         @Override
-        public void onPhaseFailure(SearchPhaseContext context) {}
+        void onPhaseFailure(SearchPhaseContext context) {}
 
         public Long getPhaseTookTime(SearchPhaseName searchPhaseName) {
             return phaseStatsMap.get(searchPhaseName);
