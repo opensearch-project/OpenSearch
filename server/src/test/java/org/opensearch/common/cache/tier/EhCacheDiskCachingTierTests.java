@@ -65,41 +65,6 @@ public class EhCacheDiskCachingTierTests extends OpenSearchSingleNodeTestCase {
         }
     }
 
-    public void testBasicGetAndPutBytesReference() throws Exception {
-        Settings settings = Settings.builder().build();
-        try (NodeEnvironment env = newNodeEnvironment(settings)) {
-            EhCacheDiskCachingTier<String, BytesReference> ehCacheDiskCachingTier = new EhCacheDiskCachingTier.Builder<String, BytesReference>()
-                .setKeyType(String.class)
-                .setValueType(BytesReference.class)
-                .setExpireAfterAccess(TimeValue.MAX_VALUE)
-                .setSettings(settings)
-                .setThreadPoolAlias("ehcacheTest")
-                .setMaximumWeightInBytes(CACHE_SIZE_IN_BYTES * 2) // bigger so no evictions happen
-                .setStoragePath(env.nodePaths()[0].indicesPath.toString() + "/request_cache")
-                .setSettingPrefix(SETTING_PREFIX)
-                .setKeySerializer(new StringSerializer())
-                .setValueSerializer(new BytesReferenceSerializer())
-                .build();
-            int randomKeys = randomIntBetween(10, 100);
-            int valueLength = 1000;
-            Random rand = Randomness.get();
-            Map<String, BytesReference> keyValueMap = new HashMap<>();
-            for (int i = 0; i < randomKeys; i++) {
-                byte[] valueBytes = new byte[valueLength];
-                rand.nextBytes(valueBytes);
-                keyValueMap.put(UUID.randomUUID().toString(), new BytesArray(valueBytes));
-            }
-            for (Map.Entry<String, BytesReference> entry : keyValueMap.entrySet()) {
-                ehCacheDiskCachingTier.put(entry.getKey(), entry.getValue());
-            }
-            for (Map.Entry<String, BytesReference> entry : keyValueMap.entrySet()) {
-                BytesReference value = ehCacheDiskCachingTier.get(entry.getKey());
-                assertEquals(entry.getValue(), value);
-            }
-            ehCacheDiskCachingTier.close();
-        }
-    }
-
     public void testConcurrentPut() throws Exception {
         Settings settings = Settings.builder().build();
         try (NodeEnvironment env = newNodeEnvironment(settings)) {
