@@ -158,8 +158,8 @@ public class FastFilterRewriteHelper {
                 roundedLow = preparedRounding.round(roundedLow + interval);
                 final byte[] upper = new byte[8];
                 NumericUtils.longToSortableBytes(i + 1 == bucketCount ? high :
-                    // Subtract -1 if the minimum is roundedLow as roundedLow itself
-                    // is included in the next bucket
+                // Subtract -1 if the minimum is roundedLow as roundedLow itself
+                // is included in the next bucket
                     fieldType.convertRoundedMillisToNanos(roundedLow) - 1, upper, 0);
 
                 filters[i++] = context.searcher().createWeight(new PointRangeQuery(field, lower, upper, 1) {
@@ -284,7 +284,8 @@ public class FastFilterRewriteHelper {
         }
 
         public enum Type {
-            FILTERS, DATE_HISTO
+            FILTERS,
+            DATE_HISTO
         }
     }
 

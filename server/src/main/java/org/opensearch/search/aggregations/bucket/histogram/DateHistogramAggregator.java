@@ -115,18 +115,11 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
 
         bucketOrds = LongKeyedBucketOrds.build(context.bigArrays(), cardinality);
 
-        fastFilterContext = new FastFilterRewriteHelper.FastFilterContext(
-            valuesSourceConfig.fieldType()
-        );
+        fastFilterContext = new FastFilterRewriteHelper.FastFilterContext(valuesSourceConfig.fieldType());
         fastFilterContext.setMissing(valuesSourceConfig.missing() != null);
         fastFilterContext.setHasScript(valuesSourceConfig.script() != null);
         if (fastFilterContext.isRewriteable(parent, subAggregators.length)) {
-            FastFilterRewriteHelper.buildFastFilter(
-                context,
-                this::computeBounds, x -> rounding,
-                () -> preparedRounding,
-                fastFilterContext
-            );
+            FastFilterRewriteHelper.buildFastFilter(context, this::computeBounds, x -> rounding, () -> preparedRounding, fastFilterContext);
         }
     }
 

@@ -156,15 +156,14 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
         this.roundingPreparer = roundingPreparer;
         this.preparedRounding = prepareRounding(0);
 
-        fastFilterContext = new FastFilterRewriteHelper.FastFilterContext(
-            valuesSourceConfig.fieldType()
-        );
+        fastFilterContext = new FastFilterRewriteHelper.FastFilterContext(valuesSourceConfig.fieldType());
         fastFilterContext.setMissing(valuesSourceConfig.missing() != null);
         fastFilterContext.setHasScript(valuesSourceConfig.script() != null);
         if (fastFilterContext.isRewriteable(parent, subAggregators.length)) {
             FastFilterRewriteHelper.buildFastFilter(
                 context,
-                fc -> FastFilterRewriteHelper.getAggregationBounds(context, fc.getFieldType().name()), b -> getMinimumRounding(b[0], b[1]),
+                fc -> FastFilterRewriteHelper.getAggregationBounds(context, fc.getFieldType().name()),
+                b -> getMinimumRounding(b[0], b[1]),
                 // Passing prepared rounding as supplier to ensure the correct prepared
                 // rounding is set as it is done during getMinimumRounding
                 () -> preparedRounding,

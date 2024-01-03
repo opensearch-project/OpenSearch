@@ -168,9 +168,7 @@ final class CompositeAggregator extends BucketsAggregator {
             RoundingValuesSource dateHistogramSource = (RoundingValuesSource) sourceConfigs[0].valuesSource();
             bucketOrds = LongKeyedBucketOrds.build(context.bigArrays(), CardinalityUpperBound.ONE);
             preparedRounding = dateHistogramSource.getPreparedRounding();
-            fastFilterContext = new FastFilterRewriteHelper.FastFilterContext(
-                sourceConfigs[0].fieldType()
-            );
+            fastFilterContext = new FastFilterRewriteHelper.FastFilterContext(sourceConfigs[0].fieldType());
             fastFilterContext.setMissing(sourceConfigs[0].missingBucket());
             fastFilterContext.setHasScript(sourceConfigs[0].hasScript());
             if (rawAfterKey != null) {
@@ -184,7 +182,8 @@ final class CompositeAggregator extends BucketsAggregator {
                 fastFilterContext.setSize(size);
                 FastFilterRewriteHelper.buildFastFilter(
                     context,
-                    fc -> FastFilterRewriteHelper.getAggregationBounds(context, fc.getFieldType().name()), x -> dateHistogramSource.getRounding(),
+                    fc -> FastFilterRewriteHelper.getAggregationBounds(context, fc.getFieldType().name()),
+                    x -> dateHistogramSource.getRounding(),
                     () -> preparedRounding,
                     fastFilterContext
                 );
@@ -523,8 +522,7 @@ final class CompositeAggregator extends BucketsAggregator {
     @Override
     protected LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub) throws IOException {
         boolean optimized = FastFilterRewriteHelper.tryFastFilterAggregation(ctx, fastFilterContext, (key, count) -> {
-            incrementBucketDocCount(FastFilterRewriteHelper.
-                getBucketOrd(bucketOrds.add(0, preparedRounding.round(key))), count);
+            incrementBucketDocCount(FastFilterRewriteHelper.getBucketOrd(bucketOrds.add(0, preparedRounding.round(key))), count);
         });
         if (optimized) throw new CollectionTerminatedException();
 
