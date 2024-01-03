@@ -204,10 +204,14 @@ public class TieredSpilloverCache<K, V> implements TieredCache<K, V>, StoreAware
     public void refresh(CacheStoreType type) {
         switch (type) {
             case ON_HEAP:
-                onHeapCache.refresh();
+                try (ReleasableLock ignore = writeLock.acquire()) {
+                    onHeapCache.refresh();
+                }
                 break;
             case DISK:
-                onDiskCache.ifPresent(ICache::refresh);
+                try (ReleasableLock ignore = writeLock.acquire()) {
+                    onDiskCache.ifPresent(ICache::refresh);
+                }
                 break;
             default:
                 throw new IllegalArgumentException("Unsupported Cache store type: " + type);
