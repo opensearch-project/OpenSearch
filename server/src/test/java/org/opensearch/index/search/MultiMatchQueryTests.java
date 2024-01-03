@@ -364,6 +364,6 @@ public class MultiMatchQueryTests extends OpenSearchSingleNodeTestCase {
             ),
             0.0f
         );
-        assertThat(query, equalTo(expected));
+        assertThat(expected, equalTo(query));
     }
 }
