@@ -173,7 +173,7 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
             // we update the primary term and the same condition would not evaluate to true again in syncSegments.
             // Below check ensures that if there is commit, then that gets picked up by both 1st and 2nd shouldSync call.
             || isRefreshAfterCommitSafe()
-            || isRemoteSegmentStoreInSync();
+            || isRemoteSegmentStoreInSync() == false;
         if (shouldSync || skipPrimaryTermCheck) {
             return shouldSync;
         }
@@ -188,7 +188,7 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
      *
      * @return true iff all the local files are uploaded to remote store.
      */
-     boolean isRemoteSegmentStoreInSync() {
+    boolean isRemoteSegmentStoreInSync() {
         try (GatedCloseable<SegmentInfos> segmentInfosGatedCloseable = indexShard.getSegmentInfosSnapshot()) {
             return segmentInfosGatedCloseable.get().files(true).stream().allMatch(this::skipUpload);
         } catch (Throwable throwable) {

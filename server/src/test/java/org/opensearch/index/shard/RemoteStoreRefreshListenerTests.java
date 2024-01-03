@@ -13,7 +13,6 @@ import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.tests.store.BaseDirectoryWrapper;
-import org.junit.After;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.routing.IndexShardRoutingTable;
 import org.opensearch.cluster.routing.ShardRouting;
@@ -38,6 +37,7 @@ import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpointPublisher;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.threadpool.ThreadPool;
+import org.junit.After;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -46,6 +46,10 @@ import java.util.Objects;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicLong;
 
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REPLICATION_TYPE;
+import static org.opensearch.index.store.RemoteSegmentStoreDirectory.METADATA_FILES_TO_FETCH;
+import static org.opensearch.test.RemoteStoreTestUtils.createMetadataFileBytes;
+import static org.opensearch.test.RemoteStoreTestUtils.getDummyMetadata;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
@@ -53,10 +57,6 @@ import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
-import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REPLICATION_TYPE;
-import static org.opensearch.index.store.RemoteSegmentStoreDirectory.METADATA_FILES_TO_FETCH;
-import static org.opensearch.test.RemoteStoreTestUtils.createMetadataFileBytes;
-import static org.opensearch.test.RemoteStoreTestUtils.getDummyMetadata;
 
 public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
     private IndexShard indexShard;
@@ -226,7 +226,6 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
                 (RemoteSegmentStoreDirectory) ((FilterDirectory) ((FilterDirectory) remoteStore.directory()).getDelegate()).getDelegate();
 
             verifyUploadedSegments(remoteSegmentStoreDirectory);
-
 
             // This is to check if reading data from remote segment store works as well.
             remoteSegmentStoreDirectory.init();
@@ -407,36 +406,16 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
     }
 
     public void testRefreshPersistentFailure() throws Exception {
-        // This covers 3 cases - 1) isRetry=false, shouldRetry=true 2) isRetry=true, shouldRetry=false 3) isRetry=True, shouldRetry=true
-        // Succeed on 3rd attempt
-//        int succeedOnAttempt = 5;
-//        // We spy on IndexShard.isPrimaryStarted() to validate that we have tried running remote time as per the expectation.
-//        CountDownLatch refreshCountLatch = new CountDownLatch(succeedOnAttempt);
-//        // We spy on IndexShard.getEngine() to validate that we have successfully hit the terminal code for ascertaining successful upload.
-//        // Value has been set as INT_MAX as during a successful upload IndexShard.getEngine() is hit thrice and with mockito we are counting down
-//        CountDownLatch successLatch = new CountDownLatch(Integer.MAX_VALUE);
-//        Tuple<RemoteStoreRefreshListener, RemoteStoreStatsTrackerFactory> tuple = mockIndexShardWithRetryAndScheduleRefresh(
-//            succeedOnAttempt,
-//            refreshCountLatch,
-//            successLatch
-//        );
-//        assertBusy(() -> assertEquals(Integer.MAX_VALUE - 2, successLatch.getCount()));
-//        assertFalse("remote store should not in sync", tuple.v1().isRemoteSegmentStoreInSync());
-
-        // This covers 3 cases - 1) isRetry=false, shouldRetry=true 2) isRetry=true, shouldRetry=false 3) isRetry=True, shouldRetry=true
-        // Succeed on 3rd attempt
         int succeedOnAttempt = 10;
-        // We spy on IndexShard.isPrimaryStarted() to validate that we have tried running remote time as per the expectation.
         CountDownLatch refreshCountLatch = new CountDownLatch(1);
-        // We spy on IndexShard.getEngine() to validate that we have successfully hit the terminal code for ascertaining successful upload.
-        // Value has been set as 3 as during a successful upload IndexShard.getEngine() is hit thrice and with mockito we are counting down
         CountDownLatch successLatch = new CountDownLatch(10);
         Tuple<RemoteStoreRefreshListener, RemoteStoreStatsTrackerFactory> tuple = mockIndexShardWithRetryAndScheduleRefresh(
             succeedOnAttempt,
             refreshCountLatch,
             successLatch
         );
-        assertBusy(() -> assertTrue(10 > successLatch.getCount()));
+        // Giving 10ms for some iterations of remote refresh upload
+        Thread.sleep(10);
         assertFalse("remote store should not in sync", tuple.v1().isRemoteSegmentStoreInSync());
     }
 
@@ -604,6 +583,7 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
         // Mock indexShard.getSegmentInfosSnapshot()
         doAnswer(invocation -> {
             if (counter.incrementAndGet() <= succeedOnAttempt) {
+                logger.error("Failing in get segment info {}", counter.get());
                 throw new RuntimeException("Inducing failure in upload");
             }
             return indexShard.getSegmentInfosSnapshot();
@@ -678,6 +658,31 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
                     segmentsNFilename = file;
                 }
             }
+        }
+        assertTrue(remoteStoreRefreshListener.isRemoteSegmentStoreInSync());
+    }
+
+    public void testRemoteSegmentStoreNotInSync() throws IOException {
+        setup(true, 3);
+        remoteStoreRefreshListener.afterRefresh(true);
+        try (Store remoteStore = indexShard.remoteStore()) {
+            RemoteSegmentStoreDirectory remoteSegmentStoreDirectory =
+                (RemoteSegmentStoreDirectory) ((FilterDirectory) ((FilterDirectory) remoteStore.directory()).getDelegate()).getDelegate();
+            verifyUploadedSegments(remoteSegmentStoreDirectory);
+            remoteStoreRefreshListener.isRemoteSegmentStoreInSync();
+            boolean oneFileDeleted = false;
+            // Delete any one file from remote store
+            try (GatedCloseable<SegmentInfos> segmentInfosGatedCloseable = indexShard.getSegmentInfosSnapshot()) {
+                SegmentInfos segmentInfos = segmentInfosGatedCloseable.get();
+                for (String file : segmentInfos.files(true)) {
+                    if (oneFileDeleted == false && RemoteStoreRefreshListener.EXCLUDE_FILES.contains(file) == false) {
+                        remoteSegmentStoreDirectory.deleteFile(file);
+                        oneFileDeleted = true;
+                        break;
+                    }
+                }
+            }
+            assertFalse(remoteStoreRefreshListener.isRemoteSegmentStoreInSync());
         }
     }
 

@@ -2042,7 +2042,13 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     if (uploadFiles.containsAll(localFiles)) {
                         return true;
                     }
-                    logger.debug(() -> new ParameterizedMessage("RemoteSegmentStoreSyncStatus localSize={} remoteSize={}", localFiles.size(), uploadFiles.size()));
+                    logger.debug(
+                        () -> new ParameterizedMessage(
+                            "RemoteSegmentStoreSyncStatus localSize={} remoteSize={}",
+                            localFiles.size(),
+                            uploadFiles.size()
+                        )
+                    );
                 }
             }
         } catch (Throwable e) {
