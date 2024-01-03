@@ -32,6 +32,7 @@
 
 package org.opensearch.script.mustache;
 
+import org.opensearch.action.search.SearchRequest;
 import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.script.ScriptType;
 import org.opensearch.search.RandomSearchRequestGenerator;
@@ -109,5 +110,20 @@ public class SearchTemplateRequestTests extends AbstractWireSerializingTestCase<
 
         request.setRequest(RandomSearchRequestGenerator.randomSearchRequest(SearchSourceBuilder::searchSource));
         return request;
+    }
+
+    public void testSimulatedSearchTemplateRequest() {
+        SearchTemplateRequest request = new SearchTemplateRequest();
+        request.setSimulate(true);
+
+        assertEquals(0, request.indices().length);
+        assertEquals(SearchRequest.DEFAULT_INDICES_OPTIONS, request.indicesOptions());
+        assertEquals(2, request.indices("index1", "index2").indices().length);
+
+        SearchTemplateRequest randomRequest = createRandomRequest();
+        int expectedIndicesLength = randomRequest.indices().length;
+        request.setSimulate(true);
+
+        assertEquals(expectedIndicesLength, randomRequest.indices().length);
     }
 }
