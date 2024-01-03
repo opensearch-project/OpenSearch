@@ -49,15 +49,16 @@ import java.io.IOException;
  */
 class RoundingValuesSource extends ValuesSource.Numeric {
     private final ValuesSource.Numeric vs;
-    private final Rounding.Prepared rounding;
+    private final Rounding.Prepared preparedRounding;
+    private final Rounding rounding;
 
     /**
-     *
-     * @param vs The original values source
-     * @param rounding How to round the values
+     * @param vs               The original values source
+     * @param preparedRounding How to round the values
      */
-    RoundingValuesSource(Numeric vs, Rounding.Prepared rounding) {
+    RoundingValuesSource(Numeric vs, Rounding.Prepared preparedRounding, Rounding rounding) {
         this.vs = vs;
+        this.preparedRounding = preparedRounding;
         this.rounding = rounding;
     }
 
@@ -71,8 +72,16 @@ class RoundingValuesSource extends ValuesSource.Numeric {
         return false;
     }
 
+    public Rounding.Prepared getPreparedRounding() {
+        return preparedRounding;
+    }
+
+    public Rounding getRounding() {
+        return rounding;
+    }
+
     public long round(long value) {
-        return rounding.round(value);
+        return preparedRounding.round(value);
     }
 
     @Override
