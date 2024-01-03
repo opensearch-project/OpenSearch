@@ -1,0 +1,42 @@
+---
+"Test default search analyzer is applied":
+  - skip:
+      version: " - 2.99.99"
+      reason: "match_only_text was added in 3.0"
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            index.analysis.analyzer.default.type: simple
+            index.analysis.analyzer.default_search.type: german
+          mappings:
+            properties:
+              body:
+                type: match_only_text
+
+  - do:
+      index:
+        index: test
+        id: 1
+        body:
+          body: Ich lese die Bücher
+
+  - do:
+      indices.refresh:
+        index: [ test ]
+
+  - do:
+      search:
+        index: test
+        q: "body:Bücher"
+
+  - match: { hits.total.value: 0 }
+
+  - do:
+      search:
+        index: test
+        q: "body:Bücher"
+        analyzer: simple
+
+  - match: { hits.total.value: 1 }
