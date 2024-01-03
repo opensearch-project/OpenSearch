@@ -28,6 +28,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Phaser;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
 public class TieredSpilloverCacheTests extends OpenSearchTestCase {
@@ -552,7 +553,7 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
             }
 
             @Override
-            public String load(String key) throws Exception {
+            public String load(String key) {
                 return UUID.randomUUID().toString();
             }
         });
@@ -560,26 +561,19 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
         CountDownLatch countDownLatch1 = new CountDownLatch(1);
         // Put second key on tiered cache. Will cause eviction of first key from onHeap cache and should go into
         // disk cache.
+        LoadAwareCacheLoader<String, String> loadAwareCacheLoader = getLoadAwareCacheLoader();
         Thread thread = new Thread(() -> {
             try {
-                tieredSpilloverCache.computeIfAbsent(secondKey, new LoadAwareCacheLoader<String, String>() {
-                    @Override
-                    public boolean isLoaded() {
-                        return false;
-                    }
-
-                    @Override
-                    public String load(String key) throws Exception {
-                        return UUID.randomUUID().toString();
-                    }
-                });
+                tieredSpilloverCache.computeIfAbsent(secondKey, loadAwareCacheLoader);
                 countDownLatch1.countDown();
             } catch (Exception e) {
                 throw new RuntimeException(e);
             }
         });
         thread.start();
-        Thread.sleep(100); // Delay for cache for eviction to occur.
+        assertBusy(() -> { assertTrue(loadAwareCacheLoader.isLoaded()); }, 100, TimeUnit.MILLISECONDS); // We wait for new key to be loaded
+                                                                                                        // after which it eviction flow is
+        // guaranteed to occur.
         StoreAwareCache<String, String> onDiskCache = tieredSpilloverCache.getOnDiskCache().get();
 
         // Now on a different thread, try to get key(above one which got evicted) from tiered cache. We expect this
