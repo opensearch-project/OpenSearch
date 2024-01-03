@@ -122,6 +122,7 @@ public abstract class SearchContext implements Releasable {
     private InnerHitsContext innerHitsContext;
 
     private volatile boolean searchTimedOut;
+    private volatile boolean circuitBreakerTripped;
 
     protected SearchContext() {}
 
@@ -137,6 +138,14 @@ public abstract class SearchContext implements Releasable {
 
     public void setSearchTimedOut(boolean searchTimedOut) {
         this.searchTimedOut = searchTimedOut;
+    }
+
+    public boolean isCircuitBreakerTripped() {
+        return circuitBreakerTripped;
+    }
+
+    public void setCircuitBreakerTripped(boolean circuitBreakerTripped) {
+        this.circuitBreakerTripped = circuitBreakerTripped;
     }
 
     @Override
