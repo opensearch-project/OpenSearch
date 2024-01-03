@@ -1,0 +1,119 @@
+setup:
+  - skip:
+      version: " - 2.99.99"
+      reason: "match_only_text was added in 3.0"
+      features: ["headers"]
+
+  - do:
+      indices.create:
+        index:  test
+        body:
+          mappings:
+            dynamic: false
+            properties:
+              match_only_text:
+                type: match_only_text
+
+  - do:
+      headers:
+        Content-Type: application/json
+      index:
+        index:  "test"
+        id:     1
+        body:
+          match_only_text: "foo bar"
+
+  - do:
+      headers:
+        Content-Type: application/json
+      index:
+        index:  "test"
+        id:     2
+        body:
+          match_only_text: "foo bar"
+
+  - do:
+      headers:
+        Content-Type: application/json
+      index:
+        index:  "test"
+        id:     3
+        routing: "route_me"
+        body:
+          match_only_text: "foo bar"
+
+  - do:
+      index:
+        index:  "test"
+        id:     4
+        body: {}
+
+  - do:
+      indices.create:
+        index:  test-unmapped
+        body:
+          mappings:
+            dynamic: false
+            properties:
+              unrelated:
+                type: keyword
+
+  - do:
+      index:
+        index:  "test-unmapped"
+        id:     1
+        body:
+          unrelated: "foo"
+
+  - do:
+      indices.create:
+        index:  test-empty
+        body:
+          mappings:
+            dynamic: false
+            properties:
+              match_only_text:
+                type: match_only_text
+
+  - do:
+      indices.refresh:
+        index: [test, test-unmapped, test-empty]
+
+---
+"Test exists query on mapped match_only_text field":
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          query:
+            exists:
+              field: match_only_text
+
+  - match: {hits.total: 3}
+
+---
+"Test exists query on unmapped match_only_text field":
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test-unmapped
+        body:
+          query:
+            exists:
+              field: match_only_text
+
+  - match: {hits.total: 0}
+
+---
+"Test exists query on match_only_text field in empty index":
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test-empty
+        body:
+          query:
+            exists:
+              field: match_only_text
+
+  - match: {hits.total: 0}
