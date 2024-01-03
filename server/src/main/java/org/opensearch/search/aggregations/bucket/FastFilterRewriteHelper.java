@@ -140,6 +140,7 @@ public class FastFilterRewriteHelper {
         int bucketCount = 0;
         while (roundedLow <= fieldType.convertNanosToMillis(high)) {
             bucketCount++;
+            if (bucketCount > MAX_NUM_FILTER_BUCKETS) return null;
             // Below rounding is needed as the interval could return in
             // non-rounded values for something like calendar month
             roundedLow = preparedRounding.round(roundedLow + interval);
@@ -148,7 +149,7 @@ public class FastFilterRewriteHelper {
         }
 
         Weight[] filters = null;
-        if (bucketCount > 0 && bucketCount <= MAX_NUM_FILTER_BUCKETS) {
+        if (bucketCount > 0) {
             filters = new Weight[bucketCount];
             roundedLow = preparedRounding.round(fieldType.convertNanosToMillis(low));
 
