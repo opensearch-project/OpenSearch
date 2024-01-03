@@ -29,7 +29,7 @@ public class StoreAwareCacheValue<V> {
         return value;
     }
 
-    public CacheStoreType getSource() {
+    public CacheStoreType getCacheStoreType() {
         return source;
     }
 }

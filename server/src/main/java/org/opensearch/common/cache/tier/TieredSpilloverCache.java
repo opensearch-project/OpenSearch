@@ -97,7 +97,7 @@ public class TieredSpilloverCache<K, V> implements TieredCache<K, V>, StoreAware
     public V computeIfAbsent(K key, LoadAwareCacheLoader<K, V> loader) throws Exception {
         // We are skipping calling event listeners at this step as we do another get inside below computeIfAbsent.
         // Where we might end up calling onMiss twice for a key not present in onHeap cache.
-        // Similary we might end up calling both onMiss and onHit for a key, in case we are received concurrent
+        // Similary we might end up calling both onMiss and onHit for a key, in case we are receiving concurrent
         // requests for the same key which requires loading only once.
         StoreAwareCacheValue<V> cacheValue = getValueFromTieredCache(false).apply(key);
         if (cacheValue == null) {
@@ -117,8 +117,8 @@ public class TieredSpilloverCache<K, V> implements TieredCache<K, V>, StoreAware
             }
             return value;
         }
-        listener.onHit(key, cacheValue.getValue(), cacheValue.getSource());
-        if (cacheValue.getSource().equals(CacheStoreType.DISK)) {
+        listener.onHit(key, cacheValue.getValue(), cacheValue.getCacheStoreType());
+        if (cacheValue.getCacheStoreType().equals(CacheStoreType.DISK)) {
             listener.onMiss(key, CacheStoreType.ON_HEAP);
         }
         return cacheValue.getValue();
@@ -145,6 +145,10 @@ public class TieredSpilloverCache<K, V> implements TieredCache<K, V>, StoreAware
         }
     }
 
+    /**
+     * Provides an iteration over both onHeap and disk keys. This is not protected from any mutations to the cache.
+     * @return An iterable over (onHeap + disk) keys
+     */
     @Override
     public Iterable<K> keys() {
         Iterable<K> onDiskKeysIterable;
@@ -167,11 +171,19 @@ public class TieredSpilloverCache<K, V> implements TieredCache<K, V>, StoreAware
 
     @Override
     public void refresh() {
-        for (StoreAwareCache<K, V> storeAwareCache : cacheList) {
-            storeAwareCache.refresh();
+        try (ReleasableLock ignore = writeLock.acquire()) {
+            for (StoreAwareCache<K, V> storeAwareCache : cacheList) {
+                storeAwareCache.refresh();
+            }
         }
     }
 
+    /**
+     * Provides an iteration over keys based on desired on cacheStoreType. This is not protected from any mutations
+     * to the cache.
+     * @param type Type of cacheStoreType
+     * @return An iterable over desired CacheStoreType keys
+     */
     @Override
     public Iterable<K> cacheKeys(CacheStoreType type) {
         switch (type) {
