@@ -1,0 +1,67 @@
+---
+"search with indexed phrases":
+  - skip:
+      version: " - 2.99.99"
+      reason: "match_only_text was added in 3.0"
+
+  - do:
+      indices.create:
+        index:  test
+        body:
+          mappings:
+            properties:
+              text:
+                type: match_only_text
+
+  - do:
+      index:
+          index:  test
+          id:     1
+          body:   { text: "peter piper picked a peck of pickled peppers" }
+
+  - do:
+      indices.refresh:
+        index: [test]
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          query:
+            match_phrase:
+              text:
+                query: "peter piper"
+
+  - match: {hits.total: 1}
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        q: '"peter piper"~1'
+        df: text
+
+  - match: {hits.total: 1}
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          query:
+            match_phrase:
+              text: "peter piper picked"
+
+  - match: {hits.total: 1}
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          query:
+            match_phrase:
+              text: "piper"
+
+  - match: {hits.total: 1}
