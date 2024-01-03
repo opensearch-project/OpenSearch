@@ -31,6 +31,7 @@ import org.opensearch.action.get.GetResponse;
 import org.opensearch.action.get.MultiGetRequest;
 import org.opensearch.action.get.MultiGetResponse;
 import org.opensearch.action.index.IndexResponse;
+import org.opensearch.action.search.ClearScrollResponse;
 import org.opensearch.action.search.CreatePitAction;
 import org.opensearch.action.search.CreatePitRequest;
 import org.opensearch.action.search.CreatePitResponse;
@@ -59,8 +60,10 @@ import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lucene.index.OpenSearchDirectoryReader;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.util.set.Sets;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.core.rest.RestStatus;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.ReplicationStats;
@@ -92,6 +95,8 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -116,6 +121,7 @@ import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertNoFailures;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertSearchHits;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
@@ -1068,14 +1074,20 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
         List<String> currentFiles = List.of(replicaShard.store().directory().listAll());
         assertTrue("Files should be preserved", currentFiles.containsAll(snapshottedSegments));
 
-        client(replica).prepareClearScroll().addScrollId(searchResponse.getScrollId()).get();
+        ClearScrollResponse clearResponse = client().prepareClearScroll().addScrollId(searchResponse.getScrollId()).get();
+        assertThat(clearResponse.isSucceeded(), is(true));
+        assertThat(clearResponse.getNumFreed(), greaterThan(0));
+        assertThat(clearResponse.status(), equalTo(RestStatus.OK));
 
-        assertBusy(
-            () -> assertFalse(
+        assertBusy(() -> {
+            Set<String> localFiles = Arrays.stream(replicaShard.store().directory().listAll()).collect(Collectors.toSet());
+            Set<String> snapshot = new HashSet<>(snapshottedSegments);
+            assertEquals(
                 "Files should be cleaned up post scroll clear request",
-                List.of(replicaShard.store().directory().listAll()).containsAll(snapshottedSegments)
-            )
-        );
+                Collections.emptySet(),
+                Sets.intersection(localFiles, snapshot)
+            );
+        }, 30, TimeUnit.SECONDS);
         assertEquals(10, scrollHits);
 
     }
