@@ -277,6 +277,13 @@ public class RemoteStoreStatsIT extends RemoteStoreBaseIntegTestCase {
             .collect(Collectors.toList())
             .get(0)
             .getSegmentStats();
+        logger.info(
+            "Zero state primary stats: {}ms refresh time lag, {}b bytes lag, {}b upload bytes started and {}b upload bytes failed.",
+            zeroStatePrimaryStats.refreshTimeLagMs,
+            zeroStatePrimaryStats.bytesLag,
+            zeroStatePrimaryStats.uploadBytesStarted,
+            zeroStatePrimaryStats.uploadBytesFailed
+        );
         assertTrue(
             zeroStatePrimaryStats.totalUploadsStarted == zeroStatePrimaryStats.totalUploadsSucceeded
                 && zeroStatePrimaryStats.totalUploadsSucceeded == 1
@@ -371,6 +378,13 @@ public class RemoteStoreStatsIT extends RemoteStoreBaseIntegTestCase {
             .collect(Collectors.toList())
             .get(0)
             .getSegmentStats();
+        logger.info(
+            "Zero state primary stats: {}ms refresh time lag, {}b bytes lag, {}b upload bytes started and {}b upload bytes failed.",
+            zeroStatePrimaryStats.refreshTimeLagMs,
+            zeroStatePrimaryStats.bytesLag,
+            zeroStatePrimaryStats.uploadBytesStarted,
+            zeroStatePrimaryStats.uploadBytesFailed
+        );
         assertTrue(
             zeroStatePrimaryStats.totalUploadsStarted == zeroStatePrimaryStats.totalUploadsSucceeded
                 && zeroStatePrimaryStats.totalUploadsSucceeded == 1
