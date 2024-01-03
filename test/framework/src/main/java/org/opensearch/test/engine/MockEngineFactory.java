@@ -35,6 +35,7 @@ import org.apache.lucene.index.FilterDirectoryReader;
 import org.opensearch.index.engine.Engine;
 import org.opensearch.index.engine.EngineConfig;
 import org.opensearch.index.engine.EngineFactory;
+import org.opensearch.index.engine.NRTReplicationEngine;
 
 public final class MockEngineFactory implements EngineFactory {
 
@@ -46,6 +47,6 @@ public final class MockEngineFactory implements EngineFactory {
 
     @Override
     public Engine newReadWriteEngine(EngineConfig config) {
-        return new MockInternalEngine(config, wrapper);
+        return config.isReadOnlyReplica() ? new NRTReplicationEngine(config) : new MockInternalEngine(config, wrapper);
     }
 }

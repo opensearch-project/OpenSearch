@@ -60,10 +60,10 @@ public class SegmentReplicationBaseIT extends OpenSearchIntegTestCase {
         return asList(MockTransportService.TestPlugin.class);
     }
 
-    @Override
-    protected boolean addMockInternalEngine() {
-        return false;
-    }
+    // @Override
+    // protected boolean addMockInternalEngine() {
+    // return false;
+    // }
 
     @Override
     public Settings indexSettings() {
