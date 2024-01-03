@@ -19,6 +19,8 @@ INDEXER_URL="https://${INDEXER_HOSTNAME}:9200"
 # curl settings shortcuts
 C_AUTH="-u admin:${INDEXER_PASSWORD}"
 
+ALERTS_TEMPLATE="/etc/wazuh-indexer/wazuh-template.json"
+
 #########################################################################
 # Creates the rollover_policy ISM policy.
 # Globals:
@@ -127,10 +129,9 @@ function generate_ism_config() {
 #########################################################################
 function load_templates() {
     # Load wazuh-template.json, needed for initial indices creation.
-    local wazuh_template_path="/etc/wazuh-indexer/wazuh-template.json"
     echo "Will create 'wazuh' index template"
-    if [ -f $wazuh_template_path ]; then
-        cat $wazuh_template_path |
+    if [ -f "${ALERTS_TEMPLATE}" ]; then
+        cat "${ALERTS_TEMPLATE}" |
             if ! curl -s -k ${C_AUTH} \
                 -X PUT "${INDEXER_URL}/_template/wazuh" \
                 -o "${LOG_FILE}" --create-dirs \
@@ -141,7 +142,7 @@ function load_templates() {
                 echo " SUCC: 'wazuh' template created or updated"
             fi
     else
-        echo "  ERROR: $wazuh_template_path not found"
+        echo "  ERROR: ${ALERTS_TEMPLATE} not found"
     fi
 
     # Load template for ISM configuration indices
@@ -400,6 +401,15 @@ function main() {
                 show_help
             else
                 ISM_PRIORITY="${2}"
+                shift 2
+            fi
+            ;;
+        "-t" | "--template")
+            if [ -z "${2}" ]; then
+                echo "Error on arguments. Probably missing <template> after -t|--template"
+                show_help
+            else
+                ALERTS_TEMPLATE="${2}"
                 shift 2
             fi
             ;;
