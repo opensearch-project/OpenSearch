@@ -119,6 +119,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Create separate transport action for render search template action ([#11170](https://github.com/opensearch-project/OpenSearch/pull/11170))
 - Add additional handling in SearchTemplateRequest when simulate is set to true ([#11591](https://github.com/opensearch-project/OpenSearch/pull/11591))
 - Introduce cluster level setting `cluster.index.restrict.replication.type` to prevent replication type setting override during index creations([#11583](https://github.com/opensearch-project/OpenSearch/pull/11583))
+- Add match_only_text field that is optimized for storage by trading off positional queries performance ([#6836](https://github.com/opensearch-project/OpenSearch/pull/11039))
 
 ### Dependencies
 - Bumps jetty version to 9.4.52.v20230823 to fix GMS-2023-1857 ([#9822](https://github.com/opensearch-project/OpenSearch/pull/9822))
