@@ -115,9 +115,9 @@ final class CompositeAggregator extends BucketsAggregator {
 
     private boolean earlyTerminated;
 
+    private final FastFilterRewriteHelper.FastFilterContext fastFilterContext;
     private LongKeyedBucketOrds bucketOrds = null;
     private Rounding.Prepared preparedRounding = null;
-    private FastFilterRewriteHelper.FastFilterContext fastFilterContext = null;
 
     CompositeAggregator(
         String name,
@@ -163,31 +163,19 @@ final class CompositeAggregator extends BucketsAggregator {
         this.queue = new CompositeValuesCollectorQueue(context.bigArrays(), sources, size, rawAfterKey);
         this.rawAfterKey = rawAfterKey;
 
-        // Try fast filter optimization when the only source is date histogram
-        if (sourceConfigs.length == 1 && sourceConfigs[0].valuesSource() instanceof RoundingValuesSource) {
-            RoundingValuesSource dateHistogramSource = (RoundingValuesSource) sourceConfigs[0].valuesSource();
-            bucketOrds = LongKeyedBucketOrds.build(context.bigArrays(), CardinalityUpperBound.ONE);
+        fastFilterContext = new FastFilterRewriteHelper.FastFilterContext(sourceConfigs, rawAfterKey, formats);
+        if (fastFilterContext.isRewriteable(parent, subAggregators.length)) {
+            RoundingValuesSource dateHistogramSource = fastFilterContext.getDateHistogramSource();
             preparedRounding = dateHistogramSource.getPreparedRounding();
-            fastFilterContext = new FastFilterRewriteHelper.FastFilterContext(sourceConfigs[0].fieldType());
-            fastFilterContext.setMissing(sourceConfigs[0].missingBucket());
-            fastFilterContext.setHasScript(sourceConfigs[0].hasScript());
-            if (rawAfterKey != null) {
-                assert rawAfterKey.size() == 1 && formats.size() == 1;
-                long afterValue = formats.get(0).parseLong(rawAfterKey.get(0).toString(), false, () -> {
-                    throw new IllegalArgumentException("now() is not supported in [after] key");
-                });
-                fastFilterContext.setAfterKey(afterValue);
-            }
-            if (fastFilterContext.isRewriteable(parent, subAggregators.length)) {
-                fastFilterContext.setSize(size);
-                FastFilterRewriteHelper.buildFastFilter(
-                    context,
-                    fc -> FastFilterRewriteHelper.getAggregationBounds(context, fc.getFieldType().name()),
-                    x -> dateHistogramSource.getRounding(),
-                    () -> preparedRounding,
-                    fastFilterContext
-                );
-            }
+            bucketOrds = LongKeyedBucketOrds.build(context.bigArrays(), CardinalityUpperBound.ONE);
+            fastFilterContext.setSize(size);
+            FastFilterRewriteHelper.buildFastFilter(
+                context,
+                fc -> FastFilterRewriteHelper.getAggregationBounds(context, fc.getFieldType().name()),
+                x -> dateHistogramSource.getRounding(),
+                () -> preparedRounding,
+                fastFilterContext
+            );
         }
     }
 

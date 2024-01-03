@@ -24,6 +24,10 @@ import org.opensearch.common.lucene.search.function.FunctionScoreQuery;
 import org.opensearch.index.mapper.DateFieldMapper;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.query.DateRangeIncludingNowQuery;
+import org.opensearch.search.DocValueFormat;
+import org.opensearch.search.aggregations.bucket.composite.CompositeKey;
+import org.opensearch.search.aggregations.bucket.composite.CompositeValuesSourceConfig;
+import org.opensearch.search.aggregations.bucket.composite.RoundingValuesSource;
 import org.opensearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -233,8 +237,28 @@ public class FastFilterRewriteHelper {
 
         private final Type type;
 
+        private RoundingValuesSource valuesSource = null;
+
         public FastFilterContext(MappedFieldType fieldType) {
             this.fieldType = fieldType;
+            this.type = Type.DATE_HISTO;
+        }
+
+        public FastFilterContext(CompositeValuesSourceConfig[] sourceConfigs, CompositeKey rawAfterKey, List<DocValueFormat> formats) {
+            if (sourceConfigs.length == 1 && sourceConfigs[0].valuesSource() instanceof RoundingValuesSource) {
+                this.fieldType = sourceConfigs[0].fieldType();
+                this.valuesSource = (RoundingValuesSource) sourceConfigs[0].valuesSource();
+                this.missing = sourceConfigs[0].missingBucket();
+                this.hasScript = sourceConfigs[0].hasScript();
+                if (rawAfterKey != null) {
+                    assert rawAfterKey.size() == 1 && formats.size() == 1;
+                    this.afterKey = formats.get(0).parseLong(rawAfterKey.get(0).toString(), false, () -> {
+                        throw new IllegalArgumentException("now() is not supported in [after] key");
+                    });
+                }
+            } else {
+                this.fieldType = null;
+            }
             this.type = Type.DATE_HISTO;
         }
 
@@ -248,16 +272,16 @@ public class FastFilterRewriteHelper {
             return (DateFieldMapper.DateFieldType) fieldType;
         }
 
+        public RoundingValuesSource getDateHistogramSource() {
+            return valuesSource;
+        }
+
         public void setSize(int size) {
             this.size = size;
         }
 
         public void setFilters(Weight[] filters) {
             this.filters = filters;
-        }
-
-        public void setAfterKey(long afterKey) {
-            this.afterKey = afterKey;
         }
 
         public void setMissing(boolean missing) {
@@ -283,6 +307,9 @@ public class FastFilterRewriteHelper {
             return false;
         }
 
+        /**
+         * Different types have different pre-conditions, filter building logic, etc.
+         */
         public enum Type {
             FILTERS,
             DATE_HISTO

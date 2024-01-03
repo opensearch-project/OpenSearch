@@ -47,7 +47,7 @@ import java.io.IOException;
  *
  * @opensearch.internal
  */
-class RoundingValuesSource extends ValuesSource.Numeric {
+public class RoundingValuesSource extends ValuesSource.Numeric {
     private final ValuesSource.Numeric vs;
     private final Rounding.Prepared preparedRounding;
     private final Rounding rounding;
