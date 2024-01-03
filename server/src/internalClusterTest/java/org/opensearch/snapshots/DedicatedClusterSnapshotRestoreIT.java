@@ -1458,7 +1458,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         clusterAdmin().prepareRestoreSnapshot("test-repo", "test-snap").get();
         ensureGreen("test-idx");
 
-        // Wait for snapshot process to complete before proceeding to prevent test failures on repository clean up
+        // Wait for snapshot process to complete to prevent conflict with repository clean up
         assertBusy(() -> {
             SnapshotInfo snapshotInfo = getSnapshot("test-repo", "test-snap-2");
             assertTrue(snapshotInfo.state().completed());
