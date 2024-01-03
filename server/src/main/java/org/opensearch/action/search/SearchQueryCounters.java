@@ -8,20 +8,52 @@
 
 package org.opensearch.action.search;
 
+import org.opensearch.index.query.BoolQueryBuilder;
+import org.opensearch.index.query.BoostingQueryBuilder;
+import org.opensearch.index.query.ConstantScoreQueryBuilder;
+import org.opensearch.index.query.DisMaxQueryBuilder;
+import org.opensearch.index.query.DistanceFeatureQueryBuilder;
+import org.opensearch.index.query.ExistsQueryBuilder;
+import org.opensearch.index.query.FieldMaskingSpanQueryBuilder;
+import org.opensearch.index.query.FuzzyQueryBuilder;
+import org.opensearch.index.query.GeoBoundingBoxQueryBuilder;
+import org.opensearch.index.query.GeoDistanceQueryBuilder;
+import org.opensearch.index.query.GeoPolygonQueryBuilder;
+import org.opensearch.index.query.GeoShapeQueryBuilder;
+import org.opensearch.index.query.IntervalQueryBuilder;
+import org.opensearch.index.query.MatchAllQueryBuilder;
+import org.opensearch.index.query.MatchPhraseQueryBuilder;
+import org.opensearch.index.query.MatchQueryBuilder;
+import org.opensearch.index.query.MultiMatchQueryBuilder;
+import org.opensearch.index.query.PrefixQueryBuilder;
+import org.opensearch.index.query.QueryBuilder;
+import org.opensearch.index.query.QueryStringQueryBuilder;
+import org.opensearch.index.query.RangeQueryBuilder;
+import org.opensearch.index.query.RegexpQueryBuilder;
+import org.opensearch.index.query.ScriptQueryBuilder;
+import org.opensearch.index.query.SimpleQueryStringBuilder;
+import org.opensearch.index.query.TermQueryBuilder;
+import org.opensearch.index.query.WildcardQueryBuilder;
+import org.opensearch.index.query.functionscore.FunctionScoreQueryBuilder;
 import org.opensearch.telemetry.metrics.Counter;
 import org.opensearch.telemetry.metrics.MetricsRegistry;
+import org.opensearch.telemetry.metrics.tags.Tags;
+
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * Class contains all the Counters related to search query types.
  */
 final class SearchQueryCounters {
+    private static final String LEVEL_TAG = "level";
     private static final String UNIT = "1";
     private final MetricsRegistry metricsRegistry;
 
     // Counters related to Query types
     public final Counter aggCounter;
     public final Counter boolCounter;
-    public final Counter boostCounter;
+    public final Counter boostingCounter;
     public final Counter constantScoreCounter;
     public final Counter disMaxCounter;
     public final Counter distanceFeatureCounter;
@@ -40,9 +72,9 @@ final class SearchQueryCounters {
     public final Counter multiMatchCounter;
     public final Counter otherQueryCounter;
     public final Counter prefixCounter;
-    public final Counter queryStringQueryCounter;
+    public final Counter queryStringCounter;
     public final Counter rangeCounter;
-    public final Counter regexCounter;
+    public final Counter regexpCounter;
     public final Counter scriptCounter;
     public final Counter simpleQueryStringCounter;
     public final Counter sortCounter;
@@ -51,6 +83,7 @@ final class SearchQueryCounters {
     public final Counter totalCounter;
     public final Counter wildcardCounter;
     public final Counter numberOfInputFieldsCounter;
+    private final Map<Class<? extends QueryBuilder>, Counter> queryHandlers;
 
     public SearchQueryCounters(MetricsRegistry metricsRegistry) {
         this.metricsRegistry = metricsRegistry;
@@ -64,9 +97,9 @@ final class SearchQueryCounters {
             "Counter for the number of top level and nested bool search queries",
             UNIT
         );
-        this.boostCounter = metricsRegistry.createCounter(
-            "search.query.type.boast.count",
-            "Counter for the number of top level and nested boast search queries",
+        this.boostingCounter = metricsRegistry.createCounter(
+            "search.query.type.boost.count",
+            "Counter for the number of top level and nested boost search queries",
             UNIT
         );
         this.constantScoreCounter = metricsRegistry.createCounter(
@@ -75,12 +108,12 @@ final class SearchQueryCounters {
             UNIT
         );
         this.disMaxCounter = metricsRegistry.createCounter(
-            "search.query.type.disMax.count",
+            "search.query.type.dismax.count",
             "Counter for the number of top level and nested disjuntion max search queries",
             UNIT
         );
         this.distanceFeatureCounter = metricsRegistry.createCounter(
-            "search.query.type.distanceFeature.count",
+            "search.query.type.distancefeature.count",
             "Counter for the number of top level and nested distance feature search queries",
             UNIT
         );
@@ -159,7 +192,7 @@ final class SearchQueryCounters {
             "Counter for the number of top level and nested search queries that match prefix queries",
             UNIT
         );
-        this.queryStringQueryCounter = metricsRegistry.createCounter(
+        this.queryStringCounter = metricsRegistry.createCounter(
             "search.query.type.querystringquery.count",
             "Counter for the number of top level and nested queryStringQuery search queries",
             UNIT
@@ -169,7 +202,7 @@ final class SearchQueryCounters {
             "Counter for the number of top level and nested range search queries",
             UNIT
         );
-        this.regexCounter = metricsRegistry.createCounter(
+        this.regexpCounter = metricsRegistry.createCounter(
             "search.query.type.regex.count",
             "Counter for the number of top level and nested regex search queries",
             UNIT
@@ -214,5 +247,46 @@ final class SearchQueryCounters {
             "Counter for the number of input fields in the search queries",
             UNIT
         );
+        this.queryHandlers = new HashMap<>();
+        initializeQueryHandlers();
+    }
+
+    public void incrementCounter(QueryBuilder queryBuilder, int level) {
+        Counter counter = queryHandlers.get(queryBuilder.getClass());
+        if (counter != null) {
+            counter.add(1, Tags.create().addTag(LEVEL_TAG, level));
+        } else {
+            otherQueryCounter.add(1, Tags.create().addTag(LEVEL_TAG, level));
+        }
+    }
+
+    private void initializeQueryHandlers() {
+
+        queryHandlers.put(BoolQueryBuilder.class, boolCounter);
+        queryHandlers.put(FunctionScoreQueryBuilder.class, functionScoreCounter);
+        queryHandlers.put(MatchQueryBuilder.class, matchCounter);
+        queryHandlers.put(MatchPhraseQueryBuilder.class, matchPhrasePrefixCounter);
+        queryHandlers.put(MultiMatchQueryBuilder.class, multiMatchCounter);
+        queryHandlers.put(QueryStringQueryBuilder.class, queryStringCounter);
+        queryHandlers.put(RangeQueryBuilder.class, rangeCounter);
+        queryHandlers.put(RegexpQueryBuilder.class, regexpCounter);
+        queryHandlers.put(TermQueryBuilder.class, termCounter);
+        queryHandlers.put(WildcardQueryBuilder.class, wildcardCounter);
+        queryHandlers.put(BoostingQueryBuilder.class, boostingCounter);
+        queryHandlers.put(ConstantScoreQueryBuilder.class, constantScoreCounter);
+        queryHandlers.put(DisMaxQueryBuilder.class, disMaxCounter);
+        queryHandlers.put(DistanceFeatureQueryBuilder.class, distanceFeatureCounter);
+        queryHandlers.put(ExistsQueryBuilder.class, existsCounter);
+        queryHandlers.put(FieldMaskingSpanQueryBuilder.class, fieldMaskingSpanCounter);
+        queryHandlers.put(FuzzyQueryBuilder.class, fuzzyCounter);
+        queryHandlers.put(GeoBoundingBoxQueryBuilder.class, geoBoundingBoxCounter);
+        queryHandlers.put(GeoDistanceQueryBuilder.class, geoDistanceCounter);
+        queryHandlers.put(GeoPolygonQueryBuilder.class, geoPolygonCounter);
+        queryHandlers.put(GeoShapeQueryBuilder.class, geoShapeCounter);
+        queryHandlers.put(IntervalQueryBuilder.class, intervalCounter);
+        queryHandlers.put(MatchAllQueryBuilder.class, matchallCounter);
+        queryHandlers.put(PrefixQueryBuilder.class, prefixCounter);
+        queryHandlers.put(ScriptQueryBuilder.class, scriptCounter);
+        queryHandlers.put(SimpleQueryStringBuilder.class, simpleQueryStringCounter);
     }
 }
