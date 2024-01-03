@@ -55,6 +55,7 @@ class RoundingValuesSource extends ValuesSource.Numeric {
     /**
      * @param vs               The original values source
      * @param preparedRounding How to round the values
+     * @param rounding         The rounding strategy
      */
     RoundingValuesSource(Numeric vs, Rounding.Prepared preparedRounding, Rounding rounding) {
         this.vs = vs;

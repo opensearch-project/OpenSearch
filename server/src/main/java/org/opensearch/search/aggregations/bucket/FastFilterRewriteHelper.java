@@ -41,7 +41,7 @@ import java.util.function.Supplier;
  * <p>
  * Currently supported rewrite:
  * <ul>
- *  <li> date histogram -> date range filter.
+ *  <li> date histogram : date range filter.
  *   Applied: DateHistogramAggregator, AutoDateHistogramAggregator, CompositeAggregator </li>
  * </ul>
  * @opensearch.internal

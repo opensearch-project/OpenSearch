@@ -249,7 +249,7 @@ final class CompositeAggregator extends BucketsAggregator {
 
         // Build results from fast filters optimization
         if (bucketOrds != null) {
-            Map<CompositeKey, InternalComposite.InternalBucket> bucketMap = new HashMap<>();
+            final Map<CompositeKey, InternalComposite.InternalBucket> bucketMap = new HashMap<>();
             for (InternalComposite.InternalBucket internalBucket : buckets) {
                 bucketMap.put(internalBucket.getRawKey(), internalBucket);
             }
