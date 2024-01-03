@@ -47,6 +47,8 @@ public final class MockEngineFactory implements EngineFactory {
 
     @Override
     public Engine newReadWriteEngine(EngineConfig config) {
+
+        // When Segment Replication is enabled on an index replica shards use NRTReplicationEngine instead of InternalEngine.
         return config.isReadOnlyReplica() ? new NRTReplicationEngine(config) : new MockInternalEngine(config, wrapper);
     }
 }
