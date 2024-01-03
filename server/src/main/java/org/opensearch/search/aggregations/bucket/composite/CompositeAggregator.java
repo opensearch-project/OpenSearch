@@ -60,7 +60,6 @@ import org.apache.lucene.util.RoaringDocIdSet;
 import org.opensearch.common.Rounding;
 import org.opensearch.common.lease.Releasables;
 import org.opensearch.index.IndexSortConfig;
-import org.opensearch.index.mapper.DateFieldMapper;
 import org.opensearch.lucene.queries.SearchAfterSortedDocQuery;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.aggregations.Aggregator;
@@ -73,7 +72,7 @@ import org.opensearch.search.aggregations.LeafBucketCollector;
 import org.opensearch.search.aggregations.MultiBucketCollector;
 import org.opensearch.search.aggregations.MultiBucketConsumerService;
 import org.opensearch.search.aggregations.bucket.BucketsAggregator;
-import org.opensearch.search.aggregations.bucket.FilterRewriteHelper;
+import org.opensearch.search.aggregations.bucket.FastFilterRewriteHelper;
 import org.opensearch.search.aggregations.bucket.missing.MissingOrder;
 import org.opensearch.search.aggregations.bucket.terms.LongKeyedBucketOrds;
 import org.opensearch.search.internal.SearchContext;
@@ -116,10 +115,9 @@ final class CompositeAggregator extends BucketsAggregator {
 
     private boolean earlyTerminated;
 
-    private Weight[] filters = null;
     private LongKeyedBucketOrds bucketOrds = null;
-    private DateFieldMapper.DateFieldType fieldType = null;
     private Rounding.Prepared preparedRounding = null;
+    private FastFilterRewriteHelper.FastFilterContext fastFilterContext = null;
 
     CompositeAggregator(
         String name,
@@ -170,34 +168,26 @@ final class CompositeAggregator extends BucketsAggregator {
             RoundingValuesSource dateHistogramSource = (RoundingValuesSource) sourceConfigs[0].valuesSource();
             bucketOrds = LongKeyedBucketOrds.build(context.bigArrays(), CardinalityUpperBound.ONE);
             preparedRounding = dateHistogramSource.getPreparedRounding();
-            long afterValue = 0;
+            fastFilterContext = new FastFilterRewriteHelper.FastFilterContext(
+                sourceConfigs[0].fieldType()
+            );
+            fastFilterContext.setMissing(sourceConfigs[0].missingBucket());
+            fastFilterContext.setHasScript(sourceConfigs[0].hasScript());
             if (rawAfterKey != null) {
                 assert rawAfterKey.size() == 1 && formats.size() == 1;
-                afterValue = formats.get(0).parseLong(rawAfterKey.get(0).toString(), false, () -> {
+                long afterValue = formats.get(0).parseLong(rawAfterKey.get(0).toString(), false, () -> {
                     throw new IllegalArgumentException("now() is not supported in [after] key");
                 });
+                fastFilterContext.setAfterKey(afterValue);
             }
-            FilterRewriteHelper.ValueSourceContext dateHistogramSourceContext = new FilterRewriteHelper.ValueSourceContext(
-                sourceConfigs[0].missingBucket(),
-                sourceConfigs[0].hasScript(),
-                sourceConfigs[0].fieldType(),
-                afterValue
-            );
-            FilterRewriteHelper.FilterContext filterContext = FilterRewriteHelper.buildFastFilterContext(
-                parent,
-                subAggregators.length,
-                context,
-                x -> dateHistogramSource.getRounding(),
-                () -> preparedRounding,
-                dateHistogramSourceContext,
-                fc -> FilterRewriteHelper.getAggregationBounds(context, fc.getFieldType().name())
-            );
-            if (filterContext != null) {
-                fieldType = filterContext.fieldType;
-                filters = filterContext.filters;
-            } else {
-                filters = null;
-                fieldType = null;
+            if (fastFilterContext.isRewriteable(parent, subAggregators.length)) {
+                fastFilterContext.setSize(size);
+                FastFilterRewriteHelper.buildFastFilter(
+                    context,
+                    fc -> FastFilterRewriteHelper.getAggregationBounds(context, fc.getFieldType().name()), x -> dateHistogramSource.getRounding(),
+                    () -> preparedRounding,
+                    fastFilterContext
+                );
             }
         }
     }
@@ -532,9 +522,10 @@ final class CompositeAggregator extends BucketsAggregator {
 
     @Override
     protected LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub) throws IOException {
-        boolean optimized = FilterRewriteHelper.tryFastFilterAggregation(ctx, filters, fieldType, (key, count) -> {
-            incrementBucketDocCount(FilterRewriteHelper.getBucketOrd(bucketOrds.add(0, preparedRounding.round(key))), count);
-        }, size);
+        boolean optimized = FastFilterRewriteHelper.tryFastFilterAggregation(ctx, fastFilterContext, (key, count) -> {
+            incrementBucketDocCount(FastFilterRewriteHelper.
+                getBucketOrd(bucketOrds.add(0, preparedRounding.round(key))), count);
+        });
         if (optimized) throw new CollectionTerminatedException();
 
         finishLeaf();

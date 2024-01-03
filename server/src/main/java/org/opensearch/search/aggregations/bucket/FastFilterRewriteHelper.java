@@ -36,25 +36,17 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 
 /**
- * Help rewrite and optimize aggregations using range filter queries
- * Currently supported types of aggregations are: DateHistogramAggregator, AutoDateHistogramAggregator, CompositeAggregator
- *
+ * Help rewrite aggregations into filters.
+ * Instead of aggregation collects documents one by one, filter may count all documents that match in one pass.
+ * <p>
+ * Currently supported rewrite:
+ * <ul>
+ *  <li> date histogram -> date range filter.
+ *   Applied: DateHistogramAggregator, AutoDateHistogramAggregator, CompositeAggregator </li>
+ * </ul>
  * @opensearch.internal
  */
-public class FilterRewriteHelper {
-
-    /**
-     * Saves the objects that will be used to try fast filter optimization
-     */
-    public static class FilterContext {
-        public final DateFieldMapper.DateFieldType fieldType;
-        public final Weight[] filters;
-
-        public FilterContext(DateFieldMapper.DateFieldType fieldType, Weight[] filters) {
-            this.fieldType = fieldType;
-            this.filters = filters;
-        }
-    }
+public class FastFilterRewriteHelper {
 
     private static final int MAX_NUM_FILTER_BUCKETS = 1024;
     private static final Map<Class<?>, Function<Query, Query>> queryWrappers;
@@ -101,6 +93,10 @@ public class FilterRewriteHelper {
         return new long[] { min, max };
     }
 
+    /**
+     * This method also acts as a pre-condition check for the optimization,
+     * returns null if the optimization cannot be applied
+     */
     public static long[] getAggregationBounds(final SearchContext context, final String fieldName) throws IOException {
         final Query cq = unwrapIntoConcreteQuery(context.query());
         final long[] indexBounds = getIndexBoundsFromLeaves(context, fieldName);
@@ -122,30 +118,18 @@ public class FilterRewriteHelper {
     }
 
     /**
-     * Creates the range query filters for aggregations using the interval, min/max
+     * Creates the date range filters for aggregations using the interval, min/max
      * bounds and the rounding values
      */
     private static Weight[] createFilterForAggregations(
         final SearchContext context,
-        final Rounding rounding,
+        final long interval,
         final Rounding.Prepared preparedRounding,
         final String field,
         final DateFieldMapper.DateFieldType fieldType,
         long low,
-        final long high,
-        long afterKey
+        final long high
     ) throws IOException {
-        final OptionalLong intervalOpt = Rounding.getInterval(rounding);
-        if (intervalOpt.isEmpty()) {
-            return null;
-        }
-
-        final long interval = intervalOpt.getAsLong();
-        // afterKey is the last bucket key in previous response, while the bucket key
-        // is the start of the bucket values, so add the interval
-        if (afterKey != -1) {
-            low = afterKey + interval;
-        }
         // Calculate the number of buckets using range and interval
         long roundedLow = preparedRounding.round(fieldType.convertNanosToMillis(low));
         long prevRounded = roundedLow;
@@ -174,8 +158,8 @@ public class FilterRewriteHelper {
                 roundedLow = preparedRounding.round(roundedLow + interval);
                 final byte[] upper = new byte[8];
                 NumericUtils.longToSortableBytes(i + 1 == bucketCount ? high :
-                // Subtract -1 if the minimum is roundedLow as roundedLow itself
-                // is included in the next bucket
+                    // Subtract -1 if the minimum is roundedLow as roundedLow itself
+                    // is included in the next bucket
                     fieldType.convertRoundedMillisToNanos(roundedLow) - 1, upper, 0);
 
                 filters[i++] = context.searcher().createWeight(new PointRangeQuery(field, lower, upper, 1) {
@@ -191,74 +175,116 @@ public class FilterRewriteHelper {
     }
 
     /**
-     * The pre-conditions to initiate fast filter optimization on aggregations are:
-     * 1. The query with aggregation has to be PointRangeQuery on the same date field
-     * 2. No parent/sub aggregations
-     * 3. No missing value/bucket
-     * 4. No script
-     *
-     * @param computeBounds get the lower and upper bound of the field in a shard search
-     * @param roundingFunction produce Rounding that will provide the interval
-     * @param preparedRoundingSupplier produce PreparedRounding that will do the rounding
+     * @param computeBounds            get the lower and upper bound of the field in a shard search
+     * @param roundingFunction         produce Rounding that contains interval of date range.
+     *                                 Rounding is computed dynamically using the bounds in AutoDateHistogram
+     * @param preparedRoundingSupplier produce PreparedRounding to round values at call-time
      */
-    public static FilterContext buildFastFilterContext(
-        final Object parent,
-        final int subAggLength,
+    public static void buildFastFilter(
         SearchContext context,
+        CheckedFunction<FastFilterContext, long[], IOException> computeBounds,
         Function<long[], Rounding> roundingFunction,
         Supplier<Rounding.Prepared> preparedRoundingSupplier,
-        ValueSourceContext valueSourceContext,
-        CheckedFunction<ValueSourceContext, long[], IOException> computeBounds
+        FastFilterContext fastFilterContext
     ) throws IOException {
-        if (parent == null && subAggLength == 0 && !valueSourceContext.missing && !valueSourceContext.hasScript) {
-            MappedFieldType fieldType = valueSourceContext.fieldType;
-            if (fieldType != null) {
-                final String fieldName = fieldType.name();
-                final long[] bounds = computeBounds.apply(valueSourceContext);
-                if (bounds != null) {
-                    assert fieldType instanceof DateFieldMapper.DateFieldType;
-                    final Rounding rounding = roundingFunction.apply(bounds);
-                    final Weight[] filters = FilterRewriteHelper.createFilterForAggregations(
-                        context,
-                        rounding,
-                        preparedRoundingSupplier.get(),
-                        fieldName,
-                        (DateFieldMapper.DateFieldType) fieldType,
-                        bounds[0],
-                        bounds[1],
-                        valueSourceContext.afterKey
-                    );
-                    return new FilterContext((DateFieldMapper.DateFieldType) fieldType, filters);
-                }
+        assert fastFilterContext.fieldType instanceof DateFieldMapper.DateFieldType;
+        DateFieldMapper.DateFieldType fieldType = (DateFieldMapper.DateFieldType) fastFilterContext.fieldType;
+        final long[] bounds = computeBounds.apply(fastFilterContext); // TODO b do we need to pass in the context? or specific things
+        if (bounds != null) {
+            final Rounding rounding = roundingFunction.apply(bounds);
+            final OptionalLong intervalOpt = Rounding.getInterval(rounding);
+            if (intervalOpt.isEmpty()) {
+                return;
             }
+            final long interval = intervalOpt.getAsLong();
+
+            // afterKey is the last bucket key in previous response, while the bucket key
+            // is the start of the bucket values, so add the interval
+            if (fastFilterContext.afterKey != -1) {
+                bounds[0] = fastFilterContext.afterKey + interval;
+            }
+
+            final Weight[] filters = FastFilterRewriteHelper.createFilterForAggregations(
+                context,
+                interval,
+                preparedRoundingSupplier.get(),
+                fieldType.name(),
+                fieldType,
+                bounds[0],
+                bounds[1]
+            );
+            fastFilterContext.setFilters(filters);
         }
-        return null;
     }
 
     /**
      * Encapsulates metadata about a value source needed to rewrite
      */
-    public static class ValueSourceContext {
-        private final boolean missing;
-        private final boolean hasScript;
-        private final MappedFieldType fieldType;
-        private final long afterKey;
+    public static class FastFilterContext {
+        private boolean missing = false; // TODO b confirm UT that can catch this
+        private boolean hasScript = false;
+        private boolean showOtherBucket = false;
 
-        /**
-         * @param missing   whether missing value/bucket is set
-         * @param hasScript whether script is used
-         * @param fieldType null if the field doesn't exist
-         * @param afterKey  used to paginate for composite aggregation, pass in -1 if not used
-         */
-        public ValueSourceContext(boolean missing, boolean hasScript, MappedFieldType fieldType, long afterKey) {
-            this.missing = missing;
-            this.hasScript = hasScript;
+        private final MappedFieldType fieldType;
+
+        private long afterKey = -1L;
+        private int size = Integer.MAX_VALUE; // only used by composite aggregation for pagination
+        private Weight[] filters = null;
+
+        private final Type type;
+
+        public FastFilterContext(MappedFieldType fieldType) {
             this.fieldType = fieldType;
+            this.type = Type.DATE_HISTO;
+        }
+
+        public FastFilterContext(Type type) {
+            this.fieldType = null;
+            this.type = type;
+        }
+
+        public DateFieldMapper.DateFieldType getFieldType() {
+            assert fieldType instanceof DateFieldMapper.DateFieldType;
+            return (DateFieldMapper.DateFieldType) fieldType;
+        }
+
+        public void setSize(int size) {
+            this.size = size;
+        }
+
+        public void setFilters(Weight[] filters) {
+            this.filters = filters;
+        }
+
+        public void setAfterKey(long afterKey) {
             this.afterKey = afterKey;
         }
 
-        public MappedFieldType getFieldType() {
-            return fieldType;
+        public void setMissing(boolean missing) {
+            this.missing = missing;
+        }
+
+        public void setHasScript(boolean hasScript) {
+            this.hasScript = hasScript;
+        }
+
+        public void setShowOtherBucket(boolean showOtherBucket) {
+            this.showOtherBucket = showOtherBucket;
+        }
+
+        public boolean isRewriteable(Object parent, int subAggLength) {
+            if (parent == null && subAggLength == 0 && !missing && !hasScript) {
+                if (type == Type.FILTERS) {
+                    return !showOtherBucket;
+                } else if (type == Type.DATE_HISTO) {
+                    return fieldType != null && fieldType instanceof DateFieldMapper.DateFieldType;
+                }
+            }
+            return false;
+        }
+
+        public enum Type {
+            FILTERS, DATE_HISTO
         }
     }
 
@@ -273,17 +299,18 @@ public class FilterRewriteHelper {
     /**
      * This should be executed for each segment
      *
-     * @param size the maximum number of buckets needed
+     * @param incrementDocCount takes in the bucket key value and the bucket count
      */
     public static boolean tryFastFilterAggregation(
         final LeafReaderContext ctx,
-        final Weight[] filters,
-        final DateFieldMapper.DateFieldType fieldType,
-        final BiConsumer<Long, Integer> incrementDocCount,
-        final int size
+        FastFilterContext fastFilterContext,
+        final BiConsumer<Long, Integer> incrementDocCount
     ) throws IOException {
-        if (filters == null) return false;
+        if (fastFilterContext == null) return false;
+        if (fastFilterContext.filters == null) return false;
 
+        final Weight[] filters = fastFilterContext.filters;
+        // TODO b refactor the type conversion to the context
         final int[] counts = new int[filters.length];
         int i;
         for (i = 0; i < filters.length; i++) {
@@ -298,14 +325,16 @@ public class FilterRewriteHelper {
         int s = 0;
         for (i = 0; i < filters.length; i++) {
             if (counts[i] > 0) {
-                incrementDocCount.accept(
-                    fieldType.convertNanosToMillis(
+                long bucketKey = i; // the index of filters is the key for filters aggregation
+                if (fastFilterContext.type == FastFilterContext.Type.DATE_HISTO) {
+                    final DateFieldMapper.DateFieldType fieldType = (DateFieldMapper.DateFieldType) fastFilterContext.fieldType;
+                    bucketKey = fieldType.convertNanosToMillis(
                         NumericUtils.sortableBytesToLong(((PointRangeQuery) filters[i].getQuery()).getLowerPoint(), 0)
-                    ),
-                    counts[i]
-                );
+                    );
+                }
+                incrementDocCount.accept(bucketKey, counts[i]);
                 s++;
-                if (s > size) return true;
+                if (s > fastFilterContext.size) return true;
             }
         }
 
