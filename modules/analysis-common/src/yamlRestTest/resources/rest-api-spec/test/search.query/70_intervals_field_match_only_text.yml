@@ -1,0 +1,67 @@
+# integration tests for intervals queries using analyzers
+setup:
+  - skip:
+      version: " - 2.99.99"
+      reason: "match_only_text was added in 3.0"
+  - do:
+      indices.create:
+        index:  test
+        body:
+          mappings:
+            properties:
+              text:
+                type: match_only_text
+                analyzer: standard
+              text_en:
+                type: match_only_text
+                analyzer: english
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - '{"index": {"_index": "test", "_id": "4"}}'
+          - '{"text"    : "Outside it is cold and wet and raining cats and dogs",
+                "text_en" : "Outside it is cold and wet and raining cats and dogs"}'
+
+---
+"Test use_field":
+  - skip:
+      version: " - 2.99.99"
+      reason: "match_only_text was added in 3.0"
+  - do:
+      catch: bad_request
+      search:
+        index: test
+        body:
+          query:
+            intervals:
+              text:
+                all_of:
+                  intervals:
+                    - match:
+                        query: cats
+                    - match:
+                        query: dog
+                  max_gaps: 1
+  - match: { status: 400 }
+  - match: { error.type: "search_phase_execution_exception"}
+  - match: { error.reason: "all shards failed"}
+  - do:
+      catch: bad_request
+      search:
+        index: test
+        body:
+          query:
+            intervals:
+              text:
+                all_of:
+                  intervals:
+                    - match:
+                        query: cats
+                    - match:
+                        query: dog
+                        use_field: text_en
+                  max_gaps: 1
+  - match: { status: 400 }
+  - match: { error.type: "search_phase_execution_exception"}
+  - match: { error.reason: "all shards failed"}
