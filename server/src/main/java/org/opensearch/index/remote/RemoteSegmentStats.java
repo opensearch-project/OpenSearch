@@ -10,6 +10,7 @@ package org.opensearch.index.remote;
 
 import org.opensearch.Version;
 import org.opensearch.action.admin.cluster.remotestore.stats.RemoteStoreStats;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
@@ -26,8 +27,9 @@ import java.util.Objects;
  * Tracks remote store segment download and upload stats
  * Used for displaying remote store stats in IndicesStats/NodeStats API
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "2.10.0")
 public class RemoteSegmentStats implements Writeable, ToXContentFragment {
     /**
      * Cumulative bytes attempted to be uploaded to remote store

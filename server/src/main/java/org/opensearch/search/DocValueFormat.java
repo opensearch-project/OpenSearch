@@ -36,6 +36,7 @@ import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.Version;
 import org.opensearch.common.Numbers;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.network.InetAddresses;
 import org.opensearch.common.network.NetworkAddress;
 import org.opensearch.common.time.DateFormatter;
@@ -64,8 +65,9 @@ import java.util.function.LongSupplier;
 /**
  * A formatter for values as returned by the fielddata/doc-values APIs.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public interface DocValueFormat extends NamedWriteable {
     long MASK_2_63 = 0x8000000000000000L;
     BigInteger BIGINTEGER_2_64_MINUS_ONE = BigInteger.ONE.shiftLeft(64).subtract(BigInteger.ONE); // 2^64 -1

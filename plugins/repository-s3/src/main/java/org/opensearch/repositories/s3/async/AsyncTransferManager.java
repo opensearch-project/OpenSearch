@@ -34,11 +34,11 @@ import org.opensearch.common.blobstore.stream.write.WritePriority;
 import org.opensearch.common.io.InputStreamContainer;
 import org.opensearch.common.util.ByteUtils;
 import org.opensearch.core.common.unit.ByteSizeUnit;
+import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.repositories.s3.SocketAccess;
 import org.opensearch.repositories.s3.StatsMetricPublisher;
 import org.opensearch.repositories.s3.io.CheckedContainer;
 
-import java.io.BufferedInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Arrays;
@@ -61,6 +61,7 @@ public final class AsyncTransferManager {
     private static final Logger log = LogManager.getLogger(AsyncTransferManager.class);
     private final ExecutorService executorService;
     private final ExecutorService priorityExecutorService;
+    private final ExecutorService urgentExecutorService;
     private final long minimumPartSize;
 
     /**
@@ -75,10 +76,16 @@ public final class AsyncTransferManager {
      * @param executorService         The stream reader {@link ExecutorService} for normal priority uploads
      * @param priorityExecutorService The stream read {@link ExecutorService} for high priority uploads
      */
-    public AsyncTransferManager(long minimumPartSize, ExecutorService executorService, ExecutorService priorityExecutorService) {
+    public AsyncTransferManager(
+        long minimumPartSize,
+        ExecutorService executorService,
+        ExecutorService priorityExecutorService,
+        ExecutorService urgentExecutorService
+    ) {
         this.executorService = executorService;
         this.priorityExecutorService = priorityExecutorService;
         this.minimumPartSize = minimumPartSize;
+        this.urgentExecutorService = urgentExecutorService;
     }
 
     /**
@@ -139,7 +146,14 @@ public final class AsyncTransferManager {
                 handleException(returnFuture, () -> "Failed to initiate multipart upload", throwable);
             } else {
                 log.debug(() -> "Initiated new multipart upload, uploadId: " + createMultipartUploadResponse.uploadId());
-                doUploadInParts(s3AsyncClient, uploadRequest, streamContext, returnFuture, createMultipartUploadResponse.uploadId());
+                doUploadInParts(
+                    s3AsyncClient,
+                    uploadRequest,
+                    streamContext,
+                    returnFuture,
+                    createMultipartUploadResponse.uploadId(),
+                    statsMetricPublisher
+                );
             }
         });
     }
@@ -149,7 +163,8 @@ public final class AsyncTransferManager {
         UploadRequest uploadRequest,
         StreamContext streamContext,
         CompletableFuture<Void> returnFuture,
-        String uploadId
+        String uploadId,
+        StatsMetricPublisher statsMetricPublisher
     ) {
 
         // The list of completed parts must be sorted
@@ -162,11 +177,14 @@ public final class AsyncTransferManager {
                 s3AsyncClient,
                 executorService,
                 priorityExecutorService,
+                urgentExecutorService,
                 uploadRequest,
                 streamContext,
                 uploadId,
                 completedParts,
-                inputStreamContainers
+                inputStreamContainers,
+                statsMetricPublisher,
+                uploadRequest.isUploadRetryEnabled()
             );
         } catch (Exception ex) {
             try {
@@ -190,7 +208,7 @@ public final class AsyncTransferManager {
             }
             return null;
         })
-            .thenCompose(ignore -> completeMultipartUpload(s3AsyncClient, uploadRequest, uploadId, completedParts))
+            .thenCompose(ignore -> completeMultipartUpload(s3AsyncClient, uploadRequest, uploadId, completedParts, statsMetricPublisher))
             .handle(handleExceptionOrResponse(s3AsyncClient, uploadRequest, returnFuture, uploadId))
             .exceptionally(throwable -> {
                 handleException(returnFuture, () -> "Unexpected exception occurred", throwable);
@@ -237,7 +255,8 @@ public final class AsyncTransferManager {
         S3AsyncClient s3AsyncClient,
         UploadRequest uploadRequest,
         String uploadId,
-        AtomicReferenceArray<CompletedPart> completedParts
+        AtomicReferenceArray<CompletedPart> completedParts,
+        StatsMetricPublisher statsMetricPublisher
     ) {
 
         log.debug(() -> new ParameterizedMessage("Sending completeMultipartUploadRequest, uploadId: {}", uploadId));
@@ -246,6 +265,7 @@ public final class AsyncTransferManager {
             .bucket(uploadRequest.getBucket())
             .key(uploadRequest.getKey())
             .uploadId(uploadId)
+            .overrideConfiguration(o -> o.addMetricPublisher(statsMetricPublisher.multipartUploadMetricCollector))
             .multipartUpload(CompletedMultipartUpload.builder().parts(parts).build())
             .build();
 
@@ -283,9 +303,12 @@ public final class AsyncTransferManager {
     /**
      * Calculates the optimal part size of each part request if the upload operation is carried out as multipart upload.
      */
-    public long calculateOptimalPartSize(long contentLengthOfSource) {
+    public long calculateOptimalPartSize(long contentLengthOfSource, WritePriority writePriority, boolean uploadRetryEnabled) {
         if (contentLengthOfSource < ByteSizeUnit.MB.toBytes(5)) {
             return contentLengthOfSource;
+        }
+        if (uploadRetryEnabled && (writePriority == WritePriority.HIGH || writePriority == WritePriority.URGENT)) {
+            return new ByteSizeValue(5, ByteSizeUnit.MB).getBytes();
         }
         double optimalPartSize = contentLengthOfSource / (double) MAX_UPLOAD_PARTS;
         optimalPartSize = Math.ceil(optimalPartSize);
@@ -308,12 +331,21 @@ public final class AsyncTransferManager {
             putObjectRequestBuilder.checksumAlgorithm(ChecksumAlgorithm.CRC32);
             putObjectRequestBuilder.checksumCRC32(base64StringFromLong(uploadRequest.getExpectedChecksum()));
         }
-        ExecutorService streamReadExecutor = uploadRequest.getWritePriority() == WritePriority.HIGH
-            ? priorityExecutorService
-            : executorService;
-        // Buffered stream is needed to allow mark and reset ops during IO errors so that only buffered
-        // data can be retried instead of retrying whole file by the application.
-        InputStream inputStream = new BufferedInputStream(inputStreamContainer.getInputStream(), (int) (ByteSizeUnit.MB.toBytes(1) + 1));
+        ExecutorService streamReadExecutor;
+        if (uploadRequest.getWritePriority() == WritePriority.URGENT) {
+            streamReadExecutor = urgentExecutorService;
+        } else if (uploadRequest.getWritePriority() == WritePriority.HIGH) {
+            streamReadExecutor = priorityExecutorService;
+        } else {
+            streamReadExecutor = executorService;
+        }
+
+        InputStream inputStream = AsyncPartsHandler.maybeRetryInputStream(
+            inputStreamContainer.getInputStream(),
+            uploadRequest.getWritePriority(),
+            uploadRequest.isUploadRetryEnabled(),
+            uploadRequest.getContentLength()
+        );
         CompletableFuture<Void> putObjectFuture = SocketAccess.doPrivileged(
             () -> s3AsyncClient.putObject(
                 putObjectRequestBuilder.build(),

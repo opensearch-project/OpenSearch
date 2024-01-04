@@ -75,7 +75,7 @@ final class SearchQueryCategorizer {
         }
         QueryShapeVisitor shapeVisitor = new QueryShapeVisitor();
         topLevelQueryBuilder.visit(shapeVisitor);
-        log.debug("Query shape : {}", shapeVisitor.prettyPrintTree("  "));
+        log.trace("Query shape : {}", shapeVisitor.prettyPrintTree("  "));
     }
 
 }

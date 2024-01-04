@@ -8,14 +8,18 @@
 
 package org.opensearch.index.translog;
 
+import org.opensearch.common.annotation.PublicApi;
+import org.opensearch.common.lease.Releasable;
+
 import java.io.IOException;
 import java.util.stream.Stream;
 
 /**
  * The interface that orchestrates Translog operations and manages the {@link Translog} and interfaces with the Engine
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public interface TranslogManager {
 
     /**
@@ -131,6 +135,11 @@ public interface TranslogManager {
     Clean up if any needed on deletion of index
      */
     void onDelete();
+
+    /**
+     * Drains ongoing syncs to the underlying store. It returns a releasable which can be closed to resume the syncs back.
+     */
+    Releasable drainSync();
 
     Translog.TranslogGeneration getTranslogGeneration();
 }

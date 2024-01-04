@@ -64,6 +64,7 @@ import org.apache.lucene.util.BitSetIterator;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.CombinedBitSet;
 import org.apache.lucene.util.SparseFixedBitSet;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lucene.search.TopDocsAndMaxScore;
 import org.opensearch.search.DocValueFormat;
@@ -91,8 +92,9 @@ import java.util.concurrent.Executor;
 /**
  * Context-aware extension of {@link IndexSearcher}.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class ContextIndexSearcher extends IndexSearcher implements Releasable {
 
     private static final Logger logger = LogManager.getLogger(ContextIndexSearcher.class);
@@ -505,14 +507,15 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
     }
 
     private boolean canMatchSearchAfter(LeafReaderContext ctx) throws IOException {
-        if (searchContext.request() != null && searchContext.request().source() != null) {
+        if (searchContext.searchAfter() != null && searchContext.request() != null && searchContext.request().source() != null) {
             // Only applied on primary sort field and primary search_after.
             FieldSortBuilder primarySortField = FieldSortBuilder.getPrimaryFieldSortOrNull(searchContext.request().source());
             if (primarySortField != null) {
                 MinAndMax<?> minMax = FieldSortBuilder.getMinMaxOrNullForSegment(
                     this.searchContext.getQueryShardContext(),
                     ctx,
-                    primarySortField
+                    primarySortField,
+                    searchContext.sort()
                 );
                 return SearchService.canMatchSearchAfter(
                     searchContext.searchAfter(),

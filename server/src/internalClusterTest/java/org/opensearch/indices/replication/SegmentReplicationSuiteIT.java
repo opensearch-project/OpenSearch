@@ -8,6 +8,7 @@
 
 package org.opensearch.indices.replication;
 
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.opensearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
@@ -16,6 +17,7 @@ import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.junit.annotations.TestLogging;
 import org.junit.Before;
 
+@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/9499")
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.SUITE, minNumDataNodes = 2)
 @TestLogging(reason = "Getting trace logs from replication package", value = "org.opensearch.indices.replication:TRACE")
 public class SegmentReplicationSuiteIT extends SegmentReplicationBaseIT {

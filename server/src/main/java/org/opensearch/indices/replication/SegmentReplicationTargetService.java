@@ -15,10 +15,13 @@ import org.apache.lucene.index.CorruptIndexException;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.OpenSearchCorruptionException;
 import org.opensearch.action.support.ChannelActionListener;
+import org.opensearch.cluster.ClusterChangedEvent;
+import org.opensearch.cluster.ClusterStateListener;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.lifecycle.AbstractLifecycleComponent;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.CancellableThreads;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
@@ -26,6 +29,7 @@ import org.opensearch.common.util.concurrent.ConcurrentCollections;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.transport.TransportResponse;
+import org.opensearch.index.IndexService;
 import org.opensearch.index.shard.IndexEventListener;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexShardState;
@@ -53,6 +57,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicLong;
 
+import static org.opensearch.index.seqno.SequenceNumbers.NO_OPS_PERFORMED;
 import static org.opensearch.indices.replication.SegmentReplicationSourceService.Actions.UPDATE_VISIBLE_CHECKPOINT;
 
 /**
@@ -60,7 +65,7 @@ import static org.opensearch.indices.replication.SegmentReplicationSourceService
  *
  * @opensearch.internal
  */
-public class SegmentReplicationTargetService implements IndexEventListener {
+public class SegmentReplicationTargetService extends AbstractLifecycleComponent implements ClusterStateListener, IndexEventListener {
 
     private static final Logger logger = LogManager.getLogger(SegmentReplicationTargetService.class);
 
@@ -69,7 +74,7 @@ public class SegmentReplicationTargetService implements IndexEventListener {
 
     private final ReplicationCollection<SegmentReplicationTarget> onGoingReplications;
 
-    private final Map<ShardId, SegmentReplicationTarget> completedReplications = ConcurrentCollections.newConcurrentMap();
+    private final Map<ShardId, SegmentReplicationState> completedReplications = ConcurrentCollections.newConcurrentMap();
 
     private final SegmentReplicationSourceFactory sourceFactory;
 
@@ -143,6 +148,53 @@ public class SegmentReplicationTargetService implements IndexEventListener {
         );
     }
 
+    @Override
+    protected void doStart() {
+        if (DiscoveryNode.isDataNode(clusterService.getSettings())) {
+            clusterService.addListener(this);
+        }
+    }
+
+    @Override
+    protected void doStop() {
+        if (DiscoveryNode.isDataNode(clusterService.getSettings())) {
+            clusterService.removeListener(this);
+        }
+    }
+
+    @Override
+    protected void doClose() throws IOException {
+
+    }
+
+    @Override
+    public void clusterChanged(ClusterChangedEvent event) {
+        if (event.routingTableChanged()) {
+            for (IndexService indexService : indicesService) {
+                if (indexService.getIndexSettings().isSegRepEnabled() && event.indexRoutingTableChanged(indexService.index().getName())) {
+                    for (IndexShard shard : indexService) {
+                        if (shard.routingEntry().primary() == false) {
+                            // for this shard look up its primary routing, if it has completed a relocation trigger replication
+                            final String previousNode = event.previousState()
+                                .routingTable()
+                                .shardRoutingTable(shard.shardId())
+                                .primaryShard()
+                                .currentNodeId();
+                            final String currentNode = event.state()
+                                .routingTable()
+                                .shardRoutingTable(shard.shardId())
+                                .primaryShard()
+                                .currentNodeId();
+                            if (previousNode.equals(currentNode) == false) {
+                                processLatestReceivedCheckpoint(shard, Thread.currentThread());
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     /**
      * Cancel any replications on this node for a replica that is about to be closed.
      */
@@ -191,7 +243,7 @@ public class SegmentReplicationTargetService implements IndexEventListener {
      */
     @Nullable
     public SegmentReplicationState getlatestCompletedEventSegmentReplicationState(ShardId shardId) {
-        return Optional.ofNullable(completedReplications.get(shardId)).map(SegmentReplicationTarget::state).orElse(null);
+        return completedReplications.get(shardId);
     }
 
     /**
@@ -282,6 +334,12 @@ public class SegmentReplicationTargetService implements IndexEventListener {
                         }
                     }
                 });
+            } else if (replicaShard.isSegmentReplicationAllowed()) {
+                // if we didn't process the checkpoint because we are up to date,
+                // send our latest checkpoint to the primary to update tracking.
+                // replicationId is not used by the primary set to a default value.
+                final long replicationId = NO_OPS_PERFORMED;
+                updateVisibleCheckpoint(replicationId, replicaShard);
             }
         } else {
             logger.trace(
@@ -388,7 +446,7 @@ public class SegmentReplicationTargetService implements IndexEventListener {
     // visible to tests
     protected boolean processLatestReceivedCheckpoint(IndexShard replicaShard, Thread thread) {
         final ReplicationCheckpoint latestPublishedCheckpoint = latestReceivedCheckpoint.get(replicaShard.shardId());
-        if (latestPublishedCheckpoint != null && latestPublishedCheckpoint.isAheadOf(replicaShard.getLatestReplicationCheckpoint())) {
+        if (latestPublishedCheckpoint != null) {
             logger.trace(
                 () -> new ParameterizedMessage(
                     "Processing latest received checkpoint for shard {} {}",
@@ -518,7 +576,7 @@ public class SegmentReplicationTargetService implements IndexEventListener {
                 logger.debug(() -> new ParameterizedMessage("Finished replicating {} marking as done.", target.description()));
                 onGoingReplications.markAsDone(replicationId);
                 if (target.state().getIndex().recoveredFileCount() != 0 && target.state().getIndex().recoveredBytes() != 0) {
-                    completedReplications.put(target.shardId(), target);
+                    completedReplications.put(target.shardId(), target.state());
                 }
             }
 

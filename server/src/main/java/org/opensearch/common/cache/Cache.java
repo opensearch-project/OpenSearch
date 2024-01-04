@@ -32,6 +32,7 @@
 
 package org.opensearch.common.cache;
 
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.util.concurrent.ReleasableLock;
 
@@ -80,8 +81,9 @@ import java.util.function.ToLongBiFunction;
  * @param <K> The type of the keys
  * @param <V> The type of the values
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class Cache<K, V> {
 
     // positive if entries have an expiration
@@ -732,8 +734,9 @@ public class Cache<K, V> {
     /**
      * Cache statistics
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public static class CacheStats {
         private long hits;
         private long misses;

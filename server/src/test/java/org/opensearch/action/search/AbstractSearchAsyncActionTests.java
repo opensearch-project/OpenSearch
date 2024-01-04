@@ -175,7 +175,7 @@ public class AbstractSearchAsyncActionTests extends OpenSearchTestCase {
             results,
             request.getMaxConcurrentShardRequests(),
             SearchResponse.Clusters.EMPTY,
-            null
+            new SearchRequestContext()
         ) {
             @Override
             protected SearchPhase getNextPhase(final SearchPhaseResults<SearchPhaseResult> results, SearchPhaseContext context) {
@@ -710,7 +710,7 @@ public class AbstractSearchAsyncActionTests extends OpenSearchTestCase {
             null,
             task,
             SearchResponse.Clusters.EMPTY,
-            new SearchRequestOperationsListener.CompositeListener(searchRequestOperationsListeners, logger)
+            new SearchRequestContext(new SearchRequestOperationsListener.CompositeListener(searchRequestOperationsListeners, logger))
         );
     }
 
@@ -760,7 +760,7 @@ public class AbstractSearchAsyncActionTests extends OpenSearchTestCase {
             null,
             task,
             SearchResponse.Clusters.EMPTY,
-            new SearchRequestOperationsListener.CompositeListener(searchRequestOperationsListeners, logger)
+            new SearchRequestContext(new SearchRequestOperationsListener.CompositeListener(searchRequestOperationsListeners, logger))
         ) {
             @Override
             ShardSearchFailure[] buildShardFailures() {

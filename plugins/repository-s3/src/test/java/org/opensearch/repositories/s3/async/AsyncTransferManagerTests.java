@@ -64,6 +64,7 @@ public class AsyncTransferManagerTests extends OpenSearchTestCase {
         asyncTransferManager = new AsyncTransferManager(
             ByteSizeUnit.MB.toBytes(5),
             Executors.newSingleThreadExecutor(),
+            Executors.newSingleThreadExecutor(),
             Executors.newSingleThreadExecutor()
         );
         super.setUp();
@@ -81,7 +82,7 @@ public class AsyncTransferManagerTests extends OpenSearchTestCase {
             s3AsyncClient,
             new UploadRequest("bucket", "key", ByteSizeUnit.MB.toBytes(1), WritePriority.HIGH, uploadSuccess -> {
                 // do nothing
-            }, false, null),
+            }, false, null, true),
             new StreamContext((partIdx, partSize, position) -> {
                 streamRef.set(new ZeroInputStream(partSize));
                 return new InputStreamContainer(streamRef.get(), partSize, position);
@@ -126,7 +127,7 @@ public class AsyncTransferManagerTests extends OpenSearchTestCase {
             s3AsyncClient,
             new UploadRequest("bucket", "key", ByteSizeUnit.MB.toBytes(1), WritePriority.HIGH, uploadSuccess -> {
                 // do nothing
-            }, false, null),
+            }, false, null, true),
             new StreamContext(
                 (partIdx, partSize, position) -> new InputStreamContainer(new ZeroInputStream(partSize), partSize, position),
                 ByteSizeUnit.MB.toBytes(1),
@@ -179,7 +180,7 @@ public class AsyncTransferManagerTests extends OpenSearchTestCase {
             s3AsyncClient,
             new UploadRequest("bucket", "key", ByteSizeUnit.MB.toBytes(5), WritePriority.HIGH, uploadSuccess -> {
                 // do nothing
-            }, true, 3376132981L),
+            }, true, 3376132981L, true),
             new StreamContext((partIdx, partSize, position) -> {
                 InputStream stream = new ZeroInputStream(partSize);
                 streams.add(stream);
@@ -239,7 +240,7 @@ public class AsyncTransferManagerTests extends OpenSearchTestCase {
             s3AsyncClient,
             new UploadRequest("bucket", "key", ByteSizeUnit.MB.toBytes(5), WritePriority.HIGH, uploadSuccess -> {
                 // do nothing
-            }, true, 0L),
+            }, true, 0L, true),
             new StreamContext(
                 (partIdx, partSize, position) -> new InputStreamContainer(new ZeroInputStream(partSize), partSize, position),
                 ByteSizeUnit.MB.toBytes(1),

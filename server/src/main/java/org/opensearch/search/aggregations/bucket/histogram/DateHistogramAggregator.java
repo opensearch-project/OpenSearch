@@ -34,10 +34,12 @@ package org.opensearch.search.aggregations.bucket.histogram;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.ScoreMode;
+import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.CollectionUtil;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.Rounding;
 import org.opensearch.common.lease.Releasables;
+import org.opensearch.index.mapper.DateFieldMapper;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.aggregations.Aggregator;
 import org.opensearch.search.aggregations.AggregatorFactories;
@@ -48,6 +50,7 @@ import org.opensearch.search.aggregations.LeafBucketCollector;
 import org.opensearch.search.aggregations.LeafBucketCollectorBase;
 import org.opensearch.search.aggregations.bucket.BucketsAggregator;
 import org.opensearch.search.aggregations.bucket.terms.LongKeyedBucketOrds;
+import org.opensearch.search.aggregations.support.FieldContext;
 import org.opensearch.search.aggregations.support.ValuesSource;
 import org.opensearch.search.aggregations.support.ValuesSourceConfig;
 import org.opensearch.search.internal.SearchContext;
@@ -66,7 +69,6 @@ import java.util.function.BiConsumer;
  * @opensearch.internal
  */
 class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAggregator {
-
     private final ValuesSource.Numeric valuesSource;
     private final DocValueFormat formatter;
     private final Rounding rounding;
@@ -76,12 +78,12 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
     private final Rounding.Prepared preparedRounding;
     private final BucketOrder order;
     private final boolean keyed;
-
     private final long minDocCount;
     private final LongBounds extendedBounds;
     private final LongBounds hardBounds;
-
+    private final Weight[] filters;
     private final LongKeyedBucketOrds bucketOrds;
+    private final DateFieldMapper.DateFieldType fieldType;
 
     DateHistogramAggregator(
         String name,
@@ -99,7 +101,6 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
         CardinalityUpperBound cardinality,
         Map<String, Object> metadata
     ) throws IOException {
-
         super(name, factories, aggregationContext, parent, CardinalityUpperBound.MANY, metadata);
         this.rounding = rounding;
         this.preparedRounding = preparedRounding;
@@ -114,6 +115,35 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
         this.formatter = valuesSourceConfig.format();
 
         bucketOrds = LongKeyedBucketOrds.build(context.bigArrays(), cardinality);
+
+        FilterRewriteHelper.FilterContext filterContext = FilterRewriteHelper.buildFastFilterContext(
+            parent,
+            subAggregators.length,
+            context,
+            x -> rounding,
+            () -> preparedRounding,
+            valuesSourceConfig,
+            this::computeBounds
+        );
+        if (filterContext != null) {
+            fieldType = filterContext.fieldType;
+            filters = filterContext.filters;
+        } else {
+            filters = null;
+            fieldType = null;
+        }
+    }
+
+    private long[] computeBounds(final FieldContext fieldContext) throws IOException {
+        final long[] bounds = FilterRewriteHelper.getAggregationBounds(context, fieldContext.field());
+        if (bounds != null) {
+            // Update min/max limit if user specified any hard bounds
+            if (hardBounds != null) {
+                bounds[0] = Math.max(bounds[0], hardBounds.getMin());
+                bounds[1] = Math.min(bounds[1], hardBounds.getMax() - 1); // hard bounds max is exclusive
+            }
+        }
+        return bounds;
     }
 
     @Override
@@ -129,10 +159,27 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
         if (valuesSource == null) {
             return LeafBucketCollector.NO_OP_COLLECTOR;
         }
+
+        // Need to be declared as final and array for usage within the
+        // LeafBucketCollectorBase subclass below
+        final boolean[] useOpt = new boolean[1];
+        useOpt[0] = filters != null;
+
         SortedNumericDocValues values = valuesSource.longValues(ctx);
         return new LeafBucketCollectorBase(sub, values) {
             @Override
             public void collect(int doc, long owningBucketOrd) throws IOException {
+                // Try fast filter aggregation if the filters have been created
+                // Skip if tried before and gave incorrect/incomplete results
+                if (useOpt[0]) {
+                    useOpt[0] = FilterRewriteHelper.tryFastFilterAggregation(ctx, filters, fieldType, (key, count) -> {
+                        incrementBucketDocCount(
+                            FilterRewriteHelper.getBucketOrd(bucketOrds.add(owningBucketOrd, preparedRounding.round(key))),
+                            count
+                        );
+                    });
+                }
+
                 if (values.advanceExact(doc)) {
                     int valuesCount = values.docValueCount();
 

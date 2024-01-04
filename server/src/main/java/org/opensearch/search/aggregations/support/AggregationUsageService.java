@@ -32,6 +32,7 @@
 
 package org.opensearch.search.aggregations.support;
 
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.service.ReportingService;
 
 import java.util.HashMap;
@@ -41,8 +42,9 @@ import java.util.concurrent.atomic.LongAdder;
 /**
  * Service to track telemetry about aggregations
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class AggregationUsageService implements ReportingService<AggregationInfo> {
     private final Map<String, Map<String, LongAdder>> aggs;
     private final AggregationInfo info;
@@ -52,8 +54,9 @@ public class AggregationUsageService implements ReportingService<AggregationInfo
     /**
      * Builder for the Agg usage service to track telemetry
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public static class Builder {
         private final Map<String, Map<String, LongAdder>> aggs;
 

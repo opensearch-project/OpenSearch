@@ -34,6 +34,7 @@ package org.opensearch.action.explain;
 
 import org.apache.lucene.search.Explanation;
 import org.opensearch.Version;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.xcontent.StatusToXContentObject;
 import org.opensearch.core.ParseField;
 import org.opensearch.core.action.ActionResponse;
@@ -56,8 +57,9 @@ import static org.opensearch.common.lucene.Lucene.writeExplanation;
 /**
  * Response containing the score explanation.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class ExplainResponse extends ActionResponse implements StatusToXContentObject {
 
     private static final ParseField _INDEX = new ParseField("_index");

@@ -8,10 +8,14 @@
 
 package org.opensearch.action.search;
 
+import org.opensearch.common.annotation.PublicApi;
+
 /**
  * Enum for different Search Phases in OpenSearch
- * @opensearch.internal
+ *
+ * @opensearch.api
  */
+@PublicApi(since = "2.9.0")
 public enum SearchPhaseName {
     DFS_PRE_QUERY("dfs_pre_query"),
     QUERY("query"),

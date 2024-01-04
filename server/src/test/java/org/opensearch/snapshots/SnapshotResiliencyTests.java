@@ -90,6 +90,7 @@ import org.opensearch.action.search.SearchAction;
 import org.opensearch.action.search.SearchExecutionStatsCollector;
 import org.opensearch.action.search.SearchPhaseController;
 import org.opensearch.action.search.SearchRequest;
+import org.opensearch.action.search.SearchRequestSlowLog;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.action.search.SearchTransportService;
 import org.opensearch.action.search.TransportSearchAction;
@@ -178,6 +179,7 @@ import org.opensearch.gateway.MetaStateService;
 import org.opensearch.gateway.TransportNodesListGatewayStartedShards;
 import org.opensearch.index.IndexingPressureService;
 import org.opensearch.index.SegmentReplicationPressureService;
+import org.opensearch.index.SegmentReplicationStatsTracker;
 import org.opensearch.index.analysis.AnalysisRegistry;
 import org.opensearch.index.remote.RemoteStorePressureService;
 import org.opensearch.index.remote.RemoteStoreStatsTrackerFactory;
@@ -2188,6 +2190,7 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                         clusterService,
                         mock(IndicesService.class),
                         mock(ShardStateAction.class),
+                        mock(SegmentReplicationStatsTracker.class),
                         mock(ThreadPool.class)
                     ),
                     mock(RemoteStorePressureService.class),
@@ -2207,7 +2210,8 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                             scriptService,
                             new AnalysisModule(environment, Collections.emptyList()).getAnalysisRegistry(),
                             Collections.emptyList(),
-                            client
+                            client,
+                            indicesService
                         ),
                         transportShardBulkAction,
                         client,
@@ -2307,6 +2311,7 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                             client
                         ),
                         null,
+                        new SearchRequestSlowLog(clusterService),
                         NoopMetricsRegistry.INSTANCE
                     )
                 );

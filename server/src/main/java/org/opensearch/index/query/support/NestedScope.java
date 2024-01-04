@@ -32,6 +32,7 @@
 
 package org.opensearch.index.query.support;
 
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.index.mapper.ObjectMapper;
 
 import java.util.Deque;
@@ -40,8 +41,9 @@ import java.util.LinkedList;
 /**
  * During query parsing this keeps track of the current nested level.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public final class NestedScope {
 
     private final Deque<ObjectMapper> levelStack = new LinkedList<>();

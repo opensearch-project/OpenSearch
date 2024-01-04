@@ -35,6 +35,7 @@ package org.opensearch.action.search;
 import org.apache.lucene.search.TotalHits;
 import org.opensearch.Version;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.xcontent.StatusToXContentObject;
 import org.opensearch.core.ParseField;
@@ -77,8 +78,9 @@ import static org.opensearch.core.xcontent.XContentParserUtils.ensureExpectedTok
 /**
  * A response of a search request.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class SearchResponse extends ActionResponse implements StatusToXContentObject {
 
     private static final ParseField SCROLL_ID = new ParseField("_scroll_id");
@@ -116,7 +118,7 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
         clusters = new Clusters(in);
         scrollId = in.readOptionalString();
         tookInMillis = in.readVLong();
-        if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
+        if (in.getVersion().onOrAfter(Version.V_2_12_0)) {
             phaseTook = in.readOptionalWriteable(PhaseTook::new);
         } else {
             phaseTook = null;
@@ -557,7 +559,7 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
         clusters.writeTo(out);
         out.writeOptionalString(scrollId);
         out.writeVLong(tookInMillis);
-        if (out.getVersion().onOrAfter(Version.V_3_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_2_12_0)) {
             out.writeOptionalWriteable(phaseTook);
         }
         out.writeVInt(skippedShards);
@@ -573,8 +575,9 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
      * Holds info about the clusters that the search was executed on: how many in total, how many of them were successful
      * and how many of them were skipped.
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public static class Clusters implements ToXContentFragment, Writeable {
 
         public static final Clusters EMPTY = new Clusters(0, 0, 0);
@@ -677,8 +680,9 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
      * Holds info about the clusters that the search was executed on: how many in total, how many of them were successful
      * and how many of them were skipped.
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public static class PhaseTook implements ToXContentFragment, Writeable {
         static final ParseField PHASE_TOOK = new ParseField("phase_took");
         private final Map<String, Long> phaseTookMap;

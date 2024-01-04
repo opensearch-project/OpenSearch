@@ -225,6 +225,7 @@ public class TermsDocCountErrorIT extends ParameterizedOpenSearchIntegTestCase {
         }
 
         indexRandom(true, builders);
+        indexRandomForMultipleSlices("idx");
         ensureSearchable();
     }
 

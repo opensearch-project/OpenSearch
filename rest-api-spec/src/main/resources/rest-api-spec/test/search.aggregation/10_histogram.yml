@@ -598,7 +598,6 @@ setup:
   - match: { aggregations.histo.buckets.0.doc_count: 2 }
   - match: { profile.shards.0.aggregations.0.type: DateHistogramAggregator }
   - match: { profile.shards.0.aggregations.0.description: histo }
-  - match: { profile.shards.0.aggregations.0.breakdown.collect_count: 4 }
   - match: { profile.shards.0.aggregations.0.debug.total_buckets: 3 }
 
 ---

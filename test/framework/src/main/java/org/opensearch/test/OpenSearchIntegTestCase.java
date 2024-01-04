@@ -71,6 +71,7 @@ import org.opensearch.action.index.IndexResponse;
 import org.opensearch.action.search.ClearScrollResponse;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.action.support.IndicesOptions;
+import org.opensearch.action.support.WriteRequest;
 import org.opensearch.client.AdminClient;
 import org.opensearch.client.Client;
 import org.opensearch.client.ClusterAdminClient;
@@ -787,6 +788,30 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
         // Enabling Telemetry setting by default
         featureSettings.put(FeatureFlags.TELEMETRY_SETTING.getKey(), true);
         return featureSettings.build();
+    }
+
+    /**
+     * Represent if it needs to trigger remote state restore or not.
+     * For tests with remote store enabled domain, it will be overridden to true.
+     *
+     * @return if needs to perform remote state restore or not
+     */
+    protected boolean triggerRemoteStateRestore() {
+        return false;
+    }
+
+    /**
+     * For tests with remote cluster state, it will reset the cluster and cluster state will be
+     * restored from remote.
+     */
+    protected void performRemoteStoreTestAction() {
+        if (triggerRemoteStateRestore()) {
+            String clusterUUIDBefore = clusterService().state().metadata().clusterUUID();
+            internalCluster().resetCluster();
+            String clusterUUIDAfter = clusterService().state().metadata().clusterUUID();
+            // assertion that UUID is changed post restore.
+            assertFalse(clusterUUIDBefore.equals(clusterUUIDAfter));
+        }
     }
 
     /**
@@ -1622,6 +1647,7 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
             for (List<IndexRequestBuilder> segmented : partition) {
                 BulkRequestBuilder bulkBuilder = client().prepareBulk();
                 for (IndexRequestBuilder indexRequestBuilder : segmented) {
+                    indexRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.NONE);
                     bulkBuilder.add(indexRequestBuilder);
                 }
                 BulkResponse actionGet = bulkBuilder.execute().actionGet();
@@ -1642,6 +1668,7 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
             }
         }
         assertThat(actualErrors, emptyIterable());
+
         if (!bogusIds.isEmpty()) {
             // delete the bogus types again - it might trigger merges or at least holes in the segments and enforces deleted docs!
             for (List<String> doc : bogusIds) {
@@ -1657,6 +1684,63 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
                 client().admin().indices().prepareRefresh(indicesArray).setIndicesOptions(IndicesOptions.lenientExpandOpen()).get()
             );
         }
+        if (dummyDocuments) {
+            indexRandomForMultipleSlices(indicesArray);
+        }
+    }
+
+    /*
+    * This method ingests bogus documents for the given indices such that multiple slices
+    * are formed. This is useful for testing with the concurrent search use-case as it creates
+    * multiple slices based on segment count.
+    * @param indices         the indices in which bogus documents should be ingested
+    * */
+    protected void indexRandomForMultipleSlices(String... indices) throws InterruptedException {
+        Set<List<String>> bogusIds = new HashSet<>();
+        int refreshCount = randomIntBetween(2, 3);
+        for (String index : indices) {
+            int numDocs = getNumShards(index).totalNumShards * randomIntBetween(2, 10);
+            while (refreshCount-- > 0) {
+                final CopyOnWriteArrayList<Tuple<IndexRequestBuilder, Exception>> errors = new CopyOnWriteArrayList<>();
+                List<CountDownLatch> inFlightAsyncOperations = new ArrayList<>();
+                for (int i = 0; i < numDocs; i++) {
+                    String id = "bogus_doc_" + randomRealisticUnicodeOfLength(between(1, 10)) + dummmyDocIdGenerator.incrementAndGet();
+                    IndexRequestBuilder indexRequestBuilder = client().prepareIndex()
+                        .setIndex(index)
+                        .setId(id)
+                        .setSource("{}", MediaTypeRegistry.JSON)
+                        .setRouting(id);
+                    indexRequestBuilder.execute(
+                        new PayloadLatchedActionListener<>(indexRequestBuilder, newLatch(inFlightAsyncOperations), errors)
+                    );
+                    bogusIds.add(Arrays.asList(index, id));
+                }
+                for (CountDownLatch operation : inFlightAsyncOperations) {
+                    operation.await();
+                }
+                final List<Exception> actualErrors = new ArrayList<>();
+                for (Tuple<IndexRequestBuilder, Exception> tuple : errors) {
+                    Throwable t = ExceptionsHelper.unwrapCause(tuple.v2());
+                    if (t instanceof OpenSearchRejectedExecutionException) {
+                        logger.debug("Error indexing doc: " + t.getMessage() + ", reindexing.");
+                        tuple.v1().execute().actionGet(); // re-index if rejected
+                    } else {
+                        actualErrors.add(tuple.v2());
+                    }
+                }
+                assertThat(actualErrors, emptyIterable());
+                refresh(index);
+            }
+        }
+        for (List<String> doc : bogusIds) {
+            assertEquals(
+                "failed to delete a dummy doc [" + doc.get(0) + "][" + doc.get(1) + "]",
+                DocWriteResponse.Result.DELETED,
+                client().prepareDelete(doc.get(0), doc.get(1)).setRouting(doc.get(1)).get().getResult()
+            );
+        }
+        // refresh is called to make sure the bogus docs doesn't affect the search results
+        refresh();
     }
 
     private final AtomicInteger dummmyDocIdGenerator = new AtomicInteger();

@@ -55,6 +55,7 @@ import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.http.HttpServerTransport;
 import org.opensearch.index.shard.PrimaryReplicaSyncer.ResyncTask;
 import org.opensearch.plugins.NetworkPlugin;
+import org.opensearch.ratelimitting.admissioncontrol.enums.AdmissionControlActionType;
 import org.opensearch.tasks.RawTaskStatus;
 import org.opensearch.tasks.Task;
 import org.opensearch.telemetry.tracing.Tracer;
@@ -131,7 +132,7 @@ public final class NetworkModule {
 
     private final Map<String, Supplier<Transport>> transportFactories = new HashMap<>();
     private final Map<String, Supplier<HttpServerTransport>> transportHttpFactories = new HashMap<>();
-    private final List<TransportInterceptor> transportIntercetors = new ArrayList<>();
+    private final List<TransportInterceptor> transportInterceptors = new ArrayList<>();
 
     /**
      * Creates a network module that custom networking classes can be plugged into.
@@ -149,7 +150,8 @@ public final class NetworkModule {
         NetworkService networkService,
         HttpServerTransport.Dispatcher dispatcher,
         ClusterSettings clusterSettings,
-        Tracer tracer
+        Tracer tracer,
+        List<TransportInterceptor> transportInterceptors
     ) {
         this.settings = settings;
         for (NetworkPlugin plugin : plugins) {
@@ -180,13 +182,17 @@ public final class NetworkModule {
             for (Map.Entry<String, Supplier<Transport>> entry : transportFactory.entrySet()) {
                 registerTransport(entry.getKey(), entry.getValue());
             }
-            List<TransportInterceptor> transportInterceptors = plugin.getTransportInterceptors(
+            List<TransportInterceptor> pluginTransportInterceptors = plugin.getTransportInterceptors(
                 namedWriteableRegistry,
                 threadPool.getThreadContext()
             );
-            for (TransportInterceptor interceptor : transportInterceptors) {
+            for (TransportInterceptor interceptor : pluginTransportInterceptors) {
                 registerTransportInterceptor(interceptor);
             }
+        }
+        // Adding last because interceptors are triggered from last to first order from the list
+        if (transportInterceptors != null) {
+            transportInterceptors.forEach(this::registerTransportInterceptor);
         }
     }
 
@@ -264,7 +270,7 @@ public final class NetworkModule {
      * Registers a new {@link TransportInterceptor}
      */
     private void registerTransportInterceptor(TransportInterceptor interceptor) {
-        this.transportIntercetors.add(Objects.requireNonNull(interceptor, "interceptor must not be null"));
+        this.transportInterceptors.add(Objects.requireNonNull(interceptor, "interceptor must not be null"));
     }
 
     /**
@@ -272,7 +278,7 @@ public final class NetworkModule {
      * @see #registerTransportInterceptor(TransportInterceptor)
      */
     public TransportInterceptor getTransportInterceptor() {
-        return new CompositeTransportInterceptor(this.transportIntercetors);
+        return new CompositeTransportInterceptor(this.transportInterceptors);
     }
 
     static final class CompositeTransportInterceptor implements TransportInterceptor {
@@ -291,6 +297,30 @@ public final class NetworkModule {
         ) {
             for (TransportInterceptor interceptor : this.transportInterceptors) {
                 actualHandler = interceptor.interceptHandler(action, executor, forceExecution, actualHandler);
+            }
+            return actualHandler;
+        }
+
+        /**
+         * Intercept the transport action and perform admission control if applicable
+         * @param action The action the request handler is associated with
+         * @param executor The executor the request handling will be executed on
+         * @param forceExecution Force execution on the executor queue and never reject it
+         * @param actualHandler The handler itself that implements the request handling
+         * @param admissionControlActionType Admission control based on resource usage limits of provided action type
+         * @return returns the actual TransportRequestHandler after intercepting all previous handlers
+         * @param <T> transport request type
+         */
+        @Override
+        public <T extends TransportRequest> TransportRequestHandler<T> interceptHandler(
+            String action,
+            String executor,
+            boolean forceExecution,
+            TransportRequestHandler<T> actualHandler,
+            AdmissionControlActionType admissionControlActionType
+        ) {
+            for (TransportInterceptor interceptor : this.transportInterceptors) {
+                actualHandler = interceptor.interceptHandler(action, executor, forceExecution, actualHandler, admissionControlActionType);
             }
             return actualHandler;
         }

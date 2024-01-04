@@ -7,6 +7,7 @@ package org.opensearch.index;
 
 import org.opensearch.action.admin.indices.stats.CommonStatsFlags;
 import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.index.shard.ShardId;
@@ -19,8 +20,9 @@ import java.util.function.LongSupplier;
  * Sets up classes for node/shard level indexing pressure.
  * Provides abstraction and orchestration for indexing pressure interfaces when called from Transport Actions or for Stats.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.3.0")
 public class IndexingPressureService {
 
     private final ShardIndexingPressure shardIndexingPressure;

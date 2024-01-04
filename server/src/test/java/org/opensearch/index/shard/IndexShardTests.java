@@ -1416,7 +1416,7 @@ public class IndexShardTests extends IndexShardTestCase {
             indexShard,
             indexShard.getPendingPrimaryTerm() + 1,
             globalCheckpoint,
-            randomLongBetween(SequenceNumbers.NO_OPS_PERFORMED, maxSeqNo),
+            randomLongBetween(SequenceNumbers.NO_OPS_PERFORMED, maxSeqNoOfUpdatesOrDeletesBeforeRollback),
             new ActionListener<Releasable>() {
                 @Override
                 public void onResponse(Releasable releasable) {
@@ -2745,6 +2745,7 @@ public class IndexShardTests extends IndexShardTestCase {
             AllocationId.newRelocation(routing.allocationId())
         );
         IndexShardTestCase.updateRoutingEntry(indexShard, routing);
+        indexDoc(indexShard, "_doc", "0");
         assertTrue(indexShard.isSyncNeeded());
         try {
             indexShard.relocated(routing.getTargetRelocatingShard().allocationId().getId(), primaryContext -> {}, () -> {});
@@ -2849,6 +2850,7 @@ public class IndexShardTests extends IndexShardTestCase {
         indexDoc(source, "_doc", "1");
         indexDoc(source, "_doc", "2");
         source.refresh("test");
+        assertTrue("At lease one remote sync should have been completed", source.isRemoteSegmentStoreInSync());
         assertDocs(source, "1", "2");
         indexDoc(source, "_doc", "3");
         source.refresh("test");

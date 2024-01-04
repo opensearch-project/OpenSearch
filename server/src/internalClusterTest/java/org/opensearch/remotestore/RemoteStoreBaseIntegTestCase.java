@@ -8,12 +8,16 @@
 
 package org.opensearch.remotestore;
 
+import org.opensearch.action.admin.cluster.remotestore.restore.RestoreRemoteStoreRequest;
+import org.opensearch.action.admin.indices.get.GetIndexRequest;
+import org.opensearch.action.admin.indices.get.GetIndexResponse;
 import org.opensearch.action.bulk.BulkItemResponse;
 import org.opensearch.action.bulk.BulkRequest;
 import org.opensearch.action.bulk.BulkResponse;
 import org.opensearch.action.index.IndexRequest;
 import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.action.index.IndexResponse;
+import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.action.support.WriteRequest;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.RepositoriesMetadata;
@@ -23,9 +27,13 @@ import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.common.unit.ByteSizeUnit;
+import org.opensearch.core.index.Index;
 import org.opensearch.index.IndexModule;
+import org.opensearch.index.IndexService;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.mapper.MapperService;
+import org.opensearch.index.shard.IndexShard;
+import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.blobstore.BlobStoreRepository;
@@ -43,6 +51,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
@@ -51,12 +60,13 @@ import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_ST
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_REPOSITORY_TYPE_ATTRIBUTE_KEY_FORMAT;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEY;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 
 public class RemoteStoreBaseIntegTestCase extends OpenSearchIntegTestCase {
     protected static final String REPOSITORY_NAME = "test-remote-store-repo";
     protected static final String REPOSITORY_2_NAME = "test-remote-store-repo-2";
     protected static final int SHARD_COUNT = 1;
-    protected static final int REPLICA_COUNT = 1;
+    protected static int REPLICA_COUNT = 1;
     protected static final String TOTAL_OPERATIONS = "total-operations";
     protected static final String REFRESHED_OR_FLUSHED_OPERATIONS = "refreshed-or-flushed-operations";
     protected static final String MAX_SEQ_NO_TOTAL = "max-seq-no-total";
@@ -379,5 +389,26 @@ public class RemoteStoreBaseIntegTestCase extends OpenSearchIntegTestCase {
         });
 
         return filesExisting.get();
+    }
+
+    protected IndexShard getIndexShard(String dataNode, String indexName) throws ExecutionException, InterruptedException {
+        String clusterManagerName = internalCluster().getClusterManagerName();
+        IndicesService indicesService = internalCluster().getInstance(IndicesService.class, dataNode);
+        GetIndexResponse getIndexResponse = client(clusterManagerName).admin().indices().getIndex(new GetIndexRequest()).get();
+        String uuid = getIndexResponse.getSettings().get(indexName).get(IndexMetadata.SETTING_INDEX_UUID);
+        IndexService indexService = indicesService.indexService(new Index(indexName, uuid));
+        return indexService.getShard(0);
+    }
+
+    protected void restore(boolean restoreAllShards, String... indices) {
+        if (restoreAllShards) {
+            assertAcked(client().admin().indices().prepareClose(indices));
+        }
+        client().admin()
+            .cluster()
+            .restoreRemoteStore(
+                new RestoreRemoteStoreRequest().indices(indices).restoreAllShards(restoreAllShards),
+                PlainActionFuture.newFuture()
+            );
     }
 }

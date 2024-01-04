@@ -26,6 +26,7 @@ import org.opensearch.index.SegmentReplicationShardStats;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.test.OpenSearchIntegTestCase;
+import org.opensearch.test.junit.annotations.TestLogging;
 import org.opensearch.test.transport.MockTransportService;
 import org.opensearch.transport.TransportService;
 
@@ -55,6 +56,7 @@ public class SegmentReplicationRelocationIT extends SegmentReplicationBaseIT {
      * This test verifies happy path when primary shard is relocated newly added node (target) in the cluster. Before
      * relocation and after relocation documents are indexed and documents are verified
      */
+    @TestLogging(reason = "Getting trace logs from replication,shard and allocation package", value = "org.opensearch.indices.replication:TRACE, org.opensearch.index.shard:TRACE, org.opensearch.cluster.routing.allocation:TRACE")
     public void testPrimaryRelocation() throws Exception {
         final String oldPrimary = internalCluster().startNode();
         createIndex(1);

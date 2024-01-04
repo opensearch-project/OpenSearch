@@ -897,6 +897,7 @@ public class InnerHitsIT extends ParameterizedOpenSearchIntegTestCase {
             )
             .get();
         refresh();
+        indexRandomForConcurrentSearch("index1");
 
         // the field name (comments.message) used for source filtering should be the same as when using that field for
         // other features (like in the query dsl or aggs) in order for consistency:
@@ -973,6 +974,7 @@ public class InnerHitsIT extends ParameterizedOpenSearchIntegTestCase {
         client().prepareIndex("index1").setId("1").setSource("nested_type", Collections.singletonMap("key", "value")).get();
         client().prepareIndex("index2").setId("3").setSource("key", "value").get();
         refresh();
+        indexRandomForConcurrentSearch("index1", "index2");
 
         SearchResponse response = client().prepareSearch("index1", "index2")
             .setQuery(
@@ -1002,6 +1004,7 @@ public class InnerHitsIT extends ParameterizedOpenSearchIntegTestCase {
             .setRefreshPolicy(IMMEDIATE)
             .get();
 
+        indexRandomForConcurrentSearch("index2");
         QueryBuilder query = nestedQuery("nested", matchQuery("nested.field", "value1"), ScoreMode.Avg).innerHit(
             new InnerHitBuilder().setSize(ArrayUtil.MAX_ARRAY_LENGTH - 1)
         );
@@ -1019,6 +1022,7 @@ public class InnerHitsIT extends ParameterizedOpenSearchIntegTestCase {
             )
             .setRefreshPolicy(IMMEDIATE)
             .get();
+        indexRandomForConcurrentSearch("index2");
         SearchResponse response = client().prepareSearch("index2")
             .setQuery(
                 nestedQuery("nested", matchQuery("nested.field", "value1"), ScoreMode.Avg).innerHit(

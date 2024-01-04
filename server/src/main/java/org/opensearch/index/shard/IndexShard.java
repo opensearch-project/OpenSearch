@@ -78,6 +78,7 @@ import org.opensearch.common.CheckedFunction;
 import org.opensearch.common.CheckedRunnable;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.SetOnce;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.io.stream.BytesStreamOutput;
@@ -187,6 +188,7 @@ import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.indices.recovery.RecoveryTarget;
 import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
 import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpointPublisher;
+import org.opensearch.indices.replication.common.ReplicationTimer;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.Repository;
 import org.opensearch.search.suggest.completion.CompletionStats;
@@ -202,6 +204,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.NoSuchFileException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashSet;
@@ -237,8 +240,9 @@ import static org.opensearch.index.translog.Translog.TRANSLOG_UUID_KEY;
 /**
  * An OpenSearch index shard
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class IndexShard extends AbstractIndexShardComponent implements IndicesClusterStateService.Shard {
 
     private final ThreadPool threadPool;
@@ -341,6 +345,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     private final List<ReferenceManager.RefreshListener> internalRefreshListener = new ArrayList<>();
     private final RemoteStoreFileDownloader fileDownloader;
+    private final RecoverySettings recoverySettings;
 
     public IndexShard(
         final ShardRouting shardRouting,
@@ -465,6 +470,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             ? false
             : mapperService.documentMapper().mappers().containsTimeStampField();
         this.remoteStoreStatsTrackerFactory = remoteStoreStatsTrackerFactory;
+        this.recoverySettings = recoverySettings;
         this.fileDownloader = new RemoteStoreFileDownloader(shardRouting.shardId(), threadPool, recoverySettings);
     }
 
@@ -563,6 +569,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return translogConfig.getNodeId();
     }
 
+    public RecoverySettings getRecoverySettings() {
+        return recoverySettings;
+    }
+
     public RemoteStoreFileDownloader getFileDownloader() {
         return fileDownloader;
     }
@@ -640,7 +650,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     if (currentRouting.initializing() && currentRouting.isRelocationTarget() == false && newRouting.active()) {
                         // the cluster-manager started a recovering primary, activate primary mode.
                         replicationTracker.activatePrimaryMode(getLocalCheckpoint());
-                        ensurePeerRecoveryRetentionLeasesExist();
+                        postActivatePrimaryMode();
                     }
                 } else {
                     assert currentRouting.primary() == false : "term is only increased as part of primary promotion";
@@ -698,7 +708,16 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                             if (indexSettings.isSegRepEnabled()) {
                                 // this Shard's engine was read only, we need to update its engine before restoring local history from xlog.
                                 assert newRouting.primary() && currentRouting.primary() == false;
+                                ReplicationTimer timer = new ReplicationTimer();
+                                timer.start();
+                                logger.debug(
+                                    "Resetting engine on promotion of shard [{}] to primary, startTime {}\n",
+                                    shardId,
+                                    timer.startTime()
+                                );
                                 resetEngineToGlobalCheckpoint();
+                                timer.stop();
+                                logger.info("Completed engine failover for shard [{}] in: {} ms", shardId, timer.time());
                                 // It is possible an engine can open with a SegmentInfos on a higher gen but the reader does not refresh to
                                 // trigger our refresh listener.
                                 // Force update the checkpoint post engine reset.
@@ -711,8 +730,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                                 // are brought up to date.
                                 checkpointPublisher.publish(this, getLatestReplicationCheckpoint());
                             }
-
-                            ensurePeerRecoveryRetentionLeasesExist();
+                            postActivatePrimaryMode();
                             /*
                              * If this shard was serving as a replica shard when another shard was promoted to primary then
                              * its Lucene index was reset during the primary term transition. In particular, the Lucene index
@@ -833,6 +851,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         final Runnable performSegRep
     ) throws IllegalIndexShardStateException, IllegalStateException, InterruptedException {
         assert shardRouting.primary() : "only primaries can be marked as relocated: " + shardRouting;
+        // The below list of releasable ensures that if the relocation does not happen, we undo the activity of close and
+        // acquire all permits. This will ensure that the remote store uploads can still be done by the existing primary shard.
+        List<Releasable> releasablesOnHandoffFailures = new ArrayList<>(2);
         try (Releasable forceRefreshes = refreshListeners.forceRefreshes()) {
             indexShardOperationPermits.blockOperations(30, TimeUnit.MINUTES, () -> {
                 forceRefreshes.close();
@@ -845,11 +866,15 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     maybeSync();
                 }
 
-                // Ensures all in-flight remote store operations drain, before we perform the handoff.
-                internalRefreshListener.stream()
-                    .filter(refreshListener -> refreshListener instanceof Closeable)
-                    .map(refreshListener -> (Closeable) refreshListener)
-                    .close();
+                // Ensures all in-flight remote store refreshes drain, before we perform the performSegRep.
+                for (ReferenceManager.RefreshListener refreshListener : internalRefreshListener) {
+                    if (refreshListener instanceof ReleasableRetryableRefreshListener) {
+                        releasablesOnHandoffFailures.add(((ReleasableRetryableRefreshListener) refreshListener).drainRefreshes());
+                    }
+                }
+
+                // Ensure all in-flight remote store translog upload drains, before we perform the performSegRep.
+                releasablesOnHandoffFailures.add(getEngine().translogManager().drainSync());
 
                 // no shard operation permits are being held here, move state from started to relocated
                 assert indexShardOperationPermits.getActiveOperationsCount() == OPERATIONS_BLOCKED
@@ -884,6 +909,13 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             // Fail primary relocation source and target shards.
             failShard("timed out waiting for relocation hand-off to complete", null);
             throw new IndexShardClosedException(shardId(), "timed out waiting for relocation hand-off to complete");
+        } catch (Exception ex) {
+            assert replicationTracker.isPrimaryMode();
+            // If the primary mode is still true after the end of handoff attempt, it basically means that the relocation
+            // failed. The existing primary will continue to be the primary, so we need to allow the segments and translog
+            // upload to resume.
+            Releasables.close(releasablesOnHandoffFailures);
+            throw ex;
         }
     }
 
@@ -1732,20 +1764,14 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         if (isSegmentReplicationAllowed() == false) {
             return false;
         }
-        ReplicationCheckpoint localCheckpoint = getLatestReplicationCheckpoint();
-        if (localCheckpoint.isAheadOf(requestCheckpoint)) {
+        final ReplicationCheckpoint localCheckpoint = getLatestReplicationCheckpoint();
+        if (requestCheckpoint.isAheadOf(localCheckpoint) == false) {
             logger.trace(
                 () -> new ParameterizedMessage(
                     "Ignoring new replication checkpoint - Shard is already on checkpoint {} that is ahead of {}",
                     localCheckpoint,
                     requestCheckpoint
                 )
-            );
-            return false;
-        }
-        if (localCheckpoint.equals(requestCheckpoint)) {
-            logger.trace(
-                () -> new ParameterizedMessage("Ignoring new replication checkpoint - Shard is already on checkpoint {}", requestCheckpoint)
             );
             return false;
         }
@@ -1995,6 +2021,29 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         FilterDirectory byteSizeCachingStoreDirectory = (FilterDirectory) remoteStoreDirectory.getDelegate();
         final Directory remoteDirectory = byteSizeCachingStoreDirectory.getDelegate();
         return ((RemoteSegmentStoreDirectory) remoteDirectory);
+    }
+
+    /**
+    Returns true iff it is able to verify that remote segment store
+    is in sync with local
+     */
+    boolean isRemoteSegmentStoreInSync() {
+        assert indexSettings.isRemoteStoreEnabled();
+        try {
+            RemoteSegmentStoreDirectory directory = getRemoteDirectory();
+            if (directory.readLatestMetadataFile() != null) {
+                // verifying that all files except EXCLUDE_FILES are uploaded to the remote
+                Collection<String> uploadFiles = directory.getSegmentsUploadedToRemoteStore().keySet();
+                SegmentInfos segmentInfos = store.readLastCommittedSegmentsInfo();
+                Collection<String> localFiles = segmentInfos.files(true);
+                if (uploadFiles.containsAll(localFiles)) {
+                    return true;
+                }
+            }
+        } catch (IOException e) {
+            logger.error("Exception while reading latest metadata", e);
+        }
+        return false;
     }
 
     public void preRecovery() {
@@ -3010,7 +3059,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             long maxBytesBehind = stats.stream().mapToLong(SegmentReplicationShardStats::getBytesBehindCount).max().orElse(0L);
             long totalBytesBehind = stats.stream().mapToLong(SegmentReplicationShardStats::getBytesBehindCount).sum();
             long maxReplicationLag = stats.stream()
-                .mapToLong(SegmentReplicationShardStats::getCurrentReplicationTimeMillis)
+                .mapToLong(SegmentReplicationShardStats::getCurrentReplicationLagMillis)
                 .max()
                 .orElse(0L);
             return new ReplicationStats(maxBytesBehind, totalBytesBehind, maxReplicationLag);
@@ -3392,6 +3441,20 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 + "]";
         synchronized (mutex) {
             replicationTracker.activateWithPrimaryContext(primaryContext); // make changes to primaryMode flag only under mutex
+        }
+        postActivatePrimaryMode();
+    }
+
+    private void postActivatePrimaryMode() {
+        if (indexSettings.isRemoteStoreEnabled()) {
+            // We make sure to upload translog (even if it does not contain any operations) to remote translog.
+            // This helps to get a consistent state in remote store where both remote segment store and remote
+            // translog contains data.
+            try {
+                getEngine().translogManager().syncTranslog();
+            } catch (IOException e) {
+                logger.error("Failed to sync translog to remote from new primary", e);
+            }
         }
         ensurePeerRecoveryRetentionLeasesExist();
     }
@@ -3816,10 +3879,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             circuitBreakerService,
             globalCheckpointSupplier,
             replicationTracker::getRetentionLeases,
-            () -> getOperationPrimaryTerm(),
+            this::getOperationPrimaryTerm,
             tombstoneDocSupplier(),
             isReadOnlyReplica,
-            replicationTracker::isPrimaryMode,
+            this::isStartedPrimary,
             translogFactorySupplier.apply(indexSettings, shardRouting),
             isTimeSeriesDescSortOptimizationEnabled() ? DataStream.TIMESERIES_LEAF_SORTER : null // DESC @timestamp default order for
             // timeseries
@@ -3832,6 +3895,15 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     public boolean isRemoteTranslogEnabled() {
         return indexSettings() != null && indexSettings().isRemoteTranslogStoreEnabled();
+    }
+
+    /**
+     * This checks if we are in state to upload to remote store. Until the cluster-manager informs the shard through
+     * cluster state, the shard will not be in STARTED state. This method is used to prevent pre-emptive segment or
+     * translog uploads.
+     */
+    public boolean isStartedPrimary() {
+        return getReplicationTracker().isPrimaryMode() && state() == IndexShardState.STARTED;
     }
 
     /**
@@ -4356,8 +4428,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      *
      * @see IndexShard#addShardFailureCallback(Consumer)
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public static final class ShardFailure {
         public final ShardRouting routing;
         public final String reason;
@@ -4774,6 +4847,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * @throws IOException if exception occurs while reading segments from remote store.
      */
     public void syncSegmentsFromRemoteSegmentStore(boolean overrideLocal, final Runnable onFileSync) throws IOException {
+        boolean syncSegmentSuccess = false;
+        long startTimeMs = System.currentTimeMillis();
         assert indexSettings.isRemoteStoreEnabled();
         logger.trace("Downloading segments from remote segment store");
         RemoteSegmentStoreDirectory remoteDirectory = getRemoteDirectory();
@@ -4823,9 +4898,15 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     : "There should not be any segments file in the dir";
                 store.commitSegmentInfos(infosSnapshot, processedLocalCheckpoint, processedLocalCheckpoint);
             }
+            syncSegmentSuccess = true;
         } catch (IOException e) {
             throw new IndexShardRecoveryException(shardId, "Exception while copying segment files from remote segment store", e);
         } finally {
+            logger.trace(
+                "syncSegmentsFromRemoteSegmentStore success={} elapsedTime={}",
+                syncSegmentSuccess,
+                (System.currentTimeMillis() - startTimeMs)
+            );
             store.decRef();
             remoteStore.decRef();
         }
@@ -4853,8 +4934,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             remoteStore.incRef();
         }
         Map<String, RemoteSegmentStoreDirectory.UploadedSegmentMetadata> uploadedSegments = sourceRemoteDirectory
-            .initializeToSpecificCommit(primaryTerm, commitGeneration)
-            .getMetadata();
+            .getSegmentsUploadedToRemoteStore();
         final Directory storeDirectory = store.directory();
         store.incRef();
 
@@ -4941,7 +5021,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return segmentNFile;
     }
 
-    private boolean localDirectoryContains(Directory localDirectory, String file, long checksum) {
+    // Visible for testing
+    boolean localDirectoryContains(Directory localDirectory, String file, long checksum) throws IOException {
         try (IndexInput indexInput = localDirectory.openInput(file, IOContext.DEFAULT)) {
             if (checksum == CodecUtil.retrieveChecksum(indexInput)) {
                 return true;
@@ -4960,6 +5041,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             logger.debug("File {} does not exist in local FS, downloading from remote store", file);
         } catch (IOException e) {
             logger.warn("Exception while reading checksum of file: {}, this can happen if file is corrupted", file);
+            // For any other exception on reading checksum, we delete the file to re-download again
+            localDirectory.deleteFile(file);
         }
         return false;
     }

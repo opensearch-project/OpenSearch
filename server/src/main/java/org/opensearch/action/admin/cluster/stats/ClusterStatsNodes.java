@@ -38,6 +38,7 @@ import org.opensearch.action.admin.cluster.node.info.PluginsAndModules;
 import org.opensearch.action.admin.cluster.node.stats.NodeStats;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodeRole;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.metrics.OperationStats;
 import org.opensearch.common.network.NetworkModule;
 import org.opensearch.common.settings.Settings;
@@ -71,8 +72,9 @@ import java.util.concurrent.atomic.AtomicInteger;
 /**
  * Per Node Cluster Stats
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class ClusterStatsNodes implements ToXContentFragment {
 
     private final Counts counts;
@@ -214,8 +216,9 @@ public class ClusterStatsNodes implements ToXContentFragment {
     /**
      * Inner Counts
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public static class Counts implements ToXContentFragment {
         static final String COORDINATING_ONLY = "coordinating_only";
 
@@ -282,8 +285,9 @@ public class ClusterStatsNodes implements ToXContentFragment {
     /**
      * Inner Operating System Stats
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public static class OsStats implements ToXContentFragment {
         final int availableProcessors;
         final int allocatedProcessors;
@@ -395,8 +399,9 @@ public class ClusterStatsNodes implements ToXContentFragment {
     /**
      * Inner Process Stats
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public static class ProcessStats implements ToXContentFragment {
 
         final int count;
@@ -498,8 +503,9 @@ public class ClusterStatsNodes implements ToXContentFragment {
     /**
      * Inner JVM Stats
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public static class JvmStats implements ToXContentFragment {
 
         private final Map<JvmVersion, Integer> versions;
@@ -626,8 +632,9 @@ public class ClusterStatsNodes implements ToXContentFragment {
     /**
      * Inner JVM Version
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public static class JvmVersion {
         String version;
         String vmName;
