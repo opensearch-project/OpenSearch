@@ -46,6 +46,7 @@ import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.ShardRoutingState;
 import org.opensearch.cluster.routing.TestShardRouting;
 import org.opensearch.common.Table;
+import org.opensearch.index.shard.DocsStats;
 import org.opensearch.index.shard.ShardPath;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.rest.FakeRestRequest;
@@ -65,6 +66,8 @@ public class RestShardsActionTests extends OpenSearchTestCase {
 
     public void testBuildTable() {
         final int numShards = randomIntBetween(1, 5);
+        long numDocs = randomLongBetween(0, 10000);
+        long numDeletedDocs = randomLongBetween(0, 100);
         DiscoveryNode localNode = new DiscoveryNode("local", buildNewFakeTransportAddress(), Version.CURRENT);
 
         List<ShardRouting> shardRoutings = new ArrayList<>(numShards);
@@ -76,10 +79,12 @@ public class RestShardsActionTests extends OpenSearchTestCase {
             Path path = createTempDir().resolve("indices")
                 .resolve(shardRouting.shardId().getIndex().getUUID())
                 .resolve(String.valueOf(shardRouting.shardId().id()));
+            CommonStats commonStats = new CommonStats();
+            commonStats.docs = new DocsStats(numDocs, numDeletedDocs, 0);
             ShardStats shardStats = new ShardStats(
                 shardRouting,
                 new ShardPath(false, path, path, shardRouting.shardId()),
-                null,
+                commonStats,
                 null,
                 null,
                 null
@@ -120,6 +125,7 @@ public class RestShardsActionTests extends OpenSearchTestCase {
         assertThat(headers.get(6).value, equalTo("ip"));
         assertThat(headers.get(7).value, equalTo("id"));
         assertThat(headers.get(8).value, equalTo("node"));
+        assertThat(headers.get(74).value, equalTo("docs.deleted"));
 
         final List<List<Table.Cell>> rows = table.getRows();
         assertThat(rows.size(), equalTo(numShards));
@@ -132,10 +138,12 @@ public class RestShardsActionTests extends OpenSearchTestCase {
             assertThat(row.get(1).value, equalTo(shardRouting.getId()));
             assertThat(row.get(2).value, equalTo(shardRouting.primary() ? "p" : "r"));
             assertThat(row.get(3).value, equalTo(shardRouting.state()));
+            assertThat(row.get(4).value, equalTo(shardStats.getStats().getDocs().getCount()));
             assertThat(row.get(6).value, equalTo(localNode.getHostAddress()));
             assertThat(row.get(7).value, equalTo(localNode.getId()));
             assertThat(row.get(72).value, equalTo(shardStats.getDataPath()));
             assertThat(row.get(73).value, equalTo(shardStats.getStatePath()));
+            assertThat(row.get(74).value, equalTo(shardStats.getStats().getDocs().getDeleted()));
         }
     }
 }
