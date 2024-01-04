@@ -161,7 +161,7 @@ public final class ThreadContext implements Writeable {
             );
         }
 
-        final Map<String, Object> transientHeaders = propagateTransients(context.transientHeaders);
+        final Map<String, Object> transientHeaders = propagateTransients(context.transientHeaders, context.isSystemContext);
         if (!transientHeaders.isEmpty()) {
             threadContextStruct = threadContextStruct.putTransient(transientHeaders);
         }
@@ -182,7 +182,7 @@ public final class ThreadContext implements Writeable {
     public Writeable captureAsWriteable() {
         final ThreadContextStruct context = threadLocal.get();
         return out -> {
-            final Map<String, String> propagatedHeaders = propagateHeaders(context.transientHeaders);
+            final Map<String, String> propagatedHeaders = propagateHeaders(context.transientHeaders, context.isSystemContext);
             context.writeTo(out, defaultHeader, propagatedHeaders);
         };
     }
@@ -245,7 +245,7 @@ public final class ThreadContext implements Writeable {
         final Map<String, Object> newTransientHeaders = new HashMap<>(originalContext.transientHeaders);
 
         boolean transientHeadersModified = false;
-        final Map<String, Object> transientHeaders = propagateTransients(originalContext.transientHeaders);
+        final Map<String, Object> transientHeaders = propagateTransients(originalContext.transientHeaders, originalContext.isSystemContext);
         if (!transientHeaders.isEmpty()) {
             newTransientHeaders.putAll(transientHeaders);
             transientHeadersModified = true;
@@ -322,7 +322,7 @@ public final class ThreadContext implements Writeable {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         final ThreadContextStruct context = threadLocal.get();
-        final Map<String, String> propagatedHeaders = propagateHeaders(context.transientHeaders);
+        final Map<String, String> propagatedHeaders = propagateHeaders(context.transientHeaders, context.isSystemContext);
         context.writeTo(out, defaultHeader, propagatedHeaders);
     }
 
@@ -534,17 +534,7 @@ public final class ThreadContext implements Writeable {
      * by the system itself rather than by a user action.
      */
     public void markAsSystemContext() {
-        ThreadContextStruct threadContextStruct = threadLocal.get();
-        final Map<String, Object> transients = new HashMap<>();
-        propagators.forEach(p -> transients.putAll(p.transientsForSystemContext(threadContextStruct.transientHeaders)));
-        ThreadContextStruct newThreadContextStruct = new ThreadContextStruct(
-            threadContextStruct.requestHeaders,
-            threadContextStruct.responseHeaders,
-            transients,
-            threadContextStruct.persistentHeaders,
-            threadContextStruct.isSystemContext
-        );
-        threadLocal.set(newThreadContextStruct.setSystemContext());
+        threadLocal.set(threadLocal.get().setSystemContext(propagators));
     }
 
     /**
@@ -583,15 +573,15 @@ public final class ThreadContext implements Writeable {
         }
     }
 
-    private Map<String, Object> propagateTransients(Map<String, Object> source) {
+    private Map<String, Object> propagateTransients(Map<String, Object> source, boolean isSystemContext) {
         final Map<String, Object> transients = new HashMap<>();
-        propagators.forEach(p -> transients.putAll(p.transients(source)));
+        propagators.forEach(p -> transients.putAll(p.transients(source, isSystemContext)));
         return transients;
     }
 
-    private Map<String, String> propagateHeaders(Map<String, Object> source) {
+    private Map<String, String> propagateHeaders(Map<String, Object> source, boolean isSystemContext) {
         final Map<String, String> headers = new HashMap<>();
-        propagators.forEach(p -> headers.putAll(p.headers(source)));
+        propagators.forEach(p -> headers.putAll(p.headers(source, isSystemContext)));
         return headers;
     }
 
@@ -613,11 +603,13 @@ public final class ThreadContext implements Writeable {
         // saving current warning headers' size not to recalculate the size with every new warning header
         private final long warningHeadersSize;
 
-        private ThreadContextStruct setSystemContext() {
+        private ThreadContextStruct setSystemContext(final List<ThreadContextStatePropagator> propagators) {
             if (isSystemContext) {
                 return this;
             }
-            return new ThreadContextStruct(requestHeaders, responseHeaders, transientHeaders, persistentHeaders, true);
+            final Map<String, Object> transients = new HashMap<>();
+            propagators.forEach(p -> transients.putAll(p.transients(transientHeaders, true)));
+            return new ThreadContextStruct(requestHeaders, responseHeaders, transients, persistentHeaders, true);
         }
 
         private ThreadContextStruct(

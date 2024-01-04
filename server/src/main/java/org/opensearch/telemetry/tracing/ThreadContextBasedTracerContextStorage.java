@@ -50,21 +50,19 @@ public class ThreadContextBasedTracerContextStorage implements TracerContextStor
     }
 
     @Override
-    public Map<String, Object> transients(Map<String, Object> source) {
+    public Map<String, Object> transients(Map<String, Object> source, boolean isSystemContext) {
         final Map<String, Object> transients = new HashMap<>();
-
-        if (source.containsKey(CURRENT_SPAN)) {
+        if (isSystemContext == false && source.containsKey(CURRENT_SPAN)) {
             final SpanReference current = (SpanReference) source.get(CURRENT_SPAN);
             if (current != null) {
                 transients.put(CURRENT_SPAN, new SpanReference(current.getSpan()));
             }
         }
-
         return transients;
     }
 
     @Override
-    public Map<String, String> headers(Map<String, Object> source) {
+    public Map<String, String> headers(Map<String, Object> source, boolean isSystemContext) {
         final Map<String, String> headers = new HashMap<>();
 
         if (source.containsKey(CURRENT_SPAN)) {
