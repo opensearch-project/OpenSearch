@@ -29,6 +29,7 @@ import org.opensearch.plugins.Plugin;
 import org.opensearch.test.InternalTestCluster;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.disruption.NetworkDisruption;
+import org.opensearch.test.junit.annotations.TestLogging;
 import org.opensearch.test.transport.MockTransportService;
 
 import java.io.IOException;
@@ -249,6 +250,7 @@ public class RemoteStoreStatsIT extends RemoteStoreBaseIntegTestCase {
         }
     }
 
+    @TestLogging(reason = "Getting trace logs from remote store package", value = "org.opensearch.remotestore:TRACE")
     public void testDownloadStatsCorrectnessSinglePrimarySingleReplica() throws Exception {
         setup();
         // Scenario:
@@ -346,6 +348,7 @@ public class RemoteStoreStatsIT extends RemoteStoreBaseIntegTestCase {
         }
     }
 
+    @TestLogging(reason = "Getting trace logs from remote store package", value = "org.opensearch.remotestore:TRACE")
     public void testDownloadStatsCorrectnessSinglePrimaryMultipleReplicaShards() throws Exception {
         setup();
         // Scenario:
