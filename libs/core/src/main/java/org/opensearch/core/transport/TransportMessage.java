@@ -32,6 +32,7 @@
 
 package org.opensearch.core.transport;
 
+import org.opensearch.core.common.io.stream.ProtobufWriteable;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.core.common.transport.TransportAddress;
@@ -41,7 +42,7 @@ import org.opensearch.core.common.transport.TransportAddress;
  *
  * @opensearch.internal
  */
-public abstract class TransportMessage implements Writeable {
+public abstract class TransportMessage implements Writeable, ProtobufWriteable {
 
     private TransportAddress remoteAddress;
 
@@ -63,4 +64,10 @@ public abstract class TransportMessage implements Writeable {
      * currently a no-op
      */
     public TransportMessage(StreamInput in) {}
+
+    /**
+    * Constructs a new transport message with the data from the byte array. This is
+    * currently a no-op
+    */
+    public TransportMessage(byte[] in) {}
 }
