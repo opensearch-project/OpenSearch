@@ -1,4 +1,4 @@
-# Frontend development environments
+# Indexer development environments
 
 Install [Docker Desktop][docker-desktop] as per its instructions, available for Windows, Mac
 and Linux (Ubuntu, Debian & Fedora).

@@ -50,7 +50,7 @@ jobs:
         exclude:
           # skip arm64 until we have arm runners
           - architecture: arm64
-          - distribution: [tar, deb] # Exclude deb assembly until it's implemented
+          - distribution: tar
 
     uses: ./.github/workflows/r_assemble.yml
     with:

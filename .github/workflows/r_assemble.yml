@@ -39,6 +39,11 @@ jobs:
           name: ${{ inputs.min }}
           path: artifacts/dist
 
+      - name: Provision
+        if: ${{ inputs.distribution == 'deb' }}
+        run: |
+          sudo bash scripts/provision.sh
+
       - name: Run `assemble.sh`
         run: |
           bash scripts/assemble.sh -v ${{ vars.OPENSEARCH_VERSION }} -p linux -a ${{ inputs.architecture }} -d ${{ inputs.distribution }}
@@ -55,4 +60,3 @@ jobs:
           name: ${{ inputs.name }}
           path: artifacts/dist/${{ steps.get_name.outputs.name }}
           if-no-files-found: error
-
