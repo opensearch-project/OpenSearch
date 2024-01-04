@@ -3,7 +3,7 @@
 setup:
   - skip:
       version: " - 2.11.99"
-      reason: "match_only_text was added in 3.0"
+      reason: "match_only_text was added in 2.12"
   - do:
       indices.create:
         index: test
@@ -123,7 +123,7 @@ setup:
 "breaks ties by sorting terms":
   - skip:
       version: " - 2.11.99"
-      reason: "match_only_text was added in 3.0"
+      reason: "match_only_text was added in 2.12"
   # This runs the suggester without bigrams so we can be sure of the sort order
   - do:
       search:
@@ -182,7 +182,7 @@ setup:
 "doesn't fail when asked to run on a field without unigrams when force_unigrams=false":
   - skip:
       version: " - 2.11.99"
-      reason: "match_only_text was added in 3.0"
+      reason: "match_only_text was added in 2.12"
   - do:
       search:
         rest_total_hits_as_int: true
@@ -214,7 +214,7 @@ setup:
 "reverse suggestions":
   - skip:
       version: " - 2.11.99"
-      reason: "match_only_text was added in 3.0"
+      reason: "match_only_text was added in 2.12"
   - do:
       search:
         rest_total_hits_as_int: true
