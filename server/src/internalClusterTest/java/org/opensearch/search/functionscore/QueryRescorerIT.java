@@ -110,7 +110,7 @@ public class QueryRescorerIT extends ParameterizedOpenSearchIntegTestCase {
         return Settings.builder().put(super.featureFlagSettings()).put(FeatureFlags.CONCURRENT_SEGMENT_SEARCH, "true").build();
     }
 
-    public void testEnforceWindowSize() {
+    public void testEnforceWindowSize() throws InterruptedException {
         createIndex("test");
         // this
         int iters = scaledRandomIntBetween(10, 20);
@@ -118,6 +118,7 @@ public class QueryRescorerIT extends ParameterizedOpenSearchIntegTestCase {
             client().prepareIndex("test").setId(Integer.toString(i)).setSource("f", Integer.toString(i)).get();
         }
         refresh();
+        indexRandomForConcurrentSearch("test");
 
         int numShards = getNumShards("test").numPrimaries;
         for (int j = 0; j < iters; j++) {
@@ -169,6 +170,7 @@ public class QueryRescorerIT extends ParameterizedOpenSearchIntegTestCase {
             .setSource("field1", "quick huge brown", "field2", "the quick lazy huge brown fox jumps over the tree")
             .get();
         refresh();
+        indexRandomForConcurrentSearch("test");
         SearchResponse searchResponse = client().prepareSearch()
             .setQuery(QueryBuilders.matchQuery("field1", "the quick brown").operator(Operator.OR))
             .setRescorer(
@@ -474,6 +476,7 @@ public class QueryRescorerIT extends ParameterizedOpenSearchIntegTestCase {
     public void testEquivalence() throws Exception {
         // no dummy docs since merges can change scores while we run queries.
         int numDocs = indexRandomNumbers("whitespace", -1, false);
+        indexRandomForConcurrentSearch("test");
 
         final int iters = scaledRandomIntBetween(50, 100);
         for (int i = 0; i < iters; i++) {
@@ -545,6 +548,7 @@ public class QueryRescorerIT extends ParameterizedOpenSearchIntegTestCase {
             .setSource("field1", "quick huge brown", "field2", "the quick lazy huge brown fox jumps over the tree")
             .get();
         refresh();
+        indexRandomForConcurrentSearch("test");
 
         {
             SearchResponse searchResponse = client().prepareSearch()
@@ -816,6 +820,7 @@ public class QueryRescorerIT extends ParameterizedOpenSearchIntegTestCase {
             client().prepareIndex("test").setId("" + i).setSource("text", "hello world").get();
         }
         refresh();
+        indexRandomForConcurrentSearch("test");
 
         SearchRequestBuilder request = client().prepareSearch();
         request.setQuery(QueryBuilders.termQuery("text", "hello"));
@@ -832,6 +837,7 @@ public class QueryRescorerIT extends ParameterizedOpenSearchIntegTestCase {
             client().prepareIndex("test").setId("" + i).setSource("number", 0).get();
         }
         refresh();
+        indexRandomForConcurrentSearch("test");
 
         Exception exc = expectThrows(
             Exception.class,

@@ -33,6 +33,7 @@
 package org.opensearch.index.query;
 
 import org.apache.lucene.search.Query;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.lucene.search.Queries;
 
 import java.util.Map;
@@ -42,8 +43,9 @@ import static java.util.Collections.emptyMap;
 /**
  * The result of parsing a query.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class ParsedQuery {
     private final Query query;
     private final Map<String, Query> namedFilters;

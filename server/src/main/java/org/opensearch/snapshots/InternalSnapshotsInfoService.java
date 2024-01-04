@@ -45,6 +45,7 @@ import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.ShardRoutingState;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Priority;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
@@ -364,9 +365,9 @@ public class InternalSnapshotsInfoService implements ClusterStateListener, Snaps
     /**
      * A snapshot of a shard
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
-
+    @PublicApi(since = "1.0.0")
     public static class SnapshotShard {
 
         private final Snapshot snapshot;

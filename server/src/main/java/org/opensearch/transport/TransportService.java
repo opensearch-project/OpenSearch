@@ -64,6 +64,7 @@ import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.core.service.ReportingService;
 import org.opensearch.core.transport.TransportResponse;
 import org.opensearch.node.NodeClosedException;
+import org.opensearch.ratelimitting.admissioncontrol.enums.AdmissionControlActionType;
 import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskManager;
 import org.opensearch.telemetry.tracing.Span;
@@ -867,59 +868,18 @@ public class TransportService extends AbstractLifecycleComponent
         final TransportRequestOptions options,
         final TransportResponseHandler<T> handler
     ) {
-        final Span span = tracer.startSpan(SpanBuilder.from(action, connection));
-        try (SpanScope spanScope = tracer.withSpanInScope(span)) {
-            TransportResponseHandler<T> traceableTransportResponseHandler = TraceableTransportResponseHandler.create(handler, span, tracer);
-            try {
-                logger.debug("Action: " + action);
-                final TransportResponseHandler<T> delegate;
-                if (request.getParentTask().isSet()) {
-                    // TODO: capture the connection instead so that we can cancel child tasks on the remote connections.
-                    final Releasable unregisterChildNode = taskManager.registerChildNode(
-                        request.getParentTask().getId(),
-                        connection.getNode()
-                    );
-                    delegate = new TransportResponseHandler<T>() {
-                        @Override
-                        public void handleResponse(T response) {
-                            unregisterChildNode.close();
-                            traceableTransportResponseHandler.handleResponse(response);
-                        }
-
-                        @Override
-                        public void handleException(TransportException exp) {
-                            unregisterChildNode.close();
-                            traceableTransportResponseHandler.handleException(exp);
-                        }
-
-                        @Override
-                        public String executor() {
-                            return traceableTransportResponseHandler.executor();
-                        }
-
-                        @Override
-                        public T read(StreamInput in) throws IOException {
-                            return traceableTransportResponseHandler.read(in);
-                        }
-
-                        @Override
-                        public String toString() {
-                            return getClass().getName() + "/[" + action + "]:" + handler.toString();
-                        }
-                    };
-                } else {
-                    delegate = traceableTransportResponseHandler;
-                }
-                asyncSender.sendRequest(connection, action, request, options, delegate);
-            } catch (final Exception ex) {
-                // the caller might not handle this so we invoke the handler
-                final TransportException te;
-                if (ex instanceof TransportException) {
-                    te = (TransportException) ex;
-                } else {
-                    te = new TransportException("failure to send", ex);
-                }
-                traceableTransportResponseHandler.handleException(te);
+        if (connection == localNodeConnection) {
+            // See please https://github.com/opensearch-project/OpenSearch/issues/10291
+            sendRequestAsync(connection, action, request, options, handler);
+        } else {
+            final Span span = tracer.startSpan(SpanBuilder.from(action, connection));
+            try (SpanScope spanScope = tracer.withSpanInScope(span)) {
+                TransportResponseHandler<T> traceableTransportResponseHandler = TraceableTransportResponseHandler.create(
+                    handler,
+                    span,
+                    tracer
+                );
+                sendRequestAsync(connection, action, request, options, traceableTransportResponseHandler);
             }
         }
     }
@@ -1229,6 +1189,40 @@ public class TransportService extends AbstractLifecycleComponent
     ) {
         validateActionName(action);
         handler = interceptor.interceptHandler(action, executor, forceExecution, handler);
+        RequestHandlerRegistry<Request> reg = new RequestHandlerRegistry<>(
+            action,
+            requestReader,
+            taskManager,
+            handler,
+            executor,
+            forceExecution,
+            canTripCircuitBreaker
+        );
+        transport.registerRequestHandler(reg);
+    }
+
+    /**
+     * Registers a new request handler with admission control support
+     *
+     * @param action                The action the request handler is associated with
+     * @param executor              The executor the request handling will be executed on
+     * @param forceExecution        Force execution on the executor queue and never reject it
+     * @param canTripCircuitBreaker Check the request size and raise an exception in case the limit is breached.
+     * @param admissionControlActionType Admission control based on resource usage limits of provided action type
+     * @param requestReader               The request class that will be used to construct new instances for streaming
+     * @param handler               The handler itself that implements the request handling
+     */
+    public <Request extends TransportRequest> void registerRequestHandler(
+        String action,
+        String executor,
+        boolean forceExecution,
+        boolean canTripCircuitBreaker,
+        AdmissionControlActionType admissionControlActionType,
+        Writeable.Reader<Request> requestReader,
+        TransportRequestHandler<Request> handler
+    ) {
+        validateActionName(action);
+        handler = interceptor.interceptHandler(action, executor, forceExecution, handler, admissionControlActionType);
         RequestHandlerRegistry<Request> reg = new RequestHandlerRegistry<>(
             action,
             requestReader,
@@ -1688,6 +1682,63 @@ public class TransportService extends AbstractLifecycleComponent
             for (TransportMessageListener listener : listeners) {
                 listener.onResponseReceived(requestId, holder);
             }
+        }
+    }
+
+    private <T extends TransportResponse> void sendRequestAsync(
+        final Transport.Connection connection,
+        final String action,
+        final TransportRequest request,
+        final TransportRequestOptions options,
+        final TransportResponseHandler<T> handler
+    ) {
+        try {
+            logger.debug("Action: " + action);
+            final TransportResponseHandler<T> delegate;
+            if (request.getParentTask().isSet()) {
+                // TODO: capture the connection instead so that we can cancel child tasks on the remote connections.
+                final Releasable unregisterChildNode = taskManager.registerChildNode(request.getParentTask().getId(), connection.getNode());
+                delegate = new TransportResponseHandler<T>() {
+                    @Override
+                    public void handleResponse(T response) {
+                        unregisterChildNode.close();
+                        handler.handleResponse(response);
+                    }
+
+                    @Override
+                    public void handleException(TransportException exp) {
+                        unregisterChildNode.close();
+                        handler.handleException(exp);
+                    }
+
+                    @Override
+                    public String executor() {
+                        return handler.executor();
+                    }
+
+                    @Override
+                    public T read(StreamInput in) throws IOException {
+                        return handler.read(in);
+                    }
+
+                    @Override
+                    public String toString() {
+                        return getClass().getName() + "/[" + action + "]:" + handler.toString();
+                    }
+                };
+            } else {
+                delegate = handler;
+            }
+            asyncSender.sendRequest(connection, action, request, options, delegate);
+        } catch (final Exception ex) {
+            // the caller might not handle this so we invoke the handler
+            final TransportException te;
+            if (ex instanceof TransportException) {
+                te = (TransportException) ex;
+            } else {
+                te = new TransportException("failure to send", ex);
+            }
+            handler.handleException(te);
         }
     }
 }

@@ -770,8 +770,11 @@ public final class NodeEnvironment implements Closeable {
 
     /**
      * A functional interface that people can use to reference {@link #shardLock(ShardId, String, long)}
+     *
+     * @opensearch.api
      */
     @FunctionalInterface
+    @PublicApi(since = "1.0.0")
     public interface ShardLocker {
         ShardLock lock(ShardId shardId, String lockDetails, long lockTimeoutMS) throws ShardLockObtainFailedException;
     }

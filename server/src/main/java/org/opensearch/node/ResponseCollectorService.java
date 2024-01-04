@@ -37,6 +37,7 @@ import org.opensearch.cluster.ClusterStateListener;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.ExponentiallyWeightedMovingAverage;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.util.concurrent.ConcurrentCollections;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
@@ -54,8 +55,9 @@ import java.util.concurrent.ConcurrentMap;
  * tasks executed on each node, making the EWMA of the values available to the
  * coordinating node.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public final class ResponseCollectorService implements ClusterStateListener {
 
     private static final double ALPHA = 0.3;
@@ -120,7 +122,10 @@ public final class ResponseCollectorService implements ClusterStateListener {
      * Struct-like class encapsulating a point-in-time snapshot of a particular
      * node's statistics. This includes the EWMA of queue size, response time,
      * and service time.
+     *
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public static class ComputedNodeStats implements Writeable {
         // We store timestamps with nanosecond precision, however, the
         // formula specifies milliseconds, therefore we need to convert

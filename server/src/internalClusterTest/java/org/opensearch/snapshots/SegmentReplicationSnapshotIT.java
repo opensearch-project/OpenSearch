@@ -31,6 +31,7 @@ import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REPLICATION_TYPE;
+import static org.opensearch.indices.IndicesService.CLUSTER_INDEX_RESTRICT_REPLICATION_TYPE_SETTING;
 import static org.opensearch.indices.IndicesService.CLUSTER_SETTING_REPLICATION_TYPE;
 import static org.opensearch.indices.replication.SegmentReplicationBaseIT.waitForSearchableDocs;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
@@ -46,6 +47,9 @@ public class SegmentReplicationSnapshotIT extends AbstractSnapshotIntegTestCase 
 
     private static final String REPOSITORY_NAME = "test-segrep-repo";
     private static final String SNAPSHOT_NAME = "test-segrep-snapshot";
+
+    protected static final String REPLICATION_MISMATCH_VALIDATION_ERROR =
+        "Validation Failed: 1: index setting [index.replication.type] is not allowed to be set as [cluster.index.restrict.replication.type=true];";
 
     public Settings segRepEnableIndexSettings() {
         return getShardSettings().put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT).build();
@@ -305,5 +309,64 @@ public class SegmentReplicationSnapshotIT extends AbstractSnapshotIntegTestCase 
         Index index = resolveIndex(RESTORED_INDEX_NAME);
         IndicesService indicesService = internalCluster().getInstance(IndicesService.class);
         assertEquals(indicesService.indexService(index).getIndexSettings().isSegRepEnabled(), false);
+    }
+
+    /**
+    * 1. Create index in DOCUMENT replication type
+    * 2. Snapshot index
+    * 3. Add new set of nodes with `cluster.indices.replication.strategy` set to SEGMENT and `cluster.index.restrict.replication.type`
+    *    set to true.
+    * 4. Perform restore on new set of nodes to validate restored index has `DOCUMENT` replication.
+    */
+    public void testSnapshotRestoreOnRestrictReplicationSetting() throws Exception {
+        final int documentCount = scaledRandomIntBetween(1, 10);
+        String originalClusterManagerNode = internalCluster().startClusterManagerOnlyNode();
+
+        // Starting two nodes with primary and replica shards respectively.
+        final String primaryNode = internalCluster().startDataOnlyNode();
+        prepareCreate(
+            INDEX_NAME,
+            Settings.builder()
+                // we want to override cluster replication setting by passing a index replication setting
+                .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.DOCUMENT)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, REPLICA_COUNT)
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, SHARD_COUNT)
+        ).get();
+        ensureYellowAndNoInitializingShards(INDEX_NAME);
+        final String replicaNode = internalCluster().startDataOnlyNode();
+        ensureGreen(INDEX_NAME);
+
+        for (int i = 0; i < documentCount; i++) {
+            client().prepareIndex(INDEX_NAME).setId(String.valueOf(i)).setSource("foo", "bar").get();
+        }
+
+        createSnapshot();
+
+        // Delete index
+        assertAcked(client().admin().indices().delete(new DeleteIndexRequest(INDEX_NAME)).get());
+        assertFalse("index [" + INDEX_NAME + "] should have been deleted", indexExists(INDEX_NAME));
+
+        // Start new set of nodes with cluster level replication type setting and restrict replication type setting.
+        Settings settings = Settings.builder()
+            .put(CLUSTER_SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
+            .put(CLUSTER_INDEX_RESTRICT_REPLICATION_TYPE_SETTING.getKey(), true)
+            .build();
+
+        // Start new cluster manager node
+        String newClusterManagerNode = internalCluster().startClusterManagerOnlyNode(settings);
+
+        // Remove older nodes
+        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(originalClusterManagerNode));
+        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(primaryNode));
+        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(replicaNode));
+
+        String newPrimaryNode = internalCluster().startDataOnlyNode(settings);
+        String newReplicaNode = internalCluster().startDataOnlyNode(settings);
+
+        // Perform snapshot restore
+        logger.info("--> Performing snapshot restore to target index");
+
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> restoreSnapshotWithSettings(null));
+        assertEquals(REPLICATION_MISMATCH_VALIDATION_ERROR, exception.getMessage());
     }
 }

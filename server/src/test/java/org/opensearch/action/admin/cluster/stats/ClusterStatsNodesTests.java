@@ -41,6 +41,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.test.OpenSearchTestCase;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Iterator;
@@ -87,7 +88,13 @@ public class ClusterStatsNodesTests extends OpenSearchTestCase {
     }
 
     public void testIngestStats() throws Exception {
-        NodeStats nodeStats = randomValueOtherThanMany(n -> n.getIngestStats() == null, NodeStatsTests::createNodeStats);
+        NodeStats nodeStats = randomValueOtherThanMany(n -> n.getIngestStats() == null, () -> {
+            try {
+                return NodeStatsTests.createNodeStats();
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        });
 
         SortedMap<String, long[]> processorStats = new TreeMap<>();
         nodeStats.getIngestStats().getProcessorStats().values().forEach(stats -> {

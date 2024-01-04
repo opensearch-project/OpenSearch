@@ -91,3 +91,139 @@ teardown:
         index: test
         id: 1
   - match: { _source.message: "foo bar baz" }
+
+#Related issue: https://github.com/opensearch-project/OpenSearch/issues/10732
+---
+"Test remove metadata field":
+  - skip:
+      version: " - 2.11.99"
+      reason: "The bug was fixed in 2.12"
+
+  - do:
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        body:  >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "remove" : {
+                  "field" : "{{foo}}"
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      catch: /cannot remove metadata field \[\_index\]/
+      index:
+        index: test
+        id: 1
+        pipeline: "my_pipeline"
+        body: {
+          foo: "_index"
+        }
+
+  - do:
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        body:  >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "remove" : {
+                  "field" : "_version"
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      catch: /cannot remove metadata field \[\_version\]/
+      index:
+        index: test
+        id: 1
+        pipeline: "my_pipeline"
+        body: {
+          foo: "bar"
+        }
+
+  - do:
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        body:  >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "remove" : {
+                  "field" : "_version_type"
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      catch: /cannot remove metadata field \[\_version\_type\]/
+      index:
+        index: test
+        id: 1
+        pipeline: "my_pipeline"
+        body: {
+          foo: "bar"
+        }
+
+  - do:
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        body:  >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "remove" : {
+                  "field" : ["_id", "_routing"]
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      index:
+        index: test
+        id: 1
+        routing: abc
+        pipeline: "my_pipeline"
+        body: { message: "foo bar baz" }
+  - match: { result: created }
+
+  - do:
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        body:  >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "remove" : {
+                  "field" : "_id"
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      catch: /cannot remove metadata field \[\_id\] when specifying external version for the document/
+      index:
+        index: test
+        id: "test_id_10000"
+        pipeline: "my_pipeline"
+        version: 1
+        version_type: "external"
+        body: { message: "foo bar baz" }
