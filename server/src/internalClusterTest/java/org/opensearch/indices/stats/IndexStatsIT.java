@@ -183,6 +183,7 @@ public class IndexStatsIT extends ParameterizedOpenSearchIntegTestCase {
         client().prepareIndex("test").setId("2").setSource("field", "value2", "field2", "value2").execute().actionGet();
         client().admin().indices().prepareRefresh().execute().actionGet();
         indexRandomForConcurrentSearch("test");
+        verifyReplicasCaughtUpWithPrimary();
 
         NodesStatsResponse nodesStats = client().admin().cluster().prepareNodesStats("data:true").setIndices(true).execute().actionGet();
         assertThat(
@@ -307,6 +308,7 @@ public class IndexStatsIT extends ParameterizedOpenSearchIntegTestCase {
         client().prepareIndex("test").setId("2").setSource("field", "value2").execute().actionGet();
         client().admin().indices().prepareRefresh().execute().actionGet();
         indexRandomForConcurrentSearch("test");
+        verifyReplicasCaughtUpWithPrimary();
 
         NodesStatsResponse nodesStats = client().admin().cluster().prepareNodesStats("data:true").setIndices(true).execute().actionGet();
         assertThat(
@@ -611,6 +613,7 @@ public class IndexStatsIT extends ParameterizedOpenSearchIntegTestCase {
             client().prepareIndex("test").setId("" + termUpto).setSource("field" + (i % 10), sb.toString()).get();
         }
         refresh();
+        verifyReplicasCaughtUpWithPrimary();
         stats = client().admin().indices().prepareStats().execute().actionGet();
         // nodesStats = client().admin().cluster().prepareNodesStats().setIndices(true).get();
 
@@ -650,6 +653,7 @@ public class IndexStatsIT extends ParameterizedOpenSearchIntegTestCase {
                 }
             }
             refresh();
+            verifyReplicasCaughtUpWithPrimary();
             stats = client().admin().indices().prepareStats().execute().actionGet();
             // nodesStats = client().admin().cluster().prepareNodesStats().setIndices(true).get();
             done = stats.getPrimaries().getIndexing().getTotal().getThrottleTime().millis() > 0;
@@ -829,6 +833,7 @@ public class IndexStatsIT extends ParameterizedOpenSearchIntegTestCase {
             client().admin().indices().prepareFlush().execute().actionGet();
         }
         client().admin().indices().prepareForceMerge().setMaxNumSegments(1).execute().actionGet();
+        verifyReplicasCaughtUpWithPrimary();
         stats = client().admin().indices().prepareStats().setMerge(true).execute().actionGet();
 
         assertThat(stats.getTotal().getMerge(), notNullValue());
@@ -858,6 +863,7 @@ public class IndexStatsIT extends ParameterizedOpenSearchIntegTestCase {
         client().admin().indices().prepareFlush().get();
         client().admin().indices().prepareForceMerge().setMaxNumSegments(1).execute().actionGet();
         client().admin().indices().prepareRefresh().get();
+        verifyReplicasCaughtUpWithPrimary();
         stats = client().admin().indices().prepareStats().setSegments(true).get();
 
         assertThat(stats.getTotal().getSegments(), notNullValue());
@@ -876,6 +882,7 @@ public class IndexStatsIT extends ParameterizedOpenSearchIntegTestCase {
         client().prepareIndex("test_index_2").setId(Integer.toString(1)).setSource("field", "value").execute().actionGet();
 
         client().admin().indices().prepareRefresh().execute().actionGet();
+        verifyReplicasCaughtUpWithPrimary();
         IndicesStatsRequestBuilder builder = client().admin().indices().prepareStats();
         Flag[] values = CommonStatsFlags.Flag.values();
         for (Flag flag : values) {
@@ -1002,6 +1009,7 @@ public class IndexStatsIT extends ParameterizedOpenSearchIntegTestCase {
         client().prepareIndex("test1").setId(Integer.toString(2)).setSource("field", "value").execute().actionGet();
         client().prepareIndex("test2").setId(Integer.toString(1)).setSource("field", "value").execute().actionGet();
         refresh();
+        verifyReplicasCaughtUpWithPrimary();
 
         int numShards1 = getNumShards("test1").totalNumShards;
         int numShards2 = getNumShards("test2").totalNumShards;
@@ -1045,6 +1053,7 @@ public class IndexStatsIT extends ParameterizedOpenSearchIntegTestCase {
             .setSource("{\"bar\":\"bar\",\"baz\":\"baz\"}", MediaTypeRegistry.JSON)
             .get();
         refresh();
+        verifyReplicasCaughtUpWithPrimary();
 
         IndicesStatsRequestBuilder builder = client().admin().indices().prepareStats();
         IndicesStatsResponse stats = builder.execute().actionGet();
@@ -1087,6 +1096,7 @@ public class IndexStatsIT extends ParameterizedOpenSearchIntegTestCase {
 
         client().prepareIndex("test1").setId(Integer.toString(1)).setSource("foo", "bar").execute().actionGet();
         refresh();
+        verifyReplicasCaughtUpWithPrimary();
 
         client().prepareSearch("_all").setStats("bar", "baz").execute().actionGet();
 
@@ -1250,6 +1260,7 @@ public class IndexStatsIT extends ParameterizedOpenSearchIntegTestCase {
         );
         persistGlobalCheckpoint("index"); // Need to persist the global checkpoint for the soft-deletes retention MP.
         refresh();
+        verifyReplicasCaughtUpWithPrimary();
         ensureGreen();
 
         IndicesStatsResponse response = client().admin().indices().prepareStats("index").setQueryCache(true).get();
@@ -1389,6 +1400,7 @@ public class IndexStatsIT extends ParameterizedOpenSearchIntegTestCase {
                 while (!stop.get()) {
                     final String id = Integer.toString(idGenerator.incrementAndGet());
                     final IndexResponse response = client().prepareIndex("test").setId(id).setSource("{}", MediaTypeRegistry.JSON).get();
+                    verifyReplicasCaughtUpWithPrimary();
                     assertThat(response.getResult(), equalTo(DocWriteResponse.Result.CREATED));
                 }
             });
@@ -1459,6 +1471,7 @@ public class IndexStatsIT extends ParameterizedOpenSearchIntegTestCase {
                 .get()
                 .status()
         );
+        verifyReplicasCaughtUpWithPrimary();
         ShardStats shard = client().admin().indices().prepareStats(indexName).setSegments(true).setTranslog(true).get().getShards()[0];
         RemoteSegmentStats remoteSegmentStatsFromIndexStats = shard.getStats().getSegments().getRemoteSegmentStats();
         assertZeroRemoteSegmentStats(remoteSegmentStatsFromIndexStats);

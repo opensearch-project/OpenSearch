@@ -19,11 +19,9 @@ import org.opensearch.common.Nullable;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.index.Index;
-import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.SegmentReplicationShardStats;
-import org.opensearch.index.engine.Engine;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.store.StoreFileMetadata;
@@ -168,27 +166,6 @@ public class SegmentReplicationBaseIT extends OpenSearchIntegTestCase {
                 }
             }
         }, 1, TimeUnit.MINUTES);
-    }
-
-    private int getDocCountFromShard(IndexShard shard) {
-        try (final Engine.Searcher searcher = shard.acquireSearcher("test")) {
-            return searcher.getDirectoryReader().numDocs();
-        }
-    }
-
-    private IndexShard getIndexShard(ClusterState state, ShardRouting routing, String indexName) {
-        return getIndexShard(state.nodes().get(routing.currentNodeId()).getName(), routing.shardId(), indexName);
-    }
-
-    /**
-     * Fetch IndexShard by shardId, multiple shards per node allowed.
-     */
-    protected IndexShard getIndexShard(String node, ShardId shardId, String indexName) {
-        final Index index = resolveIndex(indexName);
-        IndicesService indicesService = internalCluster().getInstance(IndicesService.class, node);
-        IndexService indexService = indicesService.indexServiceSafe(index);
-        final Optional<Integer> id = indexService.shardIds().stream().filter(sid -> sid == shardId.id()).findFirst();
-        return indexService.getShard(id.get());
     }
 
     /**

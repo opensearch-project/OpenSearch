@@ -120,6 +120,7 @@ import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.core.index.Index;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.rest.RestStatus;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
@@ -130,18 +131,22 @@ import org.opensearch.env.Environment;
 import org.opensearch.env.TestEnvironment;
 import org.opensearch.http.HttpInfo;
 import org.opensearch.index.IndexModule;
+import org.opensearch.index.IndexService;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.MergeSchedulerConfig;
 import org.opensearch.index.MockEngineFactoryPlugin;
 import org.opensearch.index.TieredMergePolicyProvider;
 import org.opensearch.index.codec.CodecService;
+import org.opensearch.index.engine.Engine;
 import org.opensearch.index.engine.Segment;
 import org.opensearch.index.mapper.CompletionFieldMapper;
 import org.opensearch.index.mapper.MockFieldFilterPlugin;
+import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.indices.IndicesQueryCache;
 import org.opensearch.indices.IndicesRequestCache;
+import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.store.IndicesStore;
 import org.opensearch.monitor.os.OsInfo;
 import org.opensearch.node.NodeMocksPlugin;
@@ -193,6 +198,7 @@ import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.Callable;
@@ -1687,6 +1693,7 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
         if (dummyDocuments) {
             indexRandomForMultipleSlices(indicesArray);
         }
+        verifyReplicasCaughtUpWithPrimary();
     }
 
     /*
@@ -2620,6 +2627,74 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
 
     protected ClusterState getClusterState() {
         return client(internalCluster().getClusterManagerName()).admin().cluster().prepareState().get().getState();
+    }
+
+    /**
+     * Checks if replica shards caught up with primary shard when Segment Replication is enabled.
+     */
+    protected void verifyReplicasCaughtUpWithPrimary() {
+        try {
+            assertBusy(() -> {
+                final ClusterState clusterState = client(internalCluster().getClusterManagerName()).admin()
+                    .cluster()
+                    .prepareState()
+                    .get()
+                    .getState();
+                for (IndexRoutingTable indexRoutingTable : clusterState.routingTable()) {
+                    for (IndexShardRoutingTable shardRoutingTable : indexRoutingTable) {
+                        final ShardRouting primaryRouting = shardRoutingTable.primaryShard();
+                        if (primaryRouting.state().toString().equals("STARTED")) {
+                            final String indexName = primaryRouting.getIndexName();
+                            if (isSegmentReplicationEnabledForIndex(indexName)) {
+                                final List<ShardRouting> replicaRouting = shardRoutingTable.replicaShards();
+                                final IndexShard primaryShard = getIndexShard(clusterState, primaryRouting, indexName);
+                                final int primaryDocCount = getDocCountFromShard(primaryShard);
+                                for (ShardRouting replica : replicaRouting) {
+                                    if (replica.state().toString().equals("STARTED")) {
+                                        IndexShard replicaShard = getIndexShard(clusterState, replica, indexName);
+                                        final int replicaDocCount = getDocCountFromShard(replicaShard);
+                                        assertEquals("Replica doc count doesn't match primary", primaryDocCount, replicaDocCount);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }, 30, TimeUnit.SECONDS);
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    /**
+     * Checks if Segment Replication is enabled on Index.
+     */
+    protected boolean isSegmentReplicationEnabledForIndex(String index) {
+        return clusterService().state().getMetadata().isSegmentReplicationEnabled(index);
+    }
+
+    protected IndexShard getIndexShard(ClusterState state, ShardRouting routing, String indexName) {
+        return getIndexShard(state.nodes().get(routing.currentNodeId()).getName(), routing.shardId(), indexName);
+    }
+
+    /**
+     * Fetch IndexShard by shardId, multiple shards per node allowed.
+     */
+    protected IndexShard getIndexShard(String node, ShardId shardId, String indexName) {
+        final Index index = resolveIndex(indexName);
+        IndicesService indicesService = internalCluster().getInstance(IndicesService.class, node);
+        IndexService indexService = indicesService.indexServiceSafe(index);
+        final Optional<Integer> id = indexService.shardIds().stream().filter(sid -> sid == shardId.id()).findFirst();
+        return indexService.getShard(id.get());
+    }
+
+    /**
+     * Fetch Doc Count from an Index Shard.
+     */
+    protected int getDocCountFromShard(IndexShard shard) {
+        try (final Engine.Searcher searcher = shard.acquireSearcher("test")) {
+            return searcher.getDirectoryReader().numDocs();
+        }
     }
 
 }
