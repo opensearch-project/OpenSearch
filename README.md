@@ -10,6 +10,7 @@
 [![GHA validate pull request](https://github.com/opensearch-project/OpenSearch/actions/workflows/wrapper.yml/badge.svg)](https://github.com/opensearch-project/OpenSearch/actions/workflows/wrapper.yml)
 [![GHA precommit](https://github.com/opensearch-project/OpenSearch/actions/workflows/precommit.yml/badge.svg)](https://github.com/opensearch-project/OpenSearch/actions/workflows/precommit.yml)
 [![Jenkins gradle check job](https://img.shields.io/jenkins/build?jobUrl=https%3A%2F%2Fbuild.ci.opensearch.org%2Fjob%2Fgradle-check%2F&label=Jenkins%20Gradle%20Check)](https://build.ci.opensearch.org/job/gradle-check/)
+[![Build packages](https://github.com/wazuh/wazuh-indexer/actions/workflows/build.yml/badge.svg)](https://github.com/wazuh/wazuh-indexer/actions/workflows/build.yml)
 
 - [Welcome!](#welcome)
 - [Project Resources](#project-resources)
