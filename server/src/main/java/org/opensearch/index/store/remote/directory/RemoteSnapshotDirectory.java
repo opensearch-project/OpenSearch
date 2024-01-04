@@ -47,6 +47,18 @@ public final class RemoteSnapshotDirectory extends Directory {
     private final TransferManager transferManager;
 
     public RemoteSnapshotDirectory(BlobStoreIndexShardSnapshot snapshot, FSDirectory localStoreDir, TransferManager transferManager) {
+        final long chunkSize = snapshot.indexFiles().isEmpty() ? 0L : snapshot.indexFiles().get(0).partSize().getBytes();
+        final long blockSize = OnDemandBlockSnapshotIndexInput.Builder.DEFAULT_BLOCK_SIZE;
+        if ((chunkSize & (blockSize - 1)) != 0 && chunkSize != Long.MAX_VALUE) {
+            throw new IllegalArgumentException(
+                "the chunk size of snapshot used for searchable snapshot index must be either the Long.MAX_VALUE or a multiple of the OnDemandBlockIndexInput block size, got chunk size ["
+                    + chunkSize
+                    + "], and block size ["
+                    + blockSize
+                    + "]"
+            );
+        }
+
         this.fileInfoMap = snapshot.indexFiles()
             .stream()
             .collect(Collectors.toMap(BlobStoreIndexShardSnapshot.FileInfo::physicalName, f -> f));

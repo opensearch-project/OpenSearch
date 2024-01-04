@@ -7,6 +7,7 @@ package org.opensearch.snapshots;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 
+import org.opensearch.action.admin.cluster.allocation.ClusterAllocationExplainResponse;
 import org.opensearch.action.admin.cluster.node.stats.NodeStats;
 import org.opensearch.action.admin.cluster.node.stats.NodesStatsRequest;
 import org.opensearch.action.admin.cluster.node.stats.NodesStatsResponse;
@@ -16,6 +17,7 @@ import org.opensearch.action.admin.cluster.snapshots.create.CreateSnapshotRespon
 import org.opensearch.action.admin.cluster.snapshots.delete.DeleteSnapshotRequest;
 import org.opensearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
 import org.opensearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
+import org.opensearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.opensearch.action.admin.indices.settings.get.GetSettingsRequest;
 import org.opensearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.opensearch.action.admin.indices.settings.put.UpdateSettingsRequestBuilder;
@@ -35,6 +37,7 @@ import org.opensearch.core.index.Index;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.index.store.remote.file.CleanerDaemonThreadLeakFilter;
+import org.opensearch.index.store.remote.file.OnDemandBlockSnapshotIndexInput;
 import org.opensearch.index.store.remote.filecache.FileCacheStats;
 import org.opensearch.monitor.fs.FsInfo;
 import org.opensearch.node.Node;
@@ -75,10 +78,10 @@ public final class SearchableSnapshotIT extends AbstractSnapshotIntegTestCase {
         return settings;
     }
 
-    private Settings.Builder chunkedRepositorySettings() {
+    private Settings.Builder chunkedRepositorySettings(long chunkSize) {
         final Settings.Builder settings = Settings.builder();
         settings.put("location", randomRepoPath()).put("compress", randomBoolean());
-        settings.put("chunk_size", 2 << 23, ByteSizeUnit.BYTES);
+        settings.put("chunk_size", chunkSize, ByteSizeUnit.BYTES);
         return settings;
     }
 
@@ -195,7 +198,8 @@ public final class SearchableSnapshotIT extends AbstractSnapshotIntegTestCase {
         final String snapshotName = "test-snap";
         final Client client = client();
 
-        Settings.Builder repositorySettings = chunkedRepositorySettings();
+        final int blockSize = OnDemandBlockSnapshotIndexInput.Builder.DEFAULT_BLOCK_SIZE;
+        Settings.Builder repositorySettings = chunkedRepositorySettings(blockSize * randomLongBetween(1, 100));
 
         internalCluster().ensureAtLeastNumSearchAndDataNodes(numReplicasIndex + 1);
         createIndexWithDocsAndEnsureGreen(numReplicasIndex, 1000, indexName);
@@ -207,6 +211,39 @@ public final class SearchableSnapshotIT extends AbstractSnapshotIntegTestCase {
         assertRemoteSnapshotIndexSettings(client, restoredIndexName);
 
         assertDocCount(restoredIndexName, 1000L);
+    }
+
+    /**
+     * Tests a chunked repository scenario where the chunk size of repo is not a multiple of the block size.
+     */
+    public void testCreateSearchableSnapshotWithChunksThrowExceptions() throws Exception {
+        final int numReplicasIndex = randomIntBetween(1, 4);
+        final String indexName = "test-idx";
+        final String restoredIndexName = indexName + "-copy";
+        final String repoName = "test-repo";
+        final String snapshotName = "test-snap";
+        final Client client = client();
+
+        final int blockSize = OnDemandBlockSnapshotIndexInput.Builder.DEFAULT_BLOCK_SIZE;
+        Settings.Builder repositorySettings = chunkedRepositorySettings(blockSize + 1);
+
+        internalCluster().ensureAtLeastNumSearchAndDataNodes(numReplicasIndex + 1);
+        createIndexWithDocsAndEnsureGreen(numReplicasIndex, 1000, indexName);
+        createRepositoryWithSettings(repositorySettings, repoName);
+        takeSnapshot(client, snapshotName, repoName, indexName);
+
+        deleteIndicesAndEnsureGreen(client, indexName);
+        RestoreSnapshotResponse restoreSnapshotResponse = restoreSnapshot(client, snapshotName, repoName);
+        assertEquals(0, restoreSnapshotResponse.getRestoreInfo().successfulShards());
+
+        ClusterAllocationExplainResponse explainResponse = client.admin().cluster().prepareAllocationExplain().execute().actionGet();
+        String detailsMessage = explainResponse.getExplanation().getUnassignedInfo().getDetails();
+        assert detailsMessage != null;
+        assertTrue(
+            detailsMessage.contains(
+                "the chunk size of snapshot used for searchable snapshot index must be either the Long.MAX_VALUE or a multiple of the OnDemandBlockIndexInput block size"
+            )
+        );
     }
 
     /**
@@ -397,6 +434,19 @@ public final class SearchableSnapshotIT extends AbstractSnapshotIntegTestCase {
             .execute()
             .actionGet();
         ensureGreen();
+    }
+
+    private RestoreSnapshotResponse restoreSnapshot(Client client, String snapshotName, String repoName) {
+        logger.info("--> restore indices as 'remote_snapshot'");
+        return client.admin()
+            .cluster()
+            .prepareRestoreSnapshot(repoName, snapshotName)
+            .setRenamePattern("(.+)")
+            .setRenameReplacement("$1-copy")
+            .setStorageType(RestoreSnapshotRequest.StorageType.REMOTE_SNAPSHOT)
+            .setWaitForCompletion(true)
+            .execute()
+            .actionGet();
     }
 
     private void assertRemoteSnapshotIndexSettings(Client client, String... snapshotIndexNames) {
