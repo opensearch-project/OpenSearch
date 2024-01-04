@@ -39,6 +39,7 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodeRole;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.indices.store.ShardAttributes;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
@@ -46,12 +47,13 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static java.util.Collections.emptySet;
+import static java.util.Collections.emptyMap;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.sameInstance;
 
@@ -84,7 +86,16 @@ public class AsyncShardFetchTests extends OpenSearchTestCase {
     public void setUp() throws Exception {
         super.setUp();
         this.threadPool = new TestThreadPool(getTestName());
-        this.test = new TestFetch(threadPool);
+        if (randomBoolean()) {
+            this.test = new TestFetch(threadPool);
+        } else {
+            HashMap<ShardId, ShardAttributes> shardToCustomDataPath = new HashMap<>();
+            ShardId shardId0 = new ShardId("index1", "index_uuid1", 0);
+            ShardId shardId1 = new ShardId("index2", "index_uuid2", 0);
+            shardToCustomDataPath.put(shardId0, new ShardAttributes(shardId0, ""));
+            shardToCustomDataPath.put(shardId1, new ShardAttributes(shardId1, ""));
+            this.test = new TestFetch(threadPool, shardToCustomDataPath);
+        }
     }
 
     @After
@@ -97,7 +108,7 @@ public class AsyncShardFetchTests extends OpenSearchTestCase {
         test.addSimulation(node1.getId(), response1);
 
         // first fetch, no data, still on going
-        AsyncShardFetch.FetchResult<Response> fetchData = test.fetchData(nodes, emptySet());
+        AsyncShardFetch.FetchResult<Response> fetchData = test.fetchData(nodes, emptyMap());
         assertThat(fetchData.hasData(), equalTo(false));
         assertThat(test.reroute.get(), equalTo(0));
 
@@ -107,7 +118,7 @@ public class AsyncShardFetchTests extends OpenSearchTestCase {
         assertThat(test.reroute.get(), equalTo(1));
         test.close();
         try {
-            test.fetchData(nodes, emptySet());
+            test.fetchData(nodes, emptyMap());
             fail("fetch data should fail when closed");
         } catch (IllegalStateException e) {
             // all is well
@@ -119,7 +130,7 @@ public class AsyncShardFetchTests extends OpenSearchTestCase {
         test.addSimulation(node1.getId(), response1);
 
         // first fetch, no data, still on going
-        AsyncShardFetch.FetchResult<Response> fetchData = test.fetchData(nodes, emptySet());
+        AsyncShardFetch.FetchResult<Response> fetchData = test.fetchData(nodes, emptyMap());
         assertThat(fetchData.hasData(), equalTo(false));
         assertThat(test.reroute.get(), equalTo(0));
 
@@ -127,7 +138,7 @@ public class AsyncShardFetchTests extends OpenSearchTestCase {
         test.fireSimulationAndWait(node1.getId());
         // verify we get back the data node
         assertThat(test.reroute.get(), equalTo(1));
-        fetchData = test.fetchData(nodes, emptySet());
+        fetchData = test.fetchData(nodes, emptyMap());
         assertThat(fetchData.hasData(), equalTo(true));
         assertThat(fetchData.getData().size(), equalTo(1));
         assertThat(fetchData.getData().get(node1), sameInstance(response1));
@@ -139,7 +150,7 @@ public class AsyncShardFetchTests extends OpenSearchTestCase {
         test.addSimulation(node1.getId(), failure1);
 
         // first fetch, no data, still on going
-        AsyncShardFetch.FetchResult<Response> fetchData = test.fetchData(nodes, emptySet());
+        AsyncShardFetch.FetchResult<Response> fetchData = test.fetchData(nodes, emptyMap());
         assertThat(fetchData.hasData(), equalTo(false));
         assertThat(test.reroute.get(), equalTo(0));
 
@@ -147,19 +158,19 @@ public class AsyncShardFetchTests extends OpenSearchTestCase {
         test.fireSimulationAndWait(node1.getId());
         // failure, fetched data exists, but has no data
         assertThat(test.reroute.get(), equalTo(1));
-        fetchData = test.fetchData(nodes, emptySet());
+        fetchData = test.fetchData(nodes, emptyMap());
         assertThat(fetchData.hasData(), equalTo(true));
         assertThat(fetchData.getData().size(), equalTo(0));
 
         // on failure, we reset the failure on a successive call to fetchData, and try again afterwards
         test.addSimulation(node1.getId(), response1);
-        fetchData = test.fetchData(nodes, emptySet());
+        fetchData = test.fetchData(nodes, emptyMap());
         assertThat(fetchData.hasData(), equalTo(false));
 
         test.fireSimulationAndWait(node1.getId());
         // 2 reroutes, cause we have a failure that we clear
         assertThat(test.reroute.get(), equalTo(3));
-        fetchData = test.fetchData(nodes, emptySet());
+        fetchData = test.fetchData(nodes, emptyMap());
         assertThat(fetchData.hasData(), equalTo(true));
         assertThat(fetchData.getData().size(), equalTo(1));
         assertThat(fetchData.getData().get(node1), sameInstance(response1));
@@ -170,7 +181,7 @@ public class AsyncShardFetchTests extends OpenSearchTestCase {
         test.addSimulation(node1.getId(), response1);
 
         // first fetch, no data, still on going
-        AsyncShardFetch.FetchResult<Response> fetchData = test.fetchData(nodes, emptySet());
+        AsyncShardFetch.FetchResult<Response> fetchData = test.fetchData(nodes, emptyMap());
         assertThat(fetchData.hasData(), equalTo(false));
         assertThat(test.reroute.get(), equalTo(0));
 
@@ -183,7 +194,7 @@ public class AsyncShardFetchTests extends OpenSearchTestCase {
         test.fireSimulationAndWait(node1.getId());
         // verify we get back the data node
         assertThat(test.reroute.get(), equalTo(2));
-        fetchData = test.fetchData(nodes, emptySet());
+        fetchData = test.fetchData(nodes, emptyMap());
         assertThat(fetchData.hasData(), equalTo(true));
         assertThat(fetchData.getData().size(), equalTo(1));
         assertThat(fetchData.getData().get(node1), sameInstance(response1));
@@ -195,7 +206,7 @@ public class AsyncShardFetchTests extends OpenSearchTestCase {
         test.addSimulation(node1.getId(), failure1);
 
         // first fetch, no data, still on going
-        AsyncShardFetch.FetchResult<Response> fetchData = test.fetchData(nodes, emptySet());
+        AsyncShardFetch.FetchResult<Response> fetchData = test.fetchData(nodes, emptyMap());
         assertThat(fetchData.hasData(), equalTo(false));
         assertThat(test.reroute.get(), equalTo(0));
 
@@ -212,7 +223,7 @@ public class AsyncShardFetchTests extends OpenSearchTestCase {
         test.fireSimulationAndWait(node1.getId());
         // failure, fetched data exists, but has no data
         assertThat(test.reroute.get(), equalTo(2));
-        fetchData = test.fetchData(nodes, emptySet());
+        fetchData = test.fetchData(nodes, emptyMap());
         assertThat(fetchData.hasData(), equalTo(true));
         assertThat(fetchData.getData().size(), equalTo(0));
     }
@@ -223,7 +234,7 @@ public class AsyncShardFetchTests extends OpenSearchTestCase {
         test.addSimulation(node2.getId(), response2);
 
         // no fetched data, 2 requests still on going
-        AsyncShardFetch.FetchResult<Response> fetchData = test.fetchData(nodes, emptySet());
+        AsyncShardFetch.FetchResult<Response> fetchData = test.fetchData(nodes, emptyMap());
         assertThat(fetchData.hasData(), equalTo(false));
         assertThat(test.reroute.get(), equalTo(0));
 
@@ -231,14 +242,14 @@ public class AsyncShardFetchTests extends OpenSearchTestCase {
         test.fireSimulationAndWait(node1.getId());
         // there is still another on going request, so no data
         assertThat(test.getNumberOfInFlightFetches(), equalTo(1));
-        fetchData = test.fetchData(nodes, emptySet());
+        fetchData = test.fetchData(nodes, emptyMap());
         assertThat(fetchData.hasData(), equalTo(false));
 
         // fire the second simulation, this should allow us to get the data
         test.fireSimulationAndWait(node2.getId());
         // no more ongoing requests, we should fetch the data
         assertThat(test.reroute.get(), equalTo(2));
-        fetchData = test.fetchData(nodes, emptySet());
+        fetchData = test.fetchData(nodes, emptyMap());
         assertThat(fetchData.hasData(), equalTo(true));
         assertThat(fetchData.getData().size(), equalTo(2));
         assertThat(fetchData.getData().get(node1), sameInstance(response1));
@@ -251,21 +262,21 @@ public class AsyncShardFetchTests extends OpenSearchTestCase {
         test.addSimulation(node2.getId(), failure2);
 
         // no fetched data, 2 requests still on going
-        AsyncShardFetch.FetchResult<Response> fetchData = test.fetchData(nodes, emptySet());
+        AsyncShardFetch.FetchResult<Response> fetchData = test.fetchData(nodes, emptyMap());
         assertThat(fetchData.hasData(), equalTo(false));
         assertThat(test.reroute.get(), equalTo(0));
 
         // fire the first response, it should trigger a reroute
         test.fireSimulationAndWait(node1.getId());
         assertThat(test.reroute.get(), equalTo(1));
-        fetchData = test.fetchData(nodes, emptySet());
+        fetchData = test.fetchData(nodes, emptyMap());
         assertThat(fetchData.hasData(), equalTo(false));
 
         // fire the second simulation, this should allow us to get the data
         test.fireSimulationAndWait(node2.getId());
         assertThat(test.reroute.get(), equalTo(2));
         // since one of those failed, we should only have one entry
-        fetchData = test.fetchData(nodes, emptySet());
+        fetchData = test.fetchData(nodes, emptyMap());
         assertThat(fetchData.hasData(), equalTo(true));
         assertThat(fetchData.getData().size(), equalTo(1));
         assertThat(fetchData.getData().get(node1), sameInstance(response1));
@@ -276,7 +287,7 @@ public class AsyncShardFetchTests extends OpenSearchTestCase {
         test.addSimulation(node1.getId(), response1);
 
         // no fetched data, 2 requests still on going
-        AsyncShardFetch.FetchResult<Response> fetchData = test.fetchData(nodes, emptySet());
+        AsyncShardFetch.FetchResult<Response> fetchData = test.fetchData(nodes, emptyMap());
         assertThat(fetchData.hasData(), equalTo(false));
         assertThat(test.reroute.get(), equalTo(0));
 
@@ -287,14 +298,14 @@ public class AsyncShardFetchTests extends OpenSearchTestCase {
         nodes = DiscoveryNodes.builder(nodes).add(node2).build();
         test.addSimulation(node2.getId(), response2);
         // no fetch data, has a new node introduced
-        fetchData = test.fetchData(nodes, emptySet());
+        fetchData = test.fetchData(nodes, emptyMap());
         assertThat(fetchData.hasData(), equalTo(false));
 
         // fire the second simulation, this should allow us to get the data
         test.fireSimulationAndWait(node2.getId());
 
         // since one of those failed, we should only have one entry
-        fetchData = test.fetchData(nodes, emptySet());
+        fetchData = test.fetchData(nodes, emptyMap());
         assertThat(fetchData.hasData(), equalTo(true));
         assertThat(fetchData.getData().size(), equalTo(2));
         assertThat(fetchData.getData().get(node1), sameInstance(response1));
@@ -309,7 +320,7 @@ public class AsyncShardFetchTests extends OpenSearchTestCase {
         test.clearCacheForNode(node1.getId());
 
         // no fetched data, request still on going
-        AsyncShardFetch.FetchResult<Response> fetchData = test.fetchData(nodes, emptySet());
+        AsyncShardFetch.FetchResult<Response> fetchData = test.fetchData(nodes, emptyMap());
         assertThat(fetchData.hasData(), equalTo(false));
         assertThat(test.reroute.get(), equalTo(0));
 
@@ -317,13 +328,13 @@ public class AsyncShardFetchTests extends OpenSearchTestCase {
         assertThat(test.reroute.get(), equalTo(1));
 
         // verify we get back right data from node
-        fetchData = test.fetchData(nodes, emptySet());
+        fetchData = test.fetchData(nodes, emptyMap());
         assertThat(fetchData.hasData(), equalTo(true));
         assertThat(fetchData.getData().size(), equalTo(1));
         assertThat(fetchData.getData().get(node1), sameInstance(response1));
 
         // second fetch gets same data
-        fetchData = test.fetchData(nodes, emptySet());
+        fetchData = test.fetchData(nodes, emptyMap());
         assertThat(fetchData.hasData(), equalTo(true));
         assertThat(fetchData.getData().size(), equalTo(1));
         assertThat(fetchData.getData().get(node1), sameInstance(response1));
@@ -334,14 +345,14 @@ public class AsyncShardFetchTests extends OpenSearchTestCase {
         test.addSimulation(node1.getId(), response1_2);
 
         // no fetched data, new request on going
-        fetchData = test.fetchData(nodes, emptySet());
+        fetchData = test.fetchData(nodes, emptyMap());
         assertThat(fetchData.hasData(), equalTo(false));
 
         test.fireSimulationAndWait(node1.getId());
         assertThat(test.reroute.get(), equalTo(2));
 
         // verify we get new data back
-        fetchData = test.fetchData(nodes, emptySet());
+        fetchData = test.fetchData(nodes, emptyMap());
         assertThat(fetchData.hasData(), equalTo(true));
         assertThat(fetchData.getData().size(), equalTo(1));
         assertThat(fetchData.getData().get(node1), sameInstance(response1_2));
@@ -352,7 +363,7 @@ public class AsyncShardFetchTests extends OpenSearchTestCase {
         test.addSimulation(node1.getId(), response1);
 
         // no fetched data, request still on going
-        AsyncShardFetch.FetchResult<Response> fetchData = test.fetchData(nodes, emptySet());
+        AsyncShardFetch.FetchResult<Response> fetchData = test.fetchData(nodes, emptyMap());
         assertThat(fetchData.hasData(), equalTo(false));
         assertThat(test.reroute.get(), equalTo(0));
 
@@ -366,14 +377,14 @@ public class AsyncShardFetchTests extends OpenSearchTestCase {
         test.addSimulation(node1.getId(), response1_2);
 
         // verify still no fetched data, request still on going
-        fetchData = test.fetchData(nodes, emptySet());
+        fetchData = test.fetchData(nodes, emptyMap());
         assertThat(fetchData.hasData(), equalTo(false));
 
         test.fireSimulationAndWait(node1.getId());
         assertThat(test.reroute.get(), equalTo(2));
 
         // verify we get new data back
-        fetchData = test.fetchData(nodes, emptySet());
+        fetchData = test.fetchData(nodes, emptyMap());
         assertThat(fetchData.hasData(), equalTo(true));
         assertThat(fetchData.getData().size(), equalTo(1));
         assertThat(fetchData.getData().get(node1), sameInstance(response1_2));
@@ -403,6 +414,11 @@ public class AsyncShardFetchTests extends OpenSearchTestCase {
             this.threadPool = threadPool;
         }
 
+        TestFetch(ThreadPool threadPool, Map<ShardId, ShardAttributes> shardAttributesMap) {
+            super(LogManager.getLogger(TestFetch.class), "test", shardAttributesMap, null, "test-batch");
+            this.threadPool = threadPool;
+        }
+
         public void addSimulation(String nodeId, Response response) {
             simulations.put(nodeId, new Entry(response, null));
         }
@@ -418,7 +434,7 @@ public class AsyncShardFetchTests extends OpenSearchTestCase {
         }
 
         @Override
-        protected void reroute(ShardId shardId, String reason) {
+        protected void reroute(String shardId, String reason) {
             reroute.incrementAndGet();
         }
 
