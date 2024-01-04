@@ -1,7 +1,7 @@
 ---
 setup:
   - skip:
-      version: " - 2.99.99"
+      version: " - 2.11.99"
       reason: "match_only_text was added in 3.0"
 
   - do:
