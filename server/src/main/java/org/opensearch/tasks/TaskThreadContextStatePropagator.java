@@ -32,6 +32,11 @@ public class TaskThreadContextStatePropagator implements ThreadContextStatePropa
     }
 
     @Override
+    public Map<String, Object> transientsForSystemContext(Map<String, Object> source) {
+        return transients(source);
+    }
+
+    @Override
     public Map<String, String> headers(Map<String, Object> source) {
         return Collections.emptyMap();
     }

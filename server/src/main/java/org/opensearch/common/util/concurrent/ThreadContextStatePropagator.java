@@ -10,6 +10,7 @@ package org.opensearch.common.util.concurrent;
 
 import org.opensearch.common.annotation.PublicApi;
 
+import java.util.HashMap;
 import java.util.Map;
 
 /**
@@ -26,6 +27,15 @@ public interface ThreadContextStatePropagator {
      * @return the list of transient headers that needs to be propagated from current context to new thread context
      */
     Map<String, Object> transients(Map<String, Object> source);
+
+    /**
+     * Returns the list of transient headers that need to be propagated to the child system context.
+     * @param source current context transient headers
+     * @return the list of transient headers that needs to be propagated from current context to new thread context
+     */
+    default Map<String, Object> transientsForSystemContext(Map<String, Object> source) {
+        return new HashMap<>();
+    }
 
     /**
      * Returns the list of request headers that needs to be propagated from current context to request.

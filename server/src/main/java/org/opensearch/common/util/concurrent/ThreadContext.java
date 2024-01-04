@@ -534,7 +534,17 @@ public final class ThreadContext implements Writeable {
      * by the system itself rather than by a user action.
      */
     public void markAsSystemContext() {
-        threadLocal.set(threadLocal.get().setSystemContext());
+        ThreadContextStruct threadContextStruct = threadLocal.get();
+        final Map<String, Object> transients = new HashMap<>();
+        propagators.forEach(p -> transients.putAll(p.transientsForSystemContext(threadContextStruct.transientHeaders)));
+        ThreadContextStruct newThreadContextStruct = new ThreadContextStruct(
+            threadContextStruct.requestHeaders,
+            threadContextStruct.responseHeaders,
+            transients,
+            threadContextStruct.persistentHeaders,
+            threadContextStruct.isSystemContext
+        );
+        threadLocal.set(newThreadContextStruct.setSystemContext());
     }
 
     /**
