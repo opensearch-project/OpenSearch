@@ -3,7 +3,7 @@
 "match query with stacked stems":
   - skip:
       version: " - 2.11.99"
-      reason: "match_only_text was added in 3.0"
+      reason: "match_only_text was added in 2.12"
   # Tests the match query stemmed tokens are "stacked" on top of the unstemmed
   # versions in the same position.
   - do:

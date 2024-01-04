@@ -2,7 +2,7 @@
 "Default index":
   - skip:
       version: " - 2.11.99"
-      reason: "match_only_text was added in 3.0"
+      reason: "match_only_text was added in 2.12"
   - do:
       indices.create:
           index:  goodbad
@@ -79,7 +79,7 @@
 "Dedup noise":
   - skip:
       version: " - 2.11.99"
-      reason: "match_only_text was added in 3.0"
+      reason: "match_only_text was added in 2.12"
   - do:
       indices.create:
           index:  goodbad

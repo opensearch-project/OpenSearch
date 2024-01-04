@@ -2,7 +2,7 @@
 setup:
   - skip:
       version: " - 2.11.99"
-      reason: "match_only_text was added in 3.0"
+      reason: "match_only_text was added in 2.12"
   - do:
       indices.create:
         index:  test
@@ -27,7 +27,7 @@ setup:
 "Test use_field":
   - skip:
       version: " - 2.11.99"
-      reason: "match_only_text was added in 3.0"
+      reason: "match_only_text was added in 2.12"
   - do:
       catch: bad_request
       search:
