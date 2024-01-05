@@ -170,7 +170,7 @@ public abstract class TopDocsCollectorContext extends QueryCollectorContext {
         }
 
         @Override
-        CollectorManager<?, ReduceableSearchResult> createManager(CollectorManager<?, ReduceableSearchResult> in) throws IOException {
+        public CollectorManager<?, ReduceableSearchResult> createManager(CollectorManager<?, ReduceableSearchResult> in) throws IOException {
             assert in == null;
 
             CollectorManager<?, ReduceableSearchResult> manager = null;
@@ -205,13 +205,13 @@ public abstract class TopDocsCollectorContext extends QueryCollectorContext {
         }
 
         @Override
-        Collector create(Collector in) {
+        public Collector create(Collector in) {
             assert in == null;
             return collector;
         }
 
         @Override
-        void postProcess(QuerySearchResult result) {
+        public void postProcess(QuerySearchResult result) {
             final TotalHits totalHitCount = hitCountSupplier.get();
             final TopDocs topDocs;
             if (sort != null) {
@@ -267,19 +267,19 @@ public abstract class TopDocsCollectorContext extends QueryCollectorContext {
         }
 
         @Override
-        Collector create(Collector in) throws IOException {
+        public Collector create(Collector in) throws IOException {
             assert in == null;
             return collector;
         }
 
         @Override
-        void postProcess(QuerySearchResult result) throws IOException {
+        public void postProcess(QuerySearchResult result) throws IOException {
             final CollapseTopFieldDocs topDocs = topDocsCollector.getTopDocs();
             result.topDocs(new TopDocsAndMaxScore(topDocs, maxScoreSupplier.get()), sortFmt);
         }
 
         @Override
-        CollectorManager<?, ReduceableSearchResult> createManager(CollectorManager<?, ReduceableSearchResult> in) throws IOException {
+        public CollectorManager<?, ReduceableSearchResult> createManager(CollectorManager<?, ReduceableSearchResult> in) throws IOException {
             return new CollectorManager<Collector, ReduceableSearchResult>() {
                 @Override
                 public Collector newCollector() throws IOException {
@@ -543,7 +543,7 @@ public abstract class TopDocsCollectorContext extends QueryCollectorContext {
         }
 
         @Override
-        CollectorManager<?, ReduceableSearchResult> createManager(CollectorManager<?, ReduceableSearchResult> in) throws IOException {
+        public CollectorManager<?, ReduceableSearchResult> createManager(CollectorManager<?, ReduceableSearchResult> in) throws IOException {
             assert in == null;
             return new SimpleTopDocsCollectorManager();
         }
@@ -556,7 +556,7 @@ public abstract class TopDocsCollectorContext extends QueryCollectorContext {
         }
 
         @Override
-        Collector create(Collector in) {
+        public Collector create(Collector in) {
             assert in == null;
             return collector;
         }
@@ -619,7 +619,7 @@ public abstract class TopDocsCollectorContext extends QueryCollectorContext {
         }
 
         @Override
-        void postProcess(QuerySearchResult result) throws IOException {
+        public void postProcess(QuerySearchResult result) throws IOException {
             final TopDocsAndMaxScore topDocs = newTopDocs();
             result.topDocs(topDocs, sortAndFormats == null ? null : sortAndFormats.formats);
         }
@@ -684,7 +684,7 @@ public abstract class TopDocsCollectorContext extends QueryCollectorContext {
         }
 
         @Override
-        void postProcess(QuerySearchResult result) throws IOException {
+        public void postProcess(QuerySearchResult result) throws IOException {
             final TopDocsAndMaxScore topDocs = newTopDocs();
             if (scrollContext.totalHits == null) {
                 // first round

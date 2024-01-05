@@ -87,9 +87,9 @@ public abstract class QueryCollectorContext {
      * Creates a collector that delegates documents to the provided <code>in</code> collector.
      * @param in The delegate collector
      */
-    abstract Collector create(Collector in) throws IOException;
+    public abstract Collector create(Collector in) throws IOException;
 
-    abstract CollectorManager<?, ReduceableSearchResult> createManager(CollectorManager<?, ReduceableSearchResult> in) throws IOException;
+    public abstract CollectorManager<?, ReduceableSearchResult> createManager(CollectorManager<?, ReduceableSearchResult> in) throws IOException;
 
     /**
      * Wraps this collector with a profiler
@@ -116,7 +116,7 @@ public abstract class QueryCollectorContext {
      *
      * @param result The query search result to populate
      */
-    void postProcess(QuerySearchResult result) throws IOException {}
+    public void postProcess(QuerySearchResult result) throws IOException {}
 
     /**
      * Creates the collector tree from the provided <code>collectors</code>
@@ -149,12 +149,12 @@ public abstract class QueryCollectorContext {
     static QueryCollectorContext createMinScoreCollectorContext(float minScore) {
         return new QueryCollectorContext(REASON_SEARCH_MIN_SCORE) {
             @Override
-            Collector create(Collector in) {
+            public Collector create(Collector in) {
                 return new MinimumScoreCollector(in, minScore);
             }
 
             @Override
-            CollectorManager<?, ReduceableSearchResult> createManager(CollectorManager<?, ReduceableSearchResult> in) throws IOException {
+            public CollectorManager<?, ReduceableSearchResult> createManager(CollectorManager<?, ReduceableSearchResult> in) throws IOException {
                 return new MinimumCollectorManager(in, minScore);
             }
         };
@@ -166,13 +166,13 @@ public abstract class QueryCollectorContext {
     static QueryCollectorContext createFilteredCollectorContext(IndexSearcher searcher, Query query) {
         return new QueryCollectorContext(REASON_SEARCH_POST_FILTER) {
             @Override
-            Collector create(Collector in) throws IOException {
+            public Collector create(Collector in) throws IOException {
                 final Weight filterWeight = searcher.createWeight(searcher.rewrite(query), ScoreMode.COMPLETE_NO_SCORES, 1f);
                 return new FilteredCollector(in, filterWeight);
             }
 
             @Override
-            CollectorManager<?, ReduceableSearchResult> createManager(CollectorManager<?, ReduceableSearchResult> in) throws IOException {
+            public CollectorManager<?, ReduceableSearchResult> createManager(CollectorManager<?, ReduceableSearchResult> in) throws IOException {
                 final Weight filterWeight = searcher.createWeight(searcher.rewrite(query), ScoreMode.COMPLETE_NO_SCORES, 1f);
                 return new FilteredCollectorManager(in, filterWeight);
             }
@@ -187,7 +187,7 @@ public abstract class QueryCollectorContext {
     ) {
         return new QueryCollectorContext(REASON_SEARCH_MULTI) {
             @Override
-            Collector create(Collector in) throws IOException {
+            public Collector create(Collector in) throws IOException {
                 List<Collector> subCollectors = new ArrayList<>();
                 subCollectors.add(in);
                 for (CollectorManager<? extends Collector, ReduceableSearchResult> manager : subs) {
@@ -244,7 +244,7 @@ public abstract class QueryCollectorContext {
             }
 
             @Override
-            CollectorManager<? extends Collector, ReduceableSearchResult> createManager(
+            public CollectorManager<? extends Collector, ReduceableSearchResult> createManager(
                 CollectorManager<? extends Collector, ReduceableSearchResult> in
             ) throws IOException {
                 final List<CollectorManager<?, ReduceableSearchResult>> managers = new ArrayList<>();
@@ -267,7 +267,7 @@ public abstract class QueryCollectorContext {
              * can terminate the collection independently of the provided <code>in</code> {@link Collector}.
              */
             @Override
-            Collector create(Collector in) {
+            public Collector create(Collector in) {
                 assert collector == null;
 
                 List<Collector> subCollectors = new ArrayList<>();
@@ -278,7 +278,7 @@ public abstract class QueryCollectorContext {
             }
 
             @Override
-            CollectorManager<? extends Collector, ReduceableSearchResult> createManager(
+            public CollectorManager<? extends Collector, ReduceableSearchResult> createManager(
                 CollectorManager<? extends Collector, ReduceableSearchResult> in
             ) throws IOException {
                 return new EarlyTerminatingCollectorManager<>(in, numHits, true);
