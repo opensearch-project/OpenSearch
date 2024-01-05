@@ -28,8 +28,7 @@ public class SegmentReplicationIndexStatsIT extends IndexStatsIT {
     }
 
     @Override
-    @Ignore("The testSimpleStats is not compatible with Segment Replication behaviour as the test asserts the index operation count on primary and replica shards."
-        + "With Segment Replication the index operation is not performed on replica shards, so the assertion fails.")
+    @Ignore("The testSimpleStats is not compatible with Segment Replication behaviour as the test asserts the index operation count on primary and replica shards. With Segment Replication the index operation is not performed on replica shards, so the assertion fails.")
     public void testSimpleStats() throws Exception {}
 
 }
