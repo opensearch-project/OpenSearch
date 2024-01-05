@@ -71,6 +71,7 @@ public class PitService {
     ) {
         if (nodeToContextsMap.size() == 0) {
             listener.onResponse(new DeletePitResponse(Collections.emptyList()));
+            return;
         }
         final Set<String> clusters = nodeToContextsMap.values()
             .stream()
