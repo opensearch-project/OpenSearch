@@ -21,7 +21,7 @@ import static org.opensearch.tasks.TaskResourceTrackingService.TASK_ID;
  */
 public class TaskThreadContextStatePropagator implements ThreadContextStatePropagator {
     @Override
-    public Map<String, Object> transients(Map<String, Object> source, boolean isSystemContext) {
+    public Map<String, Object> transients(Map<String, Object> source) {
         final Map<String, Object> transients = new HashMap<>();
 
         if (source.containsKey(TASK_ID)) {
@@ -32,7 +32,7 @@ public class TaskThreadContextStatePropagator implements ThreadContextStatePropa
     }
 
     @Override
-    public Map<String, String> headers(Map<String, Object> source, boolean isSystemContext) {
+    public Map<String, String> headers(Map<String, Object> source) {
         return Collections.emptyMap();
     }
 }

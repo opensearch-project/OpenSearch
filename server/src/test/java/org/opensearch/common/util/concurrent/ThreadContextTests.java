@@ -787,22 +787,41 @@ public class ThreadContextTests extends OpenSearchTestCase {
 
     private ThreadContextStatePropagator createDummyPropagator(final String key) {
         return new ThreadContextStatePropagator() {
+
             @Override
-            public Map<String, Object> transients(Map<String, Object> source, boolean isSystemContext) {
+            public Map<String, Object> transients(Map<String, Object> source) {
                 Map<String, Object> transients = new HashMap<>();
-                if (isSystemContext == false && source.containsKey(key)) {
+                if (source.containsKey(key)) {
                     transients.put(key, source.get(key));
                 }
                 return transients;
             }
 
             @Override
-            public Map<String, String> headers(Map<String, Object> source, boolean isSystemContext) {
+            public Map<String, Object> transients(Map<String, Object> source, boolean isSystemContext) {
+                if (isSystemContext == true) {
+                    return Collections.emptyMap();
+                } else {
+                    return transients(source);
+                }
+            }
+
+            @Override
+            public Map<String, String> headers(Map<String, Object> source) {
                 Map<String, String> headers = new HashMap<>();
-                if (isSystemContext == false && source.containsKey(key)) {
+                if (source.containsKey(key)) {
                     headers.put(key, (String) source.get(key));
                 }
                 return headers;
+            }
+
+            @Override
+            public Map<String, String> headers(Map<String, Object> source, boolean isSystemContext) {
+                if (isSystemContext == true) {
+                    return Collections.emptyMap();
+                } else {
+                    return headers(source);
+                }
             }
         };
     }

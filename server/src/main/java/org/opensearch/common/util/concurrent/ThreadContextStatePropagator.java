@@ -24,10 +24,28 @@ public interface ThreadContextStatePropagator {
      * Returns the list of transient headers that needs to be propagated from current context to new thread context.
      *
      * @param source          current context transient headers
+     * @return the list of transient headers that needs to be propagated from current context to new thread context
+     */
+    Map<String, Object> transients(Map<String, Object> source);
+
+    /**
+     * Returns the list of transient headers that needs to be propagated from current context to new thread context.
+     *
+     * @param source          current context transient headers
      * @param isSystemContext if the propagation is for system context.
      * @return the list of transient headers that needs to be propagated from current context to new thread context
      */
-    Map<String, Object> transients(Map<String, Object> source, boolean isSystemContext);
+    default Map<String, Object> transients(Map<String, Object> source, boolean isSystemContext) {
+        return transients(source);
+    };
+
+    /**
+     * Returns the list of request headers that needs to be propagated from current context to request.
+     *
+     * @param source          current context headers
+     * @return the list of request headers that needs to be propagated from current context to request
+     */
+    Map<String, String> headers(Map<String, Object> source);
 
     /**
      * Returns the list of request headers that needs to be propagated from current context to request.
@@ -36,5 +54,7 @@ public interface ThreadContextStatePropagator {
      * @param isSystemContext if the propagation is for system context.
      * @return the list of request headers that needs to be propagated from current context to request
      */
-    Map<String, String> headers(Map<String, Object> source, boolean isSystemContext);
+    default Map<String, String> headers(Map<String, Object> source, boolean isSystemContext) {
+        return headers(source);
+    }
 }
