@@ -740,6 +740,73 @@ public class ThreadContextTests extends OpenSearchTestCase {
         assertFalse(threadContext.isSystemContext());
     }
 
+    public void testSystemContextWithPropagator() {
+        Settings build = Settings.builder().put("request.headers.default", "1").build();
+        ThreadContext threadContext = new ThreadContext(build);
+        threadContext.registerThreadContextStatePropagator(createDummyPropagator(("test_transient_propagation_key")));
+        threadContext.putHeader("foo", "bar");
+        threadContext.putTransient("test_transient_propagation_key", 1);
+        assertEquals(Integer.valueOf(1), threadContext.getTransient("test_transient_propagation_key"));
+        assertEquals("bar", threadContext.getHeader("foo"));
+        try (ThreadContext.StoredContext ctx = threadContext.stashContext()) {
+            threadContext.markAsSystemContext();
+            assertNull(threadContext.getHeader("foo"));
+            assertNull(threadContext.getTransient("test_transient_propagation_key"));
+            assertEquals("1", threadContext.getHeader("default"));
+        }
+
+        assertEquals("bar", threadContext.getHeader("foo"));
+        assertEquals(Integer.valueOf(1), threadContext.getTransient("test_transient_propagation_key"));
+        assertEquals("1", threadContext.getHeader("default"));
+    }
+
+    public void testSerializeSystemContext() throws IOException {
+        Settings build = Settings.builder().put("request.headers.default", "1").build();
+        ThreadContext threadContext = new ThreadContext(build);
+        threadContext.registerThreadContextStatePropagator(createDummyPropagator(("test_transient_propagation_key")));
+        threadContext.putHeader("foo", "bar");
+        threadContext.putTransient("test_transient_propagation_key", "test");
+        BytesStreamOutput out = new BytesStreamOutput();
+        BytesStreamOutput outFromSystemContext = new BytesStreamOutput();
+        threadContext.writeTo(out);
+        try (ThreadContext.StoredContext ctx = threadContext.stashContext()) {
+            assertEquals("test", threadContext.getTransient("test_transient_propagation_key"));
+            threadContext.markAsSystemContext();
+            threadContext.writeTo(outFromSystemContext);
+            assertNull(threadContext.getHeader("foo"));
+            assertNull(threadContext.getTransient("test_transient_propagation_key"));
+            threadContext.readHeaders(outFromSystemContext.bytes().streamInput());
+            assertNull(threadContext.getHeader("test_transient_propagation_key"));
+        }
+        assertEquals("test", threadContext.getTransient("test_transient_propagation_key"));
+        threadContext.readHeaders(out.bytes().streamInput());
+        assertEquals("bar", threadContext.getHeader("foo"));
+        assertEquals("test", threadContext.getHeader("test_transient_propagation_key"));
+        assertEquals("1", threadContext.getHeader("default"));
+    }
+
+    private ThreadContextStatePropagator createDummyPropagator(final String key) {
+        return new ThreadContextStatePropagator() {
+            @Override
+            public Map<String, Object> transients(Map<String, Object> source, boolean isSystemContext) {
+                Map<String, Object> transients = new HashMap<>();
+                if (isSystemContext == false && source.containsKey(key)) {
+                    transients.put(key, source.get(key));
+                }
+                return transients;
+            }
+
+            @Override
+            public Map<String, String> headers(Map<String, Object> source, boolean isSystemContext) {
+                Map<String, String> headers = new HashMap<>();
+                if (isSystemContext == false && source.containsKey(key)) {
+                    headers.put(key, (String) source.get(key));
+                }
+                return headers;
+            }
+        };
+    }
+
     public void testPutHeaders() {
         Settings build = Settings.builder().put("request.headers.default", "1").build();
         ThreadContext threadContext = new ThreadContext(build);
