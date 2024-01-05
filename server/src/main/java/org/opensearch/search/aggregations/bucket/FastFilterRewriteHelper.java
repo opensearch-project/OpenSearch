@@ -297,7 +297,7 @@ public class FastFilterRewriteHelper {
             this.showOtherBucket = showOtherBucket;
         }
 
-        public boolean isRewriteable(Object parent, int subAggLength) {
+        public boolean isRewriteable(final Object parent, final int subAggLength) {
             if (parent == null && subAggLength == 0 && !missing && !hasScript) {
                 if (type == Type.FILTERS) {
                     return !showOtherBucket;

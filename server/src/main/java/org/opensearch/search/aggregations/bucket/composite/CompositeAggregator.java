@@ -165,8 +165,10 @@ final class CompositeAggregator extends BucketsAggregator {
 
         fastFilterContext = new FastFilterRewriteHelper.FastFilterContext(sourceConfigs, rawAfterKey, formats);
         if (fastFilterContext.isRewriteable(parent, subAggregators.length)) {
+            // Currently the filter rewrite is only supported for date histograms
             RoundingValuesSource dateHistogramSource = fastFilterContext.getDateHistogramSource();
             preparedRounding = dateHistogramSource.getPreparedRounding();
+            // bucketOrds is the data structure for saving date histogram results
             bucketOrds = LongKeyedBucketOrds.build(context.bigArrays(), CardinalityUpperBound.ONE);
             fastFilterContext.setSize(size);
             FastFilterRewriteHelper.buildFastFilter(
@@ -237,15 +239,17 @@ final class CompositeAggregator extends BucketsAggregator {
 
         // Build results from fast filters optimization
         if (bucketOrds != null) {
+            // CompositeKey is the value of bucket key
             final Map<CompositeKey, InternalComposite.InternalBucket> bucketMap = new HashMap<>();
+            // Some segments may not be optimized, so buckets may contain results from the queue.
             for (InternalComposite.InternalBucket internalBucket : buckets) {
                 bucketMap.put(internalBucket.getRawKey(), internalBucket);
             }
-
+            // Loop over the buckets in the bucketOrds, and populate the map accordingly
             LongKeyedBucketOrds.BucketOrdsEnum ordsEnum = bucketOrds.ordsEnum(0);
             while (ordsEnum.next()) {
-                Long bucketValue = ordsEnum.value();
-                CompositeKey key = new CompositeKey(bucketValue);
+                Long bucketKeyValue = ordsEnum.value();
+                CompositeKey key = new CompositeKey(bucketKeyValue);
                 if (bucketMap.containsKey(key)) {
                     long docCount = bucketDocCount(ordsEnum.ord()) + bucketMap.get(key).getDocCount();
                     bucketMap.get(key).setDocCount(docCount);
@@ -262,7 +266,7 @@ final class CompositeAggregator extends BucketsAggregator {
                     bucketMap.put(key, bucket);
                 }
             }
-
+            // since a map is not sorted structure, sort it before transform back to buckets
             List<InternalComposite.InternalBucket> bucketList = new ArrayList<>(bucketMap.values());
             CollectionUtil.introSort(bucketList, InternalComposite.InternalBucket::compareKey);
             buckets = bucketList.subList(0, Math.min(size, bucketList.size())).toArray(InternalComposite.InternalBucket[]::new);
