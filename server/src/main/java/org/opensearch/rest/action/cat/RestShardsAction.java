@@ -283,6 +283,7 @@ public class RestShardsAction extends AbstractCatAction {
 
         table.addCell("path.data", "alias:pd,dataPath;default:false;text-align:right;desc:shard data path");
         table.addCell("path.state", "alias:ps,statsPath;default:false;text-align:right;desc:shard state path");
+        table.addCell("docs.deleted", "alias:dd,docsDeleted;default:false;text-align:right;desc:number of deleted docs in shard");
 
         table.endHeaders();
         return table;
@@ -448,6 +449,7 @@ public class RestShardsAction extends AbstractCatAction {
 
             table.addCell(getOrNull(shardStats, ShardStats::getDataPath, s -> s));
             table.addCell(getOrNull(shardStats, ShardStats::getStatePath, s -> s));
+            table.addCell(getOrNull(commonStats, CommonStats::getDocs, DocsStats::getDeleted));
 
             table.endRow();
         }
