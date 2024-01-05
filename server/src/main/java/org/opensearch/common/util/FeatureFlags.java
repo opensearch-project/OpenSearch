@@ -62,6 +62,16 @@ public class FeatureFlags {
     public static final String WRITEABLE_REMOTE_INDEX = "opensearch.experimental.feature.writeable_remote_index.enabled";
 
     /**
+     * Gates the optimization to enable bloom filters for doc id lookup.
+     */
+    public static final String DOC_ID_FUZZY_SET = "opensearch.experimental.optimize_doc_id_lookup.fuzzy_set.enabled";
+     
+    /**
+     * Gates the functionality of integrating protobuf within search API and node-to-node communication.
+     */
+    public static final String PROTOBUF = "opensearch.experimental.feature.protobuf.enabled";
+
+    /**
      * Gates the functionality of pluggable cache.
      * Enables OpenSearch to use pluggable caches with respective store names via setting.
      */
@@ -155,4 +165,6 @@ public class FeatureFlags {
             return featureFlag.getDefault(Settings.EMPTY);
         }
     }
+
+    public static final Setting<Boolean> PROTOBUF_SETTING = Setting.boolSetting(PROTOBUF, false, Property.NodeScope);
 }
