@@ -40,7 +40,8 @@ public class FeatureFlagSettings extends AbstractScopedSettings {
                 FeatureFlags.IDENTITY_SETTING,
                 FeatureFlags.CONCURRENT_SEGMENT_SEARCH_SETTING,
                 FeatureFlags.TELEMETRY_SETTING,
-                FeatureFlags.DATETIME_FORMATTER_CACHING_SETTING
+                FeatureFlags.DATETIME_FORMATTER_CACHING_SETTING,
+                FeatureFlags.WRITEABLE_REMOTE_INDEX_SETTING
             )
         )
     );
