@@ -10,7 +10,6 @@ package org.opensearch.indices.stats;
 
 import org.opensearch.common.settings.Settings;
 import org.opensearch.indices.replication.common.ReplicationType;
-import org.junit.Ignore;
 
 import static org.opensearch.indices.IndicesService.CLUSTER_SETTING_REPLICATION_TYPE;
 
