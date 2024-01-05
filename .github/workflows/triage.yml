@@ -1,0 +1,34 @@
+name: Auto triage based on the component label in issue
+
+on:
+  issues:
+    types: [opened, reopened, transferred]
+
+jobs:
+  apply-label:
+    if: github.repository == 'opensearch-project/OpenSearch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/github-script@v7
+        with:
+          script: |
+            const { issue, repository } = context.payload;
+            const { number, body } = issue;
+            const { owner, name } = repository;
+            const regex = /###\sRelated\scomponent\n\n(\w.*)\n/gm;
+            let match;
+            while ( ( match = regex.exec( body ) ) ) {
+              const [ , component_label ] = match;
+              await github.rest.issues.addLabels( {
+                owner: owner.login,
+                repo: name,
+                issue_number: number,
+                labels: [ `${ component_label }` ],
+              } );
+            }
+            github.rest.issues.addLabels({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              labels: ['untriaged']
+            })

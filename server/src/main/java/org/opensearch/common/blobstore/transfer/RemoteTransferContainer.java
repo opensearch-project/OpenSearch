@@ -19,6 +19,7 @@ import org.opensearch.common.StreamContext;
 import org.opensearch.common.blobstore.stream.write.WriteContext;
 import org.opensearch.common.blobstore.stream.write.WritePriority;
 import org.opensearch.common.blobstore.transfer.stream.OffsetRangeInputStream;
+import org.opensearch.common.blobstore.transfer.stream.RateLimitingOffsetRangeInputStream;
 import org.opensearch.common.blobstore.transfer.stream.ResettableCheckedInputStream;
 import org.opensearch.common.io.InputStreamContainer;
 import org.opensearch.common.util.ByteUtils;
@@ -27,6 +28,8 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Objects;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Supplier;
 import java.util.zip.CRC32;
 
 import com.jcraft.jzlib.JZlib;
@@ -43,7 +46,7 @@ public class RemoteTransferContainer implements Closeable {
     private long lastPartSize;
 
     private final long contentLength;
-    private final SetOnce<InputStream[]> inputStreams = new SetOnce<>();
+    private final SetOnce<Supplier<Long>[]> checksumSuppliers = new SetOnce<>();
     private final String fileName;
     private final String remoteFileName;
     private final boolean failTransferIfFileExists;
@@ -51,6 +54,7 @@ public class RemoteTransferContainer implements Closeable {
     private final long expectedChecksum;
     private final OffsetRangeInputStreamSupplier offsetRangeInputStreamSupplier;
     private final boolean isRemoteDataIntegritySupported;
+    private final AtomicBoolean readBlock = new AtomicBoolean();
 
     private static final Logger log = LogManager.getLogger(RemoteTransferContainer.class);
 
@@ -120,23 +124,24 @@ public class RemoteTransferContainer implements Closeable {
         }
     }
 
+    @SuppressWarnings({ "unchecked" })
     private StreamContext openMultipartStreams(long partSize) throws IOException {
-        if (inputStreams.get() != null) {
+        if (checksumSuppliers.get() != null) {
             throw new IOException("Multi-part streams are already created.");
         }
 
         this.partSize = partSize;
         this.lastPartSize = (contentLength % partSize) != 0 ? contentLength % partSize : partSize;
         this.numberOfParts = (int) ((contentLength % partSize) == 0 ? contentLength / partSize : (contentLength / partSize) + 1);
-        InputStream[] streams = new InputStream[numberOfParts];
-        inputStreams.set(streams);
+        Supplier<Long>[] suppliers = new Supplier[numberOfParts];
+        checksumSuppliers.set(suppliers);
 
         return new StreamContext(getTransferPartStreamSupplier(), partSize, lastPartSize, numberOfParts);
     }
 
     private CheckedTriFunction<Integer, Long, Long, InputStreamContainer, IOException> getTransferPartStreamSupplier() {
         return ((partNo, size, position) -> {
-            assert inputStreams.get() != null : "expected inputStreams to be initialised";
+            assert checksumSuppliers.get() != null : "expected container to be initialised";
             return getMultipartStreamSupplier(partNo, size, position).get();
         });
     }
@@ -160,10 +165,21 @@ public class RemoteTransferContainer implements Closeable {
         return () -> {
             try {
                 OffsetRangeInputStream offsetRangeInputStream = offsetRangeInputStreamSupplier.get(size, position);
-                InputStream inputStream = !isRemoteDataIntegrityCheckPossible()
-                    ? new ResettableCheckedInputStream(offsetRangeInputStream, fileName)
-                    : offsetRangeInputStream;
-                Objects.requireNonNull(inputStreams.get())[streamIdx] = inputStream;
+                if (offsetRangeInputStream instanceof RateLimitingOffsetRangeInputStream) {
+                    RateLimitingOffsetRangeInputStream rangeIndexInputStream = (RateLimitingOffsetRangeInputStream) offsetRangeInputStream;
+                    rangeIndexInputStream.setReadBlock(readBlock);
+                }
+                InputStream inputStream;
+                if (isRemoteDataIntegrityCheckPossible() == false) {
+                    ResettableCheckedInputStream resettableCheckedInputStream = new ResettableCheckedInputStream(
+                        offsetRangeInputStream,
+                        fileName
+                    );
+                    Objects.requireNonNull(checksumSuppliers.get())[streamIdx] = resettableCheckedInputStream::getChecksum;
+                    inputStream = resettableCheckedInputStream;
+                } else {
+                    inputStream = offsetRangeInputStream;
+                }
 
                 return new InputStreamContainer(inputStream, size, position);
             } catch (IOException e) {
@@ -205,20 +221,14 @@ public class RemoteTransferContainer implements Closeable {
         return contentLength;
     }
 
-    private long getInputStreamChecksum(InputStream inputStream) {
-        assert inputStream instanceof ResettableCheckedInputStream
-            : "expected passed inputStream to be instance of ResettableCheckedInputStream";
-        return ((ResettableCheckedInputStream) inputStream).getChecksum();
-    }
-
     private long getActualChecksum() {
-        InputStream[] currentInputStreams = Objects.requireNonNull(inputStreams.get());
-        long checksum = getInputStreamChecksum(currentInputStreams[0]);
-        for (int checkSumIdx = 1; checkSumIdx < Objects.requireNonNull(inputStreams.get()).length - 1; checkSumIdx++) {
-            checksum = JZlib.crc32_combine(checksum, getInputStreamChecksum(currentInputStreams[checkSumIdx]), partSize);
+        Supplier<Long>[] ckSumSuppliers = Objects.requireNonNull(checksumSuppliers.get());
+        long checksum = ckSumSuppliers[0].get();
+        for (int checkSumIdx = 1; checkSumIdx < ckSumSuppliers.length - 1; checkSumIdx++) {
+            checksum = JZlib.crc32_combine(checksum, ckSumSuppliers[checkSumIdx].get(), partSize);
         }
         if (numberOfParts > 1) {
-            checksum = JZlib.crc32_combine(checksum, getInputStreamChecksum(currentInputStreams[numberOfParts - 1]), lastPartSize);
+            checksum = JZlib.crc32_combine(checksum, ckSumSuppliers[numberOfParts - 1].get(), lastPartSize);
         }
 
         return checksum;
@@ -226,27 +236,8 @@ public class RemoteTransferContainer implements Closeable {
 
     @Override
     public void close() throws IOException {
-        if (inputStreams.get() == null) {
-            log.warn("Input streams cannot be closed since they are not yet set for multi stream upload");
-            return;
-        }
-
-        boolean closeStreamException = false;
-        for (InputStream is : Objects.requireNonNull(inputStreams.get())) {
-            try {
-                if (is != null) {
-                    is.close();
-                }
-            } catch (IOException ex) {
-                closeStreamException = true;
-                // Attempting to close all streams first before throwing exception.
-                log.error("Multipart stream failed to close ", ex);
-            }
-        }
-
-        if (closeStreamException) {
-            throw new IOException("Closure of some of the multi-part streams failed.");
-        }
+        // Setting a read block on all streams ever created by the container.
+        readBlock.set(true);
     }
 
     /**

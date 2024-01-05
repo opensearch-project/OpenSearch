@@ -94,7 +94,7 @@ public class RepositoriesSetupPlugin implements Plugin<Project> {
             String revision = matcher.group(1);
             MavenArtifactRepository luceneRepo = repos.maven(repo -> {
                 repo.setName("lucene-snapshots");
-                repo.setUrl("https://d1nvenhzbhpy0q.cloudfront.net/snapshots/lucene/");
+                repo.setUrl("https://artifacts.opensearch.org/snapshots/lucene/");
             });
             repos.exclusiveContent(exclusiveRepo -> {
                 exclusiveRepo.filter(
