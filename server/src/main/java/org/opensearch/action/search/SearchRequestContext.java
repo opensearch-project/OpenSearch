@@ -31,18 +31,25 @@ class SearchRequestContext {
     private TotalHits totalHits;
     private final EnumMap<ShardStatsFieldNames, Integer> shardStats;
 
+    private final boolean phaseTookEnabled;
+
     /**
      * This constructor is for testing only
      */
     SearchRequestContext() {
-        this(new SearchRequestOperationsListener.CompositeListener(List.of(), LogManager.getLogger()));
+        this(new SearchRequestOperationsListener.CompositeListener(List.of(), LogManager.getLogger()), false);
     }
 
-    SearchRequestContext(SearchRequestOperationsListener searchRequestOperationsListener) {
+    SearchRequestContext(SearchRequestOperationsListener searchRequestOperationsListener, boolean phaseTookEnabled) {
         this.searchRequestOperationsListener = searchRequestOperationsListener;
         this.absoluteStartNanos = System.nanoTime();
         this.phaseTookMap = new HashMap<>();
         this.shardStats = new EnumMap<>(ShardStatsFieldNames.class);
+        this.phaseTookEnabled = phaseTookEnabled;
+    }
+
+    SearchRequestContext(SearchRequestOperationsListener searchRequestOperationsListener) {
+        this(searchRequestOperationsListener, false);
     }
 
     SearchRequestOperationsListener getSearchRequestOperationsListener() {
@@ -55,6 +62,14 @@ class SearchRequestContext {
 
     Map<String, Long> phaseTookMap() {
         return phaseTookMap;
+    }
+
+    SearchResponse.PhaseTook getPhaseTook() {
+        if (phaseTookEnabled) {
+            return new SearchResponse.PhaseTook(phaseTookMap);
+        } else {
+            return null;
+        }
     }
 
     /**

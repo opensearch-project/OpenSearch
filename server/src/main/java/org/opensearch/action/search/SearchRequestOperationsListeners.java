@@ -59,18 +59,22 @@ public class SearchRequestOperationsListeners {
      * Create the {@link SearchRequestOperationsListener.CompositeListener}
      * with the all listeners enabled at cluster-level and request-level.
      *
+     * @param searchRequest The SearchRequest object used to decide which request-level listeners to add based on states/flags
      * @param logger Logger to be attached to the {@link SearchRequestOperationsListener.CompositeListener}
      * @param perRequestListeners the per-request listeners that can be optionally added to the returned CompositeListener list.
      * @return SearchRequestOperationsListener.CompositeListener
      */
     public SearchRequestOperationsListener.CompositeListener buildCompositeListener(
+        SearchRequest searchRequest,
         Logger logger,
         SearchRequestOperationsListener... perRequestListeners
     ) {
         final List<SearchRequestOperationsListener> searchListenersList = Stream.concat(
             searchRequestListenersList.stream(),
             Arrays.stream(perRequestListeners)
-        ).filter(SearchRequestOperationsListener::getEnabled).collect(Collectors.toList());
+        )
+            .filter((searchRequestOperationsListener -> searchRequestOperationsListener.isEnabled(searchRequest)))
+            .collect(Collectors.toList());
 
         return new SearchRequestOperationsListener.CompositeListener(searchListenersList, logger);
     }

@@ -483,7 +483,8 @@ public class TransportSearchActionTests extends OpenSearchTestCase {
                 remoteClusterService,
                 threadPool,
                 listener,
-                (r, l) -> setOnce.set(Tuple.tuple(r, l))
+                (r, l) -> setOnce.set(Tuple.tuple(r, l)),
+                new SearchRequestContext()
             );
             if (localIndices == null) {
                 assertNull(setOnce.get());
@@ -541,7 +542,8 @@ public class TransportSearchActionTests extends OpenSearchTestCase {
                     remoteClusterService,
                     threadPool,
                     listener,
-                    (r, l) -> setOnce.set(Tuple.tuple(r, l))
+                    (r, l) -> setOnce.set(Tuple.tuple(r, l)),
+                    new SearchRequestContext()
                 );
                 if (localIndices == null) {
                     assertNull(setOnce.get());
@@ -578,7 +580,8 @@ public class TransportSearchActionTests extends OpenSearchTestCase {
                     remoteClusterService,
                     threadPool,
                     listener,
-                    (r, l) -> setOnce.set(Tuple.tuple(r, l))
+                    (r, l) -> setOnce.set(Tuple.tuple(r, l)),
+                    new SearchRequestContext()
                 );
                 if (localIndices == null) {
                     assertNull(setOnce.get());
@@ -636,7 +639,8 @@ public class TransportSearchActionTests extends OpenSearchTestCase {
                     remoteClusterService,
                     threadPool,
                     listener,
-                    (r, l) -> setOnce.set(Tuple.tuple(r, l))
+                    (r, l) -> setOnce.set(Tuple.tuple(r, l)),
+                    new SearchRequestContext()
                 );
                 if (localIndices == null) {
                     assertNull(setOnce.get());
@@ -676,7 +680,8 @@ public class TransportSearchActionTests extends OpenSearchTestCase {
                     remoteClusterService,
                     threadPool,
                     listener,
-                    (r, l) -> setOnce.set(Tuple.tuple(r, l))
+                    (r, l) -> setOnce.set(Tuple.tuple(r, l)),
+                    new SearchRequestContext()
                 );
                 if (localIndices == null) {
                     assertNull(setOnce.get());
@@ -727,7 +732,8 @@ public class TransportSearchActionTests extends OpenSearchTestCase {
                     remoteClusterService,
                     threadPool,
                     listener,
-                    (r, l) -> setOnce.set(Tuple.tuple(r, l))
+                    (r, l) -> setOnce.set(Tuple.tuple(r, l)),
+                    new SearchRequestContext()
                 );
                 if (localIndices == null) {
                     assertNull(setOnce.get());

@@ -98,7 +98,6 @@ import org.opensearch.transport.TransportService;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -269,8 +268,6 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
     }
 
     /**
-     * Listener to track request-level tookTime and phase tookTimes from the coordinator.
-     *
      * Search operations need two clocks. One clock is to fulfill real clock needs (e.g., resolving
      * "now" to an index name). Another clock is needed for measuring how long a search operation
      * took. These two uses are at odds with each other. There are many issues with using a real
@@ -280,8 +277,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
      *
      * @opensearch.internal
      */
-    static final class SearchTimeProvider extends SearchRequestOperationsListener {
-
+    static final class SearchTimeProvider {
         private final long absoluteStartMillis;
         private final long relativeStartNanos;
         private final LongSupplier relativeCurrentNanosProvider;
@@ -309,53 +305,6 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
 
         long buildTookInMillis() {
             return TimeUnit.NANOSECONDS.toMillis(relativeCurrentNanosProvider.getAsLong() - relativeStartNanos);
-        }
-
-        SearchResponse.PhaseTook getPhaseTook() {
-            if (getEnabled()) {
-                Map<String, Long> phaseTookMap = new HashMap<>();
-                // Convert Map<SearchPhaseName, Long> to Map<String, Long> for SearchResponse()
-                for (SearchPhaseName searchPhaseName : phaseStatsMap.keySet()) {
-                    phaseTookMap.put(searchPhaseName.getName(), phaseStatsMap.get(searchPhaseName));
-                }
-                return new SearchResponse.PhaseTook(phaseTookMap);
-            } else {
-                return null;
-            }
-        }
-
-        Map<SearchPhaseName, Long> phaseStatsMap = new EnumMap<>(SearchPhaseName.class);
-
-        /**
-         * Set if this listener is enabled based on the cluster level setting
-         * and per request enable flags.
-         *
-         * @param enabledAtClusterLevel if the SearchTimeProvider listener is enabled at cluster level
-         * @param searchRequest the original Search Request
-         * @opensearch.internal
-         */
-
-        void setEnabled(boolean enabledAtClusterLevel, SearchRequest searchRequest) {
-            // phase_took is enabled wi th request param and/or cluster setting
-            super.setEnabled(enabledAtClusterLevel || (searchRequest.isPhaseTook() != null && searchRequest.isPhaseTook()));
-        }
-
-        @Override
-        void onPhaseStart(SearchPhaseContext context) {}
-
-        @Override
-        void onPhaseEnd(SearchPhaseContext context, SearchRequestContext searchRequestContext) {
-            phaseStatsMap.put(
-                context.getCurrentPhase().getSearchPhaseName(),
-                TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - context.getCurrentPhase().getStartTimeInNanos())
-            );
-        }
-
-        @Override
-        void onPhaseFailure(SearchPhaseContext context) {}
-
-        public Long getPhaseTookTime(SearchPhaseName searchPhaseName) {
-            return phaseStatsMap.get(searchPhaseName);
         }
     }
 
@@ -479,10 +428,15 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             relativeStartNanos,
             System::nanoTime
         );
-        timeProvider.setEnabled(clusterService.getClusterSettings().get(SEARCH_PHASE_TOOK_ENABLED), originalSearchRequest);
+        final boolean phaseTookEnabled;
+        if (originalSearchRequest.isPhaseTook() == null) {
+            phaseTookEnabled = clusterService.getClusterSettings().get(SEARCH_PHASE_TOOK_ENABLED);
+        } else {
+            phaseTookEnabled = originalSearchRequest.isPhaseTook();
+        }
         SearchRequestOperationsListener.CompositeListener requestOperationsListeners = searchRequestOperationsListeners
-            .buildCompositeListener(logger, timeProvider);
-        SearchRequestContext searchRequestContext = new SearchRequestContext(requestOperationsListeners);
+            .buildCompositeListener(originalSearchRequest, logger);
+        SearchRequestContext searchRequestContext = new SearchRequestContext(requestOperationsListeners, phaseTookEnabled);
         searchRequestContext.getSearchRequestOperationsListener().onRequestStart(searchRequestContext);
 
         PipelinedRequest searchRequest;
@@ -587,7 +541,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                             searchContext,
                             searchAsyncActionProvider,
                             searchRequestContext
-                        )
+                        ),
+                        searchRequestContext
                     );
                 } else {
                     AtomicInteger skippedClusters = new AtomicInteger(0);
@@ -675,7 +630,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         RemoteClusterService remoteClusterService,
         ThreadPool threadPool,
         ActionListener<SearchResponse> listener,
-        BiConsumer<SearchRequest, ActionListener<SearchResponse>> localSearchConsumer
+        BiConsumer<SearchRequest, ActionListener<SearchResponse>> localSearchConsumer,
+        SearchRequestContext searchRequestContext
     ) {
 
         if (localIndices == null && remoteIndices.size() == 1) {
@@ -717,7 +673,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                             searchResponse.getSuccessfulShards(),
                             searchResponse.getSkippedShards(),
                             timeProvider.buildTookInMillis(),
-                            timeProvider.getPhaseTook(),
+                            searchRequestContext.getPhaseTook(),
                             searchResponse.getShardFailures(),
                             new SearchResponse.Clusters(1, 1, 0),
                             searchResponse.pointInTimeId()
@@ -763,7 +719,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     exceptions,
                     searchResponseMerger,
                     totalClusters,
-                    listener
+                    listener,
+                    searchRequestContext
                 );
                 Client remoteClusterClient = remoteClusterService.getRemoteClusterClient(threadPool, clusterAlias);
                 remoteClusterClient.search(ccsSearchRequest, ccsListener);
@@ -777,7 +734,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     exceptions,
                     searchResponseMerger,
                     totalClusters,
-                    listener
+                    listener,
+                    searchRequestContext
                 );
                 SearchRequest ccsLocalSearchRequest = SearchRequest.subSearchRequest(
                     searchRequest,
@@ -872,7 +830,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         AtomicReference<Exception> exceptions,
         SearchResponseMerger searchResponseMerger,
         int totalClusters,
-        ActionListener<SearchResponse> originalListener
+        ActionListener<SearchResponse> originalListener,
+        SearchRequestContext searchRequestContext
     ) {
         return new CCSActionListener<SearchResponse, SearchResponse>(
             clusterAlias,
@@ -894,7 +853,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     searchResponseMerger.numResponses(),
                     skippedClusters.get()
                 );
-                return searchResponseMerger.getMergedResponse(clusters);
+                return searchResponseMerger.getMergedResponse(clusters, searchRequestContext);
             }
         };
     }

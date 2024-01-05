@@ -24,7 +24,7 @@ public abstract class SearchRequestOperationsListener {
     private volatile boolean enabled;
 
     protected SearchRequestOperationsListener() {
-        this.enabled = false;
+        this.enabled = true;
     }
 
     protected SearchRequestOperationsListener(boolean enabled) {
@@ -41,11 +41,15 @@ public abstract class SearchRequestOperationsListener {
 
     void onRequestEnd(SearchPhaseContext context, SearchRequestContext searchRequestContext) {}
 
-    boolean getEnabled() {
+    boolean isEnabled(SearchRequest searchRequest) {
+        return isEnabled();
+    }
+
+    boolean isEnabled() {
         return enabled;
     }
 
-    void setEnabled(boolean enabled) {
+    protected void setEnabled(boolean enabled) {
         this.enabled = enabled;
     }
 
@@ -62,7 +66,6 @@ public abstract class SearchRequestOperationsListener {
         CompositeListener(List<SearchRequestOperationsListener> listeners, Logger logger) {
             this.listeners = listeners;
             this.logger = logger;
-            this.setEnabled(true);
         }
 
         @Override
