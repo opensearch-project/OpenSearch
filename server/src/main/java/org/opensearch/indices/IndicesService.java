@@ -178,6 +178,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -193,7 +194,6 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyList;
-import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;
 import static org.opensearch.common.collect.MapBuilder.newMapBuilder;
 import static org.opensearch.common.util.concurrent.OpenSearchExecutors.daemonThreadFactory;
@@ -301,8 +301,6 @@ public class IndicesService extends AbstractLifecycleComponent
         Property.Final
     );
 
-    private static long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(IndexShardCacheEntity.class);
-
     /**
      * If enabled, this setting enforces that indexes will be created with a replication type matching the cluster setting
      * defined in cluster.indices.replication.strategy by rejecting any request that specifies a replication type that
@@ -335,7 +333,7 @@ public class IndicesService extends AbstractLifecycleComponent
     private final ScriptService scriptService;
     private final ClusterService clusterService;
     private final Client client;
-    private volatile Map<String, IndexService> indices = emptyMap();
+    private volatile Map<String, IndexService> indices = new ConcurrentHashMap<>();
     private final Map<Index, List<PendingDelete>> pendingDeletes = new HashMap<>();
     private final AtomicInteger numUncompletedDeletes = new AtomicInteger();
     private final OldShardsStats oldShardsStats = new OldShardsStats();
@@ -411,7 +409,10 @@ public class IndicesService extends AbstractLifecycleComponent
         this.shardsClosedTimeout = settings.getAsTime(INDICES_SHARDS_CLOSED_TIMEOUT, new TimeValue(1, TimeUnit.DAYS));
         this.analysisRegistry = analysisRegistry;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
-        this.indicesRequestCache = new IndicesRequestCache(settings, this);
+        this.indicesRequestCache = new IndicesRequestCache(settings, (shardId -> {
+            IndexService indexService = indexServiceSafe(shardId.getIndex());
+            return new IndexShardCacheEntity(indexService.getShard(shardId.id()));
+        }));
         this.indicesQueryCache = new IndicesQueryCache(settings);
         this.mapperRegistry = mapperRegistry;
         this.namedWriteableRegistry = namedWriteableRegistry;
@@ -1746,7 +1747,6 @@ public class IndicesService extends AbstractLifecycleComponent
         BytesReference cacheKey,
         CheckedConsumer<StreamOutput, IOException> loader
     ) throws Exception {
-        IndexShardCacheEntity cacheEntity = new IndexShardCacheEntity(shard);
         CheckedSupplier<BytesReference, IOException> supplier = () -> {
             /* BytesStreamOutput allows to pass the expected size but by default uses
              * BigArrays.PAGE_SIZE_IN_BYTES which is 16k. A common cached result ie.
@@ -1763,7 +1763,7 @@ public class IndicesService extends AbstractLifecycleComponent
                 return out.bytes();
             }
         };
-        return indicesRequestCache.getOrCompute(cacheEntity, supplier, reader, cacheKey);
+        return indicesRequestCache.getOrCompute(new IndexShardCacheEntity(shard), supplier, reader, cacheKey);
     }
 
     /**
@@ -1771,18 +1771,13 @@ public class IndicesService extends AbstractLifecycleComponent
      *
      * @opensearch.internal
      */
-    public final class IndexShardCacheEntity extends AbstractIndexShardCacheEntity {
+    public static class IndexShardCacheEntity extends AbstractIndexShardCacheEntity {
+
+        private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(IndexShardCacheEntity.class);
         private final IndexShard indexShard;
 
         public IndexShardCacheEntity(IndexShard indexShard) {
             this.indexShard = indexShard;
-        }
-
-        public IndexShardCacheEntity(StreamInput in) throws IOException {
-            Index index = in.readOptionalWriteable(Index::new);
-            int shardId = in.readVInt();
-            IndexService indexService = indices.get(index.getUUID());
-            this.indexShard = Optional.ofNullable(indexService).map(indexService1 -> indexService1.getShard(shardId)).orElse(null);
         }
 
         @Override
@@ -1805,12 +1800,6 @@ public class IndicesService extends AbstractLifecycleComponent
             // No need to take the IndexShard into account since it is shared
             // across many entities
             return BASE_RAM_BYTES_USED;
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeOptionalWriteable(indexShard.shardId().getIndex());
-            out.writeVInt(indexShard.shardId().id());
         }
     }
 

@@ -44,19 +44,15 @@ import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.routing.allocation.DiskThresholdSettings;
-import org.opensearch.common.cache.RemovalNotification;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.OpenSearchExecutors;
 import org.opensearch.core.common.bytes.BytesArray;
-import org.opensearch.core.common.bytes.BytesReference;
-import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.env.Environment;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.engine.Engine;
 import org.opensearch.index.shard.IndexShard;
-import org.opensearch.indices.IndicesRequestCache.Key;
 import org.opensearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.opensearch.node.MockNode;
 import org.opensearch.node.Node;
@@ -374,19 +370,11 @@ public class IndicesServiceCloseTests extends OpenSearchTestCase {
         assertEquals(1, indicesService.indicesRefCount.refCount());
 
         assertEquals(0L, cache.count());
-        IndicesRequestCache.CacheEntity cacheEntity = new IndicesRequestCache.CacheEntity() {
-            @Override
-            public void writeTo(StreamOutput out) throws IOException {
-
-            }
-
+        IndicesService.IndexShardCacheEntity cacheEntity = new IndicesService.IndexShardCacheEntity(shard) {
             @Override
             public long ramBytesUsed() {
                 return 42;
             }
-
-            @Override
-            public void onCached(Key key, BytesReference value) {}
 
             @Override
             public boolean isOpen() {
@@ -397,15 +385,6 @@ public class IndicesServiceCloseTests extends OpenSearchTestCase {
             public Object getCacheIdentity() {
                 return this;
             }
-
-            @Override
-            public void onHit() {}
-
-            @Override
-            public void onMiss() {}
-
-            @Override
-            public void onRemoval(RemovalNotification<Key, BytesReference> notification) {}
         };
         cache.getOrCompute(cacheEntity, () -> new BytesArray("bar"), searcher.getDirectoryReader(), new BytesArray("foo"));
         assertEquals(1L, cache.count());

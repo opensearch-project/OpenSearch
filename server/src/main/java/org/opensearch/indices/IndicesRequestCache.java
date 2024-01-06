@@ -55,6 +55,8 @@ import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.core.common.unit.ByteSizeValue;
+import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.index.shard.IndexShard;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -65,6 +67,7 @@ import java.util.Iterator;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
+import java.util.function.Function;
 
 /**
  * The indices request cache allows to cache a shard level request stage responses, helping with improving
@@ -113,9 +116,9 @@ public final class IndicesRequestCache implements RemovalListener<IndicesRequest
     private final ByteSizeValue size;
     private final TimeValue expire;
     private final Cache<Key, BytesReference> cache;
-    private final IndicesService indicesService;
+    private final Function<ShardId, CacheEntity> cacheEntityFunction;
 
-    IndicesRequestCache(Settings settings, IndicesService indicesService) {
+    IndicesRequestCache(Settings settings, Function<ShardId, CacheEntity> cacheEntityFunction) {
         this.size = INDICES_CACHE_QUERY_SIZE.get(settings);
         this.expire = INDICES_CACHE_QUERY_EXPIRE.exists(settings) ? INDICES_CACHE_QUERY_EXPIRE.get(settings) : null;
         long sizeInBytes = size.getBytes();
@@ -127,7 +130,7 @@ public final class IndicesRequestCache implements RemovalListener<IndicesRequest
             cacheBuilder.setExpireAfterAccess(expire);
         }
         cache = cacheBuilder.build();
-        this.indicesService = indicesService;
+        this.cacheEntityFunction = cacheEntityFunction;
     }
 
     @Override
@@ -142,11 +145,11 @@ public final class IndicesRequestCache implements RemovalListener<IndicesRequest
 
     @Override
     public void onRemoval(RemovalNotification<Key, BytesReference> notification) {
-        notification.getKey().entity.onRemoval(notification);
+        cacheEntityFunction.apply(notification.getKey().shardId).onRemoval(notification);
     }
 
     BytesReference getOrCompute(
-        CacheEntity cacheEntity,
+        IndicesService.IndexShardCacheEntity cacheEntity,
         CheckedSupplier<BytesReference, IOException> loader,
         DirectoryReader reader,
         BytesReference cacheKey
@@ -158,11 +161,11 @@ public final class IndicesRequestCache implements RemovalListener<IndicesRequest
             .getReaderCacheHelper();
         String readerCacheKeyId = delegatingCacheHelper.getDelegatingCacheKey().getId();
         assert readerCacheKeyId != null;
-        final Key key = new Key(cacheEntity, cacheKey, readerCacheKeyId);
+        final Key key = new Key(((IndexShard) cacheEntity.getCacheIdentity()).shardId(), cacheKey, readerCacheKeyId);
         Loader cacheLoader = new Loader(cacheEntity, loader);
         BytesReference value = cache.computeIfAbsent(key, cacheLoader);
         if (cacheLoader.isLoaded()) {
-            key.entity.onMiss();
+            cacheEntity.onMiss();
             // see if its the first time we see this reader, and make sure to register a cleanup key
             CleanupKey cleanupKey = new CleanupKey(cacheEntity, readerCacheKeyId);
             if (!registeredClosedListeners.containsKey(cleanupKey)) {
@@ -172,7 +175,7 @@ public final class IndicesRequestCache implements RemovalListener<IndicesRequest
                 }
             }
         } else {
-            key.entity.onHit();
+            cacheEntity.onHit();
         }
         return value;
     }
@@ -183,14 +186,14 @@ public final class IndicesRequestCache implements RemovalListener<IndicesRequest
      * @param reader the reader to invalidate the cache entry for
      * @param cacheKey the cache key to invalidate
      */
-    void invalidate(CacheEntity cacheEntity, DirectoryReader reader, BytesReference cacheKey) {
+    void invalidate(IndicesService.IndexShardCacheEntity cacheEntity, DirectoryReader reader, BytesReference cacheKey) {
         assert reader.getReaderCacheHelper() != null;
         String readerCacheKeyId = null;
         if (reader instanceof OpenSearchDirectoryReader) {
             IndexReader.CacheHelper cacheHelper = ((OpenSearchDirectoryReader) reader).getDelegatingCacheHelper();
             readerCacheKeyId = ((OpenSearchDirectoryReader.DelegatingCacheHelper) cacheHelper).getDelegatingCacheKey().getId();
         }
-        cache.invalidate(new Key(cacheEntity, cacheKey, readerCacheKeyId));
+        cache.invalidate(new Key(((IndexShard) cacheEntity.getCacheIdentity()).shardId(), cacheKey, readerCacheKeyId));
     }
 
     /**
@@ -225,7 +228,7 @@ public final class IndicesRequestCache implements RemovalListener<IndicesRequest
     /**
      * Basic interface to make this cache testable.
      */
-    interface CacheEntity extends Accountable, Writeable {
+    interface CacheEntity extends Accountable {
 
         /**
          * Called after the value was loaded.
@@ -266,26 +269,26 @@ public final class IndicesRequestCache implements RemovalListener<IndicesRequest
      *
      * @opensearch.internal
      */
-    class Key implements Accountable, Writeable {
-        public final CacheEntity entity; // use as identity equality
+    static class Key implements Accountable, Writeable {
+        public final ShardId shardId; // use as identity equality
         public final String readerCacheKeyId;
         public final BytesReference value;
 
-        Key(CacheEntity entity, BytesReference value, String readerCacheKeyId) {
-            this.entity = entity;
+        Key(ShardId shardId, BytesReference value, String readerCacheKeyId) {
+            this.shardId = shardId;
             this.value = value;
             this.readerCacheKeyId = Objects.requireNonNull(readerCacheKeyId);
         }
 
         Key(StreamInput in) throws IOException {
-            this.entity = in.readOptionalWriteable(in1 -> indicesService.new IndexShardCacheEntity(in1));
+            this.shardId = in.readOptionalWriteable(ShardId::new);
             this.readerCacheKeyId = in.readOptionalString();
             this.value = in.readBytesReference();
         }
 
         @Override
         public long ramBytesUsed() {
-            return BASE_RAM_BYTES_USED + entity.ramBytesUsed() + value.length();
+            return BASE_RAM_BYTES_USED + shardId.getBaseRamBytesUsed() + value.length();
         }
 
         @Override
@@ -300,14 +303,14 @@ public final class IndicesRequestCache implements RemovalListener<IndicesRequest
             if (o == null || getClass() != o.getClass()) return false;
             Key key = (Key) o;
             if (!Objects.equals(readerCacheKeyId, key.readerCacheKeyId)) return false;
-            if (!entity.getCacheIdentity().equals(key.entity.getCacheIdentity())) return false;
+            if (!shardId.equals(key.shardId)) return false;
             if (!value.equals(key.value)) return false;
             return true;
         }
 
         @Override
         public int hashCode() {
-            int result = entity.getCacheIdentity().hashCode();
+            int result = shardId.hashCode();
             result = 31 * result + readerCacheKeyId.hashCode();
             result = 31 * result + value.hashCode();
             return result;
@@ -315,7 +318,7 @@ public final class IndicesRequestCache implements RemovalListener<IndicesRequest
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeOptionalWriteable(entity);
+            out.writeOptionalWriteable(shardId);
             out.writeOptionalString(readerCacheKeyId);
             out.writeBytesReference(value);
         }
@@ -376,10 +379,10 @@ public final class IndicesRequestCache implements RemovalListener<IndicesRequest
         if (!currentKeysToClean.isEmpty() || !currentFullClean.isEmpty()) {
             for (Iterator<Key> iterator = cache.keys().iterator(); iterator.hasNext();) {
                 Key key = iterator.next();
-                if (currentFullClean.contains(key.entity.getCacheIdentity())) {
+                if (currentFullClean.contains(cacheEntityFunction.apply(key.shardId).getCacheIdentity())) {
                     iterator.remove();
                 } else {
-                    if (currentKeysToClean.contains(new CleanupKey(key.entity, key.readerCacheKeyId))) {
+                    if (currentKeysToClean.contains(new CleanupKey(cacheEntityFunction.apply(key.shardId), key.readerCacheKeyId))) {
                         iterator.remove();
                     }
                 }
