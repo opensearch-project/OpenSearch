@@ -116,7 +116,7 @@ public final class IndicesRequestCache implements RemovalListener<IndicesRequest
     private final ByteSizeValue size;
     private final TimeValue expire;
     private final Cache<Key, BytesReference> cache;
-    private final Function<ShardId, CacheEntity> cacheEntityFunction;
+    private final Function<ShardId, CacheEntity> cacheEntityLookup;
 
     IndicesRequestCache(Settings settings, Function<ShardId, CacheEntity> cacheEntityFunction) {
         this.size = INDICES_CACHE_QUERY_SIZE.get(settings);
@@ -130,7 +130,7 @@ public final class IndicesRequestCache implements RemovalListener<IndicesRequest
             cacheBuilder.setExpireAfterAccess(expire);
         }
         cache = cacheBuilder.build();
-        this.cacheEntityFunction = cacheEntityFunction;
+        this.cacheEntityLookup = cacheEntityFunction;
     }
 
     @Override
@@ -145,7 +145,7 @@ public final class IndicesRequestCache implements RemovalListener<IndicesRequest
 
     @Override
     public void onRemoval(RemovalNotification<Key, BytesReference> notification) {
-        cacheEntityFunction.apply(notification.getKey().shardId).onRemoval(notification);
+        cacheEntityLookup.apply(notification.getKey().shardId).onRemoval(notification);
     }
 
     BytesReference getOrCompute(
@@ -379,10 +379,10 @@ public final class IndicesRequestCache implements RemovalListener<IndicesRequest
         if (!currentKeysToClean.isEmpty() || !currentFullClean.isEmpty()) {
             for (Iterator<Key> iterator = cache.keys().iterator(); iterator.hasNext();) {
                 Key key = iterator.next();
-                if (currentFullClean.contains(cacheEntityFunction.apply(key.shardId).getCacheIdentity())) {
+                if (currentFullClean.contains(cacheEntityLookup.apply(key.shardId).getCacheIdentity())) {
                     iterator.remove();
                 } else {
-                    if (currentKeysToClean.contains(new CleanupKey(cacheEntityFunction.apply(key.shardId), key.readerCacheKeyId))) {
+                    if (currentKeysToClean.contains(new CleanupKey(cacheEntityLookup.apply(key.shardId), key.readerCacheKeyId))) {
                         iterator.remove();
                     }
                 }

@@ -333,7 +333,7 @@ public class IndicesService extends AbstractLifecycleComponent
     private final ScriptService scriptService;
     private final ClusterService clusterService;
     private final Client client;
-    private volatile Map<String, IndexService> indices = new ConcurrentHashMap<>();
+    private Map<String, IndexService> indices = new ConcurrentHashMap<>();
     private final Map<Index, List<PendingDelete>> pendingDeletes = new HashMap<>();
     private final AtomicInteger numUncompletedDeletes = new AtomicInteger();
     private final OldShardsStats oldShardsStats = new OldShardsStats();
