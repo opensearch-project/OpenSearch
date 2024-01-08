@@ -11,6 +11,7 @@ package org.opensearch.index.shard;
 import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.util.Version;
+import org.opensearch.action.StepListener;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.settings.Settings;
@@ -367,6 +368,98 @@ public class RemoteIndexShardTests extends SegmentReplicationIndexShardTests {
     }
 
     /**
+     * This test validates that unreferenced on disk file are ignored while requesting files from replication source to
+     * prevent FileAlreadyExistsException. It does so by only copying files in first round of segment replication without
+     * committing locally so that in next round of segment replication those files are not considered for download again
+     */
+    public void testSegRepSucceedsOnPreviousCopiedFiles() throws Exception {
+        try (ReplicationGroup shards = createGroup(1, getIndexSettings(), new NRTReplicationEngineFactory())) {
+            shards.startAll();
+            IndexShard primary = shards.getPrimary();
+            final IndexShard replica = shards.getReplicas().get(0);
+
+            shards.indexDocs(10);
+            primary.refresh("Test");
+
+            final SegmentReplicationSourceFactory sourceFactory = mock(SegmentReplicationSourceFactory.class);
+            final SegmentReplicationTargetService targetService = newTargetService(sourceFactory);
+            when(sourceFactory.get(any())).thenReturn(
+                getRemoteStoreReplicationSource(replica, () -> { throw new RuntimeException("Simulated"); })
+            );
+            CountDownLatch latch = new CountDownLatch(1);
+
+            logger.info("--> Starting first round of replication");
+            // Start first round of segment replication. This should fail with simulated error but with replica having
+            // files in its local store but not in active reader.
+            final SegmentReplicationTarget target = targetService.startReplication(
+                replica,
+                primary.getLatestReplicationCheckpoint(),
+                new SegmentReplicationTargetService.SegmentReplicationListener() {
+                    @Override
+                    public void onReplicationDone(SegmentReplicationState state) {
+                        latch.countDown();
+                        Assert.fail("Replication should fail with simulated error");
+                    }
+
+                    @Override
+                    public void onReplicationFailure(
+                        SegmentReplicationState state,
+                        ReplicationFailedException e,
+                        boolean sendShardFailure
+                    ) {
+                        latch.countDown();
+                        assertFalse(sendShardFailure);
+                        logger.error("Replication error", e);
+                    }
+                }
+            );
+            latch.await();
+            Set<String> onDiskFiles = new HashSet<>(Arrays.asList(replica.store().directory().listAll()));
+            onDiskFiles.removeIf(name -> EXCLUDE_FILES.contains(name) || name.startsWith(IndexFileNames.SEGMENTS));
+            List<String> activeFiles = replica.getSegmentMetadataMap()
+                .values()
+                .stream()
+                .map(metadata -> metadata.name())
+                .collect(Collectors.toList());
+            assertTrue("Files should not be committed", activeFiles.isEmpty());
+            assertEquals("Files should be copied to disk", false, onDiskFiles.isEmpty());
+            assertEquals(target.state().getStage(), SegmentReplicationState.Stage.GET_FILES);
+
+            // Start next round of segment replication and not throwing exception resulting in commit on replica
+            when(sourceFactory.get(any())).thenReturn(getRemoteStoreReplicationSource(replica, () -> {}));
+            CountDownLatch waitForSecondRound = new CountDownLatch(1);
+            logger.info("--> Starting second round of replication");
+            final SegmentReplicationTarget newTarget = targetService.startReplication(
+                replica,
+                primary.getLatestReplicationCheckpoint(),
+                new SegmentReplicationTargetService.SegmentReplicationListener() {
+                    @Override
+                    public void onReplicationDone(SegmentReplicationState state) {
+                        waitForSecondRound.countDown();
+                    }
+
+                    @Override
+                    public void onReplicationFailure(
+                        SegmentReplicationState state,
+                        ReplicationFailedException e,
+                        boolean sendShardFailure
+                    ) {
+                        waitForSecondRound.countDown();
+                        logger.error("Replication error", e);
+                        Assert.fail("Replication should not fail");
+                    }
+                }
+            );
+            waitForSecondRound.await();
+            assertEquals(newTarget.state().getStage(), SegmentReplicationState.Stage.DONE);
+            activeFiles = replica.getSegmentMetadataMap().values().stream().map(metadata -> metadata.name()).collect(Collectors.toList());
+            assertTrue("Replica should have consistent disk & reader", activeFiles.containsAll(onDiskFiles));
+            shards.removeReplica(replica);
+            closeShards(replica);
+        }
+    }
+
+    /**
      * This test validates that local non-readable (corrupt, partially) on disk are deleted vs failing the
      * replication event. This test mimics local files (not referenced by reader) by throwing exception post file copy and
      * blocking update of reader. Once this is done, it corrupts one segment file and ensure that file is deleted in next
@@ -469,8 +562,19 @@ public class RemoteIndexShardTests extends SegmentReplicationIndexShardTests {
                 BiConsumer<String, Long> fileProgressTracker,
                 ActionListener<GetSegmentFilesResponse> listener
             ) {
-                super.getSegmentFiles(replicationId, checkpoint, filesToFetch, indexShard, (fileName, bytesRecovered) -> {}, listener);
-                postGetFilesRunnable.run();
+                StepListener<GetSegmentFilesResponse> waitForCopyFilesListener = new StepListener();
+                super.getSegmentFiles(
+                    replicationId,
+                    checkpoint,
+                    filesToFetch,
+                    indexShard,
+                    (fileName, bytesRecovered) -> {},
+                    waitForCopyFilesListener
+                );
+                waitForCopyFilesListener.whenComplete(response -> {
+                    postGetFilesRunnable.run();
+                    listener.onResponse(response);
+                }, listener::onFailure);
             }
 
             @Override

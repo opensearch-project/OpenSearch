@@ -29,16 +29,21 @@ import org.opensearch.OpenSearchCorruptionException;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.NRTReplicationEngineFactory;
 import org.opensearch.index.replication.TestReplicationSource;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexShardTestCase;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.store.StoreFileMetadata;
+import org.opensearch.index.store.StoreTests;
 import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
 import org.opensearch.indices.replication.common.ReplicationFailedException;
 import org.opensearch.indices.replication.common.ReplicationLuceneIndex;
 import org.opensearch.indices.replication.common.ReplicationType;
+import org.opensearch.test.DummyShardLock;
+import org.opensearch.test.IndexSettingsModule;
 import org.junit.Assert;
 
 import java.io.FileNotFoundException;
@@ -75,6 +80,11 @@ public class SegmentReplicationTargetTests extends IndexShardTestCase {
     private static final Map<String, StoreFileMetadata> SI_SNAPSHOT = Map.of(SEGMENT_FILE.name(), SEGMENT_FILE);
 
     private static final Map<String, StoreFileMetadata> SI_SNAPSHOT_DIFFERENT = Map.of(SEGMENT_FILE_DIFF.name(), SEGMENT_FILE_DIFF);
+
+    private static final IndexSettings INDEX_SETTINGS = IndexSettingsModule.newIndexSettings(
+        "index",
+        Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, org.opensearch.Version.CURRENT).build()
+    );
 
     private SegmentInfos testSegmentInfos;
 
@@ -431,10 +441,7 @@ public class SegmentReplicationTargetTests extends IndexShardTestCase {
         // Generate a list of MetadataSnapshot containing two elements. The second snapshot contains extra files
         // generated due to delete operations. These two snapshots can then be used in test to mock the primary shard
         // snapshot (2nd element which contains delete operations) and replica's existing snapshot (1st element).
-        List<Store.MetadataSnapshot> storeMetadataSnapshots = generateStoreMetadataSnapshot(docCount, spyIndexShard);
-        // Delete on-disk files so that they are not considered for file diff
-        deleteContent(spyIndexShard.store().directory());
-        spyIndexShard.store().close();
+        List<Store.MetadataSnapshot> storeMetadataSnapshots = generateStoreMetadataSnapshot(docCount);
 
         SegmentReplicationSource segrepSource = new TestReplicationSource() {
             @Override
@@ -480,71 +487,13 @@ public class SegmentReplicationTargetTests extends IndexShardTestCase {
     }
 
     /**
-     * This tests ensures that on-disk files on replica are taken into consideration while evaluating the files diff
-     * from primary. The test mocks the files referred by active reader to a smaller subset so that logic to filter
-     * out on-disk files be exercised.
-     * @throws IOException if an indexing operation fails or segment replication fails
-     */
-    public void test_OnDiskFiles_ReusedForReplication() throws IOException {
-        int docCount = 1 + random().nextInt(10);
-        // Generate a list of MetadataSnapshot containing two elements. The second snapshot contains extra files
-        // generated due to delete operations. These two snapshots can then be used in test to mock the primary shard
-        // snapshot (2nd element which contains delete operations) and replica's existing snapshot (1st element).
-        List<Store.MetadataSnapshot> storeMetadataSnapshots = generateStoreMetadataSnapshot(docCount, spyIndexShard);
-
-        SegmentReplicationSource segrepSource = new TestReplicationSource() {
-            @Override
-            public void getCheckpointMetadata(
-                long replicationId,
-                ReplicationCheckpoint checkpoint,
-                ActionListener<CheckpointInfoResponse> listener
-            ) {
-                listener.onResponse(new CheckpointInfoResponse(checkpoint, storeMetadataSnapshots.get(1).asMap(), buffer.toArrayCopy()));
-            }
-
-            @Override
-            public void getSegmentFiles(
-                long replicationId,
-                ReplicationCheckpoint checkpoint,
-                List<StoreFileMetadata> filesToFetch,
-                IndexShard indexShard,
-                BiConsumer<String, Long> fileProgressTracker,
-                ActionListener<GetSegmentFilesResponse> listener
-            ) {
-                // No files should be requested from replication source
-                assertEquals(0, filesToFetch.size());
-                listener.onResponse(new GetSegmentFilesResponse(filesToFetch));
-            }
-        };
-
-        segrepTarget = new SegmentReplicationTarget(spyIndexShard, repCheckpoint, segrepSource,  mock(
-            SegmentReplicationTargetService.SegmentReplicationListener.class
-        ));
-        // Mask the files returned by active reader. This is needed so that logic to filter out on disk is exercised
-        when(spyIndexShard.getSegmentMetadataMap()).thenReturn(storeMetadataSnapshots.get(0).asMap());
-        segrepTarget.startReplication(new ActionListener<Void>() {
-            @Override
-            public void onResponse(Void replicationResponse) {
-                segrepTarget.markAsDone();
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                Assert.fail();
-            }
-        });
-    }
-
-
-    /**
      * Generates a list of Store.MetadataSnapshot with two elements where second snapshot has extra files due to delete
      * operation. A list of snapshots is returned so that identical files have same checksum.
      * @param docCount the number of documents to index in the first snapshot
-     * @param shard The IndexShard object to use for writing
      * @return a list of Store.MetadataSnapshot with two elements where second snapshot has extra files due to delete
      * @throws IOException if one of the indexing operations fails
      */
-    private List<Store.MetadataSnapshot> generateStoreMetadataSnapshot(int docCount, IndexShard shard) throws IOException {
+    private List<Store.MetadataSnapshot> generateStoreMetadataSnapshot(int docCount) throws IOException {
         List<Document> docList = new ArrayList<>();
         for (int i = 0; i < docCount; i++) {
             Document document = new Document();
@@ -558,7 +507,8 @@ public class SegmentReplicationTargetTests extends IndexShardTestCase {
         IndexWriterConfig iwc = new IndexWriterConfig(new MockAnalyzer(random)).setCodec(TestUtil.getDefaultCodec());
         iwc.setMergePolicy(NoMergePolicy.INSTANCE);
         iwc.setUseCompoundFile(true);
-        Store store = shard.store();
+        final ShardId shardId = new ShardId("index", "_na_", 1);
+        Store store = new Store(shardId, INDEX_SETTINGS, StoreTests.newDirectory(random()), new DummyShardLock(shardId));
         IndexWriter writer = new IndexWriter(store.directory(), iwc);
         for (Document d : docList) {
             writer.addDocument(d);
@@ -569,6 +519,7 @@ public class SegmentReplicationTargetTests extends IndexShardTestCase {
         writer.deleteDocuments(new Term("id", Integer.toString(random().nextInt(docCount))));
         writer.commit();
         Store.MetadataSnapshot storeMetadataWithDeletes = store.getMetadata();
+        deleteContent(store.directory());
         writer.close();
         store.close();
         return Arrays.asList(storeMetadata, storeMetadataWithDeletes);
