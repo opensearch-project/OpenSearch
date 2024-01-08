@@ -160,6 +160,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `org.apache.commons:commons-lang3` from 3.13.0 to 3.14.0 ([#11691](https://github.com/opensearch-project/OpenSearch/pull/11691))
 - Bump `com.maxmind.db:maxmind-db` from 3.0.0 to 3.1.0 ([#11693](https://github.com/opensearch-project/OpenSearch/pull/11693))
 - Bump `net.java.dev.jna:jna` from 5.13.0 to 5.14.0 ([#11798](https://github.com/opensearch-project/OpenSearch/pull/11798))
+- Bump `lycheeverse/lychee-action` from 1.8.0 to 1.9.0 ([#11795](https://github.com/opensearch-project/OpenSearch/pull/11795))
 
 ### Changed
 - Mute the query profile IT with concurrent execution ([#9840](https://github.com/opensearch-project/OpenSearch/pull/9840))
