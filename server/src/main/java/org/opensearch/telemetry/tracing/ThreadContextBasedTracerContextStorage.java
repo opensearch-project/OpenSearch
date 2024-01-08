@@ -50,6 +50,7 @@ public class ThreadContextBasedTracerContextStorage implements TracerContextStor
         }
     }
 
+    @Override
     @SuppressWarnings("removal")
     public Map<String, Object> transients(Map<String, Object> source) {
         final Map<String, Object> transients = new HashMap<>();
@@ -71,6 +72,7 @@ public class ThreadContextBasedTracerContextStorage implements TracerContextStor
         }
     }
 
+    @Override
     @SuppressWarnings("removal")
     public Map<String, String> headers(Map<String, Object> source) {
         final Map<String, String> headers = new HashMap<>();
