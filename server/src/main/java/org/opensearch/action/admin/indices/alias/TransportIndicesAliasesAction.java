@@ -230,7 +230,7 @@ public class TransportIndicesAliasesAction extends TransportClusterManagerNodeAc
             }
 
             // must_exist can only be set in the Remove Action in Update aliases API,
-            // we check the value here to respond differently
+            // we check the value here to make the behavior consistent with Delete aliases API
             if (action.mustExist() != null) {
                 // if must_exist is false, we should make the remove action execute silently,
                 // so we return the original specified aliases to avoid AliasesNotFoundException
