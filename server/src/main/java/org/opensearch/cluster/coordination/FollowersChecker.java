@@ -89,7 +89,7 @@ public class FollowersChecker {
     // the time between checks sent to each node
     public static final Setting<TimeValue> FOLLOWER_CHECK_INTERVAL_SETTING = Setting.timeSetting(
         "cluster.fault_detection.follower_check.interval",
-        TimeValue.timeValueMillis(1000),
+        TimeValue.timeValueMillis(100000),
         TimeValue.timeValueMillis(100),
         Setting.Property.NodeScope
     );
@@ -97,9 +97,9 @@ public class FollowersChecker {
     // the timeout for each check sent to each node
     public static final Setting<TimeValue> FOLLOWER_CHECK_TIMEOUT_SETTING = Setting.timeSetting(
         "cluster.fault_detection.follower_check.timeout",
-        TimeValue.timeValueMillis(10000),
+        TimeValue.timeValueMillis(100000),
         TimeValue.timeValueMillis(1),
-        TimeValue.timeValueMillis(60000),
+        TimeValue.timeValueMillis(6000000),
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );

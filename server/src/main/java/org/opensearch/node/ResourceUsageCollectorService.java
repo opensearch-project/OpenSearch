@@ -113,6 +113,13 @@ public class ResourceUsageCollectorService extends AbstractLifecycleComponent im
             .map(resourceUsageStats -> new NodeResourceUsageStats(resourceUsageStats));
     }
 
+    public Optional<NodeResourceUsageStats> getLocalNodeStatistics() {
+        if(clusterService.state() != null) {
+            return Optional.ofNullable(nodeIdToResourceUsageStats.get(clusterService.state().nodes().getLocalNodeId()))
+                .map(resourceUsageStats -> new NodeResourceUsageStats(resourceUsageStats));
+        }
+        return Optional.empty();
+    }
     /**
      * Returns collected resource usage statistics of all nodes
      */

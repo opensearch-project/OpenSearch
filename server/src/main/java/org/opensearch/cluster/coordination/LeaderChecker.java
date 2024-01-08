@@ -88,7 +88,7 @@ public class LeaderChecker {
     // the time between checks sent to the leader
     public static final Setting<TimeValue> LEADER_CHECK_INTERVAL_SETTING = Setting.timeSetting(
         "cluster.fault_detection.leader_check.interval",
-        TimeValue.timeValueMillis(1000),
+        TimeValue.timeValueMillis(100000),
         TimeValue.timeValueMillis(100),
         Setting.Property.NodeScope
     );
@@ -96,9 +96,9 @@ public class LeaderChecker {
     // the timeout for each check sent to the leader
     public static final Setting<TimeValue> LEADER_CHECK_TIMEOUT_SETTING = Setting.timeSetting(
         "cluster.fault_detection.leader_check.timeout",
-        TimeValue.timeValueMillis(10000),
+        TimeValue.timeValueMillis(100000),
         TimeValue.timeValueMillis(1),
-        TimeValue.timeValueMillis(60000),
+        TimeValue.timeValueMillis(600000),
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );

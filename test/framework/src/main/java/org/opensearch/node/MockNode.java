@@ -201,7 +201,8 @@ public class MockNode extends Node {
         Function<BoundTransportAddress, DiscoveryNode> localNodeFactory,
         ClusterSettings clusterSettings,
         Set<String> taskHeaders,
-        Tracer tracer
+        Tracer tracer,
+        ResourceUsageCollectorService resourceUsageCollectorService
     ) {
         // we use the MockTransportService.TestPlugin class as a marker to create a network
         // module with this MockNetworkService. NetworkService is such an integral part of the systme
@@ -216,7 +217,8 @@ public class MockNode extends Node {
                 localNodeFactory,
                 clusterSettings,
                 taskHeaders,
-                tracer
+                tracer,
+                resourceUsageCollectorService
             );
         } else {
             return new MockTransportService(

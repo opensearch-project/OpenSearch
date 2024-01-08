@@ -45,6 +45,7 @@ import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.http.HttpTransportSettings;
+import org.opensearch.tasks.ResourceUsageStatsTCPropagator;
 import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskThreadContextStatePropagator;
 
@@ -128,7 +129,7 @@ public final class ThreadContext implements Writeable {
         this.threadLocal = ThreadLocal.withInitial(() -> DEFAULT_CONTEXT);
         this.maxWarningHeaderCount = SETTING_HTTP_MAX_WARNING_HEADER_COUNT.get(settings);
         this.maxWarningHeaderSize = SETTING_HTTP_MAX_WARNING_HEADER_SIZE.get(settings).getBytes();
-        this.propagators = new CopyOnWriteArrayList<>(List.of(new TaskThreadContextStatePropagator()));
+        this.propagators = new CopyOnWriteArrayList<>(List.of(new TaskThreadContextStatePropagator(), new ResourceUsageStatsTCPropagator()));
     }
 
     public void registerThreadContextStatePropagator(final ThreadContextStatePropagator propagator) {

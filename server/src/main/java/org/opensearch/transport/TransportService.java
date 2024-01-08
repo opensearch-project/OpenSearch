@@ -64,6 +64,7 @@ import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.core.service.ReportingService;
 import org.opensearch.core.transport.TransportResponse;
 import org.opensearch.node.NodeClosedException;
+import org.opensearch.node.ResourceUsageCollectorService;
 import org.opensearch.ratelimitting.admissioncontrol.enums.AdmissionControlActionType;
 import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskManager;
@@ -78,14 +79,7 @@ import org.opensearch.threadpool.ThreadPool;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.net.UnknownHostException;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -115,6 +109,7 @@ public class TransportService extends AbstractLifecycleComponent
     protected final ThreadPool threadPool;
     protected final ClusterName clusterName;
     protected final TaskManager taskManager;
+    private Set<String> admissionControlTransportActions = new HashSet<>();
     private final TransportInterceptor.AsyncSender asyncSender;
     private final Function<BoundTransportAddress, DiscoveryNode> localNodeFactory;
     private final boolean remoteClusterClient;
@@ -143,6 +138,7 @@ public class TransportService extends AbstractLifecycleComponent
 
     private final RemoteClusterService remoteClusterService;
     private final Tracer tracer;
+    private final ResourceUsageCollectorService resourceUsageCollectorService;
 
     /** if set will call requests sent to this id to shortcut and executed locally */
     volatile DiscoveryNode localNode = null;
@@ -197,6 +193,31 @@ public class TransportService extends AbstractLifecycleComponent
         Function<BoundTransportAddress, DiscoveryNode> localNodeFactory,
         @Nullable ClusterSettings clusterSettings,
         Set<String> taskHeaders,
+        Tracer tracer,
+        ResourceUsageCollectorService resourceUsageCollectorService
+    ) {
+        this(
+            settings,
+            transport,
+            threadPool,
+            transportInterceptor,
+            localNodeFactory,
+            clusterSettings,
+            taskHeaders,
+            new ClusterConnectionManager(settings, transport),
+            tracer,
+            resourceUsageCollectorService
+        );
+    }
+
+    public TransportService(
+        Settings settings,
+        Transport transport,
+        ThreadPool threadPool,
+        TransportInterceptor transportInterceptor,
+        Function<BoundTransportAddress, DiscoveryNode> localNodeFactory,
+        @Nullable ClusterSettings clusterSettings,
+        Set<String> taskHeaders,
         Tracer tracer
     ) {
         this(
@@ -208,7 +229,8 @@ public class TransportService extends AbstractLifecycleComponent
             clusterSettings,
             taskHeaders,
             new ClusterConnectionManager(settings, transport),
-            tracer
+            tracer,
+            null
         );
     }
 
@@ -221,7 +243,8 @@ public class TransportService extends AbstractLifecycleComponent
         @Nullable ClusterSettings clusterSettings,
         Set<String> taskHeaders,
         ConnectionManager connectionManager,
-        Tracer tracer
+        Tracer tracer,
+        ResourceUsageCollectorService resourceUsageCollectorService
     ) {
         this.transport = transport;
         transport.setSlowLogThreshold(TransportSettings.SLOW_OPERATION_THRESHOLD_SETTING.get(settings));
@@ -237,6 +260,7 @@ public class TransportService extends AbstractLifecycleComponent
         this.asyncSender = interceptor.interceptSender(this::sendRequestInternal);
         this.remoteClusterClient = DiscoveryNode.isRemoteClusterClient(settings);
         this.tracer = tracer;
+        this.resourceUsageCollectorService = resourceUsageCollectorService;
         remoteClusterService = new RemoteClusterService(settings, this);
         responseHandlers = transport.getResponseHandlers();
         if (clusterSettings != null) {
@@ -1238,6 +1262,15 @@ public class TransportService extends AbstractLifecycleComponent
         if (tracerLog.isTraceEnabled() && shouldTraceAction(action)) {
             tracerLog.trace("[{}][{}] received request", requestId, action);
         }
+        try {
+            if (this.isActionIndexingOrSearch(action)) {
+                logger.info("[{}][{}] received request", requestId, action);
+            }
+        } catch (Exception e) {
+            logger.debug(e.getMessage());
+        }
+//        fetchResourceUsageStatsFromThreadContext(action);
+        addResourceUsageStatsToThreadContext(action);
         messageListener.onRequestReceived(requestId, action);
     }
 
@@ -1253,6 +1286,13 @@ public class TransportService extends AbstractLifecycleComponent
         if (tracerLog.isTraceEnabled() && shouldTraceAction(action)) {
             tracerLog.trace("[{}][{}] sent to [{}] (timeout: [{}])", requestId, action, node, options.timeout());
         }
+        try {
+            if (this.isActionIndexingOrSearch(action)) {
+                logger.info("[{}][{}] sent to [{}] (timeout: [{}])", requestId, action, node, options.timeout());
+            }
+        } catch (Exception e) {
+            logger.debug(e.getMessage());
+        }
         messageListener.onRequestSent(node, requestId, action, request, options);
     }
 
@@ -1263,6 +1303,14 @@ public class TransportService extends AbstractLifecycleComponent
         } else if (tracerLog.isTraceEnabled() && shouldTraceAction(holder.action())) {
             tracerLog.trace("[{}][{}] received response from [{}]", requestId, holder.action(), holder.connection().getNode());
         }
+        try {
+            if (this.isActionIndexingOrSearch(holder.action())) {
+                logger.info("[{}][{}] received response from [{}]", requestId, holder.action(), holder.connection().getNode());
+                fetchResourceUsageStatsFromThreadContext(holder.action());
+            }
+        } catch (Exception e) {
+            logger.debug(e.getMessage());
+        }
         messageListener.onResponseReceived(requestId, holder);
     }
 
@@ -1271,6 +1319,13 @@ public class TransportService extends AbstractLifecycleComponent
     public void onResponseSent(long requestId, String action, TransportResponse response) {
         if (tracerLog.isTraceEnabled() && shouldTraceAction(action)) {
             tracerLog.trace("[{}][{}] sent response", requestId, action);
+        }
+        try {
+            if (this.isActionIndexingOrSearch(action)) {
+                logger.info("[{}][{}] sent response", requestId, action);
+            }
+        } catch (Exception e) {
+            logger.debug(e.getMessage());
         }
         messageListener.onResponseSent(requestId, action, response);
     }
@@ -1692,12 +1747,14 @@ public class TransportService extends AbstractLifecycleComponent
                 delegate = new TransportResponseHandler<T>() {
                     @Override
                     public void handleResponse(T response) {
+//                        addResourceUsageStatsToThreadContext(action);
                         unregisterChildNode.close();
                         handler.handleResponse(response);
                     }
 
                     @Override
                     public void handleException(TransportException exp) {
+//                        addResourceUsageStatsToThreadContext(action);
                         unregisterChildNode.close();
                         handler.handleException(exp);
                     }
@@ -1731,5 +1788,30 @@ public class TransportService extends AbstractLifecycleComponent
             }
             handler.handleException(te);
         }
+    }
+
+    private void addResourceUsageStatsToThreadContext(String action) {
+        if(this.isActionIndexingOrSearch(action)) {
+            logger.info("Adding Stats to Thread Context: {}", action);
+            ThreadContext threadContext = threadPool.getThreadContext();
+            String key = "PERF_STATS_" + this.localNode.getId();
+            if(resourceUsageCollectorService.getLocalNodeStatistics().isPresent()){
+                threadContext.putTransient(key, resourceUsageCollectorService.getLocalNodeStatistics().get().toString());
+            }
+        }
+    }
+
+    private void fetchResourceUsageStatsFromThreadContext(String action) {
+        if(this.isActionIndexingOrSearch(action)) {
+            logger.info("Fetching Stats From Context: {}" , action);
+            ThreadContext threadContext = threadPool.getThreadContext();
+            threadContext.getHeaders().forEach((key, value) -> {
+                logger.info("Header: {}  Value: {}", key, value);
+            });
+        }
+    }
+
+    private boolean isActionIndexingOrSearch(String action) {
+        return action.startsWith("indices:data/read/search") || action.startsWith("indices:data/write/bulk");
     }
 }

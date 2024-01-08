@@ -8,11 +8,13 @@
 
 package org.opensearch.ratelimitting.admissioncontrol.transport;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.opensearch.core.transport.TransportResponse;
 import org.opensearch.ratelimitting.admissioncontrol.AdmissionControlService;
 import org.opensearch.ratelimitting.admissioncontrol.enums.AdmissionControlActionType;
-import org.opensearch.transport.TransportInterceptor;
-import org.opensearch.transport.TransportRequest;
-import org.opensearch.transport.TransportRequestHandler;
+import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.transport.*;
 
 /**
  * This class allows throttling by intercepting requests on both the sender and the receiver side.
@@ -20,9 +22,13 @@ import org.opensearch.transport.TransportRequestHandler;
 public class AdmissionControlTransportInterceptor implements TransportInterceptor {
 
     AdmissionControlService admissionControlService;
+    AdmissionControlInterceptSender admissionControlInterceptSender;
 
-    public AdmissionControlTransportInterceptor(AdmissionControlService admissionControlService) {
+    private static final Logger logger = LogManager.getLogger(AdmissionControlTransportInterceptor.class);
+
+    public AdmissionControlTransportInterceptor(AdmissionControlService admissionControlService, ThreadPool threadPool) {
         this.admissionControlService = admissionControlService;
+        admissionControlInterceptSender = new AdmissionControlInterceptSender(threadPool);
     }
 
     /**
@@ -44,5 +50,22 @@ public class AdmissionControlTransportInterceptor implements TransportIntercepto
             forceExecution,
             admissionControlActionType
         );
+    }
+
+    @Override
+    public AsyncSender interceptSender(AsyncSender sender) {
+        logger.info("AdmissionControl Intercept Sender Initialised");
+        return new AsyncSender() {
+            @Override
+            public <T extends TransportResponse> void sendRequest(
+                Transport.Connection connection,
+                String action,
+                TransportRequest request,
+                TransportRequestOptions options,
+                TransportResponseHandler<T> handler
+            ) {
+                admissionControlInterceptSender.sendRequestDecorate(sender, connection, action, request, options, handler);
+            }
+        };
     }
 }

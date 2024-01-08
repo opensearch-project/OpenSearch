@@ -49,13 +49,12 @@ public class NodeResourceUsageStats implements Writeable {
 
     @Override
     public String toString() {
-        StringBuilder sb = new StringBuilder("NodeResourceUsageStats[");
-        sb.append(nodeId).append("](");
-        sb.append("Timestamp: ").append(timestamp);
-        sb.append(", CPU utilization percent: ").append(String.format(Locale.ROOT, "%.1f", cpuUtilizationPercent));
-        sb.append(", Memory utilization percent: ").append(String.format(Locale.ROOT, "%.1f", memoryUtilizationPercent));
-        sb.append(")");
-        return sb.toString();
+        return nodeId + ":" +
+            timestamp +
+            "," +
+            memoryUtilizationPercent +
+            "," +
+            cpuUtilizationPercent;
     }
 
     NodeResourceUsageStats(NodeResourceUsageStats nodeResourceUsageStats) {

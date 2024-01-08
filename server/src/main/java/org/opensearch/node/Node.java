@@ -932,7 +932,8 @@ public class Node implements Closeable {
             );
 
             AdmissionControlTransportInterceptor admissionControlTransportInterceptor = new AdmissionControlTransportInterceptor(
-                admissionControlService
+                admissionControlService,
+                threadPool
             );
 
             List<TransportInterceptor> transportInterceptors = List.of(admissionControlTransportInterceptor);
@@ -981,7 +982,8 @@ public class Node implements Closeable {
                 localNodeFactory,
                 settingsModule.getClusterSettings(),
                 taskHeaders,
-                tracer
+                tracer,
+                resourceUsageCollectorService
             );
             TopNSearchTasksLogger taskConsumer = new TopNSearchTasksLogger(settings, settingsModule.getClusterSettings());
             transportService.getTaskManager().registerTaskResourceConsumer(taskConsumer);
@@ -1344,9 +1346,10 @@ public class Node implements Closeable {
         Function<BoundTransportAddress, DiscoveryNode> localNodeFactory,
         ClusterSettings clusterSettings,
         Set<String> taskHeaders,
-        Tracer tracer
+        Tracer tracer,
+        ResourceUsageCollectorService resourceUsageCollectorService
     ) {
-        return new TransportService(settings, transport, threadPool, interceptor, localNodeFactory, clusterSettings, taskHeaders, tracer);
+        return new TransportService(settings, transport, threadPool, interceptor, localNodeFactory, clusterSettings, taskHeaders, tracer, resourceUsageCollectorService);
     }
 
     protected void processRecoverySettings(ClusterSettings clusterSettings, RecoverySettings recoverySettings) {
