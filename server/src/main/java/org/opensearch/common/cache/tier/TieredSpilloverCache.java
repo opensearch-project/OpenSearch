@@ -39,7 +39,7 @@ import java.util.function.Function;
  *
  * @opensearch.experimental
  */
-public class TieredSpilloverCache<K, V> implements TieredCache<K, V>, StoreAwareCacheEventListener<K, V> {
+public class TieredSpilloverCache<K, V> implements ICache<K, V>, StoreAwareCacheEventListener<K, V> {
 
     // TODO: Remove optional when diskCache implementation is integrated.
     private final Optional<StoreAwareCache<K, V>> onDiskCache;
@@ -175,46 +175,6 @@ public class TieredSpilloverCache<K, V> implements TieredCache<K, V>, StoreAware
             for (StoreAwareCache<K, V> storeAwareCache : cacheList) {
                 storeAwareCache.refresh();
             }
-        }
-    }
-
-    /**
-     * Provides an iteration over keys based on desired on cacheStoreType. This is not protected from any mutations
-     * to the cache.
-     * @param type Type of cacheStoreType
-     * @return An iterable over desired CacheStoreType keys
-     */
-    @Override
-    public Iterable<K> cacheKeys(CacheStoreType type) {
-        switch (type) {
-            case ON_HEAP:
-                return onHeapCache.keys();
-            case DISK:
-                if (onDiskCache.isPresent()) {
-                    return onDiskCache.get().keys();
-                } else {
-                    return Collections::emptyIterator;
-                }
-            default:
-                throw new IllegalArgumentException("Unsupported Cache store type: " + type);
-        }
-    }
-
-    @Override
-    public void refresh(CacheStoreType type) {
-        switch (type) {
-            case ON_HEAP:
-                try (ReleasableLock ignore = writeLock.acquire()) {
-                    onHeapCache.refresh();
-                }
-                break;
-            case DISK:
-                try (ReleasableLock ignore = writeLock.acquire()) {
-                    onDiskCache.ifPresent(ICache::refresh);
-                }
-                break;
-            default:
-                throw new IllegalArgumentException("Unsupported Cache store type: " + type);
         }
     }
 
