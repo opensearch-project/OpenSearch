@@ -26,6 +26,7 @@ import org.opensearch.client.Client;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.block.ClusterBlockException;
 import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.routing.GroupShardsIterator;
 import org.opensearch.cluster.routing.ShardIterator;
 import org.opensearch.cluster.routing.ShardRouting;
@@ -47,9 +48,7 @@ import org.hamcrest.MatcherAssert;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -256,12 +255,14 @@ public final class SearchableSnapshotIT extends AbstractSnapshotIntegTestCase {
 
         restoreSnapshotAndEnsureGreen(client, snapshotName, repoName);
         assertRemoteSnapshotIndexSettings(client, restoredIndexName);
-        final Set<String> dataNodes = new HashSet<>();
-        internalCluster().getDataNodeInstances(Node.class).forEach(node -> dataNodes.add(node.getNodeEnvironment().nodeId()));
+        final Set<String> searchNodes = StreamSupport.stream(clusterService().state().getNodes().spliterator(), false)
+            .filter(DiscoveryNode::isSearchNode)
+            .map(DiscoveryNode::getId)
+            .collect(Collectors.toSet());
 
-        final List<String> excludeNodes = new ArrayList<>();
-        for (int i = 0; i < numShardsIndex; ++i) {
-            String pickedNode = randomFrom(dataNodes);
+        for (int i = searchNodes.size(); i > 2; --i) {
+            String pickedNode = randomFrom(searchNodes);
+            searchNodes.remove(pickedNode);
             assertIndexAssignedToNodeOrNot(restoredIndexName, pickedNode, true);
             assertTrue(
                 client.admin()
@@ -287,11 +288,11 @@ public final class SearchableSnapshotIT extends AbstractSnapshotIntegTestCase {
     }
 
     private void assertIndexAssignedToNodeOrNot(String index, String node, boolean assigned) {
-        final ClusterState state = client().admin().cluster().prepareState().get().getState();
+        final ClusterState state = clusterService().state();
         if (assigned) {
-            state.getRoutingTable().allShards(index).stream().anyMatch(shard -> shard.currentNodeId().equals(node));
+            assertTrue(state.getRoutingTable().allShards(index).stream().anyMatch(shard -> shard.currentNodeId().equals(node)));
         } else {
-            state.getRoutingTable().allShards(index).stream().noneMatch(shard -> shard.currentNodeId().equals(node));
+            assertTrue(state.getRoutingTable().allShards(index).stream().noneMatch(shard -> shard.currentNodeId().equals(node)));
         }
     }
 
