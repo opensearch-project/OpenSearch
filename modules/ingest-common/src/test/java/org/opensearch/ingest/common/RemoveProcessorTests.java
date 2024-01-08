@@ -32,6 +32,7 @@
 
 package org.opensearch.ingest.common;
 
+import org.opensearch.common.lucene.uid.Versions;
 import org.opensearch.index.VersionType;
 import org.opensearch.ingest.IngestDocument;
 import org.opensearch.ingest.Processor;
@@ -180,5 +181,101 @@ public class RemoveProcessorTests extends OpenSearchTestCase {
                         assertThat(ingestDocument.hasField(metadataFieldName), equalTo(false));
                     }
         }
+    }
+
+    public void testRemoveDocumentId() throws Exception {
+        Map<String, Object> config = new HashMap<>();
+        config.put("field", IngestDocument.Metadata.ID.getFieldName());
+        String processorTag = randomAlphaOfLength(10);
+
+        // test remove _id when _version_type is external
+        IngestDocument ingestDocumentWithExternalVersionType = new IngestDocument(
+            RandomDocumentPicks.randomString(random()),
+            RandomDocumentPicks.randomString(random()),
+            RandomDocumentPicks.randomString(random()),
+            1L,
+            VersionType.EXTERNAL,
+            RandomDocumentPicks.randomSource(random())
+        );
+
+        Processor processorForExternalVersionType = new RemoveProcessor.Factory(TestTemplateService.instance()).create(
+            null,
+            processorTag,
+            null,
+            config
+        );
+        assertThrows(
+            "cannot remove metadata field [_id] when specifying external version for the document, version: "
+                + 1
+                + ", version_type: "
+                + VersionType.EXTERNAL,
+            IllegalArgumentException.class,
+            () -> processorForExternalVersionType.execute(ingestDocumentWithExternalVersionType)
+        );
+
+        // test remove _id when _version_type is external_gte
+        config.put("field", IngestDocument.Metadata.ID.getFieldName());
+        IngestDocument ingestDocumentWithExternalGTEVersionType = new IngestDocument(
+            RandomDocumentPicks.randomString(random()),
+            RandomDocumentPicks.randomString(random()),
+            RandomDocumentPicks.randomString(random()),
+            1L,
+            VersionType.EXTERNAL_GTE,
+            RandomDocumentPicks.randomSource(random())
+        );
+
+        Processor processorForExternalGTEVersionType = new RemoveProcessor.Factory(TestTemplateService.instance()).create(
+            null,
+            processorTag,
+            null,
+            config
+        );
+        assertThrows(
+            "cannot remove metadata field [_id] when specifying external version for the document, version: "
+                + 1
+                + ", version_type: "
+                + VersionType.EXTERNAL_GTE,
+            IllegalArgumentException.class,
+            () -> processorForExternalGTEVersionType.execute(ingestDocumentWithExternalGTEVersionType)
+        );
+
+        // test remove _id when _version_type is internal
+        config.put("field", IngestDocument.Metadata.ID.getFieldName());
+        IngestDocument ingestDocumentWithInternalVersionType = new IngestDocument(
+            RandomDocumentPicks.randomString(random()),
+            RandomDocumentPicks.randomString(random()),
+            RandomDocumentPicks.randomString(random()),
+            Versions.MATCH_ANY,
+            VersionType.INTERNAL,
+            RandomDocumentPicks.randomSource(random())
+        );
+
+        Processor processorForInternalVersionType = new RemoveProcessor.Factory(TestTemplateService.instance()).create(
+            null,
+            processorTag,
+            null,
+            config
+        );
+        processorForInternalVersionType.execute(ingestDocumentWithInternalVersionType);
+        assertThat(ingestDocumentWithInternalVersionType.hasField(IngestDocument.Metadata.ID.getFieldName()), equalTo(false));
+
+        // test remove _id when _version_type is null
+        config.put("field", IngestDocument.Metadata.ID.getFieldName());
+        IngestDocument ingestDocumentWithNoVersionType = new IngestDocument(
+            RandomDocumentPicks.randomString(random()),
+            RandomDocumentPicks.randomString(random()),
+            RandomDocumentPicks.randomString(random()),
+            null,
+            null,
+            RandomDocumentPicks.randomSource(random())
+        );
+        Processor processorForNullVersionType = new RemoveProcessor.Factory(TestTemplateService.instance()).create(
+            null,
+            processorTag,
+            null,
+            config
+        );
+        processorForNullVersionType.execute(ingestDocumentWithNoVersionType);
+        assertThat(ingestDocumentWithNoVersionType.hasField(IngestDocument.Metadata.ID.getFieldName()), equalTo(false));
     }
 }
