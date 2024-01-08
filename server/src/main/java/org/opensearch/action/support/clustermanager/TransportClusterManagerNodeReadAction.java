@@ -32,10 +32,10 @@
 
 package org.opensearch.action.support.clustermanager;
 
-import org.opensearch.action.ActionResponse;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.core.action.ActionResponse;
 import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;

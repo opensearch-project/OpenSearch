@@ -19,10 +19,10 @@ import org.apache.lucene.util.BitSet;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.Numbers;
 import org.opensearch.common.util.BigArrays;
-import org.opensearch.index.fielddata.LeafNumericFieldData;
 import org.opensearch.index.fielddata.FieldData;
 import org.opensearch.index.fielddata.IndexFieldData;
 import org.opensearch.index.fielddata.IndexNumericFieldData;
+import org.opensearch.index.fielddata.LeafNumericFieldData;
 import org.opensearch.index.search.comparators.UnsignedLongComparator;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.MultiValueMode;
@@ -92,7 +92,7 @@ public class UnsignedLongValuesComparatorSource extends IndexFieldData.XFieldCom
         assert indexFieldData == null || fieldname.equals(indexFieldData.getFieldName());
 
         final BigInteger ulMissingValue = (BigInteger) missingObject(missingValue, reversed);
-        return new UnsignedLongComparator(numHits, fieldname, null, reversed, enableSkipping && this.enableSkipping) {
+        return new UnsignedLongComparator(numHits, fieldname, ulMissingValue, reversed, enableSkipping && this.enableSkipping) {
             @Override
             public LeafFieldComparator getLeafComparator(LeafReaderContext context) throws IOException {
                 return new UnsignedLongLeafComparator(context) {

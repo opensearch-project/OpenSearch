@@ -31,12 +31,12 @@
 
 package org.opensearch.cluster;
 
-import org.opensearch.action.ActionListener;
 import org.opensearch.cluster.ack.AckedRequest;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.Priority;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.core.action.ActionListener;
 
 /**
  * An extension interface to {@link ClusterStateUpdateTask} that allows to be notified when

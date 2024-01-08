@@ -37,7 +37,6 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
 import org.opensearch.Version;
-import org.opensearch.action.ActionListener;
 import org.opensearch.action.DocWriteResponse;
 import org.opensearch.action.bulk.BulkItemResponse;
 import org.opensearch.action.bulk.BulkShardRequest;
@@ -48,7 +47,8 @@ import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.iterable.Iterables;
-import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.Engine;
 import org.opensearch.index.engine.EngineFactory;
@@ -173,7 +173,7 @@ public class IndexLevelReplicationTests extends OpenSearchIndexLevelReplicationT
     public void testRetryAppendOnlyAfterRecovering() throws Exception {
         try (ReplicationGroup shards = createGroup(0)) {
             shards.startAll();
-            final IndexRequest originalRequest = new IndexRequest(index.getName()).source("{}", XContentType.JSON);
+            final IndexRequest originalRequest = new IndexRequest(index.getName()).source("{}", MediaTypeRegistry.JSON);
             originalRequest.process(Version.CURRENT, null, index.getName());
             final IndexRequest retryRequest = copyIndexRequest(originalRequest);
             retryRequest.onRetry();
@@ -214,7 +214,7 @@ public class IndexLevelReplicationTests extends OpenSearchIndexLevelReplicationT
         }) {
             shards.startAll();
             Thread thread = new Thread(() -> {
-                IndexRequest indexRequest = new IndexRequest(index.getName()).source("{}", XContentType.JSON);
+                IndexRequest indexRequest = new IndexRequest(index.getName()).source("{}", MediaTypeRegistry.JSON);
                 try {
                     shards.index(indexRequest);
                 } catch (Exception e) {
@@ -244,7 +244,7 @@ public class IndexLevelReplicationTests extends OpenSearchIndexLevelReplicationT
     public void testInheritMaxValidAutoIDTimestampOnRecovery() throws Exception {
         try (ReplicationGroup shards = createGroup(0)) {
             shards.startAll();
-            final IndexRequest indexRequest = new IndexRequest(index.getName()).source("{}", XContentType.JSON);
+            final IndexRequest indexRequest = new IndexRequest(index.getName()).source("{}", MediaTypeRegistry.JSON);
             indexRequest.onRetry(); // force an update of the timestamp
             final BulkItemResponse response = shards.index(indexRequest);
             assertEquals(DocWriteResponse.Result.CREATED, response.getResponse().getResult());
@@ -320,7 +320,7 @@ public class IndexLevelReplicationTests extends OpenSearchIndexLevelReplicationT
             shards.startAll();
             List<IndexShard> replicas = shards.getReplicas();
             IndexShard replica1 = replicas.get(0);
-            IndexRequest indexRequest = new IndexRequest(index.getName()).id("1").source("{ \"f\": \"1\"}", XContentType.JSON);
+            IndexRequest indexRequest = new IndexRequest(index.getName()).id("1").source("{ \"f\": \"1\"}", MediaTypeRegistry.JSON);
             logger.info("--> isolated replica " + replica1.routingEntry());
             BulkShardRequest replicationRequest = indexOnPrimary(indexRequest, shards.getPrimary());
             for (int i = 1; i < replicas.size(); i++) {
@@ -329,7 +329,7 @@ public class IndexLevelReplicationTests extends OpenSearchIndexLevelReplicationT
 
             logger.info("--> promoting replica to primary " + replica1.routingEntry());
             shards.promoteReplicaToPrimary(replica1).get();
-            indexRequest = new IndexRequest(index.getName()).id("1").source("{ \"f\": \"2\"}", XContentType.JSON);
+            indexRequest = new IndexRequest(index.getName()).id("1").source("{ \"f\": \"2\"}", MediaTypeRegistry.JSON);
             shards.index(indexRequest);
             shards.refresh("test");
             for (IndexShard shard : shards) {
@@ -356,7 +356,7 @@ public class IndexLevelReplicationTests extends OpenSearchIndexLevelReplicationT
 
             assertEquals(primaryPrimaryTerm, replica2.getPendingPrimaryTerm());
 
-            IndexRequest indexRequest = new IndexRequest(index.getName()).id("1").source("{ \"f\": \"1\"}", XContentType.JSON);
+            IndexRequest indexRequest = new IndexRequest(index.getName()).id("1").source("{ \"f\": \"1\"}", MediaTypeRegistry.JSON);
             BulkShardRequest replicationRequest = indexOnPrimary(indexRequest, replica1);
 
             CyclicBarrier barrier = new CyclicBarrier(2);
@@ -396,7 +396,7 @@ public class IndexLevelReplicationTests extends OpenSearchIndexLevelReplicationT
         try (ReplicationGroup shards = new ReplicationGroup(buildIndexMetadata(1, mappings))) {
             shards.startAll();
             long primaryPrimaryTerm = shards.getPrimary().getPendingPrimaryTerm();
-            IndexRequest indexRequest = new IndexRequest(index.getName()).id("1").source("{ \"f\": \"1\"}", XContentType.JSON);
+            IndexRequest indexRequest = new IndexRequest(index.getName()).id("1").source("{ \"f\": \"1\"}", MediaTypeRegistry.JSON);
             BulkShardRequest replicationRequest = indexOnPrimary(indexRequest, shards.getPrimary());
 
             List<IndexShard> replicas = shards.getReplicas();
@@ -476,7 +476,7 @@ public class IndexLevelReplicationTests extends OpenSearchIndexLevelReplicationT
             shards.startPrimary();
             long primaryTerm = shards.getPrimary().getPendingPrimaryTerm();
             List<Translog.Operation> expectedTranslogOps = new ArrayList<>();
-            BulkItemResponse indexResp = shards.index(new IndexRequest(index.getName()).id("1").source("{}", XContentType.JSON));
+            BulkItemResponse indexResp = shards.index(new IndexRequest(index.getName()).id("1").source("{}", MediaTypeRegistry.JSON));
             assertThat(indexResp.isFailed(), equalTo(true));
             assertThat(indexResp.getFailure().getCause(), equalTo(indexException));
             expectedTranslogOps.add(new Translog.NoOp(0, primaryTerm, indexException.toString()));
@@ -504,7 +504,7 @@ public class IndexLevelReplicationTests extends OpenSearchIndexLevelReplicationT
                 }
             }
             // the failure replicated directly from the replication channel.
-            indexResp = shards.index(new IndexRequest(index.getName()).id("any").source("{}", XContentType.JSON));
+            indexResp = shards.index(new IndexRequest(index.getName()).id("any").source("{}", MediaTypeRegistry.JSON));
             assertThat(indexResp.getFailure().getCause(), equalTo(indexException));
             Translog.NoOp noop2 = new Translog.NoOp(1, primaryTerm, indexException.toString());
             expectedTranslogOps.add(noop2);
@@ -531,7 +531,9 @@ public class IndexLevelReplicationTests extends OpenSearchIndexLevelReplicationT
     public void testRequestFailureReplication() throws Exception {
         try (ReplicationGroup shards = createGroup(0)) {
             shards.startAll();
-            BulkItemResponse response = shards.index(new IndexRequest(index.getName()).id("1").source("{}", XContentType.JSON).version(2));
+            BulkItemResponse response = shards.index(
+                new IndexRequest(index.getName()).id("1").source("{}", MediaTypeRegistry.JSON).version(2)
+            );
             assertTrue(response.isFailed());
             assertThat(response.getFailure().getCause(), instanceOf(VersionConflictEngineException.class));
             shards.assertAllEqual(0);
@@ -549,7 +551,7 @@ public class IndexLevelReplicationTests extends OpenSearchIndexLevelReplicationT
                 shards.addReplica();
             }
             shards.startReplicas(nReplica);
-            response = shards.index(new IndexRequest(index.getName()).id("1").source("{}", XContentType.JSON).version(2));
+            response = shards.index(new IndexRequest(index.getName()).id("1").source("{}", MediaTypeRegistry.JSON).version(2));
             assertTrue(response.isFailed());
             assertThat(response.getFailure().getCause(), instanceOf(VersionConflictEngineException.class));
             shards.assertAllEqual(0);
@@ -582,7 +584,7 @@ public class IndexLevelReplicationTests extends OpenSearchIndexLevelReplicationT
             shards.syncGlobalCheckpoint();
 
             logger.info("--> Isolate replica1");
-            IndexRequest indexDoc1 = new IndexRequest(index.getName()).id("d1").source("{}", XContentType.JSON);
+            IndexRequest indexDoc1 = new IndexRequest(index.getName()).id("d1").source("{}", MediaTypeRegistry.JSON);
             BulkShardRequest replicationRequest = indexOnPrimary(indexDoc1, shards.getPrimary());
             indexOnReplica(replicationRequest, shards, replica2);
 
@@ -602,7 +604,7 @@ public class IndexLevelReplicationTests extends OpenSearchIndexLevelReplicationT
             }
             logger.info("--> Promote replica1 as the primary");
             shards.promoteReplicaToPrimary(replica1).get(); // wait until resync completed.
-            shards.index(new IndexRequest(index.getName()).id("d2").source("{}", XContentType.JSON));
+            shards.index(new IndexRequest(index.getName()).id("d2").source("{}", MediaTypeRegistry.JSON));
             final Translog.Operation op2;
             try (Translog.Snapshot snapshot = getTranslog(replica2).newSnapshot()) {
                 assertThat(snapshot.totalOperations(), equalTo(1));
@@ -652,7 +654,7 @@ public class IndexLevelReplicationTests extends OpenSearchIndexLevelReplicationT
 
             updateGCDeleteCycle(replica, gcInterval);
             final BulkShardRequest indexRequest = indexOnPrimary(
-                new IndexRequest(index.getName()).id("d1").source("{}", XContentType.JSON),
+                new IndexRequest(index.getName()).id("d1").source("{}", MediaTypeRegistry.JSON),
                 primary
             );
             final BulkShardRequest deleteRequest = deleteOnPrimary(new DeleteRequest(index.getName()).id("d1"), primary);
@@ -689,7 +691,7 @@ public class IndexLevelReplicationTests extends OpenSearchIndexLevelReplicationT
             final IndexShard replica = shards.getReplicas().get(0);
             // Append-only request - without id
             final BulkShardRequest indexRequest = indexOnPrimary(
-                new IndexRequest(index.getName()).id(null).source("{}", XContentType.JSON),
+                new IndexRequest(index.getName()).id(null).source("{}", MediaTypeRegistry.JSON),
                 primary
             );
             final String docId = Iterables.get(getShardDocUIDs(primary), 0);
@@ -709,7 +711,7 @@ public class IndexLevelReplicationTests extends OpenSearchIndexLevelReplicationT
             for (int i = 0; i < numDocs; i++) {
                 String id = Integer.toString(randomIntBetween(1, 100));
                 if (randomBoolean()) {
-                    group.index(new IndexRequest(index.getName()).id(id).source("{}", XContentType.JSON));
+                    group.index(new IndexRequest(index.getName()).id(id).source("{}", MediaTypeRegistry.JSON));
                     if (liveDocs.add(id) == false) {
                         versionLookups++;
                     }

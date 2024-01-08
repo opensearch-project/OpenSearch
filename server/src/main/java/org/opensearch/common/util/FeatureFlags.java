@@ -20,18 +20,11 @@ import org.opensearch.common.settings.Settings;
  * @opensearch.internal
  */
 public class FeatureFlags {
-
     /**
      * Gates the visibility of the segment replication experimental features that allows users to test unreleased beta features.
      */
     public static final String SEGMENT_REPLICATION_EXPERIMENTAL =
         "opensearch.experimental.feature.segment_replication_experimental.enabled";
-
-    /**
-     * Gates the visibility of the index setting that allows persisting data to remote store along with local disk.
-     * Once the feature is ready for production release, this feature flag can be removed.
-     */
-    public static final String REMOTE_STORE = "opensearch.experimental.feature.remote_store.enabled";
 
     /**
      * Gates the ability for Searchable Snapshots to read snapshots that are older than the
@@ -63,6 +56,17 @@ public class FeatureFlags {
     public static final String TELEMETRY = "opensearch.experimental.feature.telemetry.enabled";
 
     /**
+     * Gates the optimization of datetime formatters caching along with change in default datetime formatter.
+     */
+    public static final String DATETIME_FORMATTER_CACHING = "opensearch.experimental.optimization.datetime_formatter_caching.enabled";
+
+    /**
+     * Gates the functionality of writeable remote index
+     * Once the feature is ready for release, this feature flag can be removed.
+     */
+    public static final String WRITEABLE_REMOTE_INDEX = "opensearch.experimental.feature.writeable_remote_index.enabled";
+
+    /**
      * Should store the settings from opensearch.yml.
      */
     private static Settings settings;
@@ -90,13 +94,22 @@ public class FeatureFlags {
         return settings != null && settings.getAsBoolean(featureFlagName, false);
     }
 
+    public static boolean isEnabled(Setting<Boolean> featureFlag) {
+        if ("true".equalsIgnoreCase(System.getProperty(featureFlag.getKey()))) {
+            // TODO: Remove the if condition once FeatureFlags are only supported via opensearch.yml
+            return true;
+        } else if (settings != null) {
+            return featureFlag.get(settings);
+        } else {
+            return featureFlag.getDefault(Settings.EMPTY);
+        }
+    }
+
     public static final Setting<Boolean> SEGMENT_REPLICATION_EXPERIMENTAL_SETTING = Setting.boolSetting(
         SEGMENT_REPLICATION_EXPERIMENTAL,
         false,
         Property.NodeScope
     );
-
-    public static final Setting<Boolean> REMOTE_STORE_SETTING = Setting.boolSetting(REMOTE_STORE, false, Property.NodeScope);
 
     public static final Setting<Boolean> EXTENSIONS_SETTING = Setting.boolSetting(EXTENSIONS, false, Property.NodeScope);
 
@@ -106,6 +119,18 @@ public class FeatureFlags {
 
     public static final Setting<Boolean> CONCURRENT_SEGMENT_SEARCH_SETTING = Setting.boolSetting(
         CONCURRENT_SEGMENT_SEARCH,
+        false,
+        Property.NodeScope
+    );
+
+    public static final Setting<Boolean> DATETIME_FORMATTER_CACHING_SETTING = Setting.boolSetting(
+        DATETIME_FORMATTER_CACHING,
+        true,
+        Property.NodeScope
+    );
+
+    public static final Setting<Boolean> WRITEABLE_REMOTE_INDEX_SETTING = Setting.boolSetting(
+        WRITEABLE_REMOTE_INDEX,
         false,
         Property.NodeScope
     );

@@ -32,17 +32,16 @@
 
 package org.opensearch.snapshots;
 
-import org.opensearch.action.ActionFuture;
 import org.opensearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.opensearch.action.admin.indices.recovery.RecoveryResponse;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.cluster.routing.RecoverySource;
 import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.action.ActionFuture;
 import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.threadpool.ThreadPoolStats;
-
 import org.hamcrest.Matcher;
 
 import java.util.List;

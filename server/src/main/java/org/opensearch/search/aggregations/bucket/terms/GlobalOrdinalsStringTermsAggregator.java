@@ -40,11 +40,11 @@ import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.PriorityQueue;
-import org.opensearch.core.common.io.stream.StreamOutput;
-import org.opensearch.common.util.LongArray;
-import org.opensearch.common.util.LongHash;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lease.Releasables;
+import org.opensearch.common.util.LongArray;
+import org.opensearch.common.util.LongHash;
+import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.aggregations.AggregationExecutionException;
@@ -57,6 +57,7 @@ import org.opensearch.search.aggregations.InternalMultiBucketAggregation;
 import org.opensearch.search.aggregations.InternalOrder;
 import org.opensearch.search.aggregations.LeafBucketCollector;
 import org.opensearch.search.aggregations.LeafBucketCollectorBase;
+import org.opensearch.search.aggregations.bucket.LocalBucketCountThresholds;
 import org.opensearch.search.aggregations.bucket.terms.SignificanceLookup.BackgroundFrequencyForBytes;
 import org.opensearch.search.aggregations.bucket.terms.heuristic.SignificanceHeuristic;
 import org.opensearch.search.aggregations.support.ValuesSource;
@@ -70,8 +71,8 @@ import java.util.function.Function;
 import java.util.function.LongPredicate;
 import java.util.function.LongUnaryOperator;
 
-import static org.apache.lucene.index.SortedSetDocValues.NO_MORE_ORDS;
 import static org.opensearch.search.aggregations.InternalOrder.isKeyOrder;
+import static org.apache.lucene.index.SortedSetDocValues.NO_MORE_ORDS;
 
 /**
  * An aggregator of string values that relies on global ordinals in order to build buckets.
@@ -603,6 +604,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         TB extends InternalMultiBucketAggregation.InternalBucket> implements Releasable {
 
         private InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
+            LocalBucketCountThresholds localBucketCountThresholds = context.asLocalBucketCountThresholds(bucketCountThresholds);
             if (valueCount == 0) { // no context in this reader
                 InternalAggregation[] results = new InternalAggregation[owningBucketOrds.length];
                 for (int ordIdx = 0; ordIdx < owningBucketOrds.length; ordIdx++) {
@@ -615,11 +617,11 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
             long[] otherDocCount = new long[owningBucketOrds.length];
             for (int ordIdx = 0; ordIdx < owningBucketOrds.length; ordIdx++) {
                 final int size;
-                if (bucketCountThresholds.getMinDocCount() == 0) {
+                if (localBucketCountThresholds.getMinDocCount() == 0) {
                     // if minDocCount == 0 then we can end up with more buckets then maxBucketOrd() returns
-                    size = (int) Math.min(valueCount, bucketCountThresholds.getShardSize());
+                    size = (int) Math.min(valueCount, localBucketCountThresholds.getRequiredSize());
                 } else {
-                    size = (int) Math.min(maxBucketOrd(), bucketCountThresholds.getShardSize());
+                    size = (int) Math.min(maxBucketOrd(), localBucketCountThresholds.getRequiredSize());
                 }
                 PriorityQueue<TB> ordered = buildPriorityQueue(size);
                 final int finalOrdIdx = ordIdx;
@@ -630,7 +632,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
                     @Override
                     public void accept(long globalOrd, long bucketOrd, long docCount) throws IOException {
                         otherDocCount[finalOrdIdx] += docCount;
-                        if (docCount >= bucketCountThresholds.getShardMinDocCount()) {
+                        if (docCount >= localBucketCountThresholds.getMinDocCount()) {
                             if (spare == null) {
                                 spare = buildEmptyTemporaryBucket();
                             }
@@ -799,15 +801,14 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
                 name,
                 reduceOrder,
                 order,
-                bucketCountThresholds.getRequiredSize(),
-                bucketCountThresholds.getMinDocCount(),
                 metadata(),
                 format,
                 bucketCountThresholds.getShardSize(),
                 showTermDocCountError,
                 otherDocCount,
                 Arrays.asList(topBuckets),
-                0
+                0,
+                bucketCountThresholds
             );
         }
 
@@ -924,14 +925,13 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         SignificantStringTerms buildResult(long owningBucketOrd, long otherDocCount, SignificantStringTerms.Bucket[] topBuckets) {
             return new SignificantStringTerms(
                 name,
-                bucketCountThresholds.getRequiredSize(),
-                bucketCountThresholds.getMinDocCount(),
                 metadata(),
                 format,
                 subsetSize(owningBucketOrd),
                 supersetSize,
                 significanceHeuristic,
-                Arrays.asList(topBuckets)
+                Arrays.asList(topBuckets),
+                bucketCountThresholds
             );
         }
 

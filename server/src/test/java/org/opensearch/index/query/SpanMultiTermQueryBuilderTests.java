@@ -36,7 +36,6 @@ import org.apache.lucene.analysis.core.WhitespaceAnalyzer;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.SpanMatchNoDocsQuery;
 import org.apache.lucene.queries.spans.FieldMaskingSpanQuery;
@@ -52,14 +51,17 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopTermsRewrite;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.opensearch.common.compress.CompressedXContent;
-import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.common.lucene.search.SpanBooleanQueryRewriteWithMaxClause;
+import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 
 import static java.util.Collections.singleton;
 import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -305,5 +307,13 @@ public class SpanMultiTermQueryBuilderTests extends AbstractQueryTestCase<SpanMu
             assertFalse(rewriteMethod instanceof SpanBooleanQueryRewriteWithMaxClause);
         }
 
+    }
+
+    public void testVisit() {
+        MultiTermQueryBuilder multiTermQueryBuilder = new PrefixQueryBuilderTests().createTestQueryBuilder();
+        SpanMultiTermQueryBuilder spanMultiTermQueryBuilder = new SpanMultiTermQueryBuilder(multiTermQueryBuilder);
+        List<QueryBuilder> visitorQueries = new ArrayList<>();
+        spanMultiTermQueryBuilder.visit(createTestVisitor(visitorQueries));
+        assertEquals(2, visitorQueries.size());
     }
 }

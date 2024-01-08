@@ -34,10 +34,11 @@ package org.opensearch.common.geo.builders;
 
 import org.opensearch.test.geo.RandomShapeGenerator;
 import org.opensearch.test.geo.RandomShapeGenerator.ShapeType;
-import org.locationtech.jts.geom.Coordinate;
 
 import java.io.IOException;
 import java.util.List;
+
+import org.locationtech.jts.geom.Coordinate;
 
 public class LineStringBuilderTests extends AbstractShapeBuilderTestCase<LineStringBuilder> {
 

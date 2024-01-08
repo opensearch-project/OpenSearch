@@ -34,7 +34,7 @@ package org.opensearch.client.tasks;
 import java.util.Objects;
 
 /**
- * client side version of a {@link org.opensearch.tasks.TaskId}
+ * client side version of a {@link org.opensearch.core.tasks.TaskId}
  */
 public class TaskId {
 

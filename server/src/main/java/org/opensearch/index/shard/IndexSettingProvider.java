@@ -32,14 +32,16 @@
 
 package org.opensearch.index.shard;
 
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.settings.Settings;
 
 /**
  * An {@link IndexSettingProvider} is a provider for index level settings that can be set
  * explicitly as a default value (so they show up as "set" for newly created indices)
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public interface IndexSettingProvider {
     /**
      * Returns explicitly set default index {@link Settings} for the given index. This should not

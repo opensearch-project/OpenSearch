@@ -34,8 +34,8 @@ package org.opensearch.search.suggest.term;
 
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 
-import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.common.xcontent.json.JsonXContent;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.search.suggest.AbstractSuggestionBuilderTestCase;
 import org.opensearch.search.suggest.SortBy;
 import org.opensearch.search.suggest.SuggestBuilder;

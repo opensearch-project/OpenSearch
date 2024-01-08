@@ -36,19 +36,19 @@ import org.opensearch.common.Booleans;
 import org.opensearch.common.Table;
 import org.opensearch.common.io.Streams;
 import org.opensearch.common.io.UTF8StreamWriter;
-import org.opensearch.core.common.io.stream.BytesStream;
 import org.opensearch.common.regex.Regex;
-import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.common.unit.SizeValue;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.common.Strings;
+import org.opensearch.core.common.io.stream.BytesStream;
+import org.opensearch.core.common.unit.ByteSizeValue;
+import org.opensearch.core.rest.RestStatus;
 import org.opensearch.core.xcontent.MediaType;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.rest.BytesRestResponse;
 import org.opensearch.rest.RestChannel;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.RestResponse;
-import org.opensearch.core.rest.RestStatus;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -69,8 +69,8 @@ public class RestTable {
 
     public static RestResponse buildResponse(Table table, RestChannel channel) throws Exception {
         RestRequest request = channel.request();
-        MediaType xContentType = getXContentType(request);
-        if (xContentType != null) {
+        MediaType mediaType = getXContentType(request);
+        if (mediaType != null) {
             return buildXContentBuilder(table, channel);
         }
         return buildTextPlainResponse(table, channel);

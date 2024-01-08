@@ -35,13 +35,13 @@ package org.opensearch.index.query;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.Query;
+import org.opensearch.common.lucene.search.Queries;
 import org.opensearch.core.ParseField;
 import org.opensearch.core.common.ParsingException;
+import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
-import org.opensearch.common.lucene.search.Queries;
 import org.opensearch.core.common.util.CollectionUtils;
-import org.opensearch.core.common.Strings;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.search.QueryParserHelper;
@@ -66,7 +66,7 @@ import java.util.Objects;
  * <li>'{@code -}' negates a single token: {@code -token0}
  * <li>'{@code "}' creates phrases of terms: {@code "term1 term2 ..."}
  * <li>'{@code *}' at the end of terms specifies prefix query: {@code term*}
- * <li>'{@code (}' and '{@code)}' specifies precedence: {@code token1 + (token2 | token3)}
+ * <li>'{@code (}' and '{@code )}' specifies precedence: {@code token1 + (token2 | token3)}
  * <li>'{@code ~}N' at the end of terms specifies fuzzy query: {@code term~1}
  * <li>'{@code ~}N' at the end of phrases specifies near/slop query: {@code "term1 term2"~5}
  * </ul>

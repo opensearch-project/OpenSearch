@@ -43,11 +43,11 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.nio.file.Files;
+import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.nio.file.spi.FileSystemProvider;
-import java.nio.file.Files;
-import java.nio.file.NoSuchFileException;
 
 /**
  * Extends LFS to improve some operations to keep the security permissions at

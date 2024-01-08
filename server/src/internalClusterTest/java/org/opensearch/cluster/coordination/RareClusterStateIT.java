@@ -34,11 +34,8 @@ package org.opensearch.cluster.coordination;
 
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.Version;
-
-import org.opensearch.action.ActionFuture;
 import org.opensearch.action.ActionRequest;
 import org.opensearch.action.ActionRequestBuilder;
-import org.opensearch.action.ActionResponse;
 import org.opensearch.action.index.IndexResponse;
 import org.opensearch.action.support.master.AcknowledgedResponse;
 import org.opensearch.cluster.ClusterState;
@@ -53,10 +50,12 @@ import org.opensearch.cluster.routing.RoutingTable;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.allocation.AllocationService;
 import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.action.ActionFuture;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.discovery.Discovery;
+import org.opensearch.core.action.ActionResponse;
 import org.opensearch.core.index.Index;
+import org.opensearch.discovery.Discovery;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.mapper.DocumentMapper;
 import org.opensearch.index.mapper.MapperService;
@@ -72,10 +71,8 @@ import java.util.concurrent.TimeUnit;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.opensearch.action.DocWriteResponse.Result.CREATED;
-
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
-
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;

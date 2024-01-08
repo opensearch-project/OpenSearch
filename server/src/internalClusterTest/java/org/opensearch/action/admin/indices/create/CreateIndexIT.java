@@ -32,7 +32,6 @@
 
 package org.opensearch.action.admin.indices.create;
 
-import org.opensearch.action.ActionListener;
 import org.opensearch.action.UnavailableShardsException;
 import org.opensearch.action.admin.cluster.state.ClusterStateResponse;
 import org.opensearch.action.admin.indices.alias.Alias;
@@ -49,6 +48,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsException;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.xcontent.XContentFactory;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.mapper.MapperParsingException;

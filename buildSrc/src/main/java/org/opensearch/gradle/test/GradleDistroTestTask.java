@@ -32,10 +32,10 @@
 
 package org.opensearch.gradle.test;
 
+import org.opensearch.gradle.vagrant.VagrantMachine;
 import org.opensearch.gradle.vagrant.VagrantShellTask;
 import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.options.Option;
-import org.opensearch.gradle.vagrant.VagrantMachine;
 
 import java.util.ArrayList;
 import java.util.Collections;

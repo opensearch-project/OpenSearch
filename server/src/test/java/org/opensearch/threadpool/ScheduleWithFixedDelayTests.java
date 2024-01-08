@@ -40,8 +40,8 @@ import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.node.Node;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.Scheduler.Cancellable;
-import org.opensearch.threadpool.ThreadPool.Names;
 import org.opensearch.threadpool.Scheduler.ReschedulingRunnable;
+import org.opensearch.threadpool.ThreadPool.Names;
 import org.junit.After;
 import org.junit.Before;
 

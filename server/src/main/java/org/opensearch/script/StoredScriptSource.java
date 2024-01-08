@@ -35,24 +35,24 @@ package org.opensearch.script;
 import org.opensearch.cluster.AbstractDiffable;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.Diff;
+import org.opensearch.common.annotation.PublicApi;
+import org.opensearch.common.logging.DeprecationLogger;
+import org.opensearch.common.xcontent.LoggingDeprecationHandler;
 import org.opensearch.core.ParseField;
 import org.opensearch.core.common.ParsingException;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
-import org.opensearch.common.logging.DeprecationLogger;
-import org.opensearch.common.xcontent.LoggingDeprecationHandler;
 import org.opensearch.core.xcontent.MediaType;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.ObjectParser;
 import org.opensearch.core.xcontent.ObjectParser.ValueType;
 import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.core.xcontent.XContentParser.Token;
-import org.opensearch.common.xcontent.XContentType;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -66,8 +66,9 @@ import java.util.Objects;
  * {@link StoredScriptSource} represents user-defined parameters for a script
  * saved in the {@link ClusterState}.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class StoredScriptSource extends AbstractDiffable<StoredScriptSource> implements Writeable, ToXContentObject {
 
     /**
@@ -123,9 +124,9 @@ public class StoredScriptSource extends AbstractDiffable<StoredScriptSource> imp
             try {
                 if (parser.currentToken() == Token.START_OBJECT) {
                     // this is really for search templates, that need to be converted to json format
-                    XContentBuilder builder = XContentFactory.jsonBuilder();
+                    XContentBuilder builder = MediaTypeRegistry.JSON.contentBuilder();
                     source = builder.copyCurrentStructure(parser).toString();
-                    options.put(Script.CONTENT_TYPE_OPTION, XContentType.JSON.mediaType());
+                    options.put(Script.CONTENT_TYPE_OPTION, MediaTypeRegistry.JSON.mediaType());
                 } else {
                     source = parser.text();
                 }
@@ -309,7 +310,7 @@ public class StoredScriptSource extends AbstractDiffable<StoredScriptSource> imp
 
     /**
      * This will parse XContent into a {@link StoredScriptSource}. The following format is what will be parsed:
-     *
+     * <p>
      * {@code
      * {
      *     "script" : {
@@ -388,7 +389,7 @@ public class StoredScriptSource extends AbstractDiffable<StoredScriptSource> imp
 
     /**
      * This will write XContent from a {@link StoredScriptSource}. The following format will be written:
-     *
+     * <p>
      * {@code
      * {
      *     "script" : {

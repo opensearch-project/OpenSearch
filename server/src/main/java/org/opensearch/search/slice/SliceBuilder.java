@@ -40,14 +40,14 @@ import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.routing.GroupShardsIterator;
 import org.opensearch.cluster.routing.ShardIterator;
 import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.annotation.PublicApi;
+import org.opensearch.common.util.set.Sets;
+import org.opensearch.core.ParseField;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
-import org.opensearch.common.logging.DeprecationLogger;
-import org.opensearch.common.util.set.Sets;
-import org.opensearch.common.xcontent.XContentType;
-import org.opensearch.core.ParseField;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.ObjectParser;
 import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.core.xcontent.XContentBuilder;
@@ -76,12 +76,10 @@ import java.util.Set;
  *  Otherwise the provided field must be a numeric and doc_values must be enabled. In that case a
  *  {@link org.opensearch.search.slice.DocValuesSliceQuery} is used to filter the results.
  *
- *  @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class SliceBuilder implements Writeable, ToXContentObject {
-
-    private static final DeprecationLogger DEPRECATION_LOG = DeprecationLogger.getLogger(SliceBuilder.class);
-
     public static final ParseField FIELD_FIELD = new ParseField("field");
     public static final ParseField ID_FIELD = new ParseField("id");
     public static final ParseField MAX_FIELD = new ParseField("max");
@@ -328,6 +326,6 @@ public class SliceBuilder implements Writeable, ToXContentObject {
 
     @Override
     public String toString() {
-        return Strings.toString(XContentType.JSON, this, true, true);
+        return Strings.toString(MediaTypeRegistry.JSON, this, true, true);
     }
 }

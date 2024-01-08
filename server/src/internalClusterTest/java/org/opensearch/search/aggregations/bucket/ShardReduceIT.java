@@ -31,8 +31,12 @@
 
 package org.opensearch.search.aggregations.bucket;
 
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.action.search.SearchResponse;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.geometry.utils.Geohash;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.search.aggregations.Aggregator.SubAggCollectionMode;
@@ -45,8 +49,13 @@ import org.opensearch.search.aggregations.bucket.nested.Nested;
 import org.opensearch.search.aggregations.bucket.range.Range;
 import org.opensearch.search.aggregations.bucket.terms.Terms;
 import org.opensearch.test.OpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedOpenSearchIntegTestCase;
+
+import java.util.Arrays;
+import java.util.Collection;
 
 import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.opensearch.search.SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING;
 import static org.opensearch.search.aggregations.AggregationBuilders.dateHistogram;
 import static org.opensearch.search.aggregations.AggregationBuilders.dateRange;
 import static org.opensearch.search.aggregations.AggregationBuilders.filter;
@@ -68,7 +77,24 @@ import static org.hamcrest.Matchers.equalTo;
  * we can make sure that the reduce is properly propagated by checking that empty buckets were created.
  */
 @OpenSearchIntegTestCase.SuiteScopeTestCase
-public class ShardReduceIT extends OpenSearchIntegTestCase {
+public class ShardReduceIT extends ParameterizedOpenSearchIntegTestCase {
+
+    public ShardReduceIT(Settings dynamicSettings) {
+        super(dynamicSettings);
+    }
+
+    @ParametersFactory
+    public static Collection<Object[]> parameters() {
+        return Arrays.asList(
+            new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), false).build() },
+            new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), true).build() }
+        );
+    }
+
+    @Override
+    protected Settings featureFlagSettings() {
+        return Settings.builder().put(super.featureFlagSettings()).put(FeatureFlags.CONCURRENT_SEGMENT_SEARCH, "true").build();
+    }
 
     private IndexRequestBuilder indexDoc(String date, int value) throws Exception {
         return client().prepareIndex("idx")

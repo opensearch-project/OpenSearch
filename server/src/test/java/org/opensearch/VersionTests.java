@@ -49,8 +49,8 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
-import static org.opensearch.Version.V_2_3_0;
 import static org.opensearch.Version.MASK;
+import static org.opensearch.Version.V_2_3_0;
 import static org.opensearch.test.VersionUtils.allVersions;
 import static org.opensearch.test.VersionUtils.randomOpenSearchVersion;
 import static org.opensearch.test.VersionUtils.randomVersion;

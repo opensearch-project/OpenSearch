@@ -33,13 +33,12 @@
 package org.opensearch.gradle;
 
 import org.opensearch.gradle.test.GradleUnitTestCase;
-
-import java.util.UUID;
-
 import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Project;
 import org.gradle.testfixtures.ProjectBuilder;
 import org.junit.BeforeClass;
+
+import java.util.UUID;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 

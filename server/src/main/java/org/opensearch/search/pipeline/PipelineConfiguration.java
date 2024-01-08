@@ -11,15 +11,17 @@ package org.opensearch.search.pipeline;
 import org.opensearch.Version;
 import org.opensearch.cluster.AbstractDiffable;
 import org.opensearch.cluster.Diff;
+import org.opensearch.common.annotation.PublicApi;
+import org.opensearch.common.xcontent.XContentHelper;
+import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.ParseField;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
-import org.opensearch.common.xcontent.XContentHelper;
-import org.opensearch.common.xcontent.XContentType;
-import org.opensearch.core.ParseField;
 import org.opensearch.core.xcontent.ContextParser;
 import org.opensearch.core.xcontent.MediaType;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.ObjectParser;
 import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.core.xcontent.XContentBuilder;
@@ -30,9 +32,12 @@ import java.util.Objects;
 
 /**
  * TODO: Copied verbatim from {@link org.opensearch.ingest.PipelineConfiguration}.
- *
+ * <p>
  * See if we can refactor into a common class. I suspect not, just because this one will hold
+ *
+ * @opensearch.api
  */
+@PublicApi(since = "2.7.0")
 public class PipelineConfiguration extends AbstractDiffable<PipelineConfiguration> implements ToXContentObject {
     private static final ObjectParser<Builder, Void> PARSER = new ObjectParser<>(
         "pipeline_config",
@@ -130,7 +135,7 @@ public class PipelineConfiguration extends AbstractDiffable<PipelineConfiguratio
 
     @Override
     public String toString() {
-        return Strings.toString(XContentType.JSON, this);
+        return Strings.toString(MediaTypeRegistry.JSON, this);
     }
 
     @Override

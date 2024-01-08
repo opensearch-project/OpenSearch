@@ -33,6 +33,7 @@ package org.opensearch.common.lucene.store;
 
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.RandomAccessInput;
+import org.apache.lucene.util.BitUtil;
 
 import java.io.EOFException;
 import java.io.IOException;
@@ -121,47 +122,25 @@ public class ByteArrayIndexInput extends IndexInput implements RandomAccessInput
     @Override
     public byte readByte(long pos) throws IOException {
         validatePos(pos, Byte.BYTES);
-        return internalReadByte(pos);
+        return bytes[offset + (int) pos];
     }
 
     @Override
     public short readShort(long pos) throws IOException {
         validatePos(pos, Short.BYTES);
-        return internalReadShort(pos);
+        return (short) BitUtil.VH_LE_SHORT.get(bytes, offset + (int) pos);
     }
 
     @Override
     public int readInt(long pos) throws IOException {
         validatePos(pos, Integer.BYTES);
-        return internalReadInt(pos);
+        return (int) BitUtil.VH_LE_INT.get(bytes, offset + (int) pos);
     }
 
     @Override
     public long readLong(long pos) throws IOException {
         validatePos(pos, Long.BYTES);
-        return internalReadLong(pos);
-    }
-
-    private byte internalReadByte(long pos) {
-        return bytes[offset + (int) pos];
-    }
-
-    private short internalReadShort(long pos) {
-        final byte p1 = internalReadByte(pos);
-        final byte p2 = internalReadByte(pos + 1);
-        return (short) (((p2 & 0xFF) << 8) | (p1 & 0xFF));
-    }
-
-    private int internalReadInt(long pos) {
-        final short p1 = internalReadShort(pos);
-        final short p2 = internalReadShort(pos + Short.BYTES);
-        return ((p2 & 0xFFFF) << 16) | (p1 & 0xFFFF);
-    }
-
-    public long internalReadLong(long pos) {
-        final int p1 = internalReadInt(pos);
-        final int p2 = internalReadInt(pos + Integer.BYTES);
-        return (((long) p2) << 32) | (p1 & 0xFFFFFFFFL);
+        return (long) BitUtil.VH_LE_LONG.get(bytes, offset + (int) pos);
     }
 
     private void validatePos(long pos, int len) throws EOFException {

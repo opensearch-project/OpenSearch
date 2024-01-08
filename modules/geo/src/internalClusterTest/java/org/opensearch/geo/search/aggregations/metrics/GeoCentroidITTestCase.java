@@ -34,6 +34,7 @@ package org.opensearch.geo.search.aggregations.metrics;
 
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.common.geo.GeoPoint;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.geo.search.aggregations.bucket.geogrid.GeoGrid;
 import org.opensearch.geo.tests.common.AggregationBuilders;
 import org.opensearch.search.aggregations.metrics.GeoCentroid;
@@ -41,15 +42,19 @@ import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.util.List;
 
+import static org.opensearch.search.aggregations.AggregationBuilders.geoCentroid;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
-import static org.opensearch.search.aggregations.AggregationBuilders.geoCentroid;
-import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertSearchResponse;
 
 @OpenSearchIntegTestCase.SuiteScopeTestCase
 public class GeoCentroidITTestCase extends AbstractGeoAggregatorModulePluginTestCase {
     private static final String aggName = "geoCentroid";
+
+    public GeoCentroidITTestCase(Settings dynamicSettings) {
+        super(dynamicSettings);
+    }
 
     public void testSingleValueFieldAsSubAggToGeohashGrid() throws Exception {
         SearchResponse response = client().prepareSearch(HIGH_CARD_IDX_NAME)

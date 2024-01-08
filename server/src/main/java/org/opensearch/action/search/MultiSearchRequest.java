@@ -38,11 +38,13 @@ import org.opensearch.action.CompositeIndicesRequest;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.action.support.IndicesOptions.WildcardStates;
 import org.opensearch.common.CheckedBiConsumer;
+import org.opensearch.common.annotation.PublicApi;
+import org.opensearch.common.logging.DeprecationLogger;
+import org.opensearch.common.xcontent.LoggingDeprecationHandler;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
-import org.opensearch.common.logging.DeprecationLogger;
-import org.opensearch.common.xcontent.LoggingDeprecationHandler;
+import org.opensearch.core.tasks.TaskId;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContent;
@@ -50,7 +52,6 @@ import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.tasks.CancellableTask;
 import org.opensearch.tasks.Task;
-import org.opensearch.tasks.TaskId;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -71,8 +72,9 @@ import static org.opensearch.common.xcontent.support.XContentMapValues.nodeTimeV
 /**
  * A multi search API request.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class MultiSearchRequest extends ActionRequest implements CompositeIndicesRequest {
 
     public static final int MAX_CONCURRENT_SEARCH_REQUESTS_DEFAULT = 0;
@@ -277,6 +279,8 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
                         } else if ("cancel_after_time_interval".equals(entry.getKey())
                             || "cancelAfterTimeInterval".equals(entry.getKey())) {
                                 searchRequest.setCancelAfterTimeInterval(nodeTimeValue(value, null));
+                            } else if ("phase_took".equals(entry.getKey())) {
+                                searchRequest.setPhaseTook(nodeBooleanValue(value));
                             } else {
                                 throw new IllegalArgumentException("key [" + entry.getKey() + "] is not supported in the metadata section");
                             }
@@ -373,6 +377,9 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
         }
         if (request.getCancelAfterTimeInterval() != null) {
             xContentBuilder.field("cancel_after_time_interval", request.getCancelAfterTimeInterval().getStringRep());
+        }
+        if (request.isPhaseTook() != null) {
+            xContentBuilder.field("phase_took", request.isPhaseTook());
         }
         xContentBuilder.endObject();
     }

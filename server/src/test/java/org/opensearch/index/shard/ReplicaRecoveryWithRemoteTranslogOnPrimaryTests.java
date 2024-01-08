@@ -8,14 +8,11 @@
 
 package org.opensearch.index.shard;
 
-import org.junit.Assert;
-import org.junit.Before;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.routing.RecoverySource;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.ShardRoutingState;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.DocIdSeqNoAndSource;
 import org.opensearch.index.engine.NRTReplicationEngine;
@@ -26,6 +23,7 @@ import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.translog.WriteOnlyTranslogManager;
 import org.opensearch.indices.recovery.RecoveryTarget;
 import org.opensearch.indices.replication.common.ReplicationType;
+import org.junit.Assert;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -42,14 +40,6 @@ public class ReplicaRecoveryWithRemoteTranslogOnPrimaryTests extends OpenSearchI
         .put(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY, "translog-repo")
         .put(IndexSettings.INDEX_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING.getKey(), "100ms")
         .build();
-
-    @Before
-    public void setup() {
-        // Todo: Remove feature flag once remote store integration with segrep goes GA
-        FeatureFlags.initializeFeatureFlags(
-            Settings.builder().put(FeatureFlags.SEGMENT_REPLICATION_EXPERIMENTAL_SETTING.getKey(), "true").build()
-        );
-    }
 
     public void testStartSequenceForReplicaRecovery() throws Exception {
         final Path remoteDir = createTempDir();

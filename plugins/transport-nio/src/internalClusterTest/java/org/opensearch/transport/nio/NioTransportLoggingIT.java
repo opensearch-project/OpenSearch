@@ -34,12 +34,11 @@ package org.opensearch.transport.nio;
 
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
-
 import org.opensearch.NioIntegTestCase;
 import org.opensearch.action.admin.cluster.node.hotthreads.NodesHotThreadsRequest;
-import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.InternalTestCluster;
 import org.opensearch.test.MockLogAppender;
+import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.junit.annotations.TestLogging;
 import org.opensearch.transport.TcpTransport;
 import org.opensearch.transport.TransportLogger;

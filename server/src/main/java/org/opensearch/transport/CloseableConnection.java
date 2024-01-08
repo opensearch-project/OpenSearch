@@ -32,8 +32,8 @@
 
 package org.opensearch.transport;
 
-import org.opensearch.action.ActionListener;
 import org.opensearch.common.concurrent.CompletableContext;
+import org.opensearch.core.action.ActionListener;
 
 /**
  * Abstract Transport.Connection that provides common close logic.

@@ -32,12 +32,12 @@
 
 package org.opensearch.search.aggregations.pipeline;
 
+import org.opensearch.common.xcontent.LoggingDeprecationHandler;
 import org.opensearch.core.ParseField;
 import org.opensearch.core.common.ParsingException;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
-import org.opensearch.common.xcontent.LoggingDeprecationHandler;
 import org.opensearch.core.xcontent.XContentLocation;
 import org.opensearch.search.aggregations.AggregationExecutionException;
 import org.opensearch.search.aggregations.InternalMultiBucketAggregation;
@@ -64,7 +64,7 @@ public class BucketHelpers {
      * a date_histogram might have empty buckets due to no data existing for that time interval.
      * This can cause problems for operations like a derivative, which relies on a continuous
      * function.
-     *
+     * <p>
      * "insert_zeros": empty buckets will be filled with zeros for all metrics
      * "skip": empty buckets will simply be ignored
      *

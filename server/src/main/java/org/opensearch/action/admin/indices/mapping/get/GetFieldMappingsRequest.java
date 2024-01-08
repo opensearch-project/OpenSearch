@@ -37,21 +37,23 @@ import org.opensearch.action.ActionRequest;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.IndicesRequest;
 import org.opensearch.action.support.IndicesOptions;
+import org.opensearch.common.annotation.PublicApi;
+import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
-import org.opensearch.core.common.Strings;
 
 import java.io.IOException;
 import java.util.Arrays;
 
 /**
  * Request the mappings of specific fields
- *
+ * <p>
  * Note: there is a new class with the same name for the Java HLRC that uses a typeless format.
  * Any changes done to this class should go to that client class as well.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class GetFieldMappingsRequest extends ActionRequest implements IndicesRequest.Replaceable {
 
     protected boolean local = false;

@@ -37,21 +37,22 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefIterator;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.SuppressForbidden;
-import org.opensearch.core.common.bytes.BytesArray;
-import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.bytes.ReleasableBytesReference;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.io.Channels;
 import org.opensearch.common.io.DiskIoBufferPool;
 import org.opensearch.common.io.stream.ReleasableBytesStreamOutput;
-import org.opensearch.core.common.unit.ByteSizeValue;
+import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.util.concurrent.ReleasableLock;
 import org.opensearch.common.util.io.IOUtils;
-import org.opensearch.common.lease.Releasables;
 import org.opensearch.core.Assertions;
-import org.opensearch.index.seqno.SequenceNumbers;
+import org.opensearch.core.common.bytes.BytesArray;
+import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.index.seqno.SequenceNumbers;
 
 import java.io.ByteArrayOutputStream;
 import java.io.Closeable;
@@ -73,8 +74,9 @@ import java.util.function.LongSupplier;
 /**
  * Writer that writes operations to the translog
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class TranslogWriter extends BaseTranslogReader implements Closeable {
 
     private final ShardId shardId;
@@ -376,7 +378,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
 
     /**
      * write all buffered ops to disk and fsync file.
-     *
+     * <p>
      * Note: any exception during the sync process will be interpreted as a tragic exception and the writer will be closed before
      * raising the exception.
      * @return  <code>true</code> if this call caused an actual sync operation
@@ -471,7 +473,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
     }
 
     @Override
-    public TranslogSnapshot newSnapshot() {
+    TranslogSnapshot newSnapshot() {
         // make sure to acquire the sync lock first, to prevent dead locks with threads calling
         // syncUpTo() , where the sync lock is acquired first, following by the synchronize(this)
         // After the sync lock we acquire the write lock to avoid deadlocks with threads writing where

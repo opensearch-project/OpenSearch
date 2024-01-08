@@ -32,10 +32,10 @@
 
 package org.opensearch.plugins;
 
-import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.cli.Command;
 import org.opensearch.cli.LoggingAwareMultiCommand;
 import org.opensearch.cli.Terminal;
+import org.opensearch.common.util.io.IOUtils;
 
 import java.io.IOException;
 import java.util.Collection;

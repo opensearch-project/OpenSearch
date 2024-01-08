@@ -33,9 +33,9 @@
 package org.opensearch.index.reindex;
 
 import org.apache.logging.log4j.Logger;
-import org.opensearch.action.ActionListener;
 import org.opensearch.action.delete.DeleteRequest;
 import org.opensearch.client.ParentTaskAssigningClient;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.script.ScriptService;
 import org.opensearch.threadpool.ThreadPool;
 

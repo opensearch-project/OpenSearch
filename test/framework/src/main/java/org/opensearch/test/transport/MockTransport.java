@@ -38,12 +38,14 @@ import org.opensearch.common.Nullable;
 import org.opensearch.common.Randomness;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.io.stream.BytesStreamOutput;
+import org.opensearch.common.settings.ClusterSettings;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.core.common.io.stream.NamedWriteableAwareStreamInput;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.common.io.stream.StreamInput;
-import org.opensearch.common.settings.ClusterSettings;
-import org.opensearch.common.settings.Settings;
 import org.opensearch.core.common.transport.BoundTransportAddress;
+import org.opensearch.core.transport.TransportResponse;
+import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.CloseableConnection;
 import org.opensearch.transport.ClusterConnectionManager;
@@ -54,7 +56,6 @@ import org.opensearch.transport.TransportInterceptor;
 import org.opensearch.transport.TransportMessageListener;
 import org.opensearch.transport.TransportRequest;
 import org.opensearch.transport.TransportRequestOptions;
-import org.opensearch.core.transport.TransportResponse;
 import org.opensearch.transport.TransportResponseHandler;
 import org.opensearch.transport.TransportService;
 
@@ -80,7 +81,8 @@ public class MockTransport extends StubbableTransport {
         TransportInterceptor interceptor,
         Function<BoundTransportAddress, DiscoveryNode> localNodeFactory,
         @Nullable ClusterSettings clusterSettings,
-        Set<String> taskHeaders
+        Set<String> taskHeaders,
+        Tracer tracer
     ) {
         StubbableConnectionManager connectionManager = new StubbableConnectionManager(new ClusterConnectionManager(settings, this));
         connectionManager.setDefaultNodeConnectedBehavior((cm, node) -> false);
@@ -93,7 +95,8 @@ public class MockTransport extends StubbableTransport {
             localNodeFactory,
             clusterSettings,
             taskHeaders,
-            connectionManager
+            connectionManager,
+            tracer
         );
     }
 

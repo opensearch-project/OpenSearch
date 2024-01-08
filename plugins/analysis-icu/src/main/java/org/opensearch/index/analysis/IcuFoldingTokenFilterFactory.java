@@ -33,7 +33,6 @@
 package org.opensearch.index.analysis;
 
 import com.ibm.icu.text.Normalizer2;
-
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.icu.ICUFoldingFilter;
 import org.opensearch.common.settings.Settings;

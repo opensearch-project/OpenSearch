@@ -32,10 +32,10 @@
 
 package org.opensearch.search.aggregations.bucket.terms;
 
-import org.opensearch.common.util.BigArrays;
-import org.opensearch.common.util.ReorganizingLongHash;
-import org.opensearch.common.util.LongLongHash;
 import org.opensearch.common.lease.Releasable;
+import org.opensearch.common.util.BigArrays;
+import org.opensearch.common.util.LongLongHash;
+import org.opensearch.common.util.ReorganizingLongHash;
 import org.opensearch.search.aggregations.CardinalityUpperBound;
 
 /**

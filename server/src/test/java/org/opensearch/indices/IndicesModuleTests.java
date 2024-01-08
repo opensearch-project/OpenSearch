@@ -32,8 +32,8 @@
 
 package org.opensearch.indices;
 
-import org.opensearch.index.mapper.DocCountFieldMapper;
 import org.opensearch.index.mapper.DataStreamFieldMapper;
+import org.opensearch.index.mapper.DocCountFieldMapper;
 import org.opensearch.index.mapper.FieldNamesFieldMapper;
 import org.opensearch.index.mapper.IdFieldMapper;
 import org.opensearch.index.mapper.IgnoredFieldMapper;

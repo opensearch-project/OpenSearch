@@ -44,11 +44,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
 
+import static org.opensearch.tasks.TaskResourceTrackingService.TASK_ID;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.sameInstance;
-import static org.opensearch.tasks.TaskResourceTrackingService.TASK_ID;
 
 public class ThreadContextTests extends OpenSearchTestCase {
 

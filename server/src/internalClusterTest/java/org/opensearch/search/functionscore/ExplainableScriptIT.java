@@ -32,14 +32,18 @@
 
 package org.opensearch.search.functionscore;
 
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Explanation;
+import org.apache.lucene.search.IndexSearcher;
 import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.action.search.SearchType;
 import org.opensearch.common.lucene.search.function.CombineFunction;
 import org.opensearch.common.lucene.search.function.Functions;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.index.fielddata.ScriptDocValues;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.plugins.ScriptPlugin;
@@ -52,9 +56,9 @@ import org.opensearch.script.ScriptType;
 import org.opensearch.search.SearchHit;
 import org.opensearch.search.SearchHits;
 import org.opensearch.search.lookup.SearchLookup;
-import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.OpenSearchIntegTestCase.ClusterScope;
 import org.opensearch.test.OpenSearchIntegTestCase.Scope;
+import org.opensearch.test.ParameterizedOpenSearchIntegTestCase;
 import org.opensearch.test.hamcrest.OpenSearchAssertions;
 
 import java.io.IOException;
@@ -72,13 +76,31 @@ import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.opensearch.index.query.QueryBuilders.functionScoreQuery;
 import static org.opensearch.index.query.QueryBuilders.termQuery;
 import static org.opensearch.index.query.functionscore.ScoreFunctionBuilders.scriptFunction;
+import static org.opensearch.search.SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING;
 import static org.opensearch.search.builder.SearchSourceBuilder.searchSource;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 @ClusterScope(scope = Scope.SUITE, supportsDedicatedMasters = false, numDataNodes = 1)
-public class ExplainableScriptIT extends OpenSearchIntegTestCase {
+public class ExplainableScriptIT extends ParameterizedOpenSearchIntegTestCase {
+
+    public ExplainableScriptIT(Settings dynamicSettings) {
+        super(dynamicSettings);
+    }
+
+    @ParametersFactory
+    public static Collection<Object[]> parameters() {
+        return Arrays.asList(
+            new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), false).build() },
+            new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), true).build() }
+        );
+    }
+
+    @Override
+    protected Settings featureFlagSettings() {
+        return Settings.builder().put(super.featureFlagSettings()).put(FeatureFlags.CONCURRENT_SEGMENT_SEARCH, "true").build();
+    }
 
     public static class ExplainableScriptPlugin extends Plugin implements ScriptPlugin {
         @Override
@@ -93,7 +115,7 @@ public class ExplainableScriptIT extends OpenSearchIntegTestCase {
                 public <T> T compile(String scriptName, String scriptSource, ScriptContext<T> context, Map<String, String> params) {
                     assert scriptSource.equals("explainable_script");
                     assert context == ScoreScript.CONTEXT;
-                    ScoreScript.Factory factory = (params1, lookup) -> new ScoreScript.LeafFactory() {
+                    ScoreScript.Factory factory = (params1, lookup, indexSearcher) -> new ScoreScript.LeafFactory() {
                         @Override
                         public boolean needs_score() {
                             return false;
@@ -101,7 +123,7 @@ public class ExplainableScriptIT extends OpenSearchIntegTestCase {
 
                         @Override
                         public ScoreScript newInstance(LeafReaderContext ctx) throws IOException {
-                            return new MyScript(params1, lookup, ctx);
+                            return new MyScript(params1, lookup, indexSearcher, ctx);
                         }
                     };
                     return context.factoryClazz.cast(factory);
@@ -117,8 +139,8 @@ public class ExplainableScriptIT extends OpenSearchIntegTestCase {
 
     static class MyScript extends ScoreScript implements ExplainableScoreScript {
 
-        MyScript(Map<String, Object> params, SearchLookup lookup, LeafReaderContext leafContext) {
-            super(params, lookup, leafContext);
+        MyScript(Map<String, Object> params, SearchLookup lookup, IndexSearcher indexSearcher, LeafReaderContext leafContext) {
+            super(params, lookup, indexSearcher, leafContext);
         }
 
         @Override

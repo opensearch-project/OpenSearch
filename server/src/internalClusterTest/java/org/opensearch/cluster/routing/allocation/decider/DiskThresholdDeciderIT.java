@@ -36,13 +36,11 @@ import org.apache.lucene.tests.mockfile.FilterFileStore;
 import org.apache.lucene.tests.mockfile.FilterFileSystemProvider;
 import org.apache.lucene.tests.mockfile.FilterPath;
 import org.apache.lucene.util.Constants;
-
 import org.opensearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.opensearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.opensearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.opensearch.action.admin.indices.stats.ShardStats;
 import org.opensearch.action.index.IndexRequestBuilder;
-
 import org.opensearch.cluster.ClusterInfoService;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.InternalClusterInfoService;
@@ -71,9 +69,8 @@ import org.opensearch.repositories.fs.FsRepository;
 import org.opensearch.snapshots.RestoreInfo;
 import org.opensearch.snapshots.SnapshotInfo;
 import org.opensearch.snapshots.SnapshotState;
-import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.InternalSettingsPlugin;
-
+import org.opensearch.test.OpenSearchIntegTestCase;
 import org.hamcrest.Matcher;
 import org.junit.After;
 import org.junit.Before;
@@ -88,9 +85,9 @@ import java.nio.file.NoSuchFileException;
 import java.nio.file.NotDirectoryException;
 import java.nio.file.Path;
 import java.util.Arrays;
-import java.util.List;
 import java.util.Collection;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;

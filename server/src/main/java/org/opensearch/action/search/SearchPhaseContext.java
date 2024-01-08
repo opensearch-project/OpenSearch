@@ -34,8 +34,9 @@ package org.opensearch.action.search;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.action.OriginalIndices;
 import org.opensearch.common.Nullable;
-import org.opensearch.common.util.concurrent.AtomicArray;
+import org.opensearch.common.annotation.InternalApi;
 import org.opensearch.common.lease.Releasable;
+import org.opensearch.common.util.concurrent.AtomicArray;
 import org.opensearch.search.SearchPhaseResult;
 import org.opensearch.search.SearchShardTarget;
 import org.opensearch.search.internal.InternalSearchResponse;
@@ -50,6 +51,7 @@ import java.util.concurrent.Executor;
  *
  * @opensearch.internal
  */
+@InternalApi
 public interface SearchPhaseContext extends Executor {
     // TODO maybe we can make this concrete later - for now we just implement this in the base class for all initial phases
 
@@ -72,6 +74,8 @@ public interface SearchPhaseContext extends Executor {
      * Returns the currently executing search request
      */
     SearchRequest getRequest();
+
+    SearchPhase getCurrentPhase();
 
     /**
      * Builds and sends the final search response back to the user.

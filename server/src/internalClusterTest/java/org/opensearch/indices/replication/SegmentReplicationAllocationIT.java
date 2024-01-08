@@ -9,6 +9,7 @@
 package org.opensearch.indices.replication;
 
 import org.opensearch.cluster.ClusterState;
+import org.opensearch.cluster.OpenSearchAllocationTestCase.ShardAllocations;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.routing.IndexRoutingTable;
 import org.opensearch.cluster.routing.RoutingNode;
@@ -30,8 +31,6 @@ import java.util.stream.Collectors;
 
 import static org.opensearch.cluster.routing.ShardRoutingState.STARTED;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
-
-import org.opensearch.cluster.OpenSearchAllocationTestCase.ShardAllocations;
 
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class SegmentReplicationAllocationIT extends SegmentReplicationBaseIT {
@@ -92,7 +91,7 @@ public class SegmentReplicationAllocationIT extends SegmentReplicationBaseIT {
 
     /**
      * This test verifies the happy path where primary shard allocation is balanced when multiple indices are created.
-     *
+     * <p>
      * This test in general passes without primary shard balance as well due to nature of allocation algorithm which
      * assigns all primary shards first followed by replica copies.
      */

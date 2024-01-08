@@ -10,8 +10,8 @@ package org.opensearch.indices.replication;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.opensearch.action.ActionListener;
 import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.store.StoreFileMetadata;
@@ -22,6 +22,7 @@ import org.opensearch.transport.TransportRequestOptions;
 import org.opensearch.transport.TransportService;
 
 import java.util.List;
+import java.util.function.BiConsumer;
 
 import static org.opensearch.indices.replication.SegmentReplicationSourceService.Actions.GET_CHECKPOINT_INFO;
 import static org.opensearch.indices.replication.SegmentReplicationSourceService.Actions.GET_SEGMENT_FILES;
@@ -80,8 +81,13 @@ public class PrimaryShardReplicationSource implements SegmentReplicationSource {
         ReplicationCheckpoint checkpoint,
         List<StoreFileMetadata> filesToFetch,
         IndexShard indexShard,
+        BiConsumer<String, Long> fileProgressTracker,
         ActionListener<GetSegmentFilesResponse> listener
     ) {
+        // fileProgressTracker is a no-op for node to node recovery
+        // MultiFileWriter takes care of progress tracking for downloads in this scenario
+        // TODO: Move state management and tracking into replication methods and use chunking and data
+        // copy mechanisms only from MultiFileWriter
         final Writeable.Reader<GetSegmentFilesResponse> reader = GetSegmentFilesResponse::new;
         final ActionListener<GetSegmentFilesResponse> responseListener = ActionListener.map(listener, r -> r);
         final GetSegmentFilesRequest request = new GetSegmentFilesRequest(

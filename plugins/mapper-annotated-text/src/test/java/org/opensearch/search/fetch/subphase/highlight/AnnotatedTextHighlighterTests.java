@@ -67,8 +67,8 @@ import java.text.BreakIterator;
 import java.util.ArrayList;
 import java.util.Locale;
 
-import static org.apache.lucene.search.uhighlight.CustomUnifiedHighlighter.MULTIVAL_SEP_CHAR;
 import static org.hamcrest.CoreMatchers.equalTo;
+import static org.apache.lucene.search.uhighlight.CustomUnifiedHighlighter.MULTIVAL_SEP_CHAR;
 
 public class AnnotatedTextHighlighterTests extends OpenSearchTestCase {
 

@@ -32,21 +32,22 @@
 
 package org.opensearch.repositories.s3;
 
-import org.opensearch.core.common.Strings;
+import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
+import software.amazon.awssdk.auth.credentials.AwsCredentials;
+import software.amazon.awssdk.auth.credentials.AwsSessionCredentials;
+
 import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.io.PathUtils;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.settings.SecureSetting;
-import org.opensearch.core.common.settings.SecureString;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsException;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.core.common.Strings;
+import org.opensearch.core.common.settings.SecureString;
 import org.opensearch.repositories.s3.utils.Protocol;
-import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
-import software.amazon.awssdk.auth.credentials.AwsCredentials;
-import software.amazon.awssdk.auth.credentials.AwsSessionCredentials;
 
 import java.net.InetAddress;
 import java.net.UnknownHostException;
@@ -176,7 +177,7 @@ final class S3ClientSettings {
     static final Setting.AffixSetting<TimeValue> REQUEST_TIMEOUT_SETTING = Setting.affixKeySetting(
         PREFIX,
         "request_timeout",
-        key -> Setting.timeSetting(key, TimeValue.timeValueMinutes(2), Property.NodeScope)
+        key -> Setting.timeSetting(key, TimeValue.timeValueMinutes(5), Property.NodeScope)
     );
 
     /** The connection timeout for connecting to s3. */
@@ -197,14 +198,14 @@ final class S3ClientSettings {
     static final Setting.AffixSetting<Integer> MAX_CONNECTIONS_SETTING = Setting.affixKeySetting(
         PREFIX,
         "max_connections",
-        key -> Setting.intSetting(key, 100, Property.NodeScope)
+        key -> Setting.intSetting(key, 500, Property.NodeScope)
     );
 
     /** Connection acquisition timeout for new connections to S3. */
     static final Setting.AffixSetting<TimeValue> CONNECTION_ACQUISITION_TIMEOUT = Setting.affixKeySetting(
         PREFIX,
         "connection_acquisition_timeout",
-        key -> Setting.timeSetting(key, TimeValue.timeValueMinutes(2), Property.NodeScope)
+        key -> Setting.timeSetting(key, TimeValue.timeValueMinutes(15), Property.NodeScope)
     );
 
     /** The maximum pending connections to S3. */
@@ -445,7 +446,7 @@ final class S3ClientSettings {
 
     /**
      * Load all client settings from the given settings.
-     *
+     * <p>
      * Note this will always at least return a client named "default".
      */
     static Map<String, S3ClientSettings> load(final Settings settings, final Path configPath) {

@@ -38,20 +38,21 @@ import org.opensearch.cluster.ClusterModule;
 import org.opensearch.cluster.DataStreamTestHelper;
 import org.opensearch.cluster.coordination.CoordinationMetadata;
 import org.opensearch.cluster.coordination.CoordinationMetadata.VotingConfigExclusion;
-import org.opensearch.core.common.Strings;
 import org.opensearch.common.UUIDs;
-import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.io.stream.BytesStreamOutput;
-import org.opensearch.core.common.io.stream.NamedWriteableAwareStreamInput;
-import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.set.Sets;
-import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentHelper;
-import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.common.xcontent.json.JsonXContent;
+import org.opensearch.core.common.Strings;
+import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.common.io.stream.NamedWriteableAwareStreamInput;
+import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.index.Index;
+import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentParser;
+import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.plugins.MapperPlugin;
 import org.opensearch.test.OpenSearchTestCase;
 
@@ -624,6 +625,39 @@ public class MetadataTests extends OpenSearchTestCase {
 
         assertTrue(Metadata.isGlobalStateEquals(metadata1, metadata1));
         assertFalse(Metadata.isGlobalStateEquals(metadata1, metadata2));
+    }
+
+    public void testGlobalResourcesStateEqualsCoordinationMetadata() {
+        CoordinationMetadata coordinationMetadata1 = new CoordinationMetadata(
+            randomNonNegativeLong(),
+            randomVotingConfig(),
+            randomVotingConfig(),
+            randomVotingConfigExclusions()
+        );
+        Metadata metadata1 = Metadata.builder()
+            .coordinationMetadata(coordinationMetadata1)
+            .clusterUUID(randomAlphaOfLength(10))
+            .clusterUUIDCommitted(false)
+            .hashesOfConsistentSettings(Map.of("a", "b"))
+            .persistentSettings(Settings.builder().put(Metadata.SETTING_READ_ONLY_SETTING.getKey(), true).build())
+            .build();
+        CoordinationMetadata coordinationMetadata2 = new CoordinationMetadata(
+            randomNonNegativeLong(),
+            randomVotingConfig(),
+            randomVotingConfig(),
+            randomVotingConfigExclusions()
+        );
+        Metadata metadata2 = Metadata.builder()
+            .coordinationMetadata(coordinationMetadata2)
+            .clusterUUIDCommitted(true)
+            .clusterUUID(randomAlphaOfLength(11))
+            .hashesOfConsistentSettings(Map.of("b", "a"))
+            .persistentSettings(Settings.builder().put(Metadata.SETTING_READ_ONLY_SETTING.getKey(), true).build())
+            .build();
+
+        assertTrue(Metadata.isGlobalStateEquals(metadata1, metadata1));
+        assertFalse(Metadata.isGlobalStateEquals(metadata1, metadata2));
+        assertTrue(Metadata.isGlobalResourcesMetadataEquals(metadata1, metadata2));
     }
 
     public void testSerializationWithIndexGraveyard() throws IOException {
@@ -1423,6 +1457,29 @@ public class MetadataTests extends OpenSearchTestCase {
         verify(spyBuilder, times(1)).buildMetadataWithRecomputedIndicesLookups();
         verify(spyBuilder, times(0)).buildMetadataWithPreviousIndicesLookups();
         compareMetadata(previousMetadata, builtMetadata, false, true, true);
+    }
+
+    public void testIsSegmentReplicationEnabled() {
+        final String indexName = "test";
+        Settings.Builder builder = settings(Version.CURRENT).put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT);
+        IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(indexName)
+            .settings(builder)
+            .numberOfShards(1)
+            .numberOfReplicas(1);
+        Metadata.Builder metadataBuilder = Metadata.builder().put(indexMetadataBuilder);
+        Metadata metadata = metadataBuilder.build();
+        assertTrue(metadata.isSegmentReplicationEnabled(indexName));
+    }
+
+    public void testIsSegmentReplicationDisabled() {
+        final String indexName = "test";
+        IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(indexName)
+            .settings(settings(Version.CURRENT))
+            .numberOfShards(1)
+            .numberOfReplicas(1);
+        Metadata.Builder metadataBuilder = Metadata.builder().put(indexMetadataBuilder);
+        Metadata metadata = metadataBuilder.build();
+        assertFalse(metadata.isSegmentReplicationEnabled(indexName));
     }
 
     public static Metadata randomMetadata() {

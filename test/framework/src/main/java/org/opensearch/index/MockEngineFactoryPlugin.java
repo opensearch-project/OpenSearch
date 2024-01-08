@@ -31,8 +31,8 @@
 
 package org.opensearch.index;
 
-import org.apache.lucene.tests.index.AssertingDirectoryReader;
 import org.apache.lucene.index.FilterDirectoryReader;
+import org.apache.lucene.tests.index.AssertingDirectoryReader;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.index.engine.EngineFactory;
 import org.opensearch.plugins.EnginePlugin;
@@ -46,7 +46,7 @@ import java.util.Optional;
 
 /**
  * A plugin to use {@link MockEngineFactory}.
- *
+ * <p>
  * Subclasses may override the reader wrapper used.
  */
 public class MockEngineFactoryPlugin extends Plugin implements EnginePlugin {

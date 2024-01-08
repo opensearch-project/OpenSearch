@@ -36,9 +36,9 @@ import org.opensearch.action.ActionRequest;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
-import org.opensearch.common.unit.TimeValue;
 
 import java.io.IOException;
 
@@ -53,9 +53,9 @@ public abstract class BaseNodesRequest<Request extends BaseNodesRequest<Request>
      * the list of nodesIds that will be used to resolve this request and {@link #concreteNodes}
      * will be populated. Note that if {@link #concreteNodes} is not null, it will be used and nodeIds
      * will be ignored.
-     *
+     * <p>
      * See {@link DiscoveryNodes#resolveNodes} for a full description of the options.
-     *
+     * <p>
      * TODO: get rid of this and resolve it to concrete nodes in the rest layer
      **/
     private String[] nodesIds;

@@ -32,11 +32,11 @@
 
 package org.opensearch.search.aggregations.metrics;
 
+import org.opensearch.common.util.BigArrays;
+import org.opensearch.common.util.BitMixer;
 import org.opensearch.core.common.breaker.CircuitBreaker;
 import org.opensearch.core.common.breaker.CircuitBreakingException;
 import org.opensearch.core.common.breaker.NoopCircuitBreaker;
-import org.opensearch.common.util.BigArrays;
-import org.opensearch.common.util.BitMixer;
 import org.opensearch.core.indices.breaker.CircuitBreakerService;
 import org.opensearch.test.OpenSearchTestCase;
 

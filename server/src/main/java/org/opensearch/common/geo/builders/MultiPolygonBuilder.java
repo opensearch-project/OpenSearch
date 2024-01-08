@@ -41,14 +41,15 @@ import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.geometry.MultiPolygon;
 import org.opensearch.geometry.Polygon;
-import org.locationtech.jts.geom.Coordinate;
-import org.locationtech.spatial4j.shape.Shape;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
+
+import org.locationtech.jts.geom.Coordinate;
+import org.locationtech.spatial4j.shape.Shape;
 
 /**
  * Builds a multi polygon geometry

@@ -33,17 +33,17 @@
 package org.opensearch.index.mapper;
 
 import org.apache.lucene.index.IndexableField;
-import org.opensearch.core.common.bytes.BytesArray;
-import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.common.xcontent.XContentFactory;
-import org.opensearch.core.xcontent.MediaTypeRegistry;
-import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.xcontent.json.JsonXContent;
+import org.opensearch.core.common.bytes.BytesArray;
+import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.plugins.Plugin;
-import org.opensearch.test.OpenSearchSingleNodeTestCase;
 import org.opensearch.test.InternalSettingsPlugin;
+import org.opensearch.test.OpenSearchSingleNodeTestCase;
 
 import java.util.Collection;
 import java.util.Map;
@@ -75,11 +75,11 @@ public class SourceFieldMapperTests extends OpenSearchSingleNodeTestCase {
                 "test",
                 "1",
                 BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field("field", "value").endObject()),
-                XContentType.JSON
+                MediaTypeRegistry.JSON
             )
         );
 
-        assertThat(MediaTypeRegistry.xContent(doc.source().toBytesRef().bytes), equalTo(XContentType.JSON));
+        assertThat(MediaTypeRegistry.xContent(doc.source().toBytesRef().bytes), equalTo(MediaTypeRegistry.JSON));
 
         documentMapper = parser.parse("type", new CompressedXContent(mapping));
         doc = documentMapper.parse(
@@ -124,7 +124,7 @@ public class SourceFieldMapperTests extends OpenSearchSingleNodeTestCase {
                         .endObject()
                         .endObject()
                 ),
-                XContentType.JSON
+                MediaTypeRegistry.JSON
             )
         );
 
@@ -167,7 +167,7 @@ public class SourceFieldMapperTests extends OpenSearchSingleNodeTestCase {
                         .endObject()
                         .endObject()
                 ),
-                XContentType.JSON
+                MediaTypeRegistry.JSON
             )
         );
 
@@ -314,8 +314,8 @@ public class SourceFieldMapperTests extends OpenSearchSingleNodeTestCase {
             .parse("type", new CompressedXContent(mapping));
 
         try {
-            documentMapper.parse(new SourceToParse("test", "1", new BytesArray("{}}"), XContentType.JSON)); // extra end object
-                                                                                                            // (invalid JSON)
+            documentMapper.parse(new SourceToParse("test", "1", new BytesArray("{}}"), MediaTypeRegistry.JSON)); // extra end object
+            // (invalid JSON)
             fail("Expected parse exception");
         } catch (MapperParsingException e) {
             assertNotNull(e.getRootCause());

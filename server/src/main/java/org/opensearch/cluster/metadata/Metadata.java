@@ -32,8 +32,8 @@
 
 package org.opensearch.cluster.metadata;
 
-import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.CollectionUtil;
 import org.opensearch.action.AliasesRequest;
 import org.opensearch.cluster.ClusterState;
@@ -49,24 +49,26 @@ import org.opensearch.cluster.coordination.CoordinationMetadata;
 import org.opensearch.cluster.decommission.DecommissionAttributeMetadata;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.UUIDs;
-import org.opensearch.core.common.io.stream.StreamInput;
-import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.regex.Regex;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.core.common.Strings;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.index.Index;
+import org.opensearch.core.rest.RestStatus;
 import org.opensearch.core.xcontent.NamedObjectNotFoundException;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.gateway.MetadataStateFormat;
-import org.opensearch.core.index.Index;
 import org.opensearch.index.IndexNotFoundException;
+import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.plugins.MapperPlugin;
-import org.opensearch.core.rest.RestStatus;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -97,8 +99,9 @@ import static org.opensearch.common.settings.Settings.writeSettingsToStream;
 /**
  * Metadata information
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, ToXContentFragment {
 
     private static final Logger logger = LogManager.getLogger(Metadata.class);
@@ -108,10 +111,27 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
     public static final Pattern NUMBER_PATTERN = Pattern.compile("[0-9]+$");
 
     /**
+     * Utility to identify whether input index uses SEGMENT replication strategy in established cluster state metadata.
+     * Note: Method intended for use by other plugins as well.
+     *
+     * @param indexName Index name
+     * @return true if index uses SEGMENT replication, false otherwise
+     */
+    public boolean isSegmentReplicationEnabled(String indexName) {
+        return Optional.ofNullable(index(indexName))
+            .map(
+                indexMetadata -> ReplicationType.parseString(indexMetadata.getSettings().get(IndexMetadata.SETTING_REPLICATION_TYPE))
+                    .equals(ReplicationType.SEGMENT)
+            )
+            .orElse(false);
+    }
+
+    /**
      * Context of the XContent.
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public enum XContentContext {
         /* Custom metadata should be returns as part of API call */
         API,
@@ -149,8 +169,9 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
     /**
      * Custom metadata.
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public interface Custom extends NamedDiffable<Custom>, ToXContentFragment, ClusterState.FeatureAware {
 
         EnumSet<XContentContext> context();
@@ -905,19 +926,26 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
         if (!metadata1.coordinationMetadata.equals(metadata2.coordinationMetadata)) {
             return false;
         }
-        if (!metadata1.persistentSettings.equals(metadata2.persistentSettings)) {
-            return false;
-        }
         if (!metadata1.hashesOfConsistentSettings.equals(metadata2.hashesOfConsistentSettings)) {
-            return false;
-        }
-        if (!metadata1.templates.equals(metadata2.templates())) {
             return false;
         }
         if (!metadata1.clusterUUID.equals(metadata2.clusterUUID)) {
             return false;
         }
         if (metadata1.clusterUUIDCommitted != metadata2.clusterUUIDCommitted) {
+            return false;
+        }
+        return isGlobalResourcesMetadataEquals(metadata1, metadata2);
+    }
+
+    /**
+     * Compares Metadata entities persisted in Remote Store.
+     */
+    public static boolean isGlobalResourcesMetadataEquals(Metadata metadata1, Metadata metadata2) {
+        if (!metadata1.persistentSettings.equals(metadata2.persistentSettings)) {
+            return false;
+        }
+        if (!metadata1.templates.equals(metadata2.templates())) {
             return false;
         }
         // Check if any persistent metadata needs to be saved
@@ -1105,8 +1133,9 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
     /**
      * Builder of metadata.
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public static class Builder {
 
         private String clusterUUID;
@@ -1649,7 +1678,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
 
         /**
          * Validates there isn't any index with a name that would clash with the future backing indices of the existing data streams.
-         *
+         * <p>
          * E.g., if data stream `foo` has backing indices [`.ds-foo-000001`, `.ds-foo-000002`] and the indices lookup contains indices
          * `.ds-foo-000001`, `.ds-foo-000002` and `.ds-foo-000006` this will throw an IllegalStateException (as attempting to rollover the
          * `foo` data stream from generation 5 to 6 will not be possible)

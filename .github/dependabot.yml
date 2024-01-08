@@ -7,6 +7,14 @@ updates:
     labels:
       - "dependabot"
       - "dependencies"
+  - directory: /
+    open-pull-requests-limit: 1
+    package-ecosystem: "github-actions"
+    schedule:
+      interval: "weekly"
+    labels:
+      - "dependabot"
+      - "dependencies"
   - directory: /benchmarks/
     open-pull-requests-limit: 1
     package-ecosystem: gradle
@@ -703,6 +711,14 @@ updates:
     labels:
       - "dependabot"
       - "dependencies"
+  - directory: /modules/crypto/
+    open-pull-requests-limit: 1
+    package-ecosystem: gradle
+    schedule:
+      interval: weekly
+    labels:
+      - "dependabot"
+      - "dependencies"
   - directory: /plugins/
     open-pull-requests-limit: 1
     package-ecosystem: gradle
@@ -960,6 +976,14 @@ updates:
       - "dependabot"
       - "dependencies"
   - directory: /plugins/transport-nio/
+    open-pull-requests-limit: 1
+    package-ecosystem: gradle
+    schedule:
+      interval: weekly
+    labels:
+      - "dependabot"
+      - "dependencies"
+  - directory: /plugins/crypto-kms/
     open-pull-requests-limit: 1
     package-ecosystem: gradle
     schedule:

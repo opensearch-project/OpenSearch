@@ -34,9 +34,9 @@ package org.opensearch.action.search;
 
 import org.apache.lucene.search.TotalHits;
 import org.opensearch.action.admin.cluster.shards.ClusterSearchShardsResponse;
-
 import org.opensearch.client.Client;
 import org.opensearch.client.node.NodeClient;
+import org.opensearch.core.tasks.TaskId;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.search.SearchShardTarget;
 import org.opensearch.search.aggregations.AggregationBuilders;
@@ -44,7 +44,6 @@ import org.opensearch.search.aggregations.InternalAggregations;
 import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.search.sort.FieldSortBuilder;
 import org.opensearch.search.sort.SortOrder;
-import org.opensearch.tasks.TaskId;
 import org.opensearch.test.OpenSearchSingleNodeTestCase;
 
 import java.util.ArrayList;

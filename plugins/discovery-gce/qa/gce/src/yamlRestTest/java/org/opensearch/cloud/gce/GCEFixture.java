@@ -32,7 +32,6 @@
 package org.opensearch.cloud.gce;
 
 import org.apache.http.client.methods.HttpGet;
-
 import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.collect.MapBuilder;
 import org.opensearch.common.path.PathTrie;

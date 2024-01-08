@@ -31,9 +31,9 @@
 
 package org.opensearch.action.support;
 
-import org.opensearch.action.ActionListener;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.ThreadContext;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;

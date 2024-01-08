@@ -32,6 +32,12 @@
 
 package org.opensearch.node;
 
+import org.opensearch.Version;
+import org.opensearch.cluster.ClusterName;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.settings.SettingsException;
+import org.opensearch.env.Environment;
+
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -39,14 +45,8 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Supplier;
 import java.util.function.Function;
-
-import org.opensearch.Version;
-import org.opensearch.cluster.ClusterName;
-import org.opensearch.common.settings.Settings;
-import org.opensearch.common.settings.SettingsException;
-import org.opensearch.env.Environment;
+import java.util.function.Supplier;
 
 /**
  * Prepares internal settings

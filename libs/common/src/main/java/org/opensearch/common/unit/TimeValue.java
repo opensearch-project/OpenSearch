@@ -32,6 +32,8 @@
 
 package org.opensearch.common.unit;
 
+import org.opensearch.common.annotation.PublicApi;
+
 import java.util.Locale;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
@@ -41,6 +43,7 @@ import java.util.concurrent.TimeUnit;
  *
  * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class TimeValue implements Comparable<TimeValue> {
 
     /** How many nano-seconds in one milli-second */
@@ -221,10 +224,10 @@ public class TimeValue implements Comparable<TimeValue> {
 
     /**
      * Returns a {@link String} representation of the current {@link TimeValue}.
-     *
+     * <p>
      * Note that this method might produce fractional time values (ex 1.6m) which cannot be
      * parsed by method like {@link TimeValue#parse(String, String, String, String)}.
-     *
+     * <p>
      * Also note that the maximum string value that will be generated is
      * {@code 106751.9d} due to the way that values are internally converted
      * to nanoseconds (106751.9 days is Long.MAX_VALUE nanoseconds)
@@ -236,12 +239,12 @@ public class TimeValue implements Comparable<TimeValue> {
 
     /**
      * Returns a {@link String} representation of the current {@link TimeValue}.
-     *
+     * <p>
      * Note that this method might produce fractional time values (ex 1.6m) which cannot be
      * parsed by method like {@link TimeValue#parse(String, String, String, String)}. The number of
      * fractional decimals (up to 10 maximum) are truncated to the number of fraction pieces
      * specified.
-     *
+     * <p>
      * Also note that the maximum string value that will be generated is
      * {@code 106751.9d} due to the way that values are internally converted
      * to nanoseconds (106751.9 days is Long.MAX_VALUE nanoseconds)

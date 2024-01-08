@@ -36,7 +36,6 @@ import org.opensearch.gradle.PropertyNormalization;
 import org.gradle.api.file.RegularFile;
 import org.gradle.api.logging.Logging;
 import org.gradle.api.provider.Provider;
-import org.slf4j.Logger;
 
 import java.io.File;
 import java.util.LinkedHashMap;
@@ -46,6 +45,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
+
+import org.slf4j.Logger;
 
 public interface TestClusterConfiguration {
 
@@ -106,6 +107,8 @@ public interface TestClusterConfiguration {
     boolean isPreserveDataDir();
 
     void setPreserveDataDir(boolean preserveDataDir);
+
+    void setSecure(boolean secure);
 
     void freeze();
 

@@ -38,11 +38,12 @@ import org.opensearch.action.index.IndexRequest;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.action.update.UpdateRequest;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.annotation.PublicApi;
+import org.opensearch.common.lucene.uid.Versions;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
-import org.opensearch.common.lucene.uid.Versions;
-import org.opensearch.index.VersionType;
 import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.index.VersionType;
 
 import java.io.IOException;
 import java.util.Locale;
@@ -55,8 +56,9 @@ import static org.opensearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
  * Generic interface to group ActionRequest, which perform writes to a single document
  * Action requests implementing this can be part of {@link org.opensearch.action.bulk.BulkRequest}
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public interface DocWriteRequest<T> extends IndicesRequest, Accountable {
 
     // Flag set for disallowing index auto creation for an individual write request.
@@ -149,7 +151,7 @@ public interface DocWriteRequest<T> extends IndicesRequest, Accountable {
 
     /**
      * If set, only perform this request if the document was last modification was assigned this primary term.
-     *
+     * <p>
      * If the document last modification was assigned a different term a
      * {@link org.opensearch.index.engine.VersionConflictEngineException} will be thrown.
      */
@@ -169,7 +171,10 @@ public interface DocWriteRequest<T> extends IndicesRequest, Accountable {
 
     /**
      * Requested operation type to perform on the document
+     *
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     enum OpType {
         /**
          * Index the source. If there an existing document with the id, it will

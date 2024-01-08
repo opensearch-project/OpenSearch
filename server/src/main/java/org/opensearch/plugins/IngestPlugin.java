@@ -32,10 +32,10 @@
 
 package org.opensearch.plugins;
 
+import org.opensearch.ingest.Processor;
+
 import java.util.Collections;
 import java.util.Map;
-
-import org.opensearch.ingest.Processor;
 
 /**
  * An extension point for {@link Plugin} implementations to add custom ingest processors
@@ -46,7 +46,7 @@ public interface IngestPlugin {
 
     /**
      * Returns additional ingest processor types added by this plugin.
-     *
+     * <p>
      * The key of the returned {@link Map} is the unique name for the processor which is specified
      * in pipeline configurations, and the value is a {@link org.opensearch.ingest.Processor.Factory}
      * to create the processor from a given pipeline configuration.

@@ -35,9 +35,9 @@ package org.opensearch.gradle.test;
 import org.opensearch.gradle.Architecture;
 import org.opensearch.gradle.DistributionDownloadPlugin;
 import org.opensearch.gradle.JavaPackageType;
-import org.opensearch.gradle.OpenSearchDistribution;
 import org.opensearch.gradle.Jdk;
 import org.opensearch.gradle.JdkDownloadPlugin;
+import org.opensearch.gradle.OpenSearchDistribution;
 import org.opensearch.gradle.SystemPropertyCommandLineArgumentProvider;
 import org.opensearch.gradle.Version;
 import org.opensearch.gradle.VersionProperties;
@@ -49,6 +49,7 @@ import org.opensearch.gradle.util.GradleUtils;
 import org.opensearch.gradle.util.Util;
 import org.opensearch.gradle.vagrant.VagrantBasePlugin;
 import org.opensearch.gradle.vagrant.VagrantExtension;
+import org.opensearch.gradle.vagrant.VagrantMachine;
 import org.gradle.api.Action;
 import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Plugin;
@@ -62,7 +63,6 @@ import org.gradle.api.specs.Specs;
 import org.gradle.api.tasks.Copy;
 import org.gradle.api.tasks.TaskProvider;
 import org.gradle.api.tasks.testing.Test;
-import org.opensearch.gradle.vagrant.VagrantMachine;
 
 import java.io.File;
 import java.util.ArrayList;
@@ -77,9 +77,9 @@ import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 public class DistroTestPlugin implements Plugin<Project> {
-    private static final String SYSTEM_JDK_VERSION = "11.0.20+8";
+    private static final String SYSTEM_JDK_VERSION = "17.0.9+9";
     private static final String SYSTEM_JDK_VENDOR = "adoptium";
-    private static final String GRADLE_JDK_VERSION = "17.0.8+7";
+    private static final String GRADLE_JDK_VERSION = "17.0.9+9";
     private static final String GRADLE_JDK_VENDOR = "adoptium";
 
     // all distributions used by distro tests. this is temporary until tests are per distribution

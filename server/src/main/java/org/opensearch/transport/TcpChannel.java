@@ -32,12 +32,13 @@
 
 package org.opensearch.transport;
 
-import org.opensearch.action.ActionListener;
-import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.network.CloseableChannel;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.common.bytes.BytesReference;
 
 import java.net.InetSocketAddress;
+import java.util.Optional;
 
 /**
  * This is a tcp channel representing a single channel connection to another node. It is the base channel
@@ -95,6 +96,20 @@ public interface TcpChannel extends CloseableChannel {
      * Returns stats about this channel
      */
     ChannelStats getChannelStats();
+
+    /**
+     * Returns the contextual property associated with this specific TCP channel (the
+     * implementation of how such properties are managed depends on the the particular
+     * transport engine).
+     *
+     * @param name the name of the property
+     * @param clazz the expected type of the property
+     *
+     * @return the value of the property
+     */
+    default <T> Optional<T> get(String name, Class<T> clazz) {
+        return Optional.empty();
+    }
 
     /**
      * Channel statistics

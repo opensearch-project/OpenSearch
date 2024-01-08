@@ -35,7 +35,9 @@ package org.opensearch.script.mustache;
 import org.opensearch.action.ActionRequest;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.CompositeIndicesRequest;
+import org.opensearch.action.IndicesRequest;
 import org.opensearch.action.search.SearchRequest;
+import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.core.ParseField;
 import org.opensearch.core.common.ParsingException;
 import org.opensearch.core.common.io.stream.StreamInput;
@@ -56,7 +58,7 @@ import static org.opensearch.action.ValidateActions.addValidationError;
 /**
  * A request to execute a search based on a search template.
  */
-public class SearchTemplateRequest extends ActionRequest implements CompositeIndicesRequest, ToXContentObject {
+public class SearchTemplateRequest extends ActionRequest implements IndicesRequest.Replaceable, CompositeIndicesRequest, ToXContentObject {
 
     private SearchRequest request;
     private boolean simulate = false;
@@ -253,5 +255,29 @@ public class SearchTemplateRequest extends ActionRequest implements CompositeInd
         if (hasParams) {
             out.writeMap(scriptParams);
         }
+    }
+
+    @Override
+    public String[] indices() {
+        if (request == null) {
+            return new String[0];
+        }
+        return request.indices();
+    }
+
+    @Override
+    public IndicesOptions indicesOptions() {
+        if (request == null) {
+            return SearchRequest.DEFAULT_INDICES_OPTIONS;
+        }
+        return request.indicesOptions();
+    }
+
+    @Override
+    public IndicesRequest indices(String... indices) {
+        if (request == null) {
+            return new SearchRequest(new String[0]).indices(indices);
+        }
+        return request.indices(indices);
     }
 }

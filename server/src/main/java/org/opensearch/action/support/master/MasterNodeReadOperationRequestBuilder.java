@@ -33,9 +33,9 @@
 package org.opensearch.action.support.master;
 
 import org.opensearch.action.ActionType;
-import org.opensearch.action.ActionResponse;
 import org.opensearch.action.support.clustermanager.ClusterManagerNodeReadOperationRequestBuilder;
 import org.opensearch.client.OpenSearchClient;
+import org.opensearch.core.action.ActionResponse;
 
 /**
  * Base request builder for cluster-manager node read operations that can be executed on the local node as well

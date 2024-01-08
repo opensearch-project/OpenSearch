@@ -31,11 +31,15 @@
 
 package org.opensearch.search.aggregations.bucket;
 
-import org.opensearch.action.admin.indices.refresh.RefreshRequest;
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.action.search.SearchType;
+import org.opensearch.action.support.WriteRequest;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.index.query.TermQueryBuilder;
+import org.opensearch.search.aggregations.BucketOrder;
 import org.opensearch.search.aggregations.bucket.sampler.DiversifiedAggregationBuilder;
 import org.opensearch.search.aggregations.bucket.sampler.Sampler;
 import org.opensearch.search.aggregations.bucket.sampler.SamplerAggregator;
@@ -43,14 +47,16 @@ import org.opensearch.search.aggregations.bucket.terms.Terms;
 import org.opensearch.search.aggregations.bucket.terms.Terms.Bucket;
 import org.opensearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.opensearch.search.aggregations.metrics.Max;
-import org.opensearch.search.aggregations.BucketOrder;
 import org.opensearch.test.OpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedOpenSearchIntegTestCase;
 
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
+import static org.opensearch.search.SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING;
 import static org.opensearch.search.aggregations.AggregationBuilders.max;
 import static org.opensearch.search.aggregations.AggregationBuilders.sampler;
 import static org.opensearch.search.aggregations.AggregationBuilders.terms;
@@ -65,9 +71,26 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
  * Tests the Sampler aggregation
  */
 @OpenSearchIntegTestCase.SuiteScopeTestCase
-public class DiversifiedSamplerIT extends OpenSearchIntegTestCase {
+public class DiversifiedSamplerIT extends ParameterizedOpenSearchIntegTestCase {
 
     public static final int NUM_SHARDS = 2;
+
+    public DiversifiedSamplerIT(Settings dynamicSettings) {
+        super(dynamicSettings);
+    }
+
+    @ParametersFactory
+    public static Collection<Object[]> parameters() {
+        return Arrays.asList(
+            new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), false).build() },
+            new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), true).build() }
+        );
+    }
+
+    @Override
+    protected Settings featureFlagSettings() {
+        return Settings.builder().put(super.featureFlagSettings()).put(FeatureFlags.CONCURRENT_SEGMENT_SEARCH, "true").build();
+    }
 
     public String randomExecutionHint() {
         return randomBoolean() ? null : randomFrom(SamplerAggregator.ExecutionMode.values()).toString();
@@ -109,13 +132,14 @@ public class DiversifiedSamplerIT extends OpenSearchIntegTestCase {
             client().prepareIndex("test")
                 .setId("" + i)
                 .setSource("author", parts[5], "name", parts[2], "genre", parts[8], "price", Float.parseFloat(parts[3]))
+                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
                 .get();
             client().prepareIndex("idx_unmapped_author")
                 .setId("" + i)
                 .setSource("name", parts[2], "genre", parts[8], "price", Float.parseFloat(parts[3]))
+                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
                 .get();
         }
-        client().admin().indices().refresh(new RefreshRequest("test")).get();
     }
 
     public void testIssue10719() throws Exception {

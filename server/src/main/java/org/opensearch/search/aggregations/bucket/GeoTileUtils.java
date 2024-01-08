@@ -37,9 +37,9 @@ import org.opensearch.OpenSearchParseException;
 import org.opensearch.common.geo.GeoPoint;
 import org.opensearch.common.geo.GeoShapeDocValue;
 import org.opensearch.common.util.OpenSearchSloppyMath;
+import org.opensearch.common.xcontent.support.XContentMapValues;
 import org.opensearch.core.xcontent.ObjectParser.ValueType;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.common.xcontent.support.XContentMapValues;
 import org.opensearch.geometry.Rectangle;
 
 import java.io.IOException;
@@ -101,7 +101,7 @@ public final class GeoTileUtils {
 
     /**
      * Parse an integer precision (zoom level). The {@link ValueType#INT} allows it to be a number or a string.
-     *
+     * <p>
      * The precision is expressed as a zoom level between 0 and {@link #MAX_ZOOM} (inclusive).
      *
      * @param parser {@link XContentParser} to parse the value from

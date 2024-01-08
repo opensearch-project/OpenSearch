@@ -36,8 +36,8 @@ import org.apache.logging.log4j.Logger;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.Priority;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.common.util.concurrent.PrioritizedOpenSearchThreadPoolExecutor;
+import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 
 import java.util.ArrayList;
 import java.util.Collections;

@@ -32,9 +32,9 @@
 
 package org.opensearch.action.admin.indices.settings.get;
 
-import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.common.settings.IndexScopedSettings;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.RandomCreateIndexGenerator;
 import org.opensearch.test.AbstractSerializingTestCase;

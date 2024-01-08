@@ -46,11 +46,6 @@
 
 package org.opensearch.transport;
 
-import io.netty.buffer.ByteBuf;
-import io.netty.channel.Channel;
-import io.netty.channel.ChannelOutboundBuffer;
-import io.netty.channel.RecvByteBufAllocator;
-import io.netty.channel.socket.nio.NioSocketChannel;
 import org.opensearch.common.SuppressForbidden;
 import org.opensearch.core.common.unit.ByteSizeValue;
 
@@ -58,13 +53,19 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.SocketChannel;
 
+import io.netty.buffer.ByteBuf;
+import io.netty.channel.Channel;
+import io.netty.channel.ChannelOutboundBuffer;
+import io.netty.channel.RecvByteBufAllocator;
+import io.netty.channel.socket.nio.NioSocketChannel;
+
 import static io.netty.channel.internal.ChannelUtils.MAX_BYTES_PER_GATHERING_WRITE_ATTEMPTED_LOW_THRESHOLD;
 
 /**
  * This class is adapted from {@link NioSocketChannel} class in the Netty project. It overrides the channel
  * read/write behavior to ensure that the bytes are always copied to a thread-local direct bytes buffer. This
  * happens BEFORE the call to the Java {@link SocketChannel} is issued.
- *
+ * <p>
  * The purpose of this class is to allow the disabling of netty direct buffer pooling while allowing us to
  * control how bytes end up being copied to direct memory. If we simply disabled netty pooling, we would rely
  * on the JDK's internal thread local buffer pooling. Instead, this class allows us to create a one thread

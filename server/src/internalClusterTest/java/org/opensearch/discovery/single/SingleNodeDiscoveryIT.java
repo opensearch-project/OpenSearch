@@ -41,11 +41,11 @@ import org.opensearch.cluster.coordination.JoinHelper;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.node.Node.DiscoverySettings;
-import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.InternalTestCluster;
 import org.opensearch.test.MockHttpTransport;
 import org.opensearch.test.MockLogAppender;
 import org.opensearch.test.NodeConfigurationSource;
+import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.transport.RemoteTransportException;
 import org.opensearch.transport.TransportService;
 
@@ -76,6 +76,7 @@ public class SingleNodeDiscoveryIT extends OpenSearchIntegTestCase {
             @Override
             public Settings nodeSettings(int nodeOrdinal) {
                 return Settings.builder()
+                    .put(featureFlagSettings())
                     .put("discovery.type", "single-node")
                     .put("transport.type", getTestTransportType())
                     /*
@@ -142,6 +143,7 @@ public class SingleNodeDiscoveryIT extends OpenSearchIntegTestCase {
                 @Override
                 public Settings nodeSettings(int nodeOrdinal) {
                     return Settings.builder()
+                        .put(featureFlagSettings())
                         .put("discovery.type", "zen")
                         .put("transport.type", getTestTransportType())
                         .put(DiscoverySettings.INITIAL_STATE_TIMEOUT_SETTING.getKey(), "0s")

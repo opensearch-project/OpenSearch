@@ -8,16 +8,17 @@
 
 package org.opensearch.action.admin.cluster.remotestore.restore;
 
-import org.opensearch.action.ActionResponse;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.ParseField;
+import org.opensearch.core.action.ActionResponse;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.rest.RestStatus;
 import org.opensearch.core.xcontent.ConstructingObjectParser;
 import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.core.rest.RestStatus;
 import org.opensearch.snapshots.RestoreInfo;
 
 import java.io.IOException;
@@ -28,8 +29,9 @@ import static org.opensearch.core.xcontent.ConstructingObjectParser.optionalCons
 /**
  * Contains information about remote store restores
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "2.2.0")
 public final class RestoreRemoteStoreResponse extends ActionResponse implements ToXContentObject {
 
     @Nullable

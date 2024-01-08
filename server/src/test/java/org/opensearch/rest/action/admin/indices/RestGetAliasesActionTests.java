@@ -35,7 +35,6 @@ package org.opensearch.rest.action.admin.indices;
 import org.opensearch.cluster.metadata.AliasMetadata;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.rest.RestResponse;
 import org.opensearch.test.OpenSearchTestCase;
 
@@ -44,8 +43,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static org.opensearch.core.rest.RestStatus.OK;
 import static org.opensearch.core.rest.RestStatus.NOT_FOUND;
+import static org.opensearch.core.rest.RestStatus.OK;
 import static org.hamcrest.Matchers.equalTo;
 
 public class RestGetAliasesActionTests extends OpenSearchTestCase {
@@ -60,7 +59,7 @@ public class RestGetAliasesActionTests extends OpenSearchTestCase {
     // }'
 
     public void testBareRequest() throws Exception {
-        final XContentBuilder xContentBuilder = MediaTypeRegistry.contentBuilder(XContentType.JSON);
+        final XContentBuilder xContentBuilder = MediaTypeRegistry.contentBuilder(MediaTypeRegistry.JSON);
         final Map<String, List<AliasMetadata>> openMapBuilder = new HashMap<>();
         final AliasMetadata foobarAliasMetadata = AliasMetadata.builder("foobar").build();
         final AliasMetadata fooAliasMetadata = AliasMetadata.builder("foo").build();
@@ -72,7 +71,7 @@ public class RestGetAliasesActionTests extends OpenSearchTestCase {
     }
 
     public void testSimpleAliasWildcardMatchingNothing() throws Exception {
-        final XContentBuilder xContentBuilder = MediaTypeRegistry.contentBuilder(XContentType.JSON);
+        final XContentBuilder xContentBuilder = MediaTypeRegistry.contentBuilder(MediaTypeRegistry.JSON);
         final Map<String, List<AliasMetadata>> openMapBuilder = new HashMap<>();
         final RestResponse restResponse = RestGetAliasesAction.buildRestResponse(
             true,
@@ -86,7 +85,7 @@ public class RestGetAliasesActionTests extends OpenSearchTestCase {
     }
 
     public void testMultipleAliasWildcardsSomeMatching() throws Exception {
-        final XContentBuilder xContentBuilder = MediaTypeRegistry.contentBuilder(XContentType.JSON);
+        final XContentBuilder xContentBuilder = MediaTypeRegistry.contentBuilder(MediaTypeRegistry.JSON);
         final Map<String, List<AliasMetadata>> openMapBuilder = new HashMap<>();
         final AliasMetadata aliasMetadata = AliasMetadata.builder("foobar").build();
         openMapBuilder.put("index", Arrays.asList(aliasMetadata));
@@ -102,7 +101,7 @@ public class RestGetAliasesActionTests extends OpenSearchTestCase {
     }
 
     public void testAliasWildcardsIncludeAndExcludeAll() throws Exception {
-        final XContentBuilder xContentBuilder = MediaTypeRegistry.contentBuilder(XContentType.JSON);
+        final XContentBuilder xContentBuilder = MediaTypeRegistry.contentBuilder(MediaTypeRegistry.JSON);
         final Map<String, List<AliasMetadata>> openMapBuilder = new HashMap<>();
         final RestResponse restResponse = RestGetAliasesAction.buildRestResponse(
             true,
@@ -116,7 +115,7 @@ public class RestGetAliasesActionTests extends OpenSearchTestCase {
     }
 
     public void testAliasWildcardsIncludeAndExcludeSome() throws Exception {
-        final XContentBuilder xContentBuilder = MediaTypeRegistry.contentBuilder(XContentType.JSON);
+        final XContentBuilder xContentBuilder = MediaTypeRegistry.contentBuilder(MediaTypeRegistry.JSON);
         final Map<String, List<AliasMetadata>> openMapBuilder = new HashMap<>();
         final AliasMetadata aliasMetadata = AliasMetadata.builder("foo").build();
         openMapBuilder.put("index", Arrays.asList(aliasMetadata));
@@ -132,7 +131,7 @@ public class RestGetAliasesActionTests extends OpenSearchTestCase {
     }
 
     public void testAliasWildcardsIncludeAndExcludeSomeAndExplicitMissing() throws Exception {
-        final XContentBuilder xContentBuilder = MediaTypeRegistry.contentBuilder(XContentType.JSON);
+        final XContentBuilder xContentBuilder = MediaTypeRegistry.contentBuilder(MediaTypeRegistry.JSON);
         final Map<String, List<AliasMetadata>> openMapBuilder = new HashMap<>();
         final AliasMetadata aliasMetadata = AliasMetadata.builder("foo").build();
         openMapBuilder.put("index", Arrays.asList(aliasMetadata));
@@ -153,7 +152,7 @@ public class RestGetAliasesActionTests extends OpenSearchTestCase {
     }
 
     public void testAliasWildcardsExcludeExplicitMissing() throws Exception {
-        final XContentBuilder xContentBuilder = MediaTypeRegistry.contentBuilder(XContentType.JSON);
+        final XContentBuilder xContentBuilder = MediaTypeRegistry.contentBuilder(MediaTypeRegistry.JSON);
         final Map<String, List<AliasMetadata>> openMapBuilder = new HashMap<>();
         final RestResponse restResponse = RestGetAliasesAction.buildRestResponse(
             true,

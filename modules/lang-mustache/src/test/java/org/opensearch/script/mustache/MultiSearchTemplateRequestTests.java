@@ -34,7 +34,7 @@ package org.opensearch.script.mustache;
 
 import org.opensearch.action.search.SearchRequest;
 import org.opensearch.core.common.bytes.BytesArray;
-import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.script.ScriptType;
 import org.opensearch.search.Scroll;
@@ -56,7 +56,7 @@ public class MultiSearchTemplateRequestTests extends OpenSearchTestCase {
 
     public void testParseRequest() throws Exception {
         byte[] data = StreamsUtils.copyToBytesFromClasspath("/org/opensearch/script/mustache/simple-msearch-template.json");
-        RestRequest restRequest = new FakeRestRequest.Builder(xContentRegistry()).withContent(new BytesArray(data), XContentType.JSON)
+        RestRequest restRequest = new FakeRestRequest.Builder(xContentRegistry()).withContent(new BytesArray(data), MediaTypeRegistry.JSON)
             .build();
 
         MultiSearchTemplateRequest request = RestMultiSearchTemplateAction.parseRequest(restRequest, true);
@@ -92,8 +92,10 @@ public class MultiSearchTemplateRequestTests extends OpenSearchTestCase {
     public void testParseWithCarriageReturn() throws Exception {
         final String content = "{\"index\":[\"test0\", \"test1\"], \"request_cache\": true}\r\n"
             + "{\"source\": {\"query\" : {\"match_{{template}}\" :{}}}, \"params\": {\"template\": \"all\" } }\r\n";
-        RestRequest restRequest = new FakeRestRequest.Builder(xContentRegistry()).withContent(new BytesArray(content), XContentType.JSON)
-            .build();
+        RestRequest restRequest = new FakeRestRequest.Builder(xContentRegistry()).withContent(
+            new BytesArray(content),
+            MediaTypeRegistry.JSON
+        ).build();
 
         MultiSearchTemplateRequest request = RestMultiSearchTemplateAction.parseRequest(restRequest, true);
 
@@ -144,8 +146,10 @@ public class MultiSearchTemplateRequestTests extends OpenSearchTestCase {
         String serialized = toJsonString(multiSearchTemplateRequest);
 
         // Deserialize the request
-        RestRequest restRequest = new FakeRestRequest.Builder(xContentRegistry()).withContent(new BytesArray(serialized), XContentType.JSON)
-            .build();
+        RestRequest restRequest = new FakeRestRequest.Builder(xContentRegistry()).withContent(
+            new BytesArray(serialized),
+            MediaTypeRegistry.JSON
+        ).build();
         MultiSearchTemplateRequest deser = RestMultiSearchTemplateAction.parseRequest(restRequest, true);
 
         // For object equality purposes need to set the search requests' source to non-null
@@ -163,7 +167,7 @@ public class MultiSearchTemplateRequestTests extends OpenSearchTestCase {
     }
 
     protected String toJsonString(MultiSearchTemplateRequest multiSearchTemplateRequest) throws IOException {
-        byte[] bytes = MultiSearchTemplateRequest.writeMultiLineFormat(multiSearchTemplateRequest, XContentType.JSON.xContent());
+        byte[] bytes = MultiSearchTemplateRequest.writeMultiLineFormat(multiSearchTemplateRequest, MediaTypeRegistry.JSON.xContent());
         return new String(bytes, StandardCharsets.UTF_8);
     }
 

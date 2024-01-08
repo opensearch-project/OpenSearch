@@ -32,16 +32,21 @@
 
 package org.opensearch.search;
 
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.opensearch.OpenSearchException;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.script.MockScriptPlugin;
 import org.opensearch.script.Script;
 import org.opensearch.script.ScriptType;
 import org.opensearch.test.OpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedOpenSearchIntegTestCase;
 
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
@@ -50,10 +55,27 @@ import java.util.function.Function;
 
 import static org.opensearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.opensearch.index.query.QueryBuilders.scriptQuery;
+import static org.opensearch.search.SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING;
 import static org.opensearch.search.SearchTimeoutIT.ScriptedTimeoutPlugin.SCRIPT_NAME;
 
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.SUITE)
-public class SearchTimeoutIT extends OpenSearchIntegTestCase {
+public class SearchTimeoutIT extends ParameterizedOpenSearchIntegTestCase {
+    public SearchTimeoutIT(Settings settings) {
+        super(settings);
+    }
+
+    @ParametersFactory
+    public static Collection<Object[]> parameters() {
+        return Arrays.asList(
+            new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), false).build() },
+            new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), true).build() }
+        );
+    }
+
+    @Override
+    protected Settings featureFlagSettings() {
+        return Settings.builder().put(super.featureFlagSettings()).put(FeatureFlags.CONCURRENT_SEGMENT_SEARCH, "true").build();
+    }
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
@@ -71,6 +93,7 @@ public class SearchTimeoutIT extends OpenSearchIntegTestCase {
             client().prepareIndex("test").setId(Integer.toString(i)).setSource("field", "value").get();
         }
         refresh("test");
+        indexRandomForConcurrentSearch("test");
 
         SearchResponse searchResponse = client().prepareSearch("test")
             .setTimeout(new TimeValue(5, TimeUnit.MILLISECONDS))
@@ -82,12 +105,11 @@ public class SearchTimeoutIT extends OpenSearchIntegTestCase {
     }
 
     public void testSimpleDoesNotTimeout() throws Exception {
-        final int numDocs = 10;
+        final int numDocs = 9;
         for (int i = 0; i < numDocs; i++) {
-            client().prepareIndex("test").setId(Integer.toString(i)).setSource("field", "value").get();
+            client().prepareIndex("test").setId(Integer.toString(i)).setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
         }
-        refresh("test");
-
+        indexRandomForConcurrentSearch("test");
         SearchResponse searchResponse = client().prepareSearch("test")
             .setTimeout(new TimeValue(10000, TimeUnit.SECONDS))
             .setQuery(scriptQuery(new Script(ScriptType.INLINE, "mockscript", SCRIPT_NAME, Collections.emptyMap())))
@@ -100,7 +122,7 @@ public class SearchTimeoutIT extends OpenSearchIntegTestCase {
 
     public void testPartialResultsIntolerantTimeout() throws Exception {
         client().prepareIndex("test").setId("1").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
-
+        indexRandomForConcurrentSearch("test");
         OpenSearchException ex = expectThrows(
             OpenSearchException.class,
             () -> client().prepareSearch("test")

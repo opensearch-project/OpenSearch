@@ -8,15 +8,6 @@
 
 package org.opensearch.repositories.s3.async;
 
-import org.junit.Before;
-import org.opensearch.ExceptionsHelper;
-import org.opensearch.common.StreamContext;
-import org.opensearch.common.blobstore.exception.CorruptFileException;
-import org.opensearch.common.blobstore.stream.write.WritePriority;
-import org.opensearch.common.io.InputStreamContainer;
-import org.opensearch.core.common.unit.ByteSizeUnit;
-import org.opensearch.repositories.blobstore.ZeroInputStream;
-import org.opensearch.test.OpenSearchTestCase;
 import software.amazon.awssdk.awscore.exception.AwsErrorDetails;
 import software.amazon.awssdk.core.async.AsyncRequestBody;
 import software.amazon.awssdk.http.HttpStatusCode;
@@ -35,9 +26,25 @@ import software.amazon.awssdk.services.s3.model.S3Exception;
 import software.amazon.awssdk.services.s3.model.UploadPartRequest;
 import software.amazon.awssdk.services.s3.model.UploadPartResponse;
 
+import org.opensearch.ExceptionsHelper;
+import org.opensearch.common.StreamContext;
+import org.opensearch.common.blobstore.exception.CorruptFileException;
+import org.opensearch.common.blobstore.stream.write.WritePriority;
+import org.opensearch.common.io.InputStreamContainer;
+import org.opensearch.core.common.unit.ByteSizeUnit;
+import org.opensearch.repositories.blobstore.ZeroInputStream;
+import org.opensearch.repositories.s3.StatsMetricPublisher;
+import org.opensearch.test.OpenSearchTestCase;
+import org.junit.Before;
+
+import java.io.IOException;
+import java.io.InputStream;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
@@ -57,6 +64,7 @@ public class AsyncTransferManagerTests extends OpenSearchTestCase {
         asyncTransferManager = new AsyncTransferManager(
             ByteSizeUnit.MB.toBytes(5),
             Executors.newSingleThreadExecutor(),
+            Executors.newSingleThreadExecutor(),
             Executors.newSingleThreadExecutor()
         );
         super.setUp();
@@ -69,17 +77,17 @@ public class AsyncTransferManagerTests extends OpenSearchTestCase {
             putObjectResponseCompletableFuture
         );
 
+        AtomicReference<InputStream> streamRef = new AtomicReference<>();
         CompletableFuture<Void> resultFuture = asyncTransferManager.uploadObject(
             s3AsyncClient,
             new UploadRequest("bucket", "key", ByteSizeUnit.MB.toBytes(1), WritePriority.HIGH, uploadSuccess -> {
                 // do nothing
-            }, false, null),
-            new StreamContext(
-                (partIdx, partSize, position) -> new InputStreamContainer(new ZeroInputStream(partSize), partSize, position),
-                ByteSizeUnit.MB.toBytes(1),
-                ByteSizeUnit.MB.toBytes(1),
-                1
-            )
+            }, false, null, true),
+            new StreamContext((partIdx, partSize, position) -> {
+                streamRef.set(new ZeroInputStream(partSize));
+                return new InputStreamContainer(streamRef.get(), partSize, position);
+            }, ByteSizeUnit.MB.toBytes(1), ByteSizeUnit.MB.toBytes(1), 1),
+            new StatsMetricPublisher()
         );
 
         try {
@@ -89,6 +97,14 @@ public class AsyncTransferManagerTests extends OpenSearchTestCase {
         }
 
         verify(s3AsyncClient, times(1)).putObject(any(PutObjectRequest.class), any(AsyncRequestBody.class));
+
+        boolean closeError = false;
+        try {
+            streamRef.get().available();
+        } catch (IOException e) {
+            closeError = e.getMessage().equals("Stream closed");
+        }
+        assertTrue("InputStream was still open after upload", closeError);
     }
 
     public void testOneChunkUploadCorruption() {
@@ -111,13 +127,14 @@ public class AsyncTransferManagerTests extends OpenSearchTestCase {
             s3AsyncClient,
             new UploadRequest("bucket", "key", ByteSizeUnit.MB.toBytes(1), WritePriority.HIGH, uploadSuccess -> {
                 // do nothing
-            }, false, null),
+            }, false, null, true),
             new StreamContext(
                 (partIdx, partSize, position) -> new InputStreamContainer(new ZeroInputStream(partSize), partSize, position),
                 ByteSizeUnit.MB.toBytes(1),
                 ByteSizeUnit.MB.toBytes(1),
                 1
-            )
+            ),
+            new StatsMetricPublisher()
         );
 
         try {
@@ -158,17 +175,18 @@ public class AsyncTransferManagerTests extends OpenSearchTestCase {
             abortMultipartUploadResponseCompletableFuture
         );
 
+        List<InputStream> streams = new ArrayList<>();
         CompletableFuture<Void> resultFuture = asyncTransferManager.uploadObject(
             s3AsyncClient,
             new UploadRequest("bucket", "key", ByteSizeUnit.MB.toBytes(5), WritePriority.HIGH, uploadSuccess -> {
                 // do nothing
-            }, true, 3376132981L),
-            new StreamContext(
-                (partIdx, partSize, position) -> new InputStreamContainer(new ZeroInputStream(partSize), partSize, position),
-                ByteSizeUnit.MB.toBytes(1),
-                ByteSizeUnit.MB.toBytes(1),
-                5
-            )
+            }, true, 3376132981L, true),
+            new StreamContext((partIdx, partSize, position) -> {
+                InputStream stream = new ZeroInputStream(partSize);
+                streams.add(stream);
+                return new InputStreamContainer(stream, partSize, position);
+            }, ByteSizeUnit.MB.toBytes(1), ByteSizeUnit.MB.toBytes(1), 5),
+            new StatsMetricPublisher()
         );
 
         try {
@@ -176,6 +194,16 @@ public class AsyncTransferManagerTests extends OpenSearchTestCase {
         } catch (ExecutionException | InterruptedException e) {
             fail("did not expect resultFuture to fail");
         }
+
+        streams.forEach(stream -> {
+            boolean closeError = false;
+            try {
+                stream.available();
+            } catch (IOException e) {
+                closeError = e.getMessage().equals("Stream closed");
+            }
+            assertTrue("InputStream was still open after upload", closeError);
+        });
 
         verify(s3AsyncClient, times(1)).createMultipartUpload(any(CreateMultipartUploadRequest.class));
         verify(s3AsyncClient, times(5)).uploadPart(any(UploadPartRequest.class), any(AsyncRequestBody.class));
@@ -212,13 +240,14 @@ public class AsyncTransferManagerTests extends OpenSearchTestCase {
             s3AsyncClient,
             new UploadRequest("bucket", "key", ByteSizeUnit.MB.toBytes(5), WritePriority.HIGH, uploadSuccess -> {
                 // do nothing
-            }, true, 0L),
+            }, true, 0L, true),
             new StreamContext(
                 (partIdx, partSize, position) -> new InputStreamContainer(new ZeroInputStream(partSize), partSize, position),
                 ByteSizeUnit.MB.toBytes(1),
                 ByteSizeUnit.MB.toBytes(1),
                 5
-            )
+            ),
+            new StatsMetricPublisher()
         );
 
         try {

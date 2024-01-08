@@ -36,8 +36,8 @@ import org.opensearch.Build;
 import org.opensearch.Version;
 import org.opensearch.client.AbstractResponseTestCase;
 import org.opensearch.cluster.ClusterName;
-import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.test.VersionUtils;
 
 import java.io.IOException;

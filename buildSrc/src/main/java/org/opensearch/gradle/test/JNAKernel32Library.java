@@ -34,6 +34,7 @@ package org.opensearch.gradle.test;
 
 import com.sun.jna.Native;
 import com.sun.jna.WString;
+
 import org.apache.tools.ant.taskdefs.condition.Os;
 
 public class JNAKernel32Library {

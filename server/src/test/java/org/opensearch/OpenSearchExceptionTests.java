@@ -46,12 +46,12 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.xcontent.XContentFactory;
-import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.common.ParsingException;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.rest.RestStatus;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
@@ -61,7 +61,6 @@ import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentLocation;
 import org.opensearch.core.xcontent.XContentParseException;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.core.index.Index;
 import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.index.query.QueryShardException;
 import org.opensearch.index.shard.IndexShardRecoveringException;
@@ -72,6 +71,7 @@ import org.opensearch.search.SearchContextMissingException;
 import org.opensearch.search.SearchParseException;
 import org.opensearch.search.SearchShardTarget;
 import org.opensearch.search.internal.ShardSearchContextId;
+import org.opensearch.snapshots.ConcurrentSnapshotExecutionException;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.transport.RemoteTransportException;
 
@@ -120,6 +120,9 @@ public class OpenSearchExceptionTests extends OpenSearchTestCase {
 
         exception = new RemoteTransportException("test", new IllegalStateException("foobar"));
         assertThat(exception.status(), equalTo(RestStatus.INTERNAL_SERVER_ERROR));
+
+        exception = new ConcurrentSnapshotExecutionException("testRepo", "testSnap", "test");
+        assertSame(exception.status(), RestStatus.CONFLICT);
     }
 
     public void testGuessRootCause() {
@@ -973,12 +976,12 @@ public class OpenSearchExceptionTests extends OpenSearchTestCase {
 
     /**
      * Builds a {@link ToXContent} using a JSON XContentBuilder and compares the result to the given json in string format.
-     *
+     * <p>
      * By default, the stack trace of the exception is not rendered. The parameter `errorTrace` forces the stack trace to
      * be rendered like the REST API does when the "error_trace" parameter is set to true.
      */
     private static void assertToXContentAsJson(ToXContent e, String expectedJson) throws IOException {
-        BytesReference actual = XContentHelper.toXContent(e, XContentType.JSON, randomBoolean());
+        BytesReference actual = org.opensearch.core.xcontent.XContentHelper.toXContent(e, MediaTypeRegistry.JSON, randomBoolean());
         assertToXContentEquivalent(new BytesArray(expectedJson), actual, MediaTypeRegistry.JSON);
     }
 

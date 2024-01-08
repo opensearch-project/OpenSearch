@@ -31,6 +31,7 @@
 
 package org.opensearch.gradle.docker;
 
+import org.apache.tools.ant.taskdefs.condition.Os;
 import org.opensearch.gradle.Version;
 import org.opensearch.gradle.info.BuildParams;
 import org.gradle.api.GradleException;
@@ -40,9 +41,9 @@ import org.gradle.api.services.BuildService;
 import org.gradle.api.services.BuildServiceParameters;
 import org.gradle.process.ExecOperations;
 import org.gradle.process.ExecResult;
-import org.apache.tools.ant.taskdefs.condition.Os;
 
 import javax.inject.Inject;
+
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
@@ -68,7 +69,9 @@ public abstract class DockerSupportService implements BuildService<DockerSupport
     // Defines the possible locations of the Docker CLI. These will be searched in order.
     private static String[] DOCKER_BINARIES_UNIX = { "/usr/bin/docker", "/usr/local/bin/docker" };
 
-    private static String[] DOCKER_BINARIES_WINDOWS = { System.getenv("PROGRAMFILES") + "\\Docker\\Docker\\resources\\bin\\docker.exe" };
+    private static String[] DOCKER_BINARIES_WINDOWS = {
+        System.getenv("PROGRAMFILES") + "\\Docker\\Docker\\resources\\bin\\docker.exe",
+        System.getenv("SystemRoot") + "\\System32\\docker.exe" /* Github Actions */ };
 
     private static String[] DOCKER_BINARIES = Os.isFamily(Os.FAMILY_WINDOWS) ? DOCKER_BINARIES_WINDOWS : DOCKER_BINARIES_UNIX;
 

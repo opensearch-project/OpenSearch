@@ -36,8 +36,8 @@ import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.index.query.TermQueryBuilder;
-import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.EqualsHashCodeTestUtils;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.Arrays;
 

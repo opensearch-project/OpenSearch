@@ -35,10 +35,10 @@ package org.opensearch.index.mapper;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.DelegatingAnalyzerWrapper;
-import org.opensearch.core.Assertions;
 import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.MappingMetadata;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.regex.Regex;
@@ -48,8 +48,9 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentHelper;
-import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.Assertions;
 import org.opensearch.core.common.Strings;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.AbstractIndexComponent;
@@ -89,8 +90,9 @@ import static java.util.Collections.unmodifiableMap;
 /**
  * The core field mapping service
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class MapperService extends AbstractIndexComponent implements Closeable {
 
     /**
@@ -98,6 +100,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
      *
      * @opensearch.internal
      */
+    @PublicApi(since = "1.0.0")
     public enum MergeReason {
         /**
          * Pre-flight check before sending a mapping update to the cluster-manager
@@ -172,9 +175,6 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     );
 
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(MapperService.class);
-    static final String DEFAULT_MAPPING_ERROR_MESSAGE = "[_default_] mappings are not allowed on new indices and should no "
-        + "longer be used. See [https://www.elastic.co/guide/en/elasticsearch/reference/current/breaking-changes-7.0.html"
-        + "#default-mapping-not-allowed] for more information.";
 
     private final IndexAnalyzers indexAnalyzers;
 
@@ -253,7 +253,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
      */
     public static Map<String, Object> parseMapping(NamedXContentRegistry xContentRegistry, String mappingSource) throws IOException {
         try (
-            XContentParser parser = XContentType.JSON.xContent()
+            XContentParser parser = MediaTypeRegistry.JSON.xContent()
                 .createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, mappingSource)
         ) {
             return parser.map();
@@ -348,7 +348,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
                         + "to be the same as new mapping ["
                         + newSource
                         + "]";
-                    final CompressedXContent mapperSource = new CompressedXContent(Strings.toString(XContentType.JSON, mapper));
+                    final CompressedXContent mapperSource = new CompressedXContent(Strings.toString(MediaTypeRegistry.JSON, mapper));
                     assert currentSource.equals(mapperSource) : "expected current mapping ["
                         + currentSource
                         + "] for type ["
@@ -543,7 +543,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     }
 
     public static boolean isMappingSourceTyped(String type, CompressedXContent mappingSource) {
-        Map<String, Object> root = XContentHelper.convertToMap(mappingSource.compressedReference(), true, XContentType.JSON).v2();
+        Map<String, Object> root = XContentHelper.convertToMap(mappingSource.compressedReference(), true, MediaTypeRegistry.JSON).v2();
         return isMappingSourceTyped(type, root);
     }
 

@@ -19,18 +19,18 @@ import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.similarities.Similarity;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.core.indices.breaker.CircuitBreakerService;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.codec.CodecService;
 import org.opensearch.index.codec.CodecServiceConfig;
 import org.opensearch.index.codec.CodecServiceFactory;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.seqno.RetentionLeases;
-import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.translog.TranslogConfig;
 import org.opensearch.index.translog.TranslogDeletionPolicyFactory;
 import org.opensearch.index.translog.TranslogFactory;
-import org.opensearch.core.indices.breaker.CircuitBreakerService;
 import org.opensearch.plugins.EnginePlugin;
 import org.opensearch.plugins.PluginsService;
 import org.opensearch.threadpool.ThreadPool;
@@ -152,7 +152,7 @@ public class EngineConfigFactory {
         LongSupplier primaryTermSupplier,
         EngineConfig.TombstoneDocSupplier tombstoneDocSupplier,
         boolean isReadOnlyReplica,
-        BooleanSupplier primaryModeSupplier,
+        BooleanSupplier startedPrimarySupplier,
         TranslogFactory translogFactory,
         Comparator<LeafReader> leafSorter
     ) {
@@ -185,7 +185,7 @@ public class EngineConfigFactory {
             .primaryTermSupplier(primaryTermSupplier)
             .tombstoneDocSupplier(tombstoneDocSupplier)
             .readOnlyReplica(isReadOnlyReplica)
-            .primaryModeSupplier(primaryModeSupplier)
+            .startedPrimarySupplier(startedPrimarySupplier)
             .translogFactory(translogFactory)
             .leafSorter(leafSorter)
             .build();

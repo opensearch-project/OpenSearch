@@ -34,7 +34,6 @@ package org.opensearch.action.admin.indices.shards;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.CollectionUtil;
-import org.opensearch.action.ActionListener;
 import org.opensearch.action.FailedNodeException;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.clustermanager.TransportClusterManagerNodeReadAction;
@@ -55,12 +54,13 @@ import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.inject.Inject;
-import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.common.util.concurrent.CountDown;
+import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.gateway.AsyncShardFetch;
 import org.opensearch.gateway.TransportNodesListGatewayStartedShards;
 import org.opensearch.gateway.TransportNodesListGatewayStartedShards.NodeGatewayStartedShards;
-import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
@@ -195,7 +195,7 @@ public class TransportIndicesShardStoresAction extends TransportClusterManagerNo
             } else {
                 for (Tuple<ShardId, String> shard : shards) {
                     InternalAsyncFetch fetch = new InternalAsyncFetch(logger, "shard_stores", shard.v1(), shard.v2(), listShardStoresInfo);
-                    fetch.fetchData(nodes, Collections.<String>emptySet());
+                    fetch.fetchData(nodes, Collections.emptyMap());
                 }
             }
         }
@@ -223,7 +223,7 @@ public class TransportIndicesShardStoresAction extends TransportClusterManagerNo
                 List<FailedNodeException> failures,
                 long fetchingRound
             ) {
-                fetchResponses.add(new Response(shardId, responses, failures));
+                fetchResponses.add(new Response(shardAttributesMap.keySet().iterator().next(), responses, failures));
                 if (expectedOps.countDown()) {
                     finish();
                 }
@@ -312,7 +312,7 @@ public class TransportIndicesShardStoresAction extends TransportClusterManagerNo
             }
 
             @Override
-            protected void reroute(ShardId shardId, String reason) {
+            protected void reroute(String shardId, String reason) {
                 // no-op
             }
 

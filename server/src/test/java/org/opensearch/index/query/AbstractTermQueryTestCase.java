@@ -33,6 +33,7 @@
 package org.opensearch.index.query;
 
 import com.fasterxml.jackson.core.io.JsonStringEncoder;
+
 import org.opensearch.test.AbstractQueryTestCase;
 
 import java.util.HashMap;

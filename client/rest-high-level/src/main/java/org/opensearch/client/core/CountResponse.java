@@ -34,8 +34,8 @@ package org.opensearch.client.core;
 
 import org.opensearch.action.search.ShardSearchFailure;
 import org.opensearch.core.ParseField;
-import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.core.rest.RestStatus;
+import org.opensearch.core.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;

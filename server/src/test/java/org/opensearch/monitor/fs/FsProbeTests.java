@@ -33,10 +33,10 @@
 package org.opensearch.monitor.fs;
 
 import org.apache.lucene.util.Constants;
-import org.opensearch.core.common.breaker.CircuitBreaker;
-import org.opensearch.core.common.breaker.NoopCircuitBreaker;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.core.common.breaker.CircuitBreaker;
+import org.opensearch.core.common.breaker.NoopCircuitBreaker;
 import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.env.NodeEnvironment;
@@ -91,6 +91,14 @@ public class FsProbeTests extends OpenSearchTestCase {
                     assertThat(deviceStats.previousWritesCompleted, equalTo(-1L));
                     assertThat(deviceStats.currentSectorsWritten, greaterThanOrEqualTo(0L));
                     assertThat(deviceStats.previousSectorsWritten, equalTo(-1L));
+                    assertThat(deviceStats.currentReadTime, greaterThanOrEqualTo(0L));
+                    assertThat(deviceStats.previousReadTime, greaterThanOrEqualTo(-1L));
+                    assertThat(deviceStats.currentWriteTime, greaterThanOrEqualTo(0L));
+                    assertThat(deviceStats.previousWriteTime, greaterThanOrEqualTo(-1L));
+                    assertThat(deviceStats.currentQueueSize, greaterThanOrEqualTo(0L));
+                    assertThat(deviceStats.previousQueueSize, greaterThanOrEqualTo(-1L));
+                    assertThat(deviceStats.currentIOTime, greaterThanOrEqualTo(0L));
+                    assertThat(deviceStats.previousIOTime, greaterThanOrEqualTo(-1L));
                 }
             } else {
                 assertNull(stats.getIoStats());
@@ -243,6 +251,16 @@ public class FsProbeTests extends OpenSearchTestCase {
         assertThat(first.devicesStats[0].previousWritesCompleted, equalTo(-1L));
         assertThat(first.devicesStats[0].currentSectorsWritten, equalTo(118857776L));
         assertThat(first.devicesStats[0].previousSectorsWritten, equalTo(-1L));
+
+        assertEquals(33457, first.devicesStats[0].currentReadTime);
+        assertEquals(-1, first.devicesStats[0].previousReadTime);
+        assertEquals(18730966, first.devicesStats[0].currentWriteTime);
+        assertEquals(-1, first.devicesStats[0].previousWriteTime);
+        assertEquals(18767169, first.devicesStats[0].currentQueueSize);
+        assertEquals(-1, first.devicesStats[0].previousQueueSize);
+        assertEquals(1918440, first.devicesStats[0].currentIOTime);
+        assertEquals(-1, first.devicesStats[0].previousIOTime);
+
         assertThat(first.devicesStats[1].majorDeviceNumber, equalTo(253));
         assertThat(first.devicesStats[1].minorDeviceNumber, equalTo(2));
         assertThat(first.devicesStats[1].deviceName, equalTo("dm-2"));
@@ -254,6 +272,15 @@ public class FsProbeTests extends OpenSearchTestCase {
         assertThat(first.devicesStats[1].previousWritesCompleted, equalTo(-1L));
         assertThat(first.devicesStats[1].currentSectorsWritten, equalTo(64126096L));
         assertThat(first.devicesStats[1].previousSectorsWritten, equalTo(-1L));
+
+        assertEquals(49312, first.devicesStats[1].currentReadTime);
+        assertEquals(-1, first.devicesStats[1].previousReadTime);
+        assertEquals(33730596, first.devicesStats[1].currentWriteTime);
+        assertEquals(-1, first.devicesStats[1].previousWriteTime);
+        assertEquals(33781827, first.devicesStats[1].currentQueueSize);
+        assertEquals(-1, first.devicesStats[1].previousQueueSize);
+        assertEquals(1058193, first.devicesStats[1].currentIOTime);
+        assertEquals(-1, first.devicesStats[1].previousIOTime);
 
         diskStats.set(
             Arrays.asList(
@@ -281,6 +308,16 @@ public class FsProbeTests extends OpenSearchTestCase {
         assertThat(second.devicesStats[0].previousWritesCompleted, equalTo(8398869L));
         assertThat(second.devicesStats[0].currentSectorsWritten, equalTo(118857776L));
         assertThat(second.devicesStats[0].previousSectorsWritten, equalTo(118857776L));
+
+        assertEquals(33464, second.devicesStats[0].currentReadTime);
+        assertEquals(33457, second.devicesStats[0].previousReadTime);
+        assertEquals(18730966, second.devicesStats[0].currentWriteTime);
+        assertEquals(18730966, second.devicesStats[0].previousWriteTime);
+        assertEquals(18767176, second.devicesStats[0].currentQueueSize);
+        assertEquals(18767169, second.devicesStats[0].previousQueueSize);
+        assertEquals(1918444, second.devicesStats[0].currentIOTime);
+        assertEquals(1918440, second.devicesStats[0].previousIOTime);
+
         assertThat(second.devicesStats[1].majorDeviceNumber, equalTo(253));
         assertThat(second.devicesStats[1].minorDeviceNumber, equalTo(2));
         assertThat(second.devicesStats[1].deviceName, equalTo("dm-2"));
@@ -293,11 +330,25 @@ public class FsProbeTests extends OpenSearchTestCase {
         assertThat(second.devicesStats[1].currentSectorsWritten, equalTo(64128568L));
         assertThat(second.devicesStats[1].previousSectorsWritten, equalTo(64126096L));
 
+        assertEquals(49369, second.devicesStats[1].currentReadTime);
+        assertEquals(49312, second.devicesStats[1].previousReadTime);
+        assertEquals(33730766, second.devicesStats[1].currentWriteTime);
+        assertEquals(33730596, second.devicesStats[1].previousWriteTime);
+        assertEquals(33781827, first.devicesStats[1].currentQueueSize);
+        assertEquals(-1L, first.devicesStats[1].previousQueueSize);
+        assertEquals(1058193, first.devicesStats[1].currentIOTime);
+        assertEquals(-1L, first.devicesStats[1].previousIOTime);
+
         assertThat(second.totalOperations, equalTo(575L));
         assertThat(second.totalReadOperations, equalTo(261L));
         assertThat(second.totalWriteOperations, equalTo(314L));
         assertThat(second.totalReadKilobytes, equalTo(2392L));
         assertThat(second.totalWriteKilobytes, equalTo(1236L));
+
+        assertEquals(64, second.totalReadTime);
+        assertEquals(170, second.totalWriteTime);
+        assertEquals(236, second.totalQueueSize);
+        assertEquals(158, second.totalIOTimeInMillis);
     }
 
     public void testAdjustForHugeFilesystems() throws Exception {

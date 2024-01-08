@@ -41,6 +41,11 @@ import org.opensearch.geometry.Line;
 import org.opensearch.geometry.MultiLine;
 import org.hamcrest.Matcher;
 import org.junit.Assert;
+
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
+
 import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.jts.geom.Geometry;
 import org.locationtech.jts.geom.LineString;
@@ -53,10 +58,6 @@ import org.locationtech.spatial4j.shape.impl.GeoCircle;
 import org.locationtech.spatial4j.shape.impl.RectangleImpl;
 import org.locationtech.spatial4j.shape.jts.JtsGeometry;
 import org.locationtech.spatial4j.shape.jts.JtsPoint;
-
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.List;
 
 import static org.hamcrest.Matchers.instanceOf;
 import static org.junit.Assert.assertThat;

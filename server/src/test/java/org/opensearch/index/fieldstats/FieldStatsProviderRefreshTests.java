@@ -38,9 +38,9 @@ import org.opensearch.action.search.SearchResponse;
 import org.opensearch.action.search.SearchType;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.core.rest.RestStatus;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.indices.IndicesRequestCache;
-import org.opensearch.core.rest.RestStatus;
 import org.opensearch.test.OpenSearchSingleNodeTestCase;
 
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;

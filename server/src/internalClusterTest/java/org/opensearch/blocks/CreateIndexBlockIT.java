@@ -8,10 +8,10 @@
 
 package org.opensearch.blocks;
 
-import org.junit.After;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.test.OpenSearchIntegTestCase;
+import org.junit.After;
 
 import static org.opensearch.test.OpenSearchIntegTestCase.client;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;

@@ -32,8 +32,6 @@
 
 package org.opensearch.cluster.routing;
 
-import org.junit.Before;
-import org.mockito.Mockito;
 import org.opensearch.Version;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.OpenSearchAllocationTestCase;
@@ -43,9 +41,12 @@ import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.routing.allocation.AllocationService;
 import org.opensearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
 import org.opensearch.common.settings.Settings;
+import org.junit.Before;
 
 import java.util.Iterator;
 import java.util.List;
+
+import org.mockito.Mockito;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;

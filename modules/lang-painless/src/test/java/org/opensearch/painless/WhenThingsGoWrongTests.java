@@ -32,12 +32,13 @@
 
 package org.opensearch.painless;
 
-import junit.framework.AssertionFailedError;
 import org.apache.lucene.util.Constants;
 import org.opensearch.script.ScriptException;
 
 import java.lang.invoke.WrongMethodTypeException;
 import java.util.Collections;
+
+import junit.framework.AssertionFailedError;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;

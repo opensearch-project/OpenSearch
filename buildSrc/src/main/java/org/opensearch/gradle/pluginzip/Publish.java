@@ -9,15 +9,14 @@ package org.opensearch.gradle.pluginzip;
 
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
+import org.gradle.api.Task;
 import org.gradle.api.publish.PublishingExtension;
 import org.gradle.api.publish.maven.MavenPublication;
+import org.gradle.api.publish.maven.plugins.MavenPublishPlugin;
 
 import java.nio.file.Path;
 import java.util.Set;
 import java.util.stream.Collectors;
-
-import org.gradle.api.Task;
-import org.gradle.api.publish.maven.plugins.MavenPublishPlugin;
 
 public class Publish implements Plugin<Project> {
 

@@ -40,7 +40,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.SingleObjectCache;
 import org.opensearch.common.util.concurrent.OpenSearchExecutors;
-import org.opensearch.node.ReportingService;
+import org.opensearch.core.service.ReportingService;
 
 import java.io.IOException;
 

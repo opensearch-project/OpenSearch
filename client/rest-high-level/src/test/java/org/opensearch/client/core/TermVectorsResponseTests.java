@@ -35,11 +35,11 @@ package org.opensearch.client.core;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.test.OpenSearchTestCase;
 
-import java.util.ArrayList;
-import java.util.List;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.List;
 
 import static org.opensearch.test.AbstractXContentTestCase.xContentTester;
 

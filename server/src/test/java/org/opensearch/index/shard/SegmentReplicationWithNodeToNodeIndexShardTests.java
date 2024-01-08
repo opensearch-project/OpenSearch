@@ -9,8 +9,6 @@
 package org.opensearch.index.shard;
 
 import org.apache.lucene.index.SegmentInfos;
-import org.junit.Assert;
-import org.opensearch.action.ActionListener;
 import org.opensearch.action.admin.indices.flush.FlushRequest;
 import org.opensearch.action.delete.DeleteRequest;
 import org.opensearch.action.index.IndexRequest;
@@ -20,7 +18,8 @@ import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.CancellableThreads;
-import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.index.engine.DocIdSeqNoAndSource;
 import org.opensearch.index.engine.InternalEngine;
 import org.opensearch.index.engine.NRTReplicationEngine;
@@ -39,6 +38,7 @@ import org.opensearch.indices.replication.SegmentReplicationTargetService;
 import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
+import org.junit.Assert;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -47,6 +47,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -87,6 +88,7 @@ public class SegmentReplicationWithNodeToNodeIndexShardTests extends SegmentRepl
                     ReplicationCheckpoint checkpoint,
                     List<StoreFileMetadata> filesToFetch,
                     IndexShard indexShard,
+                    BiConsumer<String, Long> fileProgressTracker,
                     ActionListener<GetSegmentFilesResponse> listener
                 ) {
                     // randomly resolve the listener, indicating the source has resolved.
@@ -131,6 +133,7 @@ public class SegmentReplicationWithNodeToNodeIndexShardTests extends SegmentRepl
                     ReplicationCheckpoint checkpoint,
                     List<StoreFileMetadata> filesToFetch,
                     IndexShard indexShard,
+                    BiConsumer<String, Long> fileProgressTracker,
                     ActionListener<GetSegmentFilesResponse> listener
                 ) {
                     Assert.fail("Should not be reached");
@@ -176,6 +179,7 @@ public class SegmentReplicationWithNodeToNodeIndexShardTests extends SegmentRepl
                     ReplicationCheckpoint checkpoint,
                     List<StoreFileMetadata> filesToFetch,
                     IndexShard indexShard,
+                    BiConsumer<String, Long> fileProgressTracker,
                     ActionListener<GetSegmentFilesResponse> listener
                 ) {
                     Assert.fail("Unreachable");
@@ -223,6 +227,7 @@ public class SegmentReplicationWithNodeToNodeIndexShardTests extends SegmentRepl
                     ReplicationCheckpoint checkpoint,
                     List<StoreFileMetadata> filesToFetch,
                     IndexShard indexShard,
+                    BiConsumer<String, Long> fileProgressTracker,
                     ActionListener<GetSegmentFilesResponse> listener
                 ) {}
             };
@@ -269,6 +274,7 @@ public class SegmentReplicationWithNodeToNodeIndexShardTests extends SegmentRepl
                     ReplicationCheckpoint checkpoint,
                     List<StoreFileMetadata> filesToFetch,
                     IndexShard indexShard,
+                    BiConsumer<String, Long> fileProgressTracker,
                     ActionListener<GetSegmentFilesResponse> listener
                 ) {
                     listener.onResponse(new GetSegmentFilesResponse(Collections.emptyList()));
@@ -353,7 +359,6 @@ public class SegmentReplicationWithNodeToNodeIndexShardTests extends SegmentRepl
     /**
      * Verifies that commits on replica engine resulting from engine or reader close does not cleanup the temporary
      * replication files from ongoing round of segment replication
-     * @throws Exception
      */
     public void testTemporaryFilesNotCleanup() throws Exception {
         String mappings = "{ \"" + MapperService.SINGLE_MAPPING_NAME + "\": { \"properties\": { \"foo\": { \"type\": \"keyword\"} }}}";
@@ -366,7 +371,7 @@ public class SegmentReplicationWithNodeToNodeIndexShardTests extends SegmentRepl
             final int numDocs = randomIntBetween(100, 200);
             logger.info("--> Inserting documents {}", numDocs);
             for (int i = 0; i < numDocs; i++) {
-                shards.index(new IndexRequest(index.getName()).id(String.valueOf(i)).source("{\"foo\": \"bar\"}", XContentType.JSON));
+                shards.index(new IndexRequest(index.getName()).id(String.valueOf(i)).source("{\"foo\": \"bar\"}", MediaTypeRegistry.JSON));
             }
             assertEqualTranslogOperations(shards, primaryShard);
             primaryShard.flush(new FlushRequest().waitIfOngoing(true).force(true));
@@ -376,7 +381,7 @@ public class SegmentReplicationWithNodeToNodeIndexShardTests extends SegmentRepl
             // Step 2. Ingest numDocs documents again to create a new commit on primary
             logger.info("--> Ingest {} docs again", numDocs);
             for (int i = 0; i < numDocs; i++) {
-                shards.index(new IndexRequest(index.getName()).id(String.valueOf(i)).source("{\"foo\": \"bar\"}", XContentType.JSON));
+                shards.index(new IndexRequest(index.getName()).id(String.valueOf(i)).source("{\"foo\": \"bar\"}", MediaTypeRegistry.JSON));
             }
             assertEqualTranslogOperations(shards, primaryShard);
             primaryShard.flush(new FlushRequest().waitIfOngoing(true).force(true));
@@ -433,45 +438,57 @@ public class SegmentReplicationWithNodeToNodeIndexShardTests extends SegmentRepl
         }
     }
 
-    // Todo: Move this test to SegmentReplicationIndexShardTests so that it runs for both node-node & remote store
     public void testReplicaReceivesLowerGeneration() throws Exception {
         // when a replica gets incoming segments that are lower than what it currently has on disk.
-
-        // start 3 nodes Gens: P [2], R [2], R[2]
-        // index some docs and flush twice, push to only 1 replica.
-        // State Gens: P [4], R-1 [3], R-2 [2]
-        // Promote R-2 as the new primary and demote the old primary.
-        // State Gens: R[4], R-1 [3], P [4] - *commit on close of NRTEngine, xlog replayed and commit made.
-        // index docs on new primary and flush
-        // replicate to all.
-        // Expected result: State Gens: P[4], R-1 [4], R-2 [4]
+        // this can happen when a replica is promoted that is further behind the other replicas.
         try (ReplicationGroup shards = createGroup(2, getIndexSettings(), new NRTReplicationEngineFactory())) {
             shards.startAll();
             final IndexShard primary = shards.getPrimary();
-            final IndexShard replica_1 = shards.getReplicas().get(0);
+            final IndexShard behindReplicaBeforeRestart = shards.getReplicas().get(0);
             final IndexShard replica_2 = shards.getReplicas().get(1);
             int numDocs = randomIntBetween(10, 100);
+            int totalDocs = numDocs;
             shards.indexDocs(numDocs);
-            flushShard(primary, false);
-            replicateSegments(primary, List.of(replica_1));
+            flushShard(primary, true);
+            replicateSegments(primary, List.of(behindReplicaBeforeRestart));
             numDocs = randomIntBetween(numDocs + 1, numDocs + 10);
+            totalDocs += numDocs;
             shards.indexDocs(numDocs);
-            flushShard(primary, false);
-            replicateSegments(primary, List.of(replica_1));
+            flushShard(primary, true);
+            flushShard(primary, true);
+            flushShard(primary, true);
+            replicateSegments(primary, List.of(behindReplicaBeforeRestart));
 
-            assertEqualCommittedSegments(primary, replica_1);
+            // close behindReplicaBeforeRestart - we will re-open it after replica_2 is promoted as new primary.
+            assertEqualCommittedSegments(primary, behindReplicaBeforeRestart);
+
+            assertDocCount(behindReplicaBeforeRestart, totalDocs);
+            assertDocCount(replica_2, 0);
 
             shards.promoteReplicaToPrimary(replica_2).get();
-            primary.close("demoted", false, false);
+            primary.close("demoted", randomBoolean(), false);
             primary.store().close();
             IndexShard oldPrimary = shards.addReplicaWithExistingPath(primary.shardPath(), primary.routingEntry().currentNodeId());
             shards.recoverReplica(oldPrimary);
 
+            behindReplicaBeforeRestart.close("restart", false, false);
+            behindReplicaBeforeRestart.store().close();
+            shards.removeReplica(behindReplicaBeforeRestart);
+            final IndexShard behindReplicaAfterRestart = shards.addReplicaWithExistingPath(
+                behindReplicaBeforeRestart.shardPath(),
+                behindReplicaBeforeRestart.routingEntry().currentNodeId()
+            );
+            shards.recoverReplica(behindReplicaAfterRestart);
+
             numDocs = randomIntBetween(numDocs + 1, numDocs + 10);
+            totalDocs += numDocs;
             shards.indexDocs(numDocs);
             flushShard(replica_2, false);
             replicateSegments(replica_2, shards.getReplicas());
-            assertEqualCommittedSegments(replica_2, oldPrimary, replica_1);
+            assertEqualCommittedSegments(replica_2, oldPrimary, behindReplicaAfterRestart);
+            assertDocCount(replica_2, totalDocs);
+            assertDocCount(oldPrimary, totalDocs);
+            assertDocCount(behindReplicaAfterRestart, totalDocs);
         }
     }
 
@@ -656,7 +673,7 @@ public class SegmentReplicationWithNodeToNodeIndexShardTests extends SegmentRepl
 
             final int numDocs = randomIntBetween(100, 200);
             for (int i = 0; i < numDocs; i++) {
-                shards.index(new IndexRequest(index.getName()).id(String.valueOf(i)).source("{\"foo\": \"bar\"}", XContentType.JSON));
+                shards.index(new IndexRequest(index.getName()).id(String.valueOf(i)).source("{\"foo\": \"bar\"}", MediaTypeRegistry.JSON));
             }
 
             assertEqualTranslogOperations(shards, primaryShard);
@@ -669,7 +686,7 @@ public class SegmentReplicationWithNodeToNodeIndexShardTests extends SegmentRepl
                 // randomly update docs.
                 if (randomBoolean()) {
                     shards.index(
-                        new IndexRequest(index.getName()).id(String.valueOf(i)).source("{ \"foo\" : \"baz\" }", XContentType.JSON)
+                        new IndexRequest(index.getName()).id(String.valueOf(i)).source("{ \"foo\" : \"baz\" }", MediaTypeRegistry.JSON)
                     );
                 }
             }

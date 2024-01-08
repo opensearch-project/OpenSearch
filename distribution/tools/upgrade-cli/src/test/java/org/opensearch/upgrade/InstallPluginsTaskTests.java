@@ -8,18 +8,19 @@
 
 package org.opensearch.upgrade;
 
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
-
-import org.junit.Before;
-import org.mockito.Mockito;
 import org.opensearch.cli.MockTerminal;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.env.Environment;
 import org.opensearch.env.TestEnvironment;
 import org.opensearch.test.OpenSearchTestCase;
+import org.junit.Before;
+
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
+
+import org.mockito.Mockito;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.mockito.Mockito.spy;

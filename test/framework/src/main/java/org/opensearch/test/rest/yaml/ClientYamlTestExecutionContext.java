@@ -41,11 +41,11 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.Version;
 import org.opensearch.client.NodeSelector;
-import org.opensearch.core.xcontent.MediaType;
+import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.xcontent.MediaType;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentType;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -64,7 +64,7 @@ public class ClientYamlTestExecutionContext {
 
     private static final Logger logger = LogManager.getLogger(ClientYamlTestExecutionContext.class);
 
-    private static final XContentType[] STREAMING_CONTENT_TYPES = new XContentType[] { XContentType.JSON, XContentType.SMILE };
+    private static final MediaType[] STREAMING_CONTENT_TYPES = new MediaType[] { MediaTypeRegistry.JSON, XContentType.SMILE };
 
     private final Stash stash = new Stash();
     private final ClientYamlTestClient clientYamlTestClient;
@@ -168,7 +168,7 @@ public class ClientYamlTestExecutionContext {
         }
     }
 
-    private MediaType getContentType(Map<String, String> headers, XContentType[] supportedContentTypes) {
+    private MediaType getContentType(Map<String, String> headers, MediaType[] supportedContentTypes) {
         MediaType mediaType = null;
         String contentType = headers.get("Content-Type");
         if (contentType != null) {
@@ -180,7 +180,7 @@ public class ClientYamlTestExecutionContext {
         if (randomizeContentType) {
             return RandomizedTest.randomFrom(supportedContentTypes);
         }
-        return XContentType.JSON;
+        return MediaTypeRegistry.JSON;
     }
 
     private BytesRef bodyAsBytesRef(Map<String, Object> bodyAsMap, MediaType mediaType) throws IOException {

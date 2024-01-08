@@ -34,13 +34,14 @@ package org.opensearch.indices.recovery;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.opensearch.action.ActionListener;
 import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.io.stream.Writeable;
+import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.core.transport.TransportResponse;
 import org.opensearch.index.seqno.ReplicationTracker;
 import org.opensearch.index.seqno.RetentionLeases;
-import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.store.StoreFileMetadata;
 import org.opensearch.index.translog.Translog;
@@ -48,7 +49,6 @@ import org.opensearch.indices.replication.RemoteSegmentFileChunkWriter;
 import org.opensearch.indices.replication.SegmentReplicationTargetService;
 import org.opensearch.transport.EmptyTransportResponseHandler;
 import org.opensearch.transport.TransportRequestOptions;
-import org.opensearch.core.transport.TransportResponse;
 import org.opensearch.transport.TransportService;
 
 import java.util.List;
@@ -75,6 +75,7 @@ public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
     private final AtomicLong requestSeqNoGenerator = new AtomicLong(0);
     private final RetryableTransportClient retryableTransportClient;
     private final RemoteSegmentFileChunkWriter fileChunkWriter;
+    private final boolean remoteStoreEnabled;
 
     public RemoteRecoveryTargetHandler(
         long recoveryId,
@@ -82,7 +83,8 @@ public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
         TransportService transportService,
         DiscoveryNode targetNode,
         RecoverySettings recoverySettings,
-        Consumer<Long> onSourceThrottle
+        Consumer<Long> onSourceThrottle,
+        boolean remoteStoreEnabled
     ) {
         this.transportService = transportService;
         // It is safe to pass the retry timeout value here because RemoteRecoveryTargetHandler
@@ -111,6 +113,7 @@ public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
             requestSeqNoGenerator,
             onSourceThrottle
         );
+        this.remoteStoreEnabled = remoteStoreEnabled;
     }
 
     public DiscoveryNode targetNode() {
@@ -129,7 +132,13 @@ public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
         );
         final Writeable.Reader<TransportResponse.Empty> reader = in -> TransportResponse.Empty.INSTANCE;
         final ActionListener<TransportResponse.Empty> responseListener = ActionListener.map(listener, r -> null);
-        retryableTransportClient.executeRetryableAction(action, request, responseListener, reader);
+        if (remoteStoreEnabled) {
+            // If remote store is enabled, during the prepare_translog phase, translog is also downloaded on the
+            // target host along with incremental segments download.
+            retryableTransportClient.executeRetryableAction(action, request, translogOpsRequestOptions, responseListener, reader);
+        } else {
+            retryableTransportClient.executeRetryableAction(action, request, responseListener, reader);
+        }
     }
 
     @Override
@@ -189,7 +198,7 @@ public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
 
     /**
      * Used with Segment replication only
-     *
+     * <p>
      * This function is used to force a sync target primary node with source (old primary). This is to avoid segment files
      * conflict with replicas when target is promoted as primary.
      */

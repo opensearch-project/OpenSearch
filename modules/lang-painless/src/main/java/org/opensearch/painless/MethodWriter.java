@@ -35,7 +35,6 @@ package org.opensearch.painless;
 import org.opensearch.painless.lookup.PainlessCast;
 import org.opensearch.painless.lookup.PainlessMethod;
 import org.opensearch.painless.lookup.def;
-import org.opensearch.script.JodaCompatibleZonedDateTime;
 import org.objectweb.asm.ClassVisitor;
 import org.objectweb.asm.Label;
 import org.objectweb.asm.Opcodes;
@@ -44,7 +43,6 @@ import org.objectweb.asm.commons.GeneratorAdapter;
 import org.objectweb.asm.commons.Method;
 
 import java.lang.reflect.Modifier;
-import java.time.ZonedDateTime;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -86,10 +84,8 @@ import static org.opensearch.painless.WriterConstants.DEF_TO_P_SHORT_EXPLICIT;
 import static org.opensearch.painless.WriterConstants.DEF_TO_P_SHORT_IMPLICIT;
 import static org.opensearch.painless.WriterConstants.DEF_TO_STRING_EXPLICIT;
 import static org.opensearch.painless.WriterConstants.DEF_TO_STRING_IMPLICIT;
-import static org.opensearch.painless.WriterConstants.DEF_TO_ZONEDDATETIME;
 import static org.opensearch.painless.WriterConstants.DEF_UTIL_TYPE;
 import static org.opensearch.painless.WriterConstants.INDY_STRING_CONCAT_BOOTSTRAP_HANDLE;
-import static org.opensearch.painless.WriterConstants.JCZDT_TO_ZONEDDATETIME;
 import static org.opensearch.painless.WriterConstants.LAMBDA_BOOTSTRAP_HANDLE;
 import static org.opensearch.painless.WriterConstants.MAX_INDY_STRING_CONCAT_ARGS;
 import static org.opensearch.painless.WriterConstants.PAINLESS_ERROR_TYPE;
@@ -181,9 +177,6 @@ public final class MethodWriter extends GeneratorAdapter {
             invokeStatic(UTILITY_TYPE, CHAR_TO_STRING);
         } else if (cast.originalType == String.class && cast.targetType == char.class) {
             invokeStatic(UTILITY_TYPE, STRING_TO_CHAR);
-            // TODO: remove this when the transition from Joda to Java datetimes is completed
-        } else if (cast.originalType == JodaCompatibleZonedDateTime.class && cast.targetType == ZonedDateTime.class) {
-            invokeStatic(UTILITY_TYPE, JCZDT_TO_ZONEDDATETIME);
         } else if (cast.unboxOriginalType != null && cast.boxTargetType != null) {
             unbox(getType(cast.unboxOriginalType));
             writeCast(cast.unboxOriginalType, cast.boxTargetType);
@@ -219,8 +212,6 @@ public final class MethodWriter extends GeneratorAdapter {
                 else if (cast.targetType == Float.class) invokeStatic(DEF_UTIL_TYPE, DEF_TO_B_FLOAT_EXPLICIT);
                 else if (cast.targetType == Double.class) invokeStatic(DEF_UTIL_TYPE, DEF_TO_B_DOUBLE_EXPLICIT);
                 else if (cast.targetType == String.class) invokeStatic(DEF_UTIL_TYPE, DEF_TO_STRING_EXPLICIT);
-                // TODO: remove this when the transition from Joda to Java datetimes is completed
-                else if (cast.targetType == ZonedDateTime.class) invokeStatic(DEF_UTIL_TYPE, DEF_TO_ZONEDDATETIME);
                 else {
                     writeCast(cast.originalType, cast.targetType);
                 }
@@ -242,8 +233,6 @@ public final class MethodWriter extends GeneratorAdapter {
                 else if (cast.targetType == Float.class) invokeStatic(DEF_UTIL_TYPE, DEF_TO_B_FLOAT_IMPLICIT);
                 else if (cast.targetType == Double.class) invokeStatic(DEF_UTIL_TYPE, DEF_TO_B_DOUBLE_IMPLICIT);
                 else if (cast.targetType == String.class) invokeStatic(DEF_UTIL_TYPE, DEF_TO_STRING_IMPLICIT);
-                // TODO: remove this when the transition from Joda to Java datetimes is completed
-                else if (cast.targetType == ZonedDateTime.class) invokeStatic(DEF_UTIL_TYPE, DEF_TO_ZONEDDATETIME);
                 else {
                     writeCast(cast.originalType, cast.targetType);
                 }

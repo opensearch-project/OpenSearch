@@ -32,20 +32,24 @@
 
 package org.opensearch.repositories.s3;
 
-import org.hamcrest.Matchers;
+import software.amazon.awssdk.services.s3.S3Client;
+
 import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.common.settings.ClusterSettings;
+import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.repositories.RepositoryException;
+import org.opensearch.repositories.blobstore.BlobStoreRepository;
 import org.opensearch.repositories.blobstore.BlobStoreTestUtil;
 import org.opensearch.test.OpenSearchTestCase;
-import software.amazon.awssdk.services.s3.S3Client;
+import org.hamcrest.Matchers;
 
 import java.nio.file.Path;
+import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
@@ -121,7 +125,8 @@ public class S3RepositoryTests extends OpenSearchTestCase implements ConfigPathS
     }
 
     public void testDefaultBufferSize() {
-        final RepositoryMetadata metadata = new RepositoryMetadata("dummy-repo", "mock", Settings.EMPTY);
+        Settings settings = Settings.builder().build();
+        final RepositoryMetadata metadata = new RepositoryMetadata("dummy-repo", "mock", settings);
         try (S3Repository s3repo = createS3Repo(metadata)) {
             assertThat(s3repo.getBlobStore(), is(nullValue()));
             s3repo.start();
@@ -132,6 +137,26 @@ public class S3RepositoryTests extends OpenSearchTestCase implements ConfigPathS
         }
     }
 
+    public void testIsReloadable() {
+        final RepositoryMetadata metadata = new RepositoryMetadata("dummy-repo", "mock", Settings.EMPTY);
+        try (S3Repository s3repo = createS3Repo(metadata)) {
+            assertTrue(s3repo.isReloadable());
+        }
+    }
+
+    public void testRestrictedSettingsDefault() {
+        final RepositoryMetadata metadata = new RepositoryMetadata("dummy-repo", "mock", Settings.EMPTY);
+        try (S3Repository s3repo = createS3Repo(metadata)) {
+            List<Setting<?>> restrictedSettings = s3repo.getRestrictedSystemRepositorySettings();
+            assertThat(restrictedSettings.size(), is(5));
+            assertTrue(restrictedSettings.contains(BlobStoreRepository.SYSTEM_REPOSITORY_SETTING));
+            assertTrue(restrictedSettings.contains(BlobStoreRepository.READONLY_SETTING));
+            assertTrue(restrictedSettings.contains(BlobStoreRepository.REMOTE_STORE_INDEX_SHALLOW_COPY));
+            assertTrue(restrictedSettings.contains(S3Repository.BUCKET_SETTING));
+            assertTrue(restrictedSettings.contains(S3Repository.BASE_PATH_SETTING));
+        }
+    }
+
     private S3Repository createS3Repo(RepositoryMetadata metadata) {
         return new S3Repository(
             metadata,
@@ -139,6 +164,7 @@ public class S3RepositoryTests extends OpenSearchTestCase implements ConfigPathS
             new DummyS3Service(configPath()),
             BlobStoreTestUtil.mockClusterService(),
             new RecoverySettings(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)),
+            null,
             null,
             null,
             null,

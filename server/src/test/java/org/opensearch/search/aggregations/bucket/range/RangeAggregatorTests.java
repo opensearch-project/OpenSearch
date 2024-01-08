@@ -37,11 +37,11 @@ import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.common.CheckedConsumer;
 import org.opensearch.index.mapper.DateFieldMapper;
@@ -136,7 +136,7 @@ public class RangeAggregatorTests extends AggregatorTestCase {
             true,
             false,
             true,
-            DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER,
+            DateFieldMapper.getDefaultDateTimeFormatter(),
             DateFieldMapper.Resolution.NANOSECONDS,
             null,
             Collections.emptyMap()
@@ -167,7 +167,7 @@ public class RangeAggregatorTests extends AggregatorTestCase {
             true,
             false,
             true,
-            DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER,
+            DateFieldMapper.getDefaultDateTimeFormatter(),
             DateFieldMapper.Resolution.NANOSECONDS,
             null,
             Collections.emptyMap()

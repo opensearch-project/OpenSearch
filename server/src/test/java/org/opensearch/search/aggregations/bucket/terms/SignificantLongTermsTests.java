@@ -85,7 +85,17 @@ public class SignificantLongTermsTests extends InternalSignificantTermsTestCase 
             bucket.updateScore(significanceHeuristic);
             buckets.add(bucket);
         }
-        return new SignificantLongTerms(name, requiredSize, 1L, metadata, format, subsetSize, supersetSize, significanceHeuristic, buckets);
+
+        return new SignificantLongTerms(
+            name,
+            metadata,
+            format,
+            subsetSize,
+            supersetSize,
+            significanceHeuristic,
+            buckets,
+            new TermsAggregator.BucketCountThresholds(1L, 0, requiredSize, 0)
+        );
     }
 
     @Override
@@ -150,14 +160,13 @@ public class SignificantLongTermsTests extends InternalSignificantTermsTestCase 
             }
             return new SignificantLongTerms(
                 name,
-                requiredSize,
-                minDocCount,
                 metadata,
                 format,
                 subsetSize,
                 supersetSize,
                 significanceHeuristic,
-                buckets
+                buckets,
+                new TermsAggregator.BucketCountThresholds(minDocCount, 0, requiredSize, 0)
             );
         } else {
             String name = instance.getName();
@@ -185,7 +194,7 @@ public class SignificantLongTermsTests extends InternalSignificantTermsTestCase 
                 default:
                     throw new AssertionError("Illegal randomisation branch");
             }
-            return new UnmappedSignificantTerms(name, requiredSize, minDocCount, metadata);
+            return new UnmappedSignificantTerms(name, new TermsAggregator.BucketCountThresholds(minDocCount, 0, requiredSize, 0), metadata);
         }
     }
 }

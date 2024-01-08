@@ -32,9 +32,9 @@
 
 package org.opensearch.search.profile.aggregation;
 
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.search.profile.AbstractProfileBreakdown;
 
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -43,8 +43,9 @@ import static java.util.Collections.unmodifiableMap;
 /**
  * {@linkplain AbstractProfileBreakdown} customized to work with aggregations.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class AggregationProfileBreakdown extends AbstractProfileBreakdown<AggregationTimingType> {
     private final Map<String, Object> extra = new HashMap<>();
 
@@ -60,21 +61,7 @@ public class AggregationProfileBreakdown extends AbstractProfileBreakdown<Aggreg
     }
 
     @Override
-    protected Map<String, Object> toDebugMap() {
+    public Map<String, Object> toDebugMap() {
         return unmodifiableMap(extra);
-    }
-
-    /**
-     * Build a timing count startTime breakdown for aggregation timing types
-     */
-    @Override
-    public Map<String, Long> toBreakdownMap() {
-        Map<String, Long> map = new HashMap<>(timings.length * 3);
-        for (AggregationTimingType timingType : timingTypes) {
-            map.put(timingType.toString(), timings[timingType.ordinal()].getApproximateTiming());
-            map.put(timingType + TIMING_TYPE_COUNT_SUFFIX, timings[timingType.ordinal()].getCount());
-            map.put(timingType + TIMING_TYPE_START_TIME_SUFFIX, timings[timingType.ordinal()].getEarliestTimerStartTime());
-        }
-        return Collections.unmodifiableMap(map);
     }
 }

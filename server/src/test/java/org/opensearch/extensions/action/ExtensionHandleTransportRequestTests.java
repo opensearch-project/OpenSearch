@@ -9,9 +9,9 @@
 package org.opensearch.extensions.action;
 
 import com.google.protobuf.ByteString;
+import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.io.stream.BytesStreamInput;
-import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.test.OpenSearchTestCase;
 
 public class ExtensionHandleTransportRequestTests extends OpenSearchTestCase {

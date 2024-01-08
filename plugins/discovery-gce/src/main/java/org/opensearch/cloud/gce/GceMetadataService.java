@@ -32,12 +32,6 @@
 
 package org.opensearch.cloud.gce;
 
-import java.io.IOException;
-import java.net.URI;
-import java.net.URISyntaxException;
-import java.security.GeneralSecurityException;
-import java.util.function.Function;
-
 import com.google.api.client.googleapis.javanet.GoogleNetHttpTransport;
 import com.google.api.client.http.GenericUrl;
 import com.google.api.client.http.HttpHeaders;
@@ -49,6 +43,12 @@ import org.opensearch.cloud.gce.util.Access;
 import org.opensearch.common.lifecycle.AbstractLifecycleComponent;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
+
+import java.io.IOException;
+import java.net.URI;
+import java.net.URISyntaxException;
+import java.security.GeneralSecurityException;
+import java.util.function.Function;
 
 public class GceMetadataService extends AbstractLifecycleComponent {
     private static final Logger logger = LogManager.getLogger(GceMetadataService.class);

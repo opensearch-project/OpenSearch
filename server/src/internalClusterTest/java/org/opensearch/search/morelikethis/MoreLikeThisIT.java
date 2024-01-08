@@ -32,6 +32,8 @@
 
 package org.opensearch.search.morelikethis;
 
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.opensearch.action.RoutingMissingException;
 import org.opensearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.opensearch.action.index.IndexRequestBuilder;
@@ -39,18 +41,20 @@ import org.opensearch.action.search.SearchPhaseExecutionException;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.cluster.health.ClusterHealthStatus;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.xcontent.XContentFactory;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.query.MoreLikeThisQueryBuilder;
 import org.opensearch.index.query.MoreLikeThisQueryBuilder.Item;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.plugins.Plugin;
-import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.InternalSettingsPlugin;
+import org.opensearch.test.ParameterizedOpenSearchIntegTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -63,6 +67,7 @@ import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SH
 import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.opensearch.index.query.QueryBuilders.moreLikeThisQuery;
 import static org.opensearch.index.query.QueryBuilders.termQuery;
+import static org.opensearch.search.SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertNoFailures;
@@ -74,7 +79,24 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
 
-public class MoreLikeThisIT extends OpenSearchIntegTestCase {
+public class MoreLikeThisIT extends ParameterizedOpenSearchIntegTestCase {
+
+    public MoreLikeThisIT(Settings dynamicSettings) {
+        super(dynamicSettings);
+    }
+
+    @ParametersFactory
+    public static Collection<Object[]> parameters() {
+        return Arrays.asList(
+            new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), false).build() },
+            new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), true).build() }
+        );
+    }
+
+    @Override
+    protected Settings featureFlagSettings() {
+        return Settings.builder().put(super.featureFlagSettings()).put(FeatureFlags.CONCURRENT_SEGMENT_SEARCH, "true").build();
+    }
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
@@ -103,6 +125,7 @@ public class MoreLikeThisIT extends OpenSearchIntegTestCase {
         client().index(indexRequest("test").id("2").source(jsonBuilder().startObject().field("text", "lucene release").endObject()))
             .actionGet();
         client().admin().indices().refresh(refreshRequest()).actionGet();
+        indexRandomForConcurrentSearch("test");
 
         logger.info("Running moreLikeThis");
         SearchResponse response = client().prepareSearch()
@@ -133,6 +156,7 @@ public class MoreLikeThisIT extends OpenSearchIntegTestCase {
         client().index(indexRequest("test").id("2").source(jsonBuilder().startObject().field("text", "lucene release").endObject()))
             .actionGet();
         client().admin().indices().refresh(refreshRequest()).actionGet();
+        indexRandomForConcurrentSearch("test");
 
         logger.info("Running moreLikeThis");
         SearchResponse response = client().prepareSearch()
@@ -168,6 +192,7 @@ public class MoreLikeThisIT extends OpenSearchIntegTestCase {
         ).actionGet();
 
         client().admin().indices().refresh(refreshRequest()).actionGet();
+        indexRandomForConcurrentSearch("test");
 
         SearchResponse searchResponse = client().prepareSearch()
             .setQuery(
@@ -234,6 +259,7 @@ public class MoreLikeThisIT extends OpenSearchIntegTestCase {
         client().index(indexRequest("test").id("4").source(jsonBuilder().startObject().field("text", "opensearch release").endObject()))
             .actionGet();
         client().admin().indices().refresh(refreshRequest()).actionGet();
+        indexRandomForConcurrentSearch("test");
 
         logger.info("Running moreLikeThis on index");
         SearchResponse response = client().prepareSearch()
@@ -282,6 +308,7 @@ public class MoreLikeThisIT extends OpenSearchIntegTestCase {
         client().index(indexRequest(indexName).id("3").source(jsonBuilder().startObject().field("text", "opensearch index").endObject()))
             .actionGet();
         refresh(indexName);
+        indexRandomForConcurrentSearch(indexName);
 
         SearchResponse response = client().prepareSearch()
             .setQuery(new MoreLikeThisQueryBuilder(null, new Item[] { new Item(aliasName, "1") }).minTermFreq(1).minDocFreq(1))
@@ -299,6 +326,7 @@ public class MoreLikeThisIT extends OpenSearchIntegTestCase {
             .get();
         client().admin().indices().prepareRefresh("foo").get();
         assertThat(ensureGreen(), equalTo(ClusterHealthStatus.GREEN));
+        indexRandomForConcurrentSearch("foo");
 
         SearchResponse response = client().prepareSearch()
             .setQuery(new MoreLikeThisQueryBuilder(null, new Item[] { new Item("foo", "1") }))
@@ -322,6 +350,7 @@ public class MoreLikeThisIT extends OpenSearchIntegTestCase {
             .setRouting("2")
             .get();
         client().admin().indices().prepareRefresh("foo").get();
+        indexRandomForConcurrentSearch("foo");
 
         SearchResponse response = client().prepareSearch()
             .setQuery(new MoreLikeThisQueryBuilder(null, new Item[] { new Item("foo", "1").routing("2") }))
@@ -346,6 +375,7 @@ public class MoreLikeThisIT extends OpenSearchIntegTestCase {
             .setRouting("4000")
             .get();
         client().admin().indices().prepareRefresh("foo").get();
+        indexRandomForConcurrentSearch("foo");
         SearchResponse response = client().prepareSearch()
             .setQuery(new MoreLikeThisQueryBuilder(null, new Item[] { new Item("foo", "1").routing("4000") }))
             .get();
@@ -379,6 +409,7 @@ public class MoreLikeThisIT extends OpenSearchIntegTestCase {
             .get();
 
         refresh();
+        indexRandomForConcurrentSearch("test");
 
         // Implicit list of fields -> ignore numeric fields
         SearchResponse searchResponse = client().prepareSearch()
@@ -486,6 +517,7 @@ public class MoreLikeThisIT extends OpenSearchIntegTestCase {
         index("test", "_doc", "1", "text", "lucene");
         index("test", "_doc", "2", "text", "lucene release");
         refresh();
+        indexRandomForConcurrentSearch("test");
 
         Item item = new Item("test", "1");
         QueryBuilder query = QueryBuilders.moreLikeThisQuery(new String[] { "alias" }, null, new Item[] { item })
@@ -526,6 +558,7 @@ public class MoreLikeThisIT extends OpenSearchIntegTestCase {
                 .source(jsonBuilder().startObject().field("text", "Lucene has been ported to other programming languages").endObject())
         ).actionGet();
         client().admin().indices().refresh(refreshRequest()).actionGet();
+        indexRandomForConcurrentSearch("test");
 
         logger.info("Running More Like This with include true");
         SearchResponse response = client().prepareSearch()
@@ -810,11 +843,12 @@ public class MoreLikeThisIT extends OpenSearchIntegTestCase {
         assertHitCount(response, 1);
     }
 
-    public void testWithRouting() throws IOException {
+    public void testWithRouting() throws IOException, InterruptedException {
         client().prepareIndex("index").setId("1").setRouting("3").setSource("text", "this is a document").get();
         client().prepareIndex("index").setId("2").setRouting("1").setSource("text", "this is another document").get();
         client().prepareIndex("index").setId("3").setRouting("4").setSource("text", "this is yet another document").get();
         refresh("index");
+        indexRandomForConcurrentSearch("index");
 
         Item item = new Item("index", "2").routing("1");
         MoreLikeThisQueryBuilder moreLikeThisQueryBuilder = new MoreLikeThisQueryBuilder(

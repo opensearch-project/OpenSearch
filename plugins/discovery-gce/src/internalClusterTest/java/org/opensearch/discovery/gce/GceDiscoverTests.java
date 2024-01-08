@@ -35,7 +35,6 @@ package org.opensearch.discovery.gce;
 import com.google.api.services.compute.model.Instance;
 import com.google.api.services.compute.model.NetworkInterface;
 import org.opensearch.action.admin.cluster.state.ClusterStateResponse;
-
 import org.opensearch.cloud.gce.GceInstancesService;
 import org.opensearch.cloud.gce.util.Access;
 import org.opensearch.cluster.node.DiscoveryNode;
@@ -44,7 +43,6 @@ import org.opensearch.plugin.discovery.gce.GceDiscoveryPlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.transport.TransportService;
-
 import org.junit.After;
 
 import java.io.IOException;

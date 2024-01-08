@@ -32,17 +32,17 @@
 
 package org.opensearch.index.seqno;
 
-import org.opensearch.action.ActionListener;
 import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.action.support.replication.ReplicationResponse;
 import org.opensearch.cluster.routing.AllocationId;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.gateway.WriteStateException;
 import org.opensearch.index.IndexSettings;
-import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.test.IndexSettingsModule;
 
 import java.io.IOException;

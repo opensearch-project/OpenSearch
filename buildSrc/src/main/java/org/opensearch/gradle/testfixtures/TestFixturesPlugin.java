@@ -37,6 +37,8 @@ import com.avast.gradle.dockercompose.ServiceInfo;
 import com.avast.gradle.dockercompose.tasks.ComposeDown;
 import com.avast.gradle.dockercompose.tasks.ComposePull;
 import com.avast.gradle.dockercompose.tasks.ComposeUp;
+
+import org.apache.tools.ant.taskdefs.condition.Os;
 import org.opensearch.gradle.SystemPropertyCommandLineArgumentProvider;
 import org.opensearch.gradle.docker.DockerSupportPlugin;
 import org.opensearch.gradle.docker.DockerSupportService;
@@ -57,17 +59,17 @@ import org.gradle.api.provider.Provider;
 import org.gradle.api.tasks.TaskContainer;
 import org.gradle.api.tasks.TaskProvider;
 import org.gradle.api.tasks.testing.Test;
-import org.apache.tools.ant.taskdefs.condition.Os;
 
 import javax.inject.Inject;
+
 import java.io.File;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.function.BiConsumer;
 import java.util.Optional;
+import java.util.function.BiConsumer;
 
 public class TestFixturesPlugin implements Plugin<Project> {
 
@@ -168,6 +170,7 @@ public class TestFixturesPlugin implements Plugin<Project> {
                 .findFirst();
 
             composeExtension.getExecutable().set(dockerCompose.isPresent() ? dockerCompose.get() : "/usr/bin/docker");
+            composeExtension.getUseDockerComposeV2().set(false);
 
             tasks.named("composeUp").configure(t -> {
                 // Avoid running docker-compose tasks in parallel in CI due to some issues on certain Linux distributions

@@ -41,8 +41,8 @@ import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.blobstore.BlobStore;
 import org.opensearch.common.blobstore.DeleteResult;
 import org.opensearch.common.blobstore.support.PlainBlobMetadata;
-import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.common.io.Streams;
+import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.repositories.blobstore.BlobStoreRepository;
@@ -90,7 +90,7 @@ public class MockEventuallyConsistentRepository extends BlobStoreRepository {
         final Context context,
         final Random random
     ) {
-        super(metadata, false, namedXContentRegistry, clusterService, recoverySettings);
+        super(metadata, namedXContentRegistry, clusterService, recoverySettings);
         this.context = context;
         this.namedXContentRegistry = namedXContentRegistry;
         this.random = random;

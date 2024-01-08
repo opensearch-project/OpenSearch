@@ -36,6 +36,7 @@ import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReader;
 import org.opensearch.common.SuppressForbidden;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.index.shard.ShardId;
 
 import java.io.IOException;
@@ -44,8 +45,9 @@ import java.io.IOException;
  * A {@link org.apache.lucene.index.FilterDirectoryReader} that exposes
  * OpenSearch internal per shard / index information like the shard ID.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public final class OpenSearchDirectoryReader extends FilterDirectoryReader {
 
     private final ShardId shardId;

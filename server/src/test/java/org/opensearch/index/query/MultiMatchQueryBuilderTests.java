@@ -48,10 +48,10 @@ import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.opensearch.cluster.metadata.IndexMetadata;
-import org.opensearch.core.common.ParsingException;
 import org.opensearch.common.lucene.search.MultiPhrasePrefixQuery;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.Fuzziness;
+import org.opensearch.core.common.ParsingException;
 import org.opensearch.index.query.MultiMatchQueryBuilder.Type;
 import org.opensearch.index.search.MatchQuery;
 import org.opensearch.test.AbstractQueryTestCase;
@@ -304,10 +304,16 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
                 } else if (disjunct instanceof PrefixQuery) {
                     final PrefixQuery secondDisjunct = (PrefixQuery) disjunct;
                     assertThat(secondDisjunct.getPrefix(), equalTo(new Term(KEYWORD_FIELD_NAME, "foo bar")));
+                } else if (disjunct instanceof IndexOrDocValuesQuery) {
+                    final IndexOrDocValuesQuery iodvqDisjunct = (IndexOrDocValuesQuery) disjunct;
+                    assertThat(iodvqDisjunct.getIndexQuery().toString(), equalTo("mapped_string_2:foo bar*"));
                 } else {
                     throw new AssertionError();
                 }
-                assertThat(disjunct, either(instanceOf(BooleanQuery.class)).or(instanceOf(PrefixQuery.class)));
+                assertThat(
+                    disjunct,
+                    either(instanceOf(BooleanQuery.class)).or(instanceOf(PrefixQuery.class)).or(instanceOf(IndexOrDocValuesQuery.class))
+                );
             }
         }
     }

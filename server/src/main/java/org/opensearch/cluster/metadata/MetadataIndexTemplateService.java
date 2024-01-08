@@ -37,10 +37,9 @@ import org.apache.lucene.util.CollectionUtil;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.opensearch.Version;
-import org.opensearch.action.ActionListener;
 import org.opensearch.action.admin.indices.alias.Alias;
-import org.opensearch.action.support.master.AcknowledgedResponse;
 import org.opensearch.action.support.clustermanager.ClusterManagerNodeRequest;
+import org.opensearch.action.support.master.AcknowledgedResponse;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateUpdateTask;
 import org.opensearch.cluster.service.ClusterManagerTaskKeys;
@@ -50,7 +49,6 @@ import org.opensearch.common.Nullable;
 import org.opensearch.common.Priority;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.ValidationException;
-import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.logging.HeaderWarning;
@@ -60,11 +58,13 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.set.Sets;
 import org.opensearch.common.xcontent.XContentFactory;
-import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.Strings;
+import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.index.Index;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.core.index.Index;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.mapper.MapperParsingException;
 import org.opensearch.index.mapper.MapperService;
@@ -93,6 +93,7 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import static org.opensearch.cluster.metadata.MetadataCreateDataStreamService.validateTimestampFieldMapping;
+import static org.opensearch.cluster.metadata.MetadataCreateIndexService.validateRefreshIntervalSettings;
 import static org.opensearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason.NO_LONGER_ASSIGNED;
 
 /**
@@ -747,7 +748,7 @@ public class MetadataIndexTemplateService {
     /**
      * Return a map of v2 template names to their index patterns for v2 templates that would overlap
      * with the given template's index patterns.
-     *
+     * <p>
      * Based on the provided checkPriority and priority parameters this aims to report the overlapping
      * index templates regardless of the priority (ie. checkPriority == false) or otherwise overlapping
      * templates with the same priority as the given priority parameter (this is useful when trying to
@@ -1155,7 +1156,7 @@ public class MetadataIndexTemplateService {
             Optional.ofNullable(template.getDataStreamTemplate())
                 .map(ComposableIndexTemplate.DataStreamTemplate::getDataStreamMappingSnippet)
                 .map(mapping -> {
-                    try (XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent())) {
+                    try (XContentBuilder builder = MediaTypeRegistry.JSON.contentBuilder()) {
                         builder.value(mapping);
                         return new CompressedXContent(BytesReference.bytes(builder));
                     } catch (IOException e) {
@@ -1529,6 +1530,9 @@ public class MetadataIndexTemplateService {
                 Optional.empty()
             );
             validationErrors.addAll(indexSettingsValidation);
+
+            // validate index refresh interval settings
+            validateRefreshIntervalSettings(settings, clusterService.getClusterSettings());
         }
 
         if (indexPatterns.stream().anyMatch(Regex::isMatchAllPattern)) {

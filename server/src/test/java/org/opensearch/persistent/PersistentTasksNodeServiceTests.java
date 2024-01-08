@@ -33,7 +33,6 @@
 package org.opensearch.persistent;
 
 import org.opensearch.Version;
-import org.opensearch.action.ActionListener;
 import org.opensearch.action.admin.cluster.node.tasks.cancel.CancelTasksResponse;
 import org.opensearch.client.Client;
 import org.opensearch.cluster.ClusterChangedEvent;
@@ -47,12 +46,13 @@ import org.opensearch.common.UUIDs;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.OpenSearchExecutors;
 import org.opensearch.common.util.concurrent.ThreadContext;
+import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.tasks.TaskId;
 import org.opensearch.persistent.PersistentTasksCustomMetadata.Assignment;
 import org.opensearch.persistent.PersistentTasksCustomMetadata.PersistentTask;
 import org.opensearch.persistent.TestPersistentTasksPlugin.TestParams;
 import org.opensearch.persistent.TestPersistentTasksPlugin.TestPersistentTasksExecutor;
 import org.opensearch.tasks.Task;
-import org.opensearch.tasks.TaskId;
 import org.opensearch.tasks.TaskManager;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.TestThreadPool;

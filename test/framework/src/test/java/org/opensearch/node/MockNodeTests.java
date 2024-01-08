@@ -39,8 +39,8 @@ import org.opensearch.env.Environment;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.search.MockSearchService;
 import org.opensearch.search.SearchService;
-import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.MockHttpTransport;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;

@@ -32,10 +32,8 @@
 
 package org.opensearch.action.admin.indices.resolve;
 
-import org.opensearch.action.ActionListener;
 import org.opensearch.action.ActionRequest;
 import org.opensearch.action.ActionRequestValidationException;
-import org.opensearch.action.ActionResponse;
 import org.opensearch.action.ActionType;
 import org.opensearch.action.IndicesRequest;
 import org.opensearch.action.OriginalIndices;
@@ -51,13 +49,16 @@ import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.inject.Inject;
+import org.opensearch.common.util.concurrent.CountDown;
+import org.opensearch.core.ParseField;
+import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.action.ActionResponse;
+import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
-import org.opensearch.common.util.concurrent.CountDown;
-import org.opensearch.core.common.Strings;
-import org.opensearch.core.ParseField;
 import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.tasks.Task;
@@ -82,8 +83,9 @@ import java.util.stream.StreamSupport;
 /**
  * Transport action to resolve an index.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> {
 
     public static final ResolveIndexAction INSTANCE = new ResolveIndexAction();
@@ -96,8 +98,9 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
     /**
      * Request for resolving an index
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public static class Request extends ActionRequest implements IndicesRequest.Replaceable {
 
         public static final IndicesOptions DEFAULT_INDICES_OPTIONS = IndicesOptions.strictExpandOpen();
@@ -196,8 +199,9 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
     /**
      * The resolved index
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public static class ResolvedIndex extends ResolvedIndexAbstraction implements Writeable, ToXContentObject {
 
         static final ParseField ALIASES_FIELD = new ParseField("aliases");
@@ -284,8 +288,9 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
     /**
      * The resolved index alias
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public static class ResolvedAlias extends ResolvedIndexAbstraction implements Writeable, ToXContentObject {
 
         static final ParseField INDICES_FIELD = new ParseField("indices");
@@ -346,8 +351,9 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
     /**
      * The resolved data stream
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public static class ResolvedDataStream extends ResolvedIndexAbstraction implements Writeable, ToXContentObject {
 
         static final ParseField BACKING_INDICES_FIELD = new ParseField("backing_indices");
@@ -418,8 +424,9 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
     /**
      * Response for resolving an index
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public static class Response extends ActionResponse implements ToXContentObject {
 
         static final ParseField INDICES_FIELD = new ParseField("indices");

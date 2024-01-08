@@ -98,22 +98,33 @@ public class IndexingIT extends AbstractRollingTestCase {
 
         // Verify segment store
         assertBusy(() -> {
-            /**
-             * Use default tabular output and sort response based on shard,segment,primaryOrReplica columns to allow line by
-             * line parsing where records related to a segment (e.g. _0) are chunked together with first record belonging
-             * to primary while remaining *replicaCount* records belongs to replica copies
-             * */
+            /*
+              Use default tabular output and sort response based on shard,segment,primaryOrReplica columns to allow line by
+              line parsing where records related to a segment (e.g. _0) are chunked together with first record belonging
+              to primary while remaining *replicaCount* records belongs to replica copies
+              */
             Request segrepStatsRequest = new Request("GET", "/_cat/segments/" + index + "?s=shard,segment,primaryOrReplica");
             segrepStatsRequest.addParameter("h", "index,shard,primaryOrReplica,segment,docs.count");
             Response segrepStatsResponse = client().performRequest(segrepStatsRequest);
-            logger.info("--> _cat/segments response\n {}", EntityUtils.toString(segrepStatsResponse.getEntity()));
             List<String> responseList = Streams.readAllLines(segrepStatsResponse.getEntity().getContent());
-            for (int segmentsIndex=0; segmentsIndex < responseList.size();) {
-                String[] primaryRow = responseList.get(segmentsIndex++).split(" +");
+            logger.info("--> _cat/segments response\n {}", responseList.toString().replace(',', '\n'));
+            // Filter response for rows with zero doc count
+            List<String> filteredList = new ArrayList<>();
+            for(String row: responseList) {
+                String count = row.split(" +")[4];
+                if (count.equals("0") == false) {
+                    filteredList.add(row);
+                }
+            }
+            // Ensure there is result for replica copies before processing the result. This results in retry when there
+            // are not enough number of rows vs failing with IndexOutOfBoundsException
+            assertEquals(0, filteredList.size() % (replicaCount + 1));
+            for (int segmentsIndex=0; segmentsIndex < filteredList.size();) {
+                String[] primaryRow = filteredList.get(segmentsIndex++).split(" +");
                 String shardId = primaryRow[0] + primaryRow[1];
                 assertTrue(primaryRow[2].equals("p"));
                 for(int replicaIndex = 1; replicaIndex <= replicaCount; replicaIndex++) {
-                    String[] replicaRow = responseList.get(segmentsIndex).split(" +");
+                    String[] replicaRow = filteredList.get(segmentsIndex).split(" +");
                     String replicaShardId = replicaRow[0] + replicaRow[1];
                     // When segment has 0 doc count, not all replica copies posses that segment. Skip to next segment
                     if (replicaRow[2].equals("p")) {
@@ -157,7 +168,7 @@ public class IndexingIT extends AbstractRollingTestCase {
         }, 1, TimeUnit.MINUTES);
     }
 
-    public void testIndexing() throws IOException, ParseException {
+    public void testIndexing() throws Exception {
         switch (CLUSTER_TYPE) {
         case OLD:
             break;
@@ -248,9 +259,10 @@ public class IndexingIT extends AbstractRollingTestCase {
      * This test verifies that during rolling upgrades the segment replication does not break when replica shards can
      * be running on older codec versions.
      *
-     * @throws Exception
+     * @throws Exception if index creation fail
+     * @throws UnsupportedOperationException if cluster type is unknown
      */
-    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/8322")
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/7679")
     public void testIndexingWithSegRep() throws Exception {
         if (UPGRADE_FROM_VERSION.before(Version.V_2_4_0)) {
             logger.info("--> Skip test for version {} where segment replication feature is not available", UPGRADE_FROM_VERSION);
@@ -389,12 +401,14 @@ public class IndexingIT extends AbstractRollingTestCase {
         client().performRequest(bulk);
     }
 
-    private void assertCount(String index, int count) throws IOException, ParseException {
-        Request searchTestIndexRequest = new Request("POST", "/" + index + "/_search");
-        searchTestIndexRequest.addParameter(TOTAL_HITS_AS_INT_PARAM, "true");
-        searchTestIndexRequest.addParameter("filter_path", "hits.total");
-        Response searchTestIndexResponse = client().performRequest(searchTestIndexRequest);
-        assertEquals("{\"hits\":{\"total\":" + count + "}}",
+    private void assertCount(String index, int count) throws Exception {
+        assertBusy(() -> {
+            Request searchTestIndexRequest = new Request("POST", "/" + index + "/_search");
+            searchTestIndexRequest.addParameter(TOTAL_HITS_AS_INT_PARAM, "true");
+            searchTestIndexRequest.addParameter("filter_path", "hits.total");
+            Response searchTestIndexResponse = client().performRequest(searchTestIndexRequest);
+            assertEquals("{\"hits\":{\"total\":" + count + "}}",
                 EntityUtils.toString(searchTestIndexResponse.getEntity(), StandardCharsets.UTF_8));
+        }, 30, TimeUnit.SECONDS);
     }
 }

@@ -32,8 +32,9 @@
 package org.opensearch.test;
 
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
-import org.apache.logging.log4j.Logger;
+
 import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.store.ChecksumIndexInput;
@@ -50,9 +51,9 @@ import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.util.Random;
 
-import static org.apache.lucene.tests.util.LuceneTestCase.assumeTrue;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.apache.lucene.tests.util.LuceneTestCase.assumeTrue;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 
@@ -120,7 +121,7 @@ public final class CorruptionUtils {
         }
     }
 
-    static void corruptAt(Path path, FileChannel channel, int position) throws IOException {
+    public static void corruptAt(Path path, FileChannel channel, int position) throws IOException {
         // read
         channel.position(position);
         long filePointer = channel.position();

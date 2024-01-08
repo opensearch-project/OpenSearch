@@ -33,6 +33,7 @@
 package org.opensearch.search.profile.query;
 
 import org.apache.lucene.search.Query;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.search.profile.AbstractProfiler;
 import org.opensearch.search.profile.ContextualProfileBreakdown;
 
@@ -44,22 +45,23 @@ import java.util.Objects;
  * "online" as the weights are wrapped by ContextIndexSearcher.  This allows us
  * to know the relationship between nodes in tree without explicitly
  * walking the tree or pre-wrapping everything
- *
+ * <p>
  * A Profiler is associated with every Search, not per Search-Request. E.g. a
  * request may execute two searches (query + global agg).  A Profiler just
  * represents one of those
  *
- * @opensearch.internal
+ * @opensearch.api
  */
-public final class QueryProfiler extends AbstractProfiler<ContextualProfileBreakdown<QueryTimingType>, Query> {
+@PublicApi(since = "1.0.0")
+public class QueryProfiler extends AbstractProfiler<ContextualProfileBreakdown<QueryTimingType>, Query> {
 
     /**
      * The root Collector used in the search
      */
     private InternalProfileComponent collector;
 
-    public QueryProfiler(boolean concurrent) {
-        super(new InternalQueryProfileTree(concurrent));
+    public QueryProfiler(AbstractQueryProfileTree profileTree) {
+        super(profileTree);
     }
 
     /** Set the collector that is associated with this profiler. */
@@ -75,24 +77,24 @@ public final class QueryProfiler extends AbstractProfiler<ContextualProfileBreak
      * single metric
      */
     public void startRewriteTime() {
-        ((InternalQueryProfileTree) profileTree).startRewriteTime();
+        ((AbstractQueryProfileTree) profileTree).startRewriteTime();
     }
 
     /**
      * Stop recording the current rewrite and add it's time to the total tally, returning the
      * cumulative time so far.
-     *
-     * @return cumulative rewrite time
      */
-    public long stopAndAddRewriteTime() {
-        return ((InternalQueryProfileTree) profileTree).stopAndAddRewriteTime();
+    public void stopAndAddRewriteTime() {
+        ((AbstractQueryProfileTree) profileTree).stopAndAddRewriteTime();
     }
 
     /**
+     * The rewriting process is complex and hard to display because queries can undergo significant changes.
+     * Instead of showing intermediate results, we display the cumulative time for the non-concurrent search case.
      * @return total time taken to rewrite all queries in this profile
      */
     public long getRewriteTime() {
-        return ((InternalQueryProfileTree) profileTree).getRewriteTime();
+        return ((AbstractQueryProfileTree) profileTree).getRewriteTime();
     }
 
     /**

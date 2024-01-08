@@ -31,13 +31,14 @@
 
 package org.opensearch.common.geo.parsers;
 
-import org.locationtech.jts.geom.Coordinate;
 import org.opensearch.OpenSearchException;
 import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.core.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.List;
+
+import org.locationtech.jts.geom.Coordinate;
 
 /**
  * Node used to represent a tree of coordinates.

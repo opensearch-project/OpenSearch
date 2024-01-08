@@ -42,6 +42,7 @@ import org.gradle.api.tasks.SourceSet;
 import org.gradle.api.tasks.util.PatternFilterable;
 
 import javax.annotation.Nullable;
+
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;

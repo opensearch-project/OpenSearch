@@ -32,10 +32,10 @@
 package org.opensearch.index.query;
 
 import org.opensearch.common.io.stream.BytesStreamOutput;
-import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.common.Strings;
+import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.ToXContent;
@@ -109,7 +109,7 @@ public class InnerHitBuilderTests extends OpenSearchTestCase {
     /**
      * Test that if we serialize and deserialize an object, further
      * serialization leads to identical bytes representation.
-     *
+     * <p>
      * This is necessary to ensure because we use the serialized BytesReference
      * of this builder as part of the cacheKey in
      * {@link ShardSearchRequest} (via

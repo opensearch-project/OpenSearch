@@ -32,15 +32,6 @@
 
 package org.opensearch.grok;
 
-import org.jcodings.specific.UTF8Encoding;
-import org.joni.Matcher;
-import org.joni.NameEntry;
-import org.joni.Option;
-import org.joni.Regex;
-import org.joni.Region;
-import org.joni.Syntax;
-import org.joni.exception.ValueException;
-
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
@@ -55,6 +46,15 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Stack;
 import java.util.function.Consumer;
+
+import org.jcodings.specific.UTF8Encoding;
+import org.joni.Matcher;
+import org.joni.NameEntry;
+import org.joni.Option;
+import org.joni.Regex;
+import org.joni.Region;
+import org.joni.Syntax;
+import org.joni.exception.ValueException;
 
 import static java.util.Collections.unmodifiableList;
 
@@ -151,7 +151,7 @@ public final class Grok {
     /**
      * Checks whether patterns reference each other in a circular manner and, if so, fail with an exception.
      * Also checks for malformed pattern definitions and fails with an exception.
-     *
+     * <p>
      * In a pattern, anything between <code>%{</code> and <code>}</code> or <code>:</code> is considered
      * a reference to another named pattern. This method will navigate to all these named patterns and
      * check for a circular reference.

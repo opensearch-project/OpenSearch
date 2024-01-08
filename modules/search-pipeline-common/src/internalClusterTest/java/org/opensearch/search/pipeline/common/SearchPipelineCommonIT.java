@@ -19,10 +19,10 @@ import org.opensearch.action.search.SearchRequest;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.action.support.master.AcknowledgedResponse;
 import org.opensearch.core.common.bytes.BytesArray;
-import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.rest.RestStatus;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.index.query.MatchAllQueryBuilder;
 import org.opensearch.plugins.Plugin;
-import org.opensearch.core.rest.RestStatus;
 import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
@@ -58,7 +58,7 @@ public class SearchPipelineCommonIT extends OpenSearchIntegTestCase {
                     + "]"
                     + "}"
             ),
-            XContentType.JSON
+            MediaTypeRegistry.JSON
         );
         AcknowledgedResponse ackRsp = client().admin().cluster().putSearchPipeline(putSearchPipelineRequest).actionGet();
         assertTrue(ackRsp.isAcknowledged());

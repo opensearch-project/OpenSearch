@@ -97,7 +97,9 @@ public class ScriptTests extends OpenSearchTestCase {
             scriptType,
             scriptType == ScriptType.STORED ? null : randomFrom("_lang1", "_lang2", "_lang3"),
             script,
-            scriptType == ScriptType.INLINE ? Collections.singletonMap(Script.CONTENT_TYPE_OPTION, XContentType.JSON.mediaType()) : null,
+            scriptType == ScriptType.INLINE
+                ? Collections.singletonMap(Script.CONTENT_TYPE_OPTION, MediaTypeRegistry.JSON.mediaType())
+                : null,
             params
         );
     }
@@ -168,8 +170,8 @@ public class ScriptTests extends OpenSearchTestCase {
         }
         Script script = new Script(ScriptType.INLINE, Script.DEFAULT_SCRIPT_LANG, "doc['field']", options, params);
         Map<String, Object> scriptObject = XContentHelper.convertToMap(
-            XContentType.JSON.xContent(),
-            Strings.toString(XContentType.JSON, script),
+            MediaTypeRegistry.JSON.xContent(),
+            Strings.toString(MediaTypeRegistry.JSON, script),
             false
         );
         Script parsedScript = Script.parse(scriptObject);

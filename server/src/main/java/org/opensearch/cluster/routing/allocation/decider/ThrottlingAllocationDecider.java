@@ -323,7 +323,7 @@ public class ThrottlingAllocationDecider extends AllocationDecider {
      * - the initializing shard routing if we want to assign the initializing shard to this node instead
      * - the started shard routing in case if we want to check if we can relocate to this node.
      * - the relocating shard routing if we want to relocate to this node now instead.
-     *
+     * <p>
      * This method returns the corresponding initializing shard that would be allocated to this node.
      */
     private ShardRouting initializingShard(ShardRouting shardRouting, String currentNodeId) {

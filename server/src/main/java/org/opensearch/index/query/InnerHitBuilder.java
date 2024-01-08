@@ -32,13 +32,14 @@
 package org.opensearch.index.query;
 
 import org.opensearch.common.Nullable;
+import org.opensearch.common.annotation.PublicApi;
+import org.opensearch.core.ParseField;
 import org.opensearch.core.common.ParsingException;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
-import org.opensearch.common.xcontent.XContentType;
-import org.opensearch.core.ParseField;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.ObjectParser;
 import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.core.xcontent.XContentBuilder;
@@ -66,7 +67,10 @@ import static org.opensearch.core.xcontent.XContentParser.Token.END_OBJECT;
 
 /**
  * Query builder for inner hits
+ *
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public final class InnerHitBuilder implements Writeable, ToXContentObject {
 
     public static final ParseField NAME_FIELD = new ParseField("name");
@@ -598,6 +602,6 @@ public final class InnerHitBuilder implements Writeable, ToXContentObject {
 
     @Override
     public String toString() {
-        return Strings.toString(XContentType.JSON, this, true, true);
+        return Strings.toString(MediaTypeRegistry.JSON, this, true, true);
     }
 }

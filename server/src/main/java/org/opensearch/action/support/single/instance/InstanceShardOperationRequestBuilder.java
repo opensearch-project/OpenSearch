@@ -32,11 +32,11 @@
 
 package org.opensearch.action.support.single.instance;
 
-import org.opensearch.action.ActionType;
 import org.opensearch.action.ActionRequestBuilder;
-import org.opensearch.action.ActionResponse;
+import org.opensearch.action.ActionType;
 import org.opensearch.client.OpenSearchClient;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.core.action.ActionResponse;
 
 /**
  * Request builder for a shard operation

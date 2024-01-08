@@ -32,8 +32,8 @@
 
 package org.opensearch.action.admin.cluster.state;
 
-import org.opensearch.action.ActionFuture;
 import org.opensearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
+import org.opensearch.common.action.ActionFuture;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.test.OpenSearchSingleNodeTestCase;

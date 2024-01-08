@@ -31,7 +31,6 @@
 
 package org.opensearch.common.geo.parsers;
 
-import org.locationtech.jts.geom.Coordinate;
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.common.Explicit;
 import org.opensearch.common.geo.GeoPoint;
@@ -49,9 +48,11 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
+import org.locationtech.jts.geom.Coordinate;
+
 /**
  * Parses shape geometry represented in geojson
- *
+ * <p>
  * complies with geojson specification: https://tools.ietf.org/html/rfc7946
  *
  * @opensearch.internal

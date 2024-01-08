@@ -35,7 +35,7 @@ import java.util.regex.Pattern;
 
 /**
  * Matches denylist patterns.
- *
+ * <p>
  * Currently the following syntax is supported:
  *
  * <ul>

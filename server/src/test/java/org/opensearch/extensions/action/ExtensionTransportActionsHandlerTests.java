@@ -9,23 +9,22 @@
 package org.opensearch.extensions.action;
 
 import com.google.protobuf.ByteString;
-import org.junit.After;
-import org.junit.Before;
 import org.opensearch.Version;
 import org.opensearch.action.ActionModule;
 import org.opensearch.action.ActionModule.DynamicActionRegistry;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.cluster.node.DiscoveryNode;
-import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.network.NetworkService;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.core.common.transport.TransportAddress;
 import org.opensearch.common.util.PageCacheRecycler;
-import org.opensearch.extensions.DiscoveryExtensionNode;
-import org.opensearch.extensions.AcknowledgedResponse;
-import org.opensearch.extensions.rest.RestSendToExtensionActionTests;
+import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.core.common.transport.TransportAddress;
 import org.opensearch.core.indices.breaker.NoneCircuitBreakerService;
+import org.opensearch.extensions.AcknowledgedResponse;
+import org.opensearch.extensions.DiscoveryExtensionNode;
+import org.opensearch.extensions.rest.RestSendToExtensionActionTests;
+import org.opensearch.telemetry.tracing.noop.NoopTracer;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.client.NoOpNodeClient;
 import org.opensearch.test.transport.MockTransportService;
@@ -35,6 +34,8 @@ import org.opensearch.transport.ActionNotFoundTransportException;
 import org.opensearch.transport.NodeNotConnectedException;
 import org.opensearch.transport.TransportService;
 import org.opensearch.transport.nio.MockNioTransport;
+import org.junit.After;
+import org.junit.Before;
 
 import java.net.InetAddress;
 import java.util.Collections;
@@ -43,11 +44,10 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
-
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class ExtensionTransportActionsHandlerTests extends OpenSearchTestCase {
     private static final ActionFilters EMPTY_FILTERS = new ActionFilters(Collections.emptySet());
@@ -68,7 +68,8 @@ public class ExtensionTransportActionsHandlerTests extends OpenSearchTestCase {
             new NetworkService(Collections.emptyList()),
             PageCacheRecycler.NON_RECYCLING_INSTANCE,
             new NamedWriteableRegistry(Collections.emptyList()),
-            new NoneCircuitBreakerService()
+            new NoneCircuitBreakerService(),
+            NoopTracer.INSTANCE
         );
         transportService = new MockTransportService(
             settings,
@@ -84,7 +85,8 @@ public class ExtensionTransportActionsHandlerTests extends OpenSearchTestCase {
                 Version.CURRENT
             ),
             null,
-            Collections.emptySet()
+            Collections.emptySet(),
+            NoopTracer.INSTANCE
         );
         discoveryExtensionNode = new DiscoveryExtensionNode(
             "firstExtension",

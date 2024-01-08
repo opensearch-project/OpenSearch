@@ -58,18 +58,20 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.QueryBuilder;
 import org.apache.lucene.util.graph.GraphTokenStreamFiniteStrings;
 import org.opensearch.OpenSearchException;
-import org.opensearch.core.common.io.stream.StreamInput;
-import org.opensearch.core.common.io.stream.StreamOutput;
-import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.lucene.search.Queries;
 import org.opensearch.common.lucene.search.SpanBooleanQueryRewriteWithMaxClause;
 import org.opensearch.common.unit.Fuzziness;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.index.mapper.KeywordFieldMapper;
 import org.opensearch.index.mapper.MappedFieldType;
+import org.opensearch.index.mapper.MatchOnlyTextFieldMapper;
 import org.opensearch.index.mapper.TextFieldMapper;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.index.query.support.QueryParsers;
+
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -700,7 +702,7 @@ public class MatchQuery {
         protected Query analyzePhrase(String field, TokenStream stream, int slop) throws IOException {
             try {
                 checkForPositions(field);
-                return fieldType.phraseQuery(stream, slop, enablePositionIncrements);
+                return fieldType.phraseQuery(stream, slop, enablePositionIncrements, context);
             } catch (IllegalArgumentException | IllegalStateException e) {
                 if (lenient) {
                     return newLenientFieldQuery(field, e);
@@ -713,7 +715,7 @@ public class MatchQuery {
         protected Query analyzeMultiPhrase(String field, TokenStream stream, int slop) throws IOException {
             try {
                 checkForPositions(field);
-                return fieldType.multiPhraseQuery(stream, slop, enablePositionIncrements);
+                return fieldType.multiPhraseQuery(stream, slop, enablePositionIncrements, context);
             } catch (IllegalArgumentException | IllegalStateException e) {
                 if (lenient) {
                     return newLenientFieldQuery(field, e);
@@ -727,7 +729,7 @@ public class MatchQuery {
                 if (positionCount > 1) {
                     checkForPositions(field);
                 }
-                return fieldType.phrasePrefixQuery(stream, slop, maxExpansions);
+                return fieldType.phrasePrefixQuery(stream, slop, maxExpansions, context);
             } catch (IllegalArgumentException | IllegalStateException e) {
                 if (lenient) {
                     return newLenientFieldQuery(field, e);
@@ -752,9 +754,9 @@ public class MatchQuery {
                 lastState = end;
                 final Query queryPos;
                 boolean usePrefix = isPrefix && end == -1;
-                /**
-                 * check if the GraphTokenStreamFiniteStrings graph is empty
-                 * return empty BooleanQuery result
+                /*
+                  check if the GraphTokenStreamFiniteStrings graph is empty
+                  return empty BooleanQuery result
                  */
                 Iterator<TokenStream> graphIt = graph.getFiniteStrings();
                 if (!graphIt.hasNext()) {
@@ -886,6 +888,9 @@ public class MatchQuery {
 
         private void checkForPositions(String field) {
             if (fieldType.getTextSearchInfo().hasPositions() == false) {
+                if (fieldType instanceof MatchOnlyTextFieldMapper.MatchOnlyTextFieldType) {
+                    return;
+                }
                 throw new IllegalStateException("field:[" + field + "] was indexed without position data; cannot run PhraseQuery");
             }
         }

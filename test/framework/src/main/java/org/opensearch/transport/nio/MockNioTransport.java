@@ -37,22 +37,22 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
-import org.opensearch.action.ActionListener;
 import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.cluster.node.DiscoveryNode;
-import org.opensearch.core.common.breaker.CircuitBreaker;
-import org.opensearch.core.common.bytes.BytesReference;
-import org.opensearch.core.common.bytes.CompositeBytesReference;
 import org.opensearch.common.bytes.ReleasableBytesReference;
-import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.common.lease.Releasable;
+import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.network.NetworkService;
 import org.opensearch.common.recycler.Recycler;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.PageCacheRecycler;
 import org.opensearch.common.util.io.IOUtils;
-import org.opensearch.common.lease.Releasable;
-import org.opensearch.common.lease.Releasables;
+import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.common.breaker.CircuitBreaker;
+import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.common.bytes.CompositeBytesReference;
+import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.indices.breaker.CircuitBreakerService;
 import org.opensearch.nio.BytesChannelContext;
 import org.opensearch.nio.BytesWriteHandler;
@@ -65,6 +65,7 @@ import org.opensearch.nio.NioServerSocketChannel;
 import org.opensearch.nio.NioSocketChannel;
 import org.opensearch.nio.Page;
 import org.opensearch.nio.ServerChannelContext;
+import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.ConnectionProfile;
 import org.opensearch.transport.InboundPipeline;
@@ -110,9 +111,10 @@ public class MockNioTransport extends TcpTransport {
         NetworkService networkService,
         PageCacheRecycler pageCacheRecycler,
         NamedWriteableRegistry namedWriteableRegistry,
-        CircuitBreakerService circuitBreakerService
+        CircuitBreakerService circuitBreakerService,
+        Tracer tracer
     ) {
-        super(settings, version, threadPool, pageCacheRecycler, circuitBreakerService, namedWriteableRegistry, networkService);
+        super(settings, version, threadPool, pageCacheRecycler, circuitBreakerService, namedWriteableRegistry, networkService, tracer);
         this.transportThreadWatchdog = new TransportThreadWatchdog(threadPool, settings);
     }
 

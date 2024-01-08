@@ -35,9 +35,9 @@ import org.opensearch.OpenSearchException;
 import org.opensearch.action.search.SearchPhaseExecutionException;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.core.xcontent.XContentParseException;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.index.mapper.IndexFieldMapper;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.script.Script;
@@ -78,6 +78,10 @@ import static org.hamcrest.core.IsNull.notNullValue;
 
 @OpenSearchIntegTestCase.SuiteScopeTestCase
 public class StringTermsIT extends BaseStringTermsTestCase {
+
+    public StringTermsIT(Settings dynamicSettings) {
+        super(dynamicSettings);
+    }
 
     // the main purpose of this test is to make sure we're not allocating 2GB of memory per shard
     public void testSizeIsZero() {
@@ -1127,6 +1131,7 @@ public class StringTermsIT extends BaseStringTermsTestCase {
                 .getMissCount(),
             equalTo(2L)
         );
+        internalCluster().wipeIndices("cache_test_idx");
     }
 
     public void testScriptWithValueType() throws Exception {

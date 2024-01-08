@@ -32,6 +32,7 @@
 package org.opensearch.search.aggregations.bucket;
 
 import org.opensearch.action.search.SearchResponse;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.index.fielddata.ScriptDocValues;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.script.Script;
@@ -49,6 +50,10 @@ import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertSearchResponse;
 
 public class IpTermsIT extends AbstractTermsTestCase {
+
+    public IpTermsIT(Settings dynamicSettings) {
+        super(dynamicSettings);
+    }
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {

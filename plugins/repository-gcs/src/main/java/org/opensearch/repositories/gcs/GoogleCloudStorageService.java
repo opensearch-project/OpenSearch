@@ -41,7 +41,6 @@ import com.google.cloud.ServiceOptions;
 import com.google.cloud.http.HttpTransportOptions;
 import com.google.cloud.storage.Storage;
 import com.google.cloud.storage.StorageOptions;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
@@ -229,7 +228,7 @@ public class GoogleCloudStorageService {
             }
             storageOptionsBuilder.setCredentials(serviceAccountCredentials);
         }
-        return storageOptionsBuilder.build();
+        return SocketAccess.doPrivilegedException(() -> storageOptionsBuilder.build());
     }
 
     /**

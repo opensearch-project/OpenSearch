@@ -33,6 +33,7 @@
 package org.opensearch.gateway;
 
 import org.opensearch.cluster.ClusterState;
+import org.opensearch.cluster.coordination.PersistedStateRegistry;
 import org.opensearch.cluster.metadata.Manifest;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.metadata.MetadataIndexUpgradeService;
@@ -44,6 +45,8 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.env.NodeEnvironment;
+import org.opensearch.gateway.remote.RemoteClusterStateService;
+import org.opensearch.index.recovery.RemoteStoreRestoreService;
 import org.opensearch.plugins.MetadataUpgrader;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
@@ -62,10 +65,32 @@ import static org.mockito.Mockito.when;
 public class MockGatewayMetaState extends GatewayMetaState {
     private final DiscoveryNode localNode;
     private final BigArrays bigArrays;
+    private final RemoteClusterStateService remoteClusterStateService;
+    private final RemoteStoreRestoreService remoteStoreRestoreService;
+    private boolean prepareFullState = false;
+
+    public MockGatewayMetaState(DiscoveryNode localNode, BigArrays bigArrays, boolean prepareFullState) {
+        this(localNode, bigArrays);
+        this.prepareFullState = prepareFullState;
+    }
 
     public MockGatewayMetaState(DiscoveryNode localNode, BigArrays bigArrays) {
         this.localNode = localNode;
         this.bigArrays = bigArrays;
+        this.remoteClusterStateService = mock(RemoteClusterStateService.class);
+        this.remoteStoreRestoreService = mock(RemoteStoreRestoreService.class);
+    }
+
+    public MockGatewayMetaState(
+        DiscoveryNode localNode,
+        BigArrays bigArrays,
+        RemoteClusterStateService remoteClusterStateService,
+        RemoteStoreRestoreService remoteStoreRestoreService
+    ) {
+        this.localNode = localNode;
+        this.bigArrays = bigArrays;
+        this.remoteClusterStateService = remoteClusterStateService;
+        this.remoteStoreRestoreService = remoteStoreRestoreService;
     }
 
     @Override
@@ -80,11 +105,35 @@ public class MockGatewayMetaState extends GatewayMetaState {
 
     @Override
     ClusterState prepareInitialClusterState(TransportService transportService, ClusterService clusterService, ClusterState clusterState) {
-        // Just set localNode here, not to mess with ClusterService and IndicesService mocking
-        return ClusterStateUpdaters.setLocalNode(clusterState, localNode);
+        if (prepareFullState) {
+            return super.prepareInitialClusterState(transportService, clusterService, clusterState);
+        } else {
+            // Just set localNode here, not to mess with ClusterService and IndicesService mocking
+            return ClusterStateUpdaters.setLocalNode(clusterState, localNode);
+        }
     }
 
-    public void start(Settings settings, NodeEnvironment nodeEnvironment, NamedXContentRegistry xContentRegistry) {
+    @Override
+    public void close() throws IOException {
+        super.close();
+    }
+
+    public void start(
+        Settings settings,
+        NodeEnvironment nodeEnvironment,
+        NamedXContentRegistry xContentRegistry,
+        PersistedStateRegistry persistedStateRegistry
+    ) {
+        start(settings, nodeEnvironment, xContentRegistry, persistedStateRegistry, false);
+    }
+
+    public void start(
+        Settings settings,
+        NodeEnvironment nodeEnvironment,
+        NamedXContentRegistry xContentRegistry,
+        PersistedStateRegistry persistedStateRegistry,
+        boolean prepareFullState
+    ) {
         final TransportService transportService = mock(TransportService.class);
         when(transportService.getThreadPool()).thenReturn(mock(ThreadPool.class));
         final ClusterService clusterService = mock(ClusterService.class);
@@ -97,6 +146,7 @@ public class MockGatewayMetaState extends GatewayMetaState {
         } catch (IOException e) {
             throw new AssertionError(e);
         }
+        this.prepareFullState = prepareFullState;
         start(
             settings,
             transportService,
@@ -110,7 +160,10 @@ public class MockGatewayMetaState extends GatewayMetaState {
                 bigArrays,
                 new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
                 () -> 0L
-            )
+            ),
+            remoteClusterStateService,
+            persistedStateRegistry,
+            remoteStoreRestoreService
         );
     }
 }

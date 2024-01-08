@@ -32,6 +32,7 @@
 
 package org.opensearch.common.cache;
 
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.util.concurrent.ReleasableLock;
 
@@ -80,8 +81,9 @@ import java.util.function.ToLongBiFunction;
  * @param <K> The type of the keys
  * @param <V> The type of the values
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class Cache<K, V> {
 
     // positive if entries have an expiration
@@ -403,7 +405,7 @@ public class Cache<K, V> {
      * If the specified key is not already associated with a value (or is mapped to null), attempts to compute its
      * value using the given mapping function and enters it into this map unless null. The load method for a given key
      * will be invoked at most once.
-     *
+     * <p>
      * Use of different {@link CacheLoader} implementations on the same key concurrently may result in only the first
      * loader function being called and the second will be returned the result provided by the first including any exceptions
      * thrown during the execution of the first.
@@ -732,8 +734,9 @@ public class Cache<K, V> {
     /**
      * Cache statistics
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public static class CacheStats {
         private long hits;
         private long misses;

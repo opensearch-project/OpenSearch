@@ -8,6 +8,7 @@
 
 package org.opensearch.action.search;
 
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.ParseField;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
@@ -17,12 +18,16 @@ import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Objects;
 
 import static org.opensearch.core.xcontent.ConstructingObjectParser.constructorArg;
 
 /**
  * This holds information about pit reader context such as pit id and creation time
+ *
+ * @opensearch.api
  */
+@PublicApi(since = "2.3.0")
 public class ListPitInfo implements ToXContentFragment, Writeable {
     private final String pitId;
     private final long creationTime;
@@ -78,6 +83,19 @@ public class ListPitInfo implements ToXContentFragment, Writeable {
         builder.field(KEEP_ALIVE.getPreferredName(), keepAlive);
         builder.endObject();
         return builder;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        ListPitInfo that = (ListPitInfo) o;
+        return pitId.equals(that.pitId) && creationTime == that.creationTime && keepAlive == that.keepAlive;
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(pitId, creationTime, keepAlive);
     }
 
 }

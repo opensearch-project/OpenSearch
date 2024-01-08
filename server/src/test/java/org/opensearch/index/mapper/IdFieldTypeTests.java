@@ -40,6 +40,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.test.OpenSearchTestCase;
+
 import org.mockito.Mockito;
 
 public class IdFieldTypeTests extends OpenSearchTestCase {

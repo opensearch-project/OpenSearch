@@ -58,6 +58,6 @@ public class ConcurrentSnapshotExecutionException extends SnapshotException {
 
     @Override
     public RestStatus status() {
-        return RestStatus.SERVICE_UNAVAILABLE;
+        return RestStatus.CONFLICT;
     }
 }

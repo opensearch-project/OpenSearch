@@ -37,9 +37,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
-import org.opensearch.action.ActionListener;
 import org.opensearch.action.ActionRunnable;
-import org.opensearch.action.NotifyOnceListener;
 import org.opensearch.action.admin.indices.close.CloseIndexClusterStateUpdateRequest;
 import org.opensearch.action.admin.indices.close.CloseIndexResponse;
 import org.opensearch.action.admin.indices.close.CloseIndexResponse.IndexResult;
@@ -77,17 +75,19 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.AtomicArray;
 import org.opensearch.common.util.concurrent.ConcurrentCollections;
 import org.opensearch.common.util.concurrent.CountDown;
+import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.action.NotifyOnceListener;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.rest.RestStatus;
+import org.opensearch.core.tasks.TaskId;
 import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.ShardLimitValidator;
 import org.opensearch.snapshots.RestoreService;
 import org.opensearch.snapshots.SnapshotInProgressException;
 import org.opensearch.snapshots.SnapshotsService;
-import org.opensearch.tasks.TaskId;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
@@ -166,7 +166,7 @@ public class MetadataIndexStateService {
 
     /**
      * Closes one or more indices.
-     *
+     * <p>
      * Closing indices is a 3 steps process: it first adds a write block to every indices to close, then waits for the operations on shards
      * to be terminated and finally closes the indices by moving their state to CLOSE.
      */
@@ -302,7 +302,7 @@ public class MetadataIndexStateService {
 
     /**
      * Step 1 - Start closing indices by adding a write block
-     *
+     * <p>
      * This step builds the list of indices to close (the ones explicitly requested that are not in CLOSE state) and adds a unique cluster
      * block (or reuses an existing one) to every index to close in the cluster state. After the cluster state is published, the shards
      * should start to reject writing operations and we can proceed with step 2.

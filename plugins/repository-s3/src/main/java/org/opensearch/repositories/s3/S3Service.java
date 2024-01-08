@@ -32,20 +32,6 @@
 
 package org.opensearch.repositories.s3;
 
-import org.apache.http.conn.ssl.DefaultHostnameVerifier;
-import org.apache.http.conn.ssl.SSLConnectionSocketFactory;
-import org.apache.http.protocol.HttpContext;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.opensearch.cluster.metadata.RepositoryMetadata;
-import org.opensearch.common.Nullable;
-import org.opensearch.common.SuppressForbidden;
-import org.opensearch.common.collect.MapBuilder;
-import org.opensearch.common.settings.Settings;
-import org.opensearch.core.common.Strings;
-import org.opensearch.repositories.s3.S3ClientSettings.IrsaCredentials;
-import org.opensearch.repositories.s3.utils.Protocol;
-import org.opensearch.repositories.s3.utils.AwsRequestSigner;
 import software.amazon.awssdk.auth.credentials.AwsCredentials;
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.ContainerCredentialsProvider;
@@ -72,7 +58,23 @@ import software.amazon.awssdk.services.sts.auth.StsAssumeRoleCredentialsProvider
 import software.amazon.awssdk.services.sts.auth.StsWebIdentityTokenFileCredentialsProvider;
 import software.amazon.awssdk.services.sts.model.AssumeRoleRequest;
 
+import org.apache.http.conn.ssl.DefaultHostnameVerifier;
+import org.apache.http.conn.ssl.SSLConnectionSocketFactory;
+import org.apache.http.protocol.HttpContext;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.opensearch.cluster.metadata.RepositoryMetadata;
+import org.opensearch.common.Nullable;
+import org.opensearch.common.SuppressForbidden;
+import org.opensearch.common.collect.MapBuilder;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.core.common.Strings;
+import org.opensearch.repositories.s3.S3ClientSettings.IrsaCredentials;
+import org.opensearch.repositories.s3.utils.AwsRequestSigner;
+import org.opensearch.repositories.s3.utils.Protocol;
+
 import javax.net.ssl.SSLContext;
+
 import java.io.Closeable;
 import java.io.IOException;
 import java.net.Authenticator;
@@ -88,6 +90,7 @@ import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.time.Duration;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 import static java.util.Collections.emptyMap;
 
@@ -98,7 +101,7 @@ class S3Service implements Closeable {
 
     private static final String DEFAULT_S3_ENDPOINT = "s3.amazonaws.com";
 
-    private volatile Map<S3ClientSettings, AmazonS3Reference> clientsCache = emptyMap();
+    private volatile Map<S3ClientSettings, AmazonS3Reference> clientsCache = new ConcurrentHashMap<>();
 
     /**
      * Client settings calculated from static configuration and settings in the keystore.
@@ -109,7 +112,7 @@ class S3Service implements Closeable {
      * Client settings derived from those in {@link #staticClientSettings} by combining them with settings
      * in the {@link RepositoryMetadata}.
      */
-    private volatile Map<Settings, S3ClientSettings> derivedClientSettings = emptyMap();
+    private volatile Map<Settings, S3ClientSettings> derivedClientSettings = new ConcurrentHashMap<>();
 
     S3Service(final Path configPath) {
         staticClientSettings = MapBuilder.<String, S3ClientSettings>newMapBuilder()
@@ -435,7 +438,7 @@ class S3Service implements Closeable {
         return new IrsaCredentials(webIdentityTokenFile, roleArn, roleSessionName);
     }
 
-    private synchronized void releaseCachedClients() {
+    public synchronized void releaseCachedClients() {
         // the clients will shutdown when they will not be used anymore
         for (final AmazonS3Reference clientReference : clientsCache.values()) {
             clientReference.decRef();

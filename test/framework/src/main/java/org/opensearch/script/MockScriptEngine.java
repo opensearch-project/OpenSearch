@@ -33,6 +33,7 @@
 package org.opensearch.script;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Scorable;
 import org.opensearch.index.query.IntervalFilterScript;
 import org.opensearch.index.similarity.ScriptedSimilarity.Doc;
@@ -57,14 +58,14 @@ import static java.util.Collections.emptyMap;
 
 /**
  * A mocked script engine that can be used for testing purpose.
- *
+ * <p>
  * This script engine allows to define a set of predefined scripts that basically a combination of a key and a
  * function:
- *
+ * <p>
  * The key can be anything as long as it is a {@link String} and is used to resolve the scripts
  * at compilation time. For inline scripts, the key can be a description of the script. For stored and file scripts,
  * the source must match a key in the predefined set of scripts.
- *
+ * <p>
  * The function is used to provide the result of the script execution and can return anything.
  */
 public class MockScriptEngine implements ScriptEngine {
@@ -624,7 +625,7 @@ public class MockScriptEngine implements ScriptEngine {
         }
 
         @Override
-        public ScoreScript.LeafFactory newFactory(Map<String, Object> params, SearchLookup lookup) {
+        public ScoreScript.LeafFactory newFactory(Map<String, Object> params, SearchLookup lookup, IndexSearcher indexSearcher) {
             return new ScoreScript.LeafFactory() {
                 @Override
                 public boolean needs_score() {
@@ -634,7 +635,7 @@ public class MockScriptEngine implements ScriptEngine {
                 @Override
                 public ScoreScript newInstance(LeafReaderContext ctx) throws IOException {
                     Scorable[] scorerHolder = new Scorable[1];
-                    return new ScoreScript(params, lookup, ctx) {
+                    return new ScoreScript(params, lookup, indexSearcher, ctx) {
                         @Override
                         public double execute(ExplanationHolder explanation) {
                             Map<String, Object> vars = new HashMap<>(getParams());

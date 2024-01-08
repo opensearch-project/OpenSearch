@@ -42,9 +42,8 @@ import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.plugins.Plugin;
-import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.InternalSettingsPlugin;
-
+import org.opensearch.test.OpenSearchIntegTestCase;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;

@@ -7,9 +7,7 @@
  */
 package org.opensearch.action.search;
 
-import org.junit.Before;
 import org.opensearch.Version;
-import org.opensearch.action.ActionListener;
 import org.opensearch.action.support.ActionFilter;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.PlainActionFuture;
@@ -20,19 +18,24 @@ import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.service.ClusterService;
-import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.core.rest.RestStatus;
+import org.opensearch.core.tasks.TaskId;
 import org.opensearch.index.query.IdsQueryBuilder;
 import org.opensearch.index.query.MatchAllQueryBuilder;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.TermQueryBuilder;
 import org.opensearch.tasks.Task;
-import org.opensearch.tasks.TaskId;
+import org.opensearch.telemetry.tracing.noop.NoopTracer;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.transport.MockTransportService;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.RemoteClusterConnectionTests;
 import org.opensearch.transport.Transport;
+import org.opensearch.transport.TransportService;
+import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -42,11 +45,11 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 
+import static org.opensearch.action.search.PitTestsUtil.getPitId;
+import static org.opensearch.action.support.PlainActionFuture.newFuture;
 import static org.hamcrest.Matchers.containsString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
-import static org.opensearch.action.search.PitTestsUtil.getPitId;
-import static org.opensearch.action.support.PlainActionFuture.newFuture;
 
 /**
  * Functional tests for transport delete pit action
@@ -141,7 +144,7 @@ public class TransportDeletePitActionTests extends OpenSearchTestCase {
                     Settings.EMPTY,
                     Version.CURRENT,
                     threadPool,
-                    null
+                    NoopTracer.INSTANCE
                 )
             ) {
                 transportService.start();
@@ -204,7 +207,7 @@ public class TransportDeletePitActionTests extends OpenSearchTestCase {
                     Settings.EMPTY,
                     Version.CURRENT,
                     threadPool,
-                    null
+                    NoopTracer.INSTANCE
                 )
             ) {
                 transportService.start();
@@ -261,6 +264,46 @@ public class TransportDeletePitActionTests extends OpenSearchTestCase {
         }
     }
 
+    public void testDeleteAllPITSuccessWhenNoPITsExist() throws InterruptedException, ExecutionException {
+        ActionFilters actionFilters = mock(ActionFilters.class);
+        when(actionFilters.filters()).thenReturn(new ActionFilter[0]);
+        List<DiscoveryNode> knownNodes = new CopyOnWriteArrayList<>();
+        try (MockTransportService cluster1Transport = startTransport("cluster_1_node", knownNodes, Version.CURRENT)) {
+            knownNodes.add(cluster1Transport.getLocalDiscoNode());
+            TransportService mockTransportService = mock(TransportService.class);
+            PitService pitService = new PitService(clusterServiceMock, mock(SearchTransportService.class), mockTransportService, client) {
+                @Override
+                public void getAllPits(ActionListener<GetAllPitNodesResponse> getAllPitsListener) {
+                    List<ListPitInfo> list = new ArrayList<>();
+                    GetAllPitNodeResponse getAllPitNodeResponse = new GetAllPitNodeResponse(cluster1Transport.getLocalDiscoNode(), list);
+                    List<GetAllPitNodeResponse> nodeList = new ArrayList();
+                    nodeList.add(getAllPitNodeResponse);
+                    getAllPitsListener.onResponse(new GetAllPitNodesResponse(new ClusterName("cn"), nodeList, new ArrayList()));
+                }
+            };
+            TransportDeletePitAction action = new TransportDeletePitAction(
+                mockTransportService,
+                actionFilters,
+                namedWriteableRegistry,
+                pitService
+            );
+            DeletePitRequest deletePITRequest = new DeletePitRequest("_all");
+            ActionListener<DeletePitResponse> listener = new ActionListener<DeletePitResponse>() {
+                @Override
+                public void onResponse(DeletePitResponse deletePitResponse) {
+                    assertEquals(RestStatus.OK, deletePitResponse.status());
+                    assertEquals(0, deletePitResponse.getDeletePitResults().size());
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    fail("Should not receive Exception");
+                }
+            };
+            action.execute(task, deletePITRequest, listener);
+        }
+    }
+
     public void testDeletePitWhenNodeIsDown() throws InterruptedException, ExecutionException {
         List<DiscoveryNode> deleteNodesInvoked = new CopyOnWriteArrayList<>();
         ActionFilters actionFilters = mock(ActionFilters.class);
@@ -279,7 +322,7 @@ public class TransportDeletePitActionTests extends OpenSearchTestCase {
                     Settings.EMPTY,
                     Version.CURRENT,
                     threadPool,
-                    null
+                    NoopTracer.INSTANCE
                 )
             ) {
                 transportService.start();
@@ -342,7 +385,7 @@ public class TransportDeletePitActionTests extends OpenSearchTestCase {
                     Settings.EMPTY,
                     Version.CURRENT,
                     threadPool,
-                    null
+                    NoopTracer.INSTANCE
                 )
             ) {
                 transportService.start();
@@ -400,7 +443,7 @@ public class TransportDeletePitActionTests extends OpenSearchTestCase {
                     Settings.EMPTY,
                     Version.CURRENT,
                     threadPool,
-                    null
+                    NoopTracer.INSTANCE
                 )
             ) {
                 transportService.start();
@@ -465,7 +508,7 @@ public class TransportDeletePitActionTests extends OpenSearchTestCase {
                     Settings.EMPTY,
                     Version.CURRENT,
                     threadPool,
-                    null
+                    NoopTracer.INSTANCE
                 )
             ) {
                 transportService.start();
@@ -542,7 +585,7 @@ public class TransportDeletePitActionTests extends OpenSearchTestCase {
                     Settings.EMPTY,
                     Version.CURRENT,
                     threadPool,
-                    null
+                    NoopTracer.INSTANCE
                 )
             ) {
                 transportService.start();
@@ -615,7 +658,7 @@ public class TransportDeletePitActionTests extends OpenSearchTestCase {
                     Settings.EMPTY,
                     Version.CURRENT,
                     threadPool,
-                    null
+                    NoopTracer.INSTANCE
                 )
             ) {
                 transportService.start();

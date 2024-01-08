@@ -32,8 +32,8 @@
 
 package org.opensearch.action.support.broadcast;
 
-import org.opensearch.action.ActionType;
 import org.opensearch.action.ActionRequestBuilder;
+import org.opensearch.action.ActionType;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.client.OpenSearchClient;
 

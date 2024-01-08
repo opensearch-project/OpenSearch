@@ -35,11 +35,11 @@ package org.opensearch.common.lucene.search.function;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.Scorable;
+import org.opensearch.Version;
+import org.opensearch.common.Nullable;
 import org.opensearch.script.ExplainableScoreScript;
 import org.opensearch.script.ScoreScript;
 import org.opensearch.script.Script;
-import org.opensearch.Version;
-import org.opensearch.common.Nullable;
 
 import java.io.IOException;
 import java.util.Objects;

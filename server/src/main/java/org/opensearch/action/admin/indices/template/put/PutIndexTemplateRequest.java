@@ -41,10 +41,7 @@ import org.opensearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.action.support.clustermanager.ClusterManagerNodeRequest;
 import org.opensearch.common.Nullable;
-import org.opensearch.core.common.bytes.BytesArray;
-import org.opensearch.core.common.bytes.BytesReference;
-import org.opensearch.core.common.io.stream.StreamInput;
-import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
@@ -53,6 +50,10 @@ import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.common.xcontent.support.XContentMapValues;
+import org.opensearch.core.common.bytes.BytesArray;
+import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.xcontent.DeprecationHandler;
 import org.opensearch.core.xcontent.MediaType;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
@@ -78,8 +79,9 @@ import static org.opensearch.common.settings.Settings.writeSettingsToStream;
 /**
  * A request to create an index template.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class PutIndexTemplateRequest extends ClusterManagerNodeRequest<PutIndexTemplateRequest>
     implements
         IndicesRequest,
@@ -225,8 +227,8 @@ public class PutIndexTemplateRequest extends ClusterManagerNodeRequest<PutIndexT
     /**
      * The settings to create the index template with (either json/yaml format).
      */
-    public PutIndexTemplateRequest settings(String source, XContentType xContentType) {
-        this.settings = Settings.builder().loadFromSource(source, xContentType).build();
+    public PutIndexTemplateRequest settings(String source, MediaType mediaType) {
+        this.settings = Settings.builder().loadFromSource(source, mediaType).build();
         return this;
     }
 
@@ -397,15 +399,15 @@ public class PutIndexTemplateRequest extends ClusterManagerNodeRequest<PutIndexT
     /**
      * The template source definition.
      */
-    public PutIndexTemplateRequest source(byte[] source, XContentType xContentType) {
-        return source(source, 0, source.length, xContentType);
+    public PutIndexTemplateRequest source(byte[] source, MediaType mediaType) {
+        return source(source, 0, source.length, mediaType);
     }
 
     /**
      * The template source definition.
      */
-    public PutIndexTemplateRequest source(byte[] source, int offset, int length, XContentType xContentType) {
-        return source(new BytesArray(source, offset, length), xContentType);
+    public PutIndexTemplateRequest source(byte[] source, int offset, int length, MediaType mediaType) {
+        return source(new BytesArray(source, offset, length), mediaType);
     }
 
     /**

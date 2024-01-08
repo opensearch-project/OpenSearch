@@ -32,14 +32,14 @@
 
 package org.opensearch.painless;
 
-import org.junit.AfterClass;
-import org.junit.BeforeClass;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.painless.spi.Allowlist;
 import org.opensearch.script.ScriptContext;
 import org.opensearch.script.ScriptException;
 import org.opensearch.script.ScriptFactory;
 import org.opensearch.script.TemplateScript;
+import org.junit.AfterClass;
+import org.junit.BeforeClass;
 
 import java.util.Arrays;
 import java.util.Collections;

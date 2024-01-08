@@ -32,7 +32,6 @@
 
 package org.opensearch.packaging.test;
 
-import junit.framework.TestCase;
 import org.opensearch.packaging.util.FileUtils;
 import org.opensearch.packaging.util.Platforms;
 import org.opensearch.packaging.util.ServerUtils;
@@ -46,13 +45,15 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
 
-import static com.carrotsearch.randomizedtesting.RandomizedTest.assumeTrue;
+import junit.framework.TestCase;
+
 import static org.opensearch.packaging.util.Archives.installArchive;
 import static org.opensearch.packaging.util.Archives.verifyArchiveInstallation;
 import static org.opensearch.packaging.util.FileUtils.append;
 import static org.opensearch.packaging.util.FileUtils.mv;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
+import static com.carrotsearch.randomizedtesting.RandomizedTest.assumeTrue;
 
 public class WindowsServiceTests extends PackagingTestCase {
 

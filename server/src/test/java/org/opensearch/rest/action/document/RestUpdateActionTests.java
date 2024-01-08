@@ -35,7 +35,7 @@ package org.opensearch.rest.action.document;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.core.common.bytes.BytesArray;
-import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.index.VersionType;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.test.rest.FakeRestRequest;
@@ -72,7 +72,7 @@ public class RestUpdateActionTests extends RestActionTestCase {
         FakeRestRequest updateRequest = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.POST)
             .withPath("test/_update/1")
             .withParams(params)
-            .withContent(new BytesArray(content), XContentType.JSON)
+            .withContent(new BytesArray(content), MediaTypeRegistry.JSON)
             .build();
         ActionRequestValidationException e = expectThrows(
             ActionRequestValidationException.class,

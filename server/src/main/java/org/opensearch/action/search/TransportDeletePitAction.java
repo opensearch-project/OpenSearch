@@ -8,10 +8,10 @@
 
 package org.opensearch.action.search;
 
-import org.opensearch.action.ActionListener;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.HandledTransportAction;
 import org.opensearch.common.inject.Inject;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.tasks.Task;
 import org.opensearch.transport.TransportService;
@@ -76,7 +76,7 @@ public class TransportDeletePitAction extends HandledTransportAction<DeletePitRe
 
     /**
      * Delete all active PIT reader contexts leveraging list all PITs
-     *
+     * <p>
      * For Cross cluster PITs :
      * - mixed cluster PITs ( PIT comprising local and remote ) will be fully deleted. Since there will atleast be
      * one reader context with PIT ID present in local cluster, 'Get all PITs' will retrieve the PIT ID with which

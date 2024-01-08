@@ -140,15 +140,14 @@ public class StringTermsTests extends InternalTermsTestCase {
                 name,
                 stringTerms.reduceOrder,
                 order,
-                requiredSize,
-                minDocCount,
                 metadata,
                 format,
                 shardSize,
                 showTermDocCountError,
                 otherDocCount,
                 buckets,
-                docCountError
+                docCountError,
+                new TermsAggregator.BucketCountThresholds(minDocCount, 0, requiredSize, shardSize)
             );
         } else {
             String name = instance.getName();
@@ -177,7 +176,7 @@ public class StringTermsTests extends InternalTermsTestCase {
                 default:
                     throw new AssertionError("Illegal randomisation branch");
             }
-            return new UnmappedTerms(name, order, requiredSize, minDocCount, metadata);
+            return new UnmappedTerms(name, order, new TermsAggregator.BucketCountThresholds(minDocCount, 0, requiredSize, 0), metadata);
         }
     }
 
@@ -206,6 +205,12 @@ public class StringTermsTests extends InternalTermsTestCase {
         long minDocCount = 1;
         int requiredSize = 3;
         int shardSize = requiredSize + 2;
+        TermsAggregator.BucketCountThresholds bucketCountThresholds = new TermsAggregator.BucketCountThresholds(
+            minDocCount,
+            0,
+            requiredSize,
+            shardSize
+        );
         DocValueFormat format = DocValueFormat.RAW;
         long otherDocCount = 0;
         List<StringTerms.Bucket> buckets = new ArrayList<>();
@@ -226,15 +231,14 @@ public class StringTermsTests extends InternalTermsTestCase {
             name,
             reduceOrder,
             order,
-            requiredSize,
-            minDocCount,
             metadata,
             format,
             shardSize,
             showTermDocCountError,
             otherDocCount,
             buckets,
-            docCountError
+            docCountError,
+            bucketCountThresholds
         );
     }
 }

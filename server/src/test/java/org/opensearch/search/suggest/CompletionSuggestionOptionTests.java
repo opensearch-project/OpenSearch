@@ -32,11 +32,12 @@
 
 package org.opensearch.search.suggest;
 
+import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.text.Text;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.search.SearchHit;
 import org.opensearch.search.SearchHitTests;
 import org.opensearch.search.suggest.completion.CompletionSuggestion;
@@ -51,7 +52,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Predicate;
 
-import static org.opensearch.common.xcontent.XContentHelper.toXContent;
+import static org.opensearch.core.xcontent.XContentHelper.toXContent;
 import static org.opensearch.test.XContentTestUtils.insertRandomFields;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertToXContentEquivalent;
 
@@ -126,7 +127,7 @@ public class CompletionSuggestionOptionTests extends OpenSearchTestCase {
     public void testToXContent() throws IOException {
         Map<String, Set<String>> contexts = Collections.singletonMap("key", Collections.singleton("value"));
         CompletionSuggestion.Entry.Option option = new CompletionSuggestion.Entry.Option(1, new Text("someText"), 1.3f, contexts);
-        BytesReference xContent = toXContent(option, XContentType.JSON, randomBoolean());
+        BytesReference xContent = toXContent(option, MediaTypeRegistry.JSON, randomBoolean());
         assertEquals("{\"text\":\"someText\",\"score\":1.3,\"contexts\":{\"key\":[\"value\"]}}", xContent.utf8ToString());
     }
 }

@@ -38,11 +38,11 @@ import org.apache.lucene.util.SloppyMath;
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.common.unit.DistanceUnit;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
+import org.opensearch.common.xcontent.support.XContentMapValues;
+import org.opensearch.core.xcontent.MapXContentParser;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.core.xcontent.XContentSubParser;
-import org.opensearch.core.xcontent.MapXContentParser;
-import org.opensearch.common.xcontent.support.XContentMapValues;
 import org.opensearch.geometry.ShapeType;
 import org.opensearch.index.fielddata.FieldData;
 import org.opensearch.index.fielddata.GeoPointValues;
@@ -665,7 +665,7 @@ public class GeoUtils {
 
     /**
      * Parse a precision that can be expressed as an integer or a distance measure like "1km", "10m".
-     *
+     * <p>
      * The precision is expressed as a number between 1 and 12 and indicates the length of geohash
      * used to represent geo points.
      *
@@ -696,7 +696,7 @@ public class GeoUtils {
 
     /**
      * Checks that the precision is within range supported by opensearch - between 1 and 12
-     *
+     * <p>
      * Returns the precision value if it is in the range and throws an IllegalArgumentException if it
      * is outside the range.
      */

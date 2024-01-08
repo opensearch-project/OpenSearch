@@ -33,11 +33,11 @@
 package org.opensearch.common.xcontent;
 
 import org.opensearch.OpenSearchParseException;
+import org.opensearch.common.collect.Tuple;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.bytes.BytesReference;
-import org.opensearch.common.collect.Tuple;
-import org.opensearch.common.compress.Compressor;
-import org.opensearch.common.compress.CompressorFactory;
+import org.opensearch.core.compress.Compressor;
+import org.opensearch.core.compress.CompressorRegistry;
 import org.opensearch.core.xcontent.DeprecationHandler;
 import org.opensearch.core.xcontent.MediaType;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
@@ -77,7 +77,7 @@ public class XContentHelper {
         DeprecationHandler deprecationHandler,
         BytesReference bytes
     ) throws IOException {
-        Compressor compressor = CompressorFactory.compressor(bytes);
+        Compressor compressor = CompressorRegistry.compressor(bytes);
         if (compressor != null) {
             InputStream compressedInput = null;
             try {
@@ -106,7 +106,7 @@ public class XContentHelper {
         MediaType mediaType
     ) throws IOException {
         Objects.requireNonNull(mediaType);
-        Compressor compressor = CompressorFactory.compressor(bytes);
+        Compressor compressor = CompressorRegistry.compressor(bytes);
         if (compressor != null) {
             InputStream compressedInput = null;
             try {
@@ -158,15 +158,12 @@ public class XContentHelper {
     /**
      * Converts the given bytes into a map that is optionally ordered. The provided {@link XContentType} must be non-null.
      */
-    public static Tuple<? extends MediaType, Map<String, Object>> convertToMap(
-        BytesReference bytes,
-        boolean ordered,
-        MediaType xContentType
-    ) throws OpenSearchParseException {
+    public static Tuple<? extends MediaType, Map<String, Object>> convertToMap(BytesReference bytes, boolean ordered, MediaType mediaType)
+        throws OpenSearchParseException {
         try {
             final MediaType contentType;
             InputStream input;
-            Compressor compressor = CompressorFactory.compressor(bytes);
+            Compressor compressor = CompressorRegistry.compressor(bytes);
             if (compressor != null) {
                 InputStream compressedStreamInput = compressor.threadLocalInputStream(bytes.streamInput());
                 if (compressedStreamInput.markSupported() == false) {
@@ -178,13 +175,13 @@ public class XContentHelper {
                 final byte[] raw = arr.array();
                 final int offset = arr.offset();
                 final int length = arr.length();
-                contentType = xContentType != null ? xContentType : MediaTypeRegistry.mediaTypeFromBytes(raw, offset, length);
+                contentType = mediaType != null ? mediaType : MediaTypeRegistry.mediaTypeFromBytes(raw, offset, length);
                 return new Tuple<>(Objects.requireNonNull(contentType), convertToMap(contentType.xContent(), raw, offset, length, ordered));
             } else {
                 input = bytes.streamInput();
             }
             try (InputStream stream = input) {
-                contentType = xContentType != null ? xContentType : MediaTypeRegistry.xContentType(stream);
+                contentType = mediaType != null ? mediaType : MediaTypeRegistry.xContentType(stream);
                 return new Tuple<>(Objects.requireNonNull(contentType), convertToMap(contentType.xContent(), stream, ordered));
             }
         } catch (IOException e) {
@@ -262,8 +259,8 @@ public class XContentHelper {
         return convertToJson(bytes, reformatJson, prettyPrint, MediaTypeRegistry.xContent(bytes.toBytesRef().bytes));
     }
 
-    public static String convertToJson(BytesReference bytes, boolean reformatJson, MediaType xContentType) throws IOException {
-        return convertToJson(bytes, reformatJson, false, xContentType);
+    public static String convertToJson(BytesReference bytes, boolean reformatJson, MediaType mediaType) throws IOException {
+        return convertToJson(bytes, reformatJson, false, mediaType);
     }
 
     /**
@@ -276,7 +273,7 @@ public class XContentHelper {
      * @throws IOException if the reformatting fails, e.g. because the JSON is not well-formed
      */
     public static String stripWhitespace(String json) throws IOException {
-        return convertToJson(new BytesArray(json), true, XContentType.JSON);
+        return convertToJson(new BytesArray(json), true, MediaTypeRegistry.JSON);
     }
 
     /**
@@ -296,7 +293,7 @@ public class XContentHelper {
     public static String convertToJson(BytesReference bytes, boolean reformatJson, boolean prettyPrint, MediaType mediaType)
         throws IOException {
         Objects.requireNonNull(mediaType);
-        if (mediaType == XContentType.JSON && !reformatJson) {
+        if (mediaType == MediaTypeRegistry.JSON && !reformatJson) {
             return bytes.utf8ToString();
         }
 
@@ -454,7 +451,7 @@ public class XContentHelper {
      */
     @Deprecated
     public static void writeRawField(String field, BytesReference source, XContentBuilder builder, Params params) throws IOException {
-        Compressor compressor = CompressorFactory.compressor(source);
+        Compressor compressor = CompressorRegistry.compressor(source);
         if (compressor != null) {
             try (InputStream compressedStreamInput = compressor.threadLocalInputStream(source.streamInput())) {
                 builder.rawField(field, compressedStreamInput);
@@ -473,7 +470,7 @@ public class XContentHelper {
     public static void writeRawField(String field, BytesReference source, XContentType xContentType, XContentBuilder builder, Params params)
         throws IOException {
         Objects.requireNonNull(xContentType);
-        Compressor compressor = CompressorFactory.compressor(source);
+        Compressor compressor = CompressorRegistry.compressor(source);
         if (compressor != null) {
             try (InputStream compressedStreamInput = compressor.threadLocalInputStream(source.streamInput())) {
                 builder.rawField(field, compressedStreamInput, xContentType);
@@ -492,55 +489,12 @@ public class XContentHelper {
      */
     @Deprecated
     public static BytesReference toXContent(ToXContent toXContent, XContentType xContentType, boolean humanReadable) throws IOException {
-        return toXContent(toXContent, xContentType, ToXContent.EMPTY_PARAMS, humanReadable);
-    }
-
-    /**
-     * Returns the bytes that represent the XContent output of the provided {@link ToXContent} object, using the provided
-     * {@link XContentType}. Wraps the output into a new anonymous object according to the value returned
-     * by the {@link ToXContent#isFragment()} method returns.
-     *
-     * @deprecated use {@link #toXContent(ToXContent, MediaType, Params, boolean)} instead
-     */
-    @Deprecated
-    public static BytesReference toXContent(ToXContent toXContent, XContentType xContentType, Params params, boolean humanReadable)
-        throws IOException {
-        try (XContentBuilder builder = XContentBuilder.builder(xContentType.xContent())) {
-            builder.humanReadable(humanReadable);
-            if (toXContent.isFragment()) {
-                builder.startObject();
-            }
-            toXContent.toXContent(builder, params);
-            if (toXContent.isFragment()) {
-                builder.endObject();
-            }
-            return BytesReference.bytes(builder);
-        }
-    }
-
-    /**
-     * Returns the bytes that represent the XContent output of the provided {@link ToXContent} object, using the provided
-     * {@link XContentType}. Wraps the output into a new anonymous object according to the value returned
-     * by the {@link ToXContent#isFragment()} method returns.
-     */
-    public static BytesReference toXContent(ToXContent toXContent, MediaType mediaType, Params params, boolean humanReadable)
-        throws IOException {
-        try (XContentBuilder builder = XContentBuilder.builder(mediaType.xContent())) {
-            builder.humanReadable(humanReadable);
-            if (toXContent.isFragment()) {
-                builder.startObject();
-            }
-            toXContent.toXContent(builder, params);
-            if (toXContent.isFragment()) {
-                builder.endObject();
-            }
-            return BytesReference.bytes(builder);
-        }
+        return org.opensearch.core.xcontent.XContentHelper.toXContent(toXContent, xContentType, ToXContent.EMPTY_PARAMS, humanReadable);
     }
 
     /**
      * Returns the contents of an object as an unparsed BytesReference
-     *
+     * <p>
      * This is useful for things like mappings where we're copying bytes around but don't
      * actually need to parse their contents, and so avoids building large maps of maps
      * unnecessarily

@@ -32,11 +32,6 @@
 
 package org.opensearch.repositories.azure;
 
-import io.netty.channel.EventLoopGroup;
-import io.netty.channel.nio.NioEventLoopGroup;
-import io.netty.util.concurrent.Future;
-import reactor.core.publisher.Mono;
-
 import com.azure.core.http.HttpPipelineCallContext;
 import com.azure.core.http.HttpPipelineNextPolicy;
 import com.azure.core.http.HttpPipelinePosition;
@@ -56,14 +51,13 @@ import com.azure.storage.common.implementation.connectionstring.StorageConnectio
 import com.azure.storage.common.implementation.connectionstring.StorageEndpoint;
 import com.azure.storage.common.policy.RequestRetryOptions;
 import com.azure.storage.common.policy.RetryPolicyType;
-
 import org.opensearch.common.collect.MapBuilder;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsException;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.core.common.unit.ByteSizeValue;
-import org.opensearch.common.unit.TimeValue;
 
 import java.net.Authenticator;
 import java.net.PasswordAuthentication;
@@ -78,6 +72,11 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
 import java.util.function.Supplier;
+
+import io.netty.channel.EventLoopGroup;
+import io.netty.channel.nio.NioEventLoopGroup;
+import io.netty.util.concurrent.Future;
+import reactor.core.publisher.Mono;
 
 import static java.util.Collections.emptyMap;
 
@@ -213,8 +212,8 @@ public class AzureStorageService implements AutoCloseable {
 
     /**
      * The location mode is not there in v12 APIs anymore but it is possible to mimic its semantics using
-     * retry options and combination of primary / secondary endpoints. Refer to migration guide for mode details:
-     * https://github.com/Azure/azure-sdk-for-java/blob/main/sdk/storage/azure-storage-blob/migrationGuides/V8_V12.md#miscellaneous
+     * retry options and combination of primary / secondary endpoints. Refer to
+     * <a href="https://github.com/Azure/azure-sdk-for-java/blob/main/sdk/storage/azure-storage-blob/migrationGuides/V8_V12.md#miscellaneous">migration guide</a> for mode details:
      */
     private BlobServiceClientBuilder applyLocationMode(final BlobServiceClientBuilder builder, final AzureStorageSettings settings) {
         final StorageConnectionString storageConnectionString = StorageConnectionString.create(settings.getConnectString(), logger);
@@ -336,8 +335,8 @@ public class AzureStorageService implements AutoCloseable {
     }
 
     /**
-     * Implements HTTP pipeline policy to collect statistics on API calls. See please:
-     * https://github.com/Azure/azure-sdk-for-java/blob/main/sdk/storage/azure-storage-blob/migrationGuides/V8_V12.md#miscellaneous
+     * Implements HTTP pipeline policy to collect statistics on API calls. See :
+     * <a href="https://github.com/Azure/azure-sdk-for-java/blob/main/sdk/storage/azure-storage-blob/migrationGuides/V8_V12.md#miscellaneous">migration guide</a>
      */
     private static class HttpStatsPolicy implements HttpPipelinePolicy {
         private final BiConsumer<HttpRequest, HttpResponse> statsCollector;

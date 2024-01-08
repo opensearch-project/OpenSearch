@@ -10,7 +10,6 @@ package org.opensearch.remotestore;
 
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.indices.recovery.IndexPrimaryRelocationIT;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.test.OpenSearchIntegTestCase;
@@ -18,32 +17,22 @@ import org.opensearch.test.OpenSearchIntegTestCase;
 import java.nio.file.Path;
 
 import static org.opensearch.remotestore.RemoteStoreBaseIntegTestCase.remoteStoreClusterSettings;
-import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 
-@OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST)
+@OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class RemoteIndexPrimaryRelocationIT extends IndexPrimaryRelocationIT {
 
     protected static final String REPOSITORY_NAME = "test-remote-store-repo";
 
     protected Path absolutePath;
 
-    public void setup() {
-        absolutePath = randomRepoPath().toAbsolutePath();
-        assertAcked(
-            clusterAdmin().preparePutRepository(REPOSITORY_NAME).setType("fs").setSettings(Settings.builder().put("location", absolutePath))
-        );
-    }
-
     protected Settings nodeSettings(int nodeOrdinal) {
+        if (absolutePath == null) {
+            absolutePath = randomRepoPath().toAbsolutePath();
+        }
         return Settings.builder()
             .put(super.nodeSettings(nodeOrdinal))
-            .put(remoteStoreClusterSettings(REPOSITORY_NAME, REPOSITORY_NAME, false))
+            .put(remoteStoreClusterSettings(REPOSITORY_NAME, absolutePath))
             .build();
-    }
-
-    @Override
-    protected boolean addMockInternalEngine() {
-        return false;
     }
 
     public Settings indexSettings() {
@@ -55,12 +44,8 @@ public class RemoteIndexPrimaryRelocationIT extends IndexPrimaryRelocationIT {
             .build();
     }
 
-    @Override
-    protected Settings featureFlagSettings() {
-        return Settings.builder()
-            .put(super.featureFlagSettings())
-            .put(FeatureFlags.REMOTE_STORE, "true")
-            .put(FeatureFlags.SEGMENT_REPLICATION_EXPERIMENTAL, "true")
-            .build();
+    public void testPrimaryRelocationWhileIndexing() throws Exception {
+        internalCluster().startClusterManagerOnlyNode();
+        super.testPrimaryRelocationWhileIndexing();
     }
 }

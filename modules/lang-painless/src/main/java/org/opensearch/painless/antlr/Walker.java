@@ -41,6 +41,7 @@ import org.antlr.v4.runtime.RecognitionException;
 import org.antlr.v4.runtime.Recognizer;
 import org.antlr.v4.runtime.atn.PredictionMode;
 import org.antlr.v4.runtime.tree.TerminalNode;
+
 import org.opensearch.painless.CompilerSettings;
 import org.opensearch.painless.Location;
 import org.opensearch.painless.Operation;

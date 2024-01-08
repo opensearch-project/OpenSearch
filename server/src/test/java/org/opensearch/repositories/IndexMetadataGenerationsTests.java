@@ -8,9 +8,9 @@
 
 package org.opensearch.repositories;
 
-import org.junit.Before;
 import org.opensearch.snapshots.SnapshotId;
 import org.opensearch.test.OpenSearchTestCase;
+import org.junit.Before;
 
 import java.util.Collections;
 import java.util.HashMap;

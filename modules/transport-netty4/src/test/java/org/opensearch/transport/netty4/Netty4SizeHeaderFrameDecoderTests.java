@@ -33,13 +33,14 @@
 package org.opensearch.transport.netty4;
 
 import org.opensearch.Version;
-import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.network.NetworkService;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.core.common.transport.TransportAddress;
 import org.opensearch.common.util.MockPageCacheRecycler;
 import org.opensearch.common.util.PageCacheRecycler;
+import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.core.common.transport.TransportAddress;
 import org.opensearch.core.indices.breaker.NoneCircuitBreakerService;
+import org.opensearch.telemetry.tracing.noop.NoopTracer;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.SharedGroupFactory;
@@ -86,7 +87,8 @@ public class Netty4SizeHeaderFrameDecoderTests extends OpenSearchTestCase {
             recycler,
             new NamedWriteableRegistry(Collections.emptyList()),
             new NoneCircuitBreakerService(),
-            new SharedGroupFactory(settings)
+            new SharedGroupFactory(settings),
+            NoopTracer.INSTANCE
         );
         nettyTransport.start();
 

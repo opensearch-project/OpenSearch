@@ -34,16 +34,15 @@ package org.opensearch.transport.nio;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-
 import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
-import org.opensearch.action.ActionListener;
 import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.cluster.node.DiscoveryNode;
-import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.network.NetworkService;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.PageCacheRecycler;
+import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.indices.breaker.CircuitBreakerService;
 import org.opensearch.nio.BytesChannelContext;
 import org.opensearch.nio.ChannelFactory;
@@ -53,6 +52,7 @@ import org.opensearch.nio.NioGroup;
 import org.opensearch.nio.NioSelector;
 import org.opensearch.nio.NioSocketChannel;
 import org.opensearch.nio.ServerChannelContext;
+import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TcpTransport;
 import org.opensearch.transport.TransportSettings;
@@ -85,9 +85,10 @@ public class NioTransport extends TcpTransport {
         PageCacheRecycler pageCacheRecycler,
         NamedWriteableRegistry namedWriteableRegistry,
         CircuitBreakerService circuitBreakerService,
-        NioGroupFactory groupFactory
+        NioGroupFactory groupFactory,
+        Tracer tracer
     ) {
-        super(settings, version, threadPool, pageCacheRecycler, circuitBreakerService, namedWriteableRegistry, networkService);
+        super(settings, version, threadPool, pageCacheRecycler, circuitBreakerService, namedWriteableRegistry, networkService, tracer);
         this.pageAllocator = new PageAllocator(pageCacheRecycler);
         this.groupFactory = groupFactory;
     }

@@ -32,12 +32,13 @@
 
 package org.opensearch.index.seqno;
 
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.core.xcontent.ToXContentFragment;
-import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContent;
+import org.opensearch.core.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -45,8 +46,9 @@ import java.util.Objects;
 /**
  * Represents retention lease stats.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public final class RetentionLeaseStats implements ToXContentFragment, Writeable {
 
     private final RetentionLeases retentionLeases;

@@ -32,6 +32,8 @@
 
 package org.opensearch.common.lifecycle;
 
+import org.opensearch.common.annotation.PublicApi;
+
 /**
  * Lifecycle state. Allows the following transitions:
  * <ul>
@@ -73,15 +75,17 @@ package org.opensearch.common.lifecycle;
  * }
  * </pre>
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class Lifecycle {
 
     /**
      * State in the lifecycle
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public enum State {
         INITIALIZED,
         STOPPED,

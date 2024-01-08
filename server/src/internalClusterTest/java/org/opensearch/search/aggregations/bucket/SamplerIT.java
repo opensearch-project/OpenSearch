@@ -32,24 +32,31 @@
 
 package org.opensearch.search.aggregations.bucket;
 
-import org.opensearch.action.admin.indices.refresh.RefreshRequest;
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.action.search.SearchType;
+import org.opensearch.action.support.WriteRequest;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.index.query.TermQueryBuilder;
+import org.opensearch.search.aggregations.BucketOrder;
 import org.opensearch.search.aggregations.bucket.sampler.Sampler;
-import org.opensearch.search.aggregations.bucket.sampler.SamplerAggregator;
 import org.opensearch.search.aggregations.bucket.sampler.SamplerAggregationBuilder;
+import org.opensearch.search.aggregations.bucket.sampler.SamplerAggregator;
 import org.opensearch.search.aggregations.bucket.terms.Terms;
 import org.opensearch.search.aggregations.bucket.terms.Terms.Bucket;
 import org.opensearch.search.aggregations.metrics.Max;
-import org.opensearch.search.aggregations.BucketOrder;
 import org.opensearch.test.OpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedOpenSearchIntegTestCase;
 
+import java.util.Arrays;
+import java.util.Collection;
 import java.util.List;
 
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
+import static org.opensearch.search.SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING;
 import static org.opensearch.search.aggregations.AggregationBuilders.max;
 import static org.opensearch.search.aggregations.AggregationBuilders.sampler;
 import static org.opensearch.search.aggregations.AggregationBuilders.terms;
@@ -64,12 +71,29 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
  * Tests the Sampler aggregation
  */
 @OpenSearchIntegTestCase.SuiteScopeTestCase
-public class SamplerIT extends OpenSearchIntegTestCase {
+public class SamplerIT extends ParameterizedOpenSearchIntegTestCase {
 
     public static final int NUM_SHARDS = 2;
 
     public String randomExecutionHint() {
         return randomBoolean() ? null : randomFrom(SamplerAggregator.ExecutionMode.values()).toString();
+    }
+
+    public SamplerIT(Settings dynamicSettings) {
+        super(dynamicSettings);
+    }
+
+    @ParametersFactory
+    public static Collection<Object[]> parameters() {
+        return Arrays.asList(
+            new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), false).build() },
+            new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), true).build() }
+        );
+    }
+
+    @Override
+    protected Settings featureFlagSettings() {
+        return Settings.builder().put(super.featureFlagSettings()).put(FeatureFlags.CONCURRENT_SEGMENT_SEARCH, "true").build();
     }
 
     @Override
@@ -108,13 +132,14 @@ public class SamplerIT extends OpenSearchIntegTestCase {
             client().prepareIndex("test")
                 .setId("" + i)
                 .setSource("author", parts[5], "name", parts[2], "genre", parts[8], "price", Float.parseFloat(parts[3]))
+                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
                 .get();
             client().prepareIndex("idx_unmapped_author")
                 .setId("" + i)
                 .setSource("name", parts[2], "genre", parts[8], "price", Float.parseFloat(parts[3]))
+                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
                 .get();
         }
-        client().admin().indices().refresh(new RefreshRequest("test")).get();
     }
 
     public void testIssue10719() throws Exception {
@@ -169,6 +194,23 @@ public class SamplerIT extends OpenSearchIntegTestCase {
             maxBooksPerAuthor = Math.max(testBucket.getDocCount(), maxBooksPerAuthor);
         }
         assertThat(maxBooksPerAuthor, equalTo(3L));
+    }
+
+    public void testSimpleSamplerShardSize() throws Exception {
+        final int SHARD_SIZE = randomIntBetween(1, 3);
+        SamplerAggregationBuilder sampleAgg = sampler("sample").shardSize(SHARD_SIZE);
+        sampleAgg.subAggregation(terms("authors").field("author"));
+        SearchResponse response = client().prepareSearch("test")
+            .setSearchType(SearchType.QUERY_THEN_FETCH)
+            .setQuery(new TermQueryBuilder("genre", "fantasy"))
+            .setFrom(0)
+            .setSize(60)
+            .addAggregation(sampleAgg)
+            .get();
+        assertSearchResponse(response);
+        Sampler sample = response.getAggregations().get("sample");
+        Terms authors = sample.getAggregations().get("authors");
+        assertEquals(SHARD_SIZE * NUM_SHARDS, sample.getDocCount());
     }
 
     public void testUnmappedChildAggNoDiversity() throws Exception {

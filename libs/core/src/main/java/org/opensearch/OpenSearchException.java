@@ -34,20 +34,20 @@ package org.opensearch;
 import org.opensearch.common.CheckedFunction;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.collect.Tuple;
+import org.opensearch.core.ParseField;
+import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
-import org.opensearch.core.ParseField;
-import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.logging.LoggerMessageFormat;
+import org.opensearch.core.index.Index;
+import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.core.rest.RestStatus;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParseException;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.core.index.Index;
-import org.opensearch.core.index.shard.ShardId;
-import org.opensearch.core.rest.RestStatus;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -61,11 +61,10 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 import static java.util.Collections.emptyMap;
+import static java.util.Collections.singletonMap;
 import static org.opensearch.OpenSearchException.OpenSearchExceptionHandleRegistry.registerExceptionHandle;
 import static org.opensearch.core.xcontent.XContentParserUtils.ensureExpectedToken;
 import static org.opensearch.core.xcontent.XContentParserUtils.ensureFieldName;
-
-import static java.util.Collections.singletonMap;
 
 /**
  * A core library base class for all opensearch exceptions.
@@ -150,6 +149,14 @@ public class OpenSearchException extends RuntimeException implements Writeable, 
                 UNKNOWN_VERSION_ADDED
             )
         );
+        registerExceptionHandle(
+            new OpenSearchExceptionHandle(
+                org.opensearch.core.tasks.TaskCancelledException.class,
+                org.opensearch.core.tasks.TaskCancelledException::new,
+                146,
+                UNKNOWN_VERSION_ADDED
+            )
+        );
     }
 
     /**
@@ -161,7 +168,7 @@ public class OpenSearchException extends RuntimeException implements Writeable, 
 
     /**
      * Construct a <code>OpenSearchException</code> with the specified detail message.
-     *
+     * <p>
      * The message can be parameterized using <code>{}</code> as placeholders for the given
      * arguments
      *
@@ -175,7 +182,7 @@ public class OpenSearchException extends RuntimeException implements Writeable, 
     /**
      * Construct a <code>OpenSearchException</code> with the specified detail message
      * and nested exception.
-     *
+     * <p>
      * The message can be parameterized using <code>{}</code> as placeholders for the given
      * arguments
      *
@@ -580,7 +587,7 @@ public class OpenSearchException extends RuntimeException implements Writeable, 
      * Static toXContent helper method that renders {@link OpenSearchException} or {@link Throwable} instances
      * as XContent, delegating the rendering to {@link OpenSearchException#toXContent(XContentBuilder, ToXContent.Params)}
      * or {@link #innerToXContent(XContentBuilder, ToXContent.Params, Throwable, String, String, Map, Map, Throwable)}.
-     *
+     * <p>
      * This method is usually used when the {@link Throwable} is rendered as a part of another XContent object, and its result can
      * be parsed back using the {@code OpenSearchException.fromXContent(XContentParser)} method.
      */
@@ -599,7 +606,7 @@ public class OpenSearchException extends RuntimeException implements Writeable, 
      * depends on the value of the "detailed" parameter: when it's false only a simple message based on the type and message of the
      * exception is rendered. When it's true all detail are provided including guesses root causes, cause and potentially stack
      * trace.
-     *
+     * <p>
      * This method is usually used when the {@link Exception} is rendered as a full XContent object, and its output can be parsed
      * by the {@code #OpenSearchException.failureFromXContent(XContentParser)} method.
      */

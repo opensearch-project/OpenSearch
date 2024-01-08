@@ -40,8 +40,8 @@ import org.opensearch.action.search.SearchRequest;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.Booleans;
-import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.common.Strings;
+import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.rest.BaseRestHandler;
@@ -178,6 +178,12 @@ public class RestSearchAction extends BaseRestHandler {
         if (request.hasParam("allow_partial_search_results")) {
             // only set if we have the parameter passed to override the cluster-level default
             searchRequest.allowPartialSearchResults(request.paramAsBoolean("allow_partial_search_results", null));
+        }
+
+        if (request.hasParam("phase_took")) {
+            // only set if we have the parameter passed to override the cluster-level default
+            // else phaseTook = null
+            searchRequest.setPhaseTook(request.paramAsBoolean("phase_took", true));
         }
 
         // do not allow 'query_and_fetch' or 'dfs_query_and_fetch' search types

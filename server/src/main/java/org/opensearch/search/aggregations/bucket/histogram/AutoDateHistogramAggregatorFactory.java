@@ -124,4 +124,9 @@ public final class AutoDateHistogramAggregatorFactory extends ValuesSourceAggreg
             metadata
         );
     }
+
+    @Override
+    protected boolean supportsConcurrentSegmentSearch() {
+        return true;
+    }
 }

@@ -32,6 +32,7 @@
 
 package org.opensearch.index.cache.query;
 
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.index.IndexComponent;
 
 import java.io.Closeable;
@@ -39,8 +40,9 @@ import java.io.Closeable;
 /**
  * Base interface for a query cache
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public interface QueryCache extends IndexComponent, Closeable, org.apache.lucene.search.QueryCache {
 
     void clear(String reason);

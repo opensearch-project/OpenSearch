@@ -37,32 +37,33 @@ import org.opensearch.OpenSearchParseException;
 import org.opensearch.Version;
 import org.opensearch.action.OriginalIndices;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.annotation.PublicApi;
+import org.opensearch.common.document.DocumentField;
+import org.opensearch.common.xcontent.XContentHelper;
+import org.opensearch.core.ParseField;
 import org.opensearch.core.common.ParsingException;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.bytes.BytesReference;
-import org.opensearch.common.compress.CompressorFactory;
-import org.opensearch.common.document.DocumentField;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.core.common.text.Text;
-import org.opensearch.common.xcontent.XContentHelper;
-import org.opensearch.common.xcontent.XContentType;
-import org.opensearch.core.ParseField;
+import org.opensearch.core.compress.CompressorRegistry;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.xcontent.ConstructingObjectParser;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.ObjectParser;
 import org.opensearch.core.xcontent.ObjectParser.ValueType;
+import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.core.xcontent.XContentParser.Token;
-import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.index.mapper.IgnoredFieldMapper;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.SourceFieldMapper;
 import org.opensearch.index.seqno.SequenceNumbers;
-import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.search.fetch.subphase.highlight.HighlightField;
 import org.opensearch.search.lookup.SourceLookup;
 import org.opensearch.transport.RemoteClusterAware;
@@ -82,18 +83,19 @@ import static java.util.Collections.singletonMap;
 import static java.util.Collections.unmodifiableMap;
 import static org.opensearch.common.lucene.Lucene.readExplanation;
 import static org.opensearch.common.lucene.Lucene.writeExplanation;
-import static org.opensearch.core.xcontent.XContentParserUtils.ensureExpectedToken;
-import static org.opensearch.core.xcontent.XContentParserUtils.ensureFieldName;
 import static org.opensearch.core.xcontent.ConstructingObjectParser.constructorArg;
 import static org.opensearch.core.xcontent.ConstructingObjectParser.optionalConstructorArg;
+import static org.opensearch.core.xcontent.XContentParserUtils.ensureExpectedToken;
+import static org.opensearch.core.xcontent.XContentParserUtils.ensureFieldName;
 
 /**
  * A single search hit.
  *
  * @see SearchHits
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public final class SearchHit implements Writeable, ToXContentObject, Iterable<DocumentField> {
 
     private final transient int docId;
@@ -383,7 +385,7 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
         }
 
         try {
-            this.source = CompressorFactory.uncompressIfNeeded(this.source);
+            this.source = CompressorRegistry.uncompressIfNeeded(this.source);
             return this.source;
         } catch (IOException e) {
             throw new OpenSearchParseException("failed to decompress source", e);
@@ -995,8 +997,9 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
     /**
      * Encapsulates the nested identity of a hit.
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public static final class NestedIdentity implements Writeable, ToXContentFragment {
 
         private static final String _NESTED = "_nested";
@@ -1035,7 +1038,7 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
 
         /**
          * Returns the next child nested level if there is any, otherwise <code>null</code> is returned.
-         *
+         * <p>
          * In the case of mappings with multiple levels of nested object fields
          */
         public NestedIdentity getChild() {
@@ -1113,6 +1116,6 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
 
     @Override
     public String toString() {
-        return Strings.toString(XContentType.JSON, this, true, true);
+        return Strings.toString(MediaTypeRegistry.JSON, this, true, true);
     }
 }

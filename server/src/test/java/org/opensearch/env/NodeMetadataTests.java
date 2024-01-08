@@ -33,8 +33,8 @@ package org.opensearch.env;
 
 import org.opensearch.Version;
 import org.opensearch.common.collect.Tuple;
-import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.EqualsHashCodeTestUtils;
+import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.VersionUtils;
 
 import java.nio.file.Path;

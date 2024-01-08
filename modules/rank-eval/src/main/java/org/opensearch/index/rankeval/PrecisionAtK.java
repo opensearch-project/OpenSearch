@@ -40,12 +40,12 @@ import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.search.SearchHit;
 
+import javax.naming.directory.SearchResult;
+
 import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 import java.util.OptionalInt;
-
-import javax.naming.directory.SearchResult;
 
 import static org.opensearch.core.xcontent.ConstructingObjectParser.constructorArg;
 import static org.opensearch.core.xcontent.ConstructingObjectParser.optionalConstructorArg;

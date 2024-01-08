@@ -32,6 +32,8 @@
 
 package org.opensearch.script;
 
+import org.opensearch.common.annotation.PublicApi;
+
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.Map;
@@ -40,8 +42,9 @@ import java.util.Set;
 /**
  * A script language implementation.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public interface ScriptEngine extends Closeable {
 
     /**

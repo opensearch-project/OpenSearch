@@ -32,6 +32,47 @@
 
 package org.opensearch.http.nio;
 
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.opensearch.OpenSearchException;
+import org.opensearch.common.network.NetworkAddress;
+import org.opensearch.common.network.NetworkService;
+import org.opensearch.common.settings.ClusterSettings;
+import org.opensearch.common.settings.Setting;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.util.MockBigArrays;
+import org.opensearch.common.util.MockPageCacheRecycler;
+import org.opensearch.common.util.concurrent.ThreadContext;
+import org.opensearch.core.common.bytes.BytesArray;
+import org.opensearch.core.common.transport.TransportAddress;
+import org.opensearch.core.common.unit.ByteSizeValue;
+import org.opensearch.core.indices.breaker.NoneCircuitBreakerService;
+import org.opensearch.http.BindHttpException;
+import org.opensearch.http.CorsHandler;
+import org.opensearch.http.HttpServerTransport;
+import org.opensearch.http.HttpTransportSettings;
+import org.opensearch.http.NullDispatcher;
+import org.opensearch.nio.NioSocketChannel;
+import org.opensearch.rest.BytesRestResponse;
+import org.opensearch.rest.RestChannel;
+import org.opensearch.rest.RestRequest;
+import org.opensearch.telemetry.tracing.noop.NoopTracer;
+import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.test.rest.FakeRestRequest;
+import org.opensearch.threadpool.TestThreadPool;
+import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.transport.nio.NioGroupFactory;
+import org.junit.After;
+import org.junit.Before;
+
+import java.io.IOException;
+import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
+import java.util.Collections;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
+
 import io.netty.buffer.ByteBufUtil;
 import io.netty.buffer.Unpooled;
 import io.netty.handler.codec.TooLongFrameException;
@@ -44,52 +85,11 @@ import io.netty.handler.codec.http.HttpMethod;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.netty.handler.codec.http.HttpUtil;
 import io.netty.handler.codec.http.HttpVersion;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 
-import org.opensearch.OpenSearchException;
-import org.opensearch.core.common.bytes.BytesArray;
-import org.opensearch.common.network.NetworkAddress;
-import org.opensearch.common.network.NetworkService;
-import org.opensearch.common.settings.ClusterSettings;
-import org.opensearch.common.settings.Setting;
-import org.opensearch.common.settings.Settings;
-import org.opensearch.core.common.transport.TransportAddress;
-import org.opensearch.core.common.unit.ByteSizeValue;
-import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.util.MockBigArrays;
-import org.opensearch.common.util.MockPageCacheRecycler;
-import org.opensearch.common.util.concurrent.ThreadContext;
-import org.opensearch.http.BindHttpException;
-import org.opensearch.http.CorsHandler;
-import org.opensearch.http.HttpServerTransport;
-import org.opensearch.http.HttpTransportSettings;
-import org.opensearch.http.NullDispatcher;
-import org.opensearch.core.indices.breaker.NoneCircuitBreakerService;
-import org.opensearch.nio.NioSocketChannel;
-import org.opensearch.rest.BytesRestResponse;
-import org.opensearch.rest.RestChannel;
-import org.opensearch.rest.RestRequest;
-import org.opensearch.test.OpenSearchTestCase;
-import org.opensearch.test.rest.FakeRestRequest;
-import org.opensearch.threadpool.TestThreadPool;
-import org.opensearch.threadpool.ThreadPool;
-import org.opensearch.transport.nio.NioGroupFactory;
-
-import org.junit.After;
-import org.junit.Before;
-
-import java.io.IOException;
-import java.nio.charset.Charset;
-import java.nio.charset.StandardCharsets;
-import java.util.Collections;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicReference;
-
-import static org.opensearch.http.HttpTransportSettings.SETTING_CORS_ALLOW_ORIGIN;
-import static org.opensearch.http.HttpTransportSettings.SETTING_CORS_ENABLED;
 import static org.opensearch.core.rest.RestStatus.BAD_REQUEST;
 import static org.opensearch.core.rest.RestStatus.OK;
+import static org.opensearch.http.HttpTransportSettings.SETTING_CORS_ALLOW_ORIGIN;
+import static org.opensearch.http.HttpTransportSettings.SETTING_CORS_ENABLED;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -187,7 +187,8 @@ public class NioHttpServerTransportTests extends OpenSearchTestCase {
                 xContentRegistry(),
                 dispatcher,
                 new NioGroupFactory(settings, logger),
-                new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+                new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+                NoopTracer.INSTANCE
             )
         ) {
             transport.start();
@@ -237,7 +238,8 @@ public class NioHttpServerTransportTests extends OpenSearchTestCase {
                 xContentRegistry(),
                 new NullDispatcher(),
                 new NioGroupFactory(Settings.EMPTY, logger),
-                new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+                new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+                NoopTracer.INSTANCE
             )
         ) {
             transport.start();
@@ -256,7 +258,8 @@ public class NioHttpServerTransportTests extends OpenSearchTestCase {
                     xContentRegistry(),
                     new NullDispatcher(),
                     new NioGroupFactory(Settings.EMPTY, logger),
-                    new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+                    new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+                    NoopTracer.INSTANCE
                 )
             ) {
                 BindHttpException bindHttpException = expectThrows(BindHttpException.class, () -> otherTransport.start());
@@ -299,7 +302,8 @@ public class NioHttpServerTransportTests extends OpenSearchTestCase {
                 xContentRegistry(),
                 dispatcher,
                 new NioGroupFactory(settings, logger),
-                new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+                new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+                NoopTracer.INSTANCE
             )
         ) {
             transport.start();
@@ -373,7 +377,8 @@ public class NioHttpServerTransportTests extends OpenSearchTestCase {
                 xContentRegistry(),
                 dispatcher,
                 new NioGroupFactory(Settings.EMPTY, logger),
-                new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+                new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+                NoopTracer.INSTANCE
             )
         ) {
             transport.start();
@@ -439,7 +444,8 @@ public class NioHttpServerTransportTests extends OpenSearchTestCase {
                 xContentRegistry(),
                 dispatcher,
                 new NioGroupFactory(settings, logger),
-                new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+                new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+                NoopTracer.INSTANCE
             )
         ) {
             transport.start();
@@ -501,7 +507,8 @@ public class NioHttpServerTransportTests extends OpenSearchTestCase {
                 xContentRegistry(),
                 dispatcher,
                 new NioGroupFactory(settings, logger),
-                new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+                new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+                NoopTracer.INSTANCE
             )
         ) {
             transport.start();

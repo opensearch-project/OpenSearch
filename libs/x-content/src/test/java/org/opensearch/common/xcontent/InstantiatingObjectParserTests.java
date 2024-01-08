@@ -32,8 +32,8 @@
 
 package org.opensearch.common.xcontent;
 
-import org.opensearch.core.ParseField;
 import org.opensearch.common.xcontent.json.JsonXContent;
+import org.opensearch.core.ParseField;
 import org.opensearch.core.xcontent.InstantiatingObjectParser;
 import org.opensearch.core.xcontent.ParserConstructor;
 import org.opensearch.core.xcontent.XContentParser;

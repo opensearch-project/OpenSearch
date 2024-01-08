@@ -39,18 +39,19 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
-import org.opensearch.core.common.ParsingException;
-import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.geo.GeoPoint;
-import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.common.lucene.search.function.CombineFunction;
 import org.opensearch.common.lucene.search.function.FieldValueFactorFunction;
 import org.opensearch.common.lucene.search.function.FunctionScoreQuery;
 import org.opensearch.common.lucene.search.function.WeightFactorFunction;
 import org.opensearch.common.unit.DistanceUnit;
-import org.opensearch.common.xcontent.XContentHelper;
-import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.common.ParsingException;
+import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.xcontent.MediaType;
+import org.opensearch.core.xcontent.XContentHelper;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.mapper.SeqNoFieldMapper;
 import org.opensearch.index.query.MatchAllQueryBuilder;
 import org.opensearch.index.query.MatchNoneQueryBuilder;
@@ -68,10 +69,10 @@ import org.opensearch.script.ScriptType;
 import org.opensearch.search.MultiValueMode;
 import org.opensearch.test.AbstractQueryTestCase;
 import org.opensearch.test.TestGeoShapeFieldMapperPlugin;
-import org.hamcrest.CoreMatchers;
-import org.hamcrest.Matcher;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
+import org.hamcrest.CoreMatchers;
+import org.hamcrest.Matcher;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -359,7 +360,7 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
          * given that we copy part of the decay functions as bytes, we test that fromXContent and toXContent both work no matter what the
          * initial format was
          */
-        for (XContentType xContentType : XContentType.values()) {
+        for (MediaType xContentType : XContentType.values()) {
             assertThat(queryBuilder, instanceOf(FunctionScoreQueryBuilder.class));
             FunctionScoreQueryBuilder functionScoreQueryBuilder = (FunctionScoreQueryBuilder) queryBuilder;
             assertThat(functionScoreQueryBuilder.query(), instanceOf(TermQueryBuilder.class));

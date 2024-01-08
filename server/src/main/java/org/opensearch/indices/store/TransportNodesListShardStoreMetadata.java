@@ -61,6 +61,7 @@ import org.opensearch.transport.TransportService;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 import static org.opensearch.indices.store.TransportNodesListShardStoreMetadataHelper.getListShardMetadataOnLocalNode;
@@ -76,9 +77,9 @@ public class TransportNodesListShardStoreMetadata extends TransportNodesAction<
     TransportNodesListShardStoreMetadata.NodeRequest,
     TransportNodesListShardStoreMetadata.NodeStoreFilesMetadata>
     implements
-    AsyncShardFetch.Lister<
-        TransportNodesListShardStoreMetadata.NodesStoreFilesMetadata,
-        TransportNodesListShardStoreMetadata.NodeStoreFilesMetadata> {
+        AsyncShardFetch.Lister<
+            TransportNodesListShardStoreMetadata.NodesStoreFilesMetadata,
+            TransportNodesListShardStoreMetadata.NodeStoreFilesMetadata> {
 
     public static final String ACTION_NAME = "internal:cluster/nodes/indices/shard/store";
     public static final ActionType<NodesStoreFilesMetadata> TYPE = new ActionType<>(ACTION_NAME, NodesStoreFilesMetadata::new);

@@ -5,7 +5,7 @@
 
 package org.opensearch.index.reindex.spi;
 
-import org.opensearch.action.ActionListener;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.index.reindex.BulkByScrollResponse;
 import org.opensearch.index.reindex.ReindexModulePlugin;
 import org.opensearch.index.reindex.ReindexRequest;

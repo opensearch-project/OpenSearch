@@ -32,7 +32,7 @@
 
 package org.opensearch.action.ingest;
 
-import org.opensearch.action.ActionListener;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.index.VersionType;
 import org.opensearch.ingest.AbstractProcessor;
 import org.opensearch.ingest.CompoundProcessor;

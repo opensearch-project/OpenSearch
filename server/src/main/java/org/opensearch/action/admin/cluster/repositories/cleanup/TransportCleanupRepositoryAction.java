@@ -34,7 +34,6 @@ package org.opensearch.action.admin.cluster.repositories.cleanup;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.opensearch.action.ActionListener;
 import org.opensearch.action.ActionRunnable;
 import org.opensearch.action.StepListener;
 import org.opensearch.action.support.ActionFilters;
@@ -51,6 +50,7 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.inject.Inject;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.index.store.lockmanager.RemoteStoreLockManagerFactory;
 import org.opensearch.repositories.RepositoriesService;
@@ -67,7 +67,7 @@ import java.util.Collections;
 
 /**
  * Repository cleanup action for repository implementations based on {@link BlobStoreRepository}.
- *
+ * <p>
  * The steps taken by the repository cleanup operation are as follows:
  * <ol>
  *     <li>Check that there are no running repository cleanup, snapshot create, or snapshot delete actions

@@ -39,6 +39,7 @@ import javax.net.ssl.HttpsURLConnection;
 import javax.net.ssl.KeyManager;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.TrustManagerFactory;
+
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
@@ -80,6 +81,24 @@ public class WaitForHttpResource {
 
     public WaitForHttpResource(String protocol, String host, int numberOfNodes) throws MalformedURLException {
         this(new URL(protocol + "://" + host + "/_cluster/health?wait_for_nodes=>=" + numberOfNodes + "&wait_for_status=yellow"));
+    }
+
+    public WaitForHttpResource(String protocol, String host, String username, String password, int numberOfNodes)
+        throws MalformedURLException {
+        this(
+            new URL(
+                protocol
+                    + "://"
+                    + username
+                    + ":"
+                    + password
+                    + "@"
+                    + host
+                    + "/_cluster/health?wait_for_nodes=>="
+                    + numberOfNodes
+                    + "&wait_for_status=yellow"
+            )
+        );
     }
 
     public WaitForHttpResource(URL url) {

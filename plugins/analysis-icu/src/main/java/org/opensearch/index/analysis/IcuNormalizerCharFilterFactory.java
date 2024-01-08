@@ -33,7 +33,6 @@
 package org.opensearch.index.analysis;
 
 import com.ibm.icu.text.Normalizer2;
-
 import org.apache.lucene.analysis.icu.ICUNormalizer2CharFilter;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.env.Environment;

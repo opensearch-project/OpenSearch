@@ -36,17 +36,11 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
-import org.opensearch.action.ActionListener;
 import org.opensearch.action.support.ThreadedActionListener;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.Booleans;
-import org.opensearch.core.common.breaker.CircuitBreaker;
-import org.opensearch.core.common.bytes.BytesArray;
-import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.common.lifecycle.AbstractLifecycleComponent;
 import org.opensearch.common.lifecycle.Lifecycle;
-import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
-import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.common.metrics.MeanMetric;
 import org.opensearch.common.network.CloseableChannel;
 import org.opensearch.common.network.NetworkAddress;
@@ -54,20 +48,27 @@ import org.opensearch.common.network.NetworkService;
 import org.opensearch.common.network.NetworkUtils;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.core.common.transport.BoundTransportAddress;
 import org.opensearch.common.transport.PortsRange;
-import org.opensearch.core.common.transport.TransportAddress;
-import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.util.PageCacheRecycler;
 import org.opensearch.common.util.concurrent.ConcurrentCollections;
 import org.opensearch.common.util.concurrent.CountDown;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.Strings;
+import org.opensearch.core.common.breaker.CircuitBreaker;
+import org.opensearch.core.common.bytes.BytesArray;
+import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.transport.BoundTransportAddress;
+import org.opensearch.core.common.transport.TransportAddress;
+import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.indices.breaker.CircuitBreakerService;
+import org.opensearch.core.rest.RestStatus;
 import org.opensearch.monitor.jvm.JvmInfo;
 import org.opensearch.node.Node;
-import org.opensearch.core.rest.RestStatus;
+import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -159,7 +160,8 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         PageCacheRecycler pageCacheRecycler,
         CircuitBreakerService circuitBreakerService,
         NamedWriteableRegistry namedWriteableRegistry,
-        NetworkService networkService
+        NetworkService networkService,
+        Tracer tracer
     ) {
         this.settings = settings;
         this.profileSettings = getProfileSettings(settings);
@@ -208,7 +210,8 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
             handshaker,
             keepAlive,
             requestHandlers,
-            responseHandlers
+            responseHandlers,
+            tracer
         );
     }
 

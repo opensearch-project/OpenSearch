@@ -32,13 +32,17 @@
 
 package org.opensearch.search.aggregations.pipeline;
 
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.action.support.WriteRequest;
-import org.opensearch.core.common.bytes.BytesReference;
-import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.xcontent.XContentHelper;
-import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.search.aggregations.AggregationBuilders;
 import org.opensearch.search.aggregations.BucketOrder;
 import org.opensearch.search.aggregations.PipelineAggregatorBuilders;
@@ -54,12 +58,16 @@ import org.opensearch.search.aggregations.metrics.Sum;
 import org.opensearch.search.aggregations.metrics.SumAggregationBuilder;
 import org.opensearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 import org.opensearch.test.OpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedOpenSearchIntegTestCase;
 
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
 import java.util.List;
 
 import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.opensearch.index.query.QueryBuilders.termQuery;
+import static org.opensearch.search.SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING;
 import static org.opensearch.search.aggregations.AggregationBuilders.filter;
 import static org.opensearch.search.aggregations.AggregationBuilders.histogram;
 import static org.opensearch.search.aggregations.AggregationBuilders.sum;
@@ -72,7 +80,7 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.core.IsNull.notNullValue;
 
 @OpenSearchIntegTestCase.SuiteScopeTestCase
-public class MaxBucketIT extends OpenSearchIntegTestCase {
+public class MaxBucketIT extends ParameterizedOpenSearchIntegTestCase {
 
     private static final String SINGLE_VALUED_FIELD_NAME = "l_value";
 
@@ -82,6 +90,23 @@ public class MaxBucketIT extends OpenSearchIntegTestCase {
     static int maxRandomValue;
     static int numValueBuckets;
     static long[] valueCounts;
+
+    public MaxBucketIT(Settings dynamicSettings) {
+        super(dynamicSettings);
+    }
+
+    @ParametersFactory
+    public static Collection<Object[]> parameters() {
+        return Arrays.asList(
+            new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), false).build() },
+            new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), true).build() }
+        );
+    }
+
+    @Override
+    protected Settings featureFlagSettings() {
+        return Settings.builder().put(super.featureFlagSettings()).put(FeatureFlags.CONCURRENT_SEGMENT_SEARCH, "true").build();
+    }
 
     @Override
     public void setupSuiteScopeCluster() throws Exception {
@@ -519,13 +544,13 @@ public class MaxBucketIT extends OpenSearchIntegTestCase {
 
     /**
      * https://github.com/elastic/elasticsearch/issues/33514
-     *
+     * <p>
      * This bug manifests as the max_bucket agg ("peak") being added to the response twice, because
      * the pipeline agg is run twice.  This makes invalid JSON and breaks conversion to maps.
      * The bug was caused by an UnmappedTerms being the chosen as the first reduction target.  UnmappedTerms
      * delegated reduction to the first non-unmapped agg, which would reduce and run pipeline aggs.  But then
      * execution returns to the UnmappedTerms and _it_ runs pipelines as well, doubling up on the values.
-     *
+     * <p>
      * Applies to any pipeline agg, not just max.
      */
     public void testFieldIsntWrittenOutTwice() throws Exception {
@@ -585,7 +610,8 @@ public class MaxBucketIT extends OpenSearchIntegTestCase {
         groupByLicenseAgg.subAggregation(peakPipelineAggBuilder);
 
         SearchResponse response = client().prepareSearch("foo_*").setSize(0).addAggregation(groupByLicenseAgg).get();
-        BytesReference bytes = XContentHelper.toXContent(response, XContentType.JSON, false);
-        XContentHelper.convertToMap(bytes, false, XContentType.JSON);
+        BytesReference bytes = org.opensearch.core.xcontent.XContentHelper.toXContent(response, MediaTypeRegistry.JSON, false);
+        XContentHelper.convertToMap(bytes, false, MediaTypeRegistry.JSON);
+        internalCluster().wipeIndices("foo_*");
     }
 }

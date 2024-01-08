@@ -8,16 +8,16 @@
 
 package org.opensearch.transport;
 
+import java.nio.channels.ServerSocketChannel;
+import java.nio.channels.SocketChannel;
+import java.nio.channels.spi.SelectorProvider;
+import java.util.List;
+
 import io.netty.channel.socket.InternetProtocolFamily;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
 import io.netty.util.internal.SocketUtils;
 import io.netty.util.internal.logging.InternalLogger;
 import io.netty.util.internal.logging.InternalLoggerFactory;
-
-import java.nio.channels.ServerSocketChannel;
-import java.nio.channels.SocketChannel;
-import java.nio.channels.spi.SelectorProvider;
-import java.util.List;
 
 public class Netty4NioServerSocketChannel extends NioServerSocketChannel {
     private static final InternalLogger logger = InternalLoggerFactory.getInstance(Netty4NioServerSocketChannel.class);

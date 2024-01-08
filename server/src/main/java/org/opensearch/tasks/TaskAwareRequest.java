@@ -32,6 +32,8 @@
 
 package org.opensearch.tasks;
 
+import org.opensearch.core.tasks.TaskId;
+
 import java.util.Map;
 
 /**

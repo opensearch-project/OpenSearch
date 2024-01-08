@@ -12,12 +12,12 @@ import org.apache.maven.model.Dependency;
 import org.apache.maven.model.Model;
 import org.apache.maven.model.io.xpp3.MavenXpp3Reader;
 import org.codehaus.plexus.util.xml.pull.XmlPullParserException;
+import org.opensearch.gradle.test.GradleUnitTestCase;
 import org.gradle.testkit.runner.BuildResult;
 import org.gradle.testkit.runner.GradleRunner;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.rules.TemporaryFolder;
-import org.opensearch.gradle.test.GradleUnitTestCase;
 
 import java.io.File;
 import java.io.FileNotFoundException;
@@ -28,8 +28,8 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.Optional;
 
-import static org.gradle.testkit.runner.TaskOutcome.SUCCESS;
 import static org.hamcrest.CoreMatchers.is;
+import static org.gradle.testkit.runner.TaskOutcome.SUCCESS;
 
 public class OptionalDependenciesPluginTests extends GradleUnitTestCase {
     private TemporaryFolder projectDir;

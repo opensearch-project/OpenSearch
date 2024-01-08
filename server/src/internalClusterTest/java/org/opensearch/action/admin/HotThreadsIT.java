@@ -32,11 +32,11 @@
 package org.opensearch.action.admin;
 
 import org.apache.lucene.util.Constants;
-import org.opensearch.action.ActionListener;
 import org.opensearch.action.admin.cluster.node.hotthreads.NodeHotThreads;
 import org.opensearch.action.admin.cluster.node.hotthreads.NodesHotThreadsRequestBuilder;
 import org.opensearch.action.admin.cluster.node.hotthreads.NodesHotThreadsResponse;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.hamcrest.Matcher;
 
@@ -60,8 +60,8 @@ import static org.hamcrest.collection.IsEmptyCollection.empty;
 public class HotThreadsIT extends OpenSearchIntegTestCase {
 
     public void testHotThreadsDontFail() throws ExecutionException, InterruptedException {
-        /**
-         * This test just checks if nothing crashes or gets stuck etc.
+        /*
+          This test just checks if nothing crashes or gets stuck etc.
          */
         createIndex("test");
         final int iters = scaledRandomIntBetween(2, 20);

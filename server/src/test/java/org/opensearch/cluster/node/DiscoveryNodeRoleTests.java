@@ -33,8 +33,8 @@
 package org.opensearch.cluster.node;
 
 import org.opensearch.common.settings.Setting;
-import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.EqualsHashCodeTestUtils;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.Arrays;
 import java.util.HashSet;

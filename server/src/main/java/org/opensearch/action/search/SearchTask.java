@@ -32,10 +32,11 @@
 
 package org.opensearch.action.search;
 
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.core.tasks.TaskId;
 import org.opensearch.tasks.CancellableTask;
 import org.opensearch.tasks.SearchBackpressureTask;
-import org.opensearch.tasks.TaskId;
 
 import java.util.Map;
 import java.util.function.Supplier;
@@ -45,8 +46,9 @@ import static org.opensearch.search.SearchService.NO_TIMEOUT;
 /**
  * Task storing information about a currently running {@link SearchRequest}.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class SearchTask extends CancellableTask implements SearchBackpressureTask {
     // generating description in a lazy way since source can be quite big
     private final Supplier<String> descriptionSupplier;

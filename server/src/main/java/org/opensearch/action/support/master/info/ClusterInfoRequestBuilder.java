@@ -32,8 +32,8 @@
 package org.opensearch.action.support.master.info;
 
 import org.opensearch.action.ActionType;
-import org.opensearch.action.ActionResponse;
 import org.opensearch.client.OpenSearchClient;
+import org.opensearch.core.action.ActionResponse;
 
 /**
  * Transport request builder for cluster information

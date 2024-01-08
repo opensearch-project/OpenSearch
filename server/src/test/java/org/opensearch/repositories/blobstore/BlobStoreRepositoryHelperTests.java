@@ -8,6 +8,7 @@
 
 package org.opensearch.repositories.blobstore;
 
+import org.opensearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.opensearch.action.support.master.AcknowledgedResponse;
 import org.opensearch.client.Client;
 import org.opensearch.cluster.metadata.IndexMetadata;
@@ -15,6 +16,7 @@ import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.core.common.Strings;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.env.Environment;
 import org.opensearch.index.IndexModule;
@@ -29,6 +31,8 @@ import org.opensearch.plugins.RepositoryPlugin;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.Repository;
 import org.opensearch.repositories.fs.FsRepository;
+import org.opensearch.snapshots.SnapshotInfo;
+import org.opensearch.snapshots.SnapshotState;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.OpenSearchSingleNodeTestCase;
 
@@ -36,9 +40,12 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.is;
 
 public class BlobStoreRepositoryHelperTests extends OpenSearchSingleNodeTestCase {
 
@@ -59,7 +66,9 @@ public class BlobStoreRepositoryHelperTests extends OpenSearchSingleNodeTestCase
         BlobPath shardLevelBlobPath = remoteStorerepository.basePath().add(indexUUID).add("0").add("segments").add("lock_files");
         BlobContainer blobContainer = remoteStorerepository.blobStore().blobContainer(shardLevelBlobPath);
         try (RemoteBufferedOutputDirectory lockDirectory = new RemoteBufferedOutputDirectory(blobContainer)) {
-            return Arrays.stream(lockDirectory.listAll()).filter(lock -> lock.endsWith(".lock")).toArray(String[]::new);
+            return Arrays.stream(lockDirectory.listAll())
+                .filter(lock -> lock.endsWith(".lock") || lock.endsWith(".v2_lock"))
+                .toArray(String[]::new);
         }
     }
 
@@ -111,7 +120,7 @@ public class BlobStoreRepositoryHelperTests extends OpenSearchSingleNodeTestCase
         createRepository(client, repoName, repoSettings);
     }
 
-    protected Settings getRemoteStoreBackedIndexSettings(String remoteStoreRepo) {
+    protected Settings getRemoteStoreBackedIndexSettings() {
         return Settings.builder()
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, "1")
             .put("index.refresh_interval", "300s")
@@ -122,13 +131,28 @@ public class BlobStoreRepositoryHelperTests extends OpenSearchSingleNodeTestCase
             .build();
     }
 
+    protected SnapshotInfo createSnapshot(String repositoryName, String snapshot, List<String> indices) {
+        logger.info("--> creating snapshot [{}] of {} in [{}]", snapshot, indices, repositoryName);
+
+        final CreateSnapshotResponse response = client().admin()
+            .cluster()
+            .prepareCreateSnapshot(repositoryName, snapshot)
+            .setIndices(indices.toArray(Strings.EMPTY_ARRAY))
+            .setWaitForCompletion(true)
+            .get();
+        SnapshotInfo snapshotInfo = response.getSnapshotInfo();
+        assertThat(snapshotInfo.state(), is(SnapshotState.SUCCESS));
+        assertThat(snapshotInfo.successfulShards(), greaterThan(0));
+        assertThat(snapshotInfo.failedShards(), equalTo(0));
+        return snapshotInfo;
+    }
+
     protected void indexDocuments(Client client, String indexName) {
         int numDocs = randomIntBetween(10, 20);
         for (int i = 0; i < numDocs; i++) {
             String id = Integer.toString(i);
             client.prepareIndex(indexName).setId(id).setSource("text", "sometext").get();
         }
-        client.admin().indices().prepareFlush(indexName).get();
     }
 
     protected IndexSettings getIndexSettings(String indexName) {
