@@ -8,11 +8,9 @@
 
 package org.opensearch.indices.store;
 
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.OpenSearchException;
 import org.opensearch.action.ActionType;
 import org.opensearch.action.FailedNodeException;
-import org.opensearch.action.ActionListener;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.nodes.BaseNodeResponse;
 import org.opensearch.action.support.nodes.BaseNodesRequest;
@@ -23,6 +21,7 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.index.shard.ShardId;
@@ -52,9 +51,9 @@ public class TransportNodesListShardStoreMetadataBatch extends TransportNodesAct
     TransportNodesListShardStoreMetadataBatch.NodeRequest,
     TransportNodesListShardStoreMetadataBatch.NodeStoreFilesMetadataBatch>
     implements
-    AsyncShardFetch.Lister<
-        TransportNodesListShardStoreMetadataBatch.NodesStoreFilesMetadataBatch,
-        TransportNodesListShardStoreMetadataBatch.NodeStoreFilesMetadataBatch> {
+        AsyncShardFetch.Lister<
+            TransportNodesListShardStoreMetadataBatch.NodesStoreFilesMetadataBatch,
+            TransportNodesListShardStoreMetadataBatch.NodeStoreFilesMetadataBatch> {
 
     public static final String ACTION_NAME = "internal:cluster/nodes/indices/shard/store/batch";
     public static final ActionType<TransportNodesListShardStoreMetadataBatch.NodesStoreFilesMetadataBatch> TYPE = new ActionType<>(
@@ -152,7 +151,10 @@ public class TransportNodesListShardStoreMetadataBatch extends TransportNodesAct
                 );
                 shardStoreMetadataMap.put(shardId, new NodeStoreFilesMetadata(storeFilesMetadata, null));
             } catch (IOException | OpenSearchException e) {
-                shardStoreMetadataMap.put(shardId, new NodeStoreFilesMetadata(new StoreFilesMetadata(shardId, Store.MetadataSnapshot.EMPTY, Collections.emptyList()), e));
+                shardStoreMetadataMap.put(
+                    shardId,
+                    new NodeStoreFilesMetadata(new StoreFilesMetadata(shardId, Store.MetadataSnapshot.EMPTY, Collections.emptyList()), e)
+                );
             }
         }
         return shardStoreMetadataMap;

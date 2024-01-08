@@ -8,11 +8,11 @@
 
 package org.opensearch.gateway;
 
-import org.opensearch.action.ActionListener;
 import org.opensearch.action.support.nodes.BaseNodeResponse;
 import org.opensearch.action.support.nodes.BaseNodesResponse;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.lease.Releasable;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.index.shard.ShardId;
 
 import java.util.Map;

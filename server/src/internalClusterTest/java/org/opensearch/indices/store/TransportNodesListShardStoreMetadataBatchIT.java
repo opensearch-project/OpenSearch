@@ -91,7 +91,7 @@ public class TransportNodesListShardStoreMetadataBatchIT extends OpenSearchInteg
         internalCluster().startNode();
         String indexName = "test";
         prepareIndices(new String[] { indexName }, 1, 1);
-        Map<ShardId, String> shardIdCustomDataPathMap = prepareRequestMap(new String[] { indexName }, 1);
+        Map<ShardId, ShardAttributes> shardAttributesMap = prepareRequestMap(new String[] { indexName }, 1);
         Index index = resolveIndex(indexName);
         ShardId shardId = new ShardId(index, 0);
         ClusterSearchShardsResponse searchShardsResponse = client().admin().cluster().prepareSearchShards(indexName).get();
@@ -103,7 +103,7 @@ public class TransportNodesListShardStoreMetadataBatchIT extends OpenSearchInteg
         TransportNodesListShardStoreMetadataBatch.NodesStoreFilesMetadataBatch response;
         response = ActionTestUtils.executeBlocking(
             internalCluster().getInstance(TransportNodesListShardStoreMetadataBatch.class),
-            new TransportNodesListShardStoreMetadataBatch.Request(shardIdCustomDataPathMap, discoveryNodes)
+            new TransportNodesListShardStoreMetadataBatch.Request(shardAttributesMap, discoveryNodes)
         );
         TransportNodesListShardStoreMetadataBatch.NodeStoreFilesMetadata nodeStoreFilesMetadata = response.getNodesMap()
             .get(discoveryNodes[0].getId())
@@ -130,13 +130,13 @@ public class TransportNodesListShardStoreMetadataBatchIT extends OpenSearchInteg
         String[] indices,
         DiscoveryNode[] nodes
     ) {
-        Map<ShardId, String> shardIdCustomDataPathMap = null;
+        Map<ShardId, ShardAttributes> shardAttributesMap = null;
         prepareIndices(indices, 1, 1);
-        shardIdCustomDataPathMap = prepareRequestMap(indices, 1);
+        shardAttributesMap = prepareRequestMap(indices, 1);
         TransportNodesListShardStoreMetadataBatch.NodesStoreFilesMetadataBatch response;
         return ActionTestUtils.executeBlocking(
             internalCluster().getInstance(TransportNodesListShardStoreMetadataBatch.class),
-            new TransportNodesListShardStoreMetadataBatch.Request(shardIdCustomDataPathMap, nodes)
+            new TransportNodesListShardStoreMetadataBatch.Request(shardAttributesMap, nodes)
         );
     }
 
@@ -145,7 +145,7 @@ public class TransportNodesListShardStoreMetadataBatchIT extends OpenSearchInteg
         ShardId shardId
     ) {
         assertNotNull(nodeStoreFilesMetadata.getStoreFileFetchException());
-        TransportNodesListShardStoreMetadataBatch.StoreFilesMetadata storeFileMetadata = nodeStoreFilesMetadata.storeFilesMetadata();
+        StoreFilesMetadata storeFileMetadata = nodeStoreFilesMetadata.storeFilesMetadata();
         assertEquals(shardId, storeFileMetadata.shardId());
         assertTrue(storeFileMetadata.peerRecoveryRetentionLeases().isEmpty());
     }
@@ -155,7 +155,7 @@ public class TransportNodesListShardStoreMetadataBatchIT extends OpenSearchInteg
         ShardId shardId
     ) {
         assertNull(nodeStoreFilesMetadata.getStoreFileFetchException());
-        TransportNodesListShardStoreMetadataBatch.StoreFilesMetadata storeFileMetadata = nodeStoreFilesMetadata.storeFilesMetadata();
+        StoreFilesMetadata storeFileMetadata = nodeStoreFilesMetadata.storeFilesMetadata();
         assertFalse(storeFileMetadata.isEmpty());
         assertEquals(shardId, storeFileMetadata.shardId());
         assertNotNull(storeFileMetadata.peerRecoveryRetentionLeases());

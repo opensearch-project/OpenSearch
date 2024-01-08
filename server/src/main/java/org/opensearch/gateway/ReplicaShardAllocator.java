@@ -51,7 +51,7 @@ import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.index.store.StoreFileMetadata;
-import org.opensearch.indices.store.TransportNodesListShardStoreMetadata;
+import org.opensearch.indices.store.StoreFilesMetadata;
 import org.opensearch.indices.store.TransportNodesListShardStoreMetadata.NodeStoreFilesMetadata;
 
 import java.util.ArrayList;
@@ -357,10 +357,7 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
     /**
      * Finds the store for the assigned shard in the fetched data, returns null if none is found.
      */
-    private static StoreFilesMetadata findStore(
-        DiscoveryNode node,
-        AsyncShardFetch.FetchResult<NodeStoreFilesMetadata> data
-    ) {
+    private static StoreFilesMetadata findStore(DiscoveryNode node, AsyncShardFetch.FetchResult<NodeStoreFilesMetadata> data) {
         NodeStoreFilesMetadata nodeFilesStore = data.getData().get(node);
         if (nodeFilesStore == null) {
             return null;
@@ -441,10 +438,7 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
         return new MatchingNodes(matchingNodes, nodeDecisions);
     }
 
-    private static long computeMatchingBytes(
-        StoreFilesMetadata primaryStore,
-        StoreFilesMetadata storeFilesMetadata
-    ) {
+    private static long computeMatchingBytes(StoreFilesMetadata primaryStore, StoreFilesMetadata storeFilesMetadata) {
         long sizeMatched = 0;
         for (StoreFileMetadata storeFileMetadata : storeFilesMetadata) {
             String metadataFileName = storeFileMetadata.name();
@@ -455,10 +449,7 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
         return sizeMatched;
     }
 
-    private static boolean hasMatchingSyncId(
-        StoreFilesMetadata primaryStore,
-        StoreFilesMetadata replicaStore
-    ) {
+    private static boolean hasMatchingSyncId(StoreFilesMetadata primaryStore, StoreFilesMetadata replicaStore) {
         String primarySyncId = primaryStore.syncId();
         return primarySyncId != null && primarySyncId.equals(replicaStore.syncId());
     }

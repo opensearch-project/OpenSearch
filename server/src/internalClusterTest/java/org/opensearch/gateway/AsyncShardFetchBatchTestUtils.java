@@ -16,6 +16,7 @@ import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.index.shard.ShardPath;
+import org.opensearch.indices.store.ShardAttributes;
 
 import java.io.IOException;
 import java.nio.file.DirectoryStream;
@@ -44,8 +45,8 @@ public class AsyncShardFetchBatchTestUtils {
         return disNodesArr;
     }
 
-    public static Map<ShardId, String> prepareRequestMap(String[] indices, int shardCount) {
-        Map<ShardId, String> shardIdCustomDataPathMap = new HashMap<>();
+    public static Map<ShardId, ShardAttributes> prepareRequestMap(String[] indices, int shardCount) {
+        Map<ShardId, ShardAttributes> shardIdCustomDataPathMap = new HashMap<>();
         for (String indexName : indices) {
             final Index index = resolveIndex(indexName);
             final String customDataPath = IndexMetadata.INDEX_DATA_PATH_SETTING.get(
@@ -53,7 +54,7 @@ public class AsyncShardFetchBatchTestUtils {
             );
             for (int shardIdNum = 0; shardIdNum < shardCount; shardIdNum++) {
                 final ShardId shardId = new ShardId(index, shardIdNum);
-                shardIdCustomDataPathMap.put(shardId, customDataPath);
+                shardIdCustomDataPathMap.put(shardId, new ShardAttributes(shardId, customDataPath));
             }
         }
         return shardIdCustomDataPathMap;

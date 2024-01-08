@@ -32,11 +32,7 @@ public class StoreFilesMetadata implements Iterable<StoreFileMetadata>, Writeabl
     private final Store.MetadataSnapshot metadataSnapshot;
     private final List<RetentionLease> peerRecoveryRetentionLeases;
 
-    public StoreFilesMetadata(
-        ShardId shardId,
-        Store.MetadataSnapshot metadataSnapshot,
-        List<RetentionLease> peerRecoveryRetentionLeases
-    ) {
+    public StoreFilesMetadata(ShardId shardId, Store.MetadataSnapshot metadataSnapshot, List<RetentionLease> peerRecoveryRetentionLeases) {
         this.shardId = shardId;
         this.metadataSnapshot = metadataSnapshot;
         this.peerRecoveryRetentionLeases = peerRecoveryRetentionLeases;

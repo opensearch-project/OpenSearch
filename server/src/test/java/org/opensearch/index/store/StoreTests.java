@@ -88,7 +88,6 @@ import org.opensearch.index.shard.ShardPath;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.indices.store.StoreFilesMetadata;
-import org.opensearch.indices.store.TransportNodesListShardStoreMetadata;
 import org.opensearch.test.DummyShardLock;
 import org.opensearch.test.FeatureFlagSetter;
 import org.opensearch.test.IndexSettingsModule;
@@ -981,12 +980,11 @@ public class StoreTests extends OpenSearchTestCase {
                 )
             );
         }
-        StoreFilesMetadata outStoreFileMetadata =
-            new StoreFilesMetadata(
-                new ShardId("test", "_na_", 0),
-                metadataSnapshot,
-                peerRecoveryRetentionLeases
-            );
+        StoreFilesMetadata outStoreFileMetadata = new StoreFilesMetadata(
+            new ShardId("test", "_na_", 0),
+            metadataSnapshot,
+            peerRecoveryRetentionLeases
+        );
         ByteArrayOutputStream outBuffer = new ByteArrayOutputStream();
         OutputStreamStreamOutput out = new OutputStreamStreamOutput(outBuffer);
         org.opensearch.Version targetNodeVersion = randomVersion(random());
