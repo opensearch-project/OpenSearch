@@ -20,6 +20,7 @@ import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.index.shard.ShardPath;
+import org.opensearch.indices.store.ShardAttributes;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.io.IOException;
@@ -39,14 +40,14 @@ public class TransportNodesListGatewayStartedBatchShardsIT extends OpenSearchInt
 
     public void testSingleShardFetch() throws Exception {
         String indexName = "test";
-        Map<ShardId, String> shardIdCustomDataPathMap = prepareRequestMap(new String[] { indexName }, 1);
+        Map<ShardId, ShardAttributes> shardIdShardAttributesMap = prepareRequestMap(new String[] { indexName }, 1);
 
         ClusterSearchShardsResponse searchShardsResponse = client().admin().cluster().prepareSearchShards(indexName).get();
 
         TransportNodesListGatewayStartedBatchShards.NodesGatewayStartedShardsBatch response;
         response = ActionTestUtils.executeBlocking(
             internalCluster().getInstance(TransportNodesListGatewayStartedBatchShards.class),
-            new TransportNodesListGatewayStartedBatchShards.Request(searchShardsResponse.getNodes(), shardIdCustomDataPathMap)
+            new TransportNodesListGatewayStartedBatchShards.Request(searchShardsResponse.getNodes(), shardIdShardAttributesMap)
         );
         final Index index = resolveIndex(indexName);
         final ShardId shardId = new ShardId(index, 0);
@@ -63,7 +64,7 @@ public class TransportNodesListGatewayStartedBatchShardsIT extends OpenSearchInt
         String indexName1 = "test1";
         String indexName2 = "test2";
         // assign one primary shard each to the data nodes
-        Map<ShardId, String> shardIdCustomDataPathMap = prepareRequestMap(
+        Map<ShardId, ShardAttributes> shardIdShardAttributesMap = prepareRequestMap(
             new String[] { indexName1, indexName2 },
             internalCluster().numDataNodes()
         );
@@ -72,7 +73,7 @@ public class TransportNodesListGatewayStartedBatchShardsIT extends OpenSearchInt
         TransportNodesListGatewayStartedBatchShards.NodesGatewayStartedShardsBatch response;
         response = ActionTestUtils.executeBlocking(
             internalCluster().getInstance(TransportNodesListGatewayStartedBatchShards.class),
-            new TransportNodesListGatewayStartedBatchShards.Request(searchShardsResponse.getNodes(), shardIdCustomDataPathMap)
+            new TransportNodesListGatewayStartedBatchShards.Request(searchShardsResponse.getNodes(), shardIdShardAttributesMap)
         );
         for (ClusterSearchShardsGroup clusterSearchShardsGroup : searchShardsResponse.getGroups()) {
             ShardId shardId = clusterSearchShardsGroup.getShardId();
@@ -88,7 +89,7 @@ public class TransportNodesListGatewayStartedBatchShardsIT extends OpenSearchInt
 
     public void testShardFetchCorruptedShards() throws Exception {
         String indexName = "test";
-        Map<ShardId, String> shardIdCustomDataPathMap = prepareRequestMap(new String[] { indexName }, 1);
+        Map<ShardId, ShardAttributes> shardIdShardAttributesMap = prepareRequestMap(new String[] { indexName }, 1);
         ClusterSearchShardsResponse searchShardsResponse = client().admin().cluster().prepareSearchShards(indexName).get();
         final Index index = resolveIndex(indexName);
         final ShardId shardId = new ShardId(index, 0);
@@ -97,7 +98,7 @@ public class TransportNodesListGatewayStartedBatchShardsIT extends OpenSearchInt
         internalCluster().restartNode(searchShardsResponse.getNodes()[0].getName());
         response = ActionTestUtils.executeBlocking(
             internalCluster().getInstance(TransportNodesListGatewayStartedBatchShards.class),
-            new TransportNodesListGatewayStartedBatchShards.Request(getDiscoveryNodes(), shardIdCustomDataPathMap)
+            new TransportNodesListGatewayStartedBatchShards.Request(getDiscoveryNodes(), shardIdShardAttributesMap)
         );
         DiscoveryNode[] discoveryNodes = getDiscoveryNodes();
         TransportNodesListGatewayStartedBatchShards.NodeGatewayStartedShard nodeGatewayStartedShards = response.getNodesMap()
@@ -137,8 +138,8 @@ public class TransportNodesListGatewayStartedBatchShardsIT extends OpenSearchInt
         flush(indexName);
     }
 
-    private Map<ShardId, String> prepareRequestMap(String[] indices, int primaryShardCount) {
-        Map<ShardId, String> shardIdCustomDataPathMap = new HashMap<>();
+    private Map<ShardId, ShardAttributes> prepareRequestMap(String[] indices, int primaryShardCount) {
+        Map<ShardId, ShardAttributes> shardIdShardAttributesMap = new HashMap<>();
         for (String indexName : indices) {
             prepareIndex(indexName, primaryShardCount);
             final Index index = resolveIndex(indexName);
@@ -147,10 +148,10 @@ public class TransportNodesListGatewayStartedBatchShardsIT extends OpenSearchInt
             );
             for (int shardIdNum = 0; shardIdNum < primaryShardCount; shardIdNum++) {
                 final ShardId shardId = new ShardId(index, shardIdNum);
-                shardIdCustomDataPathMap.put(shardId, customDataPath);
+                shardIdShardAttributesMap.put(shardId, new ShardAttributes(shardId, customDataPath));
             }
         }
-        return shardIdCustomDataPathMap;
+        return shardIdShardAttributesMap;
     }
 
     private void corruptShard(String nodeName, ShardId shardId) throws IOException, InterruptedException {
