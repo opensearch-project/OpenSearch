@@ -37,8 +37,10 @@ import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.core.StreamReadConstraints;
 import com.fasterxml.jackson.core.StreamReadFeature;
+import com.fasterxml.jackson.core.StreamWriteConstraints;
 import com.fasterxml.jackson.dataformat.cbor.CBORFactory;
 
+import org.opensearch.common.xcontent.XContentContraints;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.xcontent.DeprecationHandler;
 import org.opensearch.core.xcontent.MediaType;
@@ -58,11 +60,7 @@ import java.util.Set;
 /**
  * A CBOR based content implementation using Jackson.
  */
-public class CborXContent implements XContent {
-    public static final int DEFAULT_MAX_STRING_LEN = Integer.parseInt(
-        System.getProperty("opensearch.xcontent.string.length.max", "50000000" /* ~50 Mb */)
-    );
-
+public class CborXContent implements XContent, XContentContraints {
     public static XContentBuilder contentBuilder() throws IOException {
         return XContentBuilder.builder(cborXContent);
     }
@@ -76,7 +74,14 @@ public class CborXContent implements XContent {
         // Do not automatically close unclosed objects/arrays in com.fasterxml.jackson.dataformat.cbor.CBORGenerator#close() method
         cborFactory.configure(JsonGenerator.Feature.AUTO_CLOSE_JSON_CONTENT, false);
         cborFactory.configure(JsonParser.Feature.STRICT_DUPLICATE_DETECTION, true);
-        cborFactory.setStreamReadConstraints(StreamReadConstraints.builder().maxStringLength(DEFAULT_MAX_STRING_LEN).build());
+        cborFactory.setStreamWriteConstraints(StreamWriteConstraints.builder().maxNestingDepth(DEFAULT_MAX_DEPTH).build());
+        cborFactory.setStreamReadConstraints(
+            StreamReadConstraints.builder()
+                .maxStringLength(DEFAULT_MAX_STRING_LEN)
+                .maxNameLength(DEFAULT_MAX_NAME_LEN)
+                .maxNestingDepth(DEFAULT_MAX_DEPTH)
+                .build()
+        );
         cborFactory.configure(StreamReadFeature.USE_FAST_DOUBLE_PARSER.mappedFeature(), true);
         cborXContent = new CborXContent();
     }

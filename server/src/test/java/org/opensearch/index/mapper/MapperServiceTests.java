@@ -65,6 +65,7 @@ import java.util.Collections;
 import java.util.Map;
 
 import static org.hamcrest.CoreMatchers.containsString;
+import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -156,6 +157,21 @@ public class MapperServiceTests extends OpenSearchSingleNodeTestCase {
             () -> indexService1.mapperService().merge("type", objectMapping, updateOrPreflight())
         );
         assertThat(e.getMessage(), containsString("Limit of mapping depth [1] has been exceeded"));
+    }
+
+    public void testMappingDepthExceedsXContentLimit() throws Throwable {
+        final IllegalArgumentException ex = assertThrows(
+            IllegalArgumentException.class,
+            () -> createIndex("test1", Settings.builder().put(MapperService.INDEX_MAPPING_DEPTH_LIMIT_SETTING.getKey(), 10000).build())
+        );
+
+        assertThat(
+            ex.getMessage(),
+            is(
+                "The provided value 10000 of the index setting 'index.mapping.depth.limit' exceeds per-JVM configured limit of 1000. "
+                    + "Please change the setting value or increase per-JVM limit using 'opensearch.xcontent.depth.max' system property."
+            )
+        );
     }
 
     public void testUnmappedFieldType() {
@@ -298,6 +314,24 @@ public class MapperServiceTests extends OpenSearchSingleNodeTestCase {
             ).mapperService().merge("type", new CompressedXContent(mapping), updateOrPreflight());
         });
         assertEquals("Limit of total fields [" + numberOfNonAliasFields + "] has been exceeded", e.getMessage());
+    }
+
+    public void testFieldNameLengthExceedsXContentLimit() throws Throwable {
+        final IllegalArgumentException ex = assertThrows(
+            IllegalArgumentException.class,
+            () -> createIndex(
+                "test1",
+                Settings.builder().put(MapperService.INDEX_MAPPING_FIELD_NAME_LENGTH_LIMIT_SETTING.getKey(), 100000).build()
+            )
+        );
+
+        assertThat(
+            ex.getMessage(),
+            is(
+                "The provided value 100000 of the index setting 'index.mapping.field_name_length.limit' exceeds per-JVM configured limit of 50000. "
+                    + "Please change the setting value or increase per-JVM limit using 'opensearch.xcontent.name.length.max' system property."
+            )
+        );
     }
 
     public void testFieldNameLengthLimit() throws Throwable {
