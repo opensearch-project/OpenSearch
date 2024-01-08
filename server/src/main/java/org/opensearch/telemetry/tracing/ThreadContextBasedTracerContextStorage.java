@@ -85,6 +85,11 @@ public class ThreadContextBasedTracerContextStorage implements TracerContextStor
         return headers;
     }
 
+    @Override
+    public Map<String, String> headers(Map<String, Object> source, boolean isSystemContext) {
+        return headers(source);
+    }
+
     Span getCurrentSpan(String key) {
         SpanReference currentSpanRef = threadContext.getTransient(key);
         return (currentSpanRef == null) ? null : currentSpanRef.getSpan();

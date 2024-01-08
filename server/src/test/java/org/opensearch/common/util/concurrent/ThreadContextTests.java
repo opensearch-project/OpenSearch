@@ -44,6 +44,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
 
+import org.mockito.Mockito;
+
 import static org.opensearch.tasks.TaskResourceTrackingService.TASK_ID;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
@@ -742,8 +744,18 @@ public class ThreadContextTests extends OpenSearchTestCase {
 
     public void testSystemContextWithPropagator() {
         Settings build = Settings.builder().put("request.headers.default", "1").build();
+        Map<String, Object> transientHeaderMap = Collections.singletonMap("test_transient_propagation_key", "test");
+        Map<String, Object> transientHeaderTransformedMap = Collections.singletonMap("test_transient_propagation_key", "test");
+        Map<String, Object> headerMap = Collections.singletonMap("test_transient_propagation_key", "test");
+        Map<String, String> headerTransformedMap = Collections.singletonMap("test_transient_propagation_key", "test");
         ThreadContext threadContext = new ThreadContext(build);
-        threadContext.registerThreadContextStatePropagator(createDummyPropagator(("test_transient_propagation_key")));
+        ThreadContextStatePropagator mockPropagator = Mockito.mock(ThreadContextStatePropagator.class);
+        Mockito.when(mockPropagator.transients(transientHeaderMap, true)).thenReturn(Collections.emptyMap());
+        Mockito.when(mockPropagator.transients(transientHeaderMap, false)).thenReturn(transientHeaderTransformedMap);
+
+        Mockito.when(mockPropagator.headers(headerMap, true)).thenReturn(headerTransformedMap);
+        Mockito.when(mockPropagator.headers(headerMap, false)).thenReturn(headerTransformedMap);
+        threadContext.registerThreadContextStatePropagator(mockPropagator);
         threadContext.putHeader("foo", "bar");
         threadContext.putTransient("test_transient_propagation_key", 1);
         assertEquals(Integer.valueOf(1), threadContext.getTransient("test_transient_propagation_key"));
@@ -762,8 +774,18 @@ public class ThreadContextTests extends OpenSearchTestCase {
 
     public void testSerializeSystemContext() throws IOException {
         Settings build = Settings.builder().put("request.headers.default", "1").build();
+        Map<String, Object> transientHeaderMap = Collections.singletonMap("test_transient_propagation_key", "test");
+        Map<String, Object> transientHeaderTransformedMap = Collections.singletonMap("test_transient_propagation_key", "test");
+        Map<String, Object> headerMap = Collections.singletonMap("test_transient_propagation_key", "test");
+        Map<String, String> headerTransformedMap = Collections.singletonMap("test_transient_propagation_key", "test");
         ThreadContext threadContext = new ThreadContext(build);
-        threadContext.registerThreadContextStatePropagator(createDummyPropagator(("test_transient_propagation_key")));
+        ThreadContextStatePropagator mockPropagator = Mockito.mock(ThreadContextStatePropagator.class);
+        Mockito.when(mockPropagator.transients(transientHeaderMap, true)).thenReturn(Collections.emptyMap());
+        Mockito.when(mockPropagator.transients(transientHeaderMap, false)).thenReturn(transientHeaderTransformedMap);
+
+        Mockito.when(mockPropagator.headers(headerMap, true)).thenReturn(headerTransformedMap);
+        Mockito.when(mockPropagator.headers(headerMap, false)).thenReturn(headerTransformedMap);
+        threadContext.registerThreadContextStatePropagator(mockPropagator);
         threadContext.putHeader("foo", "bar");
         threadContext.putTransient("test_transient_propagation_key", "test");
         BytesStreamOutput out = new BytesStreamOutput();
@@ -783,47 +805,6 @@ public class ThreadContextTests extends OpenSearchTestCase {
         assertEquals("bar", threadContext.getHeader("foo"));
         assertEquals("test", threadContext.getHeader("test_transient_propagation_key"));
         assertEquals("1", threadContext.getHeader("default"));
-    }
-
-    private ThreadContextStatePropagator createDummyPropagator(final String key) {
-        return new ThreadContextStatePropagator() {
-
-            @Override
-            public Map<String, Object> transients(Map<String, Object> source) {
-                Map<String, Object> transients = new HashMap<>();
-                if (source.containsKey(key)) {
-                    transients.put(key, source.get(key));
-                }
-                return transients;
-            }
-
-            @Override
-            public Map<String, Object> transients(Map<String, Object> source, boolean isSystemContext) {
-                if (isSystemContext == true) {
-                    return Collections.emptyMap();
-                } else {
-                    return transients(source);
-                }
-            }
-
-            @Override
-            public Map<String, String> headers(Map<String, Object> source) {
-                Map<String, String> headers = new HashMap<>();
-                if (source.containsKey(key)) {
-                    headers.put(key, (String) source.get(key));
-                }
-                return headers;
-            }
-
-            @Override
-            public Map<String, String> headers(Map<String, Object> source, boolean isSystemContext) {
-                if (isSystemContext == true) {
-                    return Collections.emptyMap();
-                } else {
-                    return headers(source);
-                }
-            }
-        };
     }
 
     public void testPutHeaders() {
