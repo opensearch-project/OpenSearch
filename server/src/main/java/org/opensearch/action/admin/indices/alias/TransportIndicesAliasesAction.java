@@ -229,8 +229,16 @@ public class TransportIndicesAliasesAction extends TransportClusterManagerNodeAc
                 }
             }
 
-            // if there is any non-existing aliases specified in the request and must_exist is true, throw exception in advance
-            if (action.mustExist() != null && action.mustExist()) {
+            // must_exist can only be set in the Remove Action in Update aliases API,
+            // we check the value here to respond differently
+            if (action.mustExist() != null) {
+                // if must_exist is false, we should make the remove action execute silently,
+                // so we return the original specified aliases to avoid AliasesNotFoundException
+                if (!action.mustExist()) {
+                    return action.aliases();
+                }
+
+                // if there is any non-existing aliases specified in the request and must_exist is true, throw exception in advance
                 if (finalAliases.isEmpty()) {
                     throw new AliasesNotFoundException(action.aliases());
                 }

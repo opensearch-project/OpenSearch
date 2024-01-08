@@ -102,3 +102,30 @@
                 must_exist: false
 
   - match: { acknowledged: true }
+
+---
+"Remove silently when all of the specified aliases are non-existing and must_exist is false":
+  - skip:
+      version: " - 2.99.99"
+      reason: "introduced in 3.0"
+
+  - do:
+      indices.create:
+        index: test_index
+
+  - do:
+      indices.exists_alias:
+        name: test_alias
+
+  - is_false: ''
+
+  - do:
+      indices.update_aliases:
+        body:
+          actions:
+            - remove:
+                index: test_index
+                aliases: [test_alias, test_alias1, test_alias2]
+                must_exist: false
+
+  - match: { acknowledged: true }
