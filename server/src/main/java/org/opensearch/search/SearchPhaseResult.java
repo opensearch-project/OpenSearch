@@ -71,6 +71,10 @@ public abstract class SearchPhaseResult extends TransportResponse {
         super(in);
     }
 
+    protected SearchPhaseResult(byte[] in) throws IOException {
+        super(in);
+    }
+
     /**
      * Returns the search context ID that is used to reference the search context on the executing node
      * or <code>null</code> if no context was created.

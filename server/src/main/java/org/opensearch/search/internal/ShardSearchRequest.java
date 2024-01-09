@@ -99,7 +99,7 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
     private final long nowInMillis;
     private long inboundNetworkTime;
     private long outboundNetworkTime;
-    private final boolean allowPartialSearchResults;
+    private final Boolean allowPartialSearchResults;
     private final String[] indexRoutings;
     private final String preference;
     private final OriginalIndices originalIndices;
