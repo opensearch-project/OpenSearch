@@ -34,6 +34,7 @@ package org.opensearch.index.mapper;
 
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.DoublePoint;
+import org.apache.lucene.document.LongField;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
@@ -64,7 +65,9 @@ public class ScaledFloatFieldTypeTests extends FieldTypeTestCase {
         );
         double value = (randomDouble() * 2 - 1) * 10000;
         long scaledValue = Math.round(value * ft.getScalingFactor());
-        assertEquals(LongPoint.newExactQuery("scaled_float", scaledValue), ft.termQuery(value, null));
+        Query dvQuery = SortedNumericDocValuesField.newSlowExactQuery("scaled_float", scaledValue);
+        Query query = new IndexOrDocValuesQuery(LongPoint.newExactQuery("scaled_float", scaledValue), dvQuery);
+        assertEquals(query, ft.termQuery(value, null));
     }
 
     public void testTermsQuery() {
@@ -76,7 +79,7 @@ public class ScaledFloatFieldTypeTests extends FieldTypeTestCase {
         long scaledValue1 = Math.round(value1 * ft.getScalingFactor());
         double value2 = (randomDouble() * 2 - 1) * 10000;
         long scaledValue2 = Math.round(value2 * ft.getScalingFactor());
-        assertEquals(LongPoint.newSetQuery("scaled_float", scaledValue1, scaledValue2), ft.termsQuery(Arrays.asList(value1, value2), null));
+        assertEquals(LongField.newSetQuery("scaled_float", scaledValue1, scaledValue2), ft.termsQuery(Arrays.asList(value1, value2), null));
     }
 
     public void testRangeQuery() throws IOException {
@@ -113,7 +116,16 @@ public class ScaledFloatFieldTypeTests extends FieldTypeTestCase {
             Double u = randomBoolean() ? null : (randomDouble() * 2 - 1) * 10000;
             boolean includeLower = randomBoolean();
             boolean includeUpper = randomBoolean();
-            Query doubleQ = NumberFieldMapper.NumberType.DOUBLE.rangeQuery("double", l, u, includeLower, includeUpper, false, MOCK_QSC);
+            Query doubleQ = NumberFieldMapper.NumberType.DOUBLE.rangeQuery(
+                "double",
+                l,
+                u,
+                includeLower,
+                includeUpper,
+                false,
+                true,
+                MOCK_QSC
+            );
             Query scaledFloatQ = ft.rangeQuery(l, u, includeLower, includeUpper, MOCK_QSC);
             assertEquals(searcher.count(doubleQ), searcher.count(scaledFloatQ));
         }
