@@ -1,0 +1,141 @@
+---
+"Throw aliases missing exception when removing non-existing alias with setting must_exist to true":
+  - skip:
+      version: " - 2.11.99"
+      reason: "introduced in 2.12.0"
+
+  - do:
+      indices.create:
+        index: test_index
+
+  - do:
+      indices.exists_alias:
+        name: test_alias
+
+  - is_false: ''
+
+  - do:
+      catch: /aliases \[test_alias\] missing/
+      indices.update_aliases:
+        body:
+          actions:
+            - remove:
+                index: test_index
+                alias: test_alias
+                must_exist: true
+
+  - do:
+      catch: /aliases \[testAlias\*\] missing/
+      indices.update_aliases:
+        body:
+          actions:
+            - remove:
+                index: test_index
+                aliases: [ testAlias* ]
+                must_exist: true
+
+  - do:
+      catch: /\[aliases\] can't be empty/
+      indices.update_aliases:
+        body:
+          actions:
+            - remove:
+                index: test_index
+                aliases: []
+                must_exist: true
+
+---
+"Throw aliases missing exception when all of the specified aliases are non-existing":
+  - skip:
+      version: " - 2.99.99"
+      reason: "introduced in 3.0"
+
+  - do:
+      indices.create:
+        index: test_index
+
+  - do:
+      indices.exists_alias:
+        name: test_alias
+
+  - is_false: ''
+
+  - do:
+      catch: /aliases \[test\_alias\] missing/
+      indices.update_aliases:
+        body:
+          actions:
+            - remove:
+                index: test_index
+                alias: test_alias
+
+  - do:
+      catch: /aliases \[test\_alias\*\] missing/
+      indices.update_aliases:
+        body:
+          actions:
+            - remove:
+                indices: [ test_index ]
+                aliases: [ test_alias* ]
+
+---
+"Remove successfully when some specified aliases are non-existing":
+  - skip:
+      version: " - 2.99.99"
+      reason: "introduced in 3.0"
+
+  - do:
+      indices.create:
+        index: test_index
+
+  - do:
+      indices.exists_alias:
+        name: test_alias
+
+  - is_false: ''
+
+  - do:
+      indices.update_aliases:
+        body:
+          actions:
+            - add:
+                indices: [ test_index ]
+                aliases: [ test_alias ]
+
+  - do:
+      indices.update_aliases:
+        body:
+          actions:
+            - remove:
+                index: test_index
+                aliases: [test_alias, test_alias1, test_alias2]
+                must_exist: false
+
+  - match: { acknowledged: true }
+
+---
+"Remove silently when all of the specified aliases are non-existing and must_exist is false":
+  - skip:
+      version: " - 2.99.99"
+      reason: "introduced in 3.0"
+
+  - do:
+      indices.create:
+        index: test_index
+
+  - do:
+      indices.exists_alias:
+        name: test_alias
+
+  - is_false: ''
+
+  - do:
+      indices.update_aliases:
+        body:
+          actions:
+            - remove:
+                index: test_index
+                aliases: [test_alias, test_alias1, test_alias2]
+                must_exist: false
+
+  - match: { acknowledged: true }
