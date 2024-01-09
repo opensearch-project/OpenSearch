@@ -383,7 +383,7 @@ public class IndicesServiceCloseTests extends OpenSearchTestCase {
 
             @Override
             public Object getCacheIdentity() {
-                return this;
+                return shard;
             }
         };
         cache.getOrCompute(cacheEntity, () -> new BytesArray("bar"), searcher.getDirectoryReader(), new BytesArray("foo"));
