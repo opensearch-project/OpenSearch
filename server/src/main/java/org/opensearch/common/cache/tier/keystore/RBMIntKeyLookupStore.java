@@ -85,12 +85,15 @@ public class RBMIntKeyLookupStore implements KeyLookupStore<Integer> {
     protected final Lock readLock = lock.readLock();
     protected final Lock writeLock = lock.writeLock();
     private long mostRecentByteEstimate;
-    static final int REFRESH_SIZE_EST_INTERVAL = 10_000;
+
     // Refresh size estimate every X new elements. Refreshes use the RBM's internal size estimator, which takes ~0.01 ms,
     // so we don't want to do it on every get(), and it doesn't matter much if there are +- 10000 keys in this store
     // in terms of storage impact
+    static final int REFRESH_SIZE_EST_INTERVAL = 10_000;
 
-    // Use this constructor to specify memory cap with default modulo
+
+    // Use this constructor to specify memory cap with default modulo = 2^28, which we found in experiments
+    // to be the best tradeoff between lower memory usage and risk of collisions
     public RBMIntKeyLookupStore(long memSizeCapInBytes) {
         this(KeystoreModuloValue.TWO_TO_TWENTY_EIGHT, memSizeCapInBytes);
     }
@@ -119,11 +122,19 @@ public class RBMIntKeyLookupStore implements KeyLookupStore<Integer> {
         CounterMetric numCollisions = collidedIntCounters.get(transformedValue);
         if (numCollisions == null) { // First time the transformedValue has had a collision
             numCollisions = new CounterMetric();
-            numCollisions.inc(2);
-            collidedIntCounters.put(transformedValue, numCollisions); // Initialize the number of colliding keys to 2
+            numCollisions.inc(2); // initialize to 2, since the first collision means 2 keys have collided
+            collidedIntCounters.put(transformedValue, numCollisions);
         } else {
             numCollisions.inc();
         }
+    }
+
+    private boolean shouldUpdateByteEstimate() {
+        return getSize() % REFRESH_SIZE_EST_INTERVAL == 0;
+    }
+
+    private boolean isAtCapacityLimit() {
+        return getMemorySizeCapInBytes() > 0 && mostRecentByteEstimate > getMemorySizeCapInBytes();
     }
 
     @Override
@@ -133,10 +144,10 @@ public class RBMIntKeyLookupStore implements KeyLookupStore<Integer> {
         }
         stats.numAddAttempts.inc();
 
-        if (getSize() % REFRESH_SIZE_EST_INTERVAL == 0) {
+        if (shouldUpdateByteEstimate()) {
             mostRecentByteEstimate = computeMemorySizeInBytes();
         }
-        if (getMemorySizeCapInBytes() > 0 && mostRecentByteEstimate > getMemorySizeCapInBytes()) {
+        if (isAtCapacityLimit()) {
             stats.atCapacity.set(true);
             return false;
         }
@@ -144,10 +155,7 @@ public class RBMIntKeyLookupStore implements KeyLookupStore<Integer> {
 
         writeLock.lock();
         try {
-            boolean alreadyContained;
-            // saves calling transform() an additional time
-            alreadyContained = rbm.contains(transformedValue);
-            if (!alreadyContained) {
+            if (!rbm.contains(transformedValue)) {
                 rbm.add(transformedValue);
                 stats.size.inc();
                 return true;
@@ -208,7 +216,6 @@ public class RBMIntKeyLookupStore implements KeyLookupStore<Integer> {
             if (!rbm.contains(transformedValue)) { // saves additional transform() call
                 return false;
             }
-            // move below into write lock
             stats.numRemovalAttempts.inc();
         } finally {
             readLock.unlock();
@@ -251,6 +258,9 @@ public class RBMIntKeyLookupStore implements KeyLookupStore<Integer> {
 
     // Helper fn for remove()
     private void removeFromRBM(int transformedValue) {
+        if (!lock.isWriteLockedByCurrentThread()) {
+            throw new IllegalStateException("Write Lock must be held when calling this method");
+        }
         rbm.remove(transformedValue);
         stats.size.dec();
         stats.numSuccessfulRemovals.inc();
@@ -284,6 +294,12 @@ public class RBMIntKeyLookupStore implements KeyLookupStore<Integer> {
         return transform(value1) == transform(value2);
     }
 
+    /*
+    The built-in RBM size estimator is known to work very badly for randomly-distributed data, like the hashes we will be using.
+    See https://github.com/RoaringBitmap/RoaringBitmap/issues/257.
+    We ran tests to determine what multiplier you need  to get true size from reported size, as a function of log10(# entries / modulo),
+    and found this piecewise linear function was a good approximation across different modulos.
+     */
     static double getRBMSizeMultiplier(int numEntries, int modulo) {
         double effectiveModulo = (double) modulo / 2;
         /* This model was created when we used % operator to calculate modulo. This has range (-modulo, modulo).
