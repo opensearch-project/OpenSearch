@@ -241,6 +241,7 @@ public class AliasActionsTests extends OpenSearchTestCase {
         String[] indices = generateRandomStringArray(10, 5, false, false);
         String[] aliases = generateRandomStringArray(10, 5, false, false);
         XContentBuilder b = XContentBuilder.builder(randomFrom(XContentType.values()).xContent());
+        boolean mustExist = randomBoolean();
         b.startObject();
         {
             b.startObject("remove");
@@ -255,6 +256,9 @@ public class AliasActionsTests extends OpenSearchTestCase {
                 } else {
                     b.field("alias", aliases[0]);
                 }
+                if (mustExist) {
+                    b.field("must_exist", true);
+                }
             }
             b.endObject();
         }
@@ -265,6 +269,9 @@ public class AliasActionsTests extends OpenSearchTestCase {
             assertEquals(AliasActions.Type.REMOVE, action.actionType());
             assertThat(action.indices(), equalTo(indices));
             assertThat(action.aliases(), equalTo(aliases));
+            if (mustExist) {
+                assertThat(action.mustExist(), equalTo(true));
+            }
         }
     }
 

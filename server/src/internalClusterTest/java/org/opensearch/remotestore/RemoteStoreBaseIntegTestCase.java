@@ -122,11 +122,6 @@ public class RemoteStoreBaseIntegTestCase extends OpenSearchIntegTestCase {
     }
 
     @Override
-    protected boolean addMockInternalEngine() {
-        return false;
-    }
-
-    @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         if (segmentRepoPath == null || translogRepoPath == null) {
             segmentRepoPath = randomRepoPath().toAbsolutePath();

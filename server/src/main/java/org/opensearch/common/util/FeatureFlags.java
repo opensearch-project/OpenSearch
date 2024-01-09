@@ -61,6 +61,12 @@ public class FeatureFlags {
     public static final String DATETIME_FORMATTER_CACHING = "opensearch.experimental.optimization.datetime_formatter_caching.enabled";
 
     /**
+     * Gates the functionality of writeable remote index
+     * Once the feature is ready for release, this feature flag can be removed.
+     */
+    public static final String WRITEABLE_REMOTE_INDEX = "opensearch.experimental.feature.writeable_remote_index.enabled";
+
+    /**
      * Should store the settings from opensearch.yml.
      */
     private static Settings settings;
@@ -120,6 +126,12 @@ public class FeatureFlags {
     public static final Setting<Boolean> DATETIME_FORMATTER_CACHING_SETTING = Setting.boolSetting(
         DATETIME_FORMATTER_CACHING,
         true,
+        Property.NodeScope
+    );
+
+    public static final Setting<Boolean> WRITEABLE_REMOTE_INDEX_SETTING = Setting.boolSetting(
+        WRITEABLE_REMOTE_INDEX,
+        false,
         Property.NodeScope
     );
 }
