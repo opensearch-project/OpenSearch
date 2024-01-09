@@ -39,6 +39,7 @@ import org.opensearch.Version;
 import org.opensearch.action.OriginalIndices;
 import org.opensearch.action.OriginalIndicesTests;
 import org.opensearch.action.search.SearchRequest;
+import org.opensearch.common.Randomness;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.lucene.search.TopDocsAndMaxScore;
 import org.opensearch.common.settings.Settings;
@@ -57,6 +58,7 @@ import org.opensearch.search.suggest.SuggestTests;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.HashMap;
+import java.util.Random;
 
 import static java.util.Collections.emptyList;
 
@@ -69,7 +71,7 @@ public class QuerySearchResultTests extends OpenSearchTestCase {
         this.namedWriteableRegistry = new NamedWriteableRegistry(searchModule.getNamedWriteables());
     }
 
-    private static QuerySearchResult createTestInstance() throws Exception {
+    private static QuerySearchResult createTestInstance(boolean setTookTime, Random rand) throws Exception {
         ShardId shardId = new ShardId("index", "uuid", randomInt());
         SearchRequest searchRequest = new SearchRequest().allowPartialSearchResults(randomBoolean());
         ShardSearchRequest shardSearchRequest = new ShardSearchRequest(
@@ -102,18 +104,16 @@ public class QuerySearchResultTests extends OpenSearchTestCase {
             result.aggregations(InternalAggregationsTests.createTestInstance());
         }
         assertNull(result.getTookTimeNanos());
+        if (setTookTime) {
+            result.setTookTimeNanos(rand.nextLong());
+        }
         return result;
     }
 
     public void testSerialization() throws Exception {
-        HashMap<Boolean, Long> expectedValues = new HashMap<>(); // map contains whether to set took time, and if so, to what value
-        expectedValues.put(false, null);
-        expectedValues.put(true, 1000L);
-        for (Boolean doSetTookTime : expectedValues.keySet()) {
-            QuerySearchResult querySearchResult = createTestInstance();
-            if (doSetTookTime) {
-                querySearchResult.setTookTimeNanos(expectedValues.get(doSetTookTime));
-            }
+        Random rand = Randomness.get();
+        for (Boolean doSetTookTime : new boolean[]{false, true}) {
+            QuerySearchResult querySearchResult = createTestInstance(doSetTookTime, rand);
             QuerySearchResult deserialized = copyWriteable(querySearchResult, namedWriteableRegistry, QuerySearchResult::new);
             assertEquals(querySearchResult.getContextId().getId(), deserialized.getContextId().getId());
             assertNull(deserialized.getSearchShardTarget());
@@ -129,7 +129,6 @@ public class QuerySearchResultTests extends OpenSearchTestCase {
             }
             assertEquals(querySearchResult.terminatedEarly(), deserialized.terminatedEarly());
             assertEquals(querySearchResult.getTookTimeNanos(), deserialized.getTookTimeNanos());
-            assertEquals(expectedValues.get(doSetTookTime), querySearchResult.getTookTimeNanos());
         }
     }
 
