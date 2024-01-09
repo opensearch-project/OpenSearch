@@ -21,7 +21,6 @@ public class KeyStoreStats {
     protected long memSizeCapInBytes;
     protected CounterMetric numAddAttempts;
     protected CounterMetric numCollisions;
-    protected boolean guaranteesNoFalseNegatives;
     protected AtomicBoolean atCapacity;
     protected CounterMetric numRemovalAttempts;
     protected CounterMetric numSuccessfulRemovals;

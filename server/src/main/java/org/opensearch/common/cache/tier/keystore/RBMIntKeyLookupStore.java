@@ -33,6 +33,9 @@
 package org.opensearch.common.cache.tier.keystore;
 
 import org.opensearch.common.metrics.CounterMetric;
+import org.opensearch.common.settings.ClusterSettings;
+import org.opensearch.common.settings.Setting;
+import org.opensearch.core.common.unit.ByteSizeValue;
 
 import java.util.HashMap;
 import java.util.HashSet;
@@ -42,7 +45,7 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 import org.roaringbitmap.RoaringBitmap;
 
 /**
- * This class implements KeyLookupStore<Integer> using a roaring bitmap with a modulo applied to values.
+ * This class implements KeyLookupStore using a roaring bitmap with a modulo applied to values.
  * The modulo increases the density of values, which makes RBMs more memory-efficient. The recommended modulo is ~2^28.
  * It also maintains a hash set of values which have had collisions. Values which haven't had collisions can be
  * safely removed from the store. The fraction of collided values should be low,
@@ -82,16 +85,17 @@ public class RBMIntKeyLookupStore implements KeyLookupStore<Integer> {
     protected final Lock readLock = lock.readLock();
     protected final Lock writeLock = lock.writeLock();
     private long mostRecentByteEstimate;
-    protected final int REFRESH_SIZE_EST_INTERVAL = 10000;
+    static final int REFRESH_SIZE_EST_INTERVAL = 10_000;
     // Refresh size estimate every X new elements. Refreshes use the RBM's internal size estimator, which takes ~0.01 ms,
     // so we don't want to do it on every get(), and it doesn't matter much if there are +- 10000 keys in this store
     // in terms of storage impact
 
-    // Default constructor sets modulo = 2^28
+    // Use this constructor to specify memory cap with default modulo
     public RBMIntKeyLookupStore(long memSizeCapInBytes) {
         this(KeystoreModuloValue.TWO_TO_TWENTY_EIGHT, memSizeCapInBytes);
     }
 
+    // Use this constructor to specify memory cap and modulo
     public RBMIntKeyLookupStore(KeystoreModuloValue moduloValue, long memSizeCapInBytes) {
         this.modulo = moduloValue.getValue();
         if (modulo > 0) {
@@ -130,7 +134,7 @@ public class RBMIntKeyLookupStore implements KeyLookupStore<Integer> {
         stats.numAddAttempts.inc();
 
         if (getSize() % REFRESH_SIZE_EST_INTERVAL == 0) {
-            mostRecentByteEstimate = getMemorySizeInBytes();
+            mostRecentByteEstimate = computeMemorySizeInBytes();
         }
         if (getMemorySizeCapInBytes() > 0 && mostRecentByteEstimate > getMemorySizeCapInBytes()) {
             stats.atCapacity.set(true);
@@ -280,7 +284,7 @@ public class RBMIntKeyLookupStore implements KeyLookupStore<Integer> {
         return transform(value1) == transform(value2);
     }
 
-     static double getRBMSizeMultiplier(int numEntries, int modulo) {
+    static double getRBMSizeMultiplier(int numEntries, int modulo) {
         double effectiveModulo = (double) modulo / 2;
         /* This model was created when we used % operator to calculate modulo. This has range (-modulo, modulo).
         Now we have optimized to use a bitmask, which has range [0, modulo). So the number of possible values stored
@@ -301,8 +305,20 @@ public class RBMIntKeyLookupStore implements KeyLookupStore<Integer> {
         return 1;
     }
 
+    /**
+     * Return the most recent memory size estimate, without updating it.
+     * @return the size estimate (bytes)
+     */
     @Override
     public long getMemorySizeInBytes() {
+        return mostRecentByteEstimate;
+    }
+
+    /**
+     * Calculate a new memory size estimate. This is somewhat expensive, so we don't call this every time we run get().
+     * @return a new size estimate (bytes)
+     */
+    private long computeMemorySizeInBytes() {
         double multiplier = getRBMSizeMultiplier((int) stats.size.count(), modulo);
         return (long) (rbm.getSizeInBytes() * multiplier);
     }
@@ -325,7 +341,6 @@ public class RBMIntKeyLookupStore implements KeyLookupStore<Integer> {
         stats.size = new CounterMetric();
         stats.numAddAttempts = new CounterMetric();
         stats.numCollisions = new CounterMetric();
-        stats.guaranteesNoFalseNegatives = true;
         stats.numRemovalAttempts = new CounterMetric();
         stats.numSuccessfulRemovals = new CounterMetric();
         for (int i = 0; i < newValues.length; i++) {
@@ -361,5 +376,18 @@ public class RBMIntKeyLookupStore implements KeyLookupStore<Integer> {
 
     HashSet<Integer> getRemovalSetForValue(int value) {
         return removalSets.get(transform(value));
+    }
+
+    /**
+     * Function to set a new memory size cap.
+     * TODO: Integrate this with the tiered caching cluster settings PR once this is raised.
+     * @param newMemSizeCap The new cap size.
+     */
+    protected void setMemSizeCap(ByteSizeValue newMemSizeCap) {
+        stats.memSizeCapInBytes = newMemSizeCap.getBytes();
+        mostRecentByteEstimate = getMemorySizeInBytes();
+        if (mostRecentByteEstimate > getMemorySizeCapInBytes()) {
+            stats.atCapacity.set(true);
+        }
     }
 }
