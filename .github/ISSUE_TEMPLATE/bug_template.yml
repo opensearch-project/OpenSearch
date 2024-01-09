@@ -15,7 +15,7 @@ body:
       description: Choose a specific OpenSearch component your bug belongs to.  If you are unsure which to select or if the component is not present, select "Other".
       multiple: false
       options:
-        - Other
+        - # Empty first option to force selection
         - Build
         - Clients
         - Cluster Manager
@@ -24,6 +24,7 @@ body:
         - Indexing:Replication
         - Indexing
         - Libraries
+        - Other
         - Plugins
         - Search:Aggregations
         - Search:Performance
