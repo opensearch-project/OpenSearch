@@ -34,6 +34,16 @@
                 aliases: [ testAlias* ]
                 must_exist: true
 
+  - do:
+      catch: /\[aliases\] can't be empty/
+      indices.update_aliases:
+        body:
+          actions:
+            - remove:
+                index: test_index
+                aliases: []
+                must_exist: true
+
 ---
 "Throw aliases missing exception when all of the specified aliases are non-existing":
   - skip:
