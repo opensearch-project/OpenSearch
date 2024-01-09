@@ -14,6 +14,9 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 
+import java.util.HashMap;
+import java.util.Map;
+
 /**
  * Wrapper class to encapsulate tracing related settings
  *
@@ -64,20 +67,32 @@ public class TelemetrySettings {
         Setting.Property.Final
     );
 
+    /**
+     * Probability of action based sampler
+     */
+    public static final Setting.AffixSetting<Double> TRACER_SAMPLER_ACTION_PROBABILITY = Setting.affixKeySetting(
+        "telemetry.tracer.action.sampler.",
+        "probability",
+        (ns, key) -> Setting.doubleSetting(key, 0.00d, 0.00d, 1.00d, Setting.Property.Dynamic, Setting.Property.NodeScope)
+    );
+
     private volatile boolean tracingEnabled;
     private volatile double samplingProbability;
 
     private final boolean tracingFeatureEnabled;
     private final boolean metricsFeatureEnabled;
+    private volatile Map<String, Double> affixSamplingProbability;
 
     public TelemetrySettings(Settings settings, ClusterSettings clusterSettings) {
         this.tracingEnabled = TRACER_ENABLED_SETTING.get(settings);
         this.samplingProbability = TRACER_SAMPLER_PROBABILITY.get(settings);
         this.tracingFeatureEnabled = TRACER_FEATURE_ENABLED_SETTING.get(settings);
         this.metricsFeatureEnabled = METRICS_FEATURE_ENABLED_SETTING.get(settings);
+        this.affixSamplingProbability = new HashMap<>();
 
         clusterSettings.addSettingsUpdateConsumer(TRACER_ENABLED_SETTING, this::setTracingEnabled);
         clusterSettings.addSettingsUpdateConsumer(TRACER_SAMPLER_PROBABILITY, this::setSamplingProbability);
+        clusterSettings.addAffixMapUpdateConsumer(TRACER_SAMPLER_ACTION_PROBABILITY, this::setActionSamplingProbability, (a, b) -> {});
     }
 
     public void setTracingEnabled(boolean tracingEnabled) {
@@ -97,7 +112,20 @@ public class TelemetrySettings {
     }
 
     /**
+     * Set sampling ratio for action
+     * @param filters map of action and corresponding value
+     */
+    public void setActionSamplingProbability(Map<String, Double> filters) {
+        synchronized (this) {
+            for (String name : filters.keySet()) {
+                this.affixSamplingProbability.put(name, filters.get(name));
+            }
+        }
+    }
+
+    /**
      * Get sampling ratio
+     * @return double
      */
     public double getSamplingProbability() {
         return samplingProbability;
@@ -109,5 +137,23 @@ public class TelemetrySettings {
 
     public boolean isMetricsFeatureEnabled() {
         return metricsFeatureEnabled;
+    }
+
+    /**
+     * Returns if sampling override is set for action
+     * @param action string
+     * @return boolean if sampling override is present for an action
+     */
+    public boolean isActionSamplingOverrideSet(String action) {
+        return affixSamplingProbability.containsKey(action);
+    }
+
+    /**
+     * Get action sampling ratio
+     * @param action string
+     * @return double value of sampling probability for that action
+     */
+    public double getActionSamplingProbability(String action) {
+        return this.affixSamplingProbability.get(action);
     }
 }
