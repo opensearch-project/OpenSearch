@@ -448,9 +448,13 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContentFragm
             return (currentIOTime - previousIOTime);
         }
 
+        public String getDeviceName() {
+            return deviceName;
+        }
+
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.field("device_name", deviceName);
+            builder.field("device_name", getDeviceName());
             builder.field(IoStats.OPERATIONS, operations());
             builder.field(IoStats.READ_OPERATIONS, readOperations());
             builder.field(IoStats.WRITE_OPERATIONS, writeOperations());
