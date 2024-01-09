@@ -65,6 +65,7 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
 import java.util.function.Function;
@@ -116,9 +117,9 @@ public final class IndicesRequestCache implements RemovalListener<IndicesRequest
     private final ByteSizeValue size;
     private final TimeValue expire;
     private final Cache<Key, BytesReference> cache;
-    private final Function<ShardId, CacheEntity> cacheEntityLookup;
+    private final Function<ShardId, Optional<CacheEntity>> cacheEntityLookup;
 
-    IndicesRequestCache(Settings settings, Function<ShardId, CacheEntity> cacheEntityFunction) {
+    IndicesRequestCache(Settings settings, Function<ShardId, Optional<CacheEntity>> cacheEntityFunction) {
         this.size = INDICES_CACHE_QUERY_SIZE.get(settings);
         this.expire = INDICES_CACHE_QUERY_EXPIRE.exists(settings) ? INDICES_CACHE_QUERY_EXPIRE.get(settings) : null;
         long sizeInBytes = size.getBytes();
@@ -145,7 +146,9 @@ public final class IndicesRequestCache implements RemovalListener<IndicesRequest
 
     @Override
     public void onRemoval(RemovalNotification<Key, BytesReference> notification) {
-        cacheEntityLookup.apply(notification.getKey().shardId).onRemoval(notification);
+        // In case this event happens for an old shard, we can safely ignore this as we don't keep track for old
+        // shards as part of request cache.
+        cacheEntityLookup.apply(notification.getKey().shardId).ifPresent(entity -> entity.onRemoval(notification));
     }
 
     BytesReference getOrCompute(
@@ -371,7 +374,7 @@ public final class IndicesRequestCache implements RemovalListener<IndicesRequest
             iterator.remove();
             if (cleanupKey.readerCacheKeyId == null || !cleanupKey.entity.isOpen()) {
                 // null indicates full cleanup, as does a closed shard
-                currentFullClean.add(cleanupKey.entity.getCacheIdentity());
+                currentFullClean.add(((IndexShard) cleanupKey.entity.getCacheIdentity()).shardId());
             } else {
                 currentKeysToClean.add(cleanupKey);
             }
@@ -379,10 +382,13 @@ public final class IndicesRequestCache implements RemovalListener<IndicesRequest
         if (!currentKeysToClean.isEmpty() || !currentFullClean.isEmpty()) {
             for (Iterator<Key> iterator = cache.keys().iterator(); iterator.hasNext();) {
                 Key key = iterator.next();
-                if (currentFullClean.contains(cacheEntityLookup.apply(key.shardId).getCacheIdentity())) {
+                if (currentFullClean.contains(key.shardId)) {
                     iterator.remove();
                 } else {
-                    if (currentKeysToClean.contains(new CleanupKey(cacheEntityLookup.apply(key.shardId), key.readerCacheKeyId))) {
+                    // If the flow comes here, then we should have a open shard available on node.
+                    if (currentKeysToClean.contains(
+                        new CleanupKey(cacheEntityLookup.apply(key.shardId).orElse(null), key.readerCacheKeyId)
+                    )) {
                         iterator.remove();
                     }
                 }

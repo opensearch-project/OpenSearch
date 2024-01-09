@@ -40,6 +40,7 @@ import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.index.shard.ShardId;
 
 import java.io.IOException;
+import java.util.Optional;
 import java.util.UUID;
 
 /**
@@ -91,7 +92,7 @@ public final class OpenSearchDirectoryReader extends FilterDirectoryReader {
 
         DelegatingCacheHelper(CacheHelper cacheHelper) {
             this.cacheHelper = cacheHelper;
-            this.serializableCacheKey = new DelegatingCacheKey(cacheHelper.getKey());
+            this.serializableCacheKey = new DelegatingCacheKey(Optional.ofNullable(cacheHelper).map(key -> getKey()).orElse(null));
         }
 
         @Override
