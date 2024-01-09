@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.plugin.correlation.core.index.codec.correlation950;
+package org.opensearch.plugin.correlation.core.index.codec.correlation990;
 
 import org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat;
 import org.opensearch.index.mapper.MapperService;
