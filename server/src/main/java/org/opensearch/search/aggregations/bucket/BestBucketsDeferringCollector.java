@@ -101,6 +101,8 @@ public class BestBucketsDeferringCollector extends DeferringBucketCollector {
     public BestBucketsDeferringCollector(SearchContext context, boolean isGlobal) {
         this.searchContext = context;
         this.isGlobal = isGlobal;
+        // a postCollection call is not made by the IndexSearcher when there are no segments.
+        // In this case init the collector as finished.
         this.finished = context.searcher().getLeafContexts().isEmpty();
     }
 
