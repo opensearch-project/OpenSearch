@@ -30,7 +30,6 @@
  * Modifications Copyright OpenSearch Contributors. See
  * GitHub history for details.
  */
-
 package org.opensearch.painless.antlr;
 
 import org.antlr.v4.runtime.FailedPredicateException;
