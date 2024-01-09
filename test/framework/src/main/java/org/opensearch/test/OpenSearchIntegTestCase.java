@@ -1693,7 +1693,9 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
         if (dummyDocuments) {
             indexRandomForMultipleSlices(indicesArray);
         }
-        verifyReplicasCaughtUpWithPrimary();
+        if (forceRefresh) {
+            verifyReplicasCaughtUpWithPrimary();
+        }
     }
 
     /*
