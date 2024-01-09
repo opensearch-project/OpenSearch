@@ -109,6 +109,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Remove deprecated classes for Rounding ([#10956](https://github.com/opensearch-project/OpenSearch/issues/10956))
 
 ### Fixed
+- Fix failure in dissect ingest processor parsing empty brackets ([#9225](https://github.com/opensearch-project/OpenSearch/pull/9255))
 - Fix class_cast_exception when passing int to _version and other metadata fields in ingest simulate API ([#10101](https://github.com/opensearch-project/OpenSearch/pull/10101))
 - Fix passing wrong parameter when calling newConfigurationException() in DotExpanderProcessor ([#10737](https://github.com/opensearch-project/OpenSearch/pull/10737))
 - Delegating CachingWeightWrapper#count to internal weight object ([#10543](https://github.com/opensearch-project/OpenSearch/pull/10543))
