@@ -144,11 +144,9 @@ public class CorrelationRule implements Writeable, ToXContentObject {
     /**
      * parse into CorrelationRule
      * @param xcp XContentParser
-     * @param id id of rule
-     * @param version version of rule
      * @return CorrelationRule
      */
-    public static CorrelationRule parse(XContentParser xcp, String id, Long version) {
+    public static CorrelationRule parse(XContentParser xcp) {
         return PARSER.apply(xcp, null);
     }
 

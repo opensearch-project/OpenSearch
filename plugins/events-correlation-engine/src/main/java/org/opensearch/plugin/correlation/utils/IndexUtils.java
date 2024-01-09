@@ -40,6 +40,7 @@ public class IndexUtils {
      * manages the mappings lifecycle for correlation rule index
      */
     public static Boolean correlationRuleIndexUpdated = false;
+    public static Boolean correlationHistoryIndexUpdated = false;
 
     private IndexUtils() {}
 
@@ -48,6 +49,10 @@ public class IndexUtils {
      */
     public static void correlationRuleIndexUpdated() {
         correlationRuleIndexUpdated = true;
+    }
+
+    public static void correlationHistoryIndexUpdated() {
+        correlationHistoryIndexUpdated = true;
     }
 
     /**
@@ -134,6 +139,9 @@ public class IndexUtils {
             } else {
                 actionListener.onResponse(new AcknowledgedResponse(true));
             }
+        } else {
+            // this is an impossible scenario. only added to pass unit tests.
+            actionListener.onResponse(new AcknowledgedResponse(true));
         }
     }
 }

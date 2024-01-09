@@ -30,6 +30,12 @@ public class EventsCorrelationSettings {
      * Boolean setting to check if an OS index is a correlation index.
      */
     public static final Setting<Boolean> IS_CORRELATION_INDEX_SETTING = Setting.boolSetting(CORRELATION_INDEX, false, IndexScope);
+    public static final Setting<Integer> CORRELATION_HISTORY_INDEX_SHARDS = Setting.intSetting(
+        "plugins.events_correlation.correlation_history_index_shards",
+        1,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
     /**
      * Global time window setting for Correlations
      */
