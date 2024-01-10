@@ -36,3 +36,19 @@
     - contains:  { nodes.$cluster_manager.ingest.processors: { type: split } }
     - contains:  { nodes.$cluster_manager.ingest.processors: { type: trim } }
     - contains:  { nodes.$cluster_manager.ingest.processors: { type: uppercase } }
+
+"Copy processor exists":
+    - skip:
+          version: " - 2.11.99"
+          features: contains
+          reason: "copy processor was introduced in 2.12.0 and contains is a newly added assertion"
+    - do:
+          cluster.state: {}
+
+    # Get cluster-manager node id
+    - set: { cluster_manager_node: cluster_manager }
+
+    - do:
+          nodes.info: {}
+
+    - contains:  { nodes.$cluster_manager.ingest.processors: { type: copy } }
