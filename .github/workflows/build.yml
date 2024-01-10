@@ -26,8 +26,11 @@ jobs:
   version:
     uses: ./.github/workflows/r_version.yml
 
+  commit_sha:
+    uses: ./.github/workflows/r_commit_sha.yml
+
   build:
-    needs: version
+    needs: [ version, commit_sha ]
     strategy:
       matrix:
         distribution: [tar, rpm, deb]
@@ -37,10 +40,10 @@ jobs:
       architecture: ${{ matrix.architecture }}
       distribution: ${{ matrix.distribution }}
       revision: ${{ inputs.revision }}
-      name: wazuh-indexer-min_${{ needs.version.outputs.version }}-${{ inputs.revision }}-${{ matrix.architecture }}_${{ github.sha }}.${{ matrix.distribution }}
+      name: wazuh-indexer-min_${{ needs.version.outputs.version }}-${{ inputs.revision }}-${{ matrix.architecture }}_${{ needs.commit_sha.outputs.commit_sha }}.${{ matrix.distribution }}
 
   assemble:
-    needs: [version, build]
+    needs: [version, commit_sha, build]
     strategy:
       matrix:
         distribution: [tar, rpm, deb]
@@ -54,4 +57,4 @@ jobs:
     with:
       architecture: ${{ matrix.architecture }}
       distribution: ${{ matrix.distribution }}
-      min: wazuh-indexer-min_${{ needs.version.outputs.version }}-${{ inputs.revision }}-${{ matrix.architecture }}_${{ github.sha }}.${{ matrix.distribution }}
+      min: wazuh-indexer-min_${{ needs.version.outputs.version }}-${{ inputs.revision }}-${{ matrix.architecture }}_${{ needs.commit_sha.outputs.commit_sha }}.${{ matrix.distribution }}

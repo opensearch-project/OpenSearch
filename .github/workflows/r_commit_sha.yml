@@ -1,0 +1,22 @@
+name: "Get commit's short SHA (reusable)"
+
+# This workflow runs when any of the following occur:
+# - Run from another workflow
+on:
+  workflow_call:
+    outputs:
+      commit_sha:
+        description: "Returns the short SHA of the latest commit"
+        value: ${{ jobs.r_commit_sha.outputs.commit_sha }}
+
+jobs:
+  r_commit_sha:
+    runs-on: ubuntu-latest
+    outputs:
+      commit_sha: ${{ steps.get_commit_sha.outputs.commit_sha }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Get git commit SHA
+        id: get_commit_sha
+        run: |
+          echo "commit_sha=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
