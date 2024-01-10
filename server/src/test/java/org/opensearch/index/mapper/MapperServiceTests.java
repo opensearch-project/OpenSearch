@@ -36,6 +36,7 @@ import org.apache.lucene.analysis.TokenStream;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.xcontent.XContentContraints;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.xcontent.XContentBuilder;
@@ -162,13 +163,18 @@ public class MapperServiceTests extends OpenSearchSingleNodeTestCase {
     public void testMappingDepthExceedsXContentLimit() throws Throwable {
         final IllegalArgumentException ex = assertThrows(
             IllegalArgumentException.class,
-            () -> createIndex("test1", Settings.builder().put(MapperService.INDEX_MAPPING_DEPTH_LIMIT_SETTING.getKey(), 10000).build())
+            () -> createIndex(
+                "test1",
+                Settings.builder()
+                    .put(MapperService.INDEX_MAPPING_DEPTH_LIMIT_SETTING.getKey(), XContentContraints.DEFAULT_MAX_DEPTH + 1)
+                    .build()
+            )
         );
 
         assertThat(
             ex.getMessage(),
             is(
-                "The provided value 10000 of the index setting 'index.mapping.depth.limit' exceeds per-JVM configured limit of 1000. "
+                "The provided value 1001 of the index setting 'index.mapping.depth.limit' exceeds per-JVM configured limit of 1000. "
                     + "Please change the setting value or increase per-JVM limit using 'opensearch.xcontent.depth.max' system property."
             )
         );
@@ -321,14 +327,16 @@ public class MapperServiceTests extends OpenSearchSingleNodeTestCase {
             IllegalArgumentException.class,
             () -> createIndex(
                 "test1",
-                Settings.builder().put(MapperService.INDEX_MAPPING_FIELD_NAME_LENGTH_LIMIT_SETTING.getKey(), 100000).build()
+                Settings.builder()
+                    .put(MapperService.INDEX_MAPPING_FIELD_NAME_LENGTH_LIMIT_SETTING.getKey(), XContentContraints.DEFAULT_MAX_NAME_LEN + 1)
+                    .build()
             )
         );
 
         assertThat(
             ex.getMessage(),
             is(
-                "The provided value 100000 of the index setting 'index.mapping.field_name_length.limit' exceeds per-JVM configured limit of 50000. "
+                "The provided value 50001 of the index setting 'index.mapping.field_name_length.limit' exceeds per-JVM configured limit of 50000. "
                     + "Please change the setting value or increase per-JVM limit using 'opensearch.xcontent.name.length.max' system property."
             )
         );
