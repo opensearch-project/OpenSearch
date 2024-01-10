@@ -113,7 +113,7 @@ public class ApiAnnotationProcessor extends AbstractProcessor {
         // The executable element should not be internal (unless constructor for injectable core component)
         checkNotInternal(enclosing, executable);
 
-        // Check this elements annotations
+        // Check this element's annotations
         for (final AnnotationMirror annotation : executable.getAnnotationMirrors()) {
             final Element element = annotation.getAnnotationType().asElement();
             if (inspectable(element)) {
@@ -210,7 +210,7 @@ public class ApiAnnotationProcessor extends AbstractProcessor {
             }
         }
 
-        // Check this elements annotations
+        // Check this element's annotations
         for (final AnnotationMirror annotation : ref.getAnnotationMirrors()) {
             final Element element = annotation.getAnnotationType().asElement();
             if (inspectable(element)) {
@@ -316,7 +316,7 @@ public class ApiAnnotationProcessor extends AbstractProcessor {
                     reportFailureAs,
                     "The element "
                         + element
-                        + " is part of the public APIs but is not maked as @PublicApi, @ExperimentalApi or @DeprecatedApi"
+                        + " is part of the public APIs but is not marked as @PublicApi, @ExperimentalApi or @DeprecatedApi"
                         + ((referencedBy != null) ? " (referenced by " + referencedBy + ") " : "")
                 );
         }
