@@ -172,7 +172,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
     private final NamedWriteableRegistry namedWriteableRegistry;
     private final CircuitBreaker circuitBreaker;
     private final SearchPipelineService searchPipelineService;
-    private final SearchRequestOperationsListeners searchRequestOperationsListeners;
+    private final SearchRequestOperationsCompositeListenerFactory searchRequestOperationsCompositeListenerFactory;
 
     private volatile boolean searchQueryMetricsEnabled;
 
@@ -195,7 +195,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         NamedWriteableRegistry namedWriteableRegistry,
         SearchPipelineService searchPipelineService,
         MetricsRegistry metricsRegistry,
-        SearchRequestOperationsListeners searchRequestOperationsListeners
+        SearchRequestOperationsCompositeListenerFactory searchRequestOperationsCompositeListenerFactory
     ) {
         super(SearchAction.NAME, transportService, actionFilters, (Writeable.Reader<SearchRequest>) SearchRequest::new);
         this.client = client;
@@ -212,7 +212,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         this.searchPipelineService = searchPipelineService;
         this.metricsRegistry = metricsRegistry;
         this.searchQueryMetricsEnabled = clusterService.getClusterSettings().get(SEARCH_QUERY_METRICS_ENABLED_SETTING);
-        this.searchRequestOperationsListeners = searchRequestOperationsListeners;
+        this.searchRequestOperationsCompositeListenerFactory = searchRequestOperationsCompositeListenerFactory;
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(SEARCH_QUERY_METRICS_ENABLED_SETTING, this::setSearchQueryMetricsEnabled);
     }
@@ -428,15 +428,12 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             relativeStartNanos,
             System::nanoTime
         );
-        final boolean phaseTookEnabled;
         if (originalSearchRequest.isPhaseTook() == null) {
-            phaseTookEnabled = clusterService.getClusterSettings().get(SEARCH_PHASE_TOOK_ENABLED);
-        } else {
-            phaseTookEnabled = originalSearchRequest.isPhaseTook();
+            originalSearchRequest.setPhaseTook(clusterService.getClusterSettings().get(SEARCH_PHASE_TOOK_ENABLED));
         }
-        SearchRequestOperationsListener.CompositeListener requestOperationsListeners = searchRequestOperationsListeners
+        SearchRequestOperationsListener.CompositeListener requestOperationsListeners = searchRequestOperationsCompositeListenerFactory
             .buildCompositeListener(originalSearchRequest, logger);
-        SearchRequestContext searchRequestContext = new SearchRequestContext(requestOperationsListeners, phaseTookEnabled);
+        SearchRequestContext searchRequestContext = new SearchRequestContext(requestOperationsListeners, originalSearchRequest);
         searchRequestContext.getSearchRequestOperationsListener().onRequestStart(searchRequestContext);
 
         PipelinedRequest searchRequest;

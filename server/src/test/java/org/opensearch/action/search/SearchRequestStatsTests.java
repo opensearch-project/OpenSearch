@@ -8,11 +8,13 @@
 
 package org.opensearch.action.search;
 
+import org.apache.logging.log4j.LogManager;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Phaser;
@@ -54,7 +56,13 @@ public class SearchRequestStatsTests extends OpenSearchTestCase {
             long startTime = System.nanoTime() - TimeUnit.MILLISECONDS.toNanos(tookTimeInMillis);
             when(mockSearchPhase.getStartTimeInNanos()).thenReturn(startTime);
             assertEquals(1, testRequestStats.getPhaseCurrent(searchPhaseName));
-            testRequestStats.onPhaseEnd(ctx, new SearchRequestContext());
+            testRequestStats.onPhaseEnd(
+                ctx,
+                new SearchRequestContext(
+                    new SearchRequestOperationsListener.CompositeListener(List.of(), LogManager.getLogger()),
+                    new SearchRequest()
+                )
+            );
             assertEquals(0, testRequestStats.getPhaseCurrent(searchPhaseName));
             assertEquals(1, testRequestStats.getPhaseTotal(searchPhaseName));
             assertThat(testRequestStats.getPhaseMetric(searchPhaseName), greaterThanOrEqualTo(tookTimeInMillis));
@@ -108,7 +116,13 @@ public class SearchRequestStatsTests extends OpenSearchTestCase {
             for (int i = 0; i < numTasks; i++) {
                 threads[i] = new Thread(() -> {
                     phaser.arriveAndAwaitAdvance();
-                    testRequestStats.onPhaseEnd(ctx, new SearchRequestContext());
+                    testRequestStats.onPhaseEnd(
+                        ctx,
+                        new SearchRequestContext(
+                            new SearchRequestOperationsListener.CompositeListener(List.of(), LogManager.getLogger()),
+                            new SearchRequest()
+                        )
+                    );
                     countDownLatch.countDown();
                 });
                 threads[i].start();

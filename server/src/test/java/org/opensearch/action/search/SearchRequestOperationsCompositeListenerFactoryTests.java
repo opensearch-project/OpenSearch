@@ -14,10 +14,12 @@ import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.List;
 
-public class SearchRequestOperationsListenersTests extends OpenSearchTestCase {
+public class SearchRequestOperationsCompositeListenerFactoryTests extends OpenSearchTestCase {
     public void testAddAndGetListeners() {
         SearchRequestOperationsListener testListener = createTestSearchRequestOperationsListener();
-        SearchRequestOperationsListeners requestListeners = new SearchRequestOperationsListeners(testListener);
+        SearchRequestOperationsCompositeListenerFactory requestListeners = new SearchRequestOperationsCompositeListenerFactory(
+            testListener
+        );
         assertEquals(1, requestListeners.getListeners().size());
         assertEquals(testListener, requestListeners.getListeners().get(0));
     }
@@ -26,7 +28,10 @@ public class SearchRequestOperationsListenersTests extends OpenSearchTestCase {
         SearchRequestOperationsListener testListener1 = createTestSearchRequestOperationsListener();
         SearchRequestOperationsListener testListener2 = createTestSearchRequestOperationsListener();
         testListener1.setEnabled(false);
-        SearchRequestOperationsListeners requestListeners = new SearchRequestOperationsListeners(testListener1, testListener2);
+        SearchRequestOperationsCompositeListenerFactory requestListeners = new SearchRequestOperationsCompositeListenerFactory(
+            testListener1,
+            testListener2
+        );
         SearchSourceBuilder source = SearchSourceBuilder.searchSource().query(QueryBuilders.matchAllQuery());
         SearchRequest searchRequest = new SearchRequest().source(source);
         SearchRequestOperationsListener.CompositeListener compositeListener = requestListeners.buildCompositeListener(
@@ -43,7 +48,9 @@ public class SearchRequestOperationsListenersTests extends OpenSearchTestCase {
 
     public void testStandardListenersAndPerRequestListener() {
         SearchRequestOperationsListener testListener1 = createTestSearchRequestOperationsListener();
-        SearchRequestOperationsListeners requestListeners = new SearchRequestOperationsListeners(testListener1);
+        SearchRequestOperationsCompositeListenerFactory requestListeners = new SearchRequestOperationsCompositeListenerFactory(
+            testListener1
+        );
         SearchRequestOperationsListener testListener2 = createTestSearchRequestOperationsListener();
         testListener1.setEnabled(true);
         testListener2.setEnabled(true);
@@ -66,7 +73,9 @@ public class SearchRequestOperationsListenersTests extends OpenSearchTestCase {
     public void testStandardListenersDisabledAndPerRequestListener() {
         SearchRequestOperationsListener testListener1 = createTestSearchRequestOperationsListener();
         testListener1.setEnabled(false);
-        SearchRequestOperationsListeners requestListeners = new SearchRequestOperationsListeners(testListener1);
+        SearchRequestOperationsCompositeListenerFactory requestListeners = new SearchRequestOperationsCompositeListenerFactory(
+            testListener1
+        );
         SearchRequestOperationsListener testListener2 = createTestSearchRequestOperationsListener();
         SearchSourceBuilder source = SearchSourceBuilder.searchSource().query(QueryBuilders.matchAllQuery());
         SearchRequest searchRequest = new SearchRequest().source(source);
@@ -85,7 +94,9 @@ public class SearchRequestOperationsListenersTests extends OpenSearchTestCase {
 
     public void testStandardListenerAndPerRequestListenerDisabled() {
         SearchRequestOperationsListener testListener1 = createTestSearchRequestOperationsListener();
-        SearchRequestOperationsListeners requestListeners = new SearchRequestOperationsListeners(testListener1);
+        SearchRequestOperationsCompositeListenerFactory requestListeners = new SearchRequestOperationsCompositeListenerFactory(
+            testListener1
+        );
         testListener1.setEnabled(true);
         SearchRequestOperationsListener testListener2 = createTestSearchRequestOperationsListener();
         testListener2.setEnabled(false);

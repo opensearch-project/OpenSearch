@@ -27,7 +27,7 @@ public abstract class SearchRequestOperationsListener {
         this.enabled = true;
     }
 
-    protected SearchRequestOperationsListener(boolean enabled) {
+    protected SearchRequestOperationsListener(final boolean enabled) {
         this.enabled = enabled;
     }
 
@@ -49,7 +49,7 @@ public abstract class SearchRequestOperationsListener {
         return enabled;
     }
 
-    protected void setEnabled(boolean enabled) {
+    protected void setEnabled(final boolean enabled) {
         this.enabled = enabled;
     }
 

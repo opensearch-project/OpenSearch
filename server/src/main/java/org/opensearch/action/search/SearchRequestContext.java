@@ -8,13 +8,11 @@
 
 package org.opensearch.action.search;
 
-import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.search.TotalHits;
 import org.opensearch.common.annotation.InternalApi;
 
 import java.util.EnumMap;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
@@ -31,25 +29,14 @@ class SearchRequestContext {
     private TotalHits totalHits;
     private final EnumMap<ShardStatsFieldNames, Integer> shardStats;
 
-    private final boolean phaseTookEnabled;
+    private final SearchRequest searchRequest;
 
-    /**
-     * This constructor is for testing only
-     */
-    SearchRequestContext() {
-        this(new SearchRequestOperationsListener.CompositeListener(List.of(), LogManager.getLogger()), false);
-    }
-
-    SearchRequestContext(SearchRequestOperationsListener searchRequestOperationsListener, boolean phaseTookEnabled) {
+    SearchRequestContext(final SearchRequestOperationsListener searchRequestOperationsListener, final SearchRequest searchRequest) {
         this.searchRequestOperationsListener = searchRequestOperationsListener;
         this.absoluteStartNanos = System.nanoTime();
         this.phaseTookMap = new HashMap<>();
         this.shardStats = new EnumMap<>(ShardStatsFieldNames.class);
-        this.phaseTookEnabled = phaseTookEnabled;
-    }
-
-    SearchRequestContext(SearchRequestOperationsListener searchRequestOperationsListener) {
-        this(searchRequestOperationsListener, false);
+        this.searchRequest = searchRequest;
     }
 
     SearchRequestOperationsListener getSearchRequestOperationsListener() {
@@ -65,7 +52,7 @@ class SearchRequestContext {
     }
 
     SearchResponse.PhaseTook getPhaseTook() {
-        if (phaseTookEnabled) {
+        if (searchRequest != null && searchRequest.isPhaseTook() != null && searchRequest.isPhaseTook()) {
             return new SearchResponse.PhaseTook(phaseTookMap);
         } else {
             return null;

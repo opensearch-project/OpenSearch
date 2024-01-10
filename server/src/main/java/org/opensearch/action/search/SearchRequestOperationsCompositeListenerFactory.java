@@ -17,25 +17,25 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 /**
- * SearchRequestOperationsListeners contains listeners registered to search requests,
+ * SearchRequestOperationsCompositeListenerFactory contains listeners registered to search requests,
  * and is responsible for creating the {@link SearchRequestOperationsListener.CompositeListener}
  * with the all listeners enabled at cluster-level and request-level.
  *
  *
  * @opensearch.internal
  */
-public class SearchRequestOperationsListeners {
+public final class SearchRequestOperationsCompositeListenerFactory {
     private final List<SearchRequestOperationsListener> searchRequestListenersList;
 
     /**
-     * Create the SearchRequestOperationsListeners and add multiple {@link SearchRequestOperationsListener}
+     * Create the SearchRequestOperationsCompositeListenerFactory and add multiple {@link SearchRequestOperationsListener}
      * to the searchRequestListenersList.
      * Those enabled listeners will be executed during each search request.
      *
      * @param listeners Multiple SearchRequestOperationsListener object to add.
      * @throws IllegalArgumentException if any input listener is null.
      */
-    public SearchRequestOperationsListeners(SearchRequestOperationsListener... listeners) {
+    public SearchRequestOperationsCompositeListenerFactory(final SearchRequestOperationsListener... listeners) {
         searchRequestListenersList = new ArrayList<>();
         for (SearchRequestOperationsListener listener : listeners) {
             if (listener == null) {
@@ -49,7 +49,6 @@ public class SearchRequestOperationsListeners {
      * Get searchRequestListenersList,
      *
      * @return List of SearchRequestOperationsListener
-     * @throws IllegalArgumentException if the input listener is null or already exists in the list.
      */
     public List<SearchRequestOperationsListener> getListeners() {
         return searchRequestListenersList;
@@ -65,9 +64,9 @@ public class SearchRequestOperationsListeners {
      * @return SearchRequestOperationsListener.CompositeListener
      */
     public SearchRequestOperationsListener.CompositeListener buildCompositeListener(
-        SearchRequest searchRequest,
-        Logger logger,
-        SearchRequestOperationsListener... perRequestListeners
+        final SearchRequest searchRequest,
+        final Logger logger,
+        final SearchRequestOperationsListener... perRequestListeners
     ) {
         final List<SearchRequestOperationsListener> searchListenersList = Stream.concat(
             searchRequestListenersList.stream(),
