@@ -47,8 +47,8 @@
 ---
 "Throw aliases missing exception when all of the specified aliases are non-existing":
   - skip:
-      version: " - 2.99.99"
-      reason: "introduced in 3.0"
+      version: " - 2.11.99"
+      reason: "introduced in 2.12.0"
 
   - do:
       indices.create:
@@ -81,8 +81,8 @@
 ---
 "Remove successfully when some specified aliases are non-existing":
   - skip:
-      version: " - 2.99.99"
-      reason: "introduced in 3.0"
+      version: " - 2.11.99"
+      reason: "introduced in 2.12.0"
 
   - do:
       indices.create:
@@ -116,8 +116,8 @@
 ---
 "Remove silently when all of the specified aliases are non-existing and must_exist is false":
   - skip:
-      version: " - 2.99.99"
-      reason: "introduced in 3.0"
+      version: " - 2.11.99"
+      reason: "introduced in 2.12.0"
 
   - do:
       indices.create:
