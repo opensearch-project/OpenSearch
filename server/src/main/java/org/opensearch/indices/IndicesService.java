@@ -62,6 +62,7 @@ import org.opensearch.common.CheckedFunction;
 import org.opensearch.common.CheckedSupplier;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.annotation.PublicApi;
+import org.opensearch.common.cache.tier.CachePolicyInfoWrapper;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lifecycle.AbstractLifecycleComponent;
@@ -1698,6 +1699,10 @@ public class IndicesService extends AbstractLifecycleComponent
         boolean[] loadedFromCache = new boolean[] { true };
         BytesReference bytesReference = cacheShardLevelResult(context.indexShard(), directoryReader, request.cacheKey(), out -> {
             queryPhase.execute(context);
+            CachePolicyInfoWrapper policyInfo = new CachePolicyInfoWrapper(context.queryResult().getTookTimeNanos());
+            policyInfo.writeTo(out);
+            // Write relevant info for cache tier policies before the whole QuerySearchResult, so we don't have to read
+            // the whole QSR into memory when we decide whether to allow it into a particular cache tier based on took time/other info
             context.queryResult().writeToNoId(out);
             loadedFromCache[0] = false;
         });
@@ -1706,6 +1711,7 @@ public class IndicesService extends AbstractLifecycleComponent
             // restore the cached query result into the context
             final QuerySearchResult result = context.queryResult();
             StreamInput in = new NamedWriteableAwareStreamInput(bytesReference.streamInput(), namedWriteableRegistry);
+            CachePolicyInfoWrapper policyInfo = new CachePolicyInfoWrapper(in); // This wrapper is not needed outside the cache
             result.readFromWithId(context.id(), in);
             result.setSearchShardTarget(context.shardTarget());
         } else if (context.queryResult().searchTimedOut()) {
