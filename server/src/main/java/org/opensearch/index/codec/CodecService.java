@@ -89,8 +89,8 @@ public class CodecService {
     public CodecService(@Nullable MapperService mapperService, Logger logger) {
         final MapBuilder<String, Codec> codecs = MapBuilder.<String, Codec>newMapBuilder();
         if (mapperService == null) {
-            codecs.put(DEFAULT_CODEC, new Lucene95Codec());
-            codecs.put(BEST_COMPRESSION_CODEC, new Lucene95Codec(Mode.BEST_COMPRESSION));
+            codecs.put(DEFAULT_CODEC, new Lucene99Codec());
+            codecs.put(BEST_COMPRESSION_CODEC, new Lucene99Codec(Mode.BEST_COMPRESSION));
         } else {
             IndexSettings indexSettings = mapperService.getIndexSettings();
             codecs.put(DEFAULT_CODEC, new PerFieldMappingPostingFormatCodec(Mode.BEST_SPEED, mapperService, logger));

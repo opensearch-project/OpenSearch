@@ -145,8 +145,8 @@ public class CodecTests extends OpenSearchTestCase {
         Settings nodeSettings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir()).build();
         IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("_na", nodeSettings);
         CodecService codecService = new CodecService(null, indexSettings, LogManager.getLogger("test"));
-        assert codecService.codec("default") instanceof Lucene95Codec;
-        assert codecService.codec("best_compression") instanceof Lucene95Codec;
+        assert codecService.codec("default") instanceof Lucene99Codec;
+        assert codecService.codec("best_compression") instanceof Lucene99Codec;
     }
 
     public void testCodecServiceWithOnlyMapperService() throws IOException {
