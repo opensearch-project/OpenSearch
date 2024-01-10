@@ -59,12 +59,6 @@ public class DiskTierTookTimePolicyTests extends OpenSearchTestCase {
         return new DiskTierTookTimePolicy(dummySettings, dummyClusterSettings, transformationFunction);
     }
 
-    public void testQSRSetupFunction() throws IOException {
-        Long ttn = 100000000000L;
-        QuerySearchResult qsr = getQSR(ttn);
-        assertEquals(ttn, qsr.getTookTimeNanos());
-    }
-
     public void testTookTimePolicy() throws Exception {
         DiskTierTookTimePolicy tookTimePolicy = getTookTimePolicy();
 
@@ -73,8 +67,8 @@ public class DiskTierTookTimePolicyTests extends OpenSearchTestCase {
         long shortMillis = (long) (0.9 * threshMillis);
         long longMillis = (long) (1.5 * threshMillis);
         tookTimePolicy.setThreshold(new TimeValue((long) threshMillis));
-        BytesReference shortTime = getValidPolicyInput(getQSR(shortMillis * 1000000));
-        BytesReference longTime = getValidPolicyInput(getQSR(longMillis * 1000000));
+        BytesReference shortTime = getValidPolicyInput(getQSR(), shortMillis * 1000000);
+        BytesReference longTime = getValidPolicyInput(getQSR(), longMillis * 1000000);
 
         boolean shortResult = tookTimePolicy.checkData(shortTime);
         assertFalse(shortResult);
@@ -89,7 +83,7 @@ public class DiskTierTookTimePolicyTests extends OpenSearchTestCase {
         assertTrue(longResult);
     }
 
-    public static QuerySearchResult getQSR(long tookTimeNanos) {
+    public static QuerySearchResult getQSR() {
         // package-private, also used by IndicesRequestCacheTests.java
         // setup from QuerySearchResultTests.java
         ShardId shardId = new ShardId("index", "uuid", randomInt());
@@ -114,14 +108,13 @@ public class DiskTierTookTimePolicyTests extends OpenSearchTestCase {
         TopDocs topDocs = new TopDocs(new TotalHits(randomLongBetween(0, Long.MAX_VALUE), TotalHits.Relation.EQUAL_TO), new ScoreDoc[0]);
         result.topDocs(new TopDocsAndMaxScore(topDocs, randomBoolean() ? Float.NaN : randomFloat()), new DocValueFormat[0]);
 
-        result.setTookTimeNanos(tookTimeNanos);
         return result;
     }
 
-    private BytesReference getValidPolicyInput(QuerySearchResult qsr) throws IOException {
+    private BytesReference getValidPolicyInput(QuerySearchResult qsr, long tookTimeNanos) throws IOException {
         // When it's used in the cache, the policy will receive BytesReferences which have a CachePolicyInfoWrapper
         // at the beginning of them, followed by the actual QSR.
-        CachePolicyInfoWrapper policyInfo = new CachePolicyInfoWrapper(qsr.getTookTimeNanos());
+        CachePolicyInfoWrapper policyInfo = new CachePolicyInfoWrapper(tookTimeNanos);
         BytesStreamOutput out = new BytesStreamOutput();
         policyInfo.writeTo(out);
         qsr.writeTo(out);
