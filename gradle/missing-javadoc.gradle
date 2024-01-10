@@ -131,6 +131,7 @@ configure([
   project(":plugins:analysis-smartcn"),
   project(":plugins:analysis-stempel"),
   project(":plugins:analysis-ukrainian"),
+  project(":plugins:api"),
   project(":plugins:discovery-azure-classic"),
   project(":plugins:discovery-ec2"),
   project(":plugins:discovery-ec2:qa:amazon-ec2"),

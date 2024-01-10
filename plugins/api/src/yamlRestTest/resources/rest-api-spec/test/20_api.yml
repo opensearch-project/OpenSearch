@@ -1,0 +1,6 @@
+"Test that the plugin returns an API spec":
+  - do:
+      api: {}
+
+  - match: { version.distribution: "opensearch" }
+  - match: { version.number: /.*-SNAPSHOT/ }

@@ -1,0 +1,20 @@
+{
+    "api":{
+      "documentation":{
+        "url":"",
+        "description":"Returns REST API spec."
+      },
+      "stability":"experimental",
+      "url":{
+        "paths":[
+          {
+            "path":"/_plugins/api",
+            "methods":[
+              "GET"
+            ]
+          }
+        ]
+      },
+      "params":{}
+    }
+  }

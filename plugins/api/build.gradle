@@ -1,0 +1,40 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * The OpenSearch Contributors require contributions made to
+ * this file be licensed under the Apache-2.0 license or a
+ * compatible open source license.
+ *
+ * Modifications Copyright OpenSearch Contributors. See
+ * GitHub history for details.
+ */
+
+import org.opensearch.gradle.LoggedExec
+import org.opensearch.gradle.info.BuildParams
+
+apply plugin: 'opensearch.build'
+apply plugin: 'opensearch.publish'
+apply plugin: 'opensearch.yaml-rest-test'
+
+opensearchplugin {
+  description 'The API plugin returns an OpenAPI spec.'
+  classname 'org.opensearch.plugin.api.APIPlugin'
+}
+
+ext {
+  failOnJavadocWarning = false
+}
+
+dependencies {
+  api "commons-logging:commons-logging:${versions.commonslogging}"
+  api "org.apache.logging.log4j:log4j-1.2-api:${versions.log4j}"
+}
+
+restResources {
+  restApi {
+    includeCore '_common', 'cat'
+  }
+}
+
+thirdPartyAudit.enabled = false
+testingConventions.enabled = false
