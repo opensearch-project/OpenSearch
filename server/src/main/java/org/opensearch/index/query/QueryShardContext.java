@@ -43,6 +43,7 @@ import org.opensearch.client.Client;
 import org.opensearch.common.CheckedFunction;
 import org.opensearch.common.SetOnce;
 import org.opensearch.common.TriFunction;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.lucene.search.Queries;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.core.action.ActionListener;
@@ -90,8 +91,9 @@ import static java.util.Collections.unmodifiableMap;
 /**
  * Context object used to create lucene queries on the shard level.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class QueryShardContext extends QueryRewriteContext {
 
     private final ScriptService scriptService;

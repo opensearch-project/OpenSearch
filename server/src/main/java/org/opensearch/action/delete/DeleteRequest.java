@@ -39,6 +39,7 @@ import org.opensearch.action.CompositeIndicesRequest;
 import org.opensearch.action.DocWriteRequest;
 import org.opensearch.action.support.replication.ReplicatedWriteRequest;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.lucene.uid.Versions;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.StreamInput;
@@ -64,8 +65,9 @@ import static org.opensearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
  * @see org.opensearch.client.Client#delete(DeleteRequest)
  * @see org.opensearch.client.Requests#deleteRequest(String)
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class DeleteRequest extends ReplicatedWriteRequest<DeleteRequest>
     implements
         DocWriteRequest<DeleteRequest>,

@@ -47,7 +47,7 @@ publishing {
 }
 
 base {
-  archivesBaseName = 'opensearch'
+  archivesName = 'opensearch'
 }
 
 sourceSets {
@@ -55,45 +55,6 @@ sourceSets {
     java {
       srcDir "${buildDir}/generated/source/proto/main/java"
     }
-  }
-}
-// we want to keep the JDKs in our IDEs set to JDK 8 until minimum JDK is bumped to 11 so we do not include this source set in our IDEs
-if (!isEclipse) {
-  sourceSets {
-    java11 {
-      java {
-        srcDirs = ['src/main/java11']
-      }
-    }
-  }
-
-  configurations {
-    java11Implementation.extendsFrom(api)
-  }
-
-  dependencies {
-    java11Implementation sourceSets.main.output
-  }
-
-  compileJava11Java {
-    sourceCompatibility = JavaVersion.VERSION_11
-    targetCompatibility = JavaVersion.VERSION_11
-  }
-
-  tasks.named('forbiddenApisJava11').configure {
-    doFirst {
-      if (BuildParams.runtimeJavaVersion < JavaVersion.VERSION_11) {
-        targetCompatibility = JavaVersion.VERSION_11
-      }
-    }
-  }
-
-  jar {
-    metaInf {
-      into 'versions/11'
-      from sourceSets.java11.output
-    }
-    manifest.attributes('Multi-Release': 'true')
   }
 }
 
@@ -147,12 +108,17 @@ dependencies {
   api "org.apache.logging.log4j:log4j-jul:${versions.log4j}"
   api "org.apache.logging.log4j:log4j-core:${versions.log4j}", optional
   annotationProcessor "org.apache.logging.log4j:log4j-core:${versions.log4j}"
+  annotationProcessor project(':libs:opensearch-common')
 
   // jna
   api "net.java.dev.jna:jna:${versions.jna}"
 
   // jcraft
   api "com.jcraft:jzlib:${versions.jzlib}"
+
+  // reactor
+  api "io.projectreactor:reactor-core:${versions.reactor}"
+  api "org.reactivestreams:reactive-streams:${versions.reactivestreams}"
 
   // protobuf
   api "com.google.protobuf:protobuf-java:${versions.protobuf}"
@@ -174,7 +140,8 @@ tasks.withType(JavaCompile).configureEach {
 }
 
 compileJava {
-  options.compilerArgs += ['-processor', 'org.apache.logging.log4j.core.config.plugins.processor.PluginProcessor']
+  options.compilerArgs += ['-processor', ['org.apache.logging.log4j.core.config.plugins.processor.PluginProcessor',
+    'org.opensearch.common.annotation.processor.ApiAnnotationProcessor'].join(','), '-AcontinueOnFailingChecks']
 }
 
 tasks.named("internalClusterTest").configure {
@@ -366,11 +333,13 @@ tasks.named("thirdPartyAudit").configure {
             'com.google.protobuf.UnsafeUtil$JvmMemoryAccessor',
             'com.google.protobuf.UnsafeUtil$MemoryAccessor',
             'org.apache.logging.log4j.core.util.internal.UnsafeUtil',
-            'org.apache.logging.log4j.core.util.internal.UnsafeUtil$1'
+            'org.apache.logging.log4j.core.util.internal.UnsafeUtil$1',
+            'reactor.core.publisher.Traces$SharedSecretsCallSiteSupplierFactory$TracingException'
     )
 }
 
 tasks.named("dependencyLicenses").configure {
+    mapping from: /reactor-.*/, to: 'reactor'
     mapping from: /lucene-.*/, to: 'lucene'
     dependencies = project.configurations.runtimeClasspath.fileCollection {
         it.group.startsWith('org.opensearch') == false ||
@@ -397,6 +366,7 @@ tasks.named("licenseHeaders").configure {
 }
 
 tasks.test {
+    environment "node.roles.test", "[]"
     if (BuildParams.runtimeJavaVersion > JavaVersion.VERSION_1_8) {
         jvmArgs += ["--add-opens", "java.base/java.nio.file=ALL-UNNAMED"]
     }

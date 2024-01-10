@@ -95,6 +95,12 @@ public class IngestDocumentTests extends OpenSearchTestCase {
         ingestDocument = new IngestDocument("index", "id", null, null, null, document);
     }
 
+    public void testSelfReferencingSource() {
+        Map<String, Object> value = new HashMap<>();
+        value.put("foo", value);
+        expectThrows(IllegalArgumentException.class, () -> IngestDocument.deepCopyMap(value));
+    }
+
     public void testSimpleGetFieldValue() {
         assertThat(ingestDocument.getFieldValue("foo", String.class), equalTo("bar"));
         assertThat(ingestDocument.getFieldValue("int", Integer.class), equalTo(123));

@@ -172,6 +172,7 @@ public class NaNSortingIT extends ParameterizedOpenSearchIntegTestCase {
             client().prepareIndex("idx").setSource(source.endObject()).get();
         }
         refresh();
+        indexRandomForMultipleSlices("idx");
         ensureSearchable();
     }
 

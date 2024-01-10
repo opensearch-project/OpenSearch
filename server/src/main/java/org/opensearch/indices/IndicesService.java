@@ -61,6 +61,7 @@ import org.opensearch.common.CheckedConsumer;
 import org.opensearch.common.CheckedFunction;
 import org.opensearch.common.CheckedSupplier;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lifecycle.AbstractLifecycleComponent;
@@ -205,8 +206,9 @@ import static org.opensearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
 /**
  * Main OpenSearch indices service
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class IndicesService extends AbstractLifecycleComponent
     implements
         IndicesClusterStateService.AllocatedIndices<IndexShard, IndexService>,
@@ -300,11 +302,13 @@ public class IndicesService extends AbstractLifecycleComponent
     );
 
     /**
-     * This setting is used to restrict creation of index where the 'index.replication.type' index setting is set.
-     * If disabled, the replication type can be specified.
+     * If enabled, this setting enforces that indexes will be created with a replication type matching the cluster setting
+     * defined in cluster.indices.replication.strategy by rejecting any request that specifies a replication type that
+     * does not match the cluster setting. If disabled, a user can choose a replication type on a per-index basis using
+     * the index.replication.type setting.
      */
-    public static final Setting<Boolean> CLUSTER_RESTRICT_INDEX_REPLICATION_TYPE_SETTING = Setting.boolSetting(
-        "cluster.restrict.index.replication_type",
+    public static final Setting<Boolean> CLUSTER_INDEX_RESTRICT_REPLICATION_TYPE_SETTING = Setting.boolSetting(
+        "cluster.index.restrict.replication.type",
         false,
         Property.NodeScope,
         Property.Final
@@ -1331,7 +1335,10 @@ public class IndicesService extends AbstractLifecycleComponent
 
     /**
      * result type returned by {@link #canDeleteShardContent signaling different reasons why a shard can / cannot be deleted}
+     *
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public enum ShardDeletionCheckResult {
         FOLDER_FOUND_CAN_DELETE, // shard data exists and can be deleted
         STILL_ALLOCATED, // the shard is still allocated / active on this node

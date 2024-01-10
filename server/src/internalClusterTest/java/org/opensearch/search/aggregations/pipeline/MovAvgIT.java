@@ -1320,6 +1320,7 @@ public class MovAvgIT extends ParameterizedOpenSearchIntegTestCase {
                     .setSource(jsonBuilder().startObject().field(INTERVAL_FIELD, i).field(VALUE_FIELD2, 10).endObject())
             );
         }
+        indexRandomForConcurrentSearch("predict_non_empty");
 
         bulkBuilder.get();
         ensureSearchable();

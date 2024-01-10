@@ -42,6 +42,7 @@ import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
@@ -59,8 +60,9 @@ import java.util.Locale;
 /**
  * Defines what values to pick in the case a document contains multiple values for a particular field.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public enum MultiValueMode implements Writeable {
     /**
      * Pick the sum of all the values.

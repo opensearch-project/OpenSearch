@@ -119,6 +119,7 @@ public class FetchSubPhasePluginIT extends ParameterizedOpenSearchIntegTestCase 
             .actionGet();
 
         client().admin().indices().prepareRefresh().get();
+        indexRandomForConcurrentSearch("test");
 
         SearchResponse response = client().prepareSearch()
             .setSource(new SearchSourceBuilder().ext(Collections.singletonList(new TermVectorsFetchBuilder("test"))))

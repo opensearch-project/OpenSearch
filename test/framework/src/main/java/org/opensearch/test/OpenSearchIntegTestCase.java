@@ -71,6 +71,7 @@ import org.opensearch.action.index.IndexResponse;
 import org.opensearch.action.search.ClearScrollResponse;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.action.support.IndicesOptions;
+import org.opensearch.action.support.WriteRequest;
 import org.opensearch.client.AdminClient;
 import org.opensearch.client.Client;
 import org.opensearch.client.ClusterAdminClient;
@@ -1646,6 +1647,7 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
             for (List<IndexRequestBuilder> segmented : partition) {
                 BulkRequestBuilder bulkBuilder = client().prepareBulk();
                 for (IndexRequestBuilder indexRequestBuilder : segmented) {
+                    indexRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.NONE);
                     bulkBuilder.add(indexRequestBuilder);
                 }
                 BulkResponse actionGet = bulkBuilder.execute().actionGet();
@@ -1667,10 +1669,6 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
         }
         assertThat(actualErrors, emptyIterable());
 
-        if (dummyDocuments) {
-            bogusIds.addAll(indexRandomForMultipleSlices(indicesArray));
-        }
-
         if (!bogusIds.isEmpty()) {
             // delete the bogus types again - it might trigger merges or at least holes in the segments and enforces deleted docs!
             for (List<String> doc : bogusIds) {
@@ -1686,6 +1684,9 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
                 client().admin().indices().prepareRefresh(indicesArray).setIndicesOptions(IndicesOptions.lenientExpandOpen()).get()
             );
         }
+        if (dummyDocuments) {
+            indexRandomForMultipleSlices(indicesArray);
+        }
     }
 
     /*
@@ -1694,7 +1695,7 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
     * multiple slices based on segment count.
     * @param indices         the indices in which bogus documents should be ingested
     * */
-    protected Set<List<String>> indexRandomForMultipleSlices(String... indices) throws InterruptedException {
+    protected void indexRandomForMultipleSlices(String... indices) throws InterruptedException {
         Set<List<String>> bogusIds = new HashSet<>();
         int refreshCount = randomIntBetween(2, 3);
         for (String index : indices) {
@@ -1731,7 +1732,15 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
                 refresh(index);
             }
         }
-        return bogusIds;
+        for (List<String> doc : bogusIds) {
+            assertEquals(
+                "failed to delete a dummy doc [" + doc.get(0) + "][" + doc.get(1) + "]",
+                DocWriteResponse.Result.DELETED,
+                client().prepareDelete(doc.get(0), doc.get(1)).setRouting(doc.get(1)).get().getResult()
+            );
+        }
+        // refresh is called to make sure the bogus docs doesn't affect the search results
+        refresh();
     }
 
     private final AtomicInteger dummmyDocIdGenerator = new AtomicInteger();

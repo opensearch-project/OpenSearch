@@ -11,6 +11,7 @@ package org.opensearch.index.shard;
 import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.util.Version;
+import org.opensearch.action.StepListener;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.settings.Settings;
@@ -32,6 +33,7 @@ import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
 import org.opensearch.indices.replication.common.ReplicationFailedException;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.test.CorruptionUtils;
+import org.opensearch.test.junit.annotations.TestLogging;
 import org.hamcrest.MatcherAssert;
 import org.junit.Assert;
 
@@ -297,31 +299,39 @@ public class RemoteIndexShardTests extends SegmentReplicationIndexShardTests {
         }
     }
 
+    @TestLogging(reason = "Getting trace logs from replication package", value = "org.opensearch.indices.replication:TRACE")
     public void testRepicaCleansUpOldCommitsWhenReceivingNew() throws Exception {
         final Path remotePath = createTempDir();
         try (ReplicationGroup shards = createGroup(1, getIndexSettings(), indexMapping, new NRTReplicationEngineFactory(), remotePath)) {
             shards.startAll();
             final IndexShard primary = shards.getPrimary();
             final IndexShard replica = shards.getReplicas().get(0);
+            final Store store = replica.store();
+            final SegmentInfos initialCommit = store.readLastCommittedSegmentsInfo();
             shards.indexDocs(1);
             flushShard(primary);
             replicateSegments(primary, shards.getReplicas());
+
             assertDocCount(primary, 1);
             assertDocCount(replica, 1);
-            assertEquals("segments_5", replica.store().readLastCommittedSegmentsInfo().getSegmentsFileName());
-            assertSingleSegmentFile(replica, "segments_5");
+            assertSingleSegmentFile(replica);
+            final SegmentInfos secondCommit = store.readLastCommittedSegmentsInfo();
+            assertTrue(secondCommit.getGeneration() > initialCommit.getGeneration());
 
             shards.indexDocs(1);
             primary.refresh("test");
             replicateSegments(primary, shards.getReplicas());
             assertDocCount(replica, 2);
-            assertSingleSegmentFile(replica, "segments_5");
+            assertSingleSegmentFile(replica);
+            assertEquals(store.readLastCommittedSegmentsInfo().getGeneration(), secondCommit.getGeneration());
 
             shards.indexDocs(1);
             flushShard(primary);
             replicateSegments(primary, shards.getReplicas());
             assertDocCount(replica, 3);
-            assertSingleSegmentFile(replica, "segments_6");
+            assertSingleSegmentFile(replica);
+            final SegmentInfos thirdCommit = store.readLastCommittedSegmentsInfo();
+            assertTrue(thirdCommit.getGeneration() > secondCommit.getGeneration());
 
             final Store.RecoveryDiff diff = Store.segmentReplicationDiff(primary.getSegmentMetadataMap(), replica.getSegmentMetadataMap());
             assertTrue(diff.missing.isEmpty());
@@ -362,7 +372,6 @@ public class RemoteIndexShardTests extends SegmentReplicationIndexShardTests {
      * prevent FileAlreadyExistsException. It does so by only copying files in first round of segment replication without
      * committing locally so that in next round of segment replication those files are not considered for download again
      */
-    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/10885")
     public void testSegRepSucceedsOnPreviousCopiedFiles() throws Exception {
         try (ReplicationGroup shards = createGroup(1, getIndexSettings(), new NRTReplicationEngineFactory())) {
             shards.startAll();
@@ -379,6 +388,7 @@ public class RemoteIndexShardTests extends SegmentReplicationIndexShardTests {
             );
             CountDownLatch latch = new CountDownLatch(1);
 
+            logger.info("--> Starting first round of replication");
             // Start first round of segment replication. This should fail with simulated error but with replica having
             // files in its local store but not in active reader.
             final SegmentReplicationTarget target = targetService.startReplication(
@@ -418,6 +428,7 @@ public class RemoteIndexShardTests extends SegmentReplicationIndexShardTests {
             // Start next round of segment replication and not throwing exception resulting in commit on replica
             when(sourceFactory.get(any())).thenReturn(getRemoteStoreReplicationSource(replica, () -> {}));
             CountDownLatch waitForSecondRound = new CountDownLatch(1);
+            logger.info("--> Starting second round of replication");
             final SegmentReplicationTarget newTarget = targetService.startReplication(
                 replica,
                 primary.getLatestReplicationCheckpoint(),
@@ -454,7 +465,6 @@ public class RemoteIndexShardTests extends SegmentReplicationIndexShardTests {
      * blocking update of reader. Once this is done, it corrupts one segment file and ensure that file is deleted in next
      * round of segment replication by ensuring doc count.
      */
-    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/10885")
     public void testNoFailuresOnFileReads() throws Exception {
         try (ReplicationGroup shards = createGroup(1, getIndexSettings(), new NRTReplicationEngineFactory())) {
             shards.startAll();
@@ -551,8 +561,19 @@ public class RemoteIndexShardTests extends SegmentReplicationIndexShardTests {
                 BiConsumer<String, Long> fileProgressTracker,
                 ActionListener<GetSegmentFilesResponse> listener
             ) {
-                super.getSegmentFiles(replicationId, checkpoint, filesToFetch, indexShard, (fileName, bytesRecovered) -> {}, listener);
-                postGetFilesRunnable.run();
+                StepListener<GetSegmentFilesResponse> waitForCopyFilesListener = new StepListener();
+                super.getSegmentFiles(
+                    replicationId,
+                    checkpoint,
+                    filesToFetch,
+                    indexShard,
+                    (fileName, bytesRecovered) -> {},
+                    waitForCopyFilesListener
+                );
+                waitForCopyFilesListener.whenComplete(response -> {
+                    postGetFilesRunnable.run();
+                    listener.onResponse(response);
+                }, listener::onFailure);
             }
 
             @Override
@@ -571,11 +592,10 @@ public class RemoteIndexShardTests extends SegmentReplicationIndexShardTests {
         assertFalse(primary.hasRefreshPending());
     }
 
-    private void assertSingleSegmentFile(IndexShard shard, String fileName) throws IOException {
+    private void assertSingleSegmentFile(IndexShard shard) throws IOException {
         final Set<String> segmentsFileNames = Arrays.stream(shard.store().directory().listAll())
             .filter(file -> file.startsWith(IndexFileNames.SEGMENTS))
             .collect(Collectors.toSet());
         assertEquals("Expected a single segment file", 1, segmentsFileNames.size());
-        assertEquals(segmentsFileNames.stream().findFirst().get(), fileName);
     }
 }

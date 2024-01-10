@@ -11,6 +11,7 @@ package org.opensearch.cluster.awarenesshealth;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.routing.allocation.AwarenessReplicaBalance;
 import org.opensearch.cluster.routing.allocation.decider.AwarenessAllocationDecider;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.common.io.stream.StreamInput;
@@ -30,7 +31,10 @@ import java.util.Objects;
 
 /**
  * Cluster state Awareness health information
+ *
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class ClusterAwarenessHealth implements Writeable, ToXContentFragment, Iterable<ClusterAwarenessAttributesHealth> {
 
     private static final String AWARENESS_ATTRIBUTE = "awareness_attributes";

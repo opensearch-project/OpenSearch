@@ -25,6 +25,8 @@ import org.opensearch.common.blobstore.BlobStore;
 import org.opensearch.common.blobstore.fs.FsBlobContainer;
 import org.opensearch.common.blobstore.fs.FsBlobStore;
 import org.opensearch.common.bytes.ReleasableBytesReference;
+import org.opensearch.common.lease.Releasable;
+import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
@@ -125,13 +127,14 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
     private ThreadPool threadPool;
     private final static String METADATA_DIR = "metadata";
     private final static String DATA_DIR = "data";
-
     AtomicInteger writeCalls = new AtomicInteger();
     BlobStoreRepository repository;
 
     BlobStoreTransferService blobStoreTransferService;
 
     TestTranslog.FailSwitch fail;
+
+    TestTranslog.SlowDownWriteSwitch slowDown;
 
     private LongConsumer getPersistedSeqNoConsumer() {
         return seqNo -> {
@@ -228,13 +231,15 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
         final ClusterService clusterService = BlobStoreTestUtil.mockClusterService(repositoryMetadata);
         fail = new TestTranslog.FailSwitch();
         fail.failNever();
+        slowDown = new TestTranslog.SlowDownWriteSwitch();
         final FsRepository repository = new ThrowingBlobRepository(
             repositoryMetadata,
             createEnvironment(),
             xContentRegistry(),
             clusterService,
             new RecoverySettings(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)),
-            fail
+            fail,
+            slowDown
         ) {
             @Override
             protected void assertSnapshotOrGenericThread() {
@@ -817,6 +822,79 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
             // Ignoring this exception for now. Once the download flow populates FileTracker,
             // we can remove this try-catch block
         }
+    }
+
+    public void testDrainSync() throws Exception {
+        // This test checks following scenarios -
+        // 1. During ongoing uploads, the available permits are 0.
+        // 2. During an upload, if drainSync is called, it will wait for it to acquire and available permits are 0.
+        // 3. After drainSync, if trimUnreferencedReaders is attempted, we do not delete from remote store.
+        // 4. After drainSync, if an upload is an attempted, we do not upload to remote store.
+        ArrayList<Translog.Operation> ops = new ArrayList<>();
+        assertEquals(0, translog.allUploaded().size());
+        assertEquals(1, translog.readers.size());
+
+        addToTranslogAndListAndUpload(translog, ops, new Translog.Index(String.valueOf(0), 0, primaryTerm.get(), new byte[] { 1 }));
+        assertEquals(4, translog.allUploaded().size());
+        assertEquals(2, translog.readers.size());
+        assertBusy(() -> assertEquals(1, blobStoreTransferService.listAll(getTranslogDirectory().add(METADATA_DIR)).size()));
+
+        translog.setMinSeqNoToKeep(0);
+        translog.trimUnreferencedReaders();
+        assertEquals(1, translog.readers.size());
+
+        // Case 1 - During ongoing uploads, the available permits are 0.
+        slowDown.setSleepSeconds(2);
+        CountDownLatch latch = new CountDownLatch(1);
+        Thread thread1 = new Thread(() -> {
+            try {
+                addToTranslogAndListAndUpload(translog, ops, new Translog.Index(String.valueOf(1), 1, primaryTerm.get(), new byte[] { 1 }));
+                assertEquals(2, blobStoreTransferService.listAll(getTranslogDirectory().add(METADATA_DIR)).size());
+                latch.countDown();
+            } catch (IOException e) {
+                throw new AssertionError(e);
+            }
+        });
+        thread1.start();
+        assertBusy(() -> assertEquals(0, translog.availablePermits()));
+        // Case 2 - During an upload, if drainSync is called, it will wait for it to acquire and available permits are 0.
+        Releasable releasable = translog.drainSync();
+        assertBusy(() -> assertEquals(0, latch.getCount()));
+        assertEquals(0, translog.availablePermits());
+        slowDown.setSleepSeconds(0);
+        assertEquals(6, translog.allUploaded().size());
+        assertEquals(2, translog.readers.size());
+        Set<String> mdFiles = blobStoreTransferService.listAll(getTranslogDirectory().add(METADATA_DIR));
+
+        // Case 3 - After drainSync, if trimUnreferencedReaders is attempted, we do not delete from remote store.
+        translog.setMinSeqNoToKeep(1);
+        translog.trimUnreferencedReaders();
+        assertEquals(1, translog.readers.size());
+        assertEquals(6, translog.allUploaded().size());
+        assertEquals(mdFiles, blobStoreTransferService.listAll(getTranslogDirectory().add(METADATA_DIR)));
+
+        // Case 4 - After drainSync, if an upload is an attempted, we do not upload to remote store.
+        Translog.Location loc = addToTranslogAndListAndUpload(
+            translog,
+            ops,
+            new Translog.Index(String.valueOf(2), 2, primaryTerm.get(), new byte[] { 1 })
+        );
+        assertEquals(1, translog.readers.size());
+        assertEquals(6, translog.allUploaded().size());
+        assertEquals(mdFiles, blobStoreTransferService.listAll(getTranslogDirectory().add(METADATA_DIR)));
+
+        // Refill the permits back
+        Releasables.close(releasable);
+        addToTranslogAndListAndUpload(translog, ops, new Translog.Index(String.valueOf(3), 3, primaryTerm.get(), new byte[] { 1 }));
+        assertEquals(2, translog.readers.size());
+        assertEquals(8, translog.allUploaded().size());
+        assertEquals(3, blobStoreTransferService.listAll(getTranslogDirectory().add(METADATA_DIR)).size());
+
+        translog.setMinSeqNoToKeep(3);
+        translog.trimUnreferencedReaders();
+        assertEquals(1, translog.readers.size());
+        assertBusy(() -> assertEquals(4, translog.allUploaded().size()));
+        assertBusy(() -> assertEquals(1, blobStoreTransferService.listAll(getTranslogDirectory().add(METADATA_DIR)).size()));
     }
 
     private BlobPath getTranslogDirectory() {
@@ -1624,9 +1702,10 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
     }
 
     public class ThrowingBlobRepository extends FsRepository {
-        private final Environment environment;
 
-        private TestTranslog.FailSwitch fail;
+        private final Environment environment;
+        private final TestTranslog.FailSwitch fail;
+        private final TestTranslog.SlowDownWriteSwitch slowDown;
 
         public ThrowingBlobRepository(
             RepositoryMetadata metadata,
@@ -1634,33 +1713,43 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
             NamedXContentRegistry namedXContentRegistry,
             ClusterService clusterService,
             RecoverySettings recoverySettings,
-            TestTranslog.FailSwitch fail
+            TestTranslog.FailSwitch fail,
+            TestTranslog.SlowDownWriteSwitch slowDown
         ) {
             super(metadata, environment, namedXContentRegistry, clusterService, recoverySettings);
             this.environment = environment;
             this.fail = fail;
+            this.slowDown = slowDown;
         }
 
         protected BlobStore createBlobStore() throws Exception {
             final String location = REPOSITORIES_LOCATION_SETTING.get(getMetadata().settings());
             final Path locationFile = environment.resolveRepoFile(location);
-            return new ThrowingBlobStore(bufferSize, locationFile, isReadOnly(), fail);
+            return new ThrowingBlobStore(bufferSize, locationFile, isReadOnly(), fail, slowDown);
         }
     }
 
     private class ThrowingBlobStore extends FsBlobStore {
 
-        private TestTranslog.FailSwitch fail;
+        private final TestTranslog.FailSwitch fail;
+        private final TestTranslog.SlowDownWriteSwitch slowDown;
 
-        public ThrowingBlobStore(int bufferSizeInBytes, Path path, boolean readonly, TestTranslog.FailSwitch fail) throws IOException {
+        public ThrowingBlobStore(
+            int bufferSizeInBytes,
+            Path path,
+            boolean readonly,
+            TestTranslog.FailSwitch fail,
+            TestTranslog.SlowDownWriteSwitch slowDown
+        ) throws IOException {
             super(bufferSizeInBytes, path, readonly);
             this.fail = fail;
+            this.slowDown = slowDown;
         }
 
         @Override
         public BlobContainer blobContainer(BlobPath path) {
             try {
-                return new ThrowingBlobContainer(this, path, buildAndCreate(path), fail);
+                return new ThrowingBlobContainer(this, path, buildAndCreate(path), fail, slowDown);
             } catch (IOException ex) {
                 throw new OpenSearchException("failed to create blob container", ex);
             }
@@ -1670,16 +1759,32 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
     private class ThrowingBlobContainer extends FsBlobContainer {
 
         private TestTranslog.FailSwitch fail;
+        private final TestTranslog.SlowDownWriteSwitch slowDown;
 
-        public ThrowingBlobContainer(FsBlobStore blobStore, BlobPath blobPath, Path path, TestTranslog.FailSwitch fail) {
+        public ThrowingBlobContainer(
+            FsBlobStore blobStore,
+            BlobPath blobPath,
+            Path path,
+            TestTranslog.FailSwitch fail,
+            TestTranslog.SlowDownWriteSwitch slowDown
+        ) {
             super(blobStore, blobPath, path);
             this.fail = fail;
+            this.slowDown = slowDown;
         }
 
+        @Override
         public void writeBlobAtomic(final String blobName, final InputStream inputStream, final long blobSize, boolean failIfAlreadyExists)
             throws IOException {
             if (fail.fail()) {
                 throw new IOException("blob container throwing error");
+            }
+            if (slowDown.getSleepSeconds() > 0) {
+                try {
+                    Thread.sleep(slowDown.getSleepSeconds() * 1000L);
+                } catch (InterruptedException e) {
+                    throw new RuntimeException(e);
+                }
             }
             super.writeBlobAtomic(blobName, inputStream, blobSize, failIfAlreadyExists);
         }

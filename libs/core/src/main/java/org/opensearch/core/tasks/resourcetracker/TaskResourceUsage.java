@@ -8,6 +8,7 @@
 
 package org.opensearch.core.tasks.resourcetracker;
 
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.ParseField;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.StreamInput;
@@ -30,8 +31,9 @@ import static org.opensearch.core.xcontent.ConstructingObjectParser.constructorA
  * Writeable TaskResourceUsage objects are used to represent resource usage
  * information of running tasks.
  *
- * @opensearch.internal
+ *  @opensearch.api
  */
+@PublicApi(since = "2.1.0")
 public class TaskResourceUsage implements Writeable, ToXContentFragment {
     private static final ParseField CPU_TIME_IN_NANOS = new ParseField("cpu_time_in_nanos");
     private static final ParseField MEMORY_IN_BYTES = new ParseField("memory_in_bytes");

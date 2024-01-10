@@ -35,6 +35,7 @@ package org.opensearch.common.io.stream;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefIterator;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.util.PageCacheRecycler;
 import org.opensearch.core.common.bytes.BytesArray;
@@ -49,8 +50,9 @@ import java.io.IOException;
  * A @link {@link StreamOutput} that uses {@link BigArrays} to acquire pages of
  * bytes, which avoids frequent reallocation &amp; copying of the internal data.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class BytesStreamOutput extends BytesStream {
 
     protected final BigArrays bigArrays;

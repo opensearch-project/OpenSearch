@@ -37,6 +37,7 @@ import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.action.support.clustermanager.ClusterManagerNodeRequest;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.XContentType;
@@ -63,15 +64,19 @@ import static org.opensearch.common.xcontent.support.XContentMapValues.nodeBoole
 /**
  * Restore snapshot request
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class RestoreSnapshotRequest extends ClusterManagerNodeRequest<RestoreSnapshotRequest> implements ToXContentObject {
 
     private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(RestoreSnapshotRequest.class);
 
     /**
      * Enumeration of possible storage types
+     *
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public enum StorageType {
         LOCAL("local"),
         REMOTE_SNAPSHOT("remote_snapshot");

@@ -32,6 +32,7 @@
 
 package org.opensearch.search.aggregations.support;
 
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.service.ReportingService;
@@ -49,8 +50,9 @@ import java.util.concurrent.atomic.LongAdder;
 /**
  * Data describing an agg
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class AggregationInfo implements ReportingService.Info {
 
     private final Map<String, Set<String>> aggs;

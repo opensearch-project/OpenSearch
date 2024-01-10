@@ -41,6 +41,7 @@ import org.opensearch.action.delete.DeleteResponse;
 import org.opensearch.action.index.IndexResponse;
 import org.opensearch.action.update.UpdateResponse;
 import org.opensearch.common.CheckedConsumer;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.xcontent.StatusToXContentObject;
 import org.opensearch.core.ParseField;
 import org.opensearch.core.common.Strings;
@@ -68,8 +69,9 @@ import static org.opensearch.core.xcontent.XContentParserUtils.throwUnknownField
  * Represents a single item response for an action executed as part of the bulk API. Holds the index/type/id
  * of the relevant action, and if it has failed or not (with the failure message in case it failed).
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class BulkItemResponse implements Writeable, StatusToXContentObject {
 
     private static final String _INDEX = "_index";
@@ -179,8 +181,9 @@ public class BulkItemResponse implements Writeable, StatusToXContentObject {
     /**
      * Represents a failure.
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public static class Failure implements Writeable, ToXContentFragment {
         public static final String INDEX_FIELD = "index";
         public static final String ID_FIELD = "id";

@@ -122,6 +122,7 @@ public class FunctionScorePluginIT extends ParameterizedOpenSearchIntegTestCase 
         ).actionGet();
 
         client().admin().indices().prepareRefresh().get();
+        indexRandomForConcurrentSearch("test");
         DecayFunctionBuilder<?> gfb = new CustomDistanceScoreBuilder("num1", "2013-05-28", "+1d");
 
         ActionFuture<SearchResponse> response = client().search(

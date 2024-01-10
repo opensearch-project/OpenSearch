@@ -224,6 +224,7 @@ public class NestedIT extends ParameterizedOpenSearchIntegTestCase {
                 )
         );
         indexRandom(true, builders);
+        indexRandomForMultipleSlices("idx");
         ensureSearchable();
     }
 
@@ -354,6 +355,7 @@ public class NestedIT extends ParameterizedOpenSearchIntegTestCase {
     }
 
     public void testNestNestedAggs() throws Exception {
+        indexRandomForConcurrentSearch("idx_nested_nested_aggs");
         SearchResponse response = client().prepareSearch("idx_nested_nested_aggs")
             .addAggregation(
                 nested("level1", "nested1").subAggregation(
@@ -607,6 +609,7 @@ public class NestedIT extends ParameterizedOpenSearchIntegTestCase {
             )
             .get();
         refresh();
+        indexRandomForConcurrentSearch("idx4");
 
         SearchResponse response = client().prepareSearch("idx4")
             .addAggregation(
@@ -782,6 +785,7 @@ public class NestedIT extends ParameterizedOpenSearchIntegTestCase {
             )
             .get();
         refresh();
+        indexRandomForConcurrentSearch("classes");
 
         SearchResponse response = client().prepareSearch("classes")
             .addAggregation(

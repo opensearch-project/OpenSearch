@@ -33,6 +33,7 @@
 package org.opensearch.tasks;
 
 import org.opensearch.Version;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.ParseField;
 import org.opensearch.core.common.Strings;
@@ -66,8 +67,9 @@ import static org.opensearch.core.xcontent.ConstructingObjectParser.optionalCons
  * and use in APIs. Instead, immutable and writeable TaskInfo objects are used to represent
  * snapshot information about currently running tasks.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public final class TaskInfo implements Writeable, ToXContentFragment {
     private final TaskId taskId;
 

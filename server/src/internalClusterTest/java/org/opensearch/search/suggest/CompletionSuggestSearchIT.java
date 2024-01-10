@@ -79,6 +79,7 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.opensearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
+import static org.opensearch.action.support.WriteRequest.RefreshPolicy.WAIT_UNTIL;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -1171,6 +1172,7 @@ public class CompletionSuggestSearchIT extends ParameterizedOpenSearchIntegTestC
         createIndexAndMapping(mapping);
         int numDocs = randomIntBetween(10, 100);
         int numUnique = randomIntBetween(1, numDocs);
+        logger.info("Suggestion duplicate parameters: numDocs {} numUnique {}", numDocs, numUnique);
         List<IndexRequestBuilder> indexRequestBuilders = new ArrayList<>();
         int[] weights = new int[numUnique];
         Integer[] termIds = new Integer[numUnique];
@@ -1180,8 +1182,10 @@ public class CompletionSuggestSearchIT extends ParameterizedOpenSearchIntegTestC
             int weight = randomIntBetween(0, 100);
             weights[id] = Math.max(weight, weights[id]);
             String suggestion = "suggestion-" + String.format(Locale.ENGLISH, "%03d", id);
+            logger.info("Creating {}, id {}, weight {}", suggestion, i, id, weight);
             indexRequestBuilders.add(
                 client().prepareIndex(INDEX)
+                    .setRefreshPolicy(WAIT_UNTIL)
                     .setSource(
                         jsonBuilder().startObject()
                             .startObject(FIELD)
@@ -1195,10 +1199,12 @@ public class CompletionSuggestSearchIT extends ParameterizedOpenSearchIntegTestC
         indexRandom(true, indexRequestBuilders);
 
         Arrays.sort(termIds, Comparator.comparingInt(o -> weights[(int) o]).reversed().thenComparingInt(a -> (int) a));
+        logger.info("Expected terms id ordered {}", (Object[]) termIds);
         String[] expected = new String[numUnique];
         for (int i = 0; i < termIds.length; i++) {
             expected[i] = "suggestion-" + String.format(Locale.ENGLISH, "%03d", termIds[i]);
         }
+        logger.info("Expected suggestions field values {}", (Object[]) expected);
         CompletionSuggestionBuilder completionSuggestionBuilder = SuggestBuilders.completionSuggestion(FIELD)
             .prefix("sugg")
             .skipDuplicates(true)
@@ -1207,6 +1213,7 @@ public class CompletionSuggestSearchIT extends ParameterizedOpenSearchIntegTestC
         SearchResponse searchResponse = client().prepareSearch(INDEX)
             .suggest(new SuggestBuilder().addSuggestion("suggestions", completionSuggestionBuilder))
             .get();
+        logger.info("Search Response with Suggestions {}", searchResponse);
         assertSuggestions(searchResponse, true, "suggestions", expected);
     }
 

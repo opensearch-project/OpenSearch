@@ -33,6 +33,7 @@
 package org.opensearch.ingest.common;
 
 import org.opensearch.core.common.Strings;
+import org.opensearch.index.VersionType;
 import org.opensearch.ingest.AbstractProcessor;
 import org.opensearch.ingest.ConfigurationUtils;
 import org.opensearch.ingest.IngestDocument;
@@ -43,6 +44,7 @@ import org.opensearch.script.TemplateScript;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 /**
@@ -77,6 +79,26 @@ public final class RemoveProcessor extends AbstractProcessor {
                     throw new IllegalArgumentException("field path cannot be null nor empty");
                 } else {
                     throw new IllegalArgumentException("field [" + path + "] doesn't exist");
+                }
+            }
+            // cannot remove _index, _version and _version_type.
+            if (path.equals(IngestDocument.Metadata.INDEX.getFieldName())
+                || path.equals(IngestDocument.Metadata.VERSION.getFieldName())
+                || path.equals(IngestDocument.Metadata.VERSION_TYPE.getFieldName())) {
+                throw new IllegalArgumentException("cannot remove metadata field [" + path + "]");
+            }
+            // removing _id is disallowed when there's an external version specified in the request
+            if (path.equals(IngestDocument.Metadata.ID.getFieldName())
+                && document.hasField(IngestDocument.Metadata.VERSION_TYPE.getFieldName())) {
+                String versionType = document.getFieldValue(IngestDocument.Metadata.VERSION_TYPE.getFieldName(), String.class);
+                if (!Objects.equals(versionType, VersionType.toString(VersionType.INTERNAL))) {
+                    Long version = document.getFieldValue(IngestDocument.Metadata.VERSION.getFieldName(), Long.class, true);
+                    throw new IllegalArgumentException(
+                        "cannot remove metadata field [_id] when specifying external version for the document, version: "
+                            + version
+                            + ", version_type: "
+                            + versionType
+                    );
                 }
             }
             document.removeField(path);
