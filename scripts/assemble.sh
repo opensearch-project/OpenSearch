@@ -202,7 +202,7 @@ function clean() {
     rm -r "${OUTPUT}/tmp"
     echo "After execution, shell path is $(pwd)"
     # Store package's name to file. Used by GH Action.
-    echo "${package_name}" >"${OUTPUT}/artifact_name.txt"
+    echo "${ARTIFACT_PACKAGE_NAME}" >"${OUTPUT}/artifact_name.txt"
 }
 
 # ====
@@ -228,7 +228,7 @@ function assemble_tar() {
     cd ..
     tar -cvf "${archive_name}-${SUFFIX}.${EXT}" "${archive_name}"
     cd ../../..
-    cp "${TMP_DIR}/${archive_name}-${SUFFIX}.${EXT}" "${OUTPUT}/dist/"
+    cp "${TMP_DIR}/${archive_name}-${SUFFIX}.${EXT}" "${OUTPUT}/dist/$ARTIFACT_PACKAGE_NAME"
 
     clean
 }
@@ -272,8 +272,10 @@ function assemble_rpm() {
 
     # Move to the root folder, copy the package and clean.
     cd ../../..
+
     package_name="wazuh-indexer-${version}-1.${SUFFIX}.${EXT}"
-    cp "${TMP_DIR}/RPMS/${SUFFIX}/${package_name}" "${OUTPUT}/dist/"
+
+    cp "${TMP_DIR}/RPMS/${SUFFIX}/${package_name}" "${OUTPUT}/dist/$ARTIFACT_PACKAGE_NAME"
 
     clean
 }
@@ -319,9 +321,9 @@ function assemble_deb() {
 
     # Move to the root folder, copy the package and clean.
     cd ../../..
-    package_name="wazuh-indexer_${version}_${SUFFIX}.${EXT}"
+		package_name="wazuh-indexer_${version}_${SUFFIX}.${EXT}"
     # debmake creates the package one level above
-    cp "${TMP_DIR}/../${package_name}" "${OUTPUT}/dist/"
+    cp "${TMP_DIR}/../${package_name}" "${OUTPUT}/dist/$ARTIFACT_PACKAGE_NAME"
 
     clean
 }
@@ -333,8 +335,12 @@ function main() {
     parse_args "${@}"
 
     echo "Assembling wazuh-indexer for $PLATFORM-$DISTRIBUTION-$ARCHITECTURE"
-    # wazuh-indexer-min_4.9.0-1-x64_78fcc3db6a5b470294319e48b58c3d715bee39d1.rpm
-    ARTIFACT_BUILD_NAME=$(ls "${OUTPUT}/dist/" | grep "wazuh-indexer-min.*.$EXT")
+
+    ARTIFACT_BUILD_NAME=$(ls "${OUTPUT}/dist/" | grep "wazuh-indexer-min_.*$SUFFIX.*\.$EXT")
+
+		ARTIFACT_PACKAGE_NAME=${ARTIFACT_BUILD_NAME/min_/}
+
+		
 
     # Create temporal directory and copy the min package there for extraction
     TMP_DIR="${OUTPUT}/tmp/${TARGET}"

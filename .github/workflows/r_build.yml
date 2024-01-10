@@ -15,7 +15,11 @@ on:
         default: "x64"
         required: false
         type: string
+      revision:
+        type: string
       name:
+        description: The name of the package to upload.
+        required: true
         type: string
 
 jobs:
@@ -37,13 +41,13 @@ jobs:
 
       - name: Run `build.sh`
         run: |
-          bash scripts/build.sh -v ${{ vars.OPENSEARCH_VERSION }} -s false -p linux -a ${{ inputs.architecture }} -d ${{ inputs.distribution }}
+          bash scripts/build.sh -v ${{ vars.OPENSEARCH_VERSION }} -s false -p linux -a ${{ inputs.architecture }} -d ${{ inputs.distribution }} -r ${{ inputs.revision }}
 
-      # The package's name is stored in artifacts/artifact_name.txt.
+      # The package's name is stored in artifacts/artifact_min_name.txt.
       - name: Set package name
         id: get_name
         run: |
-          echo "name=$(cat artifacts/artifact_name.txt)" >> $GITHUB_OUTPUT
+          echo "name=$(cat artifacts/artifact_min_name.txt)" >> $GITHUB_OUTPUT
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
