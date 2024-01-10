@@ -121,6 +121,7 @@ import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_VERSION_CREA
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_VERSION_UPGRADED;
 import static org.opensearch.common.util.FeatureFlags.SEARCHABLE_SNAPSHOT_EXTENDED_COMPATIBILITY;
 import static org.opensearch.common.util.set.Sets.newHashSet;
+import static org.opensearch.index.IndexModule.INDEX_STORE_TYPE_SETTING;
 import static org.opensearch.index.store.remote.directory.RemoteSnapshotDirectory.SEARCHABLE_SNAPSHOT_EXTENDED_COMPATIBILITY_MINIMUM_VERSION;
 import static org.opensearch.index.store.remote.filecache.FileCache.DATA_TO_FILE_CACHE_SIZE_RATIO_SETTING;
 import static org.opensearch.node.Node.NODE_SEARCH_CACHE_SIZE_SETTING;
@@ -226,6 +227,17 @@ public class RestoreService implements ClusterStateApplier {
      */
     public void restoreSnapshot(final RestoreSnapshotRequest request, final ActionListener<RestoreCompletionResponse> listener) {
         try {
+            // INDEX_STORE_TYPE_SETTING is intended to be a system-managed index setting that is configured when restoring a snapshot and
+            // should not be set to value REMOTE_SNAPSHOT by user.
+            if (request.indexSettings()
+                .get(INDEX_STORE_TYPE_SETTING.getKey())
+                .equals(RestoreSnapshotRequest.StorageType.REMOTE_SNAPSHOT.toString())) {
+                throw new SnapshotRestoreException(
+                    request.repository(),
+                    request.snapshot(),
+                    "cannot restore remote snapshot with \"index.store.type\" argument. Instead use \"storage_type\": \"remote_snapshot\" as argument to restore."
+                );
+            }
             // Read snapshot info and metadata from the repository
             final String repositoryName = request.repository();
             Repository repository = repositoriesService.repository(repositoryName);

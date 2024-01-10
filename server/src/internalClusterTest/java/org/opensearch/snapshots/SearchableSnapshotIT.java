@@ -53,7 +53,9 @@ import java.util.stream.StreamSupport;
 
 import static org.opensearch.action.admin.cluster.node.stats.NodesStatsRequest.Metric.FS;
 import static org.opensearch.core.common.util.CollectionUtils.iterableAsArrayList;
+import static org.opensearch.index.IndexModule.INDEX_STORE_TYPE_SETTING;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
@@ -346,7 +348,7 @@ public final class SearchableSnapshotIT extends AbstractSnapshotIntegTestCase {
             Settings.builder()
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, Integer.toString(numReplicasIndex))
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, "1")
-                .put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), IndexModule.Type.FS.getSettingsKey())
+                .put(INDEX_STORE_TYPE_SETTING.getKey(), IndexModule.Type.FS.getSettingsKey())
                 .build()
         );
         ensureGreen();
@@ -408,7 +410,7 @@ public final class SearchableSnapshotIT extends AbstractSnapshotIntegTestCase {
         for (String snapshotIndexName : snapshotIndexNames) {
             assertEquals(
                 IndexModule.Type.REMOTE_SNAPSHOT.getSettingsKey(),
-                settingsResponse.getSetting(snapshotIndexName, IndexModule.INDEX_STORE_TYPE_SETTING.getKey())
+                settingsResponse.getSetting(snapshotIndexName, INDEX_STORE_TYPE_SETTING.getKey())
             );
         }
     }
@@ -720,6 +722,46 @@ public final class SearchableSnapshotIT extends AbstractSnapshotIntegTestCase {
                 .reduce(false, (s1, s2) -> s1 || s2);
             assertTrue(containsReplica);
         }
+    }
+
+    public void testRestoreSearchableSnapshotWithIndexStoreTypeThrowsException() throws Exception {
+        final String snapshotName = "test-snap";
+        final String repoName = "test-repo";
+        final String indexName1 = "test-idx-1";
+        final int numReplicasIndex1 = randomIntBetween(1, 4);
+        final Client client = client();
+
+        internalCluster().ensureAtLeastNumDataNodes(numReplicasIndex1 + 1);
+        createIndexWithDocsAndEnsureGreen(numReplicasIndex1, 100, indexName1);
+
+        createRepositoryWithSettings(null, repoName);
+        takeSnapshot(client, snapshotName, repoName, indexName1);
+        deleteIndicesAndEnsureGreen(client, indexName1);
+
+        internalCluster().ensureAtLeastNumSearchNodes(numReplicasIndex1 + 1);
+
+        // set "index.store.type" to "remote_snapshot" in index settings of restore API and assert appropriate exception with error message
+        // is thrown.
+        final SnapshotRestoreException error = expectThrows(
+            SnapshotRestoreException.class,
+            () -> client.admin()
+                .cluster()
+                .prepareRestoreSnapshot(repoName, snapshotName)
+                .setRenamePattern("(.+)")
+                .setRenameReplacement("$1-copy")
+                .setIndexSettings(
+                    Settings.builder().put(INDEX_STORE_TYPE_SETTING.getKey(), RestoreSnapshotRequest.StorageType.REMOTE_SNAPSHOT)
+                )
+                .setWaitForCompletion(true)
+                .execute()
+                .actionGet()
+        );
+        assertThat(
+            error.getMessage(),
+            containsString(
+                "cannot restore remote snapshot with \"index.store.type\" argument. Instead use \"storage_type\": \"remote_snapshot\" as argument to restore."
+            )
+        );
     }
 
     /**
