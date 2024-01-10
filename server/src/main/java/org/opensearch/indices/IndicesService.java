@@ -410,10 +410,8 @@ public class IndicesService extends AbstractLifecycleComponent
         this.analysisRegistry = analysisRegistry;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.indicesRequestCache = new IndicesRequestCache(settings, (shardId -> {
-            IndexService indexService = null;
-            try {
-                indexService = indexServiceSafe(shardId.getIndex());
-            } catch (IndexNotFoundException ex) {
+            IndexService indexService = this.indices.get(shardId.getIndex().getUUID());
+            if (indexService == null) {
                 return Optional.empty();
             }
             return Optional.of(new IndexShardCacheEntity(indexService.getShard(shardId.id())));
