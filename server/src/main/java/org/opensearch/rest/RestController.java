@@ -53,6 +53,7 @@ import org.opensearch.core.indices.breaker.CircuitBreakerService;
 import org.opensearch.core.rest.RestStatus;
 import org.opensearch.core.xcontent.MediaType;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
+import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.http.HttpServerTransport;
 import org.opensearch.identity.IdentityService;
@@ -65,12 +66,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
@@ -89,7 +85,7 @@ import static org.opensearch.rest.BytesRestResponse.TEXT_CONTENT_TYPE;
  *
  * @opensearch.api
  */
-public class RestController implements HttpServerTransport.Dispatcher {
+public class RestController implements HttpServerTransport.Dispatcher, ToXContentObject {
 
     private static final Logger logger = LogManager.getLogger(RestController.class);
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestController.class);
@@ -108,6 +104,11 @@ public class RestController implements HttpServerTransport.Dispatcher {
     }
 
     private final PathTrie<MethodHandlers> handlers = new PathTrie<>(RestUtils.REST_DECODER);
+    private final HashMap<String, Set<RestRequest.Method>> apis = new HashMap<>();
+
+    public HashMap<String, Set<RestRequest.Method>> getApis() {
+        return apis;
+    }
 
     private final UnaryOperator<RestHandler> handlerWrapper;
 
@@ -219,6 +220,15 @@ public class RestController implements HttpServerTransport.Dispatcher {
     }
 
     private void registerHandlerNoWrap(RestRequest.Method method, String path, RestHandler maybeWrappedHandler) {
+
+        // TODO: traverse pathtrie
+        Set<RestRequest.Method> methods = apis.getOrDefault(path, null);
+        if (methods == null) {
+            methods = new HashSet<RestRequest.Method>();
+            apis.put(path, methods);
+        }
+        methods.add(method);
+
         handlers.insertOrUpdate(
             path,
             new MethodHandlers(path, maybeWrappedHandler, method),
@@ -569,6 +579,30 @@ public class RestController implements HttpServerTransport.Dispatcher {
             }
         }
         return validMethods;
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject("paths");
+
+        for (Map.Entry<String, Set<RestRequest.Method>> entry : getApis().entrySet()) {
+            String key = entry.getKey();
+            Set<RestRequest.Method> methods = entry.getValue();
+            builder.startObject(key.replace("{", ":").replace("}", ""));
+            for(RestRequest.Method method : methods) {
+                builder
+                    .startObject(method.name().toLowerCase())
+                    //.field("summary", "")
+                    //.field("description", "")
+                    //.startObject("responses", "")
+                    //.endObject())
+                    .endObject();
+            }
+            builder.endObject();
+        }
+
+        builder.endObject();
+        return builder;
     }
 
     private static final class ResourceHandlingHttpChannel implements RestChannel {

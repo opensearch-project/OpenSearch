@@ -19,9 +19,12 @@ import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.rest.RestController;
+import org.opensearch.rest.RestHandler;
 
 import java.io.IOException;
 import java.util.Objects;
+
+import static org.opensearch.action.main.MainResponse.TAGLINE;
 
 public class APIResponse extends ActionResponse implements ToXContentObject {
 
@@ -65,17 +68,16 @@ public class APIResponse extends ActionResponse implements ToXContentObject {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.startObject("version")
-            .field("distribution", build.getDistribution())
-            .field("number", build.getQualifiedVersion())
-            .field("build_type", build.type().displayName())
-            .field("build_hash", build.hash())
-            .field("build_date", build.date())
-            .field("build_snapshot", build.isSnapshot())
-            .field("lucene_version", version.luceneVersion.toString())
-            .field("minimum_wire_compatibility_version", version.minimumCompatibilityVersion().toString())
-            .field("minimum_index_compatibility_version", version.minimumIndexCompatibilityVersion().toString())
+
+        builder.field("openapi", "3.0.1");
+
+        builder.startObject("info")
+            .field("title", build.getDistribution())
+            .field("description", TAGLINE)
+            .field("version", build.getQualifiedVersion())
             .endObject();
+
+        restController.toXContent(builder, params);
 
         builder.endObject();
         return builder;
