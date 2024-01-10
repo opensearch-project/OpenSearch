@@ -710,6 +710,7 @@ public class CorruptedFileIT extends OpenSearchIntegTestCase {
 
         final NodeStats primaryNode = dataNodeStats.get(0);
         final NodeStats replicaNode = dataNodeStats.get(1);
+
         assertAcked(
             prepareCreate("test").setSettings(
                 Settings.builder()
@@ -795,6 +796,17 @@ public class CorruptedFileIT extends OpenSearchIntegTestCase {
 
         // Assert the cluster returns to green status because the replica will be promoted to primary
         ensureGreen();
+
+        // After Lucene 9.9 check index will flag corruption with old (not the latest) commit points.
+        // For this test our previous corrupt commit "segments_2" will remain on the primary.
+        // This asserts this is the case, and then resets check index status.
+        assertEquals("Check index has a single failure", 1, checkIndexFailures.size());
+        assertTrue(
+            checkIndexFailures.get(0)
+                .getMessage()
+                .contains("could not read old (not latest) commit point segments file \"segments_2\" in directory")
+        );
+        resetCheckIndexStatus();
     }
 
     private int numShards(String... index) {
