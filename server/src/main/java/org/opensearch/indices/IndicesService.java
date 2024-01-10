@@ -1698,8 +1698,9 @@ public class IndicesService extends AbstractLifecycleComponent
 
         boolean[] loadedFromCache = new boolean[] { true };
         BytesReference bytesReference = cacheShardLevelResult(context.indexShard(), directoryReader, request.cacheKey(), out -> {
+            long beforeQueryPhase = System.nanoTime();
             queryPhase.execute(context);
-            CachePolicyInfoWrapper policyInfo = new CachePolicyInfoWrapper(context.queryResult().getTookTimeNanos());
+            CachePolicyInfoWrapper policyInfo = new CachePolicyInfoWrapper(System.nanoTime() - beforeQueryPhase);
             policyInfo.writeTo(out);
             // Write relevant info for cache tier policies before the whole QuerySearchResult, so we don't have to read
             // the whole QSR into memory when we decide whether to allow it into a particular cache tier based on took time/other info
