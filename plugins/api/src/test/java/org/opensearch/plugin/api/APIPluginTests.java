@@ -10,5 +10,8 @@ package org.opensearch.plugin.api;
 import org.opensearch.test.OpenSearchTestCase;
 
 public class APIPluginTests extends OpenSearchTestCase {
-    // Add unit tests for your plugin
+    public void testConstructor() {
+        APIPlugin plugin = new APIPlugin();
+        assertNotNull(plugin);
+    }
 }
