@@ -4,7 +4,7 @@ The maintainers of the OpenSearch Repo seek to promote an inclusive and engaged 
 
 ### Do I need to attend for my issue to be addressed/triaged?
 
-Attendance is not required for your issue to be triaged or addressed. All new issues are triaged weekly.
+Attendance is not required for your issue to be triaged or addressed.  If not accepted the issue will be updated with a comment for next steps.  All new issues are triaged weekly.
 
 ### What happens if my issue does not get covered this time?
 
@@ -22,13 +22,13 @@ If you have an issue you'd like to bring forth please prepare a link to the issu
 
 Meetings are 55 minutes and structured as follows:
 
-1. Initial Gathering: As we gather, feel free to turn on video and engage in informal and open-to-all conversation.  After a bit a volunteer will share their screen and proceed with the agenda.
-2. Collect attendee annotations: The meeting driver will ask all triage attendee to post a link to their GitHub profile, these will be collected and assembled these into a signature to annotation all issues triaged during this meeting.
+1. Initial Gathering: As we gather, feel free to turn on video and engage in informal and open-to-all conversation.  After a bit a volunteer take the role of triage facilitator, will share their screen and proceed with the agenda.
+2. Record attendees: The facilitator will ask attendee to share a link to their GitHub profile, these links will be collected and assemebled into a signature to annotate [1] issues triaged this meeting.
    - Format of annotation should follow ``[Triage - attendees [1](https://github.com/peternied), [2](...)]``
 3. Announcements: If there are any announcements to be made they will happen at the start of the meeting.
 4. Review of New Issues: The meetings always start with reviewing all untriaged [issues](https://github.com/search?q=label%3Auntriaged+is%3Aopen++repo%3Aopensearch-project%2FOpenSearch+&type=issues&ref=advsearch&s=created&o=desc) for the OpenSearch repo.
-5. Member Requests: Opportunity for any meeting member to ask for consideration of an issue or pull request.
-6. Open Discussion: Allow for members of the meeting to surface any topics without issues filed or pull request created.
+5. Attendee Requests: Opportunity for any meeting member to ask for consideration of an issue or pull request.
+6. Open Discussion: Allow for attendees to surface any topics without issues filed or pull request created.
 
 ### Do I need to have already contributed to the project to attend a triage meeting?
 
@@ -57,7 +57,7 @@ Yes, there are several labels that are used to identify the 'state' of issues fi
 | Help Wanted | Anytime. | Issues marked as 'Help Wanted' signal that they are actionable and not the current focus of the project maintainers. Community contributions are especially encouraged for these issues. |
 | Good First Issue | Anytime. | Issues labeled as 'Good First Issue' are small in scope and can be resolved with a single pull request. These are recommended starting points for newcomers looking to make their first contributions. |
 
-### What kind of outcomes will a triaged issue have?
+### What are the typical outcomes of a triaged issue?
 
 | Outcome | Label | Description | Canned Response | 
 | ------- | ----- | ----------- | --------------- |
