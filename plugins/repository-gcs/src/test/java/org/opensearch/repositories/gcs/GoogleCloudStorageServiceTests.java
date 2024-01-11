@@ -208,11 +208,12 @@ public class GoogleCloudStorageServiceTests extends OpenSearchTestCase {
         assertEquals(0, GoogleCloudStorageService.toTimeout(TimeValue.MINUS_ONE).intValue());
     }
 
-    /*
-    The following method test the Google Application Default Credential instead of
-    using service account file.
-    Considered use of Junit Mocking due to static method GoogleCredentials.getApplicationDefault
-    and avoiding environment variables to set which later use GCE.
+    /**
+     * The following method test the Google Application Default Credential instead of
+     * using service account file.
+     * Considered use of JUnit Mocking due to static method GoogleCredentials.getApplicationDefault
+     * and avoiding environment variables to set which later use GCE.
+     * @throws Exception
      */
     public void testApplicationDefaultCredential() throws Exception {
         GoogleCloudStorageClientSettings settings = getGCSClientSettingsWithoutCredentials();
@@ -244,6 +245,11 @@ public class GoogleCloudStorageServiceTests extends OpenSearchTestCase {
         MatcherAssert.assertThat(exception.getMessage(), containsString("The Application Default Credentials are not available"));
     }
 
+    /**
+     * This is a helper method to provide GCS Client settings without credentials
+     * @return
+     * @throws URISyntaxException
+     */
     private GoogleCloudStorageClientSettings getGCSClientSettingsWithoutCredentials() throws URISyntaxException {
         return new GoogleCloudStorageClientSettings(
             null,
