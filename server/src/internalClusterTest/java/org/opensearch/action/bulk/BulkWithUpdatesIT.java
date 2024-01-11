@@ -35,6 +35,8 @@ package org.opensearch.action.bulk;
 import org.opensearch.action.DocWriteRequest.OpType;
 import org.opensearch.action.DocWriteResponse;
 import org.opensearch.action.admin.indices.alias.Alias;
+import org.opensearch.action.admin.indices.stats.IndicesStatsRequest;
+import org.opensearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.opensearch.action.delete.DeleteRequest;
 import org.opensearch.action.get.GetResponse;
 import org.opensearch.action.index.IndexRequest;
@@ -737,6 +739,12 @@ public class BulkWithUpdatesIT extends OpenSearchIntegTestCase {
             noopUpdate.getResponse().getShardInfo().getSuccessful(),
             equalTo(2)
         );
+
+        // test noop_update_total metric in stats changed
+        IndicesStatsRequest indicesStatsRequest = new IndicesStatsRequest().indices(indexName).indexing(true);
+        final IndicesStatsResponse indicesStatsResponse = client().admin().indices().stats(indicesStatsRequest).actionGet();
+        assertThat(indicesStatsResponse.getIndex(indexName).getTotal().indexing.getTotal().getNoopUpdateCount(), equalTo(1L));
+        assertThat(indicesStatsResponse.getIndex(indexName).getPrimaries().indexing.getTotal().getNoopUpdateCount(), equalTo(1L));
 
         final BulkItemResponse notFoundUpdate = bulkResponse.getItems()[1];
         assertNotNull(notFoundUpdate.getFailure());
