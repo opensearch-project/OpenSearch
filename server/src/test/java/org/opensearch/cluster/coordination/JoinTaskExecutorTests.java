@@ -582,6 +582,14 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
             );
             assertTrue(
                 e.getMessage().equals("joining node [" + joiningNode + "] doesn't have the node attribute [" + nodeAttribute.getKey() + "]")
+                    || e.getMessage()
+                        .equals(
+                            "a remote store node ["
+                                + joiningNode
+                                + "] is trying to join a remote store cluster with incompatible node attributes in comparison with existing node ["
+                                + currentState.getNodes().getNodes().values().stream().findFirst().get()
+                                + "]"
+                        )
             );
 
             remoteStoreNodeAttributes.put(nodeAttribute.getKey(), nodeAttribute.getValue());

@@ -138,7 +138,7 @@ import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REPLICATION_
 import static org.opensearch.cluster.metadata.Metadata.DEFAULT_REPLICA_COUNT_SETTING;
 import static org.opensearch.index.IndexModule.INDEX_STORE_TYPE_SETTING;
 import static org.opensearch.indices.IndicesService.CLUSTER_REPLICATION_TYPE_SETTING;
-import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.isRemoteStoreAttributePresent;
+import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.isRemoteStoreSegmentOrTranslogAttributePresent;
 
 /**
  * Service responsible for submitting create index requests
@@ -971,7 +971,7 @@ public class MetadataCreateIndexService {
             indexReplicationType = INDEX_REPLICATION_TYPE_SETTING.get(combinedTemplateSettings);
         } else if (CLUSTER_REPLICATION_TYPE_SETTING.exists(clusterSettings)) {
             indexReplicationType = CLUSTER_REPLICATION_TYPE_SETTING.get(clusterSettings);
-        } else if (isRemoteStoreAttributePresent(clusterSettings)) {
+        } else if (isRemoteStoreSegmentOrTranslogAttributePresent(clusterSettings)) {
             indexReplicationType = ReplicationType.SEGMENT;
         } else {
             indexReplicationType = CLUSTER_REPLICATION_TYPE_SETTING.getDefault(clusterSettings);
@@ -985,7 +985,7 @@ public class MetadataCreateIndexService {
      * @param clusterSettings cluster level settings
      */
     private static void updateRemoteStoreSettings(Settings.Builder settingsBuilder, Settings clusterSettings) {
-        if (isRemoteStoreAttributePresent(clusterSettings)) {
+        if (isRemoteStoreSegmentOrTranslogAttributePresent(clusterSettings)) {
             settingsBuilder.put(SETTING_REMOTE_STORE_ENABLED, true)
                 .put(
                     SETTING_REMOTE_SEGMENT_STORE_REPOSITORY,
@@ -1577,7 +1577,7 @@ public class MetadataCreateIndexService {
      * @param clusterSettings cluster setting
      */
     static void validateTranslogDurabilitySettings(Settings requestSettings, ClusterSettings clusterSettings, Settings settings) {
-        if (isRemoteStoreAttributePresent(settings) == false
+        if (isRemoteStoreSegmentOrTranslogAttributePresent(settings) == false
             || IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.exists(requestSettings) == false
             || clusterSettings.get(IndicesService.CLUSTER_REMOTE_INDEX_RESTRICT_ASYNC_DURABILITY_SETTING) == false) {
             return;
