@@ -22,7 +22,7 @@ public class GoogleApplicationDefaultCredentials {
         try {
             credentials = SocketAccess.doPrivilegedIOException(GoogleCredentials::getApplicationDefault);
         } catch (IOException e) {
-            logger.error("Failed to retrieve \"Application Default Credentials\"",e);
+            logger.error("Failed to retrieve \"Application Default Credentials\"", e);
         }
         return credentials;
     }

@@ -37,8 +37,6 @@ import com.google.auth.oauth2.GoogleCredentials;
 import com.google.cloud.http.HttpTransportOptions;
 import com.google.cloud.storage.Storage;
 import com.google.cloud.storage.StorageOptions;
-import org.hamcrest.MatcherAssert;
-import org.mockito.Mockito;
 import org.opensearch.common.settings.MockSecureSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
@@ -46,6 +44,7 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.test.OpenSearchTestCase;
+import org.hamcrest.MatcherAssert;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
@@ -57,6 +56,8 @@ import java.security.KeyPairGenerator;
 import java.util.Base64;
 import java.util.Locale;
 import java.util.UUID;
+
+import org.mockito.Mockito;
 
 import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.containsString;
@@ -221,9 +222,9 @@ public class GoogleCloudStorageServiceTests extends OpenSearchTestCase {
         Mockito.when(mockDefaultCredentials.get()).thenReturn(mockGoogleCredentials);
 
         GoogleCloudStorageService service = new GoogleCloudStorageService(mockDefaultCredentials);
-        StorageOptions storageOptions = service.createStorageOptions(settings,mockHttpTransportOptions);
+        StorageOptions storageOptions = service.createStorageOptions(settings, mockHttpTransportOptions);
         assertNotNull(storageOptions);
-        assertEquals(storageOptions.getCredentials().toString(),mockGoogleCredentials.toString());
+        assertEquals(storageOptions.getCredentials().toString(), mockGoogleCredentials.toString());
     }
 
     /**
@@ -235,12 +236,12 @@ public class GoogleCloudStorageServiceTests extends OpenSearchTestCase {
         GoogleCloudStorageClientSettings settings = getGCSClientSettingsWithoutCredentials();
         HttpTransportOptions mockHttpTransportOptions = Mockito.mock(HttpTransportOptions.class);
         GoogleCloudStorageService service = new GoogleCloudStorageService();
-        StorageOptions storageOptions = service.createStorageOptions(settings,mockHttpTransportOptions);
+        StorageOptions storageOptions = service.createStorageOptions(settings, mockHttpTransportOptions);
 
         Exception exception = assertThrows(IOException.class, GoogleCredentials::getApplicationDefault);
         assertNotNull(storageOptions);
         assertNull(storageOptions.getCredentials());
-        MatcherAssert.assertThat(exception.getMessage(),containsString("The Application Default Credentials are not available"));
+        MatcherAssert.assertThat(exception.getMessage(), containsString("The Application Default Credentials are not available"));
     }
 
     private GoogleCloudStorageClientSettings getGCSClientSettingsWithoutCredentials() throws URISyntaxException {
@@ -252,7 +253,8 @@ public class GoogleCloudStorageServiceTests extends OpenSearchTestCase {
             readTimeValue,
             applicationName,
             new URI(""),
-            new ProxySettings(Proxy.Type.DIRECT, null, 0, null, null));
+            new ProxySettings(Proxy.Type.DIRECT, null, 0, null, null)
+        );
     }
 
 }

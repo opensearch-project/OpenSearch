@@ -80,6 +80,7 @@ public class GoogleCloudStorageService {
     public GoogleCloudStorageService(GoogleApplicationDefaultCredentials googleApplicationDefaultCredentials) {
         this.googleApplicationDefaultCredentials = googleApplicationDefaultCredentials;
     }
+
     /**
      * Refreshes the client settings and clears the client cache. Subsequent calls to
      * {@code GoogleCloudStorageService#client} will return new clients constructed
