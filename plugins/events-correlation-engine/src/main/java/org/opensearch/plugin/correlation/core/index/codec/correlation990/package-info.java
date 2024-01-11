@@ -9,4 +9,4 @@
 /**
  * custom Lucene9.5 codec package for events-correlation-engine
  */
-package org.opensearch.plugin.correlation.core.index.codec.correlation950;
+package org.opensearch.plugin.correlation.core.index.codec.correlation990;

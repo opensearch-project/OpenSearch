@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.plugin.correlation.core.index.codec.correlation950;
+package org.opensearch.plugin.correlation.core.index.codec.correlation990;
 
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.FilterCodec;
@@ -19,7 +19,7 @@ import org.opensearch.plugin.correlation.core.index.codec.CorrelationCodecVersio
  * @opensearch.internal
  */
 public class CorrelationCodec extends FilterCodec {
-    private static final CorrelationCodecVersion VERSION = CorrelationCodecVersion.V_9_5_0;
+    private static final CorrelationCodecVersion VERSION = CorrelationCodecVersion.V_9_9_0;
     private final PerFieldCorrelationVectorsFormat perFieldCorrelationVectorsFormat;
 
     /**
