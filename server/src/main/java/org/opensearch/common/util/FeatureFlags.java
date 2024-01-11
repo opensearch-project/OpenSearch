@@ -21,12 +21,6 @@ import org.opensearch.common.settings.Settings;
  */
 public class FeatureFlags {
     /**
-     * Gates the visibility of the segment replication experimental features that allows users to test unreleased beta features.
-     */
-    public static final String SEGMENT_REPLICATION_EXPERIMENTAL =
-        "opensearch.experimental.feature.segment_replication_experimental.enabled";
-
-    /**
      * Gates the ability for Searchable Snapshots to read snapshots that are older than the
      * guaranteed backward compatibility for OpenSearch (one prior major version) on a best effort basis.
      */
@@ -104,12 +98,6 @@ public class FeatureFlags {
             return featureFlag.getDefault(Settings.EMPTY);
         }
     }
-
-    public static final Setting<Boolean> SEGMENT_REPLICATION_EXPERIMENTAL_SETTING = Setting.boolSetting(
-        SEGMENT_REPLICATION_EXPERIMENTAL,
-        false,
-        Property.NodeScope
-    );
 
     public static final Setting<Boolean> EXTENSIONS_SETTING = Setting.boolSetting(EXTENSIONS, false, Property.NodeScope);
 
