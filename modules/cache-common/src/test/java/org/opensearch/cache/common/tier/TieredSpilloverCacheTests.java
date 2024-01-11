@@ -863,7 +863,6 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
 
         LoadAwareCacheLoader<String, String> loader = getLoadAwareCacheLoaderWithKeyValueMap(keyValuePairs);
 
-
         for (String key : keyValuePairs.keySet()) {
             Boolean expectedOutput = expectedOutputs.get(key);
             String value = tieredSpilloverCache.computeIfAbsent(key, loader);
