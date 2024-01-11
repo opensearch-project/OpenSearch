@@ -226,6 +226,7 @@ public abstract class InternalTerms<A extends InternalTerms<A, B>, B extends Int
     protected final int requiredSize;
     protected final long minDocCount;
     protected final TermsAggregator.BucketCountThresholds bucketCountThresholds;
+    private boolean hasSliceLevelDocCountError = false;
 
     /**
      * Creates a new {@link InternalTerms}
@@ -306,9 +307,7 @@ public abstract class InternalTerms<A extends InternalTerms<A, B>, B extends Int
 
     private long getDocCountError(InternalTerms<?, ?> terms, ReduceContext reduceContext) {
         int size = terms.getBuckets().size();
-        // doc_count_error is always computed at the coordinator based on the buckets returned by the shards. This should be 0 during the
-        // shard level reduce as no buckets are being pruned at this stage.
-        if (reduceContext.isSliceLevel() || size == 0 || size < terms.getShardSize() || isKeyOrder(terms.order)) {
+        if (size == 0 || size < terms.getShardSize() || isKeyOrder(terms.order)) {
             return 0;
         } else if (InternalOrder.isCountDesc(terms.order)) {
             if (terms.getDocCountError() > 0) {
@@ -405,6 +404,12 @@ public abstract class InternalTerms<A extends InternalTerms<A, B>, B extends Int
         for (InternalAggregation aggregation : aggregations) {
             @SuppressWarnings("unchecked")
             InternalTerms<A, B> terms = (InternalTerms<A, B>) aggregation;
+            // For Concurrent Segment Search the aggregation will have a computed doc count error coming from the shards.
+            // We use the existence of this doc count error to determine whether or not doc count error originated from the slice level
+            // and if so we will maintain the doc count error for the 1 shard case at the coordinator level
+            if (aggregations.size() == 1 && terms.getDocCountError() > 0) {
+                hasSliceLevelDocCountError = true;
+            }
             if (referenceTerms == null && aggregation.getClass().equals(UnmappedTerms.class) == false) {
                 referenceTerms = terms;
             }
@@ -507,7 +512,11 @@ public abstract class InternalTerms<A extends InternalTerms<A, B>, B extends Int
         if (sumDocCountError == -1) {
             docCountError = -1;
         } else {
-            docCountError = aggregations.size() == 1 ? 0 : sumDocCountError;
+            if (hasSliceLevelDocCountError) {
+                docCountError = sumDocCountError;
+            } else {
+                docCountError = aggregations.size() == 1 ? 0 : sumDocCountError;
+            }
         }
 
         // Shards must return buckets sorted by key, so we apply the sort here in shard level reduce
@@ -519,7 +528,7 @@ public abstract class InternalTerms<A extends InternalTerms<A, B>, B extends Int
 
     @Override
     protected B reduceBucket(List<B> buckets, ReduceContext context) {
-        assert buckets.size() > 0;
+        assert !buckets.isEmpty();
         long docCount = 0;
         // For the per term doc count error we add up the errors from the
         // shards that did not respond with the term. To do this we add up
@@ -530,7 +539,7 @@ public abstract class InternalTerms<A extends InternalTerms<A, B>, B extends Int
         for (B bucket : buckets) {
             docCount += bucket.getDocCount();
             if (docCountError != -1) {
-                if (bucket.showDocCountError() == false || bucket.getDocCountError() == -1) {
+                if (bucket.showDocCountError() == false) {
                     docCountError = -1;
                 } else {
                     docCountError += bucket.getDocCountError();
