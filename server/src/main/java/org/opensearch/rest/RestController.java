@@ -581,7 +581,7 @@ public class RestController implements HttpServerTransport.Dispatcher, ToXConten
 
         while (all.hasNext()) {
             MethodHandlers handlers = all.next();
-            builder.startObject(handlers.getPath().replace("{", ":").replace("}", ""));
+            builder.startObject(handlers.getPath());
             for (RestRequest.Method method : handlers.getValidMethods()) {
                 builder.startObject(method.name().toLowerCase(Locale.ROOT))
                     // .field("summary", "")

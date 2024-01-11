@@ -8,5 +8,5 @@
 
   - match: { paths./_plugins/api.get: {} }
 
-  - match: { paths./:index/_upgrade.post: {} }
-  - match: { paths./:index/_upgrade.get: {} }
+  - match: { "paths./{index}/_upgrade.post": {} }
+  - match: { "paths./{index}/_upgrade.get": {} }
