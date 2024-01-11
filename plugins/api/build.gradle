@@ -14,7 +14,9 @@ import org.opensearch.gradle.info.BuildParams
 
 apply plugin: 'opensearch.build'
 apply plugin: 'opensearch.publish'
+apply plugin: 'opensearch.testclusters'
 apply plugin: 'opensearch.yaml-rest-test'
+apply plugin: 'opensearch.rest-test'
 
 opensearchplugin {
   description 'The API plugin returns an OpenAPI spec.'
@@ -38,3 +40,11 @@ restResources {
 
 thirdPartyAudit.enabled = false
 testingConventions.enabled = false
+
+tasks.named("integTest").configure {
+  it.dependsOn(project.tasks.named("bundlePlugin"))
+}
+
+testClusters.integTest {
+  plugin(project.tasks.bundlePlugin.archiveFile)
+}

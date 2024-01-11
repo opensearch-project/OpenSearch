@@ -5,7 +5,9 @@ A plugin that returns the OpenSearch API in the OpenAPI format.
 ### Build and Test
 
 ```sh
-./gradlew plugins:api:test
+./gradlew :plugins:api:test # unit tests
+./gradlew :plugins:api:integTest # integration tests
+./gradlew :plugins:api:yamlRestTest # YAML REST tests
 ```
 
 ### Run

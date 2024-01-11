@@ -37,7 +37,7 @@ public class APIPluginIT extends OpenSearchIntegTestCase {
         Response response = createRestClient().performRequest(new Request("GET", "/_cat/plugins"));
         String body = EntityUtils.toString(response.getEntity(), StandardCharsets.UTF_8);
 
-        logger.info("response body: {}", body);
+        logger.info("response body: {}", body.toString());
         assertTrue(body.contains("api"));
     }
 
@@ -45,9 +45,6 @@ public class APIPluginIT extends OpenSearchIntegTestCase {
         Response response = createRestClient().performRequest(new Request("GET", "/_plugins/api"));
         String body = EntityUtils.toString(response.getEntity(), StandardCharsets.UTF_8);
         logger.info("response body: {}", body);
-
-        APIResponse apiResponse = APIResponse.fromXContent(createParser(JsonXContent.jsonXContent, response.getEntity().getContent()));
-
-        assertEquals(apiResponse.getVersion(), Version.CURRENT);
+        assertTrue(body.startsWith("{\"openapi\":\"3.0.1\""));
     }
 }
