@@ -39,6 +39,7 @@ import org.opensearch.common.CheckedSupplier;
 import org.opensearch.common.xcontent.cbor.CborXContent;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.common.xcontent.smile.SmileXContent;
+import org.opensearch.common.xcontent.yaml.YamlXContent;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParseException;
@@ -79,6 +80,28 @@ public class XContentParserTests extends OpenSearchTestCase {
         /* YAML parser limitation */
         XContentType.YAML,
         () -> randomAlphaOfLengthBetween(1, 3140000)
+    );
+
+    private static final Map<XContentType, Supplier<String>> FIELD_NAME_GENERATORS = Map.of(
+        XContentType.JSON,
+        () -> randomAlphaOfLengthBetween(1, Math.min(JsonXContent.DEFAULT_MAX_NAME_LEN, 100_000)), /* limit to 100000, OOM otherwise */
+        XContentType.CBOR,
+        () -> randomAlphaOfLengthBetween(1, Math.min(CborXContent.DEFAULT_MAX_NAME_LEN, 100_000)), /* limit to 100000, OOM otherwise */
+        XContentType.SMILE,
+        () -> randomAlphaOfLengthBetween(1, Math.min(SmileXContent.DEFAULT_MAX_NAME_LEN, 100_000)), /* limit to 100000, OOM otherwise */
+        XContentType.YAML,
+        () -> randomAlphaOfLengthBetween(1, Math.min(YamlXContent.DEFAULT_MAX_NAME_LEN, 100_000)) /* limit to 100000, OOM otherwise */
+    );
+
+    private static final Map<XContentType, Supplier<Integer>> DEPTH_GENERATORS = Map.of(
+        XContentType.JSON,
+        () -> randomIntBetween(1, Math.min(JsonXContent.DEFAULT_MAX_DEPTH, 1000)), /* limit to 1000, OOM otherwise */
+        XContentType.CBOR,
+        () -> randomIntBetween(1, Math.min(CborXContent.DEFAULT_MAX_DEPTH, 1000)), /* limit to 1000, OOM otherwise */
+        XContentType.SMILE,
+        () -> randomIntBetween(1, Math.min(SmileXContent.DEFAULT_MAX_DEPTH, 1000)), /* limit to 1000, OOM otherwise */
+        XContentType.YAML,
+        () -> randomIntBetween(1, Math.min(YamlXContent.DEFAULT_MAX_DEPTH, 1000)) /* limit to 1000, OOM otherwise */
     );
 
     public void testStringOffLimit() throws IOException {
@@ -133,6 +156,80 @@ public class XContentParserTests extends OpenSearchTestCase {
             }
 
             assertThat(text, hasLength(value.length()));
+        }
+    }
+
+    public void testFieldName() throws IOException {
+        final XContentType xContentType = randomFrom(XContentType.values());
+
+        final String field = FIELD_NAME_GENERATORS.get(xContentType).get();
+        final String value = randomAlphaOfLengthBetween(1, 5);
+
+        try (XContentBuilder builder = XContentBuilder.builder(xContentType.xContent())) {
+            builder.startObject();
+            if (randomBoolean()) {
+                builder.field(field, value);
+            } else {
+                builder.field(field).value(value);
+            }
+            builder.endObject();
+
+            try (XContentParser parser = createParser(xContentType.xContent(), BytesReference.bytes(builder))) {
+                assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
+                assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
+                assertEquals(field, parser.currentName());
+                assertEquals(XContentParser.Token.VALUE_STRING, parser.nextToken());
+                assertEquals(XContentParser.Token.END_OBJECT, parser.nextToken());
+                assertNull(parser.nextToken());
+            }
+        }
+    }
+
+    public void testDepth() throws IOException {
+        final XContentType xContentType = randomFrom(XContentType.values());
+
+        final String field = randomAlphaOfLengthBetween(1, 5);
+        final String value = randomAlphaOfLengthBetween(1, 5);
+
+        try (XContentBuilder builder = XContentBuilder.builder(xContentType.xContent())) {
+            final int maxDepth = DEPTH_GENERATORS.get(xContentType).get() - 1;
+
+            for (int depth = 0; depth < maxDepth; ++depth) {
+                builder.startObject();
+                builder.field(field + depth);
+            }
+
+            builder.startObject();
+            if (randomBoolean()) {
+                builder.field(field, value);
+            } else {
+                builder.field(field).value(value);
+            }
+            builder.endObject();
+
+            for (int depth = 0; depth < maxDepth; ++depth) {
+                builder.endObject();
+            }
+
+            try (XContentParser parser = createParser(xContentType.xContent(), BytesReference.bytes(builder))) {
+                for (int depth = 0; depth < maxDepth; ++depth) {
+                    assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
+                    assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
+                    assertEquals(field + depth, parser.currentName());
+                }
+
+                assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
+                assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
+                assertEquals(field, parser.currentName());
+                assertEquals(XContentParser.Token.VALUE_STRING, parser.nextToken());
+                assertEquals(XContentParser.Token.END_OBJECT, parser.nextToken());
+
+                for (int depth = 0; depth < maxDepth; ++depth) {
+                    assertEquals(XContentParser.Token.END_OBJECT, parser.nextToken());
+                }
+
+                assertNull(parser.nextToken());
+            }
         }
     }
 
