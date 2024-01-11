@@ -48,6 +48,13 @@ final class MethodHandlers {
     private final String path;
     private final Map<RestRequest.Method, RestHandler> methodHandlers;
 
+    /**
+     * Complete path of the method handlers.
+     */
+    public String getPath() {
+        return path;
+    }
+
     MethodHandlers(String path, RestHandler handler, RestRequest.Method... methods) {
         this.path = path;
         this.methodHandlers = new HashMap<>(methods.length);

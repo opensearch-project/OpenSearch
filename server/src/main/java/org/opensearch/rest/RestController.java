@@ -66,7 +66,13 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
-import java.util.*;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
@@ -104,11 +110,6 @@ public class RestController implements HttpServerTransport.Dispatcher, ToXConten
     }
 
     private final PathTrie<MethodHandlers> handlers = new PathTrie<>(RestUtils.REST_DECODER);
-    private final HashMap<String, Set<RestRequest.Method>> apis = new HashMap<>();
-
-    public HashMap<String, Set<RestRequest.Method>> getApis() {
-        return apis;
-    }
 
     private final UnaryOperator<RestHandler> handlerWrapper;
 
@@ -220,15 +221,6 @@ public class RestController implements HttpServerTransport.Dispatcher, ToXConten
     }
 
     private void registerHandlerNoWrap(RestRequest.Method method, String path, RestHandler maybeWrappedHandler) {
-
-        // TODO: traverse pathtrie
-        Set<RestRequest.Method> methods = apis.getOrDefault(path, null);
-        if (methods == null) {
-            methods = new HashSet<RestRequest.Method>();
-            apis.put(path, methods);
-        }
-        methods.add(method);
-
         handlers.insertOrUpdate(
             path,
             new MethodHandlers(path, maybeWrappedHandler, method),
@@ -585,17 +577,17 @@ public class RestController implements HttpServerTransport.Dispatcher, ToXConten
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject("paths");
 
-        for (Map.Entry<String, Set<RestRequest.Method>> entry : getApis().entrySet()) {
-            String key = entry.getKey();
-            Set<RestRequest.Method> methods = entry.getValue();
-            builder.startObject(key.replace("{", ":").replace("}", ""));
-            for(RestRequest.Method method : methods) {
-                builder
-                    .startObject(method.name().toLowerCase())
-                    //.field("summary", "")
-                    //.field("description", "")
-                    //.startObject("responses", "")
-                    //.endObject())
+        Iterator<MethodHandlers> all = handlers.retrieveAll();
+
+        while (all.hasNext()) {
+            MethodHandlers handlers = all.next();
+            builder.startObject(handlers.getPath().replace("{", ":").replace("}", ""));
+            for (RestRequest.Method method : handlers.getValidMethods()) {
+                builder.startObject(method.name().toLowerCase(Locale.ROOT))
+                    // .field("summary", "")
+                    // .field("description", "")
+                    // .startObject("responses", "")
+                    // .endObject())
                     .endObject();
             }
             builder.endObject();

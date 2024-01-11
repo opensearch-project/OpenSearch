@@ -37,6 +37,7 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.NoSuchElementException;
+import java.util.Stack;
 import java.util.function.BiFunction;
 import java.util.function.Supplier;
 
@@ -402,6 +403,30 @@ public class PathTrie<T> {
                     throw new NoSuchElementException("called next() without validating hasNext()! no more modes available");
                 }
                 return retrieve(path, paramSupplier.get(), TrieMatchingMode.values()[mode++]);
+            }
+        };
+    }
+
+    public Iterator<T> retrieveAll() {
+        Stack<TrieNode> stack = new Stack<>();
+        stack.add(root);
+
+        return new Iterator<T>() {
+            @Override
+            public boolean hasNext() {
+                return !stack.empty();
+            }
+
+            @Override
+            public T next() {
+                while (!stack.empty()) {
+                    TrieNode node = stack.pop();
+                    stack.addAll(node.children.values());
+                    if (node.value != null) {
+                        return node.value;
+                    }
+                }
+                throw new NoSuchElementException("encountered a terminal node without a value");
             }
         };
     }
