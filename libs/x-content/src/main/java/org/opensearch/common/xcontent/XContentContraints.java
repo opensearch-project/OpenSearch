@@ -26,10 +26,10 @@ public interface XContentContraints {
     final int DEFAULT_MAX_STRING_LEN = Integer.parseInt(System.getProperty(DEFAULT_MAX_STRING_LEN_PROPERTY, "50000000" /* ~50 Mb */));
 
     final int DEFAULT_MAX_NAME_LEN = Integer.parseInt(
-        System.getProperty(DEFAULT_MAX_NAME_LEN_PROPERTY, Integer.toString(StreamReadConstraints.DEFAULT_MAX_NAME_LEN) /* 50000 */)
+        System.getProperty(DEFAULT_MAX_NAME_LEN_PROPERTY, "50000" /* StreamReadConstraints.DEFAULT_MAX_NAME_LEN */)
     );
 
     final int DEFAULT_MAX_DEPTH = Integer.parseInt(
-        System.getProperty(DEFAULT_MAX_DEPTH_PROPERTY, Integer.toString(StreamReadConstraints.DEFAULT_MAX_DEPTH) /* 1000 */)
+        System.getProperty(DEFAULT_MAX_DEPTH_PROPERTY, "1000" /* StreamReadConstraints.DEFAULT_MAX_DEPTH */)
     );
 }
