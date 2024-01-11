@@ -14,6 +14,10 @@ import org.apache.logging.log4j.Logger;
 
 import java.io.IOException;
 
+/**
+ * This class facilitates to fetch Application Default Credentials
+ * see <a href="https://cloud.google.com/docs/authentication/application-default-credentials">How Application Default Credentials works</a>
+ */
 public class GoogleApplicationDefaultCredentials {
     private static final Logger logger = LogManager.getLogger(GoogleApplicationDefaultCredentials.class);
 
