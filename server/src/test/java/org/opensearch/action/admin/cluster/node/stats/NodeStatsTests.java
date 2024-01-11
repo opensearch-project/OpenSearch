@@ -44,6 +44,8 @@ import org.opensearch.cluster.service.ClusterManagerThrottlingStats;
 import org.opensearch.cluster.service.ClusterStateStats;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.metrics.OperationStats;
+import org.opensearch.common.settings.ClusterSettings;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.indices.breaker.AllCircuitBreakerStats;
@@ -960,7 +962,12 @@ public class NodeStatsTests extends OpenSearchTestCase {
     private static NodeIndicesStats getNodeIndicesStats(boolean remoteStoreStats) {
         NodeIndicesStats indicesStats = null;
         if (remoteStoreStats) {
-            indicesStats = new NodeIndicesStats(new CommonStats(CommonStatsFlags.ALL), new HashMap<>(), new SearchRequestStats());
+            ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+            indicesStats = new NodeIndicesStats(
+                new CommonStats(CommonStatsFlags.ALL),
+                new HashMap<>(),
+                new SearchRequestStats(clusterSettings)
+            );
             RemoteSegmentStats remoteSegmentStats = indicesStats.getSegments().getRemoteSegmentStats();
             remoteSegmentStats.addUploadBytesStarted(10L);
             remoteSegmentStats.addUploadBytesSucceeded(10L);
