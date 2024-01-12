@@ -313,9 +313,8 @@ public class MetadataCreateIndexService {
     ) {
         // INDEX_STORE_TYPE_SETTING is intended to be a system-managed index setting that is configured when restoring a snapshot and
         // should not be set to value REMOTE_SNAPSHOT by user.
-        if (request.settings()
-            .get(INDEX_STORE_TYPE_SETTING.getKey())
-            .equals(RestoreSnapshotRequest.StorageType.REMOTE_SNAPSHOT.toString())) {
+        String storeTypeSetting = request.settings().get(INDEX_STORE_TYPE_SETTING.getKey());
+        if (storeTypeSetting != null && storeTypeSetting.equals(RestoreSnapshotRequest.StorageType.REMOTE_SNAPSHOT.toString())) {
             throw new IllegalArgumentException(
                 "cannot create index with index setting \"index.store.type\" set to \"remote_snapshot\". Store type can be set to \"remote_snapshot\" only when restoring a remote snapshot by using \"storage_type\": \"remote_snapshot\"."
             );
