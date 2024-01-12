@@ -227,15 +227,16 @@ public class RestoreService implements ClusterStateApplier {
      */
     public void restoreSnapshot(final RestoreSnapshotRequest request, final ActionListener<RestoreCompletionResponse> listener) {
         try {
-            // INDEX_STORE_TYPE_SETTING is intended to be a system-managed index setting that is configured when restoring a snapshot and
-            // should not be set to value REMOTE_SNAPSHOT by user.
+            // Setting INDEX_STORE_TYPE_SETTING as REMOTE_SNAPSHOT is intended to be a system-managed index setting that is configured when
+            // restoring a snapshot and
+            // should not be manually set by user.
             if (request.indexSettings()
                 .get(INDEX_STORE_TYPE_SETTING.getKey())
                 .equals(RestoreSnapshotRequest.StorageType.REMOTE_SNAPSHOT.toString())) {
                 throw new SnapshotRestoreException(
                     request.repository(),
                     request.snapshot(),
-                    "cannot restore remote snapshot with \"index.store.type\" argument. Instead use \"storage_type\": \"remote_snapshot\" as argument to restore."
+                    "cannot restore remote snapshot with index settings \"index.store.type\" set to \"remote_snapshot\". Instead use \"storage_type\": \"remote_snapshot\" as argument to restore."
                 );
             }
             // Read snapshot info and metadata from the repository
