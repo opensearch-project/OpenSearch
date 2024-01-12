@@ -55,7 +55,6 @@ import org.opensearch.cluster.routing.allocation.allocator.ShardsAllocator;
 import org.opensearch.cluster.routing.allocation.command.AllocationCommands;
 import org.opensearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.opensearch.cluster.routing.allocation.decider.Decision;
-import org.opensearch.common.collect.ImmutableOpenMap;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.gateway.GatewayAllocator;
 import org.opensearch.gateway.PriorityComparator;
@@ -201,9 +200,9 @@ public class AllocationService {
         if (restoreInProgress != null) {
             RestoreInProgress updatedRestoreInProgress = allocation.updateRestoreInfoWithRoutingChanges(restoreInProgress);
             if (updatedRestoreInProgress != restoreInProgress) {
-                ImmutableOpenMap.Builder<String, ClusterState.Custom> customsBuilder = ImmutableOpenMap.builder(allocation.getCustoms());
+                final Map<String, ClusterState.Custom> customsBuilder = new HashMap<>(allocation.getCustoms());
                 customsBuilder.put(RestoreInProgress.TYPE, updatedRestoreInProgress);
-                newStateBuilder.customs(customsBuilder.build());
+                newStateBuilder.customs(customsBuilder);
             }
         }
         return newStateBuilder.build();
@@ -566,30 +565,22 @@ public class AllocationService {
             existingShardsAllocator.beforeAllocation(allocation);
         }
 
+        /*
+         Use batch mode if enabled and there is no custom allocator set for Allocation service
+         */
         Boolean batchModeEnabled = EXISTING_SHARDS_ALLOCATOR_BATCH_MODE.get(settings);
-
-        if (batchModeEnabled && allocation.nodes().getMinNodeVersion().onOrAfter(Version.CURRENT)) {
-            // since allocators is per index setting, to have batch assignment verify allocators same for all shards
-            // if not fallback to single assignment
-            ExistingShardsAllocator allocator = getAndVerifySameAllocatorForAllUnassignedShards(allocation);
-            if (allocator != null) {
-                // use batch mode implementation of GatewayAllocator
-                if (allocator.getClass() == GatewayAllocator.class) {
-                    allocator = existingShardsAllocators.get(ShardsBatchGatewayAllocator.ALLOCATOR_NAME);
-                }
-
-                allocator.allocateUnassignedBatch(allocation, true);
-                for (final ExistingShardsAllocator existingShardsAllocator : existingShardsAllocators.values()) {
-                    existingShardsAllocator.afterPrimariesBeforeReplicas(allocation);
-                }
-                allocator.allocateUnassignedBatch(allocation, false);
-                return;
-            } else {
-                // it means though batch mode is enabled but some indices have custom allocator set and we cant do Batch recover in that
-                // case fallback to single assignment and
-                logger.debug("Batch mode is enabled but some indices have custom allocator set. Falling back to single assignment");
-            }
+        if (batchModeEnabled && allocation.nodes().getMinNodeVersion().onOrAfter(Version.CURRENT) && existingShardsAllocators.size() == 2) {
+            /*
+             If we do not have any custom allocator set then we will be using ShardsBatchGatewayAllocator
+             Currently AllocationService will not run any custom Allocator that implements allocateAllUnassignedShards
+             */
+            ExistingShardsAllocator allocator = existingShardsAllocators.get(ShardsBatchGatewayAllocator.ALLOCATOR_NAME);
+            allocator.allocateAllUnassignedShards(allocation, true);
+            allocator.afterPrimariesBeforeReplicas(allocation);
+            allocator.allocateAllUnassignedShards(allocation, false);
+            return;
         }
+        logger.warn("Falling back to single shard assignment since batch mode disable or multiple custom allocators set");
 
         final RoutingNodes.UnassignedShards.UnassignedIterator primaryIterator = allocation.routingNodes().unassigned().iterator();
         while (primaryIterator.hasNext()) {
@@ -637,6 +628,7 @@ public class AllocationService {
         }
         return currentAllocatorForShard;
     }
+
     private void disassociateDeadNodes(RoutingAllocation allocation) {
         for (Iterator<RoutingNode> it = allocation.routingNodes().mutableIterator(); it.hasNext();) {
             RoutingNode node = it.next();
@@ -676,9 +668,9 @@ public class AllocationService {
                 : "shard started for unknown index (shard entry: " + startedShard + ")";
             assert startedShard == routingNodes.getByAllocationId(startedShard.shardId(), startedShard.allocationId().getId())
                 : "shard routing to start does not exist in routing table, expected: "
-                    + startedShard
-                    + " but was: "
-                    + routingNodes.getByAllocationId(startedShard.shardId(), startedShard.allocationId().getId());
+                + startedShard
+                + " but was: "
+                + routingNodes.getByAllocationId(startedShard.shardId(), startedShard.allocationId().getId());
 
             routingNodes.startShard(logger, startedShard, routingAllocation.changes());
         }
@@ -738,7 +730,7 @@ public class AllocationService {
         final String allocatorName = ExistingShardsAllocator.EXISTING_SHARDS_ALLOCATOR_SETTING.get(
             routingAllocation.metadata().getIndexSafe(shardRouting.index()).getSettings()
         );
-        final ExistingShardsAllocator existingShardsAllocator = existingShardsAllocators.get(allocatorName);
+        ExistingShardsAllocator existingShardsAllocator = existingShardsAllocators.get(allocatorName);
         return existingShardsAllocator != null ? existingShardsAllocator : new NotFoundAllocator(allocatorName);
     }
 
