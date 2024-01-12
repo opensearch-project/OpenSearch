@@ -53,6 +53,7 @@ import java.util.stream.StreamSupport;
 
 import static org.opensearch.action.admin.cluster.node.stats.NodesStatsRequest.Metric.FS;
 import static org.opensearch.core.common.util.CollectionUtils.iterableAsArrayList;
+import static org.opensearch.index.IndexModule.INDEX_STORE_TYPE_SETTING;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -346,7 +347,7 @@ public final class SearchableSnapshotIT extends AbstractSnapshotIntegTestCase {
             Settings.builder()
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, Integer.toString(numReplicasIndex))
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, "1")
-                .put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), IndexModule.Type.FS.getSettingsKey())
+                .put(INDEX_STORE_TYPE_SETTING.getKey(), IndexModule.Type.FS.getSettingsKey())
                 .build()
         );
         ensureGreen();
@@ -408,7 +409,7 @@ public final class SearchableSnapshotIT extends AbstractSnapshotIntegTestCase {
         for (String snapshotIndexName : snapshotIndexNames) {
             assertEquals(
                 IndexModule.Type.REMOTE_SNAPSHOT.getSettingsKey(),
-                settingsResponse.getSetting(snapshotIndexName, IndexModule.INDEX_STORE_TYPE_SETTING.getKey())
+                settingsResponse.getSetting(snapshotIndexName, INDEX_STORE_TYPE_SETTING.getKey())
             );
         }
     }
@@ -668,6 +669,50 @@ public final class SearchableSnapshotIT extends AbstractSnapshotIntegTestCase {
         // The index count will be 0 since the only restored index "test-idx-copy" was deleted
         assertCacheDirectoryReplicaAndIndexCount(numShards, 0);
         logger.info("--> validated that the cache file path doesn't exist");
+    }
+
+    public void testVerifyIndexCreationWithIndexStoreTypeRemoteStoreThrowsException1() throws Exception {
+        final int numReplicas = randomIntBetween(1, 4);
+        final int numShards = numReplicas + 1;
+        final String indexName = "test-idx";
+        final String restoredIndexName = indexName + "-copy";
+        final String repoName = "test-repo";
+        final String snapshotName = "test-snap";
+        final Client client = client();
+
+        internalCluster().ensureAtLeastNumSearchAndDataNodes(numShards);
+        createIndexWithDocsAndEnsureGreen(numReplicas, 100, indexName);
+        createRepositoryWithSettings(null, repoName);
+        takeSnapshot(client, snapshotName, repoName, indexName);
+        restoreSnapshotAndEnsureGreen(client, snapshotName, repoName);
+        assertDocCount(restoredIndexName, 100L);
+        assertRemoteSnapshotIndexSettings(client, restoredIndexName);
+
+        // The index count will be 1 since there is only a single restored index "test-idx-copy"
+        assertCacheDirectoryReplicaAndIndexCount(numShards, 1);
+
+        // The local cache files should be closed by deleting the restored index
+        deleteIndicesAndEnsureGreen(client, restoredIndexName);
+
+        logger.info("--> validate cache file path is deleted");
+        // The index count will be 0 since the only restored index "test-idx-copy" was deleted
+        assertCacheDirectoryReplicaAndIndexCount(numShards, 0);
+        logger.info("--> validated that the cache file path doesn't exist");
+    }
+
+    public void testIndexCreationWithIndexStoreTypeRemoteStoreThrowsException() {
+        final int numReplicas = 1;
+        final String indexName = "test-idx";
+        internalCluster().ensureAtLeastNumSearchAndDataNodes(numReplicas + 1);
+        createIndex(
+            indexName,
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, Integer.toString(numReplicas))
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, "1")
+                .put(INDEX_STORE_TYPE_SETTING.getKey(), IndexModule.Type.FS.getSettingsKey())
+                .put(INDEX_STORE_TYPE_SETTING.getKey(), RestoreSnapshotRequest.StorageType.REMOTE_SNAPSHOT)
+                .build()
+        );
     }
 
     /**

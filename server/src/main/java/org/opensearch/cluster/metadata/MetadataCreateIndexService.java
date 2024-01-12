@@ -39,6 +39,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.OpenSearchException;
 import org.opensearch.ResourceAlreadyExistsException;
 import org.opensearch.Version;
+import org.opensearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
 import org.opensearch.action.admin.indices.alias.Alias;
 import org.opensearch.action.admin.indices.create.CreateIndexClusterStateUpdateRequest;
 import org.opensearch.action.admin.indices.shrink.ResizeType;
@@ -135,6 +136,7 @@ import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_STORE
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REPLICATION_TYPE;
 import static org.opensearch.cluster.metadata.Metadata.DEFAULT_REPLICA_COUNT_SETTING;
+import static org.opensearch.index.IndexModule.INDEX_STORE_TYPE_SETTING;
 import static org.opensearch.indices.IndicesService.CLUSTER_REPLICATION_TYPE_SETTING;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.isRemoteStoreAttributePresent;
 
@@ -309,6 +311,15 @@ public class MetadataCreateIndexService {
         final CreateIndexClusterStateUpdateRequest request,
         final ActionListener<CreateIndexClusterStateUpdateResponse> listener
     ) {
+        // INDEX_STORE_TYPE_SETTING is intended to be a system-managed index setting that is configured when restoring a snapshot and
+        // should not be set to value REMOTE_SNAPSHOT by user.
+        if (request.settings()
+            .get(INDEX_STORE_TYPE_SETTING.getKey())
+            .equals(RestoreSnapshotRequest.StorageType.REMOTE_SNAPSHOT.toString())) {
+            throw new IllegalArgumentException(
+                "cannot create index with index setting \"index.store.type\" set to \"remote_snapshot\". Store type can be set to \"remote_snapshot\" only when restoring a remote snapshot by using \"storage_type\": \"remote_snapshot\"."
+            );
+        }
         onlyCreateIndex(request, ActionListener.wrap(response -> {
             if (response.isAcknowledged()) {
                 activeShardsObserver.waitForActiveShards(
