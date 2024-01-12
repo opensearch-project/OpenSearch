@@ -230,7 +230,7 @@ public class RestoreService implements ClusterStateApplier {
             // Setting INDEX_STORE_TYPE_SETTING as REMOTE_SNAPSHOT is intended to be a system-managed index setting that is configured when
             // restoring a snapshot and should not be manually set by user.
             String storeTypeSetting = request.indexSettings().get(INDEX_STORE_TYPE_SETTING.getKey());
-            if (storeTypeSetting != null &&  storeTypeSetting.equals(RestoreSnapshotRequest.StorageType.REMOTE_SNAPSHOT.toString())) {
+            if (storeTypeSetting != null && storeTypeSetting.equals(RestoreSnapshotRequest.StorageType.REMOTE_SNAPSHOT.toString())) {
                 throw new SnapshotRestoreException(
                     request.repository(),
                     request.snapshot(),
