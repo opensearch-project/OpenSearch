@@ -672,35 +672,6 @@ public final class SearchableSnapshotIT extends AbstractSnapshotIntegTestCase {
         logger.info("--> validated that the cache file path doesn't exist");
     }
 
-    public void testVerifyIndexCreationWithIndexStoreTypeRemoteStoreThrowsException1() throws Exception {
-        final int numReplicas = randomIntBetween(1, 4);
-        final int numShards = numReplicas + 1;
-        final String indexName = "test-idx";
-        final String restoredIndexName = indexName + "-copy";
-        final String repoName = "test-repo";
-        final String snapshotName = "test-snap";
-        final Client client = client();
-
-        internalCluster().ensureAtLeastNumSearchAndDataNodes(numShards);
-        createIndexWithDocsAndEnsureGreen(numReplicas, 100, indexName);
-        createRepositoryWithSettings(null, repoName);
-        takeSnapshot(client, snapshotName, repoName, indexName);
-        restoreSnapshotAndEnsureGreen(client, snapshotName, repoName);
-        assertDocCount(restoredIndexName, 100L);
-        assertRemoteSnapshotIndexSettings(client, restoredIndexName);
-
-        // The index count will be 1 since there is only a single restored index "test-idx-copy"
-        assertCacheDirectoryReplicaAndIndexCount(numShards, 1);
-
-        // The local cache files should be closed by deleting the restored index
-        deleteIndicesAndEnsureGreen(client, restoredIndexName);
-
-        logger.info("--> validate cache file path is deleted");
-        // The index count will be 0 since the only restored index "test-idx-copy" was deleted
-        assertCacheDirectoryReplicaAndIndexCount(numShards, 0);
-        logger.info("--> validated that the cache file path doesn't exist");
-    }
-
     public void testIndexCreationWithIndexStoreTypeRemoteStoreThrowsException() {
         final int numReplicas = 1;
         final String indexName = "test-idx";
