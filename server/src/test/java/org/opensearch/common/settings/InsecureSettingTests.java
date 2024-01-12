@@ -51,12 +51,12 @@ public class InsecureSettingTests extends OpenSearchTestCase {
             }
         };
         rootAppender.start();
-        Loggers.addAppender(LogManager.getRootLogger(), rootAppender);
+        Loggers.addAppender(LogManager.getLogger(SecureSetting.class), rootAppender);
     }
 
     @After
     public void removeInsecureSettingsAppender() {
-        Loggers.removeAppender(LogManager.getRootLogger(), rootAppender);
+        Loggers.removeAppender(LogManager.getLogger(SecureSetting.class), rootAppender);
         rootAppender.stop();
     }
 
