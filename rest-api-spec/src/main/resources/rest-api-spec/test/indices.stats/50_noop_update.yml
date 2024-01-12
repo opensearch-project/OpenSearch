@@ -1,0 +1,55 @@
+---
+setup:
+
+  - do:
+      indices.create:
+          index:  test1
+          wait_for_active_shards: all
+          body:
+              settings:
+                index.number_of_shards: 1
+                index.number_of_replicas: 1
+
+  - do:
+      index:
+          index: test1
+          id:    1
+          body:  { "bar": "bar" }
+
+  - do:
+      indices.refresh: {}
+
+# Related issue: https://github.com/opensearch-project/OpenSearch/issues/9857
+---
+"Test noop_update_total metric can be updated by both update API and bulk API":
+  - skip:
+      version: " - 2.99.99" #TODO: change to 2.11.99 after the PR is backported to 2.x branch
+      reason: "fixed in 3.0"
+
+  - do:
+      update:
+        index: test1
+        id:    1
+        body:  { "doc": { "bar": "bar" } }
+
+  - do:
+      indices.stats:
+        index: test1
+        metric: indexing
+
+  - match: { indices.test1.primaries.indexing.noop_update_total: 1 }
+  - match: { indices.test1.total.indexing.noop_update_total: 1 }
+
+  - do:
+      bulk:
+        body:  |
+          {"update": {"_id": "1", "_index": "test1"}}
+          {"doc": {"bar": "bar"}}
+
+  - do:
+      indices.stats:
+        index: test1
+        metric: indexing
+
+  - match: { indices.test1.primaries.indexing.noop_update_total: 2 }
+  - match: { indices.test1.total.indexing.noop_update_total: 2 }
