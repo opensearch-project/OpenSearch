@@ -229,8 +229,8 @@ public class GoogleCloudStorageServiceTests extends OpenSearchTestCase {
     }
 
     /**
-     * The application default credential throws exception when there are no
-     * Environment Variables provided or Google Compute Engine is not running
+     * The application default credential throws exception when there are
+     * no Environment Variables provided or Google Compute Engine is not running
      * @throws Exception
      */
     public void applicationDefaultCredentialThrowsErrorWhenNotAvailable() throws Exception {
