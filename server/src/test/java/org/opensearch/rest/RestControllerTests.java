@@ -138,6 +138,37 @@ public class RestControllerTests extends OpenSearchTestCase {
         IOUtils.close(client);
     }
 
+    public void testDefaultRestControllerGetAllHandlersContainsFavicon() {
+        final RestController restController = new RestController(null, null, null, circuitBreakerService, usageService, identityService);
+        Iterator<MethodHandlers> handlers = restController.getAllHandlers();
+        assertTrue(handlers.hasNext());
+        MethodHandlers faviconHandler = handlers.next();
+        assertEquals(faviconHandler.getPath(), "/favicon.ico");
+        assertEquals(faviconHandler.getValidMethods(), Set.of(RestRequest.Method.GET));
+        assertFalse(handlers.hasNext());
+    }
+
+    public void testRestControllerGetAllHandlers() {
+        final RestController restController = new RestController(null, null, null, circuitBreakerService, usageService, identityService);
+
+        restController.registerHandler(RestRequest.Method.PATCH, "/foo", mock(RestHandler.class));
+        restController.registerHandler(RestRequest.Method.GET, "/foo", mock(RestHandler.class));
+
+        Iterator<MethodHandlers> handlers = restController.getAllHandlers();
+
+        assertTrue(handlers.hasNext());
+        MethodHandlers rootHandler = handlers.next();
+        assertEquals(rootHandler.getPath(), "/foo");
+        assertEquals(rootHandler.getValidMethods(), Set.of(RestRequest.Method.GET, RestRequest.Method.PATCH));
+
+        assertTrue(handlers.hasNext());
+        MethodHandlers faviconHandler = handlers.next();
+        assertEquals(faviconHandler.getPath(), "/favicon.ico");
+        assertEquals(faviconHandler.getValidMethods(), Set.of(RestRequest.Method.GET));
+
+        assertFalse(handlers.hasNext());
+    }
+
     public void testApplyRelevantHeaders() throws Exception {
         final ThreadContext threadContext = client.threadPool().getThreadContext();
         Set<RestHeaderDefinition> headers = new HashSet<>(

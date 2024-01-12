@@ -145,6 +145,14 @@ public class RestController implements HttpServerTransport.Dispatcher {
     }
 
     /**
+     * Returns an iterator over registered REST method handlers.
+     * @return {@link Iterator} of {@link MethodHandlers}
+     */
+    public Iterator<MethodHandlers> getAllHandlers() {
+        return handlers.retrieveAll();
+    }
+
+    /**
      * Registers a REST handler to be executed when the provided {@code method} and {@code path} match the request.
      *
      * @param method GET, POST, etc.

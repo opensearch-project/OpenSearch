@@ -43,7 +43,7 @@ import java.util.Set;
  *
  * @opensearch.api
  */
-final class MethodHandlers {
+public final class MethodHandlers {
 
     private final String path;
     private final Map<RestRequest.Method, RestHandler> methodHandlers;
@@ -79,9 +79,16 @@ final class MethodHandlers {
     }
 
     /**
-     * Return a set of all valid HTTP methods for the particular path
+     * Return a set of all valid HTTP methods for the particular path.
      */
-    Set<RestRequest.Method> getValidMethods() {
+    public Set<RestRequest.Method> getValidMethods() {
         return methodHandlers.keySet();
+    }
+
+    /**
+     * Returns the relative HTTP path of the set of method handlers.
+     */
+    public String getPath() {
+        return path;
     }
 }
