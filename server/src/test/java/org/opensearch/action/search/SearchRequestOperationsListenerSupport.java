@@ -8,6 +8,10 @@
 
 package org.opensearch.action.search;
 
+import org.apache.logging.log4j.LogManager;
+
+import java.util.List;
+
 /**
  * Helper interface to access package protected {@link SearchRequestOperationsListener} from test cases.
  */
@@ -17,6 +21,12 @@ public interface SearchRequestOperationsListenerSupport {
     }
 
     default void onPhaseEnd(SearchRequestOperationsListener listener, SearchPhaseContext context) {
-        listener.onPhaseEnd(context, new SearchRequestContext());
+        listener.onPhaseEnd(
+            context,
+            new SearchRequestContext(
+                new SearchRequestOperationsListener.CompositeListener(List.of(), LogManager.getLogger()),
+                new SearchRequest()
+            )
+        );
     }
 }

@@ -44,11 +44,6 @@ public class SegmentReplicationUsingRemoteStoreDisruptionIT extends AbstractRemo
         return remoteStoreIndexSettings(1);
     }
 
-    @Override
-    protected boolean addMockInternalEngine() {
-        return false;
-    }
-
     public void testCancelReplicationWhileSyncingSegments() throws Exception {
         Path location = randomRepoPath().toAbsolutePath();
         setup(location, 0d, "metadata", Long.MAX_VALUE, 1);

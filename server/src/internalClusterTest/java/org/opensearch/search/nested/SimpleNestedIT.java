@@ -455,7 +455,13 @@ public class SimpleNestedIT extends ParameterizedOpenSearchIntegTestCase {
         assertDocumentCount("test", 6);
     }
 
-    public void testExplain() throws Exception {
+    /*
+    * Tests the explain output for single doc. Concurrent search with only slice 1 is tested
+    * here as call to indexRandomForMultipleSlices has implications on the range of child docs
+    * in the explain output. Separate test class is created to test explain for multiple slices
+    * case in concurrent search, refer {@link SimpleNestedExplainIT}
+    * */
+    public void testExplainWithSingleDoc() throws Exception {
         assertAcked(
             prepareCreate("test").setMapping(
                 jsonBuilder().startObject()
@@ -487,7 +493,6 @@ public class SimpleNestedIT extends ParameterizedOpenSearchIntegTestCase {
             )
             .setRefreshPolicy(IMMEDIATE)
             .get();
-        indexRandomForConcurrentSearch("test");
 
         SearchResponse searchResponse = client().prepareSearch("test")
             .setQuery(nestedQuery("nested1", termQuery("nested1.n_field1", "n_value1"), ScoreMode.Total))

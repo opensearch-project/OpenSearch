@@ -2,7 +2,6 @@ name: Maintainers approval
 
 on:
   pull_request_review:
-    types: [submitted]
 
 jobs:
   maintainer-approved-check:
@@ -26,7 +25,7 @@ jobs:
 
             return maintainersResponse.data.map(item => item.login).join(', ');
 
-      - uses: peternied/required-approval@v1.2
+      - uses: peternied/required-approval@v1.3
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           min-required: 1
