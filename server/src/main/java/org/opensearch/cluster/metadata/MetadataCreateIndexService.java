@@ -316,7 +316,7 @@ public class MetadataCreateIndexService {
         String storeTypeSetting = request.settings().get(INDEX_STORE_TYPE_SETTING.getKey());
         if (storeTypeSetting != null && storeTypeSetting.equals(RestoreSnapshotRequest.StorageType.REMOTE_SNAPSHOT.toString())) {
             throw new IllegalArgumentException(
-                "cannot create index with index setting \"index.store.type\" set to \"remote_snapshot\". Store type can be set to \"remote_snapshot\" only when restoring a remote snapshot by using \"storage_type\": \"remote_snapshot\"."
+                "cannot create index with index setting \"index.store.type\" set to \"remote_snapshot\". Store type can be set to \"remote_snapshot\" only when restoring a remote snapshot by using \"storage_type\": \"remote_snapshot\""
             );
         }
         onlyCreateIndex(request, ActionListener.wrap(response -> {

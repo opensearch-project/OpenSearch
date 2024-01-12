@@ -55,6 +55,7 @@ import static org.opensearch.action.admin.cluster.node.stats.NodesStatsRequest.M
 import static org.opensearch.core.common.util.CollectionUtils.iterableAsArrayList;
 import static org.opensearch.index.IndexModule.INDEX_STORE_TYPE_SETTING;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
@@ -704,14 +705,23 @@ public final class SearchableSnapshotIT extends AbstractSnapshotIntegTestCase {
         final int numReplicas = 1;
         final String indexName = "test-idx";
         internalCluster().ensureAtLeastNumSearchAndDataNodes(numReplicas + 1);
-        createIndex(
-            indexName,
-            Settings.builder()
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, Integer.toString(numReplicas))
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, "1")
-                .put(INDEX_STORE_TYPE_SETTING.getKey(), IndexModule.Type.FS.getSettingsKey())
-                .put(INDEX_STORE_TYPE_SETTING.getKey(), RestoreSnapshotRequest.StorageType.REMOTE_SNAPSHOT)
-                .build()
+        final IllegalArgumentException error = expectThrows(
+            IllegalArgumentException.class,
+            () -> createIndex(
+                indexName,
+                Settings.builder()
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, Integer.toString(numReplicas))
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, "1")
+                    .put(INDEX_STORE_TYPE_SETTING.getKey(), IndexModule.Type.FS.getSettingsKey())
+                    .put(INDEX_STORE_TYPE_SETTING.getKey(), RestoreSnapshotRequest.StorageType.REMOTE_SNAPSHOT)
+                    .build()
+            )
+        );
+        assertThat(
+            error.getMessage(),
+            containsString(
+                "cannot create index with index setting \"index.store.type\" set to \"remote_snapshot\". Store type can be set to \"remote_snapshot\" only when restoring a remote snapshot by using \"storage_type\": \"remote_snapshot\""
+            )
         );
     }
 
