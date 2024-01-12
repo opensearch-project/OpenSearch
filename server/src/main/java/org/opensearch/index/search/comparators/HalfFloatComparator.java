@@ -11,6 +11,7 @@ package org.opensearch.index.search.comparators;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.sandbox.document.HalfFloatPoint;
 import org.apache.lucene.search.LeafFieldComparator;
+import org.apache.lucene.search.Pruning;
 import org.apache.lucene.search.comparators.NumericComparator;
 
 import java.io.IOException;
@@ -25,8 +26,8 @@ public class HalfFloatComparator extends NumericComparator<Float> {
     protected float topValue;
     protected float bottom;
 
-    public HalfFloatComparator(int numHits, String field, Float missingValue, boolean reverse, boolean enableSkipping) {
-        super(field, missingValue != null ? missingValue : 0.0f, reverse, enableSkipping, HalfFloatPoint.BYTES);
+    public HalfFloatComparator(int numHits, String field, Float missingValue, boolean reverse, Pruning pruning) {
+        super(field, missingValue != null ? missingValue : 0.0f, reverse, pruning, HalfFloatPoint.BYTES);
         values = new float[numHits];
     }
 
