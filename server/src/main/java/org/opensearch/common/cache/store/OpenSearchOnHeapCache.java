@@ -13,6 +13,7 @@ import org.opensearch.common.cache.CacheBuilder;
 import org.opensearch.common.cache.LoadAwareCacheLoader;
 import org.opensearch.common.cache.RemovalListener;
 import org.opensearch.common.cache.RemovalNotification;
+import org.opensearch.common.cache.stats.CacheStats;
 import org.opensearch.common.cache.store.builders.StoreAwareCacheBuilder;
 import org.opensearch.common.cache.store.enums.CacheStoreType;
 import org.opensearch.common.cache.store.listeners.StoreAwareCacheEventListener;
@@ -29,6 +30,8 @@ public class OpenSearchOnHeapCache<K, V> implements StoreAwareCache<K, V>, Remov
     private final Cache<K, V> cache;
 
     private final StoreAwareCacheEventListener<K, V> eventListener;
+
+    private final CacheStats stats = new OpenSearchOnHeapCacheStats();
 
     public OpenSearchOnHeapCache(Builder<K, V> builder) {
         CacheBuilder<K, V> cacheBuilder = CacheBuilder.<K, V>builder()
@@ -88,12 +91,20 @@ public class OpenSearchOnHeapCache<K, V> implements StoreAwareCache<K, V>, Remov
 
     @Override
     public long count() {
-        return cache.count();
+        return stats.count();
     }
 
     @Override
     public void refresh() {
         cache.refresh();
+    }
+
+    @Override
+    public void close() {}
+
+    @Override
+    public CacheStats stats() {
+        return stats;
     }
 
     @Override
@@ -111,6 +122,16 @@ public class OpenSearchOnHeapCache<K, V> implements StoreAwareCache<K, V>, Remov
                 CacheStoreType.ON_HEAP
             )
         );
+    }
+
+    /**
+     * Stats for opensearch on heap cache.
+     */
+    class OpenSearchOnHeapCacheStats implements CacheStats {
+        @Override
+        public long count() {
+            return cache.count();
+        }
     }
 
     /**

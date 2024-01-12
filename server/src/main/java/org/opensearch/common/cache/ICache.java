@@ -8,6 +8,8 @@
 
 package org.opensearch.common.cache;
 
+import org.opensearch.common.cache.stats.CacheStats;
+
 /**
  * Represents a cache interface.
  * @param <K> Type of key.
@@ -31,4 +33,8 @@ public interface ICache<K, V> {
     long count();
 
     void refresh();
+
+    void close();
+
+    CacheStats stats();
 }

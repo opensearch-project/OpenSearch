@@ -10,6 +10,7 @@ package org.opensearch.common.cache.tier;
 
 import org.opensearch.common.cache.LoadAwareCacheLoader;
 import org.opensearch.common.cache.RemovalReason;
+import org.opensearch.common.cache.stats.CacheStats;
 import org.opensearch.common.cache.store.OpenSearchOnHeapCache;
 import org.opensearch.common.cache.store.StoreAwareCache;
 import org.opensearch.common.cache.store.StoreAwareCacheRemovalNotification;
@@ -757,6 +758,16 @@ class MockOnDiskCache<K, V> implements StoreAwareCache<K, V> {
 
     @Override
     public void refresh() {}
+
+    @Override
+    public void close() {
+
+    }
+
+    @Override
+    public CacheStats stats() {
+        return null;
+    }
 
     @Override
     public CacheStoreType getTierType() {

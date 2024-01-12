@@ -11,6 +11,7 @@ package org.opensearch.common.cache.tier;
 import org.opensearch.common.cache.ICache;
 import org.opensearch.common.cache.LoadAwareCacheLoader;
 import org.opensearch.common.cache.RemovalReason;
+import org.opensearch.common.cache.stats.CacheStats;
 import org.opensearch.common.cache.store.StoreAwareCache;
 import org.opensearch.common.cache.store.StoreAwareCacheRemovalNotification;
 import org.opensearch.common.cache.store.StoreAwareCacheValue;
@@ -45,6 +46,7 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V>, StoreAwareCache
     private final Optional<StoreAwareCache<K, V>> onDiskCache;
     private final StoreAwareCache<K, V> onHeapCache;
     private final StoreAwareCacheEventListener<K, V> listener;
+    private final CacheStats stats = new TieredSpillOverCacheStats();
     ReadWriteLock readWriteLock = new ReentrantReadWriteLock();
     ReleasableLock readLock = new ReleasableLock(readWriteLock.readLock());
     ReleasableLock writeLock = new ReleasableLock(readWriteLock.writeLock());
@@ -162,11 +164,7 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V>, StoreAwareCache
 
     @Override
     public long count() {
-        long totalCount = 0;
-        for (StoreAwareCache<K, V> storeAwareCache : cacheList) {
-            totalCount += storeAwareCache.count();
-        }
-        return totalCount;
+        return stats.count();
     }
 
     @Override
@@ -176,6 +174,18 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V>, StoreAwareCache
                 storeAwareCache.refresh();
             }
         }
+    }
+
+    @Override
+    public void close() {
+        for (StoreAwareCache<K, V> storeAwareCache : cacheList) {
+            storeAwareCache.close();
+        }
+    }
+
+    @Override
+    public CacheStats stats() {
+        return stats;
     }
 
     @Override
@@ -232,6 +242,21 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V>, StoreAwareCache
             }
             return null;
         };
+    }
+
+    /**
+     * Stats for tiered spillover cache.
+     */
+    class TieredSpillOverCacheStats implements CacheStats {
+
+        @Override
+        public long count() {
+            long totalCount = 0;
+            for (StoreAwareCache<K, V> storeAwareCache : cacheList) {
+                totalCount += storeAwareCache.count();
+            }
+            return totalCount;
+        }
     }
 
     /**
