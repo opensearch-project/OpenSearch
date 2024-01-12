@@ -69,7 +69,7 @@ public class FeatureFlags {
     /**
      * Gates the functionality of integrating protobuf within search API and node-to-node communication.
      */
-    public static final String PROTOBUF = "opensearch.experimental.feature.protobuf.enabled";
+    public static final String PROTOBUF = "opensearch.experimental.feature.search_with_protobuf.enabled";
 
     /**
      * Gates the functionality of pluggable cache.
@@ -166,5 +166,5 @@ public class FeatureFlags {
         }
     }
 
-    public static final Setting<Boolean> PROTOBUF_SETTING = Setting.boolSetting(PROTOBUF, false, Property.NodeScope);
+    public static final Setting<Boolean> PROTOBUF_SETTING = Setting.boolSetting(PROTOBUF, false, Property.NodeScope, Property.Dynamic);
 }

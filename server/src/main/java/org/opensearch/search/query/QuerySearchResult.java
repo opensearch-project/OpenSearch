@@ -38,6 +38,7 @@ import org.apache.lucene.search.TotalHits;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.io.stream.DelayableWriteable;
 import org.opensearch.common.lucene.search.TopDocsAndMaxScore;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.search.DocValueFormat;
@@ -121,26 +122,28 @@ public final class QuerySearchResult extends SearchPhaseResult {
         isNull = false;
         setShardSearchRequest(shardSearchRequest);
 
-        QuerySearchResultProto.ShardId shardIdProto = QuerySearchResultProto.ShardId.newBuilder()
-            .setShardId(shardTarget.getShardId().getId())
-            .setHashCode(shardTarget.getShardId().hashCode())
-            .setIndexName(shardTarget.getShardId().getIndexName())
-            .setIndexUUID(shardTarget.getShardId().getIndex().getUUID())
-            .build();
-        QuerySearchResultProto.SearchShardTarget searchShardTarget = QuerySearchResultProto.SearchShardTarget.newBuilder()
-            .setNodeId(shardTarget.getNodeId())
-            .setShardId(shardIdProto)
-            .setClusterAlias(shardTarget.getClusterAlias())
-            .build();
-        this.querySearchResultProto = QuerySearchResultProto.QuerySearchResult.newBuilder()
-            .setContextId(
-                QuerySearchResultProto.ShardSearchContextId.newBuilder()
-                    .setSessionId(contextId.getSessionId())
-                    .setId(contextId.getId())
-                    .build()
-            )
-            .setSearchShardTarget(searchShardTarget)
-            .build();
+        if (FeatureFlags.isEnabled(FeatureFlags.PROTOBUF_SETTING)) {
+            QuerySearchResultProto.ShardId shardIdProto = QuerySearchResultProto.ShardId.newBuilder()
+                .setShardId(shardTarget.getShardId().getId())
+                .setHashCode(shardTarget.getShardId().hashCode())
+                .setIndexName(shardTarget.getShardId().getIndexName())
+                .setIndexUUID(shardTarget.getShardId().getIndex().getUUID())
+                .build();
+            QuerySearchResultProto.SearchShardTarget searchShardTarget = QuerySearchResultProto.SearchShardTarget.newBuilder()
+                .setNodeId(shardTarget.getNodeId())
+                .setShardId(shardIdProto)
+                .setClusterAlias(shardTarget.getClusterAlias())
+                .build();
+            this.querySearchResultProto = QuerySearchResultProto.QuerySearchResult.newBuilder()
+                .setContextId(
+                    QuerySearchResultProto.ShardSearchContextId.newBuilder()
+                        .setSessionId(contextId.getSessionId())
+                        .setId(contextId.getId())
+                        .build()
+                )
+                .setSearchShardTarget(searchShardTarget)
+                .build();
+        }
     }
 
     private QuerySearchResult(boolean isNull) {
@@ -235,38 +238,40 @@ public final class QuerySearchResult extends SearchPhaseResult {
         this.maxScore = topDocsAndMaxScore.maxScore;
         this.hasScoreDocs = topDocsAndMaxScore.topDocs.scoreDocs.length > 0;
 
-        List<QuerySearchResultProto.QuerySearchResult.TopDocs.ScoreDoc> scoreDocs = new ArrayList<>();
-        if (this.hasScoreDocs) {
-            for (ScoreDoc scoreDoc : topDocsAndMaxScore.topDocs.scoreDocs) {
-                scoreDocs.add(
-                    QuerySearchResultProto.QuerySearchResult.TopDocs.ScoreDoc.newBuilder()
-                        .setDoc(scoreDoc.doc)
-                        .setScore(scoreDoc.score)
-                        .setShardIndex(scoreDoc.shardIndex)
-                        .build()
-                );
+        if (FeatureFlags.isEnabled(FeatureFlags.PROTOBUF_SETTING)) {
+            List<QuerySearchResultProto.QuerySearchResult.TopDocs.ScoreDoc> scoreDocs = new ArrayList<>();
+            if (this.hasScoreDocs) {
+                for (ScoreDoc scoreDoc : topDocsAndMaxScore.topDocs.scoreDocs) {
+                    scoreDocs.add(
+                        QuerySearchResultProto.QuerySearchResult.TopDocs.ScoreDoc.newBuilder()
+                            .setDoc(scoreDoc.doc)
+                            .setScore(scoreDoc.score)
+                            .setShardIndex(scoreDoc.shardIndex)
+                            .build()
+                    );
+                }
             }
-        }
-        QuerySearchResultProto.QuerySearchResult.TopDocs topDocsBuilder = QuerySearchResultProto.QuerySearchResult.TopDocs.newBuilder()
-            .setTotalHits(
-                QuerySearchResultProto.TotalHits.newBuilder()
-                    .setValue(topDocsAndMaxScore.topDocs.totalHits.value)
-                    .setRelation(QuerySearchResultProto.TotalHits.Relation.valueOf(topDocsAndMaxScore.topDocs.totalHits.relation.name()))
-                    .build()
-            )
-            .addAllScoreDocs(scoreDocs)
-            .build();
-        QuerySearchResultProto.QuerySearchResult.TopDocsAndMaxScore topDocsAndMaxScoreBuilder =
-            QuerySearchResultProto.QuerySearchResult.TopDocsAndMaxScore.newBuilder()
-                .setMaxScore(topDocsAndMaxScore.maxScore)
-                .setTopDocs(topDocsBuilder)
+            QuerySearchResultProto.QuerySearchResult.TopDocs topDocsBuilder = QuerySearchResultProto.QuerySearchResult.TopDocs.newBuilder()
+                .setTotalHits(
+                    QuerySearchResultProto.TotalHits.newBuilder()
+                        .setValue(topDocsAndMaxScore.topDocs.totalHits.value)
+                        .setRelation(QuerySearchResultProto.TotalHits.Relation.valueOf(topDocsAndMaxScore.topDocs.totalHits.relation.name()))
+                        .build()
+                )
+                .addAllScoreDocs(scoreDocs)
                 .build();
-        this.querySearchResultProto.toBuilder()
-            .setTopDocsAndMaxScore(topDocsAndMaxScoreBuilder)
-            .setMaxScore(this.maxScore)
-            .setTotalHits(topDocsBuilder.getTotalHits())
-            .setHasScoreDocs(this.hasScoreDocs)
-            .build();
+            QuerySearchResultProto.QuerySearchResult.TopDocsAndMaxScore topDocsAndMaxScoreBuilder =
+                QuerySearchResultProto.QuerySearchResult.TopDocsAndMaxScore.newBuilder()
+                    .setMaxScore(topDocsAndMaxScore.maxScore)
+                    .setTopDocs(topDocsBuilder)
+                    .build();
+            this.querySearchResultProto.toBuilder()
+                .setTopDocsAndMaxScore(topDocsAndMaxScoreBuilder)
+                .setMaxScore(this.maxScore)
+                .setTotalHits(topDocsBuilder.getTotalHits())
+                .setHasScoreDocs(this.hasScoreDocs)
+                .build();
+        }
     }
 
     public DocValueFormat[] sortValueFormats() {
