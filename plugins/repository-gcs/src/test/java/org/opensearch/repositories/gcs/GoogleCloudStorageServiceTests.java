@@ -233,7 +233,7 @@ public class GoogleCloudStorageServiceTests extends OpenSearchTestCase {
      * no Environment Variables provided or Google Compute Engine is not running
      * @throws Exception
      */
-    public void applicationDefaultCredentialThrowsErrorWhenNotAvailable() throws Exception {
+    public void testApplicationDefaultCredentialWhenNoSettingProvided() throws Exception {
         GoogleCloudStorageClientSettings settings = getGCSClientSettingsWithoutCredentials();
         HttpTransportOptions mockHttpTransportOptions = Mockito.mock(HttpTransportOptions.class);
         GoogleCloudStorageService service = new GoogleCloudStorageService();
@@ -250,7 +250,7 @@ public class GoogleCloudStorageServiceTests extends OpenSearchTestCase {
      * used without GoogleCloudStorageService
      * @throws Exception
      */
-    public void googleApplicationDefaultCredentialsThrowsExceptionWithoutGoogleCloudStorageService() throws Exception {
+    public void testDefaultCredentialsThrowsExceptionWithoutGCStorageService() throws Exception {
         GoogleApplicationDefaultCredentials googleApplicationDefaultCredentials = new GoogleApplicationDefaultCredentials();
         GoogleCredentials credentials = googleApplicationDefaultCredentials.get();
         assertNull(credentials);
