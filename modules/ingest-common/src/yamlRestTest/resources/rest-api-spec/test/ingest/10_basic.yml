@@ -37,6 +37,7 @@
     - contains:  { nodes.$cluster_manager.ingest.processors: { type: trim } }
     - contains:  { nodes.$cluster_manager.ingest.processors: { type: uppercase } }
 
+---
 "Copy processor exists":
     - skip:
           version: " - 2.11.99"
