@@ -246,7 +246,7 @@ public class GoogleCloudStorageServiceTests extends OpenSearchTestCase {
     }
 
     /**
-     * The application default credential throws exception when it is
+     * The application default credential throws IOException when it is
      * used without GoogleCloudStorageService
      */
     public void testDefaultCredentialsThrowsExceptionWithoutGCStorageService() {
