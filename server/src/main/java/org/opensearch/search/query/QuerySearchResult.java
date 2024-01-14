@@ -38,6 +38,7 @@ import org.apache.lucene.search.TotalHits;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.io.stream.DelayableWriteable;
 import org.opensearch.common.lucene.search.TopDocsAndMaxScore;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
@@ -116,13 +117,18 @@ public final class QuerySearchResult extends SearchPhaseResult {
         isNull = false;
     }
 
-    public QuerySearchResult(ShardSearchContextId contextId, SearchShardTarget shardTarget, ShardSearchRequest shardSearchRequest) {
+    public QuerySearchResult(
+        ShardSearchContextId contextId,
+        SearchShardTarget shardTarget,
+        ShardSearchRequest shardSearchRequest,
+        Settings settings
+    ) {
         this.contextId = contextId;
         setSearchShardTarget(shardTarget);
         isNull = false;
         setShardSearchRequest(shardSearchRequest);
 
-        if (FeatureFlags.isEnabled(FeatureFlags.PROTOBUF_SETTING)) {
+        if (FeatureFlags.PROTOBUF_SETTING.get(settings)) {
             QuerySearchResultProto.ShardId shardIdProto = QuerySearchResultProto.ShardId.newBuilder()
                 .setShardId(shardTarget.getShardId().getId())
                 .setHashCode(shardTarget.getShardId().hashCode())
@@ -238,7 +244,7 @@ public final class QuerySearchResult extends SearchPhaseResult {
         this.maxScore = topDocsAndMaxScore.maxScore;
         this.hasScoreDocs = topDocsAndMaxScore.topDocs.scoreDocs.length > 0;
 
-        if (FeatureFlags.isEnabled(FeatureFlags.PROTOBUF_SETTING)) {
+        if (this.querySearchResultProto != null) {
             List<QuerySearchResultProto.QuerySearchResult.TopDocs.ScoreDoc> scoreDocs = new ArrayList<>();
             if (this.hasScoreDocs) {
                 for (ScoreDoc scoreDoc : topDocsAndMaxScore.topDocs.scoreDocs) {
