@@ -255,7 +255,9 @@ public final class QuerySearchResult extends SearchPhaseResult {
                 .setTotalHits(
                     QuerySearchResultProto.TotalHits.newBuilder()
                         .setValue(topDocsAndMaxScore.topDocs.totalHits.value)
-                        .setRelation(QuerySearchResultProto.TotalHits.Relation.valueOf(topDocsAndMaxScore.topDocs.totalHits.relation.name()))
+                        .setRelation(
+                            QuerySearchResultProto.TotalHits.Relation.valueOf(topDocsAndMaxScore.topDocs.totalHits.relation.name())
+                        )
                         .build()
                 )
                 .addAllScoreDocs(scoreDocs)
