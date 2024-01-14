@@ -259,7 +259,7 @@ public class GoogleCloudStorageServiceTests extends OpenSearchTestCase {
 
     /**
      * This is a helper method to provide GCS Client settings without credentials
-     * @return
+     * @return GoogleCloudStorageClientSettings
      * @throws URISyntaxException
      */
     private GoogleCloudStorageClientSettings getGCSClientSettingsWithoutCredentials() throws URISyntaxException {
