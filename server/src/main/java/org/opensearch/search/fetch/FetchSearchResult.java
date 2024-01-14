@@ -41,8 +41,11 @@ import org.opensearch.search.SearchPhaseResult;
 import org.opensearch.search.SearchShardTarget;
 import org.opensearch.search.internal.ShardSearchContextId;
 import org.opensearch.search.query.QuerySearchResult;
+import org.opensearch.server.proto.FetchSearchResultProto;
+import org.opensearch.server.proto.QuerySearchResultProto;
 
 import java.io.IOException;
+import java.io.OutputStream;
 
 /**
  * Result from a fetch
@@ -56,6 +59,8 @@ public final class FetchSearchResult extends SearchPhaseResult {
     // client side counter
     private transient int counter;
 
+    private FetchSearchResultProto.FetchSearchResult fetchSearchResultProto;
+
     public FetchSearchResult() {}
 
     public FetchSearchResult(StreamInput in) throws IOException {
@@ -64,9 +69,23 @@ public final class FetchSearchResult extends SearchPhaseResult {
         hits = new SearchHits(in);
     }
 
+    public FetchSearchResult(byte[] in) throws IOException {
+        super(in);
+        this.fetchSearchResultProto = FetchSearchResultProto.FetchSearchResult.parseFrom(in);
+        contextId = new ShardSearchContextId(
+            this.fetchSearchResultProto.getContextId().getSessionId(),
+            this.fetchSearchResultProto.getContextId().getId()
+        );
+    }
+
     public FetchSearchResult(ShardSearchContextId id, SearchShardTarget shardTarget) {
         this.contextId = id;
         setSearchShardTarget(shardTarget);
+        this.fetchSearchResultProto = FetchSearchResultProto.FetchSearchResult.newBuilder()
+            .setContextId(
+                QuerySearchResultProto.ShardSearchContextId.newBuilder().setSessionId(id.getSessionId()).setId(id.getId()).build()
+            )
+            .build();
     }
 
     @Override
@@ -108,5 +127,18 @@ public final class FetchSearchResult extends SearchPhaseResult {
     public void writeTo(StreamOutput out) throws IOException {
         contextId.writeTo(out);
         hits.writeTo(out);
+    }
+
+    @Override
+    public void writeTo(OutputStream out) throws IOException {
+        out.write(fetchSearchResultProto.toByteArray());
+    }
+
+    public FetchSearchResultProto.FetchSearchResult response() {
+        return this.fetchSearchResultProto;
+    }
+
+    public FetchSearchResult(FetchSearchResultProto.FetchSearchResult fetchSearchResult) {
+        this.fetchSearchResultProto = fetchSearchResult;
     }
 }

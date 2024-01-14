@@ -1,0 +1,74 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * The OpenSearch Contributors require contributions made to
+ * this file be licensed under the Apache-2.0 license or a
+ * compatible open source license.
+ *
+ * Modifications Copyright OpenSearch Contributors. See
+ * GitHub history for details.
+ */
+
+syntax = "proto3";
+package org.opensearch.server.proto;
+
+import "server/search/QuerySearchResultProto.proto";
+
+option java_outer_classname = "FetchSearchResultProto";
+
+message FetchSearchResult {
+  ShardSearchContextId contextId = 1;
+  optional SearchHits hits = 2;
+}
+
+message SearchHits {
+  TotalHits totalHits = 1;
+  float maxScore = 2;
+  int32 size = 3;
+  repeated SearchHit hits = 4;
+  /* optional repeated SortField sortFields = 5; */
+  optional string collapseField = 5;
+  repeated bytes collapseValues = 6;
+}
+
+message SearchHit {
+  int32 docId = 1;
+  float score = 2;
+  string id = 3;
+  NestedIdentity nestedIdentity = 4;
+  int64 version = 5;
+  int64 seqNo = 6;
+  int64 primaryTerm = 7;
+  bytes source = 8;
+  map<string, DocumentField> documentFields = 9;
+  map<string, DocumentField> metaFields = 10;
+  map<string, HighlightField> highlightFields = 11;
+  SearchSortValues sortValues = 12;
+  repeated string matchedQueries = 13;
+  /* Explanation explanation = 14;*/
+  SearchShardTarget shard = 14;
+  string index = 15;
+  string clusterAlias = 16;
+  map<string, bytes> sourceAsMap = 17;
+
+  message NestedIdentity {
+    string field = 1;
+    int32 offset = 2;
+    NestedIdentity child = 3;
+  }
+
+  message DocumentField {
+    string name = 1;
+    repeated bytes values = 2;
+  }
+
+  message HighlightField {
+    string name = 1;
+    repeated string fragments = 2;
+  }
+  
+  message SearchSortValues {
+    repeated bytes formattedSortValues = 1;
+    repeated bytes rawSortValues = 2;
+  }
+}
