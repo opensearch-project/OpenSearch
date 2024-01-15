@@ -766,7 +766,7 @@ public class WeightedRoutingIT extends OpenSearchIntegTestCase {
         ensureGreen();
         assertNotNull(internalCluster().clusterService().state().metadata().weightedRoutingMetadata());
 
-        //make sure restarted node joins the cluster
+        // make sure restarted node joins the cluster
         assertEquals(3, internalCluster().clusterService().state().nodes().getDataNodes().size());
         assertNotNull(
             internalCluster().client(nodes_in_zone_a.get(0))
