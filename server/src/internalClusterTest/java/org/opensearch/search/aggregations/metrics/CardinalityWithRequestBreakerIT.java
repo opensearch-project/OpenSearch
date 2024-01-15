@@ -76,7 +76,6 @@ public class CardinalityWithRequestBreakerIT extends ParameterizedOpenSearchInte
     /**
      * Test that searches using cardinality aggregations returns all request breaker memory.
      */
-    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/10154")
     public void testRequestBreaker() throws Exception {
         final String requestBreaker = randomIntBetween(1, 10000) + "kb";
         logger.info("--> Using request breaker setting: {}", requestBreaker);

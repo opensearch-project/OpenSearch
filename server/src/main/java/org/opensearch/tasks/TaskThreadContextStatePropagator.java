@@ -20,7 +20,9 @@ import static org.opensearch.tasks.TaskResourceTrackingService.TASK_ID;
  * Propagates TASK_ID across thread contexts
  */
 public class TaskThreadContextStatePropagator implements ThreadContextStatePropagator {
+
     @Override
+    @SuppressWarnings("removal")
     public Map<String, Object> transients(Map<String, Object> source) {
         final Map<String, Object> transients = new HashMap<>();
 
@@ -32,7 +34,18 @@ public class TaskThreadContextStatePropagator implements ThreadContextStatePropa
     }
 
     @Override
+    public Map<String, Object> transients(Map<String, Object> source, boolean isSystemContext) {
+        return transients(source);
+    }
+
+    @Override
+    @SuppressWarnings("removal")
     public Map<String, String> headers(Map<String, Object> source) {
         return Collections.emptyMap();
+    }
+
+    @Override
+    public Map<String, String> headers(Map<String, Object> source, boolean isSystemContext) {
+        return headers(source);
     }
 }
