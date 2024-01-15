@@ -86,8 +86,6 @@ import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import static org.opensearch.search.aggregations.bucket.BucketUtils.suggestShardSideQueueSize;
-
 /**
  * This class encapsulates the state needed to execute a search. It holds a reference to the
  * shards point in time snapshot (IndexReader / ContextIndexSearcher) and allows passing on
@@ -410,11 +408,10 @@ public abstract class SearchContext implements Releasable {
      * Returns local bucket count thresholds based on concurrent segment search status
      */
     public LocalBucketCountThresholds asLocalBucketCountThresholds(TermsAggregator.BucketCountThresholds bucketCountThresholds) {
-        if (shouldUseConcurrentSearch()) {
-            return new LocalBucketCountThresholds(0, suggestShardSideQueueSize(bucketCountThresholds.getShardSize()));
-        } else {
-            return new LocalBucketCountThresholds(bucketCountThresholds.getShardMinDocCount(), bucketCountThresholds.getShardSize());
-        }
+        return new LocalBucketCountThresholds(
+            shouldUseConcurrentSearch() ? 0 : bucketCountThresholds.getShardMinDocCount(),
+            bucketCountThresholds.getShardSize()
+        );
     }
 
     /**
