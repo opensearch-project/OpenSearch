@@ -55,7 +55,7 @@ import org.opensearch.common.network.NetworkModule;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.snapshots.EmptySnapshotsInfoService;
-import org.opensearch.test.gateway.TestShardBatchGatewayAllocator;
+import org.opensearch.test.gateway.TestGatewayAllocator;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -94,7 +94,7 @@ public class ClusterRerouteTests extends OpenSearchAllocationTestCase {
     public void testClusterStateUpdateTask() {
         AllocationService allocationService = new AllocationService(
             new AllocationDeciders(Collections.singleton(new MaxRetryAllocationDecider())),
-            new TestShardBatchGatewayAllocator(),
+            new TestGatewayAllocator(),
             new BalancedShardsAllocator(Settings.EMPTY),
             EmptyClusterInfoService.INSTANCE,
             EmptySnapshotsInfoService.INSTANCE

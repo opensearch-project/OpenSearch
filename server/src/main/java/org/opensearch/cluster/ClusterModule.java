@@ -442,8 +442,10 @@ public class ClusterModule extends AbstractModule {
         bind(ShardsAllocator.class).toInstance(shardsAllocator);
     }
 
-    public void setExistingShardsAllocators(Map<String, GatewayAllocator> gatewayAllocators) {
-        final Map<String, ExistingShardsAllocator> existingShardsAllocators = new HashMap<>(gatewayAllocators);
+    public void setExistingShardsAllocators(GatewayAllocator gatewayAllocator, ShardsBatchGatewayAllocator shardsBatchGatewayAllocator) {
+        final Map<String, ExistingShardsAllocator> existingShardsAllocators = new HashMap<>();
+        existingShardsAllocators.put(GatewayAllocator.ALLOCATOR_NAME, gatewayAllocator);
+        existingShardsAllocators.put(ShardsBatchGatewayAllocator.ALLOCATOR_NAME, shardsBatchGatewayAllocator);
         for (ClusterPlugin clusterPlugin : clusterPlugins) {
             for (Map.Entry<String, ExistingShardsAllocator> existingShardsAllocatorEntry : clusterPlugin.getExistingShardsAllocators()
                 .entrySet()) {

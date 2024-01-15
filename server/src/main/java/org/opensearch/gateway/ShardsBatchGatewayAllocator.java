@@ -6,30 +6,6 @@
  * compatible open source license.
  */
 
-/*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
- */
-
-/*
- * Modifications Copyright OpenSearch Contributors. See
- * GitHub history for details.
- */
-
 package org.opensearch.gateway;
 
 import org.apache.logging.log4j.LogManager;
@@ -44,6 +20,7 @@ import org.opensearch.cluster.routing.RerouteService;
 import org.opensearch.cluster.routing.RoutingNodes;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.allocation.AllocateUnassignedDecision;
+import org.opensearch.cluster.routing.allocation.ExistingShardsAllocator;
 import org.opensearch.cluster.routing.allocation.FailedShard;
 import org.opensearch.cluster.routing.allocation.RoutingAllocation;
 import org.opensearch.common.Priority;
@@ -57,7 +34,6 @@ import org.opensearch.common.util.set.Sets;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.indices.store.ShardAttributes;
-import org.opensearch.indices.store.TransportNodesListShardStoreMetadata;
 import org.opensearch.indices.store.TransportNodesListShardStoreMetadataBatch;
 
 import java.util.Collections;
@@ -74,11 +50,11 @@ import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
 /**
- * Allocator for the Shards batch gateway
+ * Allocator for the gateway
  *
  * @opensearch.internal
  */
-public class ShardsBatchGatewayAllocator extends GatewayAllocator {
+public class ShardsBatchGatewayAllocator implements ExistingShardsAllocator {
 
     public static final String ALLOCATOR_NAME = "shards_batch_gateway_allocator";
 
@@ -117,13 +93,10 @@ public class ShardsBatchGatewayAllocator extends GatewayAllocator {
     @Inject
     public ShardsBatchGatewayAllocator(
         RerouteService rerouteService,
-        TransportNodesListGatewayStartedShards startedAction,
-        TransportNodesListShardStoreMetadata storeAction,
         TransportNodesListGatewayStartedBatchShards batchStartedAction,
         TransportNodesListShardStoreMetadataBatch batchStoreAction,
         Settings settings
     ) {
-        super(rerouteService, startedAction, storeAction);
         this.rerouteService = rerouteService;
         this.primaryBatchShardAllocator = new InternalPrimaryBatchShardAllocator();
         this.replicaBatchShardAllocator = new InternalReplicaBatchShardAllocator();
@@ -207,7 +180,16 @@ public class ShardsBatchGatewayAllocator extends GatewayAllocator {
     }
 
     @Override
-    public void allocateUnassignedBatch(final RoutingAllocation allocation, boolean primary) {
+    public void allocateUnassigned(
+        ShardRouting shardRouting,
+        RoutingAllocation allocation,
+        UnassignedAllocationHandler unassignedAllocationHandler
+    ) {
+        throw new UnsupportedOperationException("ShardsBatchGatewayAllocator does not support allocating unassigned shards");
+    }
+
+    @Override
+    public void allocateAllUnassignedShards(final RoutingAllocation allocation, boolean primary) {
 
         assert primaryBatchShardAllocator != null;
         assert replicaBatchShardAllocator != null;
