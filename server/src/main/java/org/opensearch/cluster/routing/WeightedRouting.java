@@ -54,9 +54,8 @@ public class WeightedRouting implements Writeable {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (attributeName != null) {
-            out.writeString(attributeName);
-        }
+
+        out.writeString(attributeName);
         out.writeGenericValue(weights);
     }
 
