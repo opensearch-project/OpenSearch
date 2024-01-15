@@ -36,10 +36,6 @@ if [ -d "${buildroot}${product_dir}"/plugins/opensearch-security ]; then
     chmod -c 0755 "${buildroot}${product_dir}"/plugins/opensearch-security/tools/*
 fi
 
-# Symlinks (do not symlink config dir as security demo installer has dependency, if no presense it will switch to rpm/deb mode)
-ln -s ${data_dir} "${buildroot}${product_dir}/data"
-ln -s ${log_dir} "${buildroot}${product_dir}/logs"
-
 # Change Permissions
 chmod -Rf a+rX,u+w,g-w,o-w "${buildroot}"/*
 
