@@ -38,7 +38,10 @@ import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.TermQuery;
 import org.opensearch.OpenSearchParseException;
+import org.opensearch.index.query.MatchAllQueryBuilder;
+import org.opensearch.search.aggregations.AggregationBuilders;
 import org.opensearch.search.aggregations.Aggregator;
+import org.opensearch.search.aggregations.bucket.filter.FilterAggregationBuilder;
 import org.opensearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.opensearch.search.aggregations.bucket.missing.MissingOrder;
 import org.opensearch.search.aggregations.bucket.terms.StringTerms;
@@ -2460,6 +2463,43 @@ public class CompositeAggregatorTests extends BaseCompositeAggregatorTestCase {
                     assertEquals("{date=1591142400000, keyword=91640}", result.getBuckets().get(2).getKeyAsString());
                     assertEquals(1L, result.getBuckets().get(2).getDocCount());
                 }
+            );
+        }
+    }
+
+    public void testUnderFilterAggregator() throws IOException {
+        executeTestCase(false, false, new MatchAllDocsQuery(), Collections.emptyList(), () -> {
+            FilterAggregationBuilder filterAggregatorBuilder = new FilterAggregationBuilder(
+                "filter_mcmilterface",
+                new MatchAllQueryBuilder()
+            );
+            filterAggregatorBuilder.subAggregation(
+                new CompositeAggregationBuilder(
+                    "compo",
+                    Collections.singletonList(new TermsValuesSourceBuilder("keyword").field("keyword"))
+                )
+            );
+            return filterAggregatorBuilder;
+        }, (ic) -> {});
+    }
+
+    public void testUnderBucketAggregator() throws IOException {
+        try {
+            executeTestCase(false, false, new MatchAllDocsQuery(), Collections.emptyList(), () -> {
+                TermsAggregationBuilder termsAggregationBuilder = AggregationBuilders.terms("terms").field("keyword");
+                termsAggregationBuilder.subAggregation(
+                    new CompositeAggregationBuilder(
+                        "compo",
+                        Collections.singletonList(new TermsValuesSourceBuilder("keyword").field("keyword"))
+                    )
+                );
+                return termsAggregationBuilder;
+            }, (ic) -> {});
+            fail("Should have thrown an IllegalArgumentException");
+        } catch (IllegalArgumentException iae) {
+            assertTrue(
+                iae.getMessage()
+                    .contains("[composite] aggregation cannot be used with a parent aggregation of type: [TermsAggregatorFactory]")
             );
         }
     }
