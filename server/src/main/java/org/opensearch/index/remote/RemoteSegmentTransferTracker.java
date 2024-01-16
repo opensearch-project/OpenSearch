@@ -306,7 +306,7 @@ public class RemoteSegmentTransferTracker extends RemoteTransferTracker {
      * @param segmentFiles     list of local refreshed segment files
      * @param fileSizeFunction function is used to determine the file size in bytes
      */
-    public void updateLatestLocalFileNameLengthMap(
+    public Map<String, Long> updateLatestLocalFileNameLengthMap(
         Collection<String> segmentFiles,
         CheckedFunction<String, Long, IOException> fileSizeFunction
     ) {
@@ -332,6 +332,7 @@ public class RemoteSegmentTransferTracker extends RemoteTransferTracker {
         // Remove keys from the fileSizeMap that do not exist in the latest segment files
         latestLocalFileNameLengthMap.entrySet().removeIf(entry -> fileSet.contains(entry.getKey()) == false);
         computeBytesLag();
+        return Collections.unmodifiableMap(latestLocalFileNameLengthMap);
     }
 
     public void addToLatestUploadedFiles(String file) {
