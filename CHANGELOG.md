@@ -82,6 +82,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Fix compression support for h2c protocol ([#4944](https://github.com/opensearch-project/OpenSearch/pull/4944))
 - Don't over-allocate in HeapBufferedAsyncEntityConsumer in order to consume the response ([#9993](https://github.com/opensearch-project/OpenSearch/pull/9993))
 - Update supported version for max_shard_size parameter in Shrink API ([#11439](https://github.com/opensearch-project/OpenSearch/pull/11439))
+- Fix typo in API annotation check message ([11836](https://github.com/opensearch-project/OpenSearch/pull/11836))
+- Update supported version for must_exist parameter in update aliases API ([#11872](https://github.com/opensearch-project/OpenSearch/pull/11872))
 
 ### Security
 
@@ -100,8 +102,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Add search query categorizer ([#10255](https://github.com/opensearch-project/OpenSearch/pull/10255))
 - Per request phase latency ([#10351](https://github.com/opensearch-project/OpenSearch/issues/10351))
 - Add cluster state stats ([#10670](https://github.com/opensearch-project/OpenSearch/pull/10670))
-- [Tiered caching] Defining interfaces, listeners and extending IndicesRequestCache with Tiered cache support ([#10753]
-  (https://github.com/opensearch-project/OpenSearch/pull/10753))
+- [Tiered caching] Enabling serialization for IndicesRequestCache key object ([#10275](https://github.com/opensearch-project/OpenSearch/pull/10275))
+- [Tiered caching] Defining interfaces, listeners and extending IndicesRequestCache with Tiered cache support ([#10753](https://github.com/opensearch-project/OpenSearch/pull/10753))
 - [Remote cluster state] Restore cluster state version during remote state auto restore ([#10853](https://github.com/opensearch-project/OpenSearch/pull/10853))
 - Update the indexRandom function to create more segments for concurrent search tests ([10247](https://github.com/opensearch-project/OpenSearch/pull/10247))
 - Add support for query profiler with concurrent aggregation ([#9248](https://github.com/opensearch-project/OpenSearch/pull/9248))
@@ -124,6 +126,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Introduce cluster level setting `cluster.index.restrict.replication.type` to prevent replication type setting override during index creations([#11583](https://github.com/opensearch-project/OpenSearch/pull/11583))
 - Add match_only_text field that is optimized for storage by trading off positional queries performance ([#6836](https://github.com/opensearch-project/OpenSearch/pull/11039))
 - Introduce new feature flag "WRITEABLE_REMOTE_INDEX" to gate the writeable remote index functionality ([#11717](https://github.com/opensearch-project/OpenSearch/pull/11170))
+- Bump OpenTelemetry from 1.32.0 to 1.34.1 ([#11891](https://github.com/opensearch-project/OpenSearch/pull/11891))
 
 ### Dependencies
 - Bumps jetty version to 9.4.52.v20230823 to fix GMS-2023-1857 ([#9822](https://github.com/opensearch-project/OpenSearch/pull/9822))
@@ -163,8 +166,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `org.apache.commons:commons-lang3` from 3.13.0 to 3.14.0 ([#11691](https://github.com/opensearch-project/OpenSearch/pull/11691))
 - Bump `com.maxmind.db:maxmind-db` from 3.0.0 to 3.1.0 ([#11693](https://github.com/opensearch-project/OpenSearch/pull/11693))
 - Bump `net.java.dev.jna:jna` from 5.13.0 to 5.14.0 ([#11798](https://github.com/opensearch-project/OpenSearch/pull/11798))
-- Bump `lycheeverse/lychee-action` from 1.8.0 to 1.9.0 ([#11795](https://github.com/opensearch-project/OpenSearch/pull/11795))
+- Bump `lycheeverse/lychee-action` from 1.8.0 to 1.9.1 ([#11795](https://github.com/opensearch-project/OpenSearch/pull/11795), [#11887](https://github.com/opensearch-project/OpenSearch/pull/11887))
 - Bump `Lucene` from 9.8.0 to 9.9.1 ([#11421](https://github.com/opensearch-project/OpenSearch/pull/11421))
+- Bump `com.networknt:json-schema-validator` from 1.0.86 to 1.1.0 ([#11886](https://github.com/opensearch-project/OpenSearch/pull/11886))
 
 ### Changed
 - Mute the query profile IT with concurrent execution ([#9840](https://github.com/opensearch-project/OpenSearch/pull/9840))
@@ -191,6 +195,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Restore support for Java 8 for RestClient ([#11562](https://github.com/opensearch-project/OpenSearch/pull/11562))
 - Add deleted doc count in _cat/shards ([#11678](https://github.com/opensearch-project/OpenSearch/pull/11678))
 - Capture information for additional query types and aggregation types ([#11582](https://github.com/opensearch-project/OpenSearch/pull/11582))
+- Use slice_size == shard_size heuristic in terms aggs for concurrent segment search and properly calculate the doc_count_error ([#11732](https://github.com/opensearch-project/OpenSearch/pull/11732))
+- Added Support for dynamically adding SearchRequestOperationsListeners with SearchRequestOperationsCompositeListenerFactory ([#11526](https://github.com/opensearch-project/OpenSearch/pull/11526))
+- Ensure Jackson default maximums introduced in 2.16.0 do not conflict with OpenSearch settings ([#11890](https://github.com/opensearch-project/OpenSearch/pull/11890))
 
 ### Deprecated
 
@@ -213,6 +220,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Fix remote shards balancer and remove unused variables ([#11167](https://github.com/opensearch-project/OpenSearch/pull/11167))
 - Fix parsing of flat object fields with dots in keys ([#11425](https://github.com/opensearch-project/OpenSearch/pull/11425))
 - Fix bug where replication lag grows post primary relocation ([#11238](https://github.com/opensearch-project/OpenSearch/pull/11238))
+- Fix noop_update_total metric in indexing stats cannot be updated by bulk API ([#11485](https://github.com/opensearch-project/OpenSearch/pull/11485))
 - Fix for stuck update action in a bulk with `retry_on_conflict` property ([#11152](https://github.com/opensearch-project/OpenSearch/issues/11152))
 - Fix template setting override for replication type ([#11417](https://github.com/opensearch-project/OpenSearch/pull/11417))
 - Fix Automatic addition of protocol broken in #11512 ([#11609](https://github.com/opensearch-project/OpenSearch/pull/11609))

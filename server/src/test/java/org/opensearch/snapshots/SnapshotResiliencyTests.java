@@ -90,7 +90,7 @@ import org.opensearch.action.search.SearchAction;
 import org.opensearch.action.search.SearchExecutionStatsCollector;
 import org.opensearch.action.search.SearchPhaseController;
 import org.opensearch.action.search.SearchRequest;
-import org.opensearch.action.search.SearchRequestSlowLog;
+import org.opensearch.action.search.SearchRequestOperationsCompositeListenerFactory;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.action.search.SearchTransportService;
 import org.opensearch.action.search.TransportSearchAction;
@@ -2285,6 +2285,8 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                     writableRegistry(),
                     searchService::aggReduceContextBuilder
                 );
+                SearchRequestOperationsCompositeListenerFactory searchRequestOperationsCompositeListenerFactory =
+                    new SearchRequestOperationsCompositeListenerFactory();
                 actions.put(
                     SearchAction.INSTANCE,
                     new TransportSearchAction(
@@ -2310,9 +2312,8 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                             List.of(),
                             client
                         ),
-                        null,
-                        new SearchRequestSlowLog(clusterService),
-                        NoopMetricsRegistry.INSTANCE
+                        NoopMetricsRegistry.INSTANCE,
+                        searchRequestOperationsCompositeListenerFactory
                     )
                 );
                 actions.put(
