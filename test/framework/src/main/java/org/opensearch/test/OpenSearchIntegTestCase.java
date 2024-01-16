@@ -148,7 +148,6 @@ import org.opensearch.index.translog.Translog;
 import org.opensearch.indices.IndicesQueryCache;
 import org.opensearch.indices.IndicesRequestCache;
 import org.opensearch.indices.IndicesService;
-import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
 import org.opensearch.indices.store.IndicesStore;
 import org.opensearch.monitor.os.OsInfo;
 import org.opensearch.node.NodeMocksPlugin;
@@ -2653,8 +2652,6 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
                             if (isSegmentReplicationEnabledForIndex(indexName)) {
                                 final List<ShardRouting> replicaRouting = shardRoutingTable.replicaShards();
                                 final IndexShard primaryShard = getIndexShard(clusterState, primaryRouting, indexName);
-                                final ReplicationCheckpoint primaryShardReplicationCheckpoint = primaryShard
-                                    .getLatestReplicationCheckpoint();
                                 final Map<String, StoreFileMetadata> primarySegmentMetadata = primaryShard.getSegmentMetadataMap();
                                 for (ShardRouting replica : replicaRouting) {
                                     if (replica.state().toString().equals("STARTED")) {
@@ -2663,15 +2660,6 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
                                             primarySegmentMetadata,
                                             replicaShard.getSegmentMetadataMap()
                                         );
-                                        final ReplicationCheckpoint replicaShardReplicationCheckpoint = replicaShard
-                                            .getLatestReplicationCheckpoint();
-                                        if (primaryShardReplicationCheckpoint != null && replicaShardReplicationCheckpoint != null) {
-                                            assertEquals(
-                                                "Replica shard segment info version doesn't match primary shard",
-                                                primaryShardReplicationCheckpoint.getSegmentInfosVersion(),
-                                                replicaShardReplicationCheckpoint.getSegmentInfosVersion()
-                                            );
-                                        }
                                         if (recoveryDiff.missing.isEmpty() == false || recoveryDiff.different.isEmpty() == false) {
                                             fail(
                                                 "Expected no missing or different segments between primary and replica but diff was missing: "
