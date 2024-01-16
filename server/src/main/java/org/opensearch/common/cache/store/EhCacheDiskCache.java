@@ -11,6 +11,7 @@ package org.opensearch.common.cache.store;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.OpenSearchException;
+import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.cache.LoadAwareCacheLoader;
 import org.opensearch.common.cache.RemovalReason;
 import org.opensearch.common.cache.stats.CacheStats;
@@ -145,6 +146,7 @@ public class EhCacheDiskCache<K, V> implements StoreAwareCache<K, V> {
         this.cache = buildCache(Duration.ofMillis(expireAfterAccess.getMillis()), builder);
     }
 
+    @SuppressForbidden(reason = "Ehcache uses File.io")
     private PersistentCacheManager buildCacheManager() {
         // In case we use multiple ehCaches, we can define this cache manager at a global level.
         return CacheManagerBuilder.newCacheManagerBuilder()
