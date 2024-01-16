@@ -685,6 +685,12 @@ public class TransportAddVotingConfigExclusionsActionTests extends OpenSearchTes
             public AddVotingConfigExclusionsResponse read(StreamInput in) throws IOException {
                 return new AddVotingConfigExclusionsResponse(in);
             }
+
+            @Override
+            public AddVotingConfigExclusionsResponse read(byte[] in) throws IOException {
+                // TODO Auto-generated method stub
+                throw new UnsupportedOperationException("Unimplemented method 'read'");
+            }
         };
     }
 

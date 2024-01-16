@@ -245,6 +245,12 @@ public abstract class TransportInstanceSingleOperationAction<
                         listener.onFailure(exp);
                     }
                 }
+
+                @Override
+                public Response read(byte[] in) throws IOException {
+                    // TODO Auto-generated method stub
+                    throw new UnsupportedOperationException("Unimplemented method 'read'");
+                }
             });
         }
 

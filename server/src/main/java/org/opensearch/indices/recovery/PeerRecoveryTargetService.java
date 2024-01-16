@@ -762,5 +762,11 @@ public class PeerRecoveryTargetService implements IndexEventListener {
         public RecoveryResponse read(StreamInput in) throws IOException {
             return new RecoveryResponse(in);
         }
+
+        @Override
+        public RecoveryResponse read(byte[] in) throws IOException {
+            // TODO Auto-generated method stub
+            throw new UnsupportedOperationException("Unimplemented method 'read'");
+        }
     }
 }

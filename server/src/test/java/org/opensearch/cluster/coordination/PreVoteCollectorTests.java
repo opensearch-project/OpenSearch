@@ -358,6 +358,12 @@ public class PreVoteCollectorTests extends OpenSearchTestCase {
                 public String executor() {
                     return SAME;
                 }
+
+                @Override
+                public PreVoteResponse read(byte[] in) throws IOException {
+                    // TODO Auto-generated method stub
+                    throw new UnsupportedOperationException("Unimplemented method 'read'");
+                }
             }
         );
 

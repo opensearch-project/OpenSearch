@@ -34,7 +34,10 @@ package org.opensearch.transport;
 
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.transport.TransportResponse;
+import org.opensearch.core.transport.TransportResponse.Empty;
 import org.opensearch.threadpool.ThreadPool;
+
+import java.io.IOException;
 
 /**
  * Handler for empty transport response
@@ -65,5 +68,11 @@ public class EmptyTransportResponseHandler implements TransportResponseHandler<T
     @Override
     public String executor() {
         return executor;
+    }
+
+    @Override
+    public Empty read(byte[] in) throws IOException {
+        // TODO Auto-generated method stub
+        throw new UnsupportedOperationException("Unimplemented method 'read'");
     }
 }

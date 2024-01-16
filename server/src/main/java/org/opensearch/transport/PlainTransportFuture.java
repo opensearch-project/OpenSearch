@@ -125,4 +125,10 @@ public class PlainTransportFuture<V extends TransportResponse> extends BaseFutur
     public String toString() {
         return "future(" + handler.toString() + ")";
     }
+
+    @Override
+    public V read(byte[] in) throws IOException {
+        // TODO Auto-generated method stub
+        throw new UnsupportedOperationException("Unimplemented method 'read'");
+    }
 }

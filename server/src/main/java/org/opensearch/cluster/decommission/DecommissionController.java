@@ -257,6 +257,12 @@ public class DecommissionController {
                 public NodesStatsResponse read(StreamInput in) throws IOException {
                     return new NodesStatsResponse(in);
                 }
+
+                @Override
+                public NodesStatsResponse read(byte[] in) throws IOException {
+                    // TODO Auto-generated method stub
+                    throw new UnsupportedOperationException("Unimplemented method 'read'");
+                }
             }
         );
     }

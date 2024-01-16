@@ -392,6 +392,13 @@ public abstract class TransportBroadcastByNodeAction<
                         public String executor() {
                             return ThreadPool.Names.SAME;
                         }
+
+                        @Override
+                        public TransportBroadcastByNodeAction<Request, Response, ShardOperationResult>.NodeResponse read(byte[] in)
+                            throws IOException {
+                            // TODO Auto-generated method stub
+                            throw new UnsupportedOperationException("Unimplemented method 'read'");
+                        }
                     }
                 );
             } catch (Exception e) {

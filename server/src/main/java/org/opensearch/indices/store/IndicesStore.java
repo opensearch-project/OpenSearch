@@ -352,6 +352,12 @@ public class IndicesStore implements ClusterStateListener, Closeable {
                 );
         }
 
+        @Override
+        public ShardActiveResponse read(byte[] in) throws IOException {
+            // TODO Auto-generated method stub
+            throw new UnsupportedOperationException("Unimplemented method 'read'");
+        }
+
     }
 
     private class ShardActiveRequestHandler implements TransportRequestHandler<ShardActiveRequest> {

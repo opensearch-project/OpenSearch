@@ -149,6 +149,12 @@ public class TransportActionProxyTests extends OpenSearchTestCase {
                 public String executor() {
                     return ThreadPool.Names.SAME;
                 }
+
+                @Override
+                public SimpleTestResponse read(byte[] in) throws IOException {
+                    // TODO Auto-generated method stub
+                    throw new UnsupportedOperationException("Unimplemented method 'read'");
+                }
             }
         );
         latch.await();
@@ -208,6 +214,12 @@ public class TransportActionProxyTests extends OpenSearchTestCase {
                 @Override
                 public String executor() {
                     return ThreadPool.Names.SAME;
+                }
+
+                @Override
+                public SimpleTestResponse read(byte[] in) throws IOException {
+                    // TODO Auto-generated method stub
+                    throw new UnsupportedOperationException("Unimplemented method 'read'");
                 }
             }
         );

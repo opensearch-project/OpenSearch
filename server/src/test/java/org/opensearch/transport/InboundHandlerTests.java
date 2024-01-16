@@ -179,6 +179,12 @@ public class InboundHandlerTests extends OpenSearchTestCase {
             public TestResponse read(StreamInput in) throws IOException {
                 return new TestResponse(in);
             }
+
+            @Override
+            public TestResponse read(byte[] in) throws IOException {
+                // TODO Auto-generated method stub
+                throw new UnsupportedOperationException("Unimplemented method 'read'");
+            }
         }, null, action));
         RequestHandlerRegistry<TestRequest> registry = new RequestHandlerRegistry<>(
             action,
@@ -366,6 +372,12 @@ public class InboundHandlerTests extends OpenSearchTestCase {
             public TestResponse read(StreamInput in) throws IOException {
                 return new TestResponse(in);
             }
+
+            @Override
+            public TestResponse read(byte[] in) throws IOException {
+                // TODO Auto-generated method stub
+                throw new UnsupportedOperationException("Unimplemented method 'read'");
+            }
         }, null, action));
 
         RequestHandlerRegistry<TestRequest> registry = new RequestHandlerRegistry<>(
@@ -437,6 +449,12 @@ public class InboundHandlerTests extends OpenSearchTestCase {
             @Override
             public TestResponse read(StreamInput in) throws IOException {
                 return new TestResponse(in);
+            }
+
+            @Override
+            public TestResponse read(byte[] in) throws IOException {
+                // TODO Auto-generated method stub
+                throw new UnsupportedOperationException("Unimplemented method 'read'");
             }
         }, null, action));
 
@@ -510,6 +528,12 @@ public class InboundHandlerTests extends OpenSearchTestCase {
             @Override
             public TestResponse read(StreamInput in) throws IOException {
                 return new TestResponse(in);
+            }
+
+            @Override
+            public TestResponse read(byte[] in) throws IOException {
+                // TODO Auto-generated method stub
+                throw new UnsupportedOperationException("Unimplemented method 'read'");
             }
         }, null, action));
         RequestHandlerRegistry<TestRequest> registry = new RequestHandlerRegistry<>(
@@ -598,6 +622,12 @@ public class InboundHandlerTests extends OpenSearchTestCase {
             @Override
             public TestResponse read(StreamInput in) throws IOException {
                 return new TestResponse(in);
+            }
+
+            @Override
+            public TestResponse read(byte[] in) throws IOException {
+                // TODO Auto-generated method stub
+                throw new UnsupportedOperationException("Unimplemented method 'read'");
             }
         }, null, action));
         RequestHandlerRegistry<TestRequest> registry = new RequestHandlerRegistry<>(

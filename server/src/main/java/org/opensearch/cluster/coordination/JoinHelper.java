@@ -421,6 +421,12 @@ public class JoinHelper {
                     public String executor() {
                         return Names.SAME;
                     }
+
+                    @Override
+                    public Empty read(byte[] in) throws IOException {
+                        // TODO Auto-generated method stub
+                        throw new UnsupportedOperationException("Unimplemented method 'read'");
+                    }
                 }
             );
         } else {
@@ -450,6 +456,12 @@ public class JoinHelper {
             @Override
             public String executor() {
                 return ThreadPool.Names.SAME;
+            }
+
+            @Override
+            public Empty read(byte[] in) throws IOException {
+                // TODO Auto-generated method stub
+                throw new UnsupportedOperationException("Unimplemented method 'read'");
             }
         });
     }

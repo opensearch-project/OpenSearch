@@ -104,4 +104,10 @@ public class TraceableTransportResponseHandler<T extends TransportResponse> impl
             span.endSpan();
         }
     }
+
+    @Override
+    public T read(byte[] in) throws IOException {
+        // TODO Auto-generated method stub
+        throw new UnsupportedOperationException("Unimplemented method 'read'");
+    }
 }

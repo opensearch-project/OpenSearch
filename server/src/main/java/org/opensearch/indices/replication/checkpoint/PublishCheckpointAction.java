@@ -172,6 +172,12 @@ public class PublishCheckpointAction extends TransportReplicationAction<
                             e
                         );
                     }
+
+                    @Override
+                    public ReplicationResponse read(byte[] in) throws IOException {
+                        // TODO Auto-generated method stub
+                        throw new UnsupportedOperationException("Unimplemented method 'read'");
+                    }
                 }
             );
             logger.trace(

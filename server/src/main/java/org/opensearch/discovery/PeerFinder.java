@@ -504,6 +504,12 @@ public abstract class PeerFinder {
                 public String executor() {
                     return Names.GENERIC;
                 }
+
+                @Override
+                public PeersResponse read(byte[] in) throws IOException {
+                    // TODO Auto-generated method stub
+                    throw new UnsupportedOperationException("Unimplemented method 'read'");
+                }
             };
             transportService.sendRequest(
                 discoveryNode,

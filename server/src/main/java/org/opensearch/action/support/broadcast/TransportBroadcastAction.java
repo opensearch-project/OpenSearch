@@ -229,6 +229,12 @@ public abstract class TransportBroadcastAction<
                                 public void handleException(TransportException e) {
                                     onOperation(shard, shardIt, shardIndex, e);
                                 }
+
+                                @Override
+                                public ShardResponse read(byte[] in) throws IOException {
+                                    // TODO Auto-generated method stub
+                                    throw new UnsupportedOperationException("Unimplemented method 'read'");
+                                }
                             }
                         );
                     }

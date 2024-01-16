@@ -339,6 +339,12 @@ public class TransportFieldCapabilitiesIndexAction extends HandledTransportActio
                         public void handleException(TransportException exp) {
                             onFailure(shardRouting, exp);
                         }
+
+                        @Override
+                        public FieldCapabilitiesIndexResponse read(byte[] in) throws IOException {
+                            // TODO Auto-generated method stub
+                            throw new UnsupportedOperationException("Unimplemented method 'read'");
+                        }
                     }
                 );
             }

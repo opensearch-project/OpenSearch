@@ -214,6 +214,12 @@ public class NetworkDisruptionIT extends OpenSearchIntegTestCase {
                 public TransportResponse read(StreamInput in) throws IOException {
                     return ClusterHealthResponse.readResponseFrom(in);
                 }
+
+                @Override
+                public TransportResponse read(byte[] in) throws IOException {
+                    // TODO Auto-generated method stub
+                    throw new UnsupportedOperationException("Unimplemented method 'read'");
+                }
             }
         );
     }

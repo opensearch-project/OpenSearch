@@ -202,6 +202,12 @@ public class PitService {
                 public GetAllPitNodesResponse read(StreamInput in) throws IOException {
                     return new GetAllPitNodesResponse(in);
                 }
+
+                @Override
+                public GetAllPitNodesResponse read(byte[] in) throws IOException {
+                    // TODO Auto-generated method stub
+                    throw new UnsupportedOperationException("Unimplemented method 'read'");
+                }
             }
         );
     }

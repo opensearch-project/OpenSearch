@@ -219,6 +219,12 @@ public class ExtensionTransportActionsHandler {
                 public String executor() {
                     return ThreadPool.Names.GENERIC;
                 }
+
+                @Override
+                public ExtensionActionResponse read(byte[] in) throws IOException {
+                    // TODO Auto-generated method stub
+                    throw new UnsupportedOperationException("Unimplemented method 'read'");
+                }
             };
         try {
             transportService.sendRequest(
@@ -282,6 +288,12 @@ public class ExtensionTransportActionsHandler {
                 @Override
                 public String executor() {
                     return ThreadPool.Names.GENERIC;
+                }
+
+                @Override
+                public RemoteExtensionActionResponse read(byte[] in) throws IOException {
+                    // TODO Auto-generated method stub
+                    throw new UnsupportedOperationException("Unimplemented method 'read'");
                 }
             };
         try {

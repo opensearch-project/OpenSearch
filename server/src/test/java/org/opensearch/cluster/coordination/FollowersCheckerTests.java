@@ -60,6 +60,7 @@ import org.opensearch.transport.TransportRequest;
 import org.opensearch.transport.TransportResponseHandler;
 import org.opensearch.transport.TransportService;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -532,6 +533,12 @@ public class FollowersCheckerTests extends OpenSearchTestCase {
                 public String executor() {
                     return Names.SAME;
                 }
+
+                @Override
+                public Empty read(byte[] in) throws IOException {
+                    // TODO Auto-generated method stub
+                    throw new UnsupportedOperationException("Unimplemented method 'read'");
+                }
             }
         );
         deterministicTaskQueue.runAllTasks();
@@ -620,6 +627,12 @@ public class FollowersCheckerTests extends OpenSearchTestCase {
                     public String executor() {
                         return Names.SAME;
                     }
+
+                    @Override
+                    public Empty read(byte[] in) throws IOException {
+                        // TODO Auto-generated method stub
+                        throw new UnsupportedOperationException("Unimplemented method 'read'");
+                    }
                 }
             );
             deterministicTaskQueue.runAllTasks();
@@ -691,6 +704,12 @@ public class FollowersCheckerTests extends OpenSearchTestCase {
                     @Override
                     public String executor() {
                         return Names.SAME;
+                    }
+
+                    @Override
+                    public Empty read(byte[] in) throws IOException {
+                        // TODO Auto-generated method stub
+                        throw new UnsupportedOperationException("Unimplemented method 'read'");
                     }
                 }
             );
@@ -787,6 +806,12 @@ public class FollowersCheckerTests extends OpenSearchTestCase {
         @Override
         public TransportResponse.Empty read(StreamInput in) {
             return TransportResponse.Empty.INSTANCE;
+        }
+
+        @Override
+        public Empty read(byte[] in) throws IOException {
+            // TODO Auto-generated method stub
+            throw new UnsupportedOperationException("Unimplemented method 'read'");
         }
 
     }
