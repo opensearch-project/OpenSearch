@@ -220,6 +220,12 @@ public class SegmentReplicationSourceServiceTests extends OpenSearchTestCase {
                 public CheckpointInfoResponse read(StreamInput in) throws IOException {
                     return new CheckpointInfoResponse(in);
                 }
+
+                @Override
+                public CheckpointInfoResponse read(byte[] in) throws IOException {
+                    // TODO Auto-generated method stub
+                    throw new UnsupportedOperationException("Unimplemented method 'read'");
+                }
             }
         );
     }
@@ -248,6 +254,12 @@ public class SegmentReplicationSourceServiceTests extends OpenSearchTestCase {
                 @Override
                 public GetSegmentFilesResponse read(StreamInput in) throws IOException {
                     return new GetSegmentFilesResponse(in);
+                }
+
+                @Override
+                public GetSegmentFilesResponse read(byte[] in) throws IOException {
+                    // TODO Auto-generated method stub
+                    throw new UnsupportedOperationException("Unimplemented method 'read'");
                 }
             }
         );
@@ -288,6 +300,12 @@ public class SegmentReplicationSourceServiceTests extends OpenSearchTestCase {
                 @Override
                 public CheckpointInfoResponse read(StreamInput in) throws IOException {
                     return new CheckpointInfoResponse(in);
+                }
+
+                @Override
+                public TransportResponse read(byte[] in) throws IOException {
+                    // TODO Auto-generated method stub
+                    throw new UnsupportedOperationException("Unimplemented method 'read'");
                 }
             }
         );

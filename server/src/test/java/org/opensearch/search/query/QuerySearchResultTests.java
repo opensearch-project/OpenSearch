@@ -84,7 +84,8 @@ public class QuerySearchResultTests extends OpenSearchTestCase {
         QuerySearchResult result = new QuerySearchResult(
             new ShardSearchContextId(UUIDs.base64UUID(), randomLong()),
             new SearchShardTarget("node", shardId, null, OriginalIndices.NONE),
-            shardSearchRequest
+            shardSearchRequest,
+            Settings.EMPTY
         );
         if (randomBoolean()) {
             result.terminatedEarly(randomBoolean());

@@ -471,6 +471,12 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
         public String executor() {
             return ThreadPool.Names.MANAGEMENT;
         }
+
+        @Override
+        public ClusterStateResponse read(byte[] in) throws IOException {
+            // TODO Auto-generated method stub
+            throw new UnsupportedOperationException("Unimplemented method 'read'");
+        }
     }
 
     private Predicate<ClusterName> getRemoteClusterNamePredicate() {

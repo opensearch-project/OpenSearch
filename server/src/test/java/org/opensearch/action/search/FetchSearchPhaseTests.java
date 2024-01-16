@@ -38,6 +38,7 @@ import org.apache.lucene.tests.store.MockDirectoryWrapper;
 import org.opensearch.action.OriginalIndices;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.lucene.search.TopDocsAndMaxScore;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.OpenSearchExecutors;
 import org.opensearch.core.common.breaker.CircuitBreaker;
 import org.opensearch.core.common.breaker.NoopCircuitBreaker;
@@ -140,7 +141,8 @@ public class FetchSearchPhaseTests extends OpenSearchTestCase {
         QuerySearchResult queryResult = new QuerySearchResult(
             ctx1,
             new SearchShardTarget("node1", new ShardId("test", "na", 0), null, OriginalIndices.NONE),
-            null
+            null,
+            Settings.EMPTY
         );
         queryResult.topDocs(
             new TopDocsAndMaxScore(
@@ -157,7 +159,8 @@ public class FetchSearchPhaseTests extends OpenSearchTestCase {
         queryResult = new QuerySearchResult(
             ctx2,
             new SearchShardTarget("node2", new ShardId("test", "na", 1), null, OriginalIndices.NONE),
-            null
+            null,
+            Settings.EMPTY
         );
         queryResult.topDocs(
             new TopDocsAndMaxScore(
@@ -236,7 +239,8 @@ public class FetchSearchPhaseTests extends OpenSearchTestCase {
         QuerySearchResult queryResult = new QuerySearchResult(
             ctx,
             new SearchShardTarget("node1", new ShardId("test", "na", 0), null, OriginalIndices.NONE),
-            null
+            null,
+            Settings.EMPTY
         );
         queryResult.topDocs(
             new TopDocsAndMaxScore(
@@ -252,7 +256,8 @@ public class FetchSearchPhaseTests extends OpenSearchTestCase {
         queryResult = new QuerySearchResult(
             new ShardSearchContextId("", 321),
             new SearchShardTarget("node2", new ShardId("test", "na", 1), null, OriginalIndices.NONE),
-            null
+            null,
+            Settings.EMPTY
         );
         queryResult.topDocs(
             new TopDocsAndMaxScore(
@@ -333,7 +338,8 @@ public class FetchSearchPhaseTests extends OpenSearchTestCase {
             QuerySearchResult queryResult = new QuerySearchResult(
                 new ShardSearchContextId("", i),
                 new SearchShardTarget("node1", new ShardId("test", "na", 0), null, OriginalIndices.NONE),
-                null
+                null,
+                Settings.EMPTY
             );
             queryResult.topDocs(
                 new TopDocsAndMaxScore(
@@ -423,7 +429,8 @@ public class FetchSearchPhaseTests extends OpenSearchTestCase {
         QuerySearchResult queryResult = new QuerySearchResult(
             new ShardSearchContextId("", 123),
             new SearchShardTarget("node1", new ShardId("test", "na", 0), null, OriginalIndices.NONE),
-            null
+            null,
+            Settings.EMPTY
         );
         queryResult.topDocs(
             new TopDocsAndMaxScore(
@@ -439,7 +446,8 @@ public class FetchSearchPhaseTests extends OpenSearchTestCase {
         queryResult = new QuerySearchResult(
             new ShardSearchContextId("", 321),
             new SearchShardTarget("node2", new ShardId("test", "na", 1), null, OriginalIndices.NONE),
-            null
+            null,
+            Settings.EMPTY
         );
         queryResult.topDocs(
             new TopDocsAndMaxScore(
@@ -516,7 +524,8 @@ public class FetchSearchPhaseTests extends OpenSearchTestCase {
         QuerySearchResult queryResult = new QuerySearchResult(
             ctx1,
             new SearchShardTarget("node1", new ShardId("test", "na", 0), null, OriginalIndices.NONE),
-            null
+            null,
+            Settings.EMPTY
         );
         queryResult.topDocs(
             new TopDocsAndMaxScore(
@@ -533,7 +542,8 @@ public class FetchSearchPhaseTests extends OpenSearchTestCase {
         queryResult = new QuerySearchResult(
             ctx2,
             new SearchShardTarget("node2", new ShardId("test", "na", 1), null, OriginalIndices.NONE),
-            null
+            null,
+            Settings.EMPTY
         );
         queryResult.topDocs(
             new TopDocsAndMaxScore(

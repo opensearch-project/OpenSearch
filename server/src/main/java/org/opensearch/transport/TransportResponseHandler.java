@@ -33,6 +33,7 @@
 package org.opensearch.transport;
 
 import org.opensearch.common.annotation.PublicApi;
+import org.opensearch.core.common.io.stream.ProtobufWriteable;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.core.transport.TransportResponse;
@@ -82,6 +83,12 @@ public interface TransportResponseHandler<T extends TransportResponse> extends W
             @Override
             public Q read(StreamInput in) throws IOException {
                 return reader.read(in);
+            }
+
+            @Override
+            public Q read(byte[] in) throws IOException {
+                // TODO Auto-generated method stub
+                throw new UnsupportedOperationException("Unimplemented method 'read'");
             }
         };
     }

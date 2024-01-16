@@ -253,6 +253,12 @@ public class TransportResyncReplicationAction extends TransportWriteAction<
                 public void handleException(TransportException exp) {
                     listener.onFailure(exp);
                 }
+
+                @Override
+                public ResyncReplicationResponse read(byte[] in) throws IOException {
+                    // TODO Auto-generated method stub
+                    throw new UnsupportedOperationException("Unimplemented method 'read'");
+                }
             }
         );
     }

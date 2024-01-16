@@ -225,6 +225,12 @@ public abstract class TransportSingleShardAction<Request extends SingleShardRequ
                         public void handleException(TransportException exp) {
                             listener.onFailure(exp);
                         }
+
+                        @Override
+                        public Response read(byte[] in) throws IOException {
+                            // TODO Auto-generated method stub
+                            throw new UnsupportedOperationException("Unimplemented method 'read'");
+                        }
                     }
                 );
             } else {
@@ -301,6 +307,12 @@ public abstract class TransportSingleShardAction<Request extends SingleShardRequ
                         @Override
                         public void handleException(TransportException exp) {
                             onFailure(finalShardRouting, exp);
+                        }
+
+                        @Override
+                        public Response read(byte[] in) throws IOException {
+                            // TODO Auto-generated method stub
+                            throw new UnsupportedOperationException("Unimplemented method 'read'");
                         }
                     }
                 );

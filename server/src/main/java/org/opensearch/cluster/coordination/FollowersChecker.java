@@ -408,6 +408,12 @@ public class FollowersChecker {
                     public String executor() {
                         return Names.SAME;
                     }
+
+                    @Override
+                    public Empty read(byte[] in) throws IOException {
+                        // TODO Auto-generated method stub
+                        throw new UnsupportedOperationException("Unimplemented method 'read'");
+                    }
                 }
             );
         }

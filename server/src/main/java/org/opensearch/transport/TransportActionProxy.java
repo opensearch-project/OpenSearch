@@ -130,6 +130,12 @@ public final class TransportActionProxy {
         public String executor() {
             return ThreadPool.Names.SAME;
         }
+
+        @Override
+        public T read(byte[] in) throws IOException {
+            // TODO Auto-generated method stub
+            throw new UnsupportedOperationException("Unimplemented method 'read'");
+        }
     }
 
     /**

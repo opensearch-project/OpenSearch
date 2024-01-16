@@ -547,6 +547,12 @@ public class PeerFinderTests extends OpenSearchTestCase {
                 public String executor() {
                     return Names.SAME;
                 }
+
+                @Override
+                public PeersResponse read(byte[] in) throws IOException {
+                    // TODO Auto-generated method stub
+                    throw new UnsupportedOperationException("Unimplemented method 'read'");
+                }
             }
         );
 

@@ -178,6 +178,12 @@ public class RetentionLeaseSyncAction extends TransportWriteAction<
                         taskManager.unregister(task);
                         listener.onFailure(e);
                     }
+
+                    @Override
+                    public ReplicationResponse read(byte[] in) throws IOException {
+                        // TODO Auto-generated method stub
+                        throw new UnsupportedOperationException("Unimplemented method 'read'");
+                    }
                 }
             );
         }

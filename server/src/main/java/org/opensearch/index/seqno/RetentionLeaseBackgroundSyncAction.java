@@ -167,6 +167,12 @@ public class RetentionLeaseBackgroundSyncAction extends TransportReplicationActi
                         }
                         getLogger().warn(new ParameterizedMessage("{} retention lease background sync failed", shardId), e);
                     }
+
+                    @Override
+                    public ReplicationResponse read(byte[] in) throws IOException {
+                        // TODO Auto-generated method stub
+                        throw new UnsupportedOperationException("Unimplemented method 'read'");
+                    }
                 }
             );
         }

@@ -89,4 +89,10 @@ public class ActionListenerResponseHandler<Response extends TransportResponse> i
     public String toString() {
         return super.toString() + "/" + listener;
     }
+
+    @Override
+    public Response read(byte[] in) throws IOException {
+        // TODO Auto-generated method stub
+        throw new UnsupportedOperationException("Unimplemented method 'read'");
+    }
 }

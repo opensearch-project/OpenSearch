@@ -47,6 +47,7 @@ import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.transport.TransportResponse;
+import org.opensearch.core.transport.TransportResponse.Empty;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.BytesTransportRequest;
 import org.opensearch.transport.TransportChannel;
@@ -380,6 +381,12 @@ public class PublicationTransportHandler {
                     public String executor() {
                         return ThreadPool.Names.GENERIC;
                     }
+
+                    @Override
+                    public Empty read(byte[] in) throws IOException {
+                        // TODO Auto-generated method stub
+                        throw new UnsupportedOperationException("Unimplemented method 'read'");
+                    }
                 }
             );
         }
@@ -450,6 +457,12 @@ public class PublicationTransportHandler {
                     @Override
                     public String executor() {
                         return ThreadPool.Names.GENERIC;
+                    }
+
+                    @Override
+                    public PublishWithJoinResponse read(byte[] in) throws IOException {
+                        // TODO Auto-generated method stub
+                        throw new UnsupportedOperationException("Unimplemented method 'read'");
                     }
                 };
                 transportService.sendRequest(destination, PUBLISH_STATE_ACTION_NAME, request, stateRequestOptions, responseHandler);

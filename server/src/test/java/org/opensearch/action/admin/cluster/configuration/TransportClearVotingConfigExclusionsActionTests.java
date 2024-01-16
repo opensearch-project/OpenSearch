@@ -252,6 +252,12 @@ public class TransportClearVotingConfigExclusionsActionTests extends OpenSearchT
             public ClearVotingConfigExclusionsResponse read(StreamInput in) throws IOException {
                 return new ClearVotingConfigExclusionsResponse(in);
             }
+
+            @Override
+            public ClearVotingConfigExclusionsResponse read(byte[] in) throws IOException {
+                // TODO Auto-generated method stub
+                throw new UnsupportedOperationException("Unimplemented method 'read'");
+            }
         };
     }
 }

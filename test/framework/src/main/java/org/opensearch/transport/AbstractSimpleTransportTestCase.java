@@ -65,6 +65,7 @@ import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.transport.BoundTransportAddress;
 import org.opensearch.core.common.transport.TransportAddress;
 import org.opensearch.core.transport.TransportResponse;
+import org.opensearch.core.transport.TransportResponse.Empty;
 import org.opensearch.node.Node;
 import org.opensearch.tasks.Task;
 import org.opensearch.telemetry.tracing.noop.NoopTracer;
@@ -327,6 +328,12 @@ public abstract class AbstractSimpleTransportTestCase extends OpenSearchTestCase
                     logger.error("Unexpected failure", exp);
                     fail("got exception instead of a response: " + exp.getMessage());
                 }
+
+                @Override
+                public StringMessageResponse read(byte[] in) throws IOException {
+                    // TODO Auto-generated method stub
+                    throw new UnsupportedOperationException("Unimplemented method 'read'");
+                }
             }
         );
 
@@ -362,6 +369,12 @@ public abstract class AbstractSimpleTransportTestCase extends OpenSearchTestCase
                 public void handleException(TransportException exp) {
                     logger.error("Unexpected failure", exp);
                     fail("got exception instead of a response: " + exp.getMessage());
+                }
+
+                @Override
+                public StringMessageResponse read(byte[] in) throws IOException {
+                    // TODO Auto-generated method stub
+                    throw new UnsupportedOperationException("Unimplemented method 'read'");
                 }
             }
         );
@@ -419,6 +432,12 @@ public abstract class AbstractSimpleTransportTestCase extends OpenSearchTestCase
             public void handleException(TransportException exp) {
                 logger.error("Unexpected failure", exp);
                 fail("got exception instead of a response: " + exp.getMessage());
+            }
+
+            @Override
+            public StringMessageResponse read(byte[] in) throws IOException {
+                // TODO Auto-generated method stub
+                throw new UnsupportedOperationException("Unimplemented method 'read'");
             }
         };
         StringMessageRequest ping = new StringMessageRequest("ping");
@@ -478,6 +497,12 @@ public abstract class AbstractSimpleTransportTestCase extends OpenSearchTestCase
                 @Override
                 public String executor() {
                     return ThreadPool.Names.GENERIC;
+                }
+
+                @Override
+                public StringMessageResponse read(byte[] in) throws IOException {
+                    // TODO Auto-generated method stub
+                    throw new UnsupportedOperationException("Unimplemented method 'read'");
                 }
             }
         );
@@ -662,6 +687,12 @@ public abstract class AbstractSimpleTransportTestCase extends OpenSearchTestCase
                         logger.error("Unexpected failure", exp);
                         fail("got exception instead of a response: " + exp.getMessage());
                     }
+
+                    @Override
+                    public Empty read(byte[] in) throws IOException {
+                        // TODO Auto-generated method stub
+                        throw new UnsupportedOperationException("Unimplemented method 'read'");
+                    }
                 }
             );
 
@@ -724,6 +755,12 @@ public abstract class AbstractSimpleTransportTestCase extends OpenSearchTestCase
                         logger.error("Unexpected failure", exp);
                         fail("got exception instead of a response: " + exp.getMessage());
                     }
+
+                    @Override
+                    public StringMessageResponse read(byte[] in) throws IOException {
+                        // TODO Auto-generated method stub
+                        throw new UnsupportedOperationException("Unimplemented method 'read'");
+                    }
                 }
             );
 
@@ -770,6 +807,12 @@ public abstract class AbstractSimpleTransportTestCase extends OpenSearchTestCase
                 @Override
                 public void handleException(TransportException exp) {
                     assertThat("runtime_exception: bad message !!!", equalTo(exp.getCause().getMessage()));
+                }
+
+                @Override
+                public StringMessageResponse read(byte[] in) throws IOException {
+                    // TODO Auto-generated method stub
+                    throw new UnsupportedOperationException("Unimplemented method 'read'");
                 }
             }
         );
@@ -1020,6 +1063,12 @@ public abstract class AbstractSimpleTransportTestCase extends OpenSearchTestCase
                 public void handleException(TransportException exp) {
                     assertThat(exp, instanceOf(ReceiveTimeoutTransportException.class));
                 }
+
+                @Override
+                public StringMessageResponse read(byte[] in) throws IOException {
+                    // TODO Auto-generated method stub
+                    throw new UnsupportedOperationException("Unimplemented method 'read'");
+                }
             }
         );
 
@@ -1094,6 +1143,12 @@ public abstract class AbstractSimpleTransportTestCase extends OpenSearchTestCase
                     latch.countDown();
                     assertThat(exp, instanceOf(ReceiveTimeoutTransportException.class));
                 }
+
+                @Override
+                public StringMessageResponse read(byte[] in) throws IOException {
+                    // TODO Auto-generated method stub
+                    throw new UnsupportedOperationException("Unimplemented method 'read'");
+                }
             }
         );
 
@@ -1134,6 +1189,12 @@ public abstract class AbstractSimpleTransportTestCase extends OpenSearchTestCase
                     public void handleException(TransportException exp) {
                         logger.error("Unexpected failure", exp);
                         fail("got exception instead of a response for " + counter + ": " + exp.getDetailedMessage());
+                    }
+
+                    @Override
+                    public StringMessageResponse read(byte[] in) throws IOException {
+                        // TODO Auto-generated method stub
+                        throw new UnsupportedOperationException("Unimplemented method 'read'");
                     }
                 }
             );
@@ -1178,6 +1239,12 @@ public abstract class AbstractSimpleTransportTestCase extends OpenSearchTestCase
             @Override
             public String executor() {
                 return ThreadPool.Names.SAME;
+            }
+
+            @Override
+            public StringMessageResponse read(byte[] in) throws IOException {
+                // TODO Auto-generated method stub
+                throw new UnsupportedOperationException("Unimplemented method 'read'");
             }
         };
 
@@ -1482,6 +1549,12 @@ public abstract class AbstractSimpleTransportTestCase extends OpenSearchTestCase
                 public String executor() {
                     return ThreadPool.Names.SAME;
                 }
+
+                @Override
+                public Version0Response read(byte[] in) throws IOException {
+                    // TODO Auto-generated method stub
+                    throw new UnsupportedOperationException("Unimplemented method 'read'");
+                }
             }
         ).txGet();
 
@@ -1533,6 +1606,12 @@ public abstract class AbstractSimpleTransportTestCase extends OpenSearchTestCase
                 public String executor() {
                     return ThreadPool.Names.SAME;
                 }
+
+                @Override
+                public Version1Response read(byte[] in) throws IOException {
+                    // TODO Auto-generated method stub
+                    throw new UnsupportedOperationException("Unimplemented method 'read'");
+                }
             }
         ).txGet();
 
@@ -1578,6 +1657,12 @@ public abstract class AbstractSimpleTransportTestCase extends OpenSearchTestCase
                 public String executor() {
                     return ThreadPool.Names.SAME;
                 }
+
+                @Override
+                public Version1Response read(byte[] in) throws IOException {
+                    // TODO Auto-generated method stub
+                    throw new UnsupportedOperationException("Unimplemented method 'read'");
+                }
             }
         ).txGet();
 
@@ -1619,6 +1704,12 @@ public abstract class AbstractSimpleTransportTestCase extends OpenSearchTestCase
                 @Override
                 public String executor() {
                     return ThreadPool.Names.SAME;
+                }
+
+                @Override
+                public Version0Response read(byte[] in) throws IOException {
+                    // TODO Auto-generated method stub
+                    throw new UnsupportedOperationException("Unimplemented method 'read'");
                 }
             }
         ).txGet();
@@ -1664,6 +1755,12 @@ public abstract class AbstractSimpleTransportTestCase extends OpenSearchTestCase
                     Throwable cause = ExceptionsHelper.unwrapCause(exp);
                     assertThat(cause, instanceOf(ConnectTransportException.class));
                     assertThat(((ConnectTransportException) cause).node(), equalTo(nodeA));
+                }
+
+                @Override
+                public StringMessageResponse read(byte[] in) throws IOException {
+                    // TODO Auto-generated method stub
+                    throw new UnsupportedOperationException("Unimplemented method 'read'");
                 }
             }
         );
@@ -1729,6 +1826,12 @@ public abstract class AbstractSimpleTransportTestCase extends OpenSearchTestCase
                 public void handleException(TransportException exp) {
                     assertThat(exp, instanceOf(ReceiveTimeoutTransportException.class));
                 }
+
+                @Override
+                public StringMessageResponse read(byte[] in) throws IOException {
+                    // TODO Auto-generated method stub
+                    throw new UnsupportedOperationException("Unimplemented method 'read'");
+                }
             }
         );
 
@@ -1780,6 +1883,12 @@ public abstract class AbstractSimpleTransportTestCase extends OpenSearchTestCase
             public String executor() {
                 return ThreadPool.Names.SAME;
             }
+
+            @Override
+            public TestResponse read(byte[] in) throws IOException {
+                // TODO Auto-generated method stub
+                throw new UnsupportedOperationException("Unimplemented method 'read'");
+            }
         });
 
         if (!latch.await(10, TimeUnit.SECONDS)) {
@@ -1828,6 +1937,12 @@ public abstract class AbstractSimpleTransportTestCase extends OpenSearchTestCase
                         public String executor() {
                             return ThreadPool.Names.SAME;
                         }
+
+                        @Override
+                        public TestResponse read(byte[] in) throws IOException {
+                            // TODO Auto-generated method stub
+                            throw new UnsupportedOperationException("Unimplemented method 'read'");
+                        }
                     }
                 );
 
@@ -1862,6 +1977,12 @@ public abstract class AbstractSimpleTransportTestCase extends OpenSearchTestCase
                         @Override
                         public String executor() {
                             return ThreadPool.Names.SAME;
+                        }
+
+                        @Override
+                        public TestResponse read(byte[] in) throws IOException {
+                            // TODO Auto-generated method stub
+                            throw new UnsupportedOperationException("Unimplemented method 'read'");
                         }
                     }
                 );
@@ -2021,6 +2142,12 @@ public abstract class AbstractSimpleTransportTestCase extends OpenSearchTestCase
                             public String executor() {
                                 return randomBoolean() ? ThreadPool.Names.SAME : ThreadPool.Names.GENERIC;
                             }
+
+                            @Override
+                            public TestResponse read(byte[] in) throws IOException {
+                                // TODO Auto-generated method stub
+                                throw new UnsupportedOperationException("Unimplemented method 'read'");
+                            }
                         }
                     );
                 } else {
@@ -2082,6 +2209,12 @@ public abstract class AbstractSimpleTransportTestCase extends OpenSearchTestCase
             @Override
             public String executor() {
                 return randomBoolean() ? ThreadPool.Names.SAME : ThreadPool.Names.GENERIC;
+            }
+
+            @Override
+            public TestResponse read(byte[] in) throws IOException {
+                // TODO Auto-generated method stub
+                throw new UnsupportedOperationException("Unimplemented method 'read'");
             }
         }
 
@@ -2418,6 +2551,12 @@ public abstract class AbstractSimpleTransportTestCase extends OpenSearchTestCase
             public String executor() {
                 return randomFrom(executors);
             }
+
+            @Override
+            public TransportResponse read(byte[] in) throws IOException {
+                // TODO Auto-generated method stub
+                throw new UnsupportedOperationException("Unimplemented method 'read'");
+            }
         };
 
         serviceB.sendRequest(nodeA, "internal:action", new TestRequest(randomFrom("fail", "pass")), transportResponseHandler);
@@ -2467,6 +2606,12 @@ public abstract class AbstractSimpleTransportTestCase extends OpenSearchTestCase
             @Override
             public String executor() {
                 return randomFrom(executors);
+            }
+
+            @Override
+            public TransportResponse read(byte[] in) throws IOException {
+                // TODO Auto-generated method stub
+                throw new UnsupportedOperationException("Unimplemented method 'read'");
             }
         };
         ConnectionProfile.Builder builder = new ConnectionProfile.Builder();
@@ -2537,6 +2682,12 @@ public abstract class AbstractSimpleTransportTestCase extends OpenSearchTestCase
             @Override
             public String executor() {
                 return ThreadPool.Names.SAME;
+            }
+
+            @Override
+            public TransportResponse read(byte[] in) throws IOException {
+                // TODO Auto-generated method stub
+                throw new UnsupportedOperationException("Unimplemented method 'read'");
             }
         };
 
@@ -2611,6 +2762,12 @@ public abstract class AbstractSimpleTransportTestCase extends OpenSearchTestCase
             @Override
             public String executor() {
                 return ThreadPool.Names.SAME;
+            }
+
+            @Override
+            public TransportResponse read(byte[] in) throws IOException {
+                // TODO Auto-generated method stub
+                throw new UnsupportedOperationException("Unimplemented method 'read'");
             }
         };
 
@@ -2732,6 +2889,12 @@ public abstract class AbstractSimpleTransportTestCase extends OpenSearchTestCase
             @Override
             public String executor() {
                 return ThreadPool.Names.SAME;
+            }
+
+            @Override
+            public TransportResponse read(byte[] in) throws IOException {
+                // TODO Auto-generated method stub
+                throw new UnsupportedOperationException("Unimplemented method 'read'");
             }
         };
 
@@ -3119,6 +3282,12 @@ public abstract class AbstractSimpleTransportTestCase extends OpenSearchTestCase
                     @Override
                     public TransportResponse read(final StreamInput in) {
                         return TransportResponse.Empty.INSTANCE;
+                    }
+
+                    @Override
+                    public TransportResponse read(byte[] in) throws IOException {
+                        // TODO Auto-generated method stub
+                        throw new UnsupportedOperationException("Unimplemented method 'read'");
                     }
                 }
             );
