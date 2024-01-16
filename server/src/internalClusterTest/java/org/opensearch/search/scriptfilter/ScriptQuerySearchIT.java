@@ -50,7 +50,7 @@ import org.opensearch.script.ScriptType;
 import org.opensearch.search.sort.SortOrder;
 import org.opensearch.test.InternalSettingsPlugin;
 import org.opensearch.test.OpenSearchIntegTestCase;
-import org.opensearch.test.ParameterizedOpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -71,7 +71,7 @@ import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertNoFailures
 import static org.hamcrest.Matchers.equalTo;
 
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.SUITE)
-public class ScriptQuerySearchIT extends ParameterizedOpenSearchIntegTestCase {
+public class ScriptQuerySearchIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
     public ScriptQuerySearchIT(Settings settings) {
         super(settings);
     }
