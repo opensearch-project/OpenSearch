@@ -143,10 +143,12 @@ import org.opensearch.index.mapper.CompletionFieldMapper;
 import org.opensearch.index.mapper.MockFieldFilterPlugin;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.store.Store;
+import org.opensearch.index.store.StoreFileMetadata;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.indices.IndicesQueryCache;
 import org.opensearch.indices.IndicesRequestCache;
 import org.opensearch.indices.IndicesService;
+import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
 import org.opensearch.indices.store.IndicesStore;
 import org.opensearch.monitor.os.OsInfo;
 import org.opensearch.node.NodeMocksPlugin;
@@ -1454,6 +1456,7 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
             .execute()
             .actionGet();
         assertNoFailures(actionGet);
+        waitForReplicasToCatchUpWithPrimary();
         return actionGet;
     }
 
@@ -1694,7 +1697,7 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
             indexRandomForMultipleSlices(indicesArray);
         }
         if (forceRefresh) {
-            verifyReplicasCaughtUpWithPrimary();
+            waitForReplicasToCatchUpWithPrimary();
         }
     }
 
@@ -2634,7 +2637,7 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
     /**
      * Checks if replica shards caught up with primary shard when Segment Replication is enabled.
      */
-    protected void verifyReplicasCaughtUpWithPrimary() {
+    protected void waitForReplicasToCatchUpWithPrimary() {
         try {
             assertBusy(() -> {
                 final ClusterState clusterState = client(internalCluster().getClusterManagerName()).admin()
@@ -2650,12 +2653,39 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
                             if (isSegmentReplicationEnabledForIndex(indexName)) {
                                 final List<ShardRouting> replicaRouting = shardRoutingTable.replicaShards();
                                 final IndexShard primaryShard = getIndexShard(clusterState, primaryRouting, indexName);
-                                final int primaryDocCount = getDocCountFromShard(primaryShard);
+                                final ReplicationCheckpoint primaryShardReplicationCheckpoint = primaryShard
+                                    .getLatestReplicationCheckpoint();
+                                final Map<String, StoreFileMetadata> primarySegmentMetadata = primaryShard.getSegmentMetadataMap();
                                 for (ShardRouting replica : replicaRouting) {
                                     if (replica.state().toString().equals("STARTED")) {
                                         IndexShard replicaShard = getIndexShard(clusterState, replica, indexName);
-                                        final int replicaDocCount = getDocCountFromShard(replicaShard);
-                                        assertEquals("Replica doc count doesn't match primary", primaryDocCount, replicaDocCount);
+                                        final Store.RecoveryDiff recoveryDiff = Store.segmentReplicationDiff(
+                                            primarySegmentMetadata,
+                                            replicaShard.getSegmentMetadataMap()
+                                        );
+                                        final ReplicationCheckpoint replicaShardReplicationCheckpoint = replicaShard
+                                            .getLatestReplicationCheckpoint();
+                                        if (primaryShardReplicationCheckpoint != null && replicaShardReplicationCheckpoint != null) {
+                                            assertEquals(
+                                                "Replica shard segment info version doesn't match primary shard",
+                                                primaryShardReplicationCheckpoint.getSegmentInfosVersion(),
+                                                replicaShardReplicationCheckpoint.getSegmentInfosVersion()
+                                            );
+                                        }
+                                        if (recoveryDiff.missing.isEmpty() == false || recoveryDiff.different.isEmpty() == false) {
+                                            fail(
+                                                "Expected no missing or different segments between primary and replica but diff was missing: "
+                                                    + recoveryDiff.missing
+                                                    + " Different: "
+                                                    + recoveryDiff.different
+                                                    + " Primary Replication Checkpoint : "
+                                                    + primaryShard.getLatestReplicationCheckpoint()
+                                                    + " Replica Replication Checkpoint: "
+                                                    + replicaShard.getLatestReplicationCheckpoint()
+                                            );
+                                        }
+                                        // calls to readCommit will fail if a valid commit point and all its segments are not in the store.
+                                        replicaShard.store().readLastCommittedSegmentsInfo();
                                     }
                                 }
                             }
@@ -2686,7 +2716,7 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
         final Index index = resolveIndex(indexName);
         IndicesService indicesService = internalCluster().getInstance(IndicesService.class, node);
         IndexService indexService = indicesService.indexServiceSafe(index);
-        final Optional<Integer> id = indexService.shardIds().stream().filter(sid -> sid == shardId.id()).findFirst();
+        final Optional<Integer> id = indexService.shardIds().stream().filter(sid -> sid.equals(shardId.id())).findFirst();
         return indexService.getShard(id.get());
     }
 

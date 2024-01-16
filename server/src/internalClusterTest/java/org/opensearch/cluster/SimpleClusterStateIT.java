@@ -103,7 +103,6 @@ public class SimpleClusterStateIT extends OpenSearchIntegTestCase {
         index("fuu", "buu", "1", XContentFactory.jsonBuilder().startObject().field("fuu", "fuu").endObject());
         index("baz", "baz", "1", XContentFactory.jsonBuilder().startObject().field("baz", "baz").endObject());
         refresh();
-        verifyReplicasCaughtUpWithPrimary();
     }
 
     public void testRoutingTable() throws Exception {

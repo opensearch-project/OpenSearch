@@ -166,7 +166,6 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
         client().prepareIndex(INDEX_NAME).setId("4").setSource("baz", "baz").get();
         refresh(INDEX_NAME);
         waitForSearchableDocs(4, nodeC, replica);
-        verifyStoreContent();
     }
 
     public void testRestartPrimary() throws Exception {
@@ -191,7 +190,6 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
 
         flushAndRefresh(INDEX_NAME);
         waitForSearchableDocs(initialDocCount, replica, primary);
-        verifyStoreContent();
     }
 
     public void testCancelPrimaryAllocation() throws Exception {
@@ -222,7 +220,6 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
 
         flushAndRefresh(INDEX_NAME);
         waitForSearchableDocs(initialDocCount, replica, primary);
-        verifyStoreContent();
     }
 
     public void testReplicationAfterPrimaryRefreshAndFlush() throws Exception {
@@ -265,7 +262,6 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
             waitForSearchableDocs(expectedHitCount, nodeA, nodeB);
 
             ensureGreen(INDEX_NAME);
-            verifyStoreContent();
         }
     }
 
@@ -300,7 +296,7 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
 
         ensureGreen(INDEX_NAME);
         waitForSearchableDocs(initialDocCount, primary, replica);
-        verifyStoreContent();
+        waitForReplicasToCatchUpWithPrimary();
     }
 
     public void testScrollWithConcurrentIndexAndSearch() throws Exception {
@@ -347,11 +343,10 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
         client().prepareClearScroll().addScrollId(searchResponse.getScrollId()).get();
 
         assertBusy(() -> {
-            client().admin().indices().prepareRefresh().execute().actionGet();
+            refresh();
             assertTrue(pendingIndexResponses.stream().allMatch(ActionFuture::isDone));
             assertTrue(pendingSearchResponse.stream().allMatch(ActionFuture::isDone));
         }, 1, TimeUnit.MINUTES);
-        verifyStoreContent();
         waitForSearchableDocs(INDEX_NAME, 2 * searchCount, List.of(primary, replica));
     }
 
@@ -395,7 +390,6 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
             waitForSearchableDocs(expectedHitCount, nodeA, nodeB);
 
             ensureGreen(INDEX_NAME);
-            verifyStoreContent();
         }
     }
 
@@ -433,7 +427,6 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
             // Force a merge here so that the in memory SegmentInfos does not reference old segments on disk.
             client().admin().indices().prepareForceMerge(INDEX_NAME).setMaxNumSegments(1).setFlush(false).get();
             refresh(INDEX_NAME);
-            verifyStoreContent();
         }
     }
 
@@ -629,7 +622,6 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
         waitForSearchableDocs(3, primaryNode, replicaNode);
         assertHitCount(client(primaryNode).prepareSearch(INDEX_NAME).setSize(0).setPreference("_only_local").get(), 3);
         assertHitCount(client(replicaNode).prepareSearch(INDEX_NAME).setSize(0).setPreference("_only_local").get(), 3);
-        verifyStoreContent();
     }
 
     @TestLogging(reason = "Getting trace logs from replication package", value = "org.opensearch.indices.replication:TRACE")
@@ -671,7 +663,6 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
 
             refresh(INDEX_NAME);
             waitForSearchableDocs(expectedHitCount - 1, nodeA, nodeB);
-            verifyStoreContent();
         }
     }
 
@@ -778,7 +769,6 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
 
             refresh(INDEX_NAME);
 
-            verifyStoreContent();
             assertSearchHits(client(primary).prepareSearch(INDEX_NAME).setQuery(matchQuery("foo", "baz")).get(), id);
             assertSearchHits(client(replica).prepareSearch(INDEX_NAME).setQuery(matchQuery("foo", "baz")).get(), id);
         }
@@ -826,7 +816,6 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
 
             flushAndRefresh(INDEX_NAME);
             waitForSearchableDocs(initialDocCount + 1, dataNodes);
-            verifyStoreContent();
         }
     }
 
@@ -879,7 +868,6 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
         }
         ensureGreen(INDEX_NAME);
         waitForSearchableDocs(docCount, primaryNode, replicaNode);
-        verifyStoreContent();
         final IndexShard replicaAfterFailure = getIndexShard(replicaNode, INDEX_NAME);
         assertNotEquals(replicaAfterFailure.routingEntry().allocationId().getId(), replicaShard.routingEntry().allocationId().getId());
     }
@@ -1212,7 +1200,6 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
                 getIndexShard(replica, INDEX_NAME).getLatestReplicationCheckpoint().getSegmentInfosVersion()
             );
         });
-        verifyStoreContent();
         waitForSearchableDocs(finalDocCount, primary, replica);
     }
 

@@ -46,7 +46,6 @@ public class SegmentReplicationSuiteIT extends SegmentReplicationBaseIT {
         }
         refresh();
         ensureGreen(INDEX_NAME);
-        verifyStoreContent();
     }
 
     public void testDropRandomNodeDuringReplication() throws Exception {
