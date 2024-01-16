@@ -115,15 +115,20 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
 
         bucketOrds = LongKeyedBucketOrds.build(context.bigArrays(), cardinality);
 
-        fastFilterContext = new FastFilterRewriteHelper.FastFilterContext(valuesSourceConfig.fieldType());
-        fastFilterContext.setMissing(valuesSourceConfig.missing() != null);
-        fastFilterContext.setHasScript(valuesSourceConfig.script() != null);
+        fastFilterContext = new FastFilterRewriteHelper.FastFilterContext();
+        fastFilterContext.setAggregationType(
+            new FastFilterRewriteHelper.DateHistogramAggregationType(
+                valuesSourceConfig.fieldType(),
+                valuesSourceConfig.missing() != null,
+                valuesSourceConfig.script() != null
+            )
+        );
         if (fastFilterContext.isRewriteable(parent, subAggregators.length)) {
-            FastFilterRewriteHelper.buildFastFilter(context, this::computeBounds, x -> rounding, () -> preparedRounding, fastFilterContext);
+            fastFilterContext.buildFastFilter(context, this::computeBounds, x -> rounding, () -> preparedRounding);
         }
     }
 
-    private long[] computeBounds(final FastFilterRewriteHelper.FastFilterContext fieldContext) throws IOException {
+    private long[] computeBounds(final FastFilterRewriteHelper.DateHistogramAggregationType fieldContext) throws IOException {
         final long[] bounds = FastFilterRewriteHelper.getAggregationBounds(context, fieldContext.getFieldType().name());
         if (bounds != null) {
             // Update min/max limit if user specified any hard bounds
@@ -149,9 +154,14 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
             return LeafBucketCollector.NO_OP_COLLECTOR;
         }
 
-        boolean optimized = FastFilterRewriteHelper.tryFastFilterAggregation(ctx, fastFilterContext, (key, count) -> {
-            incrementBucketDocCount(FastFilterRewriteHelper.getBucketOrd(bucketOrds.add(0, preparedRounding.round(key))), count);
-        });
+        boolean optimized = FastFilterRewriteHelper.tryFastFilterAggregation(
+            ctx,
+            fastFilterContext,
+            (key, count) -> incrementBucketDocCount(
+                FastFilterRewriteHelper.getBucketOrd(bucketOrds.add(0, preparedRounding.round(key))),
+                count
+            )
+        );
         if (optimized) throw new CollectionTerminatedException();
 
         SortedNumericDocValues values = valuesSource.longValues(ctx);

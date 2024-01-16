@@ -163,20 +163,23 @@ final class CompositeAggregator extends BucketsAggregator {
         this.queue = new CompositeValuesCollectorQueue(context.bigArrays(), sources, size, rawAfterKey);
         this.rawAfterKey = rawAfterKey;
 
-        fastFilterContext = new FastFilterRewriteHelper.FastFilterContext(sourceConfigs, rawAfterKey, formats);
+        fastFilterContext = new FastFilterRewriteHelper.FastFilterContext();
+        if (!FastFilterRewriteHelper.isCompositeAggRewriteable(sourceConfigs)) return;
+        fastFilterContext.setAggregationType(
+            new FastFilterRewriteHelper.CompositeAggregationType(sourceConfigs, rawAfterKey, formats, size)
+        );
         if (fastFilterContext.isRewriteable(parent, subAggregators.length)) {
-            // Currently the filter rewrite is only supported for date histograms
-            RoundingValuesSource dateHistogramSource = fastFilterContext.getDateHistogramSource();
-            preparedRounding = dateHistogramSource.getPreparedRounding();
             // bucketOrds is the data structure for saving date histogram results
             bucketOrds = LongKeyedBucketOrds.build(context.bigArrays(), CardinalityUpperBound.ONE);
-            fastFilterContext.setSize(size);
-            FastFilterRewriteHelper.buildFastFilter(
+            // Currently the filter rewrite is only supported for date histograms
+            FastFilterRewriteHelper.CompositeAggregationType aggregationType =
+                (FastFilterRewriteHelper.CompositeAggregationType) fastFilterContext.aggregationType;
+            preparedRounding = aggregationType.getRoundingPreparer();
+            fastFilterContext.buildFastFilter(
                 context,
                 fc -> FastFilterRewriteHelper.getAggregationBounds(context, fc.getFieldType().name()),
-                x -> dateHistogramSource.getRounding(),
-                () -> preparedRounding,
-                fastFilterContext
+                x -> aggregationType.getRounding(),
+                () -> preparedRounding
             );
         }
     }
@@ -513,9 +516,14 @@ final class CompositeAggregator extends BucketsAggregator {
 
     @Override
     protected LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub) throws IOException {
-        boolean optimized = FastFilterRewriteHelper.tryFastFilterAggregation(ctx, fastFilterContext, (key, count) -> {
-            incrementBucketDocCount(FastFilterRewriteHelper.getBucketOrd(bucketOrds.add(0, preparedRounding.round(key))), count);
-        });
+        boolean optimized = FastFilterRewriteHelper.tryFastFilterAggregation(
+            ctx,
+            fastFilterContext,
+            (key, count) -> incrementBucketDocCount(
+                FastFilterRewriteHelper.getBucketOrd(bucketOrds.add(0, preparedRounding.round(key))),
+                count
+            )
+        );
         if (optimized) throw new CollectionTerminatedException();
 
         finishLeaf();

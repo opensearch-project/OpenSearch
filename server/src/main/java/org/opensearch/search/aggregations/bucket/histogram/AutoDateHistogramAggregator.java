@@ -156,18 +156,22 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
         this.roundingPreparer = roundingPreparer;
         this.preparedRounding = prepareRounding(0);
 
-        fastFilterContext = new FastFilterRewriteHelper.FastFilterContext(valuesSourceConfig.fieldType());
-        fastFilterContext.setMissing(valuesSourceConfig.missing() != null);
-        fastFilterContext.setHasScript(valuesSourceConfig.script() != null);
+        fastFilterContext = new FastFilterRewriteHelper.FastFilterContext();
+        fastFilterContext.setAggregationType(
+            new FastFilterRewriteHelper.DateHistogramAggregationType(
+                valuesSourceConfig.fieldType(),
+                valuesSourceConfig.missing() != null,
+                valuesSourceConfig.script() != null
+            )
+        );
         if (fastFilterContext.isRewriteable(parent, subAggregators.length)) {
-            FastFilterRewriteHelper.buildFastFilter(
+            fastFilterContext.buildFastFilter(
                 context,
                 fc -> FastFilterRewriteHelper.getAggregationBounds(context, fc.getFieldType().name()),
                 b -> getMinimumRounding(b[0], b[1]),
                 // Passing prepared rounding as supplier to ensure the correct prepared
                 // rounding is set as it is done during getMinimumRounding
-                () -> preparedRounding,
-                fastFilterContext
+                () -> preparedRounding
             );
         }
     }
@@ -222,9 +226,14 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
             return LeafBucketCollector.NO_OP_COLLECTOR;
         }
 
-        boolean optimized = FastFilterRewriteHelper.tryFastFilterAggregation(ctx, fastFilterContext, (key, count) -> {
-            incrementBucketDocCount(FastFilterRewriteHelper.getBucketOrd(getBucketOrds().add(0, preparedRounding.round(key))), count);
-        });
+        boolean optimized = FastFilterRewriteHelper.tryFastFilterAggregation(
+            ctx,
+            fastFilterContext,
+            (key, count) -> incrementBucketDocCount(
+                FastFilterRewriteHelper.getBucketOrd(getBucketOrds().add(0, preparedRounding.round(key))),
+                count
+            )
+        );
         if (optimized) throw new CollectionTerminatedException();
 
         final SortedNumericDocValues values = valuesSource.longValues(ctx);
