@@ -496,4 +496,13 @@ public final class QuerySearchResult extends SearchPhaseResult {
     public float getMaxScore() {
         return maxScore;
     }
+
+    public QuerySearchResultProto.QuerySearchResult response() {
+        return this.querySearchResultProto;
+    }
+
+    public QuerySearchResult(QuerySearchResultProto.QuerySearchResult querySearchResult) {
+        this.querySearchResultProto = querySearchResult;
+        this.isNull = false;
+    }
 }
