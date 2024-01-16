@@ -181,15 +181,15 @@ public class RestControllerTests extends OpenSearchTestCase {
         restHeaders.put("header.3", Collections.singletonList("false"));
         RestRequest fakeRequest = new FakeRestRequest.Builder(xContentRegistry()).withHeaders(restHeaders).build();
         final RestController spyRestController = spy(restController);
-        when(spyRestController.getAllHandlers(null, fakeRequest.rawPath())).thenReturn(new Iterator<MethodHandlers>() {
+        when(spyRestController.getAllRestMethodHandlers(null, fakeRequest.rawPath())).thenReturn(new Iterator<RestMethodHandlers>() {
             @Override
             public boolean hasNext() {
                 return false;
             }
 
             @Override
-            public MethodHandlers next() {
-                return new MethodHandlers("/", (RestRequest request, RestChannel channel, NodeClient client) -> {
+            public RestMethodHandlers next() {
+                return new RestMethodHandlers("/", (RestRequest request, RestChannel channel, NodeClient client) -> {
                     assertEquals("true", threadContext.getHeader("header.1"));
                     assertEquals("true", threadContext.getHeader("header.2"));
                     assertNull(threadContext.getHeader("header.3"));
