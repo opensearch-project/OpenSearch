@@ -759,7 +759,7 @@ public final class SearchableSnapshotIT extends AbstractSnapshotIntegTestCase {
         assertThat(
             error.getMessage(),
             containsString(
-                "cannot restore remote snapshot with \"index.store.type\" argument. Instead use \"storage_type\": \"remote_snapshot\" as argument to restore."
+                "cannot restore remote snapshot with index settings \"index.store.type\" set to \"remote_snapshot\". Instead use \"storage_type\": \"remote_snapshot\" as argument to restore."
             )
         );
     }
