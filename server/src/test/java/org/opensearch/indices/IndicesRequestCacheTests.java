@@ -52,23 +52,36 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.core.common.bytes.AbstractBytesReference;
 import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContentHelper;
+import org.opensearch.index.IndexNotFoundException;
+import org.opensearch.index.IndexService;
+import org.opensearch.index.cache.request.RequestCacheStats;
 import org.opensearch.index.cache.request.ShardRequestCache;
 import org.opensearch.index.query.TermQueryBuilder;
-import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.index.shard.IndexShard;
+import org.opensearch.index.shard.IndexShardState;
+import org.opensearch.test.OpenSearchSingleNodeTestCase;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.Optional;
+import java.util.UUID;
 
-public class IndicesRequestCacheTests extends OpenSearchTestCase {
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
+
+public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
 
     public void testBasicOperationsCache() throws Exception {
-        ShardRequestCache requestCacheStats = new ShardRequestCache();
-        IndicesRequestCache cache = new IndicesRequestCache(Settings.EMPTY);
+        IndexShard indexShard = createIndex("test").getShard(0);
+        IndicesRequestCache cache = new IndicesRequestCache(
+            Settings.EMPTY,
+            (shardId -> Optional.of(new IndicesService.IndexShardCacheEntity(indexShard)))
+        );
         Directory dir = newDirectory();
         IndexWriter writer = new IndexWriter(dir, newIndexWriterConfig());
 
@@ -76,13 +89,13 @@ public class IndicesRequestCacheTests extends OpenSearchTestCase {
         DirectoryReader reader = OpenSearchDirectoryReader.wrap(DirectoryReader.open(writer), new ShardId("foo", "bar", 1));
         TermQueryBuilder termQuery = new TermQueryBuilder("id", "0");
         BytesReference termBytes = XContentHelper.toXContent(termQuery, MediaTypeRegistry.JSON, false);
-        AtomicBoolean indexShard = new AtomicBoolean(true);
 
         // initial cache
-        TestEntity entity = new TestEntity(requestCacheStats, indexShard);
+        IndicesService.IndexShardCacheEntity entity = new IndicesService.IndexShardCacheEntity(indexShard);
         Loader loader = new Loader(reader, 0);
         BytesReference value = cache.getOrCompute(entity, loader, reader, termBytes);
         assertEquals("foo", value.streamInput().readString());
+        ShardRequestCache requestCacheStats = indexShard.requestCache();
         assertEquals(0, requestCacheStats.stats().getHitCount());
         assertEquals(1, requestCacheStats.stats().getMissCount());
         assertEquals(0, requestCacheStats.stats().getEvictions());
@@ -90,10 +103,11 @@ public class IndicesRequestCacheTests extends OpenSearchTestCase {
         assertEquals(1, cache.count());
 
         // cache hit
-        entity = new TestEntity(requestCacheStats, indexShard);
+        entity = new IndicesService.IndexShardCacheEntity(indexShard);
         loader = new Loader(reader, 0);
         value = cache.getOrCompute(entity, loader, reader, termBytes);
         assertEquals("foo", value.streamInput().readString());
+        requestCacheStats = indexShard.requestCache();
         assertEquals(1, requestCacheStats.stats().getHitCount());
         assertEquals(1, requestCacheStats.stats().getMissCount());
         assertEquals(0, requestCacheStats.stats().getEvictions());
@@ -106,7 +120,7 @@ public class IndicesRequestCacheTests extends OpenSearchTestCase {
         if (randomBoolean()) {
             reader.close();
         } else {
-            indexShard.set(false); // closed shard but reader is still open
+            indexShard.close("test", true, true); // closed shard but reader is still open
             cache.clear(entity);
         }
         cache.cleanCache();
@@ -122,9 +136,17 @@ public class IndicesRequestCacheTests extends OpenSearchTestCase {
     }
 
     public void testCacheDifferentReaders() throws Exception {
-        IndicesRequestCache cache = new IndicesRequestCache(Settings.EMPTY);
-        AtomicBoolean indexShard = new AtomicBoolean(true);
-        ShardRequestCache requestCacheStats = new ShardRequestCache();
+        IndicesService indicesService = getInstanceFromNode(IndicesService.class);
+        IndexShard indexShard = createIndex("test").getShard(0);
+        IndicesRequestCache cache = new IndicesRequestCache(Settings.EMPTY, (shardId -> {
+            IndexService indexService = null;
+            try {
+                indexService = indicesService.indexServiceSafe(shardId.getIndex());
+            } catch (IndexNotFoundException ex) {
+                return Optional.empty();
+            }
+            return Optional.of(new IndicesService.IndexShardCacheEntity(indexService.getShard(shardId.id())));
+        }));
         Directory dir = newDirectory();
         IndexWriter writer = new IndexWriter(dir, newIndexWriterConfig());
 
@@ -141,9 +163,10 @@ public class IndicesRequestCacheTests extends OpenSearchTestCase {
         DirectoryReader secondReader = OpenSearchDirectoryReader.wrap(DirectoryReader.open(writer), new ShardId("foo", "bar", 1));
 
         // initial cache
-        TestEntity entity = new TestEntity(requestCacheStats, indexShard);
+        IndicesService.IndexShardCacheEntity entity = new IndicesService.IndexShardCacheEntity(indexShard);
         Loader loader = new Loader(reader, 0);
         BytesReference value = cache.getOrCompute(entity, loader, reader, termBytes);
+        ShardRequestCache requestCacheStats = entity.stats();
         assertEquals("foo", value.streamInput().readString());
         assertEquals(0, requestCacheStats.stats().getHitCount());
         assertEquals(1, requestCacheStats.stats().getMissCount());
@@ -155,9 +178,10 @@ public class IndicesRequestCacheTests extends OpenSearchTestCase {
         assertEquals(1, cache.numRegisteredCloseListeners());
 
         // cache the second
-        TestEntity secondEntity = new TestEntity(requestCacheStats, indexShard);
+        IndicesService.IndexShardCacheEntity secondEntity = new IndicesService.IndexShardCacheEntity(indexShard);
         loader = new Loader(secondReader, 0);
         value = cache.getOrCompute(entity, loader, secondReader, termBytes);
+        requestCacheStats = entity.stats();
         assertEquals("bar", value.streamInput().readString());
         assertEquals(0, requestCacheStats.stats().getHitCount());
         assertEquals(2, requestCacheStats.stats().getMissCount());
@@ -167,9 +191,10 @@ public class IndicesRequestCacheTests extends OpenSearchTestCase {
         assertTrue(requestCacheStats.stats().getMemorySize().bytesAsInt() > cacheSize + value.length());
         assertEquals(2, cache.numRegisteredCloseListeners());
 
-        secondEntity = new TestEntity(requestCacheStats, indexShard);
+        secondEntity = new IndicesService.IndexShardCacheEntity(indexShard);
         loader = new Loader(secondReader, 0);
         value = cache.getOrCompute(secondEntity, loader, secondReader, termBytes);
+        requestCacheStats = entity.stats();
         assertEquals("bar", value.streamInput().readString());
         assertEquals(1, requestCacheStats.stats().getHitCount());
         assertEquals(2, requestCacheStats.stats().getMissCount());
@@ -177,10 +202,11 @@ public class IndicesRequestCacheTests extends OpenSearchTestCase {
         assertTrue(loader.loadedFromCache);
         assertEquals(2, cache.count());
 
-        entity = new TestEntity(requestCacheStats, indexShard);
+        entity = new IndicesService.IndexShardCacheEntity(indexShard);
         loader = new Loader(reader, 0);
         value = cache.getOrCompute(entity, loader, reader, termBytes);
         assertEquals("foo", value.streamInput().readString());
+        requestCacheStats = entity.stats();
         assertEquals(2, requestCacheStats.stats().getHitCount());
         assertEquals(2, requestCacheStats.stats().getMissCount());
         assertEquals(0, requestCacheStats.stats().getEvictions());
@@ -201,7 +227,7 @@ public class IndicesRequestCacheTests extends OpenSearchTestCase {
         if (randomBoolean()) {
             secondReader.close();
         } else {
-            indexShard.set(false); // closed shard but reader is still open
+            indexShard.close("test", true, true); // closed shard but reader is still open
             cache.clear(secondEntity);
         }
         cache.cleanCache();
@@ -218,9 +244,11 @@ public class IndicesRequestCacheTests extends OpenSearchTestCase {
     public void testEviction() throws Exception {
         final ByteSizeValue size;
         {
-            IndicesRequestCache cache = new IndicesRequestCache(Settings.EMPTY);
-            AtomicBoolean indexShard = new AtomicBoolean(true);
-            ShardRequestCache requestCacheStats = new ShardRequestCache();
+            IndexShard indexShard = createIndex("test").getShard(0);
+            IndicesRequestCache cache = new IndicesRequestCache(
+                Settings.EMPTY,
+                (shardId -> Optional.of(new IndicesService.IndexShardCacheEntity(indexShard)))
+            );
             Directory dir = newDirectory();
             IndexWriter writer = new IndexWriter(dir, newIndexWriterConfig());
 
@@ -228,26 +256,26 @@ public class IndicesRequestCacheTests extends OpenSearchTestCase {
             DirectoryReader reader = OpenSearchDirectoryReader.wrap(DirectoryReader.open(writer), new ShardId("foo", "bar", 1));
             TermQueryBuilder termQuery = new TermQueryBuilder("id", "0");
             BytesReference termBytes = XContentHelper.toXContent(termQuery, MediaTypeRegistry.JSON, false);
-            TestEntity entity = new TestEntity(requestCacheStats, indexShard);
+            IndicesService.IndexShardCacheEntity entity = new IndicesService.IndexShardCacheEntity(indexShard);
             Loader loader = new Loader(reader, 0);
 
             writer.updateDocument(new Term("id", "0"), newDoc(0, "bar"));
             DirectoryReader secondReader = OpenSearchDirectoryReader.wrap(DirectoryReader.open(writer), new ShardId("foo", "bar", 1));
-            TestEntity secondEntity = new TestEntity(requestCacheStats, indexShard);
+            IndicesService.IndexShardCacheEntity secondEntity = new IndicesService.IndexShardCacheEntity(indexShard);
             Loader secondLoader = new Loader(secondReader, 0);
 
             BytesReference value1 = cache.getOrCompute(entity, loader, reader, termBytes);
             assertEquals("foo", value1.streamInput().readString());
             BytesReference value2 = cache.getOrCompute(secondEntity, secondLoader, secondReader, termBytes);
             assertEquals("bar", value2.streamInput().readString());
-            size = requestCacheStats.stats().getMemorySize();
+            size = indexShard.requestCache().stats().getMemorySize();
             IOUtils.close(reader, secondReader, writer, dir, cache);
         }
+        IndexShard indexShard = createIndex("test1").getShard(0);
         IndicesRequestCache cache = new IndicesRequestCache(
-            Settings.builder().put(IndicesRequestCache.INDICES_CACHE_QUERY_SIZE.getKey(), size.getBytes() + 1 + "b").build()
+            Settings.builder().put(IndicesRequestCache.INDICES_CACHE_QUERY_SIZE.getKey(), size.getBytes() + 1 + "b").build(),
+            (shardId -> Optional.of(new IndicesService.IndexShardCacheEntity(indexShard)))
         );
-        AtomicBoolean indexShard = new AtomicBoolean(true);
-        ShardRequestCache requestCacheStats = new ShardRequestCache();
         Directory dir = newDirectory();
         IndexWriter writer = new IndexWriter(dir, newIndexWriterConfig());
 
@@ -255,36 +283,44 @@ public class IndicesRequestCacheTests extends OpenSearchTestCase {
         DirectoryReader reader = OpenSearchDirectoryReader.wrap(DirectoryReader.open(writer), new ShardId("foo", "bar", 1));
         TermQueryBuilder termQuery = new TermQueryBuilder("id", "0");
         BytesReference termBytes = XContentHelper.toXContent(termQuery, MediaTypeRegistry.JSON, false);
-        TestEntity entity = new TestEntity(requestCacheStats, indexShard);
+        IndicesService.IndexShardCacheEntity entity = new IndicesService.IndexShardCacheEntity(indexShard);
         Loader loader = new Loader(reader, 0);
 
         writer.updateDocument(new Term("id", "0"), newDoc(0, "bar"));
         DirectoryReader secondReader = OpenSearchDirectoryReader.wrap(DirectoryReader.open(writer), new ShardId("foo", "bar", 1));
-        TestEntity secondEntity = new TestEntity(requestCacheStats, indexShard);
+        IndicesService.IndexShardCacheEntity secondEntity = new IndicesService.IndexShardCacheEntity(indexShard);
         Loader secondLoader = new Loader(secondReader, 0);
 
         writer.updateDocument(new Term("id", "0"), newDoc(0, "baz"));
         DirectoryReader thirdReader = OpenSearchDirectoryReader.wrap(DirectoryReader.open(writer), new ShardId("foo", "bar", 1));
-        TestEntity thirddEntity = new TestEntity(requestCacheStats, indexShard);
+        IndicesService.IndexShardCacheEntity thirddEntity = new IndicesService.IndexShardCacheEntity(indexShard);
         Loader thirdLoader = new Loader(thirdReader, 0);
 
         BytesReference value1 = cache.getOrCompute(entity, loader, reader, termBytes);
         assertEquals("foo", value1.streamInput().readString());
         BytesReference value2 = cache.getOrCompute(secondEntity, secondLoader, secondReader, termBytes);
         assertEquals("bar", value2.streamInput().readString());
-        logger.info("Memory size: {}", requestCacheStats.stats().getMemorySize());
+        logger.info("Memory size: {}", indexShard.requestCache().stats().getMemorySize());
         BytesReference value3 = cache.getOrCompute(thirddEntity, thirdLoader, thirdReader, termBytes);
         assertEquals("baz", value3.streamInput().readString());
         assertEquals(2, cache.count());
-        assertEquals(1, requestCacheStats.stats().getEvictions());
+        assertEquals(1, indexShard.requestCache().stats().getEvictions());
         IOUtils.close(reader, secondReader, thirdReader, writer, dir, cache);
     }
 
     public void testClearAllEntityIdentity() throws Exception {
-        IndicesRequestCache cache = new IndicesRequestCache(Settings.EMPTY);
-        AtomicBoolean indexShard = new AtomicBoolean(true);
+        IndicesService indicesService = getInstanceFromNode(IndicesService.class);
+        IndexShard indexShard = createIndex("test").getShard(0);
+        IndicesRequestCache cache = new IndicesRequestCache(Settings.EMPTY, (shardId -> {
+            IndexService indexService = null;
+            try {
+                indexService = indicesService.indexServiceSafe(shardId.getIndex());
+            } catch (IndexNotFoundException ex) {
+                return Optional.empty();
+            }
+            return Optional.of(new IndicesService.IndexShardCacheEntity(indexService.getShard(shardId.id())));
+        }));
 
-        ShardRequestCache requestCacheStats = new ShardRequestCache();
         Directory dir = newDirectory();
         IndexWriter writer = new IndexWriter(dir, newIndexWriterConfig());
 
@@ -292,36 +328,39 @@ public class IndicesRequestCacheTests extends OpenSearchTestCase {
         DirectoryReader reader = OpenSearchDirectoryReader.wrap(DirectoryReader.open(writer), new ShardId("foo", "bar", 1));
         TermQueryBuilder termQuery = new TermQueryBuilder("id", "0");
         BytesReference termBytes = XContentHelper.toXContent(termQuery, MediaTypeRegistry.JSON, false);
-        TestEntity entity = new TestEntity(requestCacheStats, indexShard);
+        IndicesService.IndexShardCacheEntity entity = new IndicesService.IndexShardCacheEntity(indexShard);
         Loader loader = new Loader(reader, 0);
 
         writer.updateDocument(new Term("id", "0"), newDoc(0, "bar"));
         DirectoryReader secondReader = OpenSearchDirectoryReader.wrap(DirectoryReader.open(writer), new ShardId("foo", "bar", 1));
-        TestEntity secondEntity = new TestEntity(requestCacheStats, indexShard);
+        IndicesService.IndexShardCacheEntity secondEntity = new IndicesService.IndexShardCacheEntity(indexShard);
         Loader secondLoader = new Loader(secondReader, 0);
 
         writer.updateDocument(new Term("id", "0"), newDoc(0, "baz"));
         DirectoryReader thirdReader = OpenSearchDirectoryReader.wrap(DirectoryReader.open(writer), new ShardId("foo", "bar", 1));
-        AtomicBoolean differentIdentity = new AtomicBoolean(true);
-        TestEntity thirddEntity = new TestEntity(requestCacheStats, differentIdentity);
+        IndicesService.IndexShardCacheEntity thirddEntity = new IndicesService.IndexShardCacheEntity(createIndex("test1").getShard(0));
         Loader thirdLoader = new Loader(thirdReader, 0);
 
         BytesReference value1 = cache.getOrCompute(entity, loader, reader, termBytes);
         assertEquals("foo", value1.streamInput().readString());
         BytesReference value2 = cache.getOrCompute(secondEntity, secondLoader, secondReader, termBytes);
         assertEquals("bar", value2.streamInput().readString());
-        logger.info("Memory size: {}", requestCacheStats.stats().getMemorySize());
+        logger.info("Memory size: {}", indexShard.requestCache().stats().getMemorySize());
         BytesReference value3 = cache.getOrCompute(thirddEntity, thirdLoader, thirdReader, termBytes);
         assertEquals("baz", value3.streamInput().readString());
         assertEquals(3, cache.count());
-        final long hitCount = requestCacheStats.stats().getHitCount();
+        RequestCacheStats requestCacheStats = entity.stats().stats();
+        requestCacheStats.add(thirddEntity.stats().stats());
+        final long hitCount = requestCacheStats.getHitCount();
         // clear all for the indexShard Idendity even though is't still open
         cache.clear(randomFrom(entity, secondEntity));
         cache.cleanCache();
         assertEquals(1, cache.count());
         // third has not been validated since it's a different identity
         value3 = cache.getOrCompute(thirddEntity, thirdLoader, thirdReader, termBytes);
-        assertEquals(hitCount + 1, requestCacheStats.stats().getHitCount());
+        requestCacheStats = entity.stats().stats();
+        requestCacheStats.add(thirddEntity.stats().stats());
+        assertEquals(hitCount + 1, requestCacheStats.getHitCount());
         assertEquals("baz", value3.streamInput().readString());
 
         IOUtils.close(reader, secondReader, thirdReader, writer, dir, cache);
@@ -365,8 +404,17 @@ public class IndicesRequestCacheTests extends OpenSearchTestCase {
     }
 
     public void testInvalidate() throws Exception {
-        ShardRequestCache requestCacheStats = new ShardRequestCache();
-        IndicesRequestCache cache = new IndicesRequestCache(Settings.EMPTY);
+        IndicesService indicesService = getInstanceFromNode(IndicesService.class);
+        IndexShard indexShard = createIndex("test").getShard(0);
+        IndicesRequestCache cache = new IndicesRequestCache(Settings.EMPTY, (shardId -> {
+            IndexService indexService = null;
+            try {
+                indexService = indicesService.indexServiceSafe(shardId.getIndex());
+            } catch (IndexNotFoundException ex) {
+                return Optional.empty();
+            }
+            return Optional.of(new IndicesService.IndexShardCacheEntity(indexService.getShard(shardId.id())));
+        }));
         Directory dir = newDirectory();
         IndexWriter writer = new IndexWriter(dir, newIndexWriterConfig());
 
@@ -374,13 +422,13 @@ public class IndicesRequestCacheTests extends OpenSearchTestCase {
         DirectoryReader reader = OpenSearchDirectoryReader.wrap(DirectoryReader.open(writer), new ShardId("foo", "bar", 1));
         TermQueryBuilder termQuery = new TermQueryBuilder("id", "0");
         BytesReference termBytes = XContentHelper.toXContent(termQuery, MediaTypeRegistry.JSON, false);
-        AtomicBoolean indexShard = new AtomicBoolean(true);
 
         // initial cache
-        TestEntity entity = new TestEntity(requestCacheStats, indexShard);
+        IndicesService.IndexShardCacheEntity entity = new IndicesService.IndexShardCacheEntity(indexShard);
         Loader loader = new Loader(reader, 0);
         BytesReference value = cache.getOrCompute(entity, loader, reader, termBytes);
         assertEquals("foo", value.streamInput().readString());
+        ShardRequestCache requestCacheStats = entity.stats();
         assertEquals(0, requestCacheStats.stats().getHitCount());
         assertEquals(1, requestCacheStats.stats().getMissCount());
         assertEquals(0, requestCacheStats.stats().getEvictions());
@@ -388,10 +436,11 @@ public class IndicesRequestCacheTests extends OpenSearchTestCase {
         assertEquals(1, cache.count());
 
         // cache hit
-        entity = new TestEntity(requestCacheStats, indexShard);
+        entity = new IndicesService.IndexShardCacheEntity(indexShard);
         loader = new Loader(reader, 0);
         value = cache.getOrCompute(entity, loader, reader, termBytes);
         assertEquals("foo", value.streamInput().readString());
+        requestCacheStats = entity.stats();
         assertEquals(1, requestCacheStats.stats().getHitCount());
         assertEquals(1, requestCacheStats.stats().getMissCount());
         assertEquals(0, requestCacheStats.stats().getEvictions());
@@ -401,11 +450,12 @@ public class IndicesRequestCacheTests extends OpenSearchTestCase {
         assertEquals(1, cache.numRegisteredCloseListeners());
 
         // load again after invalidate
-        entity = new TestEntity(requestCacheStats, indexShard);
+        entity = new IndicesService.IndexShardCacheEntity(indexShard);
         loader = new Loader(reader, 0);
         cache.invalidate(entity, reader, termBytes);
         value = cache.getOrCompute(entity, loader, reader, termBytes);
         assertEquals("foo", value.streamInput().readString());
+        requestCacheStats = entity.stats();
         assertEquals(1, requestCacheStats.stats().getHitCount());
         assertEquals(2, requestCacheStats.stats().getMissCount());
         assertEquals(0, requestCacheStats.stats().getEvictions());
@@ -418,7 +468,7 @@ public class IndicesRequestCacheTests extends OpenSearchTestCase {
         if (randomBoolean()) {
             reader.close();
         } else {
-            indexShard.set(false); // closed shard but reader is still open
+            indexShard.close("test", true, true); // closed shard but reader is still open
             cache.clear(entity);
         }
         cache.cleanCache();
@@ -433,22 +483,25 @@ public class IndicesRequestCacheTests extends OpenSearchTestCase {
     }
 
     public void testEqualsKey() throws IOException {
-        AtomicBoolean trueBoolean = new AtomicBoolean(true);
-        AtomicBoolean falseBoolean = new AtomicBoolean(false);
+        IndicesService indicesService = getInstanceFromNode(IndicesService.class);
         Directory dir = newDirectory();
         IndexWriterConfig config = newIndexWriterConfig();
         IndexWriter writer = new IndexWriter(dir, config);
-        IndexReader reader1 = DirectoryReader.open(writer);
-        IndexReader.CacheKey rKey1 = reader1.getReaderCacheHelper().getKey();
+        ShardId shardId = new ShardId("foo", "bar", 1);
+        ShardId shardId1 = new ShardId("foo1", "bar1", 2);
+        IndexReader reader1 = OpenSearchDirectoryReader.wrap(DirectoryReader.open(writer), shardId);
+        String rKey1 = ((OpenSearchDirectoryReader) reader1).getDelegatingCacheHelper().getDelegatingCacheKey().getId();
         writer.addDocument(new Document());
-        IndexReader reader2 = DirectoryReader.open(writer);
-        IndexReader.CacheKey rKey2 = reader2.getReaderCacheHelper().getKey();
+        IndexReader reader2 = OpenSearchDirectoryReader.wrap(DirectoryReader.open(writer), shardId);
+        String rKey2 = ((OpenSearchDirectoryReader) reader2).getDelegatingCacheHelper().getDelegatingCacheKey().getId();
         IOUtils.close(reader1, reader2, writer, dir);
-        IndicesRequestCache.Key key1 = new IndicesRequestCache.Key(new TestEntity(null, trueBoolean), rKey1, new TestBytesReference(1));
-        IndicesRequestCache.Key key2 = new IndicesRequestCache.Key(new TestEntity(null, trueBoolean), rKey1, new TestBytesReference(1));
-        IndicesRequestCache.Key key3 = new IndicesRequestCache.Key(new TestEntity(null, falseBoolean), rKey1, new TestBytesReference(1));
-        IndicesRequestCache.Key key4 = new IndicesRequestCache.Key(new TestEntity(null, trueBoolean), rKey2, new TestBytesReference(1));
-        IndicesRequestCache.Key key5 = new IndicesRequestCache.Key(new TestEntity(null, trueBoolean), rKey1, new TestBytesReference(2));
+        IndexShard indexShard = mock(IndexShard.class);
+        when(indexShard.state()).thenReturn(IndexShardState.STARTED);
+        IndicesRequestCache.Key key1 = new IndicesRequestCache.Key(shardId, new TestBytesReference(1), rKey1);
+        IndicesRequestCache.Key key2 = new IndicesRequestCache.Key(shardId, new TestBytesReference(1), rKey1);
+        IndicesRequestCache.Key key3 = new IndicesRequestCache.Key(shardId1, new TestBytesReference(1), rKey1);
+        IndicesRequestCache.Key key4 = new IndicesRequestCache.Key(shardId, new TestBytesReference(1), rKey2);
+        IndicesRequestCache.Key key5 = new IndicesRequestCache.Key(shardId, new TestBytesReference(2), rKey2);
         String s = "Some other random object";
         assertEquals(key1, key1);
         assertEquals(key1, key2);
@@ -457,6 +510,29 @@ public class IndicesRequestCacheTests extends OpenSearchTestCase {
         assertNotEquals(key1, key3);
         assertNotEquals(key1, key4);
         assertNotEquals(key1, key5);
+    }
+
+    public void testSerializationDeserializationOfCacheKey() throws Exception {
+        TermQueryBuilder termQuery = new TermQueryBuilder("id", "0");
+        BytesReference termBytes = XContentHelper.toXContent(termQuery, MediaTypeRegistry.JSON, false);
+        IndexService indexService = createIndex("test");
+        IndexShard indexShard = indexService.getShard(0);
+        IndicesService.IndexShardCacheEntity shardCacheEntity = new IndicesService.IndexShardCacheEntity(indexShard);
+        String readerCacheKeyId = UUID.randomUUID().toString();
+        IndicesRequestCache.Key key1 = new IndicesRequestCache.Key(indexShard.shardId(), termBytes, readerCacheKeyId);
+        BytesReference bytesReference = null;
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            key1.writeTo(out);
+            bytesReference = out.bytes();
+        }
+        StreamInput in = bytesReference.streamInput();
+
+        IndicesRequestCache.Key key2 = new IndicesRequestCache.Key(in);
+
+        assertEquals(readerCacheKeyId, key2.readerCacheKeyId);
+        assertEquals(((IndexShard) shardCacheEntity.getCacheIdentity()).shardId(), key2.shardId);
+        assertEquals(termBytes, key2.value);
+
     }
 
     private class TestBytesReference extends AbstractBytesReference {
@@ -507,36 +583,6 @@ public class IndicesRequestCacheTests extends OpenSearchTestCase {
         @Override
         public boolean isFragment() {
             return false;
-        }
-    }
-
-    private class TestEntity extends AbstractIndexShardCacheEntity {
-        private final AtomicBoolean standInForIndexShard;
-        private final ShardRequestCache shardRequestCache;
-
-        private TestEntity(ShardRequestCache shardRequestCache, AtomicBoolean standInForIndexShard) {
-            this.standInForIndexShard = standInForIndexShard;
-            this.shardRequestCache = shardRequestCache;
-        }
-
-        @Override
-        protected ShardRequestCache stats() {
-            return shardRequestCache;
-        }
-
-        @Override
-        public boolean isOpen() {
-            return standInForIndexShard.get();
-        }
-
-        @Override
-        public Object getCacheIdentity() {
-            return standInForIndexShard;
-        }
-
-        @Override
-        public long ramBytesUsed() {
-            return 42;
         }
     }
 }

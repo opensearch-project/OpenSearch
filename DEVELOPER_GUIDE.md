@@ -183,6 +183,12 @@ Run OpenSearch using `gradlew run`.
 ./gradlew run
 ```
 
+[Plugins](plugins/) may be installed by passing a `-PinstalledPlugins` property:
+
+```bash
+./gradlew run -PinstalledPlugins="['plugin1', 'plugin2']"
+```
+
 That will build OpenSearch and start it, writing its log above Gradle's status message. We log a lot of stuff on startup, specifically these lines tell you that OpenSearch is ready.
 
 ```
@@ -578,7 +584,7 @@ explicitly marked by an annotation should not be extended by external implementa
 any time. The `@DeprecatedApi` annotation could also be added to any classes annotated with `@PublicApi` (or documented as `@opensearch.api`) or their methods that
 are either changed (with replacement) or planned to be removed across major versions.
 
-The APIs which are designated to be public but have not been stabilized yet should be marked with `@ExperimentalApi` (or documented as `@opensearch.experimental`) 
+The APIs which are designated to be public but have not been stabilized yet should be marked with `@ExperimentalApi` (or documented as `@opensearch.experimental`)
 annotation. The presence of this annotation signals that API may change at any time (major, minor or even patch releases). In general, the classes annotated with
 `@PublicApi` may expose other classes or methods annotated with `@ExperimentalApi`, in such cases the backward compatibility guarantees would not apply to latter
 (see please [Experimental Development](#experimental-development) for more details).
