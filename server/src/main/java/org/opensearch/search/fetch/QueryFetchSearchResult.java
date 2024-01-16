@@ -38,6 +38,7 @@ import org.opensearch.search.SearchPhaseResult;
 import org.opensearch.search.SearchShardTarget;
 import org.opensearch.search.internal.ShardSearchContextId;
 import org.opensearch.search.query.QuerySearchResult;
+import org.opensearch.server.proto.QueryFetchSearchResultProto;
 
 import java.io.IOException;
 
@@ -51,8 +52,17 @@ public final class QueryFetchSearchResult extends SearchPhaseResult {
     private final QuerySearchResult queryResult;
     private final FetchSearchResult fetchResult;
 
+    private QueryFetchSearchResultProto.QueryFetchSearchResult queryFetchSearchResultProto;
+
     public QueryFetchSearchResult(StreamInput in) throws IOException {
         super(in);
+        queryResult = new QuerySearchResult(in);
+        fetchResult = new FetchSearchResult(in);
+    }
+
+    public QueryFetchSearchResult(byte[] in) throws IOException {
+        super(in);
+        this.queryFetchSearchResultProto = QueryFetchSearchResultProto.QueryFetchSearchResult.parseFrom(in);
         queryResult = new QuerySearchResult(in);
         fetchResult = new FetchSearchResult(in);
     }
@@ -60,6 +70,12 @@ public final class QueryFetchSearchResult extends SearchPhaseResult {
     public QueryFetchSearchResult(QuerySearchResult queryResult, FetchSearchResult fetchResult) {
         this.queryResult = queryResult;
         this.fetchResult = fetchResult;
+        if (queryResult.response() != null && fetchResult.response() != null) {
+            this.queryFetchSearchResultProto = QueryFetchSearchResultProto.QueryFetchSearchResult.newBuilder()
+                .setQueryResult(queryResult.response())
+                .setFetchResult(fetchResult.response())
+                .build();
+        }
     }
 
     @Override
