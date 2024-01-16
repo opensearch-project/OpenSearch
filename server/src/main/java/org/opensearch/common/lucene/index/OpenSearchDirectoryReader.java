@@ -40,6 +40,8 @@ import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.index.shard.ShardId;
 
 import java.io.IOException;
+import java.util.Optional;
+import java.util.UUID;
 
 /**
  * A {@link org.apache.lucene.index.FilterDirectoryReader} that exposes
@@ -53,11 +55,14 @@ public final class OpenSearchDirectoryReader extends FilterDirectoryReader {
     private final ShardId shardId;
     private final FilterDirectoryReader.SubReaderWrapper wrapper;
 
+    private final DelegatingCacheHelper delegatingCacheHelper;
+
     private OpenSearchDirectoryReader(DirectoryReader in, FilterDirectoryReader.SubReaderWrapper wrapper, ShardId shardId)
         throws IOException {
         super(in, wrapper);
         this.wrapper = wrapper;
         this.shardId = shardId;
+        this.delegatingCacheHelper = new DelegatingCacheHelper(in.getReaderCacheHelper());
     }
 
     /**
@@ -70,7 +75,61 @@ public final class OpenSearchDirectoryReader extends FilterDirectoryReader {
     @Override
     public CacheHelper getReaderCacheHelper() {
         // safe to delegate since this reader does not alter the index
-        return in.getReaderCacheHelper();
+        return this.delegatingCacheHelper;
+    }
+
+    public DelegatingCacheHelper getDelegatingCacheHelper() {
+        return this.delegatingCacheHelper;
+    }
+
+    /**
+     * Wraps existing IndexReader cache helper which internally provides a way to wrap CacheKey.
+     * @opensearch.internal
+     */
+    public class DelegatingCacheHelper implements CacheHelper {
+        private final CacheHelper cacheHelper;
+        private final DelegatingCacheKey serializableCacheKey;
+
+        DelegatingCacheHelper(CacheHelper cacheHelper) {
+            this.cacheHelper = cacheHelper;
+            this.serializableCacheKey = new DelegatingCacheKey(Optional.ofNullable(cacheHelper).map(key -> getKey()).orElse(null));
+        }
+
+        @Override
+        public CacheKey getKey() {
+            return this.cacheHelper.getKey();
+        }
+
+        public DelegatingCacheKey getDelegatingCacheKey() {
+            return this.serializableCacheKey;
+        }
+
+        @Override
+        public void addClosedListener(ClosedListener listener) {
+            this.cacheHelper.addClosedListener(listener);
+        }
+    }
+
+    /**
+     *  Wraps internal IndexReader.CacheKey and attaches a uniqueId to it which can be eventually be used instead of
+     *  object itself for serialization purposes.
+     */
+    public class DelegatingCacheKey {
+        private final CacheKey cacheKey;
+        private final String uniqueId;
+
+        DelegatingCacheKey(CacheKey cacheKey) {
+            this.cacheKey = cacheKey;
+            this.uniqueId = UUID.randomUUID().toString();
+        }
+
+        public CacheKey getCacheKey() {
+            return this.cacheKey;
+        }
+
+        public String getId() {
+            return uniqueId;
+        }
     }
 
     @Override
