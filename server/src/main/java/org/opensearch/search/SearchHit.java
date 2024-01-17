@@ -204,7 +204,7 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
         sortValues = new SearchSortValues(in);
 
         size = in.readVInt();
-        if (in.getVersion().after(Version.V_2_12_0)) {
+        if (in.getVersion().onOrAfter(Version.V_2_12_0)) {
             if (size > 0) {
                 matchedQueries = in.readOrderedMap(StreamInput::readString, StreamInput::readFloat);
             }
@@ -262,7 +262,7 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
         sortValues.writeTo(out);
 
         out.writeVInt(matchedQueries.size());
-        if (out.getVersion().after(Version.V_2_12_0)) {
+        if (out.getVersion().onOrAfter(Version.V_2_12_0)) {
             if (!matchedQueries.isEmpty()) {
                 out.writeMap(matchedQueries, StreamOutput::writeString, StreamOutput::writeFloat);
             }
