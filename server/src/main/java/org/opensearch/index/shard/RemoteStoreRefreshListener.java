@@ -41,7 +41,6 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Iterator;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
@@ -216,7 +215,8 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
                     Collection<String> localSegmentsPostRefresh = segmentInfos.files(true);
 
                     // Create a map of file name to size and update the refresh segment tracker
-                    Map<String, Long> localSegmentsSizeMap = updateLocalSizeMapAndTracker(localSegmentsPostRefresh).entrySet().stream()
+                    Map<String, Long> localSegmentsSizeMap = updateLocalSizeMapAndTracker(localSegmentsPostRefresh).entrySet()
+                        .stream()
                         .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
                     CountDownLatch latch = new CountDownLatch(1);
                     ActionListener<Void> segmentUploadsCompletedListener = new LatchedActionListener<>(new ActionListener<>() {
