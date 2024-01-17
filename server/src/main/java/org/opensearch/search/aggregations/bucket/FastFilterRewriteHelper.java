@@ -40,7 +40,7 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 
 /**
- * Help rewrite aggregations into filters.
+ * Utility class to help rewrite aggregations into filters.
  * Instead of aggregation collects documents one by one, filter may count all documents that match in one pass.
  * <p>
  * Currently supported rewrite:
@@ -51,7 +51,9 @@ import java.util.function.Supplier;
  *
  * @opensearch.internal
  */
-public class FastFilterRewriteHelper {
+public final class FastFilterRewriteHelper {
+
+    private FastFilterRewriteHelper() {}
 
     private static final int MAX_NUM_FILTER_BUCKETS = 1024;
     private static final Map<Class<?>, Function<Query, Query>> queryWrappers;
