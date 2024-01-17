@@ -46,6 +46,7 @@ import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.common.CheckedSupplier;
+import org.opensearch.common.cache.CacheType;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.lucene.index.OpenSearchDirectoryReader;
 import org.opensearch.common.settings.Settings;
@@ -71,6 +72,7 @@ import java.util.Arrays;
 import java.util.Optional;
 import java.util.UUID;
 
+import static org.opensearch.common.util.FeatureFlags.INDICES_REQUEST_CACHE_TYPE;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -533,6 +535,80 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
         assertEquals(((IndexShard) shardCacheEntity.getCacheIdentity()).shardId(), key2.shardId);
         assertEquals(termBytes, key2.value);
 
+    }
+
+    public void testWithOnHeapCacheTypeSetting() throws Exception {
+        IndicesService indicesService = getInstanceFromNode(IndicesService.class);
+        IndexShard indexShard = createIndex("test").getShard(0);
+        Settings settings = Settings.builder().put(INDICES_REQUEST_CACHE_TYPE.getKey(), CacheType.ON_HEAP).build();
+        IndicesRequestCache cache = new IndicesRequestCache(settings, (shardId -> {
+            IndexService indexService = null;
+            try {
+                indexService = indicesService.indexServiceSafe(shardId.getIndex());
+            } catch (IndexNotFoundException ex) {
+                return Optional.empty();
+            }
+            return Optional.of(new IndicesService.IndexShardCacheEntity(indexService.getShard(shardId.id())));
+        }));
+        Directory dir = newDirectory();
+        IndexWriter writer = new IndexWriter(dir, newIndexWriterConfig());
+
+        writer.addDocument(newDoc(0, "foo"));
+        DirectoryReader reader = OpenSearchDirectoryReader.wrap(DirectoryReader.open(writer), new ShardId("foo", "bar", 1));
+        TermQueryBuilder termQuery = new TermQueryBuilder("id", "0");
+        BytesReference termBytes = XContentHelper.toXContent(termQuery, MediaTypeRegistry.JSON, false);
+
+        // initial cache
+        IndicesService.IndexShardCacheEntity entity = new IndicesService.IndexShardCacheEntity(indexShard);
+        Loader loader = new Loader(reader, 0);
+        BytesReference value = cache.getOrCompute(entity, loader, reader, termBytes);
+        assertEquals("foo", value.streamInput().readString());
+        ShardRequestCache requestCacheStats = entity.stats();
+        assertEquals(0, requestCacheStats.stats().getHitCount());
+        assertEquals(1, requestCacheStats.stats().getMissCount());
+        assertEquals(0, requestCacheStats.stats().getEvictions());
+        assertFalse(loader.loadedFromCache);
+        assertEquals(1, cache.count());
+
+        IOUtils.close(reader, writer, dir, cache);
+        assertEquals(0, cache.numRegisteredCloseListeners());
+    }
+
+    public void testWithInvalidCacheTypeSetting() throws Exception {
+        IndicesService indicesService = getInstanceFromNode(IndicesService.class);
+        IndexShard indexShard = createIndex("test").getShard(0);
+        Settings settings = Settings.builder().put(INDICES_REQUEST_CACHE_TYPE.getKey(), "invalid").build();
+        IndicesRequestCache cache = new IndicesRequestCache(settings, (shardId -> {
+            IndexService indexService = null;
+            try {
+                indexService = indicesService.indexServiceSafe(shardId.getIndex());
+            } catch (IndexNotFoundException ex) {
+                return Optional.empty();
+            }
+            return Optional.of(new IndicesService.IndexShardCacheEntity(indexService.getShard(shardId.id())));
+        }));
+        Directory dir = newDirectory();
+        IndexWriter writer = new IndexWriter(dir, newIndexWriterConfig());
+
+        writer.addDocument(newDoc(0, "foo"));
+        DirectoryReader reader = OpenSearchDirectoryReader.wrap(DirectoryReader.open(writer), new ShardId("foo", "bar", 1));
+        TermQueryBuilder termQuery = new TermQueryBuilder("id", "0");
+        BytesReference termBytes = XContentHelper.toXContent(termQuery, MediaTypeRegistry.JSON, false);
+
+        // initial cache
+        IndicesService.IndexShardCacheEntity entity = new IndicesService.IndexShardCacheEntity(indexShard);
+        Loader loader = new Loader(reader, 0);
+        BytesReference value = cache.getOrCompute(entity, loader, reader, termBytes);
+        assertEquals("foo", value.streamInput().readString());
+        ShardRequestCache requestCacheStats = entity.stats();
+        assertEquals(0, requestCacheStats.stats().getHitCount());
+        assertEquals(1, requestCacheStats.stats().getMissCount());
+        assertEquals(0, requestCacheStats.stats().getEvictions());
+        assertFalse(loader.loadedFromCache);
+        assertEquals(1, cache.count());
+
+        IOUtils.close(reader, writer, dir, cache);
+        assertEquals(0, cache.numRegisteredCloseListeners());
     }
 
     private class TestBytesReference extends AbstractBytesReference {

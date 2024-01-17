@@ -32,8 +32,9 @@
 
 package org.opensearch.indices;
 
-import org.opensearch.common.cache.RemovalNotification;
 import org.opensearch.common.cache.RemovalReason;
+import org.opensearch.common.cache.store.StoreAwareCacheRemovalNotification;
+import org.opensearch.common.cache.store.enums.CacheStoreType;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.index.cache.request.ShardRequestCache;
 import org.opensearch.index.shard.IndexShard;
@@ -51,22 +52,27 @@ abstract class AbstractIndexShardCacheEntity implements IndicesRequestCache.Cach
     protected abstract ShardRequestCache stats();
 
     @Override
-    public final void onCached(IndicesRequestCache.Key key, BytesReference value) {
+    public final void onCached(IndicesRequestCache.Key key, BytesReference value, CacheStoreType cacheStoreType) {
+        // TODO: Remove this once tiered cache is integrated. Same for below.
+        assert cacheStoreType.equals(CacheStoreType.ON_HEAP);
         stats().onCached(key, value);
     }
 
     @Override
-    public final void onHit() {
+    public final void onHit(CacheStoreType cacheStoreType) {
+        assert cacheStoreType.equals(CacheStoreType.ON_HEAP);
         stats().onHit();
     }
 
     @Override
-    public final void onMiss() {
+    public final void onMiss(CacheStoreType cacheStoreType) {
+        assert cacheStoreType.equals(CacheStoreType.ON_HEAP);
         stats().onMiss();
     }
 
     @Override
-    public final void onRemoval(RemovalNotification<IndicesRequestCache.Key, BytesReference> notification) {
+    public final void onRemoval(StoreAwareCacheRemovalNotification<IndicesRequestCache.Key, BytesReference> notification) {
+        assert notification.getCacheStoreType().equals(CacheStoreType.ON_HEAP);
         stats().onRemoval(notification.getKey(), notification.getValue(), notification.getRemovalReason() == RemovalReason.EVICTED);
     }
 }

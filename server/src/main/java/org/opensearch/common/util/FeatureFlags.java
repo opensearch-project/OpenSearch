@@ -8,6 +8,7 @@
 
 package org.opensearch.common.util;
 
+import org.opensearch.common.cache.CacheType;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
@@ -120,6 +121,12 @@ public class FeatureFlags {
     public static final Setting<Boolean> WRITEABLE_REMOTE_INDEX_SETTING = Setting.boolSetting(
         WRITEABLE_REMOTE_INDEX,
         false,
+        Property.NodeScope
+    );
+
+    public static final Setting<String> INDICES_REQUEST_CACHE_TYPE = Setting.simpleString(
+        "indices.requests.cache.type",
+        CacheType.ON_HEAP.getCacheType(),
         Property.NodeScope
     );
 }
