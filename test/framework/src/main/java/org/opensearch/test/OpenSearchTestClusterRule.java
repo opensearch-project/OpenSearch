@@ -110,11 +110,11 @@ class OpenSearchTestClusterRule implements MethodRule {
         return (InternalTestCluster) cluster();
     }
 
-    Client client() {
-        return client(null);
+    Client clientForAnyNode() {
+        return clientForNode(null);
     }
 
-    Client client(@Nullable String node) {
+    Client clientForNode(@Nullable String node) {
         if (node != null) {
             return internalCluster().client(node);
         }
@@ -186,7 +186,7 @@ class OpenSearchTestClusterRule implements MethodRule {
     }
 
     protected RestClient createRestClient(RestClientBuilder.HttpClientConfigCallback httpClientConfigCallback, String protocol) {
-        NodesInfoResponse nodesInfoResponse = client().admin().cluster().prepareNodesInfo().get();
+        NodesInfoResponse nodesInfoResponse = clientForAnyNode().admin().cluster().prepareNodesInfo().get();
         assertFalse(nodesInfoResponse.hasFailures());
         return createRestClient(nodesInfoResponse.getNodes(), httpClientConfigCallback, protocol);
     }
@@ -282,7 +282,7 @@ class OpenSearchTestClusterRule implements MethodRule {
         try {
             if (cluster() != null) {
                 if (currentClusterScope != Scope.TEST) {
-                    Metadata metadata = client().admin().cluster().prepareState().execute().actionGet().getState().getMetadata();
+                    Metadata metadata = clientForAnyNode().admin().cluster().prepareState().execute().actionGet().getState().getMetadata();
 
                     final Set<String> persistentKeys = new HashSet<>(metadata.persistentSettings().keySet());
                     assertThat("test leaves persistent cluster metadata behind", persistentKeys, empty());

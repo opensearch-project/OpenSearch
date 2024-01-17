@@ -530,7 +530,7 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
     }
 
     public static Client client(@Nullable String node) {
-        return testClusterRule.client(node);
+        return testClusterRule.clientForNode(node);
     }
 
     public static Client dataNodeClient() {
@@ -2122,7 +2122,7 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
      * Returns path to a random directory that can be used to create a temporary file system repo
      */
     public Path randomRepoPath() {
-        if (cluster() instanceof InternalTestCluster) {
+        if (isInternalCluster()) {
             return randomRepoPath(((InternalTestCluster) cluster()).getDefaultSettings());
         }
         throw new UnsupportedOperationException("unsupported cluster type");
@@ -2233,7 +2233,7 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
      * The returned client gets automatically closed when needed, it shouldn't be closed as part of tests otherwise
      * it cannot be reused by other tests anymore.
      */
-    protected static synchronized RestClient getRestClient() {
+    protected static RestClient getRestClient() {
         return testClusterRule.getRestClient();
     }
 

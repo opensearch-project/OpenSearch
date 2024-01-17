@@ -26,10 +26,10 @@ import static org.opensearch.search.SearchService.CLUSTER_CONCURRENT_SEGMENT_SEA
  *
  * If the test suites use per-test level, the cluster will be recreated per each test method (applying static or dynamic settings).
  */
-public abstract class ParameterizedOpenSearchIntegTestCase extends OpenSearchIntegTestCase {
+abstract class ParameterizedOpenSearchIntegTestCase extends OpenSearchIntegTestCase {
     protected final Settings settings;
 
-    public ParameterizedOpenSearchIntegTestCase(Settings settings) {
+    ParameterizedOpenSearchIntegTestCase(Settings settings) {
         this.settings = settings;
     }
 
