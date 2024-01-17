@@ -38,6 +38,7 @@ import org.apache.lucene.search.TotalHits.Relation;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.lucene.Lucene;
+import org.opensearch.core.common.io.stream.ProtobufWriteable;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
@@ -47,6 +48,7 @@ import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.rest.action.search.RestSearchAction;
 
 import java.io.IOException;
+import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Iterator;
@@ -61,7 +63,7 @@ import static org.opensearch.core.xcontent.XContentParserUtils.ensureExpectedTok
  * @opensearch.api
  */
 @PublicApi(since = "1.0.0")
-public final class SearchHits implements Writeable, ToXContentFragment, Iterable<SearchHit> {
+public final class SearchHits implements Writeable, ToXContentFragment, Iterable<SearchHit>, ProtobufWriteable {
     public static SearchHits empty() {
         return empty(true);
     }
@@ -81,6 +83,8 @@ public final class SearchHits implements Writeable, ToXContentFragment, Iterable
     private final String collapseField;
     @Nullable
     private final Object[] collapseValues;
+
+    private org.opensearch.server.proto.FetchSearchResultProto.SearchHits searchHitsProto;
 
     public SearchHits(SearchHit[] hits, @Nullable TotalHits totalHits, float maxScore) {
         this(hits, totalHits, maxScore, null, null, null);
@@ -122,6 +126,23 @@ public final class SearchHits implements Writeable, ToXContentFragment, Iterable
         sortFields = in.readOptionalArray(Lucene::readSortField, SortField[]::new);
         collapseField = in.readOptionalString();
         collapseValues = in.readOptionalArray(Lucene::readSortValue, Object[]::new);
+    }
+
+    public SearchHits(byte[] in) throws IOException {
+        this.searchHitsProto = org.opensearch.server.proto.FetchSearchResultProto.SearchHits.parseFrom(in);
+        this.hits = new SearchHit[this.searchHitsProto.getHitsCount()];
+        for (int i = 0; i < this.searchHitsProto.getHitsCount(); i++) {
+            this.hits[i] = new SearchHit(this.searchHitsProto.getHits(i).toByteArray());
+        }
+        this.totalHits = new TotalHits(
+            this.searchHitsProto.getTotalHits().getValue(),
+            Relation.valueOf(this.searchHitsProto.getTotalHits().getRelation().toString())
+        );
+        this.maxScore = this.searchHitsProto.getMaxScore();
+        this.collapseField = this.searchHitsProto.getCollapseField();
+        // Below fields are set to null currently, support to be added in the future
+        this.collapseValues = null;
+        this.sortFields = null;
     }
 
     @Override
@@ -341,5 +362,10 @@ public final class SearchHits implements Writeable, ToXContentFragment, Iterable
         } else {
             throw new IllegalArgumentException("invalid total hits relation: " + relation);
         }
+    }
+
+    @Override
+    public void writeTo(OutputStream out) throws IOException {
+        out.write(searchHitsProto.toByteArray());
     }
 }

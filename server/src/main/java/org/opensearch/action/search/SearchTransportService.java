@@ -244,9 +244,8 @@ public class SearchTransportService {
         // we optimize this and expect a QueryFetchSearchResult if we only have a single shard in the search request
         // this used to be the QUERY_AND_FETCH which doesn't exist anymore.
         final boolean fetchDocuments = request.numberOfShards() == 1;
-        // System.setProperty("opensearch.experimental.feature.search_with_protobuf.enabled", "true");
+        // System.setProperty(FeatureFlags.PROTOBUF, "true");
         if (FeatureFlags.isEnabled(FeatureFlags.PROTOBUF_SETTING)) {
-            // System.out.println("Feature flag enabled");
             ProtobufWriteable.Reader<SearchPhaseResult> reader = fetchDocuments ? QueryFetchSearchResult::new : QuerySearchResult::new;
 
             final ActionListener handler = responseWrapper.apply(connection, listener);

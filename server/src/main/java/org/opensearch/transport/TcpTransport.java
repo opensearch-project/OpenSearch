@@ -787,6 +787,14 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         }
     }
 
+    public void inboundMessageProtobuf(TcpChannel channel, BytesReference message) {
+        try {
+            inboundHandler.inboundMessageProtobuf(channel, message);
+        } catch (Exception e) {
+            onException(channel, e);
+        }
+    }
+
     /**
      * Validates the first 6 bytes of the message header and returns the length of the message. If 6 bytes
      * are not available, it returns -1.

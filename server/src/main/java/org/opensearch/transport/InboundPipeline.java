@@ -38,6 +38,7 @@ import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.util.PageCacheRecycler;
 import org.opensearch.core.common.breaker.CircuitBreaker;
+import org.opensearch.core.common.bytes.CompositeBytesReference;
 import org.opensearch.transport.nativeprotocol.NativeInboundBytesHandler;
 
 import java.io.IOException;
@@ -124,10 +125,6 @@ public class InboundPipeline implements Releasable {
     }
 
     public void doHandleBytes(TcpChannel channel, ReleasableBytesReference reference) throws IOException {
-        channel.getChannelStats().markAccessed(relativeTimeInMillis.getAsLong());
-        statsTracker.markBytesRead(reference.length());
-        pending.add(reference.retain());
-
         // If we don't have a current handler, we should try to find one based on the protocol of the incoming bytes.
         if (currentHandler == null) {
             for (InboundBytesHandler handler : protocolBytesHandlers) {

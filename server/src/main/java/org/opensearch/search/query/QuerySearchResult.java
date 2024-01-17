@@ -34,7 +34,9 @@ package org.opensearch.search.query;
 
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.ScoreDoc;
+import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TotalHits;
+import org.apache.lucene.search.TotalHits.Relation;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.io.stream.DelayableWriteable;
 import org.opensearch.common.lucene.search.TopDocsAndMaxScore;
@@ -128,28 +130,27 @@ public final class QuerySearchResult extends SearchPhaseResult {
         isNull = false;
         setShardSearchRequest(shardSearchRequest);
 
-        if (FeatureFlags.PROTOBUF_SETTING.get(settings)) {
-            QuerySearchResultProto.ShardId shardIdProto = QuerySearchResultProto.ShardId.newBuilder()
-                .setShardId(shardTarget.getShardId().getId())
-                .setHashCode(shardTarget.getShardId().hashCode())
-                .setIndexName(shardTarget.getShardId().getIndexName())
-                .setIndexUUID(shardTarget.getShardId().getIndex().getUUID())
-                .build();
-            QuerySearchResultProto.SearchShardTarget searchShardTarget = QuerySearchResultProto.SearchShardTarget.newBuilder()
-                .setNodeId(shardTarget.getNodeId())
-                .setShardId(shardIdProto)
-                .setClusterAlias(shardTarget.getClusterAlias())
-                .build();
-            this.querySearchResultProto = QuerySearchResultProto.QuerySearchResult.newBuilder()
-                .setContextId(
-                    QuerySearchResultProto.ShardSearchContextId.newBuilder()
-                        .setSessionId(contextId.getSessionId())
-                        .setId(contextId.getId())
-                        .build()
-                )
-                .setSearchShardTarget(searchShardTarget)
-                .build();
+        QuerySearchResultProto.ShardId shardIdProto = QuerySearchResultProto.ShardId.newBuilder()
+            .setShardId(shardTarget.getShardId().getId())
+            .setHashCode(shardTarget.getShardId().hashCode())
+            .setIndexName(shardTarget.getShardId().getIndexName())
+            .setIndexUUID(shardTarget.getShardId().getIndex().getUUID())
+            .build();
+        QuerySearchResultProto.SearchShardTarget.Builder searchShardTarget = QuerySearchResultProto.SearchShardTarget.newBuilder()
+            .setNodeId(shardTarget.getNodeId())
+            .setShardId(shardIdProto);
+        if (shardTarget.getClusterAlias() != null) {
+            searchShardTarget.setClusterAlias(shardTarget.getClusterAlias());
         }
+        this.querySearchResultProto = QuerySearchResultProto.QuerySearchResult.newBuilder()
+            .setContextId(
+                QuerySearchResultProto.ShardSearchContextId.newBuilder()
+                    .setSessionId(contextId.getSessionId())
+                    .setId(contextId.getId())
+                    .build()
+            )
+            .setSearchShardTarget(searchShardTarget.build())
+            .build();
     }
 
     private QuerySearchResult(boolean isNull) {
@@ -199,8 +200,32 @@ public final class QuerySearchResult extends SearchPhaseResult {
     }
 
     public TopDocsAndMaxScore topDocs() {
-        if (topDocsAndMaxScore == null) {
+        if (topDocsAndMaxScore == null && this.querySearchResultProto.getTopDocsAndMaxScore() == null) {
             throw new IllegalStateException("topDocs already consumed");
+        }
+        if (FeatureFlags.isEnabled(FeatureFlags.PROTOBUF_SETTING)) {
+            ScoreDoc[] scoreDocs = new ScoreDoc[this.querySearchResultProto.getTopDocsAndMaxScore().getTopDocs().getScoreDocsCount()];
+            for (int i = 0; i < scoreDocs.length; i++) {
+                org.opensearch.server.proto.QuerySearchResultProto.QuerySearchResult.TopDocs.ScoreDoc scoreDoc = this.querySearchResultProto
+                    .getTopDocsAndMaxScore()
+                    .getTopDocs()
+                    .getScoreDocsList()
+                    .get(i);
+                scoreDocs[i] = new ScoreDoc(scoreDoc.getDoc(), scoreDoc.getScore(), scoreDoc.getShardIndex());
+            }
+            TopDocs topDocsFromProtobuf = new TopDocs(
+                new TotalHits(
+                    this.querySearchResultProto.getTotalHits().getValue(),
+                    Relation.valueOf(this.querySearchResultProto.getTotalHits().getRelation().toString())
+                ),
+                scoreDocs
+            );
+
+            TopDocsAndMaxScore topDocsFromProtobufAndMaxScore = new TopDocsAndMaxScore(
+                topDocsFromProtobuf,
+                this.querySearchResultProto.getMaxScore()
+            );
+            return topDocsFromProtobufAndMaxScore;
         }
         return topDocsAndMaxScore;
     }
@@ -217,7 +242,7 @@ public final class QuerySearchResult extends SearchPhaseResult {
      * @throws IllegalStateException if the top docs have already been consumed.
      */
     public TopDocsAndMaxScore consumeTopDocs() {
-        TopDocsAndMaxScore topDocsAndMaxScore = this.topDocsAndMaxScore;
+        TopDocsAndMaxScore topDocsAndMaxScore = this.topDocsAndMaxScore == null ? topDocs() : this.topDocsAndMaxScore;
         if (topDocsAndMaxScore == null) {
             throw new IllegalStateException("topDocs already consumed");
         }
@@ -273,7 +298,7 @@ public final class QuerySearchResult extends SearchPhaseResult {
                     .setMaxScore(topDocsAndMaxScore.maxScore)
                     .setTopDocs(topDocsBuilder)
                     .build();
-            this.querySearchResultProto.toBuilder()
+            this.querySearchResultProto = this.querySearchResultProto.toBuilder()
                 .setTopDocsAndMaxScore(topDocsAndMaxScoreBuilder)
                 .setMaxScore(this.maxScore)
                 .setTotalHits(topDocsBuilder.getTotalHits())

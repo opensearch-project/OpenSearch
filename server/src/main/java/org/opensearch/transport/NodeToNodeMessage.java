@@ -1,0 +1,118 @@
+/*
+* SPDX-License-Identifier: Apache-2.0
+*
+* The OpenSearch Contributors require contributions made to
+* this file be licensed under the Apache-2.0 license or a
+* compatible open source license.
+*/
+
+package org.opensearch.transport;
+
+import com.google.protobuf.ByteString;
+import com.google.protobuf.InvalidProtocolBufferException;
+import org.opensearch.Version;
+import org.opensearch.common.util.concurrent.ThreadContext;
+import org.opensearch.server.proto.NodeToNodeMessageProto;
+import org.opensearch.server.proto.NodeToNodeMessageProto.NodeToNodeMessage.Header;
+import org.opensearch.server.proto.NodeToNodeMessageProto.NodeToNodeMessage.ResponseHandlersList;
+import org.opensearch.server.proto.QueryFetchSearchResultProto.QueryFetchSearchResult;
+
+import java.io.IOException;
+import java.io.OutputStream;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
+
+/**
+ * Outbound data as a message
+*
+* @opensearch.internal
+*/
+public class NodeToNodeMessage {
+
+    private final NodeToNodeMessageProto.NodeToNodeMessage message;
+    private static final byte[] PREFIX = { (byte) 'E', (byte) 'S' };
+
+    public NodeToNodeMessage(
+        long requestId,
+        byte[] status,
+        Version version,
+        ThreadContext threadContext,
+        QueryFetchSearchResult queryFetchSearchResult,
+        Set<String> features,
+        String action
+    ) {
+        Header header = Header.newBuilder()
+            .addAllPrefix(Arrays.asList(ByteString.copyFrom(PREFIX)))
+            .setRequestId(requestId)
+            .setStatus(ByteString.copyFrom(status))
+            .setVersionId(version.id)
+            .build();
+        Map<String, String> requestHeaders = threadContext.getHeaders();
+        Map<String, List<String>> responseHeaders = threadContext.getResponseHeaders();
+        Map<String, ResponseHandlersList> responseHandlers = new HashMap<>();
+        for (Map.Entry<String, List<String>> entry : responseHeaders.entrySet()) {
+            String key = entry.getKey();
+            List<String> value = entry.getValue();
+            ResponseHandlersList responseHandlersList = ResponseHandlersList.newBuilder().addAllSetOfResponseHandlers(value).build();
+            responseHandlers.put(key, responseHandlersList);
+        }
+        this.message = NodeToNodeMessageProto.NodeToNodeMessage.newBuilder()
+            .setHeader(header)
+            .putAllRequestHeaders(requestHeaders)
+            .putAllResponseHandlers(responseHandlers)
+            .setVersion(version.toString())
+            .setStatus(ByteString.copyFrom(status))
+            .setRequestId(requestId)
+            .setQueryFetchSearchResult(queryFetchSearchResult)
+            .setAction(action)
+            .addAllFeatures(features)
+            .setIsProtobuf(true)
+            .build();
+
+    }
+
+    public NodeToNodeMessage(byte[] data) throws InvalidProtocolBufferException {
+        this.message = NodeToNodeMessageProto.NodeToNodeMessage.parseFrom(data);
+    }
+
+    public void writeTo(OutputStream out) throws IOException {
+        out.write(this.message.toByteArray());
+    }
+
+    public NodeToNodeMessageProto.NodeToNodeMessage getMessage() {
+        return this.message;
+    }
+
+    @Override
+    public String toString() {
+        return "NodeToNodeMessage [message=" + message + "]";
+    }
+
+    public org.opensearch.server.proto.NodeToNodeMessageProto.NodeToNodeMessage.Header getHeader() {
+        return this.message.getHeader();
+    }
+
+    public Map<String, String> getRequestHeaders() {
+        return this.message.getRequestHeadersMap();
+    }
+
+    public Map<String, Set<String>> getResponseHandlers() {
+        Map<String, ResponseHandlersList> responseHandlers = this.message.getResponseHandlersMap();
+        Map<String, Set<String>> responseHandlersMap = new HashMap<>();
+        for (Map.Entry<String, ResponseHandlersList> entry : responseHandlers.entrySet()) {
+            String key = entry.getKey();
+            ResponseHandlersList value = entry.getValue();
+            Set<String> setOfResponseHandlers = value.getSetOfResponseHandlersList().stream().collect(Collectors.toSet());
+            responseHandlersMap.put(key, setOfResponseHandlers);
+        }
+        return responseHandlersMap;
+    }
+
+    public boolean isProtobuf() {
+        return this.message.getIsProtobuf();
+    }
+}

@@ -32,6 +32,7 @@
 
 package org.opensearch.search.fetch;
 
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.search.SearchPhaseResult;
@@ -116,5 +117,24 @@ public final class QueryFetchSearchResult extends SearchPhaseResult {
     public void writeTo(StreamOutput out) throws IOException {
         queryResult.writeTo(out);
         fetchResult.writeTo(out);
+    }
+
+    @Override
+    public boolean isMessageProtobuf() {
+        // System.setProperty(FeatureFlags.PROTOBUF, "true");
+        if (FeatureFlags.isEnabled(FeatureFlags.PROTOBUF_SETTING)) {
+            return true;
+        }
+        return false;
+    }
+
+    public QueryFetchSearchResultProto.QueryFetchSearchResult response() {
+        return this.queryFetchSearchResultProto;
+    }
+
+    public QueryFetchSearchResult(QueryFetchSearchResultProto.QueryFetchSearchResult queryFetchSearchResult) {
+        this.queryFetchSearchResultProto = queryFetchSearchResult;
+        this.queryResult = new QuerySearchResult(queryFetchSearchResult.getQueryResult());
+        this.fetchResult = new FetchSearchResult(queryFetchSearchResult.getFetchResult());
     }
 }
