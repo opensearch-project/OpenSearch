@@ -44,6 +44,7 @@ import org.opensearch.core.ParseField;
 import org.opensearch.core.common.ParsingException;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.common.io.stream.ProtobufWriteable;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
@@ -67,9 +68,12 @@ import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.rest.action.search.RestSearchAction;
 import org.opensearch.search.fetch.subphase.highlight.HighlightField;
 import org.opensearch.search.lookup.SourceLookup;
+import org.opensearch.server.proto.FetchSearchResultProto;
 import org.opensearch.transport.RemoteClusterAware;
 
 import java.io.IOException;
+import java.io.OutputStream;
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -98,7 +102,7 @@ import static org.opensearch.core.xcontent.XContentParserUtils.ensureFieldName;
  * @opensearch.api
  */
 @PublicApi(since = "1.0.0")
-public final class SearchHit implements Writeable, ToXContentObject, Iterable<DocumentField> {
+public final class SearchHit implements Writeable, ToXContentObject, Iterable<DocumentField>, ProtobufWriteable {
 
     private final transient int docId;
 
@@ -138,6 +142,8 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
     private Map<String, Object> sourceAsMap;
 
     private Map<String, SearchHits> innerHits;
+
+    private FetchSearchResultProto.SearchHit searchHitProto;
 
     // used only in tests
     public SearchHit(int docId) {
@@ -236,6 +242,53 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
         }
     }
 
+    public SearchHit(byte[] in) throws IOException {
+        this.searchHitProto = FetchSearchResultProto.SearchHit.parseFrom(in);
+        docId = -1;
+        score = this.searchHitProto.getScore();
+        id = new Text(this.searchHitProto.getId());
+        // Support for nestedIdentity to be added in the future
+        nestedIdentity = null;
+        version = this.searchHitProto.getVersion();
+        seqNo = this.searchHitProto.getSeqNo();
+        primaryTerm = this.searchHitProto.getPrimaryTerm();
+        source = BytesReference.fromByteBuffer(ByteBuffer.wrap(this.searchHitProto.getSource().toByteArray()));
+        if (source.length() == 0) {
+            source = null;
+        }
+        metaFields = new HashMap<>();
+    }
+
+    private Map<String, DocumentField> readFields(StreamInput in) throws IOException {
+        Map<String, DocumentField> fields;
+        int size = in.readVInt();
+        if (size == 0) {
+            fields = emptyMap();
+        } else if (size == 1) {
+            DocumentField hitField = new DocumentField(in);
+            fields = singletonMap(hitField.getName(), hitField);
+        } else {
+            fields = new HashMap<>(size);
+            for (int i = 0; i < size; i++) {
+                DocumentField field = new DocumentField(in);
+                fields.put(field.getName(), field);
+            }
+            fields = unmodifiableMap(fields);
+        }
+        return fields;
+    }
+
+    private void writeFields(StreamOutput out, Map<String, DocumentField> fields) throws IOException {
+        if (fields == null) {
+            out.writeVInt(0);
+        } else {
+            out.writeVInt(fields.size());
+            for (DocumentField field : fields.values()) {
+                field.writeTo(out);
+            }
+        }
+    }
+
     private static final Text SINGLE_MAPPING_TYPE = new Text(MapperService.SINGLE_MAPPING_NAME);
 
     @Override
@@ -288,6 +341,11 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
                 entry.getValue().writeTo(out);
             }
         }
+    }
+
+    @Override
+    public void writeTo(OutputStream out) throws IOException {
+        out.write(this.searchHitProto.toByteArray());
     }
 
     public int docId() {

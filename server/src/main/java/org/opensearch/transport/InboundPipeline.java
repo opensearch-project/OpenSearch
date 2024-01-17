@@ -38,6 +38,7 @@ import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.util.PageCacheRecycler;
 import org.opensearch.core.common.breaker.CircuitBreaker;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.bytes.CompositeBytesReference;
 
 import java.io.IOException;
@@ -63,6 +64,7 @@ public class InboundPipeline implements Releasable {
     private final InboundDecoder decoder;
     private final InboundAggregator aggregator;
     private final BiConsumer<TcpChannel, InboundMessage> messageHandler;
+    private final BiConsumer<TcpChannel, BytesReference> messageHandlerProtobuf;
     private Exception uncaughtException;
     private final ArrayDeque<ReleasableBytesReference> pending = new ArrayDeque<>(2);
     private boolean isClosed = false;
@@ -74,14 +76,16 @@ public class InboundPipeline implements Releasable {
         LongSupplier relativeTimeInMillis,
         Supplier<CircuitBreaker> circuitBreaker,
         Function<String, RequestHandlerRegistry<TransportRequest>> registryFunction,
-        BiConsumer<TcpChannel, InboundMessage> messageHandler
+        BiConsumer<TcpChannel, InboundMessage> messageHandler,
+        BiConsumer<TcpChannel, BytesReference> messageHandlerProtobuf
     ) {
         this(
             statsTracker,
             relativeTimeInMillis,
             new InboundDecoder(version, recycler),
             new InboundAggregator(circuitBreaker, registryFunction),
-            messageHandler
+            messageHandler,
+            messageHandlerProtobuf
         );
     }
 
@@ -90,13 +94,15 @@ public class InboundPipeline implements Releasable {
         LongSupplier relativeTimeInMillis,
         InboundDecoder decoder,
         InboundAggregator aggregator,
-        BiConsumer<TcpChannel, InboundMessage> messageHandler
+        BiConsumer<TcpChannel, InboundMessage> messageHandler,
+        BiConsumer<TcpChannel, BytesReference> messageHandlerProtobuf
     ) {
         this.relativeTimeInMillis = relativeTimeInMillis;
         this.statsTracker = statsTracker;
         this.decoder = decoder;
         this.aggregator = aggregator;
         this.messageHandler = messageHandler;
+        this.messageHandlerProtobuf = messageHandlerProtobuf;
     }
 
     @Override
@@ -120,41 +126,49 @@ public class InboundPipeline implements Releasable {
     }
 
     public void doHandleBytes(TcpChannel channel, ReleasableBytesReference reference) throws IOException {
-        channel.getChannelStats().markAccessed(relativeTimeInMillis.getAsLong());
-        statsTracker.markBytesRead(reference.length());
-        pending.add(reference.retain());
+        try {
+            byte[] incomingBytes = BytesReference.toBytes(reference);
+            NodeToNodeMessage protobufMessage = new NodeToNodeMessage(incomingBytes);
+            if (protobufMessage.isProtobuf()) {
+                forwardFragmentsProtobuf(channel, reference);
+            }
+        } catch (Exception e) {
+            channel.getChannelStats().markAccessed(relativeTimeInMillis.getAsLong());
+            statsTracker.markBytesRead(reference.length());
+            pending.add(reference.retain());
 
-        final ArrayList<Object> fragments = fragmentList.get();
-        boolean continueHandling = true;
+            final ArrayList<Object> fragments = fragmentList.get();
+            boolean continueHandling = true;
 
-        while (continueHandling && isClosed == false) {
-            boolean continueDecoding = true;
-            while (continueDecoding && pending.isEmpty() == false) {
-                try (ReleasableBytesReference toDecode = getPendingBytes()) {
-                    final int bytesDecoded = decoder.decode(toDecode, fragments::add);
-                    if (bytesDecoded != 0) {
-                        releasePendingBytes(bytesDecoded);
-                        if (fragments.isEmpty() == false && endOfMessage(fragments.get(fragments.size() - 1))) {
+            while (continueHandling && isClosed == false) {
+                boolean continueDecoding = true;
+                while (continueDecoding && pending.isEmpty() == false) {
+                    try (ReleasableBytesReference toDecode = getPendingBytes()) {
+                        final int bytesDecoded = decoder.decode(toDecode, fragments::add);
+                        if (bytesDecoded != 0) {
+                            releasePendingBytes(bytesDecoded);
+                            if (fragments.isEmpty() == false && endOfMessage(fragments.get(fragments.size() - 1))) {
+                                continueDecoding = false;
+                            }
+                        } else {
                             continueDecoding = false;
                         }
-                    } else {
-                        continueDecoding = false;
                     }
                 }
-            }
 
-            if (fragments.isEmpty()) {
-                continueHandling = false;
-            } else {
-                try {
-                    forwardFragments(channel, fragments);
-                } finally {
-                    for (Object fragment : fragments) {
-                        if (fragment instanceof ReleasableBytesReference) {
-                            ((ReleasableBytesReference) fragment).close();
+                if (fragments.isEmpty()) {
+                    continueHandling = false;
+                } else {
+                    try {
+                        forwardFragments(channel, fragments);
+                    } finally {
+                        for (Object fragment : fragments) {
+                            if (fragment instanceof ReleasableBytesReference) {
+                                ((ReleasableBytesReference) fragment).close();
+                            }
                         }
+                        fragments.clear();
                     }
-                    fragments.clear();
                 }
             }
         }
@@ -180,6 +194,10 @@ public class InboundPipeline implements Releasable {
                 aggregator.aggregate((ReleasableBytesReference) fragment);
             }
         }
+    }
+
+    private void forwardFragmentsProtobuf(TcpChannel channel, ReleasableBytesReference reference) throws IOException {
+        messageHandlerProtobuf.accept(channel, reference);
     }
 
     private boolean endOfMessage(Object fragment) {

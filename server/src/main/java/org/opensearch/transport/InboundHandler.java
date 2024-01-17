@@ -37,15 +37,18 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.Version;
+import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.common.util.concurrent.ThreadContext;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.io.stream.ByteBufferStreamInput;
 import org.opensearch.core.common.io.stream.NamedWriteableAwareStreamInput;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.transport.TransportAddress;
 import org.opensearch.core.transport.TransportResponse;
+import org.opensearch.server.proto.QueryFetchSearchResultProto.QueryFetchSearchResult;
 import org.opensearch.telemetry.tracing.Span;
 import org.opensearch.telemetry.tracing.SpanBuilder;
 import org.opensearch.telemetry.tracing.SpanScope;
@@ -60,6 +63,7 @@ import java.nio.ByteBuffer;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
@@ -128,6 +132,13 @@ public class InboundHandler {
         }
     }
 
+    void inboundMessageProtobuf(TcpChannel channel, BytesReference message) throws IOException {
+        final long startTime = threadPool.relativeTimeInMillis();
+        channel.getChannelStats().markAccessed(startTime);
+        NodeToNodeMessage protobufMessage = new NodeToNodeMessage(BytesReference.toBytes(message));
+        messageReceivedProtobuf(channel, protobufMessage, startTime);
+    }
+
     // Empty stream constant to avoid instantiating a new stream for empty messages.
     private static final StreamInput EMPTY_STREAM_INPUT = new ByteBufferStreamInput(ByteBuffer.wrap(BytesRef.EMPTY_BYTES));
 
@@ -177,6 +188,41 @@ public class InboundHandler {
                     }
                 }
 
+            }
+        } finally {
+            final long took = threadPool.relativeTimeInMillis() - startTime;
+            final long logThreshold = slowLogThresholdMs;
+            if (logThreshold > 0 && took > logThreshold) {
+                logger.warn(
+                    "handling inbound transport message [{}] took [{}ms] which is above the warn threshold of [{}ms]",
+                    message,
+                    took,
+                    logThreshold
+                );
+            }
+        }
+    }
+
+    private void messageReceivedProtobuf(TcpChannel channel, NodeToNodeMessage message, long startTime) throws IOException {
+        final InetSocketAddress remoteAddress = channel.getRemoteAddress();
+        final org.opensearch.server.proto.NodeToNodeMessageProto.NodeToNodeMessage.Header header = message.getHeader();
+
+        ThreadContext threadContext = threadPool.getThreadContext();
+        try (ThreadContext.StoredContext existing = threadContext.stashContext()) {
+            // Place the context with the headers from the message
+            final Tuple<Map<String, String>, Map<String, Set<String>>> headers = new Tuple<Map<String, String>, Map<String, Set<String>>>(
+                message.getRequestHeaders(),
+                message.getResponseHandlers()
+            );
+            threadContext.setHeaders(headers);
+            threadContext.putTransient("_remote_address", remoteAddress);
+
+            long requestId = header.getRequestId();
+            TransportResponseHandler<? extends TransportResponse> handler = responseHandlers.onResponseReceived(requestId, messageListener);
+            if (handler != null) {
+                // if (handler.toString().contains("Protobuf")) {
+                handleProtobufResponse(requestId, remoteAddress, message, handler);
+                // }
             }
         } finally {
             final long took = threadPool.relativeTimeInMillis() - startTime;
@@ -412,6 +458,39 @@ public class InboundHandler {
             doHandleResponse(handler, response);
         } else {
             threadPool.executor(executor).execute(() -> doHandleResponse(handler, response));
+        }
+    }
+
+    private <T extends TransportResponse> void handleProtobufResponse(
+        final long requestId,
+        InetSocketAddress remoteAddress,
+        final NodeToNodeMessage message,
+        final TransportResponseHandler<T> handler
+    ) throws IOException {
+        try {
+            org.opensearch.server.proto.NodeToNodeMessageProto.NodeToNodeMessage receivedMessage = message.getMessage();
+            if (receivedMessage.hasQueryFetchSearchResult()) {
+                final QueryFetchSearchResult queryFetchSearchResult = receivedMessage.getQueryFetchSearchResult();
+                org.opensearch.search.fetch.QueryFetchSearchResult queryFetchSearchResult2 =
+                    new org.opensearch.search.fetch.QueryFetchSearchResult(queryFetchSearchResult);
+                final T response = (T) queryFetchSearchResult2;
+                response.remoteAddress(new TransportAddress(remoteAddress));
+
+                final String executor = handler.executor();
+                if (ThreadPool.Names.SAME.equals(executor)) {
+                    doHandleResponse(handler, response);
+                } else {
+                    threadPool.executor(executor).execute(() -> doHandleResponse(handler, response));
+                }
+            }
+        } catch (Exception e) {
+            final Exception serializationException = new TransportSerializationException(
+                "Failed to deserialize response from handler [" + handler + "]",
+                e
+            );
+            logger.warn(new ParameterizedMessage("Failed to deserialize response from [{}]", remoteAddress), serializationException);
+            handleException(handler, serializationException);
+            return;
         }
     }
 

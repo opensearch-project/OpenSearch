@@ -76,6 +76,7 @@ public class OutboundHandlerTests extends OpenSearchTestCase {
     private final TestThreadPool threadPool = new TestThreadPool(getClass().getName());
     private final TransportRequestOptions options = TransportRequestOptions.EMPTY;
     private final AtomicReference<Tuple<Header, BytesReference>> message = new AtomicReference<>();
+    private final AtomicReference<BytesReference> protobufMessage = new AtomicReference<>();
     private InboundPipeline pipeline;
     private OutboundHandler handler;
     private FakeTcpChannel channel;
@@ -102,7 +103,7 @@ public class OutboundHandlerTests extends OpenSearchTestCase {
             } catch (IOException e) {
                 throw new AssertionError(e);
             }
-        });
+        }, (c, m) -> { protobufMessage.set(m); });
     }
 
     @After

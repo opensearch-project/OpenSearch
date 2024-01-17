@@ -62,7 +62,7 @@ message QuerySearchResult {
 message SearchShardTarget {
   string nodeId = 1;
   ShardId shardId = 2;
-  string clusterAlias = 3;
+  optional string clusterAlias = 3;
 }
 
 message TotalHits {

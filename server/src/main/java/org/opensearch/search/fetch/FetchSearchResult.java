@@ -32,7 +32,10 @@
 
 package org.opensearch.search.fetch;
 
+import com.google.protobuf.ByteString;
+import org.apache.lucene.search.TotalHits.Relation;
 import org.opensearch.common.annotation.PublicApi;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.search.SearchHit;
@@ -76,6 +79,7 @@ public final class FetchSearchResult extends SearchPhaseResult {
             this.fetchSearchResultProto.getContextId().getSessionId(),
             this.fetchSearchResultProto.getContextId().getId()
         );
+        hits = new SearchHits(this.fetchSearchResultProto.getHits().toByteArray());
     }
 
     public FetchSearchResult(ShardSearchContextId id, SearchShardTarget shardTarget) {
@@ -101,6 +105,30 @@ public final class FetchSearchResult extends SearchPhaseResult {
     public void hits(SearchHits hits) {
         assert assertNoSearchTarget(hits);
         this.hits = hits;
+        if (this.fetchSearchResultProto != null) {
+            QuerySearchResultProto.TotalHits.Builder totalHitsBuilder = QuerySearchResultProto.TotalHits.newBuilder();
+            totalHitsBuilder.setValue(hits.getTotalHits().value);
+            totalHitsBuilder.setRelation(
+                hits.getTotalHits().relation == Relation.EQUAL_TO
+                    ? QuerySearchResultProto.TotalHits.Relation.EQUAL_TO
+                    : QuerySearchResultProto.TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO
+            );
+            FetchSearchResultProto.SearchHits.Builder searchHitsBuilder = FetchSearchResultProto.SearchHits.newBuilder();
+            searchHitsBuilder.setMaxScore(hits.getMaxScore());
+            searchHitsBuilder.setTotalHits(totalHitsBuilder.build());
+            for (SearchHit hit : hits.getHits()) {
+                FetchSearchResultProto.SearchHit.Builder searchHitBuilder = FetchSearchResultProto.SearchHit.newBuilder();
+                searchHitBuilder.setIndex(hit.getIndex());
+                searchHitBuilder.setId(hit.getId());
+                searchHitBuilder.setScore(hit.getScore());
+                searchHitBuilder.setSeqNo(hit.getSeqNo());
+                searchHitBuilder.setPrimaryTerm(hit.getPrimaryTerm());
+                searchHitBuilder.setVersion(hit.getVersion());
+                searchHitBuilder.setSource(ByteString.copyFrom(BytesReference.toBytes(hit.getSourceRef())));
+                searchHitsBuilder.addHits(searchHitBuilder.build());
+            }
+            this.fetchSearchResultProto = this.fetchSearchResultProto.toBuilder().setHits(searchHitsBuilder.build()).build();
+        }
     }
 
     private boolean assertNoSearchTarget(SearchHits hits) {

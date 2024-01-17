@@ -68,7 +68,8 @@ public class TcpReadWriteHandler extends BytesWriteHandler {
             threadPool::relativeTimeInMillis,
             breaker,
             requestHandlers::getHandler,
-            transport::inboundMessage
+            transport::inboundMessage,
+            transport::inboundMessageProtobuf
         );
     }
 

@@ -46,12 +46,18 @@ public abstract class TransportMessage implements Writeable, ProtobufWriteable {
 
     private TransportAddress remoteAddress;
 
+    private boolean isProtobuf;
+
     public void remoteAddress(TransportAddress remoteAddress) {
         this.remoteAddress = remoteAddress;
     }
 
     public TransportAddress remoteAddress() {
         return remoteAddress;
+    }
+
+    public boolean isMessageProtobuf() {
+        return isProtobuf;
     }
 
     /**
