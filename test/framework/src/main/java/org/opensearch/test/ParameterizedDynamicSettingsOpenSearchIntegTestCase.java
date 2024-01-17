@@ -17,6 +17,12 @@ import org.junit.Before;
  * Base class for running the tests with parameterization using dynamic settings: the cluster will be created once before the test suite and the
  * settings will be applied dynamically, please notice that not all settings could be changed dynamically (consider using {@link ParameterizedStaticSettingsOpenSearchIntegTestCase}
  * instead).
+ * <p>
+ * Here is the simple illustration on of the execution flow per parameters combination:
+ * <ul>
+ *   <li><b>suite scope</b>: create cluster -&gt; for each test method { apply settings -&gt; run test method -&gt; unapply settings } -&gt; shutdown cluster</li>
+ *   <li><b>test scope</b>: for each test method { create cluster -&gt;  apply settings -&gt; run test method -&gt; unapply settings -&gt; shutdown cluster }</li>
+ * </ul>
  */
 public abstract class ParameterizedDynamicSettingsOpenSearchIntegTestCase extends ParameterizedOpenSearchIntegTestCase {
     public ParameterizedDynamicSettingsOpenSearchIntegTestCase(Settings dynamicSettings) {

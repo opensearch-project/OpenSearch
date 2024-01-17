@@ -13,9 +13,15 @@ import org.opensearch.common.settings.Settings;
 import java.util.Objects;
 
 /**
- * Base class for running the tests with parameterization wit static settings: the cluster will be pre-created with the settings at startup, the method
+ * Base class for running the tests with parameterization with static settings: the cluster will be pre-created with the settings at startup, the method
  * {@link #hasSameParametersAs(ParameterizedOpenSearchIntegTestCase)} is being used by the test scaffolding to detect when the test suite is instantiated with
  * the new parameters and the test cluster has to be recreated.
+ * <p>
+ * Here is the simple illustration on of the execution flow per parameters combination:
+ * <ul>
+ *   <li><b>suite scope</b>: create cluster -&gt; for each test method { run test method } -&gt; shutdown cluster</li>
+ *   <li><b>test scope</b>: for each test method { create cluster -&gt; run test method -&gt; shutdown cluster }</li>
+ * </ul>
  */
 public abstract class ParameterizedStaticSettingsOpenSearchIntegTestCase extends ParameterizedOpenSearchIntegTestCase {
     public ParameterizedStaticSettingsOpenSearchIntegTestCase(Settings nodeSettings) {
