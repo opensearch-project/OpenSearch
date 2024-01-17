@@ -349,6 +349,29 @@ tasks.named("dependencyLicenses").configure {
     }
 }
 
+tasks.named("missingJavadoc").configure {
+  /*
+   * annotate_code in L210 does not add the Generated annotation to nested code generated using protobuf.
+   * TODO: Add support to missingJavadoc task to ignore all such nested classes.
+   *  https://github.com/opensearch-project/OpenSearch/issues/11913
+   */
+  dependsOn("generateProto")
+  javadocMissingIgnore = [
+    "org.opensearch.server.proto.QuerySearchResultProto.QuerySearchResult.RescoreDocIds.setIntegerOrBuilder",
+    "org.opensearch.server.proto.QuerySearchResultProto.QuerySearchResult.RescoreDocIdsOrBuilder",
+    "org.opensearch.server.proto.QuerySearchResultProto.QuerySearchResult.TopDocs.ScoreDocOrBuilder",
+    "org.opensearch.server.proto.QuerySearchResultProto.QuerySearchResult.TopDocsOrBuilder",
+    "org.opensearch.server.proto.QuerySearchResultProto.QuerySearchResult.TopDocsAndMaxScoreOrBuilder",
+    "org.opensearch.server.proto.FetchSearchResultProto.SearchHit.SearchSortValuesOrBuilder",
+    "org.opensearch.server.proto.FetchSearchResultProto.SearchHit.HighlightFieldOrBuilder",
+    "org.opensearch.server.proto.FetchSearchResultProto.SearchHit.DocumentFieldOrBuilder",
+    "org.opensearch.server.proto.FetchSearchResultProto.SearchHit.NestedIdentityOrBuilder",
+    "org.opensearch.server.proto.NodeToNodeMessageProto.NodeToNodeMessage.MessageCase",
+    "org.opensearch.server.proto.NodeToNodeMessageProto.NodeToNodeMessage.ResponseHandlersListOrBuilder",
+    "org.opensearch.server.proto.NodeToNodeMessageProto.NodeToNodeMessage.HeaderOrBuilder"
+  ]
+}
+
 tasks.named("filepermissions").configure {
   mustRunAfter("generateProto")
 }
