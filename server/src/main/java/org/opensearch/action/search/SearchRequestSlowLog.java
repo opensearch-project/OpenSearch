@@ -134,19 +134,19 @@ public final class SearchRequestSlowLog extends SearchRequestOperationsListener 
     }
 
     @Override
-    void onPhaseStart(SearchPhaseContext context) {}
+    protected void onPhaseStart(SearchPhaseContext context) {}
 
     @Override
-    void onPhaseEnd(SearchPhaseContext context, SearchRequestContext searchRequestContext) {}
+    protected void onPhaseEnd(SearchPhaseContext context, SearchRequestContext searchRequestContext) {}
 
     @Override
-    void onPhaseFailure(SearchPhaseContext context) {}
+    protected void onPhaseFailure(SearchPhaseContext context) {}
 
     @Override
-    void onRequestStart(SearchRequestContext searchRequestContext) {}
+    protected void onRequestStart(SearchRequestContext searchRequestContext) {}
 
     @Override
-    void onRequestEnd(SearchPhaseContext context, SearchRequestContext searchRequestContext) {
+    protected void onRequestEnd(SearchPhaseContext context, SearchRequestContext searchRequestContext) {
         long tookInNanos = System.nanoTime() - searchRequestContext.getAbsoluteStartNanos();
 
         if (warnThreshold >= 0 && tookInNanos > warnThreshold && level.isLevelEnabledFor(SlowLogLevel.WARN)) {
