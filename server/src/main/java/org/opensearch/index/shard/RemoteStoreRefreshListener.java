@@ -41,6 +41,7 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
@@ -215,7 +216,8 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
                     Collection<String> localSegmentsPostRefresh = segmentInfos.files(true);
 
                     // Create a map of file name to size and update the refresh segment tracker
-                    Map<String, Long> localSegmentsSizeMap = updateLocalSizeMapAndTracker(localSegmentsPostRefresh);
+                    Map<String, Long> localSegmentsSizeMap = updateLocalSizeMapAndTracker(localSegmentsPostRefresh).entrySet().stream()
+                        .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
                     CountDownLatch latch = new CountDownLatch(1);
                     ActionListener<Void> segmentUploadsCompletedListener = new LatchedActionListener<>(new ActionListener<>() {
                         @Override
@@ -450,6 +452,8 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
      * Updates map of file name to size of the input segment files in the segment tracker. Uses {@code storeDirectory.fileLength(file)} to get the size.
      *
      * @param segmentFiles list of segment files that are part of the most recent local refresh.
+     *
+     * @return updated map of local segment files and filesize
      */
     private Map<String, Long> updateLocalSizeMapAndTracker(Collection<String> segmentFiles) {
         return segmentTracker.updateLatestLocalFileNameLengthMap(segmentFiles, storeDirectory::fileLength);
@@ -527,6 +531,8 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
 
     /**
      * Creates an {@link UploadListener} containing the stats population logic which would be triggered before and after segment upload events
+     *
+     * @param fileSizeMap updated map of current snapshot of local segments to their sizes
      */
     private UploadListener createUploadListener(Map<String, Long> fileSizeMap) {
         return new UploadListener() {

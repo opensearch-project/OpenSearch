@@ -301,10 +301,15 @@ public class RemoteSegmentTransferTracker extends RemoteTransferTracker {
     }
 
     /**
-     * Updates the latestLocalFileNameLengthMap by adding file name and it's size to the map. The method is given a function as an argument which is used for determining the file size (length in bytes). This method is also provided the collection of segment files which are the latest refresh local segment files. This method also removes the stale segment files from the map that are not part of the input segment files.
+     * Updates the latestLocalFileNameLengthMap by adding file name and it's size to the map.
+     * The method is given a function as an argument which is used for determining the file size (length in bytes).
+     * This method is also provided the collection of segment files which are the latest refresh local segment files.
+     * This method also removes the stale segment files from the map that are not part of the input segment files.
      *
      * @param segmentFiles     list of local refreshed segment files
      * @param fileSizeFunction function is used to determine the file size in bytes
+     *
+     * @return updated map of local segment files and filesize
      */
     public Map<String, Long> updateLatestLocalFileNameLengthMap(
         Collection<String> segmentFiles,
