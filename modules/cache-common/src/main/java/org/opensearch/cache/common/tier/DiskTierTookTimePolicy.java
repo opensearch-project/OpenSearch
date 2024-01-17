@@ -56,18 +56,23 @@ public class DiskTierTookTimePolicy implements CacheTierPolicy<BytesReference> {
 
     @Override
     public boolean checkData(BytesReference data) {
-        if (threshold.equals(TimeValue.ZERO)) {
-            return true;
-        }
         Long tookTimeNanos;
         try {
             tookTimeNanos = getPolicyInfoFn.apply(data).getTookTimeNanos();
         } catch (Exception e) {
-            // If we can't retrieve the took time for whatever reason, admit the data to be safe
-            return true;
+            // If we can't read a CachePolicyInfoWrapper from the BytesReference, reject the data
+            return false;
         }
+
         if (tookTimeNanos == null) {
-            // Received a null took time -> this QSR is from an old version which does not have took time, we should accept it
+            // If the wrapper contains null took time, reject the data
+            // This can happen if no CachePolicyInfoWrapper was written to the BytesReference, as the wrapper's constructor
+            // reads an optional long, which will end up as null in this case. This is why we should reject it.
+            return false;
+        }
+
+        if (threshold.equals(TimeValue.ZERO)) {
+            // If the policy is set to zero, admit any well-formed data
             return true;
         }
         TimeValue tookTime = TimeValue.timeValueNanos(tookTimeNanos);

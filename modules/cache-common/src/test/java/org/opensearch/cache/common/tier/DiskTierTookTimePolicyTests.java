@@ -83,6 +83,38 @@ public class DiskTierTookTimePolicyTests extends OpenSearchTestCase {
         assertTrue(longResult);
     }
 
+    public void testMissingWrapper() throws Exception {
+        DiskTierTookTimePolicy tookTimePolicy = getTookTimePolicy();
+        tookTimePolicy.setThreshold(TimeValue.ZERO);
+        QuerySearchResult qsr = getQSR();
+        BytesStreamOutput out = new BytesStreamOutput();
+        qsr.writeTo(out);
+        BytesReference missingWrapper = out.bytes();
+        boolean allowedMissingWrapper = tookTimePolicy.checkData(missingWrapper);
+        assertFalse(allowedMissingWrapper);
+    }
+
+    public void testNullTookTime() throws Exception {
+        // Null took time should always be rejected (because it might be the result of a
+        // BytesReference without a CachePolicyInfoWrapper in front of it)
+
+        DiskTierTookTimePolicy zeroThreshold = getTookTimePolicy();
+        zeroThreshold.setThreshold(TimeValue.ZERO);
+        DiskTierTookTimePolicy nonZeroThreshold = getTookTimePolicy();
+        nonZeroThreshold.setThreshold(new TimeValue(10L));
+
+        Long nullTookTime = null;
+        CachePolicyInfoWrapper nullWrapper = new CachePolicyInfoWrapper(nullTookTime);
+        BytesStreamOutput out = new BytesStreamOutput();
+        nullWrapper.writeTo(out);
+        QuerySearchResult qsr = getQSR();
+        qsr.writeTo(out);
+        BytesReference data = out.bytes();
+
+        assertFalse(zeroThreshold.checkData(data));
+        assertFalse(nonZeroThreshold.checkData(data));
+    }
+
     public static QuerySearchResult getQSR() {
         // package-private, also used by IndicesRequestCacheTests.java
         // setup from QuerySearchResultTests.java
