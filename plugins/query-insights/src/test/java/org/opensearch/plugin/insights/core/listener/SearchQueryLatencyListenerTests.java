@@ -29,6 +29,7 @@ import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Phaser;
 
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.anyMap;
 import static org.mockito.Mockito.eq;
 import static org.mockito.Mockito.mock;
@@ -53,6 +54,10 @@ public class SearchQueryLatencyListenerTests extends OpenSearchTestCase {
         clusterSettings.registerSetting(QueryInsightsSettings.TOP_N_LATENCY_QUERIES_ENABLED);
         clusterSettings.registerSetting(QueryInsightsSettings.TOP_N_LATENCY_QUERIES_SIZE);
         clusterSettings.registerSetting(QueryInsightsSettings.TOP_N_LATENCY_QUERIES_WINDOW_SIZE);
+        clusterSettings.registerSetting(QueryInsightsSettings.TOP_N_LATENCY_QUERIES_EXPORTER_ENABLED);
+        clusterSettings.registerSetting(QueryInsightsSettings.TOP_N_LATENCY_QUERIES_EXPORTER_TYPE);
+        clusterSettings.registerSetting(QueryInsightsSettings.TOP_N_LATENCY_QUERIES_EXPORTER_INTERVAL);
+        clusterSettings.registerSetting(QueryInsightsSettings.TOP_N_LATENCY_QUERIES_EXPORTER_IDENTIFIER);
 
         ClusterService clusterService = new ClusterService(settings, clusterSettings, null);
 
@@ -91,7 +96,8 @@ public class SearchQueryLatencyListenerTests extends OpenSearchTestCase {
             eq(numberOfShards),
             eq(indices),
             anyMap(),
-            eq(phaseLatencyMap)
+            eq(phaseLatencyMap),
+            anyLong()
         );
     }
 
@@ -107,6 +113,10 @@ public class SearchQueryLatencyListenerTests extends OpenSearchTestCase {
         clusterSettings.registerSetting(QueryInsightsSettings.TOP_N_LATENCY_QUERIES_ENABLED);
         clusterSettings.registerSetting(QueryInsightsSettings.TOP_N_LATENCY_QUERIES_SIZE);
         clusterSettings.registerSetting(QueryInsightsSettings.TOP_N_LATENCY_QUERIES_WINDOW_SIZE);
+        clusterSettings.registerSetting(QueryInsightsSettings.TOP_N_LATENCY_QUERIES_EXPORTER_ENABLED);
+        clusterSettings.registerSetting(QueryInsightsSettings.TOP_N_LATENCY_QUERIES_EXPORTER_TYPE);
+        clusterSettings.registerSetting(QueryInsightsSettings.TOP_N_LATENCY_QUERIES_EXPORTER_INTERVAL);
+        clusterSettings.registerSetting(QueryInsightsSettings.TOP_N_LATENCY_QUERIES_EXPORTER_IDENTIFIER);
 
         ClusterService clusterService = new ClusterService(settings, clusterSettings, null);
 
@@ -165,7 +175,8 @@ public class SearchQueryLatencyListenerTests extends OpenSearchTestCase {
             eq(numberOfShards),
             eq(indices),
             anyMap(),
-            eq(phaseLatencyMap)
+            eq(phaseLatencyMap),
+            anyLong()
         );
     }
 }

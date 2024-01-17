@@ -24,6 +24,7 @@ import java.util.Map;
 public final class SearchQueryLatencyRecord extends SearchQueryRecord<Long> {
 
     private static final String PHASE_LATENCY_MAP = "phaseLatencyMap";
+    private static final String TOOK = "tookInNs";
 
     // latency info for each search phase
     private final Map<String, Long> phaseLatencyMap;
@@ -31,6 +32,7 @@ public final class SearchQueryLatencyRecord extends SearchQueryRecord<Long> {
     public SearchQueryLatencyRecord(final StreamInput in) throws IOException {
         super(in);
         this.phaseLatencyMap = in.readMap(StreamInput::readString, StreamInput::readLong);
+        this.setValue(in.readLong());
     }
 
     public SearchQueryLatencyRecord(
@@ -40,10 +42,10 @@ public final class SearchQueryLatencyRecord extends SearchQueryRecord<Long> {
         final int totalShards,
         final String[] indices,
         final Map<String, Object> propertyMap,
-        final Map<String, Long> phaseLatencyMap
+        final Map<String, Long> phaseLatencyMap,
+        final Long tookInNanos
     ) {
-        super(timestamp, searchType, source, totalShards, indices, propertyMap, phaseLatencyMap.values().stream().mapToLong(x -> x).sum());
-
+        super(timestamp, searchType, source, totalShards, indices, propertyMap, tookInNanos);
         this.phaseLatencyMap = phaseLatencyMap;
     }
 
@@ -54,13 +56,9 @@ public final class SearchQueryLatencyRecord extends SearchQueryRecord<Long> {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(TIMESTAMP, this.getTimestamp());
-        builder.field(SEARCH_TYPE, this.getSearchType());
-        builder.field(SOURCE, this.getSource());
-        builder.field(TOTAL_SHARDS, this.getTotalShards());
-        builder.field(INDICES, this.getIndices());
-        builder.field(PROPERTY_MAP, this.getPropertyMap());
+        super.toXContent(builder, params);
         builder.field(PHASE_LATENCY_MAP, this.getPhaseLatencyMap());
+        builder.field(TOOK, this.getValue());
         return builder.endObject();
     }
 
@@ -68,6 +66,7 @@ public final class SearchQueryLatencyRecord extends SearchQueryRecord<Long> {
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeMap(phaseLatencyMap, StreamOutput::writeString, StreamOutput::writeLong);
+        out.writeLong(getValue());
     }
 
     public boolean equals(SearchQueryLatencyRecord other) {

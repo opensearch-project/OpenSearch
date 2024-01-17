@@ -31,7 +31,6 @@ import org.opensearch.plugin.insights.rules.transport.top_queries.TransportTopQu
 import org.opensearch.plugin.insights.settings.QueryInsightsSettings;
 import org.opensearch.plugins.ActionPlugin;
 import org.opensearch.plugins.Plugin;
-import org.opensearch.plugins.SearchPlugin;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.rest.RestController;
 import org.opensearch.rest.RestHandler;
@@ -46,7 +45,7 @@ import java.util.function.Supplier;
 /**
  * Plugin class for Query Insights.
  */
-public class QueryInsightsPlugin extends Plugin implements ActionPlugin, SearchPlugin {
+public class QueryInsightsPlugin extends Plugin implements ActionPlugin {
     /**
      * Default constructor
      */
@@ -97,7 +96,11 @@ public class QueryInsightsPlugin extends Plugin implements ActionPlugin, SearchP
             // Settings for top N queries
             QueryInsightsSettings.TOP_N_LATENCY_QUERIES_ENABLED,
             QueryInsightsSettings.TOP_N_LATENCY_QUERIES_SIZE,
-            QueryInsightsSettings.TOP_N_LATENCY_QUERIES_WINDOW_SIZE
+            QueryInsightsSettings.TOP_N_LATENCY_QUERIES_WINDOW_SIZE,
+            QueryInsightsSettings.TOP_N_LATENCY_QUERIES_EXPORTER_ENABLED,
+            QueryInsightsSettings.TOP_N_LATENCY_QUERIES_EXPORTER_TYPE,
+            QueryInsightsSettings.TOP_N_LATENCY_QUERIES_EXPORTER_INTERVAL,
+            QueryInsightsSettings.TOP_N_LATENCY_QUERIES_EXPORTER_IDENTIFIER
         );
     }
 }

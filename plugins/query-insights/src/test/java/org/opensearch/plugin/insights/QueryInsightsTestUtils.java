@@ -71,7 +71,8 @@ final public class QueryInsightsTestUtils {
                     randomIntBetween(1, 100),
                     randomArray(1, 3, String[]::new, () -> randomAlphaOfLengthBetween(5, 10)),
                     propertyMap,
-                    phaseLatencyMap
+                    phaseLatencyMap,
+                    phaseLatencyMap.values().stream().mapToLong(x -> x).sum()
                 )
             );
         }
@@ -104,7 +105,8 @@ final public class QueryInsightsTestUtils {
                 randomInt(),
                 randomArray(1, 3, String[]::new, () -> randomAlphaOfLengthBetween(5, 10)),
                 propertyMap,
-                phaseLatencyMap
+                phaseLatencyMap,
+                phaseLatencyMap.values().stream().mapToLong(x -> x).sum()
             )
         );
 

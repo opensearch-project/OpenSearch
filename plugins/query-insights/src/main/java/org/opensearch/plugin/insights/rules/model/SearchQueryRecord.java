@@ -42,7 +42,7 @@ public abstract class SearchQueryRecord<T extends Number & Comparable<T>>
     protected static final String PROPERTY_MAP = "propertyMap";
     protected static final String VALUE = "value";
 
-    protected final Long timestamp;
+    private final Long timestamp;
 
     private final SearchType searchType;
 
@@ -64,7 +64,6 @@ public abstract class SearchQueryRecord<T extends Number & Comparable<T>>
         this.totalShards = in.readInt();
         this.indices = in.readStringArray();
         this.propertyMap = in.readMap();
-        this.value = castToValue(in.readGenericValue());
     }
 
     public SearchQueryRecord(
@@ -195,15 +194,13 @@ public abstract class SearchQueryRecord<T extends Number & Comparable<T>>
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject();
         builder.field(TIMESTAMP, timestamp);
         builder.field(SEARCH_TYPE, searchType);
         builder.field(SOURCE, source);
         builder.field(TOTAL_SHARDS, totalShards);
         builder.field(INDICES, indices);
         builder.field(PROPERTY_MAP, propertyMap);
-        builder.field(VALUE, value);
-        return builder.endObject();
+        return builder;
     }
 
     @Override
@@ -214,6 +211,5 @@ public abstract class SearchQueryRecord<T extends Number & Comparable<T>>
         out.writeInt(totalShards);
         out.writeStringArray(indices);
         out.writeMap(propertyMap);
-        out.writeGenericValue(value);
     }
 }

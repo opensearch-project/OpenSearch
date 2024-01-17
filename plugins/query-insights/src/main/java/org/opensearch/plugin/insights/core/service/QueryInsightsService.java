@@ -13,8 +13,11 @@ import org.apache.logging.log4j.Logger;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.lifecycle.AbstractLifecycleComponent;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.plugin.insights.core.exporter.QueryInsightsExporter;
+import org.opensearch.plugin.insights.core.exporter.QueryInsightsExporterType;
 import org.opensearch.plugin.insights.rules.model.SearchQueryRecord;
+import org.opensearch.plugin.insights.settings.QueryInsightsSettings;
 import org.opensearch.threadpool.Scheduler;
 import org.opensearch.threadpool.ThreadPool;
 
@@ -37,7 +40,11 @@ import java.util.Locale;
 public abstract class QueryInsightsService<R extends SearchQueryRecord<?>, S extends Collection<R>, E extends QueryInsightsExporter<R>>
     extends AbstractLifecycleComponent {
     private static final Logger log = LogManager.getLogger(QueryInsightsService.class);
-    private boolean enabled;
+    /** enable insight data collection */
+    private boolean enableCollect;
+
+    /** enable insight data export */
+    private boolean enableExport;
 
     /** The internal store that holds the query insight data */
     @Nullable
@@ -47,9 +54,12 @@ public abstract class QueryInsightsService<R extends SearchQueryRecord<?>, S ext
     @Nullable
     protected E exporter;
 
+    /** The export interval of this exporter, default to 1 day */
+    protected TimeValue exportInterval = QueryInsightsSettings.MIN_EXPORT_INTERVAL;
+
     /** The internal OpenSearch thread pool that execute async processing and exporting tasks*/
-    private final ThreadPool threadPool;
-    private volatile Scheduler.Cancellable scheduledFuture;
+    protected final ThreadPool threadPool;
+    protected volatile Scheduler.Cancellable scheduledFuture;
 
     @Inject
     public QueryInsightsService(ThreadPool threadPool, @Nullable S store, @Nullable E exporter) {
@@ -64,7 +74,7 @@ public abstract class QueryInsightsService<R extends SearchQueryRecord<?>, S ext
      * @param record the record to ingest
      */
     protected void ingestQueryData(R record) {
-        if (this.store != null) {
+        if (enableCollect && this.store != null) {
             this.store.add(record);
         }
     }
@@ -77,7 +87,7 @@ public abstract class QueryInsightsService<R extends SearchQueryRecord<?>, S ext
      * @throws IllegalArgumentException if query insight is disabled in the cluster
      */
     public List<R> getQueryData() throws IllegalArgumentException {
-        if (!enabled) {
+        if (!enableCollect) {
             throw new IllegalArgumentException("Cannot get query data when query insight feature is not enabled.");
         }
         clearOutdatedData();
@@ -92,18 +102,31 @@ public abstract class QueryInsightsService<R extends SearchQueryRecord<?>, S ext
     public abstract void clearOutdatedData();
 
     /**
+     * Restart the exporter with new config
+     */
+    public abstract void resetExporter(boolean enabled, QueryInsightsExporterType type, String identifier);
+
+    /**
      * Clear all data in the store
      */
     public void clearAllData() {
         store.clear();
     }
 
-    public void setEnabled(boolean enabled) {
-        this.enabled = enabled;
+    public void setEnableCollect(boolean enableCollect) {
+        this.enableCollect = enableCollect;
     }
 
-    public boolean getEnabled() {
-        return this.enabled;
+    public boolean getEnableCollect() {
+        return this.enableCollect;
+    }
+
+    public void setEnableExport(boolean enableExport) {
+        this.enableExport = enableExport;
+    }
+
+    public boolean getEnableExport() {
+        return this.enableExport;
     }
 
     /**
@@ -111,12 +134,8 @@ public abstract class QueryInsightsService<R extends SearchQueryRecord<?>, S ext
      */
     @Override
     protected void doStart() {
-        if (exporter != null && exporter.getEnabled()) {
-            scheduledFuture = threadPool.scheduleWithFixedDelay(
-                this::doExportAndClear,
-                exporter.getExportInterval(),
-                ThreadPool.Names.GENERIC
-            );
+        if (exporter != null && getEnableExport()) {
+            scheduledFuture = threadPool.scheduleWithFixedDelay(this::doExport, exportInterval, ThreadPool.Names.GENERIC);
         }
     }
 
@@ -127,17 +146,16 @@ public abstract class QueryInsightsService<R extends SearchQueryRecord<?>, S ext
     protected void doStop() {
         if (scheduledFuture != null) {
             scheduledFuture.cancel();
-            if (exporter != null && exporter.getEnabled()) {
-                doExportAndClear();
+            if (exporter != null && getEnableExport()) {
+                doExport();
             }
         }
     }
 
-    private void doExportAndClear() {
+    private void doExport() {
         List<R> storedData = getQueryData();
         try {
             exporter.export(storedData);
-            clearAllData();
             log.debug(String.format(Locale.ROOT, "finish exporting query insight data to sink %s", storedData));
         } catch (Exception e) {
             throw new RuntimeException(String.format(Locale.ROOT, "failed to export query insight data to sink, error: %s", e));
@@ -146,4 +164,17 @@ public abstract class QueryInsightsService<R extends SearchQueryRecord<?>, S ext
 
     @Override
     protected void doClose() {}
+
+    public TimeValue getExportInterval() {
+        return exportInterval;
+    }
+
+    /**
+     * Set the export interval for the exporter.
+     *
+     * @param interval export interval
+     */
+    public void setExportInterval(TimeValue interval) {
+        this.exportInterval = interval;
+    }
 }

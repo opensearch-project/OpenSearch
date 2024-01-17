@@ -21,6 +21,7 @@ import org.opensearch.plugin.insights.rules.action.top_queries.TopQueries;
 import org.opensearch.plugin.insights.rules.action.top_queries.TopQueriesAction;
 import org.opensearch.plugin.insights.rules.action.top_queries.TopQueriesRequest;
 import org.opensearch.plugin.insights.rules.action.top_queries.TopQueriesResponse;
+import org.opensearch.plugin.insights.settings.QueryInsightsSettings;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportRequest;
 import org.opensearch.transport.TransportService;
@@ -70,7 +71,16 @@ public class TransportTopQueriesAction extends TransportNodesAction<
         List<TopQueries> responses,
         List<FailedNodeException> failures
     ) {
-        return new TopQueriesResponse(clusterService.getClusterName(), responses, failures);
+        if (topQueriesRequest.getMetricType() == TopQueriesRequest.Metric.LATENCY) {
+            return new TopQueriesResponse(
+                clusterService.getClusterName(),
+                responses,
+                failures,
+                clusterService.getClusterSettings().get(QueryInsightsSettings.TOP_N_LATENCY_QUERIES_SIZE)
+            );
+        } else {
+            throw new OpenSearchException(String.format(Locale.ROOT, "invalid metric type %s", topQueriesRequest.getMetricType()));
+        }
     }
 
     @Override

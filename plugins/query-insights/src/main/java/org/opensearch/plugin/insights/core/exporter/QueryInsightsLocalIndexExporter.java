@@ -12,13 +12,10 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.action.admin.indices.create.CreateIndexRequest;
 import org.opensearch.action.admin.indices.create.CreateIndexResponse;
-import org.opensearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.opensearch.action.bulk.BulkRequest;
 import org.opensearch.action.bulk.BulkResponse;
 import org.opensearch.action.index.IndexRequest;
-import org.opensearch.action.index.IndexResponse;
 import org.opensearch.action.support.WriteRequest;
-import org.opensearch.action.support.master.AcknowledgedResponse;
 import org.opensearch.client.Client;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.service.ClusterService;
@@ -40,35 +37,29 @@ import java.util.Objects;
 /**
  * Class to export data collected by search query analyzers to a local OpenSearch index
  * <p>
- * Mainly for use within the Query Insight framework
+ * Internal used within the Query Insight framework
  *
  * @opensearch.internal
  */
 public class QueryInsightsLocalIndexExporter<T extends SearchQueryRecord<?>> extends QueryInsightsExporter<T> {
-
     private static final Logger log = LogManager.getLogger(QueryInsightsLocalIndexExporter.class);
     private static final int INDEX_TIMEOUT = 60;
 
     private final ClusterService clusterService;
     private final Client client;
 
-    /** The OpenSearch index name to export the data to */
-    private final String localIndexName;
-
     /** The mapping for the local index that holds the data */
     private final InputStream localIndexMapping;
 
     public QueryInsightsLocalIndexExporter(
-        boolean enabled,
         ClusterService clusterService,
         Client client,
         String localIndexName,
         InputStream localIndexMapping
     ) {
-        this.setEnabled(enabled);
+        super(QueryInsightsExporterType.LOCAL_INDEX, localIndexName);
         this.clusterService = clusterService;
         this.client = client;
-        this.localIndexName = localIndexName;
         this.localIndexMapping = localIndexMapping;
     }
 
@@ -91,7 +82,9 @@ public class QueryInsightsLocalIndexExporter<T extends SearchQueryRecord<?>> ext
                 @Override
                 public void onResponse(CreateIndexResponse response) {
                     if (response.isAcknowledged()) {
-                        log.debug(String.format(Locale.ROOT, "successfully initialized local index %s for query insight.", localIndexName));
+                        log.debug(
+                            String.format(Locale.ROOT, "successfully initialized local index %s for query insight.", getIdentifier())
+                        );
                         try {
                             bulkRecord(records);
                         } catch (IOException e) {
@@ -102,7 +95,7 @@ public class QueryInsightsLocalIndexExporter<T extends SearchQueryRecord<?>> ext
                             String.format(
                                 Locale.ROOT,
                                 "request to created local index %s for query insight not acknowledged.",
-                                localIndexName
+                                getIdentifier()
                             )
                         );
                     }
@@ -123,7 +116,7 @@ public class QueryInsightsLocalIndexExporter<T extends SearchQueryRecord<?>> ext
      */
     private boolean checkIfIndexExists() {
         ClusterState clusterState = clusterService.state();
-        return clusterState.getRoutingTable().hasIndex(this.localIndexName);
+        return clusterState.getRoutingTable().hasIndex(this.getIdentifier());
     }
 
     /**
@@ -133,20 +126,9 @@ public class QueryInsightsLocalIndexExporter<T extends SearchQueryRecord<?>> ext
      * @throws IOException if an error occurs
      */
     private synchronized void initLocalIndex(ActionListener<CreateIndexResponse> listener) throws IOException {
-        CreateIndexRequest createIndexRequest = new CreateIndexRequest(this.localIndexName).mapping(getIndexMappings())
+        CreateIndexRequest createIndexRequest = new CreateIndexRequest(this.getIdentifier()).mapping(getIndexMappings())
             .settings(Settings.builder().put("index.hidden", false).build());
         client.admin().indices().create(createIndexRequest, listener);
-    }
-
-    /**
-     * Drop the local OpenSearch Index created by the exporter
-     *
-     * @param listener the listener to be notified upon completion
-     * @throws IOException if an error occurs
-     */
-    private synchronized void dropLocalIndex(ActionListener<AcknowledgedResponse> listener) throws IOException {
-        DeleteIndexRequest deleteIndexRequest = new DeleteIndexRequest(this.localIndexName);
-        client.admin().indices().delete(deleteIndexRequest, listener);
     }
 
     /**
@@ -165,55 +147,34 @@ public class QueryInsightsLocalIndexExporter<T extends SearchQueryRecord<?>> ext
      * @param records the data to export
      * @throws IOException if an error occurs
      */
-    private synchronized void bulkRecord(List<T> records) throws IOException {
+    private void bulkRecord(List<T> records) throws IOException {
         BulkRequest bulkRequest = new BulkRequest().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
             .timeout(TimeValue.timeValueSeconds(INDEX_TIMEOUT));
         for (T record : records) {
             bulkRequest.add(
-                new IndexRequest(localIndexName).source(record.toXContent(XContentFactory.jsonBuilder(), ToXContent.EMPTY_PARAMS))
+                new IndexRequest(getIdentifier()).source(record.toXContent(XContentFactory.jsonBuilder(), ToXContent.EMPTY_PARAMS))
             );
         }
         client.bulk(bulkRequest, new ActionListener<>() {
             @Override
             public void onResponse(BulkResponse response) {
                 if (response.status().equals(RestStatus.CREATED) || response.status().equals(RestStatus.OK)) {
-                    log.debug(String.format(Locale.ROOT, "successfully ingest data for %s! ", localIndexName));
+                    log.debug(String.format(Locale.ROOT, "successfully ingest data for %s! ", getIdentifier()));
                 } else {
-                    log.error(String.format(Locale.ROOT, "error when ingesting data for %s", localIndexName));
+                    log.error(
+                        String.format(
+                            Locale.ROOT,
+                            "error when ingesting data for %s, error: %s",
+                            getIdentifier(),
+                            response.buildFailureMessage()
+                        )
+                    );
                 }
             }
 
             @Override
             public void onFailure(Exception e) {
-                log.error(String.format(Locale.ROOT, "failed to ingest data for %s, %s", localIndexName, e));
-            }
-        });
-    }
-
-    /**
-     * Index one document to the predefined local OpenSearch Index
-     *
-     * @param record the document to export
-     * @throws IOException if an error occurs
-     */
-    private synchronized void indexRecord(T record) throws IOException {
-        IndexRequest indexRequest = new IndexRequest(localIndexName).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-            .source(record.toXContent(XContentFactory.jsonBuilder(), ToXContent.EMPTY_PARAMS))
-            .timeout(TimeValue.timeValueSeconds(INDEX_TIMEOUT));
-
-        client.index(indexRequest, new ActionListener<>() {
-            @Override
-            public void onResponse(IndexResponse response) {
-                if (response.status().equals(RestStatus.CREATED) || response.status().equals(RestStatus.OK)) {
-                    log.debug(String.format(Locale.ROOT, "successfully indexed data for %s ", localIndexName));
-                } else {
-                    log.error(String.format(Locale.ROOT, "failed to index data for %s", localIndexName));
-                }
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                log.error(String.format(Locale.ROOT, "failed to index data for %s, error: %s", localIndexName, e));
+                log.error(String.format(Locale.ROOT, "failed to ingest data for %s, %s", getIdentifier(), e));
             }
         });
     }

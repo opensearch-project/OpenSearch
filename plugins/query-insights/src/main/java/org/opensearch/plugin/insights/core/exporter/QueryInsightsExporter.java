@@ -8,7 +8,6 @@
 
 package org.opensearch.plugin.insights.core.exporter;
 
-import org.opensearch.common.unit.TimeValue;
 import org.opensearch.plugin.insights.rules.model.SearchQueryRecord;
 
 import java.util.List;
@@ -21,11 +20,13 @@ import java.util.List;
  * @opensearch.internal
  */
 public abstract class QueryInsightsExporter<T extends SearchQueryRecord<?>> {
+    private QueryInsightsExporterType type;
+    private String identifier;
 
-    private boolean enabled = false;
-
-    /** The export interval of this exporter, default to 60 seconds */
-    private TimeValue exportInterval = TimeValue.timeValueSeconds(60);
+    QueryInsightsExporter(QueryInsightsExporterType type, String identifier) {
+        this.type = type;
+        this.identifier = identifier;
+    }
 
     /**
      * Export the data with the exporter.
@@ -34,24 +35,19 @@ public abstract class QueryInsightsExporter<T extends SearchQueryRecord<?>> {
      */
     public abstract void export(List<T> records) throws Exception;
 
-    public boolean getEnabled() {
-        return enabled;
+    public void setType(QueryInsightsExporterType type) {
+        this.type = type;
     }
 
-    public void setEnabled(boolean enabled) {
-        this.enabled = enabled;
+    public QueryInsightsExporterType getType() {
+        return type;
     }
 
-    public TimeValue getExportInterval() {
-        return exportInterval;
+    public void setIdentifier(String identifier) {
+        this.identifier = identifier;
     }
 
-    /**
-     * Set the export interval for the exporter.
-     *
-     * @param interval export interval
-     */
-    public void setExportInterval(TimeValue interval) {
-        this.exportInterval = interval;
+    public String getIdentifier() {
+        return identifier;
     }
 }

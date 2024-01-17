@@ -23,7 +23,6 @@ import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.RestResponse;
 import org.opensearch.rest.action.RestResponseListener;
 
-import java.io.IOException;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
@@ -56,14 +55,14 @@ public class RestTopQueriesAction extends BaseRestHandler {
     }
 
     @Override
-    public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
+    public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) {
         final TopQueriesRequest topQueriesRequest = prepareRequest(request);
         topQueriesRequest.timeout(request.param("timeout"));
 
         return channel -> client.execute(
             TopQueriesAction.INSTANCE,
             topQueriesRequest,
-            topQueriesResponse(channel, request.method())
+            topQueriesResponse(channel)
 
         );
     }
@@ -91,7 +90,7 @@ public class RestTopQueriesAction extends BaseRestHandler {
         return false;
     }
 
-    private RestResponseListener<TopQueriesResponse> topQueriesResponse(RestChannel channel, RestRequest.Method restMethod) {
+    private RestResponseListener<TopQueriesResponse> topQueriesResponse(RestChannel channel) {
         return new RestResponseListener<>(channel) {
             @Override
             public RestResponse buildResponse(TopQueriesResponse response) throws Exception {

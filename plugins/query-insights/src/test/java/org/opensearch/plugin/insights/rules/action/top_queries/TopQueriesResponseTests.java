@@ -28,7 +28,7 @@ public class TopQueriesResponseTests extends OpenSearchTestCase {
     public void testToXContent() throws Exception {
         TopQueries topQueries = QueryInsightsTestUtils.createTopQueries();
         ClusterName clusterName = new ClusterName("test-cluster");
-        TopQueriesResponse response = new TopQueriesResponse(clusterName, List.of(topQueries), new ArrayList<>());
+        TopQueriesResponse response = new TopQueriesResponse(clusterName, List.of(topQueries), new ArrayList<>(), 10);
         TopQueriesResponse deserializedResponse = roundTripResponse(response);
         assertEquals(response.toString(), deserializedResponse.toString());
     }

@@ -24,6 +24,10 @@ import java.util.HashMap;
 import java.util.Locale;
 
 import static org.opensearch.plugin.insights.settings.QueryInsightsSettings.TOP_N_LATENCY_QUERIES_ENABLED;
+import static org.opensearch.plugin.insights.settings.QueryInsightsSettings.TOP_N_LATENCY_QUERIES_EXPORTER_ENABLED;
+import static org.opensearch.plugin.insights.settings.QueryInsightsSettings.TOP_N_LATENCY_QUERIES_EXPORTER_IDENTIFIER;
+import static org.opensearch.plugin.insights.settings.QueryInsightsSettings.TOP_N_LATENCY_QUERIES_EXPORTER_INTERVAL;
+import static org.opensearch.plugin.insights.settings.QueryInsightsSettings.TOP_N_LATENCY_QUERIES_EXPORTER_TYPE;
 import static org.opensearch.plugin.insights.settings.QueryInsightsSettings.TOP_N_LATENCY_QUERIES_SIZE;
 import static org.opensearch.plugin.insights.settings.QueryInsightsSettings.TOP_N_LATENCY_QUERIES_WINDOW_SIZE;
 
@@ -42,20 +46,41 @@ public final class SearchQueryLatencyListener extends SearchRequestOperationsLis
     @Inject
     public SearchQueryLatencyListener(ClusterService clusterService, TopQueriesByLatencyService topQueriesByLatencyService) {
         this.topQueriesByLatencyService = topQueriesByLatencyService;
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(TOP_N_LATENCY_QUERIES_ENABLED, this::setEnabled);
+        clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(
+                TOP_N_LATENCY_QUERIES_SIZE,
+                this.topQueriesByLatencyService::setTopNSize,
+                this.topQueriesByLatencyService::validateTopNSize
+            );
+        clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(
+                TOP_N_LATENCY_QUERIES_WINDOW_SIZE,
+                this.topQueriesByLatencyService::setWindowSize,
+                this.topQueriesByLatencyService::validateWindowSize
+            );
+        clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(TOP_N_LATENCY_QUERIES_EXPORTER_TYPE, this.topQueriesByLatencyService::setExporterType);
+        clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(
+                TOP_N_LATENCY_QUERIES_EXPORTER_INTERVAL,
+                this.topQueriesByLatencyService::setExportInterval,
+                this.topQueriesByLatencyService::validateExportInterval
+            );
+        clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(TOP_N_LATENCY_QUERIES_EXPORTER_IDENTIFIER, this.topQueriesByLatencyService::setExporterIdentifier);
+        clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(TOP_N_LATENCY_QUERIES_EXPORTER_ENABLED, this.topQueriesByLatencyService::setExporterEnabled);
+
         this.setEnabled(clusterService.getClusterSettings().get(TOP_N_LATENCY_QUERIES_ENABLED));
         this.topQueriesByLatencyService.setTopNSize(clusterService.getClusterSettings().get(TOP_N_LATENCY_QUERIES_SIZE));
         this.topQueriesByLatencyService.setWindowSize(clusterService.getClusterSettings().get(TOP_N_LATENCY_QUERIES_WINDOW_SIZE));
-        clusterService.getClusterSettings().addSettingsUpdateConsumer(TOP_N_LATENCY_QUERIES_ENABLED, this::setEnabled);
-        clusterService.getClusterSettings()
-            .addSettingsUpdateConsumer(TOP_N_LATENCY_QUERIES_SIZE, this.topQueriesByLatencyService::setTopNSize);
-        clusterService.getClusterSettings()
-            .addSettingsUpdateConsumer(TOP_N_LATENCY_QUERIES_WINDOW_SIZE, this.topQueriesByLatencyService::setWindowSize);
     }
 
     @Override
     public void setEnabled(boolean enabled) {
         super.setEnabled(enabled);
-        this.topQueriesByLatencyService.setEnabled(enabled);
+        this.topQueriesByLatencyService.setEnableCollect(enabled);
     }
 
     @Override
@@ -86,7 +111,8 @@ public final class SearchQueryLatencyListener extends SearchRequestOperationsLis
                 context.getNumShards(),
                 request.indices(),
                 new HashMap<>(),
-                searchRequestContext.phaseTookMap()
+                searchRequestContext.phaseTookMap(),
+                System.nanoTime() - searchRequestContext.getAbsoluteStartNanos()
             );
         } catch (Exception e) {
             log.error(String.format(Locale.ROOT, "fail to ingest query insight data, error: %s", e));
