@@ -10,9 +10,11 @@ package org.opensearch.action.search;
 
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.cluster.metadata.View;
-import org.opensearch.common.at org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
-import org.opensearch.rest.action.admin.indicport java.util.Map;
+import java.io.IOException;
+import java.util.Map;
 import java.util.Objects;
 import java.util.function.Function;
 
@@ -57,7 +59,6 @@ public class ViewSearchRequest extends SearchRequest {
 
     @Override
     public boolean equals(final Object o) {
-        // TODO: Maybe this isn't standard practice
         return this.hashCode() == o.hashCode();
     }
 
@@ -69,10 +70,5 @@ public class ViewSearchRequest extends SearchRequest {
     @Override
     public String toString() {
         return super.toString().replace("SearchRequest{", "ViewSearchRequest{view=" + view + ",");
-    }
-
-    @Override
-    public Map<String, String> getResourceTypeAndIds() {
-        return Map.of(RestViewAction.VIEW_ID, view.name);
     }
 }
