@@ -152,8 +152,6 @@ setup:
   - match: { aggregations.test.buckets.4.key.kw: "bar" }
   - match: { aggregations.test.buckets.4.doc_count: 1 }
 
-
-
 ---
 "Aggregate After":
   - do:
@@ -513,6 +511,9 @@ setup:
 
 ---
 "Composite aggregation with filtered nested parent":
+  - skip:
+      version: " - 2.99.99"
+      reason:  fixed in 3.0.0
   - do:
       search:
         rest_total_hits_as_int: true
@@ -580,6 +581,9 @@ setup:
 
 ---
 "Composite aggregation with filtered reverse nested parent":
+  - skip:
+      version: " - 2.99.99"
+      reason:  fixed in 3.0.0
   - do:
       search:
         rest_total_hits_as_int: true
