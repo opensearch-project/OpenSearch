@@ -335,7 +335,7 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
         RemoteStoreStatsTrackerFactory trackerFactory = tuple.v2();
         RemoteSegmentTransferTracker segmentTracker = trackerFactory.getRemoteSegmentTransferTracker(indexShard.shardId());
         assertNoLagAndTotalUploadsFailed(segmentTracker, 0);
-        assertTrue("remote store in sync", tuple.v1().isRemoteSegmentStoreInSync());
+        assertTrue("remote store in sync", indexShard.isRemoteSegmentStoreInSync());
     }
 
     public void testRefreshSuccessOnSecondAttempt() throws Exception {
@@ -416,7 +416,7 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
         );
         // Giving 10ms for some iterations of remote refresh upload
         Thread.sleep(10);
-        assertFalse("remote store should not in sync", tuple.v1().isRemoteSegmentStoreInSync());
+        assertFalse("remote store should not in sync", indexShard.isRemoteSegmentStoreInSync(false));
     }
 
     private void assertNoLagAndTotalUploadsFailed(RemoteSegmentTransferTracker segmentTracker, long totalUploadsFailed) throws Exception {
@@ -659,7 +659,7 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
                 }
             }
         }
-        assertTrue(remoteStoreRefreshListener.isRemoteSegmentStoreInSync());
+        assertTrue(indexShard.isRemoteSegmentStoreInSync(false));
     }
 
     public void testRemoteSegmentStoreNotInSync() throws IOException {
@@ -669,7 +669,6 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
             RemoteSegmentStoreDirectory remoteSegmentStoreDirectory =
                 (RemoteSegmentStoreDirectory) ((FilterDirectory) ((FilterDirectory) remoteStore.directory()).getDelegate()).getDelegate();
             verifyUploadedSegments(remoteSegmentStoreDirectory);
-            remoteStoreRefreshListener.isRemoteSegmentStoreInSync();
             boolean oneFileDeleted = false;
             // Delete any one file from remote store
             try (GatedCloseable<SegmentInfos> segmentInfosGatedCloseable = indexShard.getSegmentInfosSnapshot()) {
@@ -682,7 +681,7 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
                     }
                 }
             }
-            assertFalse(remoteStoreRefreshListener.isRemoteSegmentStoreInSync());
+            assertFalse(indexShard.isRemoteSegmentStoreInSync(false));
         }
     }
 
