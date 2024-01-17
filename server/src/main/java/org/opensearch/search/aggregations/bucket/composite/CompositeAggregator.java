@@ -55,7 +55,9 @@ import org.apache.lucene.search.SortedNumericSortField;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.search.comparators.LongComparator;
 import org.apache.lucene.util.Bits;
+import org.apache.lucene.util.CollectionUtil;
 import org.apache.lucene.util.RoaringDocIdSet;
+import org.opensearch.common.Rounding;
 import org.opensearch.common.lease.Releasables;
 import org.opensearch.index.IndexSortConfig;
 import org.opensearch.lucene.queries.SearchAfterSortedDocQuery;
@@ -70,7 +72,9 @@ import org.opensearch.search.aggregations.LeafBucketCollector;
 import org.opensearch.search.aggregations.MultiBucketCollector;
 import org.opensearch.search.aggregations.MultiBucketConsumerService;
 import org.opensearch.search.aggregations.bucket.BucketsAggregator;
+import org.opensearch.search.aggregations.bucket.FastFilterRewriteHelper;
 import org.opensearch.search.aggregations.bucket.missing.MissingOrder;
+import org.opensearch.search.aggregations.bucket.terms.LongKeyedBucketOrds;
 import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.searchafter.SearchAfterBuilder;
 import org.opensearch.search.sort.SortAndFormats;
@@ -79,6 +83,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.LongUnaryOperator;
@@ -109,6 +114,10 @@ final class CompositeAggregator extends BucketsAggregator {
     private BucketCollector deferredCollectors;
 
     private boolean earlyTerminated;
+
+    private final FastFilterRewriteHelper.FastFilterContext fastFilterContext;
+    private LongKeyedBucketOrds bucketOrds = null;
+    private Rounding.Prepared preparedRounding = null;
 
     CompositeAggregator(
         String name,
@@ -153,12 +162,33 @@ final class CompositeAggregator extends BucketsAggregator {
         }
         this.queue = new CompositeValuesCollectorQueue(context.bigArrays(), sources, size, rawAfterKey);
         this.rawAfterKey = rawAfterKey;
+
+        fastFilterContext = new FastFilterRewriteHelper.FastFilterContext();
+        if (!FastFilterRewriteHelper.isCompositeAggRewriteable(sourceConfigs)) return;
+        fastFilterContext.setAggregationType(
+            new FastFilterRewriteHelper.CompositeAggregationType(sourceConfigs, rawAfterKey, formats, size)
+        );
+        if (fastFilterContext.isRewriteable(parent, subAggregators.length)) {
+            // bucketOrds is the data structure for saving date histogram results
+            bucketOrds = LongKeyedBucketOrds.build(context.bigArrays(), CardinalityUpperBound.ONE);
+            // Currently the filter rewrite is only supported for date histograms
+            FastFilterRewriteHelper.CompositeAggregationType aggregationType =
+                (FastFilterRewriteHelper.CompositeAggregationType) fastFilterContext.aggregationType;
+            preparedRounding = aggregationType.getRoundingPreparer();
+            fastFilterContext.buildFastFilter(
+                context,
+                fc -> FastFilterRewriteHelper.getAggregationBounds(context, fc.getFieldType().name()),
+                x -> aggregationType.getRounding(),
+                () -> preparedRounding
+            );
+        }
     }
 
     @Override
     protected void doClose() {
         try {
             Releasables.close(queue);
+            Releasables.close(bucketOrds);
         } finally {
             Releasables.close(sources);
         }
@@ -186,12 +216,14 @@ final class CompositeAggregator extends BucketsAggregator {
         }
 
         int num = Math.min(size, queue.size());
-        final InternalComposite.InternalBucket[] buckets = new InternalComposite.InternalBucket[num];
+        InternalComposite.InternalBucket[] buckets = new InternalComposite.InternalBucket[num];
+
         long[] bucketOrdsToCollect = new long[queue.size()];
         for (int i = 0; i < queue.size(); i++) {
             bucketOrdsToCollect[i] = i;
         }
         InternalAggregations[] subAggsForBuckets = buildSubAggsForBuckets(bucketOrdsToCollect);
+
         while (queue.size() > 0) {
             int slot = queue.pop();
             CompositeKey key = queue.toCompositeKey(slot);
@@ -207,6 +239,43 @@ final class CompositeAggregator extends BucketsAggregator {
                 aggs
             );
         }
+
+        // Build results from fast filters optimization
+        if (bucketOrds != null) {
+            // CompositeKey is the value of bucket key
+            final Map<CompositeKey, InternalComposite.InternalBucket> bucketMap = new HashMap<>();
+            // Some segments may not be optimized, so buckets may contain results from the queue.
+            for (InternalComposite.InternalBucket internalBucket : buckets) {
+                bucketMap.put(internalBucket.getRawKey(), internalBucket);
+            }
+            // Loop over the buckets in the bucketOrds, and populate the map accordingly
+            LongKeyedBucketOrds.BucketOrdsEnum ordsEnum = bucketOrds.ordsEnum(0);
+            while (ordsEnum.next()) {
+                Long bucketKeyValue = ordsEnum.value();
+                CompositeKey key = new CompositeKey(bucketKeyValue);
+                if (bucketMap.containsKey(key)) {
+                    long docCount = bucketDocCount(ordsEnum.ord()) + bucketMap.get(key).getDocCount();
+                    bucketMap.get(key).setDocCount(docCount);
+                } else {
+                    InternalComposite.InternalBucket bucket = new InternalComposite.InternalBucket(
+                        sourceNames,
+                        formats,
+                        key,
+                        reverseMuls,
+                        missingOrders,
+                        bucketDocCount(ordsEnum.ord()),
+                        buildEmptySubAggregations()
+                    );
+                    bucketMap.put(key, bucket);
+                }
+            }
+            // since a map is not sorted structure, sort it before transform back to buckets
+            List<InternalComposite.InternalBucket> bucketList = new ArrayList<>(bucketMap.values());
+            CollectionUtil.introSort(bucketList, InternalComposite.InternalBucket::compareKey);
+            buckets = bucketList.subList(0, Math.min(size, bucketList.size())).toArray(InternalComposite.InternalBucket[]::new);
+            num = buckets.length;
+        }
+
         CompositeKey lastBucket = num > 0 ? buckets[num - 1].getRawKey() : null;
         return new InternalAggregation[] {
             new InternalComposite(
@@ -295,7 +364,7 @@ final class CompositeAggregator extends BucketsAggregator {
 
             if (indexSortField.getReverse() != (source.reverseMul == -1)) {
                 if (i == 0) {
-                    // the leading index sort matches the leading source field but the order is reversed
+                    // the leading index sort matches the leading source field, but the order is reversed,
                     // so we don't check the other sources.
                     return new Sort(indexSortField);
                 }
@@ -303,8 +372,8 @@ final class CompositeAggregator extends BucketsAggregator {
             }
             sortFields.add(indexSortField);
             if (sourceConfig.valuesSource() instanceof RoundingValuesSource) {
-                // the rounding "squashes" many values together, that breaks the ordering of sub-values
-                // so we ignore subsequent source even if they match the index sort.
+                // the rounding "squashes" many values together, that breaks the ordering of sub-values,
+                // so we ignore the subsequent sources even if they match the index sort.
                 break;
             }
         }
@@ -447,6 +516,16 @@ final class CompositeAggregator extends BucketsAggregator {
 
     @Override
     protected LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub) throws IOException {
+        boolean optimized = FastFilterRewriteHelper.tryFastFilterAggregation(
+            ctx,
+            fastFilterContext,
+            (key, count) -> incrementBucketDocCount(
+                FastFilterRewriteHelper.getBucketOrd(bucketOrds.add(0, preparedRounding.round(key))),
+                count
+            )
+        );
+        if (optimized) throw new CollectionTerminatedException();
+
         finishLeaf();
 
         boolean fillDocIdSet = deferredCollectors != NO_OP_COLLECTOR;
@@ -476,9 +555,10 @@ final class CompositeAggregator extends BucketsAggregator {
                 docIdSetBuilder = new RoaringDocIdSet.Builder(ctx.reader().maxDoc());
             }
             if (rawAfterKey != null && sortPrefixLen > 0) {
-                // We have an after key and index sort is applicable so we jump directly to the doc
-                // that is after the index sort prefix using the rawAfterKey and we start collecting
-                // document from there.
+                // We have an after key and index sort is applicable, so we jump directly to the doc
+                // after the index sort prefix using the rawAfterKey and we start collecting
+                // documents from there.
+                assert indexSortPrefix != null;
                 processLeafFromQuery(ctx, indexSortPrefix);
                 throw new CollectionTerminatedException();
             } else {
@@ -506,6 +586,8 @@ final class CompositeAggregator extends BucketsAggregator {
                 try {
                     long docCount = docCountProvider.getDocCount(doc);
                     if (queue.addIfCompetitive(indexSortPrefix, docCount)) {
+                        // one doc may contain multiple values, we iterate over and collect one by one
+                        // so the same doc can appear multiple times here
                         if (builder != null && lastDoc != doc) {
                             builder.add(doc);
                             lastDoc = doc;
@@ -568,7 +650,7 @@ final class CompositeAggregator extends BucketsAggregator {
             @Override
             public void collect(int doc, long zeroBucket) throws IOException {
                 assert zeroBucket == 0;
-                Integer slot = queue.compareCurrent();
+                Integer slot = queue.getCurrentSlot();
                 if (slot != null) {
                     // The candidate key is a top bucket.
                     // We can defer the collection of this document/bucket to the sub collector
