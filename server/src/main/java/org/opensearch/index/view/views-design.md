@@ -2,7 +2,6 @@
 
 Views define how searches are performed against indices on a cluster, uniform data access that is configured separately from the queries.
 
-
 ## Design
 
 ### View data
@@ -67,63 +66,6 @@ sequenceDiagram
     Data_Store-->>HTTP_Request: Return
     HTTP_Request-->>Client: Return
 ```
-
-### Resource Request
-
-In order to permissions views OpenSearch needs a way to consistently refer to them, this is a generic problem and views will be a first use case.  Resource requests require a map of types to identifiers for the request, multiple resources could be part of a single request, but only one of each type.
-
-Considering the request to search a view, `POST /view/{view_id}/_search`, the path parameter 'view_id' is the type and the value from the request would be the identifier.  
-
-```java
-public interface ResourceRequest {
-   /** Returns the resource types and ids associated with this request */
-    Map<String, String> getResourceTypeAndIds();
-
-    /** Validates the resource type and id pairs are in an allowed format */
-    public static ActionRequestValidationException validResourceIds(
-        final ResourceRequest resourceRequest,
-        final ActionRequestValidationException validationException
-    ) {;}
-}
-```
-
-### Resource Permission Grants
-With requests include resource type and identifiers the security plugin will need to allow for grants to these new types.  Modify the security role to include this information so it can be checked and then the request can be permitted.
-
-```yaml
-all_access:
-  reserved: true
-  hidden: false
-  static: true
-  description: "Allow full access to all indices and all cluster APIs"
-  cluster_permissions:
-    - "*"
-  index_permissions:
-    - index_patterns:
-        - "*"
-      allowed_actions:
-        - "*"
-  tenant_permissions:
-    - tenant_patterns:
-        - "*"
-      allowed_actions:
-        - "kibana_all_write"
-  resource_permissions:
-    - resource_type: "view"
-      resource_ids: ["songs", "albums"]
-```
-
-## Frequently Asked Questions
-
-### How do views work with fine grain access control of index data?
-*To be determined...*
-
-### What happens with existing DLS and FLS rules and searches on views? 
-*To be determined...*
-
-### Additional Question(s)
-*To be determined...*
-
 ## Appendix
 
 ### Local Testing

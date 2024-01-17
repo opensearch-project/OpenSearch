@@ -9,7 +9,6 @@
 package org.opensearch.action.search;
 
 import org.opensearch.action.ActionRequestValidationException;
-import org.opensearch.action.ResourceRequest;
 import org.opensearch.cluster.metadata.View;
 import org.opensearch.common.at org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
@@ -22,7 +21,7 @@ import static org.opensearch.action.ValidateActions.addValidationError;
 /** Wraps the functionality of search requests and tailors for what is available when searching through views
  */
 @ExperimentalApi
-public class ViewSearchRequest extends SearchRequest implements ResourceRequest {
+public class ViewSearchRequest extends SearchRequest {
 
     public final View view;
 
@@ -46,8 +45,6 @@ public class ViewSearchRequest extends SearchRequest implements ResourceRequest 
         }
 
         // TODO: Filter out anything additional search features that are not supported
-
-        validationException = ResourceRequest.validResourceIds(this, validationException);
 
         return validationException;
     }
