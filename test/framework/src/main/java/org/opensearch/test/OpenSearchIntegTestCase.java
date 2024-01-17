@@ -511,14 +511,11 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
     }
 
     public static boolean isInternalCluster() {
-        return (cluster() instanceof InternalTestCluster);
+        return testClusterRule.isInternalCluster();
     }
 
     public static InternalTestCluster internalCluster() {
-        if (!isInternalCluster()) {
-            throw new UnsupportedOperationException("current test cluster is immutable");
-        }
-        return (InternalTestCluster) cluster();
+        return testClusterRule.internalCluster().orElseThrow(() -> new UnsupportedOperationException("current test cluster is immutable"));
     }
 
     public ClusterService clusterService() {
@@ -2122,10 +2119,9 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
      * Returns path to a random directory that can be used to create a temporary file system repo
      */
     public Path randomRepoPath() {
-        if (isInternalCluster()) {
-            return randomRepoPath(((InternalTestCluster) cluster()).getDefaultSettings());
-        }
-        throw new UnsupportedOperationException("unsupported cluster type");
+        return testClusterRule.internalCluster()
+            .map(c -> randomRepoPath(c.getDefaultSettings()))
+            .orElseThrow(() -> new UnsupportedOperationException("unsupported cluster type"));
     }
 
     /**

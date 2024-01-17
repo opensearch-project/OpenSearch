@@ -41,6 +41,7 @@ import java.util.HashSet;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.Callable;
 
@@ -103,11 +104,12 @@ class OpenSearchTestClusterRule implements MethodRule {
         return (cluster() instanceof InternalTestCluster);
     }
 
-    InternalTestCluster internalCluster() {
+    Optional<InternalTestCluster> internalCluster() {
         if (!isInternalCluster()) {
-            throw new UnsupportedOperationException("current test cluster is immutable");
+            return Optional.empty();
+        } else {
+            return Optional.of((InternalTestCluster) cluster());
         }
-        return (InternalTestCluster) cluster();
     }
 
     Client clientForAnyNode() {
@@ -116,7 +118,7 @@ class OpenSearchTestClusterRule implements MethodRule {
 
     Client clientForNode(@Nullable String node) {
         if (node != null) {
-            return internalCluster().client(node);
+            return internalCluster().orElseThrow(() -> new UnsupportedOperationException("current test cluster is immutable")).client(node);
         }
         Client client = cluster().client();
         if (OpenSearchTestCase.frequently()) {
@@ -170,9 +172,8 @@ class OpenSearchTestClusterRule implements MethodRule {
         // Deleting indices is going to clear search contexts implicitly so we
         // need to check that there are no more in-flight search contexts before
         // we remove indices
-        if (isInternalCluster()) {
-            internalCluster().setBootstrapClusterManagerNodeIndex(-1);
-        }
+        internalCluster().ifPresent(c -> c.setBootstrapClusterManagerNodeIndex(-1));
+
         instance.ensureAllSearchContextsReleased();
         if (runTestScopeLifecycle()) {
             printTestMessage("cleaning up after", method);
@@ -270,9 +271,7 @@ class OpenSearchTestClusterRule implements MethodRule {
 
     private void afterInternal(boolean afterClass, OpenSearchIntegTestCase target) throws Exception {
         final Scope currentClusterScope = getClusterScope(getTestClass());
-        if (isInternalCluster()) {
-            internalCluster().clearDisruptionScheme();
-        }
+        internalCluster().ifPresent(InternalTestCluster::clearDisruptionScheme);
 
         OpenSearchIntegTestCase instance = suiteInstance;
         if (instance == null) {
