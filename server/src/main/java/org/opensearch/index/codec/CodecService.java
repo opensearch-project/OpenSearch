@@ -39,6 +39,7 @@ import org.apache.lucene.codecs.lucene95.Lucene95Codec.Mode;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.collect.MapBuilder;
 import org.opensearch.index.IndexSettings;
+import org.opensearch.index.codec.freshstartree.codec.StarTreeCodec;
 import org.opensearch.index.mapper.MapperService;
 
 import java.util.Map;
@@ -68,8 +69,8 @@ public class CodecService {
         final MapBuilder<String, Codec> codecs = MapBuilder.<String, Codec>newMapBuilder();
         assert null != indexSettings;
         if (mapperService == null) {
-            codecs.put(DEFAULT_CODEC, new Lucene95Codec());
-            codecs.put(LZ4, new Lucene95Codec());
+            codecs.put(DEFAULT_CODEC, new StarTreeCodec());
+            codecs.put(LZ4, new StarTreeCodec());
             codecs.put(BEST_COMPRESSION_CODEC, new Lucene95Codec(Mode.BEST_COMPRESSION));
             codecs.put(ZLIB, new Lucene95Codec(Mode.BEST_COMPRESSION));
         } else {
@@ -78,7 +79,7 @@ public class CodecService {
             codecs.put(BEST_COMPRESSION_CODEC, new PerFieldMappingPostingFormatCodec(Mode.BEST_COMPRESSION, mapperService, logger));
             codecs.put(ZLIB, new PerFieldMappingPostingFormatCodec(Mode.BEST_COMPRESSION, mapperService, logger));
         }
-        codecs.put(LUCENE_DEFAULT_CODEC, Codec.getDefault());
+        codecs.put(LUCENE_DEFAULT_CODEC, new StarTreeCodec());
         for (String codec : Codec.availableCodecs()) {
             codecs.put(codec, Codec.forName(codec));
         }
@@ -96,7 +97,7 @@ public class CodecService {
             codecs.put(DEFAULT_CODEC, new PerFieldMappingPostingFormatCodec(Mode.BEST_SPEED, mapperService, logger));
             codecs.put(BEST_COMPRESSION_CODEC, new PerFieldMappingPostingFormatCodec(Mode.BEST_COMPRESSION, mapperService, logger));
         }
-        codecs.put(LUCENE_DEFAULT_CODEC, Codec.getDefault());
+        codecs.put(LUCENE_DEFAULT_CODEC, new StarTreeCodec());
         for (String codec : Codec.availableCodecs()) {
             codecs.put(codec, Codec.forName(codec));
         }

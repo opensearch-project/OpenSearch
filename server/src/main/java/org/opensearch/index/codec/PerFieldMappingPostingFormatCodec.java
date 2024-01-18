@@ -39,6 +39,7 @@ import org.apache.lucene.codecs.PostingsFormat;
 import org.apache.lucene.codecs.lucene90.Lucene90DocValuesFormat;
 import org.apache.lucene.codecs.lucene95.Lucene95Codec;
 import org.opensearch.common.lucene.Lucene;
+import org.opensearch.index.codec.freshstartree.codec.StarTreeDocValuesFormat;
 import org.opensearch.index.mapper.CompletionFieldMapper;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.MapperService;
@@ -56,7 +57,7 @@ import org.opensearch.index.mapper.MapperService;
 public class PerFieldMappingPostingFormatCodec extends Lucene95Codec {
     private final Logger logger;
     private final MapperService mapperService;
-    private final DocValuesFormat dvFormat = new Lucene90DocValuesFormat();
+    private final DocValuesFormat dvFormat = new StarTreeDocValuesFormat();
 
     static {
         assert Codec.forName(Lucene.LATEST_CODEC).getClass().isAssignableFrom(PerFieldMappingPostingFormatCodec.class)
@@ -82,6 +83,12 @@ public class PerFieldMappingPostingFormatCodec extends Lucene95Codec {
 
     @Override
     public DocValuesFormat getDocValuesFormatForField(String field) {
+        return dvFormat;
+    }
+
+
+    @Override
+    public final DocValuesFormat docValuesFormat() {
         return dvFormat;
     }
 }
