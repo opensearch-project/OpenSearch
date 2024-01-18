@@ -3,6 +3,10 @@ name: Build packages
 # This workflow runs when any of the following occur:
 # - Run manually
 on:
+  pull_request:
+    # Sequence of patterns matched against refs/heads
+    branches:
+      - 'ci/*'
   workflow_dispatch:
     inputs:
       revision:
