@@ -43,7 +43,6 @@ import org.opensearch.action.OriginalIndices;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.routing.GroupShardsIterator;
 import org.opensearch.common.lucene.search.TopDocsAndMaxScore;
-import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.OpenSearchExecutors;
 import org.opensearch.core.common.Strings;
@@ -148,8 +147,7 @@ public class SearchQueryThenFetchAsyncActionTests extends OpenSearchTestCase {
                 QuerySearchResult queryResult = new QuerySearchResult(
                     new ShardSearchContextId("N/A", 123),
                     new SearchShardTarget("node1", new ShardId("idx", "na", shardId), null, OriginalIndices.NONE),
-                    null,
-                    Settings.EMPTY
+                    null
                 );
                 SortField sortField = new SortField("timestamp", SortField.Type.LONG);
                 if (withCollapse) {

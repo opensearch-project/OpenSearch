@@ -39,7 +39,6 @@ import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.tests.store.MockDirectoryWrapper;
 import org.opensearch.action.OriginalIndices;
 import org.opensearch.common.lucene.search.TopDocsAndMaxScore;
-import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.AtomicArray;
 import org.opensearch.common.util.concurrent.OpenSearchExecutors;
 import org.opensearch.core.common.breaker.CircuitBreaker;
@@ -102,8 +101,7 @@ public class DfsQueryPhaseTests extends OpenSearchTestCase {
                     QuerySearchResult queryResult = new QuerySearchResult(
                         new ShardSearchContextId("", 123),
                         new SearchShardTarget("node1", new ShardId("test", "na", 0), null, OriginalIndices.NONE),
-                        null,
-                        Settings.EMPTY
+                        null
                     );
                     queryResult.topDocs(
                         new TopDocsAndMaxScore(
@@ -118,8 +116,7 @@ public class DfsQueryPhaseTests extends OpenSearchTestCase {
                     QuerySearchResult queryResult = new QuerySearchResult(
                         new ShardSearchContextId("", 123),
                         new SearchShardTarget("node2", new ShardId("test", "na", 0), null, OriginalIndices.NONE),
-                        null,
-                        Settings.EMPTY
+                        null
                     );
                     queryResult.topDocs(
                         new TopDocsAndMaxScore(
@@ -202,8 +199,7 @@ public class DfsQueryPhaseTests extends OpenSearchTestCase {
                     QuerySearchResult queryResult = new QuerySearchResult(
                         new ShardSearchContextId("", 123),
                         new SearchShardTarget("node1", new ShardId("test", "na", 0), null, OriginalIndices.NONE),
-                        null,
-                        Settings.EMPTY
+                        null
                     );
                     queryResult.topDocs(
                         new TopDocsAndMaxScore(
@@ -290,8 +286,7 @@ public class DfsQueryPhaseTests extends OpenSearchTestCase {
                     QuerySearchResult queryResult = new QuerySearchResult(
                         new ShardSearchContextId("", 123),
                         new SearchShardTarget("node1", new ShardId("test", "na", 0), null, OriginalIndices.NONE),
-                        null,
-                        Settings.EMPTY
+                        null
                     );
                     queryResult.topDocs(
                         new TopDocsAndMaxScore(

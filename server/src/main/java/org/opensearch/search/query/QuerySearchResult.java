@@ -40,7 +40,6 @@ import org.apache.lucene.search.TotalHits.Relation;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.io.stream.DelayableWriteable;
 import org.opensearch.common.lucene.search.TopDocsAndMaxScore;
-import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
@@ -119,12 +118,7 @@ public final class QuerySearchResult extends SearchPhaseResult {
         isNull = false;
     }
 
-    public QuerySearchResult(
-        ShardSearchContextId contextId,
-        SearchShardTarget shardTarget,
-        ShardSearchRequest shardSearchRequest,
-        Settings settings
-    ) {
+    public QuerySearchResult(ShardSearchContextId contextId, SearchShardTarget shardTarget, ShardSearchRequest shardSearchRequest) {
         this.contextId = contextId;
         setSearchShardTarget(shardTarget);
         isNull = false;
