@@ -410,12 +410,7 @@ public class SearchPhaseControllerTests extends OpenSearchTestCase {
                 clusterAlias,
                 OriginalIndices.NONE
             );
-            QuerySearchResult querySearchResult = new QuerySearchResult(
-                new ShardSearchContextId("", shardIndex),
-                searchShardTarget,
-                null,
-                Settings.EMPTY
-            );
+            QuerySearchResult querySearchResult = new QuerySearchResult(new ShardSearchContextId("", shardIndex), searchShardTarget, null);
             final TopDocs topDocs;
             float maxScore = 0;
             if (searchHitsSize == 0) {
@@ -690,8 +685,7 @@ public class SearchPhaseControllerTests extends OpenSearchTestCase {
         QuerySearchResult result = new QuerySearchResult(
             new ShardSearchContextId("", 0),
             new SearchShardTarget("node", new ShardId("a", "b", 0), null, OriginalIndices.NONE),
-            null,
-            Settings.EMPTY
+            null
         );
         result.topDocs(
             new TopDocsAndMaxScore(new TopDocs(new TotalHits(0, TotalHits.Relation.EQUAL_TO), new ScoreDoc[0]), Float.NaN),
@@ -705,8 +699,7 @@ public class SearchPhaseControllerTests extends OpenSearchTestCase {
         result = new QuerySearchResult(
             new ShardSearchContextId("", 1),
             new SearchShardTarget("node", new ShardId("a", "b", 0), null, OriginalIndices.NONE),
-            null,
-            Settings.EMPTY
+            null
         );
         result.topDocs(
             new TopDocsAndMaxScore(new TopDocs(new TotalHits(0, TotalHits.Relation.EQUAL_TO), new ScoreDoc[0]), Float.NaN),
@@ -720,8 +713,7 @@ public class SearchPhaseControllerTests extends OpenSearchTestCase {
         result = new QuerySearchResult(
             new ShardSearchContextId("", 1),
             new SearchShardTarget("node", new ShardId("a", "b", 0), null, OriginalIndices.NONE),
-            null,
-            Settings.EMPTY
+            null
         );
         result.topDocs(
             new TopDocsAndMaxScore(new TopDocs(new TotalHits(0, TotalHits.Relation.EQUAL_TO), new ScoreDoc[0]), Float.NaN),
@@ -797,8 +789,7 @@ public class SearchPhaseControllerTests extends OpenSearchTestCase {
                 QuerySearchResult result = new QuerySearchResult(
                     new ShardSearchContextId("", id),
                     new SearchShardTarget("node", new ShardId("a", "b", id), null, OriginalIndices.NONE),
-                    null,
-                    Settings.EMPTY
+                    null
                 );
                 result.topDocs(
                     new TopDocsAndMaxScore(
@@ -859,8 +850,7 @@ public class SearchPhaseControllerTests extends OpenSearchTestCase {
             QuerySearchResult result = new QuerySearchResult(
                 new ShardSearchContextId("", i),
                 new SearchShardTarget("node", new ShardId("a", "b", i), null, OriginalIndices.NONE),
-                null,
-                Settings.EMPTY
+                null
             );
             result.topDocs(
                 new TopDocsAndMaxScore(new TopDocs(new TotalHits(1, TotalHits.Relation.EQUAL_TO), new ScoreDoc[0]), number),
@@ -913,8 +903,7 @@ public class SearchPhaseControllerTests extends OpenSearchTestCase {
             QuerySearchResult result = new QuerySearchResult(
                 new ShardSearchContextId("", i),
                 new SearchShardTarget("node", new ShardId("a", "b", i), null, OriginalIndices.NONE),
-                null,
-                Settings.EMPTY
+                null
             );
             result.topDocs(
                 new TopDocsAndMaxScore(
@@ -970,8 +959,7 @@ public class SearchPhaseControllerTests extends OpenSearchTestCase {
             QuerySearchResult result = new QuerySearchResult(
                 new ShardSearchContextId("", i),
                 new SearchShardTarget("node", new ShardId("a", "b", i), null, OriginalIndices.NONE),
-                null,
-                Settings.EMPTY
+                null
             );
             ScoreDoc[] docs = new ScoreDoc[3];
             for (int j = 0; j < docs.length; j++) {
@@ -1026,8 +1014,7 @@ public class SearchPhaseControllerTests extends OpenSearchTestCase {
             QuerySearchResult result = new QuerySearchResult(
                 new ShardSearchContextId("", i),
                 new SearchShardTarget("node", new ShardId("a", "b", i), null, OriginalIndices.NONE),
-                null,
-                Settings.EMPTY
+                null
             );
             result.topDocs(new TopDocsAndMaxScore(topDocs, Float.NaN), docValueFormats);
             result.setShardIndex(i);
@@ -1076,8 +1063,7 @@ public class SearchPhaseControllerTests extends OpenSearchTestCase {
             QuerySearchResult result = new QuerySearchResult(
                 new ShardSearchContextId("", i),
                 new SearchShardTarget("node", new ShardId("a", "b", i), null, OriginalIndices.NONE),
-                null,
-                Settings.EMPTY
+                null
             );
             result.topDocs(new TopDocsAndMaxScore(topDocs, Float.NaN), docValueFormats);
             result.setShardIndex(i);
@@ -1121,8 +1107,7 @@ public class SearchPhaseControllerTests extends OpenSearchTestCase {
             QuerySearchResult result = new QuerySearchResult(
                 new ShardSearchContextId("", i),
                 new SearchShardTarget("node", new ShardId("a", "b", i), null, OriginalIndices.NONE),
-                null,
-                Settings.EMPTY
+                null
             );
             List<Suggest.Suggestion<? extends Suggest.Suggestion.Entry<? extends Suggest.Suggestion.Entry.Option>>> suggestions =
                 new ArrayList<>();
@@ -1263,8 +1248,7 @@ public class SearchPhaseControllerTests extends OpenSearchTestCase {
                     QuerySearchResult result = new QuerySearchResult(
                         new ShardSearchContextId("", id),
                         new SearchShardTarget("node", new ShardId("a", "b", id), null, OriginalIndices.NONE),
-                        null,
-                        Settings.EMPTY
+                        null
                     );
                     result.topDocs(
                         new TopDocsAndMaxScore(
@@ -1350,8 +1334,7 @@ public class SearchPhaseControllerTests extends OpenSearchTestCase {
                 QuerySearchResult result = new QuerySearchResult(
                     new ShardSearchContextId(UUIDs.randomBase64UUID(), index),
                     new SearchShardTarget("node", new ShardId("a", "b", index), null, OriginalIndices.NONE),
-                    null,
-                    Settings.EMPTY
+                    null
                 );
                 result.topDocs(
                     new TopDocsAndMaxScore(new TopDocs(new TotalHits(0, TotalHits.Relation.EQUAL_TO), Lucene.EMPTY_SCORE_DOCS), Float.NaN),
