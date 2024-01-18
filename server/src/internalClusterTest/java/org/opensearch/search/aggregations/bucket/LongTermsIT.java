@@ -86,8 +86,8 @@ import static org.hamcrest.core.IsNull.notNullValue;
 @OpenSearchIntegTestCase.SuiteScopeTestCase
 public class LongTermsIT extends AbstractTermsTestCase {
 
-    public LongTermsIT(Settings dynamicSettings) {
-        super(dynamicSettings);
+    public LongTermsIT(Settings staticSettings) {
+        super(staticSettings);
     }
 
     @Override

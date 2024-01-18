@@ -47,7 +47,7 @@ import org.opensearch.index.query.QueryStringQueryBuilder;
 import org.opensearch.search.SearchHit;
 import org.opensearch.search.SearchHits;
 import org.opensearch.search.SearchModule;
-import org.opensearch.test.ParameterizedOpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 import org.junit.Before;
 import org.junit.BeforeClass;
 
@@ -70,12 +70,12 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
-public class QueryStringIT extends ParameterizedOpenSearchIntegTestCase {
+public class QueryStringIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
 
     private static int CLUSTER_MAX_CLAUSE_COUNT;
 
-    public QueryStringIT(Settings dynamicSettings) {
-        super(dynamicSettings);
+    public QueryStringIT(Settings staticSettings) {
+        super(staticSettings);
     }
 
     @ParametersFactory

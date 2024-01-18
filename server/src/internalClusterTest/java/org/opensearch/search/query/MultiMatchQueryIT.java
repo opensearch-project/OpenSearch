@@ -54,7 +54,7 @@ import org.opensearch.search.SearchHits;
 import org.opensearch.search.sort.SortBuilders;
 import org.opensearch.search.sort.SortOrder;
 import org.opensearch.test.MockKeywordPlugin;
-import org.opensearch.test.ParameterizedOpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -92,10 +92,10 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThan;
 
-public class MultiMatchQueryIT extends ParameterizedOpenSearchIntegTestCase {
+public class MultiMatchQueryIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
 
-    public MultiMatchQueryIT(Settings dynamicSettings) {
-        super(dynamicSettings);
+    public MultiMatchQueryIT(Settings staticSettings) {
+        super(staticSettings);
     }
 
     @ParametersFactory
