@@ -49,6 +49,7 @@ public class OpenSearchPolicyTests extends OpenSearchTestCase {
     /**
      * test restricting privileges to no permissions actually works
      */
+    @SuppressWarnings("removal")
     public void testRestrictPrivileges() {
         assumeTrue("test requires security manager", System.getSecurityManager() != null);
         try {
