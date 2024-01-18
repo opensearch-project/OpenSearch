@@ -131,7 +131,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Fix remote shards balancer and remove unused variables ([#11167](https://github.com/opensearch-project/OpenSearch/pull/11167))
 - Fix parsing of flat object fields with dots in keys ([#11425](https://github.com/opensearch-project/OpenSearch/pull/11425))
 - Fix bug where replication lag grows post primary relocation ([#11238](https://github.com/opensearch-project/OpenSearch/pull/11238))
-- Fix noop_update_total metric in indexing stats cannot be updated by bulk API ([#11485](https://github.com/opensearch-project/OpenSearch/pull/11485))
+- Fix noop_update_total metric in indexing stats cannot be updated by bulk API ([#11485](https://github.com/opensearch-project/OpenSearch/pull/11485),[#11917](https://github.com/opensearch-project/OpenSearch/pull/11917))
 - Fix for stuck update action in a bulk with `retry_on_conflict` property ([#11152](https://github.com/opensearch-project/OpenSearch/issues/11152))
 - Fix template setting override for replication type ([#11417](https://github.com/opensearch-project/OpenSearch/pull/11417))
 - Fix Automatic addition of protocol broken in #11512 ([#11609](https://github.com/opensearch-project/OpenSearch/pull/11609))
