@@ -114,7 +114,7 @@ class AwsEc2ServiceImpl implements AwsEc2Service {
         if (!Strings.hasText(endpoint)) {
             return null;
         }
-        if (endpoint.startsWith("http")) {
+        if (endpoint.startsWith("http://") || endpoint.startsWith("https://")) {
             return endpoint;
         }
 

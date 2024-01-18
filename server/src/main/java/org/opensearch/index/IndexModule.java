@@ -161,7 +161,7 @@ public final class IndexModule {
 
     /** Which lucene file extensions to load with the mmap directory when using hybridfs store. This settings is ignored if {@link #INDEX_STORE_HYBRID_NIO_EXTENSIONS} is set.
      *  This is an expert setting.
-     *  @see <a href="https://lucene.apache.org/core/9_5_0/core/org/apache/lucene/codecs/lucene95/package-summary.html#file-names">Lucene File Extensions</a>.
+     *  @see <a href="https://lucene.apache.org/core/9_9_0/core/org/apache/lucene/codecs/lucene99/package-summary.html#file-names">Lucene File Extensions</a>.
      *
      * @deprecated This setting will be removed in OpenSearch 3.x. Use {@link #INDEX_STORE_HYBRID_NIO_EXTENSIONS} instead.
      */
@@ -206,7 +206,7 @@ public final class IndexModule {
 
     /** Which lucene file extensions to load with nio. All others will default to mmap. Takes precedence over {@link #INDEX_STORE_HYBRID_MMAP_EXTENSIONS}.
      *  This is an expert setting.
-     *  @see <a href="https://lucene.apache.org/core/9_5_0/core/org/apache/lucene/codecs/lucene95/package-summary.html#file-names">Lucene File Extensions</a>.
+     *  @see <a href="https://lucene.apache.org/core/9_9_0/core/org/apache/lucene/codecs/lucene99/package-summary.html#file-names">Lucene File Extensions</a>.
      */
     public static final Setting<List<String>> INDEX_STORE_HYBRID_NIO_EXTENSIONS = Setting.listSetting(
         "index.store.hybrid.nio.extensions",

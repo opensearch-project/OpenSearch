@@ -211,6 +211,10 @@ public class AwsEc2ServiceImplTests extends AbstractEc2DiscoveryTestCase {
 
         String endpoint = awsEc2ServiceImpl.getFullEndpoint(clientSettings.endpoint);
         assertEquals("http://ec2.us-west-2.amazonaws.com", endpoint);
+
+        assertEquals("http://httpserver.example.com", awsEc2ServiceImpl.getFullEndpoint("http://httpserver.example.com"));
+
+        assertEquals("https://httpserver.example.com", awsEc2ServiceImpl.getFullEndpoint("https://httpserver.example.com"));
     }
 
     public void testGetFullEndpointWithoutScheme() {
@@ -221,6 +225,8 @@ public class AwsEc2ServiceImplTests extends AbstractEc2DiscoveryTestCase {
 
         String endpoint = awsEc2ServiceImpl.getFullEndpoint(clientSettings.endpoint);
         assertEquals("https://ec2.us-west-2.amazonaws.com", endpoint);
+
+        assertEquals("https://httpserver.example.com", awsEc2ServiceImpl.getFullEndpoint("httpserver.example.com"));
 
         assertNull(awsEc2ServiceImpl.getFullEndpoint(""));
     }

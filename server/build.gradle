@@ -57,45 +57,6 @@ sourceSets {
     }
   }
 }
-// we want to keep the JDKs in our IDEs set to JDK 8 until minimum JDK is bumped to 11 so we do not include this source set in our IDEs
-if (!isEclipse) {
-  sourceSets {
-    java11 {
-      java {
-        srcDirs = ['src/main/java11']
-      }
-    }
-  }
-
-  configurations {
-    java11Implementation.extendsFrom(api)
-  }
-
-  dependencies {
-    java11Implementation sourceSets.main.output
-  }
-
-  compileJava11Java {
-    sourceCompatibility = JavaVersion.VERSION_11
-    targetCompatibility = JavaVersion.VERSION_11
-  }
-
-  tasks.named('forbiddenApisJava11').configure {
-    doFirst {
-      if (BuildParams.runtimeJavaVersion < JavaVersion.VERSION_11) {
-        targetCompatibility = JavaVersion.VERSION_11
-      }
-    }
-  }
-
-  jar {
-    metaInf {
-      into 'versions/11'
-      from sourceSets.java11.output
-    }
-    manifest.attributes('Multi-Release': 'true')
-  }
-}
 
 dependencies {
 

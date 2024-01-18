@@ -20,7 +20,16 @@ import java.util.List;
  * @opensearch.internal
  */
 @InternalApi
-abstract class SearchRequestOperationsListener {
+public abstract class SearchRequestOperationsListener {
+    private volatile boolean enabled;
+
+    protected SearchRequestOperationsListener() {
+        this.enabled = true;
+    }
+
+    protected SearchRequestOperationsListener(final boolean enabled) {
+        this.enabled = enabled;
+    }
 
     abstract void onPhaseStart(SearchPhaseContext context);
 
@@ -31,6 +40,18 @@ abstract class SearchRequestOperationsListener {
     void onRequestStart(SearchRequestContext searchRequestContext) {}
 
     void onRequestEnd(SearchPhaseContext context, SearchRequestContext searchRequestContext) {}
+
+    boolean isEnabled(SearchRequest searchRequest) {
+        return isEnabled();
+    }
+
+    boolean isEnabled() {
+        return enabled;
+    }
+
+    protected void setEnabled(final boolean enabled) {
+        this.enabled = enabled;
+    }
 
     /**
      * Holder of Composite Listeners
@@ -100,6 +121,10 @@ abstract class SearchRequestOperationsListener {
                     logger.warn(() -> new ParameterizedMessage("onRequestEnd listener [{}] failed", listener), e);
                 }
             }
+        }
+
+        public List<SearchRequestOperationsListener> getListeners() {
+            return listeners;
         }
     }
 }
