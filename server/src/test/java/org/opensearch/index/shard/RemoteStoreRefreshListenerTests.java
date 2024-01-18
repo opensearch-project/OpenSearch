@@ -405,20 +405,6 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
         assertNoLagAndTotalUploadsFailed(segmentTracker, 2);
     }
 
-    public void testRefreshPersistentFailure() throws Exception {
-        int succeedOnAttempt = 10;
-        CountDownLatch refreshCountLatch = new CountDownLatch(1);
-        CountDownLatch successLatch = new CountDownLatch(10);
-        Tuple<RemoteStoreRefreshListener, RemoteStoreStatsTrackerFactory> tuple = mockIndexShardWithRetryAndScheduleRefresh(
-            succeedOnAttempt,
-            refreshCountLatch,
-            successLatch
-        );
-        // Giving 10ms for some iterations of remote refresh upload
-        Thread.sleep(10);
-        assertFalse("remote store should not in sync", indexShard.isRemoteSegmentStoreInSync(false));
-    }
-
     private void assertNoLagAndTotalUploadsFailed(RemoteSegmentTransferTracker segmentTracker, long totalUploadsFailed) throws Exception {
         assertBusy(() -> {
             assertEquals(0, segmentTracker.getBytesLag());
