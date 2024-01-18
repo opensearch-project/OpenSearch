@@ -132,19 +132,11 @@ if command -v systemd-tmpfiles > /dev/null; then
 fi
 
 # Messages
-echo "### NOT starting on installation, please execute the following statements to configure opensearch service to start automatically using systemd"
+echo "### NOT starting on installation, please execute the following statements to configure wazuh-indexer service to start automatically using systemd"
 echo " sudo systemctl daemon-reload"
-echo " sudo systemctl enable opensearch.service"
-echo "### You can start opensearch service by executing"
-echo " sudo systemctl start opensearch.service"
-if [ -d %{product_dir}/plugins/opensearch-security ]; then
-    echo "### Create opensearch demo certificates in %{config_dir}/"
-    echo " See demo certs creation log in %{log_dir}/install_demo_configuration.log"
-fi
-echo "### Upcoming breaking change in packaging"
-echo " In a future release of OpenSearch, we plan to change the permissions associated with access to installed files"
-echo " If you are configuring tools that require read access to the OpenSearch configuration files, we recommend you add the user that runs these tools to the 'opensearch' group"
-echo " For more information, see https://github.com/opensearch-project/opensearch-build/pull/4043"
+echo " sudo systemctl enable wazuh-indexer.service"
+echo "### You can start wazuh-indexer service by executing"
+echo " sudo systemctl start wazuh-indexer.service"
 exit 0
 
 %preun
