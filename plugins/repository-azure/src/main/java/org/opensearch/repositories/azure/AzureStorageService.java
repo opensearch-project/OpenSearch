@@ -389,6 +389,7 @@ public class AzureStorageService implements AutoCloseable {
         private final AtomicInteger threadNumber = new AtomicInteger(1);
         private final String namePrefix;
 
+        @SuppressWarnings("removal")
         NioThreadFactory() {
             SecurityManager s = System.getSecurityManager();
             group = (s != null) ? s.getThreadGroup() : Thread.currentThread().getThreadGroup();
