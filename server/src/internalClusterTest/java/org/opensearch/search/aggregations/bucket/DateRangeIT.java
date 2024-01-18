@@ -49,7 +49,7 @@ import org.opensearch.search.aggregations.bucket.range.Range;
 import org.opensearch.search.aggregations.bucket.range.Range.Bucket;
 import org.opensearch.search.aggregations.metrics.Sum;
 import org.opensearch.test.OpenSearchIntegTestCase;
-import org.opensearch.test.ParameterizedOpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 import org.hamcrest.Matchers;
 
 import java.time.ZoneId;
@@ -81,10 +81,10 @@ import static org.hamcrest.core.IsNull.notNullValue;
 import static org.hamcrest.core.IsNull.nullValue;
 
 @OpenSearchIntegTestCase.SuiteScopeTestCase
-public class DateRangeIT extends ParameterizedOpenSearchIntegTestCase {
+public class DateRangeIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
 
-    public DateRangeIT(Settings dynamicSettings) {
-        super(dynamicSettings);
+    public DateRangeIT(Settings staticSettings) {
+        super(staticSettings);
     }
 
     @ParametersFactory

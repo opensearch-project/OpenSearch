@@ -57,7 +57,7 @@ import org.opensearch.search.aggregations.metrics.Stats;
 import org.opensearch.search.aggregations.pipeline.SimpleValue;
 import org.opensearch.search.sort.SortBuilders;
 import org.opensearch.search.sort.SortOrder;
-import org.opensearch.test.ParameterizedOpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 import org.opensearch.test.hamcrest.OpenSearchAssertions;
 
 import java.util.Arrays;
@@ -80,10 +80,10 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.notNullValue;
 
 // TODO: please convert to unit tests!
-public class MoreExpressionIT extends ParameterizedOpenSearchIntegTestCase {
+public class MoreExpressionIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
 
-    public MoreExpressionIT(Settings dynamicSettings) {
-        super(dynamicSettings);
+    public MoreExpressionIT(Settings staticSettings) {
+        super(staticSettings);
     }
 
     @ParametersFactory

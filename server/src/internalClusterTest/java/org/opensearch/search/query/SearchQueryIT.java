@@ -80,7 +80,7 @@ import org.opensearch.search.SearchHit;
 import org.opensearch.search.SearchHits;
 import org.opensearch.search.aggregations.AggregationBuilders;
 import org.opensearch.test.InternalSettingsPlugin;
-import org.opensearch.test.ParameterizedOpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 import org.opensearch.test.junit.annotations.TestIssueLogging;
 
 import java.io.IOException;
@@ -147,10 +147,10 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
-public class SearchQueryIT extends ParameterizedOpenSearchIntegTestCase {
+public class SearchQueryIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
 
-    public SearchQueryIT(Settings dynamicSettings) {
-        super(dynamicSettings);
+    public SearchQueryIT(Settings staticSettings) {
+        super(staticSettings);
     }
 
     @ParametersFactory

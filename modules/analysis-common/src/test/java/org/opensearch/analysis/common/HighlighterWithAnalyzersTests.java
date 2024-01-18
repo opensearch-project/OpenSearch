@@ -44,7 +44,7 @@ import org.opensearch.index.query.Operator;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.search.fetch.subphase.highlight.HighlightBuilder;
-import org.opensearch.test.ParameterizedOpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -68,10 +68,10 @@ import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.startsWith;
 
-public class HighlighterWithAnalyzersTests extends ParameterizedOpenSearchIntegTestCase {
+public class HighlighterWithAnalyzersTests extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
 
-    public HighlighterWithAnalyzersTests(Settings dynamicSettings) {
-        super(dynamicSettings);
+    public HighlighterWithAnalyzersTests(Settings staticSettings) {
+        super(staticSettings);
     }
 
     @ParametersFactory

@@ -62,7 +62,7 @@ import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.opensearch.search.sort.SortOrder;
 import org.opensearch.test.OpenSearchIntegTestCase.ClusterScope;
-import org.opensearch.test.ParameterizedOpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 import org.junit.After;
 import org.junit.Before;
 
@@ -94,9 +94,9 @@ import static org.hamcrest.Matchers.nullValue;
  * Integration tests for InternalCircuitBreakerService
  */
 @ClusterScope(scope = TEST, numClientNodes = 0, maxNumDataNodes = 1)
-public class CircuitBreakerServiceIT extends ParameterizedOpenSearchIntegTestCase {
-    public CircuitBreakerServiceIT(Settings dynamicSettings) {
-        super(dynamicSettings);
+public class CircuitBreakerServiceIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
+    public CircuitBreakerServiceIT(Settings staticSettings) {
+        super(staticSettings);
     }
 
     @ParametersFactory

@@ -62,7 +62,7 @@ import org.opensearch.script.ScriptType;
 import org.opensearch.search.lookup.LeafFieldsLookup;
 import org.opensearch.tasks.TaskInfo;
 import org.opensearch.test.OpenSearchIntegTestCase;
-import org.opensearch.test.ParameterizedOpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 import org.opensearch.transport.TransportException;
 import org.junit.After;
 
@@ -91,7 +91,7 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.notNullValue;
 
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.SUITE)
-public class SearchCancellationIT extends ParameterizedOpenSearchIntegTestCase {
+public class SearchCancellationIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
 
     private TimeValue requestCancellationTimeout = TimeValue.timeValueSeconds(1);
     private TimeValue clusterCancellationTimeout = TimeValue.timeValueMillis(1500);

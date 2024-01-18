@@ -46,7 +46,7 @@ import org.opensearch.search.aggregations.bucket.terms.Terms;
 import org.opensearch.search.aggregations.metrics.Sum;
 import org.opensearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 import org.opensearch.test.OpenSearchIntegTestCase;
-import org.opensearch.test.ParameterizedOpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -66,7 +66,7 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.core.IsNull.notNullValue;
 
 @OpenSearchIntegTestCase.SuiteScopeTestCase
-public class MinBucketIT extends ParameterizedOpenSearchIntegTestCase {
+public class MinBucketIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
 
     private static final String SINGLE_VALUED_FIELD_NAME = "l_value";
 
@@ -77,8 +77,8 @@ public class MinBucketIT extends ParameterizedOpenSearchIntegTestCase {
     static int numValueBuckets;
     static long[] valueCounts;
 
-    public MinBucketIT(Settings dynamicSettings) {
-        super(dynamicSettings);
+    public MinBucketIT(Settings staticSettings) {
+        super(staticSettings);
     }
 
     @ParametersFactory

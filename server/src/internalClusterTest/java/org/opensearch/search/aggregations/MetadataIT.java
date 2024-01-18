@@ -41,7 +41,7 @@ import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.search.aggregations.bucket.terms.Terms;
 import org.opensearch.search.aggregations.metrics.Sum;
 import org.opensearch.search.aggregations.pipeline.InternalBucketMetricValue;
-import org.opensearch.test.ParameterizedOpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -57,10 +57,10 @@ import static org.opensearch.search.aggregations.PipelineAggregatorBuilders.maxB
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertSearchResponse;
 
-public class MetadataIT extends ParameterizedOpenSearchIntegTestCase {
+public class MetadataIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
 
-    public MetadataIT(Settings dynamicSettings) {
-        super(dynamicSettings);
+    public MetadataIT(Settings staticSettings) {
+        super(staticSettings);
     }
 
     @ParametersFactory
