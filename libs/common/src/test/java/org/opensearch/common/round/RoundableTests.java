@@ -12,15 +12,31 @@ import org.opensearch.test.OpenSearchTestCase;
 
 public class RoundableTests extends OpenSearchTestCase {
 
-    public void testFloor() {
-        int size = randomIntBetween(1, 256);
-        long[] values = new long[size];
-        for (int i = 1; i < values.length; i++) {
-            values[i] = values[i - 1] + (randomNonNegativeLong() % 200) + 1;
-        }
+    public void testRoundingEmptyArray() {
+        Throwable throwable = assertThrows(IllegalArgumentException.class, () -> RoundableFactory.create(new long[0], 0));
+        assertEquals("at least one value must be present", throwable.getMessage());
+    }
 
-        Roundable[] impls = { new BinarySearcher(values, size), new BidirectionalLinearSearcher(values, size) };
+    public void testRoundingSmallArray() {
+        int size = randomIntBetween(1, 64);
+        long[] values = randomArrayOfSortedValues(size);
+        Roundable roundable = RoundableFactory.create(values, size);
 
+        assertEquals("BidirectionalLinearSearcher", roundable.getClass().getSimpleName());
+        assertRounding(roundable, values, size);
+    }
+
+    public void testRoundingLargeArray() {
+        int size = randomIntBetween(65, 256);
+        long[] values = randomArrayOfSortedValues(size);
+        Roundable roundable = RoundableFactory.create(values, size);
+
+        boolean useBtreeSearcher = "forced".equalsIgnoreCase(System.getProperty("opensearch.experimental.feature.simd.rounding.enabled"));
+        assertEquals(useBtreeSearcher ? "BtreeSearcher" : "BinarySearcher", roundable.getClass().getSimpleName());
+        assertRounding(roundable, values, size);
+    }
+
+    private void assertRounding(Roundable roundable, long[] values, int size) {
         for (int i = 0; i < 100000; i++) {
             // Index of the expected round-down point.
             int idx = randomIntBetween(0, size - 1);
@@ -35,23 +51,21 @@ public class RoundableTests extends OpenSearchTestCase {
             // round-down point, which will still floor to the same value.
             long key = expected + (randomNonNegativeLong() % delta);
 
-            for (Roundable roundable : impls) {
-                assertEquals(expected, roundable.floor(key));
-            }
+            assertEquals(expected, roundable.floor(key));
         }
+
+        Throwable throwable = assertThrows(AssertionError.class, () -> roundable.floor(values[0] - 1));
+        assertEquals("key must be greater than or equal to " + values[0], throwable.getMessage());
     }
 
-    public void testFailureCases() {
-        Throwable throwable;
+    private static long[] randomArrayOfSortedValues(int size) {
+        int capacity = size + randomInt(20); // May be slightly more than the size.
+        long[] values = new long[capacity];
 
-        throwable = assertThrows(IllegalArgumentException.class, () -> new BinarySearcher(new long[0], 0));
-        assertEquals("at least one value must be present", throwable.getMessage());
-        throwable = assertThrows(IllegalArgumentException.class, () -> new BidirectionalLinearSearcher(new long[0], 0));
-        assertEquals("at least one value must be present", throwable.getMessage());
+        for (int i = 1; i < size; i++) {
+            values[i] = values[i - 1] + (randomNonNegativeLong() % 200) + 1;
+        }
 
-        throwable = assertThrows(AssertionError.class, () -> new BinarySearcher(new long[] { 100 }, 1).floor(50));
-        assertEquals("key must be greater than or equal to 100", throwable.getMessage());
-        throwable = assertThrows(AssertionError.class, () -> new BidirectionalLinearSearcher(new long[] { 100 }, 1).floor(50));
-        assertEquals("key must be greater than or equal to 100", throwable.getMessage());
+        return values;
     }
 }
