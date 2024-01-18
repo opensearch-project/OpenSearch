@@ -21,7 +21,7 @@ product_dir=/usr/share/wazuh-indexer
 # config_dir=/etc/wazuh-indexer
 data_dir=/var/lib/wazuh-indexer
 log_dir=/var/log/wazuh-indexer
-pid_dir=/var/run/wazuh-indexer
+pid_dir=/run/wazuh-indexer
 buildroot=${curdir}/debian/wazuh-indexer
 
 # Create necessary directories

@@ -72,9 +72,9 @@ if [ "$REMOVE_DIRS" = "true" ]; then
         echo " OK"
     fi
 
-    if [ -d /var/run/wazuh-indexer ]; then
+    if [ -d /run/wazuh-indexer ]; then
         echo -n "Deleting PID directory..."
-        rm -rf /var/run/wazuh-indexer
+        rm -rf /run/wazuh-indexer
         echo " OK"
     fi
 

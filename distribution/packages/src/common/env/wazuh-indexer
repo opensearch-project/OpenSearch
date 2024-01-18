@@ -13,7 +13,7 @@
 OPENSEARCH_PATH_CONF=/etc/opensearch
 
 # wazuh-indexer PID directory
-#PID_DIR=/var/run/wazuh-indexer
+#PID_DIR=/run/wazuh-indexer
 
 # Additional Java OPTS
 #OPENSEARCH_JAVA_OPTS=
