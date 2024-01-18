@@ -170,6 +170,7 @@ public class ExpressionScriptEngine implements ScriptEngine {
         return NAME;
     }
 
+    @SuppressWarnings("removal")
     @Override
     public <T> T compile(String scriptName, String scriptSource, ScriptContext<T> context, Map<String, String> params) {
         // classloader created here

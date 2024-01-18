@@ -119,6 +119,7 @@ import static org.opensearch.bootstrap.FilePermissionUtils.addSingleFilePath;
  *
  * @opensearch.internal
  */
+@SuppressWarnings("removal")
 final class Security {
     /** no instantiation */
     private Security() {}

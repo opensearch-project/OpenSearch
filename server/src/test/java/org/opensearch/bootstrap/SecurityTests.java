@@ -72,6 +72,7 @@ public class SecurityTests extends OpenSearchTestCase {
     }
 
     /** can't execute processes */
+    @SuppressWarnings("removal")
     public void testProcessExecution() throws Exception {
         assumeTrue("test requires security manager", System.getSecurityManager() != null);
         try {
