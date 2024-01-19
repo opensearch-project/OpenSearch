@@ -132,28 +132,18 @@ public class TransportIndicesAliasesAction extends TransportClusterManagerNodeAc
             Collections.addAll(indices, aliasAction.indices());
         }
 
-        boolean allowSearchableSnapshotAliases = true;
         for (String index : indices) {
             if (state.blocks().indexBlocked(ClusterBlockLevel.METADATA_WRITE, index)) {
                 IndexMetadata indexMeta = state.metadata().index(index);
-                if (IndexModule.Type.REMOTE_SNAPSHOT.match(
-                    state.getMetadata().getIndexSafe(indexMeta.getIndex()).getSettings().get(INDEX_STORE_TYPE_SETTING.getKey())
-                )) {
-                    allowSearchableSnapshotAliases = allowSearchableSnapshotAliases
-                        && !REMOTE_SNAPSHOT_SETTINGS_CHECKLIST.stream()
-                            .anyMatch(booleanSetting -> booleanSetting.get(indexMeta.getSettings()));
-                } else {
-                    allowSearchableSnapshotAliases = false;
+                if (IndexModule.Type.REMOTE_SNAPSHOT.match(indexMeta.getSettings().get(INDEX_STORE_TYPE_SETTING.getKey())) == false
+                    || REMOTE_SNAPSHOT_SETTINGS_CHECKLIST.stream()
+                        .anyMatch(booleanSetting -> booleanSetting.get(indexMeta.getSettings()))) {
+                    return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_WRITE, indices.toArray(new String[0]));
                 }
-            }
-            if (!allowSearchableSnapshotAliases) {
-                break;
             }
         }
 
-        return allowSearchableSnapshotAliases
-            ? null
-            : state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_WRITE, indices.toArray(new String[0]));
+        return null;
     }
 
     @Override
