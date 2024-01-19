@@ -51,19 +51,28 @@ Docker Desktop will change to its context automatically at start, so be sure
 that any existing Docker container using the default context is **stopped**
 before starting Docker Desktop and any of the environments in this folder.
 
-## Starting up the environments
+## Development environments
 
-Use the sh script to up the environment.
+Use the `dev/dev.sh` script to start a development environment.
 
 Example:
 
 ```bash
-Usage: ./dev.sh {up|down|stop} [security]
+Usage: ./dev.sh {up|down|stop}
 ```
 
-Once the `wazuh-indexer` container is up, attach a shell to it and run `./gradlew run`
+Once the `wi-dev:x.y.z` container is up, attach a shell to it and run `./gradlew run`
 to start the application.
 
+## Containers to generate packages
+
+Use the `ci/ci.sh` script to start provisioned containers to generate packages.
+
+```bash
+Usage: ./ci.sh {up|down|stop} [ci]
+```
+
+Refer to [scripts/README.md](../scripts/README.md) for details about how to build packages.
 
 [docker-desktop]: https://docs.docker.com/get-docker
 [docker-variant]: https://docs.docker.com/desktop/install/linux-install/#differences-between-docker-desktop-for-linux-and-docker-engine

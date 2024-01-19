@@ -1,7 +1,7 @@
 FROM gradle:jdk17-alpine AS builder
 USER gradle
-WORKDIR /home/wazuh-indexer/app
-COPY --chown=gradle:gradle . /home/wazuh-indexer/app
+WORKDIR /home/wazuh-indexer
+COPY --chown=gradle:gradle . /home/wazuh-indexer
 RUN gradle clean
 
 
@@ -12,7 +12,7 @@ RUN apk add git && \
     chmod 0775 /home/wazuh-indexer && \
     chown -R 1000:0 /home/wazuh-indexer
 USER wazuh-indexer
-COPY --from=builder --chown=1000:0 /home/wazuh-indexer/app /home/wazuh-indexer/app
-WORKDIR /home/wazuh-indexer/app
-RUN git config --global --add safe.directory /home/wazuh-indexer/app
+COPY --from=builder --chown=1000:0 /home/wazuh-indexer /home/wazuh-indexer
+WORKDIR /home/wazuh-indexer
+RUN git config --global --add safe.directory /home/wazuh-indexer
 EXPOSE 9200 9300

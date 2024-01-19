@@ -29,15 +29,18 @@ act -j build -W .github/workflows/build.yml --artifact-server-path ./artifacts
 
 #### Running in Docker
 
-Within the [Docker environment](../docker):
+Using the [Docker environment](../docker):
 
 ```console
-bash scripts/build.sh -v 2.11.0 -s false -p linux -a {x64|arm64} -d {rpm|deb|tar}
+docker exec -it wi-build_$(<VERSION) bash scripts/build.sh -v 2.11.1 -s false -p linux -a {x64|arm64} -d {rpm|deb|tar}
 ```
 
 The generated package is sent to `artifacts/`
 
 ## Assemble
+
+**Note:** set the environment variable `TEST=true` to assemble a package with the required plugins only,
+speeding up the assembly process.
 
 <!--
 ### TAR
@@ -104,7 +107,7 @@ The script will:
 ### Running in Act
 
 ```console
-act -j assemble -W .github/workflows/build.yml --artifact-server-path ./artifacts --matrix distribution:deb --matrix architecture:x64 --var OPENSEARCH_VERSION=2.11.0
+act -j assemble -W .github/workflows/build.yml --artifact-server-path ./artifacts --matrix distribution:deb --matrix architecture:x64 --var OPENSEARCH_VERSION=2.11.1
 
 [Build slim packages/build] 🏁  Job succeeded
 ```
@@ -115,33 +118,10 @@ Pre-requisites:
 
 - Current directory: `wazuh-indexer/`
 - Existing deb package in `wazuh-indexer/artifacts/dist/deb`, as a result of the _Build_ stage.
+- Using the [Docker environment](../docker):
 
 ```console
-MIN_PKG_PATH="./artifacts"
-docker run --rm \
-    -v ./scripts/:/home/wazuh-indexer/scripts \
-    -v $MIN_PKG_PATH:/home/wazuh-indexer/artifacts \
-    -v ./distribution/packages/src:/home/wazuh-indexer/distribution/packages/src \
-    -w /home/wazuh-indexer \
-    -it ubuntu:jammy /bin/bash
-
-# https://github.com/opensearch-project/opensearch-build/blob/2.11.1/docker/ci/dockerfiles/current/build.ubuntu2004.opensearch.x64.arm64.dockerfile
-
-# Install necessary packages
-apt-get update -y && apt-get upgrade -y && apt-get install -y curl build-essential curl &&
-    apt-get install -y debmake debhelper-compat &&
-    apt-get install -y libxrender1 libxtst6 libasound2 libxi6 libgconf-2-4 &&
-    apt-get install -y libatk1.0-0 libatk-bridge2.0-0 libcups2 libdrm2 libatspi2.0-dev libxcomposite-dev libxdamage1 libxfixes3 libxfixes-dev libxrandr2 libgbm-dev libxkbcommon-x11-0 libpangocairo-1.0-0 libcairo2 libcairo2-dev libnss3 libnspr4 libnspr4-dev freeglut3 &&
-    apt-get clean -y
-
-# Install aptly and required changes to debmake
-# Remove lintian for now due to it takes nearly 20 minutes for OpenSearch as well as nearly an hour for OpenSearch-Dashboards during debmake
-curl -o- https://www.aptly.info/pubkey.txt | apt-key add - &&
-    echo "deb http://repo.aptly.info/ squeeze main" | tee -a /etc/apt/sources.list.d/aptly.list &&
-    apt-get update -y && apt-get install -y aptly && apt-get clean -y &&
-    dpkg -r lintian
-
-bash scripts/assemble.sh -v 2.11.0 -p linux -a x64 -d deb
+docker exec -it wi-assemble_$(<VERSION) bash scripts/assemble.sh -v 2.11.1 -p linux -a x64 -d deb
 ```
 
 ### RPM
@@ -197,7 +177,7 @@ The script will:
 ### Running in Act
 
 ```console
-act -j assemble -W .github/workflows/build.yml --artifact-server-path ./artifacts --matrix distribution:rpm --matrix architecture:x64 --var OPENSEARCH_VERSION=2.11.0
+act -j assemble -W .github/workflows/build.yml --artifact-server-path ./artifacts --matrix distribution:rpm --matrix architecture:x64 --var OPENSEARCH_VERSION=2.11.1
 
 [Build slim packages/build] 🏁  Job succeeded
 ```
@@ -208,17 +188,8 @@ Pre-requisites:
 
 - Current directory: `wazuh-indexer/`
 - Existing rpm package in `wazuh-indexer/artifacts/dist/rpm`, as a result of the _Build_ stage.
+- Using the [Docker environment](../docker):
 
 ```console
-MIN_PKG_PATH="./artifacts"
-docker run --rm \
-    -v ./scripts/:/home/wazuh-indexer/scripts \
-    -v $MIN_PKG_PATH:/home/wazuh-indexer/artifacts \
-    -v ./distribution/packages/src:/home/wazuh-indexer/distribution/packages/src \
-    -w /home/wazuh-indexer \
-    -it ubuntu:jammy /bin/bash
-
-apt-get update
-apt-get install -y rpm2cpio rpm cpio
-bash scripts/assemble.sh -v 2.11.0 -p linux -a x64 -d rpm
+docker exec -it wi-assemble_$(<VERSION) bash scripts/assemble.sh -v 2.11.1 -p linux -a x64 -d rpm
 ```

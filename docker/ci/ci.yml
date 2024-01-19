@@ -1,0 +1,29 @@
+version: "3.9"
+
+services:
+  # Essentially wi-dev, but doesn't expose port 9200
+  wi-build:
+    image: wi-build:${VERSION}
+    container_name: wi-build_${VERSION}
+    build:
+      context: ./../..
+      dockerfile: ${REPO_PATH}/docker/dev/images/Dockerfile
+    volumes:
+      - ${REPO_PATH}:/home/wazuh-indexer
+    entrypoint: ["tail", "-f", "/dev/null"]
+    user: "1000:1000"
+    working_dir: /home/wazuh-indexer
+
+  wi-assemble:
+    image: wi-assemble:${VERSION}
+    container_name: wi-assemble_${VERSION}
+    build:
+      context: ./../..
+      dockerfile: ${REPO_PATH}/docker/ci/images/Dockerfile
+    volumes:
+      - ${REPO_PATH}/scripts:/home/wazuh-indexer/scripts
+      - ${REPO_PATH}/artifacts:/home/wazuh-indexer/artifacts
+      - ${REPO_PATH}/distribution/packages/src:/home/wazuh-indexer/distribution/packages/src
+    entrypoint: ["tail", "-f", "/dev/null"]
+    user: "1000:1000"
+    working_dir: /home/wazuh-indexer
