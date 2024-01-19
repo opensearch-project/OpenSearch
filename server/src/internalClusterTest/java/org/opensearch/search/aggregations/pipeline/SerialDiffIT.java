@@ -43,7 +43,7 @@ import org.opensearch.search.aggregations.bucket.histogram.Histogram;
 import org.opensearch.search.aggregations.bucket.histogram.Histogram.Bucket;
 import org.opensearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.opensearch.test.OpenSearchIntegTestCase;
-import org.opensearch.test.ParameterizedOpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 import org.hamcrest.Matchers;
 
 import java.util.ArrayList;
@@ -69,7 +69,7 @@ import static org.hamcrest.core.IsNull.notNullValue;
 import static org.hamcrest.core.IsNull.nullValue;
 
 @OpenSearchIntegTestCase.SuiteScopeTestCase
-public class SerialDiffIT extends ParameterizedOpenSearchIntegTestCase {
+public class SerialDiffIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
     private static final String INTERVAL_FIELD = "l_value";
     private static final String VALUE_FIELD = "v_value";
 
@@ -98,8 +98,8 @@ public class SerialDiffIT extends ParameterizedOpenSearchIntegTestCase {
         }
     }
 
-    public SerialDiffIT(Settings dynamicSettings) {
-        super(dynamicSettings);
+    public SerialDiffIT(Settings staticSettings) {
+        super(staticSettings);
     }
 
     @ParametersFactory
