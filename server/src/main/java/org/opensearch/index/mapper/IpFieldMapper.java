@@ -40,7 +40,6 @@ import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.Version;
@@ -243,10 +242,7 @@ public class IpFieldMapper extends ParametrizedFieldMapper {
                 }
             }
             if (isSearchable() && hasDocValues()) {
-                return new IndexOrDocValuesQuery(
-                    query,
-                    SortedSetDocValuesField.newSlowExactQuery(name(), ((BytesRef) value))
-                );
+                return new IndexOrDocValuesQuery(query, SortedSetDocValuesField.newSlowExactQuery(name(), ((BytesRef) value)));
             }
             if (hasDocValues()) {
                 return SortedSetDocValuesField.newSlowExactQuery(name(), ((BytesRef) value));
