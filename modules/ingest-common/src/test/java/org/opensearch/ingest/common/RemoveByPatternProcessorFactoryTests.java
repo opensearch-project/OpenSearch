@@ -51,13 +51,12 @@ public class RemoveByPatternProcessorFactoryTests extends OpenSearchTestCase {
         assertThat(
             exception.getMessage(),
             equalTo(
-                "[field_pattern] Validation Failed: 1: field_pattern [ ] must not contain a space;"
-                    + "2: field_pattern [ ] must not contain the following characters [ , \", *, \\, <, |, ,, >, /, ?];"
-                    + "3: field_pattern [,] must not contain a ',';"
-                    + "4: field_pattern [,] must not contain the following characters [ , \", *, \\, <, |, ,, >, /, ?];"
-                    + "5: field_pattern [#] must not contain a '#';"
-                    + "6: field_pattern [:] must not contain a ':';"
-                    + "7: field_pattern [_] must not start with '_';"
+                "[field_pattern] Validation Failed: "
+                    + "1: field_pattern [ ] must not contain the following characters [ , \", *, \\, <, |, ,, >, /, ?];"
+                    + "2: field_pattern [,] must not contain the following characters [ , \", *, \\, <, |, ,, >, /, ?];"
+                    + "3: field_pattern [#] must not contain a '#';"
+                    + "4: field_pattern [:] must not contain a ':';"
+                    + "5: field_pattern [_] must not start with '_';"
             )
         );
     }
@@ -84,13 +83,12 @@ public class RemoveByPatternProcessorFactoryTests extends OpenSearchTestCase {
         assertThat(
             exception.getMessage(),
             equalTo(
-                "[exclude_field_pattern] Validation Failed: 1: exclude_field_pattern [ ] must not contain a space;"
-                    + "2: exclude_field_pattern [ ] must not contain the following characters [ , \", *, \\, <, |, ,, >, /, ?];"
-                    + "3: exclude_field_pattern [,] must not contain a ',';"
-                    + "4: exclude_field_pattern [,] must not contain the following characters [ , \", *, \\, <, |, ,, >, /, ?];"
-                    + "5: exclude_field_pattern [#] must not contain a '#';"
-                    + "6: exclude_field_pattern [:] must not contain a ':';"
-                    + "7: exclude_field_pattern [_] must not start with '_';"
+                "[exclude_field_pattern] Validation Failed: "
+                    + "1: exclude_field_pattern [ ] must not contain the following characters [ , \", *, \\, <, |, ,, >, /, ?];"
+                    + "2: exclude_field_pattern [,] must not contain the following characters [ , \", *, \\, <, |, ,, >, /, ?];"
+                    + "3: exclude_field_pattern [#] must not contain a '#';"
+                    + "4: exclude_field_pattern [:] must not contain a ':';"
+                    + "5: exclude_field_pattern [_] must not start with '_';"
             )
         );
     }

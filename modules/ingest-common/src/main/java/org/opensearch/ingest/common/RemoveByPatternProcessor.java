@@ -154,12 +154,6 @@ public final class RemoveByPatternProcessor extends AbstractProcessor {
         private void validateFieldPatterns(String processorTag, List<String> patterns, String patternKey) {
             List<String> validationErrors = new ArrayList<>();
             for (String fieldPattern : patterns) {
-                if (fieldPattern.contains(" ")) {
-                    validationErrors.add(patternKey + " [" + fieldPattern + "] must not contain a space");
-                }
-                if (fieldPattern.contains(",")) {
-                    validationErrors.add(patternKey + " [" + fieldPattern + "] must not contain a ','");
-                }
                 if (fieldPattern.contains("#")) {
                     validationErrors.add(patternKey + " [" + fieldPattern + "] must not contain a '#'");
                 }
