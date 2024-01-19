@@ -1,0 +1,31 @@
+#!/bin/bash
+
+# Copyright OpenSearch Contributors
+# SPDX-License-Identifier: Apache-2.0
+#
+# The OpenSearch Contributors require contributions made to
+# this file be licensed under the Apache-2.0 license or a
+# compatible open source license.
+
+# deb wazuh-indexer preinst script
+
+set -e
+
+echo "Running Wazuh Indexer Pre-Installation Script"
+
+# Stop existing service
+if command -v systemctl >/dev/null && systemctl is-active wazuh-indexer.service >/dev/null; then
+    echo "Stop existing wazuh-indexer.service"
+    systemctl --no-reload stop wazuh-indexer.service
+fi
+if command -v systemctl >/dev/null && systemctl is-active wazuh-indexer-performance-analyzer.service >/dev/null; then
+    echo "Stop existing wazuh-indexer-performance-analyzer.service"
+    systemctl --no-reload stop wazuh-indexer-performance-analyzer.service
+fi
+
+# Create user and group if they do not already exist.
+getent group wazuh-indexer > /dev/null 2>&1 || groupadd -r wazuh-indexer
+getent passwd wazuh-indexer > /dev/null 2>&1 || \
+    useradd -r -g wazuh-indexer -M -s /sbin/nologin \
+        -c "wazuh-indexer user/group" wazuh-indexer
+exit 0

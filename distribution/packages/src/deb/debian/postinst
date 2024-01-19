@@ -1,0 +1,53 @@
+#!/bin/bash
+
+# Copyright Wazuh Indexer Contributors
+# SPDX-License-Identifier: Apache-2.0
+#
+# The Wazuh Indexer Contributors require contributions made to
+# this file be licensed under the Apache-2.0 license or a
+# compatible open source license.
+
+# deb wazuh-indexer postinst script
+
+set -e
+
+echo "Running Wazuh Indexer Post-Installation Script"
+
+product_dir=/usr/share/wazuh-indexer
+config_dir=/etc/wazuh-indexer
+data_dir=/var/lib/wazuh-indexer
+log_dir=/var/log/wazuh-indexer
+pid_dir=/var/run/wazuh-indexer
+
+
+# Set owner
+chown -R wazuh-indexer.wazuh-indexer ${product_dir}
+chown -R wazuh-indexer.wazuh-indexer ${config_dir}
+chown -R wazuh-indexer.wazuh-indexer ${log_dir}
+chown -R wazuh-indexer.wazuh-indexer ${data_dir}
+chown -R wazuh-indexer.wazuh-indexer ${pid_dir}
+
+# Reload systemctl daemon
+if command -v systemctl > /dev/null; then
+    systemctl daemon-reload
+fi
+
+# Reload other configs
+if command -v systemctl > /dev/null; then
+    systemctl restart systemd-sysctl.service || true
+fi
+
+if command -v systemd-tmpfiles > /dev/null; then
+    systemd-tmpfiles --create wazuh-indexer.conf
+fi
+
+# Messages
+echo "### NOT starting on installation, please execute the following statements to configure wazuh-indexer service to start automatically using systemd"
+echo " sudo systemctl daemon-reload"
+echo " sudo systemctl enable wazuh-indexer.service"
+echo "### You can start wazuh-indexer service by executing"
+echo " sudo systemctl start wazuh-indexer.service"
+
+exit 0
+
+

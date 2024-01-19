@@ -322,6 +322,7 @@ function assemble_deb() {
     # Copy spec
     cp "distribution/packages/src/deb/Makefile" "${TMP_DIR}"
     cp "distribution/packages/src/deb/debmake_install.sh" "${TMP_DIR}"
+    cp -r "distribution/packages/src/deb/debian" "${TMP_DIR}"
     chmod a+x "${TMP_DIR}/debmake_install.sh"
     # Copy performance analyzer service file
     enable_performance_analyzer

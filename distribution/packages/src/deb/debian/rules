@@ -1,0 +1,29 @@
+#!/usr/bin/make -f
+
+# Copyright OpenSearch Contributors
+# SPDX-License-Identifier: Apache-2.0
+#
+# The OpenSearch Contributors require contributions made to
+# this file be licensed under the Apache-2.0 license or a
+# compatible open source license.
+
+# You must remove unused comment lines for the released package.
+#export DH_VERBOSE = 1
+#export DEB_BUILD_MAINT_OPTIONS = hardening=+all
+#export DEB_CFLAGS_MAINT_APPEND  = -Wall -pedantic
+#export DEB_LDFLAGS_MAINT_APPEND = -Wl,--as-needed
+
+%:
+	dh $@
+
+override_dh_builddeb:
+	dh_builddeb -- -Zgzip
+
+override_dh_gencontrol:
+	dh_gencontrol -- -DLicense=Apache-2.0
+
+#override_dh_auto_install:
+#	dh_auto_install -- prefix=/usr
+
+#override_dh_install:
+#	dh_install --list-missing -X.pyc -X.pyo
