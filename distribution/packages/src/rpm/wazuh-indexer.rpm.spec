@@ -64,9 +64,10 @@ mkdir -p %{buildroot}%{pid_dir}
 mkdir -p %{buildroot}%{product_dir}/plugins
 # Install directories/files
 cp -a etc usr var %{buildroot}
-chmod 0755 %{buildroot}%{product_dir}/bin/*
+chmod 0750 %{buildroot}%{product_dir}/bin/*
 if [ -d %{buildroot}%{product_dir}/plugins/opensearch-security ]; then
-    chmod 0755 %{buildroot}%{product_dir}/plugins/opensearch-security/tools/*
+    chmod 0640 %{buildroot}%{product_dir}/plugins/opensearch-security/tools/*
+    chmod 0740 %{buildroot}%{product_dir}/plugins/opensearch-security/tools/*.sh
 fi
 # Pre-populate the folders to ensure rpm build success even without all plugins
 mkdir -p %{buildroot}%{config_dir}/opensearch-observability
@@ -192,9 +193,7 @@ exit 0
 
 # Wazuh additional files
 %attr(440, %{name}, %{name}) %{product_dir}/VERSION
-%attr(750, %{name}, %{name}) %{product_dir}/bin/indexer-security-init.sh
-%attr(750, %{name}, %{name}) %{product_dir}/bin/indexer-ism-init.sh
-%attr(750, %{name}, %{name}) %{product_dir}/bin/indexer-init.sh
+%attr(660, %{name}, %{name}) %{config_dir}/wazuh-template.json
 
 %changelog
 * Thu Mar 28 2024 support <info@wazuh.com> - 4.9.0

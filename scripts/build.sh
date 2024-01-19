@@ -24,45 +24,48 @@ function usage() {
     echo -e "-h help"
 }
 
-while getopts ":h:v:q:s:o:p:a:d:r:" arg; do
+while getopts ":h:v:q:s:o:p:a:d:r:b:" arg; do
     case $arg in
-        h)
-            usage
-            exit 1
-            ;;
-        v)
-            VERSION=$OPTARG
-            ;;
-        q)
-            QUALIFIER=$OPTARG
-            ;;
-        s)
-            SNAPSHOT=$OPTARG
-            ;;
-        o)
-            OUTPUT=$OPTARG
-            ;;
-        p)
-            PLATFORM=$OPTARG
-            ;;
-        a)
-            ARCHITECTURE=$OPTARG
-            ;;
-        d)
-            DISTRIBUTION=$OPTARG
-            ;;
-        r)
-            REVISION=$OPTARG
-            ;;
-        :)
-            echo "Error: -${OPTARG} requires an argument"
-            usage
-            exit 1
-            ;;
-        ?)
-            echo "Invalid option: -${arg}"
-            exit 1
-            ;;
+    h)
+        usage
+        exit 1
+        ;;
+    v)
+        VERSION=$OPTARG
+        ;;
+    q)
+        QUALIFIER=$OPTARG
+        ;;
+    s)
+        SNAPSHOT=$OPTARG
+        ;;
+    o)
+        OUTPUT=$OPTARG
+        ;;
+    p)
+        PLATFORM=$OPTARG
+        ;;
+    a)
+        ARCHITECTURE=$OPTARG
+        ;;
+    d)
+        DISTRIBUTION=$OPTARG
+        ;;
+    r)
+        REVISION=$OPTARG
+        ;;
+    b)
+        BRANCH=$OPTARG
+        ;;
+    :)
+        echo "Error: -${OPTARG} requires an argument"
+        usage
+        exit 1
+        ;;
+    ?)
+        echo "Invalid option: -${arg}"
+        exit 1
+        ;;
     esac
 done
 
@@ -96,16 +99,33 @@ cp -r ./build/local-test-repo/org/opensearch "${OUTPUT}"/maven/org
 [ -z "$ARCHITECTURE" ] && ARCHITECTURE=$(uname -m)
 [ -z "$DISTRIBUTION" ] && DISTRIBUTION="tar"
 [ -z "$REVISION" ] && REVISION="1"
+[ -z "$BRANCH" ] && BRANCH="master"
+
+# ====
+# Function to download the alerts template
+# ====
+function download_template() {
+    echo "Downloading wazuh-template.json"
+    local download_url="https://raw.githubusercontent.com/wazuh/wazuh/${BRANCH}/extensions/elasticsearch/7.x/wazuh-template.json"
+
+    if ! curl -s "${download_url}" -o distribution/src/config/wazuh-template.json; then
+        echo "Unable to download wazuh-template.json"
+        return 1
+    fi
+
+    echo "Successfully downloaded wazuh-template.json"
+    return 0
+}
 
 case $PLATFORM-$DISTRIBUTION-$ARCHITECTURE in
-    linux-tar-x64|darwin-tar-x64)
+    linux-tar-x64 | darwin-tar-x64)
         PACKAGE="tar"
         EXT="tar.gz"
         TYPE="archives"
         TARGET="$PLATFORM-$PACKAGE"
         SUFFIX="$PLATFORM-x64"
         ;;
-    linux-tar-arm64|darwin-tar-arm64)
+    linux-tar-arm64 | darwin-tar-arm64)
         PACKAGE="tar"
         EXT="tar.gz"
         TYPE="archives"
@@ -162,25 +182,22 @@ esac
 
 echo "Building OpenSearch for $PLATFORM-$DISTRIBUTION-$ARCHITECTURE"
 
+if ! download_template; then
+    exit 1
+fi
+
 ./gradlew ":distribution:$TYPE:$TARGET:assemble" -Dbuild.snapshot="$SNAPSHOT" -Dbuild.version_qualifier="$QUALIFIER"
 
 # Copy artifact to dist folder in bundle build output
 echo "Copying artifact to ${OUTPUT}/dist"
-# [[ "$SNAPSHOT" == "true" ]] && IDENTIFIER="-SNAPSHOT"
-
 
 ARTIFACT_BUILD_NAME=$(ls "distribution/$TYPE/$TARGET/build/distributions/" | grep "wazuh-indexer-min.*$SUFFIX.$EXT")
-
 GIT_COMMIT=$(git rev-parse --short HEAD)
-
 WI_VERSION=$(<VERSION)
-
-
 ARTIFACT_PACKAGE_NAME=wazuh-indexer-min_"$WI_VERSION"-"$REVISION"_"$SUFFIX"_"$GIT_COMMIT"."$EXT"
 
-# [WAZUH] Used by the GH workflow to upload the artifact
-
-echo "$ARTIFACT_PACKAGE_NAME" > "$OUTPUT/artifact_min_name.txt"
+# Used by the GH workflow to upload the artifact
+echo "$ARTIFACT_PACKAGE_NAME" >"$OUTPUT/artifact_min_name.txt"
 
 mkdir -p "${OUTPUT}/dist"
 cp "distribution/$TYPE/$TARGET/build/distributions/$ARTIFACT_BUILD_NAME" "${OUTPUT}/dist/$ARTIFACT_PACKAGE_NAME"

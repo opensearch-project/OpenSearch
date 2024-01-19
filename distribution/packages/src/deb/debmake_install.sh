@@ -18,7 +18,7 @@ fi
 
 curdir=$1
 product_dir=/usr/share/wazuh-indexer
-# config_dir=/etc/wazuh-indexer
+config_dir=/etc/wazuh-indexer
 data_dir=/var/lib/wazuh-indexer
 log_dir=/var/log/wazuh-indexer
 pid_dir=/run/wazuh-indexer
@@ -38,5 +38,6 @@ fi
 
 # Change Permissions
 chmod -Rf a+rX,u+w,g-w,o-w "${buildroot}"/*
+chmod -c 660 "${buildroot}${config_dir}"/wazuh-template.json
 
 exit 0
