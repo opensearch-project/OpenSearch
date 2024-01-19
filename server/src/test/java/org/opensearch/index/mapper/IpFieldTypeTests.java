@@ -85,13 +85,7 @@ public class IpFieldTypeTests extends FieldTypeTestCase {
         assertEquals(
             new IndexOrDocValuesQuery(
                 query,
-                SortedSetDocValuesField.newSlowRangeQuery(
-                    ((PointRangeQuery) query).getField(),
-                    new BytesRef(((PointRangeQuery) query).getLowerPoint()),
-                    new BytesRef(((PointRangeQuery) query).getUpperPoint()),
-                    true,
-                    true
-                )
+                SortedSetDocValuesField.newSlowExactQuery("field", new BytesRef(ip))
             ),
             ft.termQuery(ip, null)
         );
@@ -101,13 +95,7 @@ public class IpFieldTypeTests extends FieldTypeTestCase {
         assertEquals(
             new IndexOrDocValuesQuery(
                 query,
-                SortedSetDocValuesField.newSlowRangeQuery(
-                    ((PointRangeQuery) query).getField(),
-                    new BytesRef(((PointRangeQuery) query).getLowerPoint()),
-                    new BytesRef(((PointRangeQuery) query).getUpperPoint()),
-                    true,
-                    true
-                )
+                    SortedSetDocValuesField.newSlowExactQuery("field", new BytesRef(ip))
             ),
             ft.termQuery(ip, null)
         );
@@ -117,16 +105,7 @@ public class IpFieldTypeTests extends FieldTypeTestCase {
 
         query = InetAddressPoint.newPrefixQuery("field", InetAddresses.forString(ip), 64);
         assertEquals(
-            new IndexOrDocValuesQuery(
-                query,
-                SortedSetDocValuesField.newSlowRangeQuery(
-                    ((PointRangeQuery) query).getField(),
-                    new BytesRef(((PointRangeQuery) query).getLowerPoint()),
-                    new BytesRef(((PointRangeQuery) query).getUpperPoint()),
-                    true,
-                    true
-                )
-            ),
+            query,
             ft.termQuery(prefix, null)
         );
 
@@ -134,16 +113,7 @@ public class IpFieldTypeTests extends FieldTypeTestCase {
         prefix = ip + "/16";
         query = InetAddressPoint.newPrefixQuery("field", InetAddresses.forString(ip), 16);
         assertEquals(
-            new IndexOrDocValuesQuery(
-                query,
-                SortedSetDocValuesField.newSlowRangeQuery(
-                    ((PointRangeQuery) query).getField(),
-                    new BytesRef(((PointRangeQuery) query).getLowerPoint()),
-                    new BytesRef(((PointRangeQuery) query).getUpperPoint()),
-                    true,
-                    true
-                )
-            ),
+            query,
             ft.termQuery(prefix, null)
         );
 
