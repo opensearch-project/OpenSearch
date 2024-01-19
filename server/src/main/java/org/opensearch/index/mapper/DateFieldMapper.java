@@ -457,22 +457,30 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
             @Nullable DateMathParser forcedDateParser,
             QueryShardContext context
         ) {
-            failIfNotIndexed();
+            failIfNotIndexedAndNoDocValues();
             if (relation == ShapeRelation.DISJOINT) {
                 throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] does not support DISJOINT ranges");
             }
             DateMathParser parser = forcedDateParser == null ? dateMathParser : forcedDateParser;
             return dateRangeQuery(lowerTerm, upperTerm, includeLower, includeUpper, timeZone, parser, context, resolution, (l, u) -> {
+                if(isSearchable() && hasDocValues()){
                 Query query = LongPoint.newRangeQuery(name(), l, u);
-                if (hasDocValues()) {
-                    Query dvQuery = SortedNumericDocValuesField.newSlowRangeQuery(name(), l, u);
-                    query = new IndexOrDocValuesQuery(query, dvQuery);
+                Query dvQuery = SortedNumericDocValuesField.newSlowRangeQuery(name(), l, u);
+                query = new IndexOrDocValuesQuery(query, dvQuery);
 
+                if (context.indexSortedOnField(name())) {
+                    query = new IndexSortSortedNumericDocValuesRangeQuery(name(), l, u, query);
+                }
+                return query;
+                }
+                if (hasDocValues()) {
+                    Query query = SortedNumericDocValuesField.newSlowRangeQuery(name(), l, u);
                     if (context.indexSortedOnField(name())) {
                         query = new IndexSortSortedNumericDocValuesRangeQuery(name(), l, u, query);
                     }
+                    return query;
                 }
-                return query;
+                return LongPoint.newRangeQuery(name(), l, u);
             });
         }
 
@@ -543,6 +551,7 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
 
         @Override
         public Query distanceFeatureQuery(Object origin, String pivot, float boost, QueryShardContext context) {
+            failIfNotIndexedAndNoDocValues();
             long originLong = parseToLong(origin, true, null, null, context::nowInMillis);
             TimeValue pivotTime = TimeValue.parseTimeValue(pivot, "distance_feature.pivot");
             return resolution.distanceFeatureQuery(name(), boost, originLong, pivotTime);
