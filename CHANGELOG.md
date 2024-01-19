@@ -240,8 +240,4 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 ### Security
 
 [Unreleased 3.0]: https://github.com/opensearch-project/OpenSearch/compare/2.x...HEAD
-<<<<<<< HEAD
 [Unreleased 2.x]: https://github.com/opensearch-project/OpenSearch/compare/2.12...2.x
-=======
-[Unreleased 2.x]: https://github.com/opensearch-project/OpenSearch/compare/2.11...2.x
->>>>>>> 37a5dd041f2 (Bump JNA version from 5.5 to 5.13.)
