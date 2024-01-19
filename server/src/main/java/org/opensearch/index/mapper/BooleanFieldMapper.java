@@ -101,6 +101,11 @@ public class BooleanFieldMapper extends ParametrizedFieldMapper {
         public static final BytesRef FALSE = new BytesRef("F");
     }
 
+    public static class ExpandedValues {
+        public static final BytesRef TRUE = new BytesRef("true");
+        public static final BytesRef FALSE = new BytesRef("false");
+    }
+
     private static BooleanFieldMapper toType(FieldMapper in) {
         return (BooleanFieldMapper) in;
     }
@@ -291,13 +296,13 @@ public class BooleanFieldMapper extends ParametrizedFieldMapper {
         public Query termsQuery(List<?> values, QueryShardContext context) {
             failIfNotIndexedAndNoDocValues();
             // if we do not get either True or False, we return no docs
-            if (!(values.contains(Values.TRUE)) || !(values.contains(Values.FALSE))) {
+            if (!(values.contains(ExpandedValues.TRUE)) && !(values.contains(ExpandedValues.FALSE))) {
                 return new MatchNoDocsQuery("Values do not contain True or False");
             }
             // if we have either True or False, we delegate to termQuery
-            if ((values.contains(Values.TRUE) && !(values.contains(Values.FALSE)))
-                || (values.contains(Values.FALSE) && !values.contains(Values.TRUE))) {
-                return termQuery(values.contains(Values.TRUE) ? Values.TRUE : Values.FALSE, context);
+            if ((values.contains(ExpandedValues.TRUE) && !(values.contains(ExpandedValues.FALSE)))
+                || (values.contains(ExpandedValues.FALSE) && !values.contains(ExpandedValues.TRUE))) {
+                return termQuery(values.contains(ExpandedValues.TRUE) ? ExpandedValues.TRUE : ExpandedValues.FALSE, context);
             }
             // if we have both True and False, we acknowledge that the field exists with a value
             return new FieldExistsQuery(name());

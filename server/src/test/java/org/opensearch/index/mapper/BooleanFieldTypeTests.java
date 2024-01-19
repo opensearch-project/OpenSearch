@@ -33,7 +33,9 @@ package org.opensearch.index.mapper;
 
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermQuery;
@@ -84,22 +86,23 @@ public class BooleanFieldTypeTests extends FieldTypeTestCase {
         terms.add(new BytesRef("true"));
         terms.add(new BytesRef("false"));
         assertEquals(
-            new IndexOrDocValuesQuery(
-                new TermInSetQuery("field", terms.stream().map(booleanFieldType::indexedValueForSearch).toArray(BytesRef[]::new)),
-                new TermInSetQuery(
-                    MultiTermQuery.DOC_VALUES_REWRITE,
-                    "field",
-                    terms.stream().map(booleanFieldType::indexedValueForSearch).toArray(BytesRef[]::new)
-                )
-            ),
+            new FieldExistsQuery("field"),
             ft.termsQuery(terms, null)
         );
+
+        List<BytesRef> newTerms = new ArrayList<>();
+        newTerms.add(new BytesRef("true"));
         assertEquals(
-            new IndexOrDocValuesQuery(
-                new TermInSetQuery("field", terms),
-                new TermInSetQuery(MultiTermQuery.DOC_VALUES_REWRITE, "field", terms)
+         new IndexOrDocValuesQuery(
+                new TermQuery(new Term("field", "T")),
+                SortedNumericDocValuesField.newSlowExactQuery("field", 1)
             ),
-            ft.termsQuery(terms, null)
+            ft.termsQuery(newTerms, null)
+        );
+
+        assertEquals(
+                new MatchNoDocsQuery("Values do not contain True or False"),
+                ft.termsQuery(new ArrayList<>(), null)
         );
 
         MappedFieldType unsearchable = new BooleanFieldMapper.BooleanFieldType("field", false, false);
