@@ -44,7 +44,6 @@ import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TermRangeQuery;
 import org.apache.lucene.util.BytesRef;
@@ -292,12 +291,13 @@ public class BooleanFieldMapper extends ParametrizedFieldMapper {
         public Query termsQuery(List<?> values, QueryShardContext context) {
             failIfNotIndexedAndNoDocValues();
             // if we do not get either True or False, we return no docs
-            if (!(values.contains(Values.TRUE)) || !(values.contains(Values.FALSE))){
+            if (!(values.contains(Values.TRUE)) || !(values.contains(Values.FALSE))) {
                 return new MatchNoDocsQuery("Values do not contain True or False");
             }
             // if we have either True or False, we delegate to termQuery
-            if((values.contains(Values.TRUE) && !(values.contains(Values.FALSE))) || (values.contains(Values.FALSE) && !values.contains(Values.TRUE))){
-                return termQuery(values.contains(Values.TRUE)? Values.TRUE : Values.FALSE, context);
+            if ((values.contains(Values.TRUE) && !(values.contains(Values.FALSE)))
+                || (values.contains(Values.FALSE) && !values.contains(Values.TRUE))) {
+                return termQuery(values.contains(Values.TRUE) ? Values.TRUE : Values.FALSE, context);
             }
             // if we have both True and False, we acknowledge that the field exists with a value
             return new FieldExistsQuery(name());
