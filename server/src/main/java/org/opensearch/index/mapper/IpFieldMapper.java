@@ -243,15 +243,20 @@ public class IpFieldMapper extends ParametrizedFieldMapper {
             }
             if (isSearchable() && hasDocValues()) {
                 String term = value.toString();
-                if (value instanceof String)
-                    value =  new BytesRef(((String) value).getBytes());
+                if (value instanceof String) value = new BytesRef(((String) value));
                 if (term.contains("/")) {
                     final Tuple<InetAddress, Integer> cidr = InetAddresses.parseCidr(term);
                     return InetAddressPoint.newPrefixQuery(name(), cidr.v1(), cidr.v2());
                 }
-                return new IndexOrDocValuesQuery(query, SortedSetDocValuesField.newSlowExactQuery(name(), (BytesRef)(value)));
+                return new IndexOrDocValuesQuery(query, SortedSetDocValuesField.newSlowExactQuery(name(), (BytesRef) (value)));
             }
             if (hasDocValues()) {
+                String term = value.toString();
+                if (value instanceof String) value = new BytesRef(((String) value));
+                if (term.contains("/")) {
+                    final Tuple<InetAddress, Integer> cidr = InetAddresses.parseCidr(term);
+                    return InetAddressPoint.newPrefixQuery(name(), cidr.v1(), cidr.v2());
+                }
                 return SortedSetDocValuesField.newSlowExactQuery(name(), ((BytesRef) value));
             }
             return query;

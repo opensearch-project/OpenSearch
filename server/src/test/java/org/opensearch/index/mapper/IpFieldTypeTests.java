@@ -83,20 +83,14 @@ public class IpFieldTypeTests extends FieldTypeTestCase {
         Query query = InetAddressPoint.newExactQuery("field", InetAddresses.forString(ip));
 
         assertEquals(
-            new IndexOrDocValuesQuery(
-                query,
-                SortedSetDocValuesField.newSlowExactQuery("field", new BytesRef(ip))
-            ),
+            new IndexOrDocValuesQuery(query, SortedSetDocValuesField.newSlowExactQuery("field", new BytesRef(ip))),
             ft.termQuery(ip, null)
         );
 
         ip = "192.168.1.7";
         query = InetAddressPoint.newExactQuery("field", InetAddresses.forString(ip));
         assertEquals(
-            new IndexOrDocValuesQuery(
-                query,
-                    SortedSetDocValuesField.newSlowExactQuery("field", new BytesRef(ip))
-            ),
+            new IndexOrDocValuesQuery(query, SortedSetDocValuesField.newSlowExactQuery("field", new BytesRef(ip))),
             ft.termQuery(ip, null)
         );
 
@@ -104,18 +98,12 @@ public class IpFieldTypeTests extends FieldTypeTestCase {
         String prefix = ip + "/64";
 
         query = InetAddressPoint.newPrefixQuery("field", InetAddresses.forString(ip), 64);
-        assertEquals(
-            query,
-            ft.termQuery(prefix, null)
-        );
+        assertEquals(query, ft.termQuery(prefix, null));
 
         ip = "192.168.1.7";
         prefix = ip + "/16";
         query = InetAddressPoint.newPrefixQuery("field", InetAddresses.forString(ip), 16);
-        assertEquals(
-            query,
-            ft.termQuery(prefix, null)
-        );
+        assertEquals(query, ft.termQuery(prefix, null));
 
         MappedFieldType unsearchable = new IpFieldMapper.IpFieldType("field", false, false, false, null, Collections.emptyMap());
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> unsearchable.termQuery("::1", null));
