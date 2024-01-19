@@ -49,7 +49,7 @@ import org.opensearch.search.aggregations.bucket.global.GlobalAggregationBuilder
 import org.opensearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.opensearch.search.aggregations.bucket.histogram.Histogram;
 import org.opensearch.search.aggregations.bucket.histogram.Histogram.Bucket;
-import org.opensearch.test.ParameterizedOpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 import org.opensearch.test.hamcrest.OpenSearchAssertions;
 
 import java.time.ZoneId;
@@ -69,7 +69,7 @@ import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertSearchResp
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
-public class IndicesRequestCacheIT extends ParameterizedOpenSearchIntegTestCase {
+public class IndicesRequestCacheIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
     public IndicesRequestCacheIT(Settings settings) {
         super(settings);
     }

@@ -54,7 +54,7 @@ import org.opensearch.search.SearchExtBuilder;
 import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.test.OpenSearchIntegTestCase.ClusterScope;
 import org.opensearch.test.OpenSearchIntegTestCase.Scope;
-import org.opensearch.test.ParameterizedOpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -74,10 +74,10 @@ import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertSearchResp
 import static org.hamcrest.CoreMatchers.equalTo;
 
 @ClusterScope(scope = Scope.SUITE, supportsDedicatedMasters = false, numDataNodes = 2)
-public class FetchSubPhasePluginIT extends ParameterizedOpenSearchIntegTestCase {
+public class FetchSubPhasePluginIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
 
-    public FetchSubPhasePluginIT(Settings dynamicSettings) {
-        super(dynamicSettings);
+    public FetchSubPhasePluginIT(Settings staticSettings) {
+        super(staticSettings);
     }
 
     @ParametersFactory

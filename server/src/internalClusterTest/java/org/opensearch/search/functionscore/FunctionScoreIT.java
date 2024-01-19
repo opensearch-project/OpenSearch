@@ -50,7 +50,7 @@ import org.opensearch.script.ScriptType;
 import org.opensearch.search.SearchHit;
 import org.opensearch.search.aggregations.bucket.terms.Terms;
 import org.opensearch.test.OpenSearchTestCase;
-import org.opensearch.test.ParameterizedOpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -78,13 +78,13 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
-public class FunctionScoreIT extends ParameterizedOpenSearchIntegTestCase {
+public class FunctionScoreIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
 
     static final String TYPE = "type";
     static final String INDEX = "index";
 
-    public FunctionScoreIT(Settings dynamicSettings) {
-        super(dynamicSettings);
+    public FunctionScoreIT(Settings staticSettings) {
+        super(staticSettings);
     }
 
     @ParametersFactory

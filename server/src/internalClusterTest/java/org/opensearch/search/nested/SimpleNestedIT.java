@@ -56,7 +56,7 @@ import org.opensearch.search.sort.NestedSortBuilder;
 import org.opensearch.search.sort.SortBuilders;
 import org.opensearch.search.sort.SortMode;
 import org.opensearch.search.sort.SortOrder;
-import org.opensearch.test.ParameterizedOpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -77,10 +77,10 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.startsWith;
 
-public class SimpleNestedIT extends ParameterizedOpenSearchIntegTestCase {
+public class SimpleNestedIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
 
-    public SimpleNestedIT(Settings dynamicSettings) {
-        super(dynamicSettings);
+    public SimpleNestedIT(Settings staticSettings) {
+        super(staticSettings);
     }
 
     @ParametersFactory

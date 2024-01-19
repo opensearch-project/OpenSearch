@@ -45,7 +45,7 @@ import org.opensearch.index.query.TermQueryBuilder;
 import org.opensearch.search.SearchException;
 import org.opensearch.search.SearchHits;
 import org.opensearch.search.fetch.subphase.FetchSourceContext;
-import org.opensearch.test.ParameterizedOpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -57,10 +57,10 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-public class MetadataFetchingIT extends ParameterizedOpenSearchIntegTestCase {
+public class MetadataFetchingIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
 
-    public MetadataFetchingIT(Settings dynamicSettings) {
-        super(dynamicSettings);
+    public MetadataFetchingIT(Settings staticSettings) {
+        super(staticSettings);
     }
 
     @ParametersFactory
