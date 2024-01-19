@@ -465,7 +465,6 @@ public class RemoteIndexShardTests extends SegmentReplicationIndexShardTests {
      * blocking update of reader. Once this is done, it corrupts one segment file and ensure that file is deleted in next
      * round of segment replication by ensuring doc count.
      */
-    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/10885")
     public void testNoFailuresOnFileReads() throws Exception {
         try (ReplicationGroup shards = createGroup(1, getIndexSettings(), new NRTReplicationEngineFactory())) {
             shards.startAll();

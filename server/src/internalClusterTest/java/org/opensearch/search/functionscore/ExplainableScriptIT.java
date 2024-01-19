@@ -58,7 +58,7 @@ import org.opensearch.search.SearchHits;
 import org.opensearch.search.lookup.SearchLookup;
 import org.opensearch.test.OpenSearchIntegTestCase.ClusterScope;
 import org.opensearch.test.OpenSearchIntegTestCase.Scope;
-import org.opensearch.test.ParameterizedOpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 import org.opensearch.test.hamcrest.OpenSearchAssertions;
 
 import java.io.IOException;
@@ -83,10 +83,10 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 @ClusterScope(scope = Scope.SUITE, supportsDedicatedMasters = false, numDataNodes = 1)
-public class ExplainableScriptIT extends ParameterizedOpenSearchIntegTestCase {
+public class ExplainableScriptIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
 
-    public ExplainableScriptIT(Settings dynamicSettings) {
-        super(dynamicSettings);
+    public ExplainableScriptIT(Settings staticSettings) {
+        super(staticSettings);
     }
 
     @ParametersFactory

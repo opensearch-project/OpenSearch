@@ -40,7 +40,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.index.query.QueryBuilders;
-import org.opensearch.test.ParameterizedOpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -52,10 +52,10 @@ import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertNoFailures
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.hasId;
 import static org.hamcrest.Matchers.equalTo;
 
-public class MultiSearchIT extends ParameterizedOpenSearchIntegTestCase {
+public class MultiSearchIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
 
-    public MultiSearchIT(Settings dynamicSettings) {
-        super(dynamicSettings);
+    public MultiSearchIT(Settings staticSettings) {
+        super(staticSettings);
     }
 
     @ParametersFactory

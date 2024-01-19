@@ -59,7 +59,7 @@ import org.opensearch.search.aggregations.bucket.histogram.LongBounds;
 import org.opensearch.search.aggregations.metrics.Avg;
 import org.opensearch.search.aggregations.metrics.Sum;
 import org.opensearch.test.OpenSearchIntegTestCase;
-import org.opensearch.test.ParameterizedOpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 import org.hamcrest.Matchers;
 import org.junit.After;
 
@@ -98,7 +98,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.core.IsNull.notNullValue;
 
 @OpenSearchIntegTestCase.SuiteScopeTestCase
-public class DateHistogramIT extends ParameterizedOpenSearchIntegTestCase {
+public class DateHistogramIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
 
     static Map<ZonedDateTime, Map<String, Object>> expectedMultiSortBuckets;
 
@@ -106,8 +106,8 @@ public class DateHistogramIT extends ParameterizedOpenSearchIntegTestCase {
         return ZonedDateTime.of(2012, month, day, 0, 0, 0, 0, ZoneOffset.UTC);
     }
 
-    public DateHistogramIT(Settings dynamicSettings) {
-        super(dynamicSettings);
+    public DateHistogramIT(Settings staticSettings) {
+        super(staticSettings);
     }
 
     @ParametersFactory

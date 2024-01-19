@@ -1,0 +1,374 @@
+---
+teardown:
+  - do:
+      ingest.delete_pipeline:
+        id: "1"
+        ignore: 404
+
+---
+"Test creat copy processor":
+  - skip:
+      version: " - 2.11.99"
+      reason: "introduced in 2.12"
+  - do:
+      catch: /\[target\_field\] required property is missing/
+      ingest.put_pipeline:
+        id: "1"
+        body:  >
+          {
+            "processors": [
+              {
+                "copy" : {
+                  "source_field" : "source"
+                }
+              }
+            ]
+          }
+  - do:
+      catch: /\[source\_field\] required property is missing/
+      ingest.put_pipeline:
+        id: "1"
+        body:  >
+          {
+            "processors": [
+              {
+                "copy" : {
+                  "target_field" : "target"
+                }
+              }
+            ]
+          }
+  - do:
+      ingest.put_pipeline:
+        id: "1"
+        body:  >
+          {
+            "processors": [
+              {
+                "copy" : {
+                  "source_field" : "source",
+                  "target_field" : "target",
+                  "ignore_missing" : true,
+                  "remove_source" : true,
+                  "override_target" : true
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+---
+"Test copy processor with ignore_missing":
+  - skip:
+      version: " - 2.11.99"
+      reason: "introduced in 2.12"
+  - do:
+      ingest.put_pipeline:
+        id: "1"
+        body:  >
+          {
+            "processors": [
+              {
+                "copy" : {
+                  "source_field" : "unknown_field",
+                  "target_field" : "bar"
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      catch: /source field \[unknown\_field\] doesn\'t exist/
+      index:
+        index: test
+        id: 1
+        pipeline: "1"
+        body: {
+          foo: "hello"
+        }
+
+  - do:
+      ingest.put_pipeline:
+        id: "1"
+        body:  >
+          {
+            "processors": [
+              {
+                "copy" : {
+                  "source_field" : "unknown_field",
+                  "target_field" : "bar",
+                  "ignore_missing" : true
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      index:
+        index: test
+        id: 1
+        pipeline: "1"
+        body: {
+          foo: "hello"
+        }
+  - do:
+      get:
+        index: test
+        id: 1
+  - match: { _source: { foo: "hello" } }
+
+---
+"Test copy processor with remove_source":
+  - skip:
+      version: " - 2.11.99"
+      reason: "introduced in 2.12"
+  - do:
+      ingest.put_pipeline:
+        id: "1"
+        body:  >
+          {
+            "processors": [
+              {
+                "copy" : {
+                  "source_field" : "foo",
+                  "target_field" : "bar"
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      index:
+        index: test
+        id: 1
+        pipeline: "1"
+        body: {
+          foo: "hello"
+        }
+  - do:
+      get:
+        index: test
+        id: 1
+  - match: { _source: { foo: "hello", bar: "hello" } }
+
+  - do:
+      ingest.put_pipeline:
+        id: "1"
+        body:  >
+          {
+            "processors": [
+              {
+                "copy" : {
+                  "source_field" : "foo",
+                  "target_field" : "bar",
+                  "remove_source" : true
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      index:
+        index: test
+        id: 1
+        pipeline: "1"
+        body: {
+          foo: "hello"
+        }
+  - do:
+      get:
+        index: test
+        id: 1
+  - match: { _source: { bar: "hello" } }
+
+---
+"Test copy processor with override_target":
+  - skip:
+      version: " - 2.11.99"
+      reason: "introduced in 2.12"
+  - do:
+      ingest.put_pipeline:
+        id: "1"
+        body:  >
+          {
+            "processors": [
+              {
+                "copy" : {
+                  "source_field" : "foo",
+                  "target_field" : "bar"
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      catch: /target field \[bar\] already exists/
+      index:
+        index: test
+        id: 1
+        pipeline: "1"
+        body: {
+          foo: "hello",
+          bar: "world"
+        }
+
+  - do:
+      ingest.put_pipeline:
+        id: "1"
+        body:  >
+          {
+            "processors": [
+              {
+                "copy" : {
+                  "source_field" : "foo",
+                  "target_field" : "bar",
+                  "override_target" : true
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      index:
+        index: test
+        id: 1
+        pipeline: "1"
+        body: {
+          foo: "hello",
+          bar: "world"
+        }
+  - do:
+      get:
+        index: test
+        id: 1
+  - match: { _source: { foo: "hello", bar: "hello" } }
+
+---
+"Test copy processor with template snippets":
+  - skip:
+      version: " - 2.11.99"
+      reason: "introduced in 2.12"
+  - do:
+      ingest.put_pipeline:
+        id: "1"
+        body:  >
+          {
+            "processors": [
+              {
+                "copy" : {
+                  "source_field" : "{{source}}",
+                  "target_field" : "{{target}}"
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      catch: /source field path cannot be null nor empty/
+      index:
+        index: test
+        id: 1
+        pipeline: "1"
+        body: {
+          target: "bar",
+          foo: "hello",
+          bar: "world"
+        }
+
+  - do:
+      ingest.put_pipeline:
+        id: "1"
+        body:  >
+          {
+            "processors": [
+              {
+                "copy" : {
+                  "source_field" : "{{source}}",
+                  "target_field" : "{{target}}"
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      catch: /target field path cannot be null nor empty/
+      index:
+        index: test
+        id: 1
+        pipeline: "1"
+        body: {
+          source: "foo",
+          foo: "hello",
+          bar: "world"
+        }
+
+  - do:
+      ingest.put_pipeline:
+        id: "1"
+        body:  >
+          {
+            "processors": [
+              {
+                "copy" : {
+                  "source_field" : "{{source}}",
+                  "target_field" : "{{target}}"
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      catch: /source field path and target field path cannot be same/
+      index:
+        index: test
+        id: 1
+        pipeline: "1"
+        body: {
+          source: "foo",
+          target: "foo",
+          foo: "hello",
+          bar: "world"
+        }
+
+  - do:
+      ingest.put_pipeline:
+        id: "1"
+        body:  >
+          {
+            "processors": [
+              {
+                "copy" : {
+                  "source_field" : "{{source}}",
+                  "target_field" : "{{target}}",
+                  "override_target" : true
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      index:
+        index: test
+        id: 1
+        pipeline: "1"
+        body: {
+          source: "foo",
+          target: "bar",
+          foo: "hello",
+          bar: "world"
+        }
+  - do:
+      get:
+        index: test
+        id: 1
+  - match: { _source: { source: "foo", target: "bar", foo: "hello", bar: "hello" } }

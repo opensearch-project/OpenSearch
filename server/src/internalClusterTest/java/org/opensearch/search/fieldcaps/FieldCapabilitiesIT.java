@@ -44,7 +44,7 @@ import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.plugins.MapperPlugin;
 import org.opensearch.plugins.Plugin;
-import org.opensearch.test.ParameterizedOpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 import org.junit.Before;
 
 import java.util.ArrayList;
@@ -59,10 +59,10 @@ import java.util.function.Predicate;
 import static org.opensearch.search.SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 
-public class FieldCapabilitiesIT extends ParameterizedOpenSearchIntegTestCase {
+public class FieldCapabilitiesIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
 
-    public FieldCapabilitiesIT(Settings dynamicSettings) {
-        super(dynamicSettings);
+    public FieldCapabilitiesIT(Settings staticSettings) {
+        super(staticSettings);
     }
 
     @ParametersFactory

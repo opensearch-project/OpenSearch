@@ -49,7 +49,7 @@ import org.opensearch.search.aggregations.bucket.nested.Nested;
 import org.opensearch.search.aggregations.bucket.range.Range;
 import org.opensearch.search.aggregations.bucket.terms.Terms;
 import org.opensearch.test.OpenSearchIntegTestCase;
-import org.opensearch.test.ParameterizedOpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -77,10 +77,10 @@ import static org.hamcrest.Matchers.equalTo;
  * we can make sure that the reduce is properly propagated by checking that empty buckets were created.
  */
 @OpenSearchIntegTestCase.SuiteScopeTestCase
-public class ShardReduceIT extends ParameterizedOpenSearchIntegTestCase {
+public class ShardReduceIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
 
-    public ShardReduceIT(Settings dynamicSettings) {
-        super(dynamicSettings);
+    public ShardReduceIT(Settings staticSettings) {
+        super(staticSettings);
     }
 
     @ParametersFactory

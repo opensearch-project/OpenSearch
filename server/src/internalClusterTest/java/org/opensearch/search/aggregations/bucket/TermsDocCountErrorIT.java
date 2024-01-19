@@ -45,7 +45,7 @@ import org.opensearch.search.aggregations.bucket.terms.Terms;
 import org.opensearch.search.aggregations.bucket.terms.Terms.Bucket;
 import org.opensearch.search.aggregations.bucket.terms.TermsAggregatorFactory.ExecutionMode;
 import org.opensearch.test.OpenSearchIntegTestCase;
-import org.opensearch.test.ParameterizedOpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -67,7 +67,7 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.core.IsNull.notNullValue;
 
 @OpenSearchIntegTestCase.SuiteScopeTestCase
-public class TermsDocCountErrorIT extends ParameterizedOpenSearchIntegTestCase {
+public class TermsDocCountErrorIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
 
     private static final String STRING_FIELD_NAME = "s_value";
     private static final String LONG_FIELD_NAME = "l_value";
@@ -79,8 +79,8 @@ public class TermsDocCountErrorIT extends ParameterizedOpenSearchIntegTestCase {
 
     private static int numRoutingValues;
 
-    public TermsDocCountErrorIT(Settings dynamicSettings) {
-        super(dynamicSettings);
+    public TermsDocCountErrorIT(Settings staticSettings) {
+        super(staticSettings);
     }
 
     @ParametersFactory
@@ -225,8 +225,16 @@ public class TermsDocCountErrorIT extends ParameterizedOpenSearchIntegTestCase {
         }
 
         indexRandom(true, builders);
-        indexRandomForMultipleSlices("idx");
         ensureSearchable();
+
+        // Force merge each shard down to 1 segment to verify results are the same between concurrent and non-concurrent search paths, else
+        // for concurrent segment search there will be additional error introduced during the slice level reduce and thus different buckets,
+        // doc_counts, and doc_count_errors may be returned. This test serves to verify that the doc_count_error is the same between
+        // concurrent and non-concurrent search in the 1 slice case. TermsFixedDocCountErrorIT verifies that the doc count error is
+        // correctly calculated for concurrent segment search at the slice level.
+        // See https://github.com/opensearch-project/OpenSearch/issues/11680"
+        forceMerge(1);
+        Thread.sleep(5000); // Sleep 5s to ensure force merge completes
     }
 
     private void assertDocCountErrorWithinBounds(int size, SearchResponse accurateResponse, SearchResponse testResponse) {
