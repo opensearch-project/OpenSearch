@@ -33,12 +33,10 @@
 package org.opensearch.index.mapper;
 
 import org.apache.lucene.document.SortedNumericDocValuesField;
-import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.SortedNumericDocValues;
-import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
@@ -50,7 +48,6 @@ import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.mapper.ParseContext.Document;
 
 import java.io.IOException;
-import java.util.SortedSet;
 
 public class BooleanFieldMapperTests extends MapperTestCase {
 
@@ -211,7 +208,13 @@ public class BooleanFieldMapperTests extends MapperTestCase {
         }));
 
         MappedFieldType ft = mapperService.fieldType("field");
-        assertEquals(new IndexOrDocValuesQuery(new BoostQuery(new TermQuery(new Term("field", "T")), 2.0f), SortedNumericDocValuesField.newSlowExactQuery("field", 1)), ft.termQuery("true", null));
+        assertEquals(
+            new IndexOrDocValuesQuery(
+                new BoostQuery(new TermQuery(new Term("field", "T")), 2.0f),
+                SortedNumericDocValuesField.newSlowExactQuery("field", 1)
+            ),
+            ft.termQuery("true", null)
+        );
         assertParseMaximalWarnings();
     }
 }

@@ -39,7 +39,9 @@ import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BoostQuery;
+import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermInSetQuery;
@@ -289,23 +291,16 @@ public class BooleanFieldMapper extends ParametrizedFieldMapper {
         @Override
         public Query termsQuery(List<?> values, QueryShardContext context) {
             failIfNotIndexedAndNoDocValues();
-            if (isSearchable() && hasDocValues()) {
-                Query query = new TermInSetQuery(name(), values.stream().map(this::indexedValueForSearch).toArray(BytesRef[]::new));
-                Query dvQuery = new TermInSetQuery(
-                    MultiTermQuery.DOC_VALUES_REWRITE,
-                    name(),
-                    values.stream().map(this::indexedValueForSearch).toArray(BytesRef[]::new)
-                );
-                return new IndexOrDocValuesQuery(query, dvQuery);
+            // if we do not get either True or False, we return no docs
+            if (!(values.contains(Values.TRUE)) || !(values.contains(Values.FALSE))){
+                return new MatchNoDocsQuery("Values do not contain True or False");
             }
-            if (hasDocValues()) {
-                return new TermInSetQuery(
-                    MultiTermQuery.DOC_VALUES_REWRITE,
-                    name(),
-                    values.stream().map(this::indexedValueForSearch).toArray(BytesRef[]::new)
-                );
+            // if we have either True or False, we delegate to termQuery
+            if((values.contains(Values.TRUE) && !(values.contains(Values.FALSE))) || (values.contains(Values.FALSE) && !values.contains(Values.TRUE))){
+                return termQuery(values.contains(Values.TRUE)? Values.TRUE : Values.FALSE, context);
             }
-            return new TermInSetQuery(name(), values.stream().map(this::indexedValueForSearch).toArray(BytesRef[]::new));
+            // if we have both True and False, we acknowledge that the field exists with a value
+            return new FieldExistsQuery(name());
         }
 
         @Override

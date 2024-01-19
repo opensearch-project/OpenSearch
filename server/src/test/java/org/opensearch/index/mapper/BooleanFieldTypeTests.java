@@ -94,10 +94,13 @@ public class BooleanFieldTypeTests extends FieldTypeTestCase {
             ),
             ft.termsQuery(terms, null)
         );
-        assertEquals(new IndexOrDocValuesQuery(
+        assertEquals(
+            new IndexOrDocValuesQuery(
                 new TermInSetQuery("field", terms),
                 new TermInSetQuery(MultiTermQuery.DOC_VALUES_REWRITE, "field", terms)
-        ), ft.termsQuery(terms, null));
+            ),
+            ft.termsQuery(terms, null)
+        );
 
         MappedFieldType unsearchable = new BooleanFieldMapper.BooleanFieldType("field", false, false);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> unsearchable.termsQuery(terms, null));
