@@ -50,6 +50,14 @@
                   type: boolean
                   index: true
                   doc_values: true
+              date:
+                type: date
+                index: true
+                doc_values: true
+              date_nanos:
+                type: date_nanos
+                index: true
+                doc_values: true
 
   - do:
       bulk:
@@ -458,6 +466,7 @@
             }
 
   - match: { hits.total: 2 }
+
 ---
 "search on fields with only index enabled":
   - do:
@@ -508,6 +517,14 @@
                 doc_values: false
               boolean:
                 type: boolean
+                index: true
+                doc_values: false
+              date_nanos:
+                type: date_nanos
+                index: true
+                doc_values: false
+              date:
+                type: date
                 index: true
                 doc_values: false
 
@@ -973,6 +990,14 @@
                 doc_values: true
               boolean:
                 type: boolean
+                index: false
+                doc_values: true
+              date_nanos:
+                type: date_nanos
+                index: false
+                doc_values: true
+              date:
+                type: date
                 index: false
                 doc_values: true
 
