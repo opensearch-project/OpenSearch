@@ -37,7 +37,7 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.FeatureFlags;
-import org.opensearch.test.ParameterizedOpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -47,10 +47,10 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.core.IsEqual.equalTo;
 
-public class SourceFetchingIT extends ParameterizedOpenSearchIntegTestCase {
+public class SourceFetchingIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
 
-    public SourceFetchingIT(Settings dynamicSettings) {
-        super(dynamicSettings);
+    public SourceFetchingIT(Settings staticSettings) {
+        super(staticSettings);
     }
 
     @ParametersFactory

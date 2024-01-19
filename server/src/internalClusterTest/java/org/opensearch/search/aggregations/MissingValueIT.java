@@ -47,7 +47,7 @@ import org.opensearch.search.aggregations.metrics.GeoCentroid;
 import org.opensearch.search.aggregations.metrics.Percentiles;
 import org.opensearch.search.aggregations.metrics.Stats;
 import org.opensearch.test.OpenSearchIntegTestCase;
-import org.opensearch.test.ParameterizedOpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -65,10 +65,10 @@ import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertSearchResp
 import static org.hamcrest.Matchers.closeTo;
 
 @OpenSearchIntegTestCase.SuiteScopeTestCase
-public class MissingValueIT extends ParameterizedOpenSearchIntegTestCase {
+public class MissingValueIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
 
-    public MissingValueIT(Settings dynamicSettings) {
-        super(dynamicSettings);
+    public MissingValueIT(Settings staticSettings) {
+        super(staticSettings);
     }
 
     @ParametersFactory

@@ -37,7 +37,7 @@ import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.test.OpenSearchIntegTestCase;
-import org.opensearch.test.ParameterizedOpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -48,11 +48,11 @@ import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.opensearch.search.SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING;
 
 @OpenSearchIntegTestCase.SuiteScopeTestCase
-public abstract class AbstractNumericTestCase extends ParameterizedOpenSearchIntegTestCase {
+public abstract class AbstractNumericTestCase extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
     protected static long minValue, maxValue, minValues, maxValues;
 
-    public AbstractNumericTestCase(Settings dynamicSettings) {
-        super(dynamicSettings);
+    public AbstractNumericTestCase(Settings staticSettings) {
+        super(staticSettings);
     }
 
     @ParametersFactory

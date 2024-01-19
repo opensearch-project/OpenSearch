@@ -48,7 +48,7 @@ import org.opensearch.search.aggregations.metrics.Avg;
 import org.opensearch.search.sort.FieldSortBuilder;
 import org.opensearch.search.sort.SortOrder;
 import org.opensearch.test.OpenSearchIntegTestCase;
-import org.opensearch.test.ParameterizedOpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 
 import java.io.IOException;
 import java.time.ZonedDateTime;
@@ -75,7 +75,7 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 
 @OpenSearchIntegTestCase.SuiteScopeTestCase
-public class BucketSortIT extends ParameterizedOpenSearchIntegTestCase {
+public class BucketSortIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
 
     private static final String INDEX = "bucket-sort-it-data-index";
     private static final String INDEX_WITH_GAPS = "bucket-sort-it-data-index-with-gaps";
@@ -85,8 +85,8 @@ public class BucketSortIT extends ParameterizedOpenSearchIntegTestCase {
     private static final String VALUE_1_FIELD = "value_1";
     private static final String VALUE_2_FIELD = "value_2";
 
-    public BucketSortIT(Settings dynamicSettings) {
-        super(dynamicSettings);
+    public BucketSortIT(Settings staticSettings) {
+        super(staticSettings);
     }
 
     @ParametersFactory

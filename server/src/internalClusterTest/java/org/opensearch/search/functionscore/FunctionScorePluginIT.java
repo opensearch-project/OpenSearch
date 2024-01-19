@@ -52,7 +52,7 @@ import org.opensearch.plugins.SearchPlugin;
 import org.opensearch.search.SearchHits;
 import org.opensearch.test.OpenSearchIntegTestCase.ClusterScope;
 import org.opensearch.test.OpenSearchIntegTestCase.Scope;
-import org.opensearch.test.ParameterizedOpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 import org.opensearch.test.hamcrest.OpenSearchAssertions;
 
 import java.io.IOException;
@@ -71,10 +71,10 @@ import static org.opensearch.search.builder.SearchSourceBuilder.searchSource;
 import static org.hamcrest.Matchers.equalTo;
 
 @ClusterScope(scope = Scope.SUITE, supportsDedicatedMasters = false, numDataNodes = 1)
-public class FunctionScorePluginIT extends ParameterizedOpenSearchIntegTestCase {
+public class FunctionScorePluginIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
 
-    public FunctionScorePluginIT(Settings dynamicSettings) {
-        super(dynamicSettings);
+    public FunctionScorePluginIT(Settings staticSettings) {
+        super(staticSettings);
     }
 
     @ParametersFactory

@@ -40,7 +40,7 @@ import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.search.aggregations.Aggregator.SubAggCollectionMode;
 import org.opensearch.search.aggregations.bucket.terms.Terms;
 import org.opensearch.search.aggregations.bucket.terms.TermsAggregatorFactory.ExecutionMode;
-import org.opensearch.test.ParameterizedOpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -49,7 +49,7 @@ import static org.opensearch.search.SearchService.CLUSTER_CONCURRENT_SEGMENT_SEA
 import static org.opensearch.search.aggregations.AggregationBuilders.terms;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertSearchResponse;
 
-public abstract class AbstractTermsTestCase extends ParameterizedOpenSearchIntegTestCase {
+public abstract class AbstractTermsTestCase extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
 
     public AbstractTermsTestCase(Settings dynamicSettings) {
         super(dynamicSettings);

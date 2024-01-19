@@ -57,7 +57,7 @@ import org.opensearch.search.aggregations.metrics.Max;
 import org.opensearch.search.aggregations.metrics.Stats;
 import org.opensearch.search.aggregations.metrics.Sum;
 import org.opensearch.test.OpenSearchIntegTestCase;
-import org.opensearch.test.ParameterizedOpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 import org.hamcrest.Matchers;
 
 import java.util.ArrayList;
@@ -92,14 +92,14 @@ import static org.hamcrest.Matchers.sameInstance;
 import static org.hamcrest.core.IsNull.notNullValue;
 
 @OpenSearchIntegTestCase.SuiteScopeTestCase
-public class NestedIT extends ParameterizedOpenSearchIntegTestCase {
+public class NestedIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
 
     private static int numParents;
     private static int[] numChildren;
     private static SubAggCollectionMode aggCollectionMode;
 
-    public NestedIT(Settings dynamicSettings) {
-        super(dynamicSettings);
+    public NestedIT(Settings staticSettings) {
+        super(staticSettings);
     }
 
     @ParametersFactory

@@ -43,6 +43,7 @@ interface CompilerSupport {
         return compileWithPackage(ApiAnnotationProcessorTests.class.getPackageName(), name, names);
     }
 
+    @SuppressWarnings("removal")
     default CompilerResult compileWithPackage(String pck, String name, String... names) {
         final JavaCompiler compiler = ToolProvider.getSystemJavaCompiler();
         final DiagnosticCollector<JavaFileObject> collector = new DiagnosticCollector<>();

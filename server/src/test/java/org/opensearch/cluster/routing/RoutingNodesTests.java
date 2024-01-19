@@ -46,8 +46,6 @@ import org.junit.Before;
 import java.util.Iterator;
 import java.util.List;
 
-import org.mockito.Mockito;
-
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 
@@ -205,41 +203,5 @@ public class RoutingNodesTests extends OpenSearchAllocationTestCase {
             shardCount++;
         }
         assertEquals(shardCount, this.totalNumberOfShards);
-    }
-
-    public void testSwapPrimaryWithReplica() {
-        // Initialize all the shards for test index 1 and 2
-        initPrimaries();
-        startInitializingShards(TEST_INDEX_1);
-        startInitializingShards(TEST_INDEX_1);
-        startInitializingShards(TEST_INDEX_2);
-        startInitializingShards(TEST_INDEX_2);
-
-        // Create primary shard count imbalance between two nodes
-        final RoutingNodes routingNodes = this.clusterState.getRoutingNodes();
-        final RoutingNode node0 = routingNodes.node("node0");
-        final RoutingNode node1 = routingNodes.node("node1");
-        final List<ShardRouting> shardRoutingList = node0.shardsWithState(TEST_INDEX_1, ShardRoutingState.STARTED);
-        final RoutingChangesObserver routingChangesObserver = Mockito.mock(RoutingChangesObserver.class);
-        int swaps = 0;
-
-        for (ShardRouting routing : shardRoutingList) {
-            if (routing.primary()) {
-                ShardRouting swap = node1.getByShardId(routing.shardId());
-                routingNodes.swapPrimaryWithReplica(logger, routing, swap, routingChangesObserver);
-                swaps++;
-            }
-        }
-        Mockito.verify(routingChangesObserver, Mockito.times(swaps)).replicaPromoted(Mockito.any());
-
-        final List<ShardRouting> shards = node1.shardsWithState(TEST_INDEX_1, ShardRoutingState.STARTED);
-        int shardCount = 0;
-        for (ShardRouting shard : shards) {
-            if (shard.primary()) {
-                shardCount++;
-            }
-        }
-
-        assertTrue(shardCount >= swaps);
     }
 }
