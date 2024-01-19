@@ -63,7 +63,7 @@ import org.opensearch.script.ScriptType;
 import org.opensearch.search.SearchHit;
 import org.opensearch.search.SearchHits;
 import org.opensearch.test.InternalSettingsPlugin;
-import org.opensearch.test.ParameterizedOpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedDynamicSettingsOpenSearchIntegTestCase;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
@@ -109,7 +109,7 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.oneOf;
 
-public class FieldSortIT extends ParameterizedOpenSearchIntegTestCase {
+public class FieldSortIT extends ParameterizedDynamicSettingsOpenSearchIntegTestCase {
     public FieldSortIT(Settings dynamicSettings) {
         super(dynamicSettings);
     }

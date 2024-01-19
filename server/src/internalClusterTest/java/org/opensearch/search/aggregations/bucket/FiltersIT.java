@@ -48,7 +48,7 @@ import org.opensearch.search.aggregations.bucket.filter.FiltersAggregator.KeyedF
 import org.opensearch.search.aggregations.bucket.histogram.Histogram;
 import org.opensearch.search.aggregations.metrics.Avg;
 import org.opensearch.test.OpenSearchIntegTestCase;
-import org.opensearch.test.ParameterizedOpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedDynamicSettingsOpenSearchIntegTestCase;
 import org.hamcrest.Matchers;
 
 import java.util.ArrayList;
@@ -72,7 +72,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.core.IsNull.notNullValue;
 
 @OpenSearchIntegTestCase.SuiteScopeTestCase
-public class FiltersIT extends ParameterizedOpenSearchIntegTestCase {
+public class FiltersIT extends ParameterizedDynamicSettingsOpenSearchIntegTestCase {
 
     static int numDocs, numTag1Docs, numTag2Docs, numOtherDocs;
 

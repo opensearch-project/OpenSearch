@@ -49,7 +49,7 @@ import org.opensearch.search.aggregations.bucket.terms.Terms;
 import org.opensearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.opensearch.search.aggregations.bucket.terms.TermsAggregatorFactory;
 import org.opensearch.test.OpenSearchIntegTestCase;
-import org.opensearch.test.ParameterizedOpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -62,7 +62,7 @@ import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertSearchResponse;
 
 @OpenSearchIntegTestCase.SuiteScopeTestCase
-public class AggregationsIntegrationIT extends ParameterizedOpenSearchIntegTestCase {
+public class AggregationsIntegrationIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
 
     static int numDocs;
 
@@ -71,8 +71,8 @@ public class AggregationsIntegrationIT extends ParameterizedOpenSearchIntegTestC
         + LARGE_STRING.length()
         + "] used in the request has exceeded the allowed maximum";
 
-    public AggregationsIntegrationIT(Settings dynamicSettings) {
-        super(dynamicSettings);
+    public AggregationsIntegrationIT(Settings staticSettings) {
+        super(staticSettings);
     }
 
     @ParametersFactory

@@ -52,7 +52,7 @@ import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.index.query.TermQueryBuilder;
 import org.opensearch.search.rescore.QueryRescorerBuilder;
 import org.opensearch.search.sort.SortOrder;
-import org.opensearch.test.ParameterizedOpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -77,7 +77,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.apache.lucene.search.TotalHits.Relation.EQUAL_TO;
 import static org.apache.lucene.search.TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO;
 
-public class SimpleSearchIT extends ParameterizedOpenSearchIntegTestCase {
+public class SimpleSearchIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
 
     public SimpleSearchIT(Settings settings) {
         super(settings);

@@ -47,7 +47,7 @@ import org.opensearch.search.aggregations.bucket.nested.ReverseNested;
 import org.opensearch.search.aggregations.bucket.terms.Terms;
 import org.opensearch.search.aggregations.metrics.ValueCount;
 import org.opensearch.test.OpenSearchIntegTestCase;
-import org.opensearch.test.ParameterizedOpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -76,10 +76,10 @@ import static org.hamcrest.Matchers.sameInstance;
 import static org.hamcrest.core.IsNull.notNullValue;
 
 @OpenSearchIntegTestCase.SuiteScopeTestCase
-public class ReverseNestedIT extends ParameterizedOpenSearchIntegTestCase {
+public class ReverseNestedIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
 
-    public ReverseNestedIT(Settings dynamicSettings) {
-        super(dynamicSettings);
+    public ReverseNestedIT(Settings staticSettings) {
+        super(staticSettings);
     }
 
     @ParametersFactory
