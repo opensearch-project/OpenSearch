@@ -311,14 +311,6 @@ public class MetadataCreateIndexService {
         final CreateIndexClusterStateUpdateRequest request,
         final ActionListener<CreateIndexClusterStateUpdateResponse> listener
     ) {
-        // INDEX_STORE_TYPE_SETTING is intended to be a system-managed index setting that is configured when restoring a snapshot and
-        // should not be set to value REMOTE_SNAPSHOT by user.
-        String storeTypeSetting = request.settings().get(INDEX_STORE_TYPE_SETTING.getKey());
-        if (storeTypeSetting != null && storeTypeSetting.equals(RestoreSnapshotRequest.StorageType.REMOTE_SNAPSHOT.toString())) {
-            throw new IllegalArgumentException(
-                "cannot create index with index setting \"index.store.type\" set to \"remote_snapshot\". Store type can be set to \"remote_snapshot\" only when restoring a remote snapshot by using \"storage_type\": \"remote_snapshot\""
-            );
-        }
         onlyCreateIndex(request, ActionListener.wrap(response -> {
             if (response.isAcknowledged()) {
                 activeShardsObserver.waitForActiveShards(
@@ -826,6 +818,16 @@ public class MetadataCreateIndexService {
         final Settings.Builder requestSettings = Settings.builder().put(request.settings());
 
         final Settings.Builder indexSettingsBuilder = Settings.builder();
+
+        // Store type of `remote_snapshot` is intended to be system-managed for searchable snapshot indexes so a special case is needed here
+        // to prevent a user specifying this value when creating an index
+        String storeTypeSetting = request.settings().get(INDEX_STORE_TYPE_SETTING.getKey());
+        if (storeTypeSetting != null && storeTypeSetting.equals(RestoreSnapshotRequest.StorageType.REMOTE_SNAPSHOT.toString())) {
+            throw new IllegalArgumentException(
+                "cannot create index with index setting \"index.store.type\" set to \"remote_snapshot\". Store type can be set to \"remote_snapshot\" only when restoring a remote snapshot by using \"storage_type\": \"remote_snapshot\""
+            );
+        }
+
         if (sourceMetadata == null) {
             final Settings.Builder additionalIndexSettings = Settings.builder();
             final Settings templateAndRequestSettings = Settings.builder().put(combinedTemplateSettings).put(request.settings()).build();
