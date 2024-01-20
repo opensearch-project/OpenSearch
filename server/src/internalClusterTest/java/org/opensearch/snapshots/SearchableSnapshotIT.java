@@ -53,7 +53,6 @@ import java.util.stream.StreamSupport;
 
 import static org.opensearch.action.admin.cluster.node.stats.NodesStatsRequest.Metric.FS;
 import static org.opensearch.core.common.util.CollectionUtils.iterableAsArrayList;
-import static org.opensearch.index.IndexModule.INDEX_STORE_TYPE_SETTING;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -347,7 +346,7 @@ public final class SearchableSnapshotIT extends AbstractSnapshotIntegTestCase {
             Settings.builder()
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, Integer.toString(numReplicasIndex))
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, "1")
-                .put(INDEX_STORE_TYPE_SETTING.getKey(), IndexModule.Type.FS.getSettingsKey())
+                .put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), IndexModule.Type.FS.getSettingsKey())
                 .build()
         );
         ensureGreen();
@@ -409,7 +408,7 @@ public final class SearchableSnapshotIT extends AbstractSnapshotIntegTestCase {
         for (String snapshotIndexName : snapshotIndexNames) {
             assertEquals(
                 IndexModule.Type.REMOTE_SNAPSHOT.getSettingsKey(),
-                settingsResponse.getSetting(snapshotIndexName, INDEX_STORE_TYPE_SETTING.getKey())
+                settingsResponse.getSetting(snapshotIndexName, IndexModule.INDEX_STORE_TYPE_SETTING.getKey())
             );
         }
     }
