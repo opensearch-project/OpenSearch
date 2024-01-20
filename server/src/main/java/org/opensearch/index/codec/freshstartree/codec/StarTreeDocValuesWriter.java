@@ -31,6 +31,7 @@ import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.store.IndexOutput;
 import org.opensearch.index.codec.freshstartree.builder.BaseSingleTreeBuilder;
+import org.opensearch.index.codec.freshstartree.builder.OffHeapBufferedSingleTreeBuilder;
 import org.opensearch.index.codec.freshstartree.builder.OffHeapSingleTreeBuilder;
 
 
@@ -140,7 +141,7 @@ public class StarTreeDocValuesWriter extends DocValuesConsumer {
         }
         long startTime = System.currentTimeMillis();
         // BaseSingleTreeBuilder.Record[] recordsArr = mergeRecords(aggrList);
-        builder = new OffHeapSingleTreeBuilder(data, dimensionsSplitOrder, dimensionReaders, state.segmentInfo.maxDoc(),
+        builder = new OffHeapBufferedSingleTreeBuilder(data, dimensionsSplitOrder, dimensionReaders, state.segmentInfo.maxDoc(),
             docValuesConsumer, state);
         builder.build(aggrList);
         logger.info("Finished merging star-tree in ms : {}" , (System.currentTimeMillis() - startTime));
@@ -157,7 +158,7 @@ public class StarTreeDocValuesWriter extends DocValuesConsumer {
     public void aggregate()
         throws IOException {
         long startTime = System.currentTimeMillis();
-        builder = new OffHeapSingleTreeBuilder(data, dimensionsSplitOrder, dimensionReaders, state.segmentInfo.maxDoc(),
+        builder = new OffHeapBufferedSingleTreeBuilder(data, dimensionsSplitOrder, dimensionReaders, state.segmentInfo.maxDoc(),
             docValuesConsumer, state);
         builder.build();
         logger.info("Finished building star-tree in ms : {}" , (System.currentTimeMillis() - startTime));

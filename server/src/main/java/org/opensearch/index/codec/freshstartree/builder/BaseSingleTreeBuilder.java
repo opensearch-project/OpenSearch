@@ -91,7 +91,7 @@ public abstract class BaseSingleTreeBuilder {
         indexOutput = state.directory.createOutput(docFileName, state.context);
         CodecUtil.writeIndexHeader(indexOutput, "STARTreeCodec", 0, state.segmentInfo.getId(), state.segmentSuffix);
         dimensionsSplitOrder = new ArrayList<>();
-        dimensionsSplitOrder.add("hour");
+        // dimensionsSplitOrder.add("hour");
         dimensionsSplitOrder.add("day");
         dimensionsSplitOrder.add("month");
         dimensionsSplitOrder.add("year");
@@ -349,7 +349,17 @@ public abstract class BaseSingleTreeBuilder {
 
     private void appendToStarTree(Record record)
         throws IOException {
-        //logger.info("Appending record : " + record.toString());
+        // TODO : uncomment this for sanity
+//        boolean star = true;
+//        for(long dim : record._dimensions) {
+//            if(dim != StarTreeNode.ALL) {
+//                star = false;
+//                break;
+//            }
+//        }
+//        if(star) {
+//            System.out.println("======Overall sum =====" + (long) record._metrics[0]);
+//        }
         appendRecord(record);
         _numDocs++;
     }
