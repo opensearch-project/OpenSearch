@@ -46,7 +46,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * @opensearch.api
  */
 @PublicApi(since = "2.8.0")
-public interface Writeable {
+public interface Writeable extends BaseWriteable<StreamOutput, StreamInput> {
     /**
      * A WriteableRegistry registers {@link Writer} methods for writing data types over a
      * {@link StreamOutput} channel and {@link Reader} methods for reading data from a

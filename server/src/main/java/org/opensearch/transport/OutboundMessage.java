@@ -37,6 +37,7 @@ import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.bytes.CompositeBytesReference;
+import org.opensearch.core.common.io.stream.BaseWriteable;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
 
@@ -50,7 +51,7 @@ import java.util.Set;
  */
 abstract class OutboundMessage extends NetworkMessage {
 
-    private final Writeable message;
+    private final BaseWriteable message;
 
     OutboundMessage(ThreadContext threadContext, Version version, byte status, long requestId, Writeable message) {
         super(threadContext, version, status, requestId);
