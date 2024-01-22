@@ -83,14 +83,20 @@ public class IpFieldTypeTests extends FieldTypeTestCase {
         Query query = InetAddressPoint.newExactQuery("field", InetAddresses.forString(ip));
 
         assertEquals(
-            new IndexOrDocValuesQuery(query, SortedSetDocValuesField.newSlowExactQuery("field", new BytesRef(ip))),
+            new IndexOrDocValuesQuery(
+                query,
+                SortedSetDocValuesField.newSlowExactQuery("field", new BytesRef(((PointRangeQuery) query).getLowerPoint()))
+            ),
             ft.termQuery(ip, null)
         );
 
         ip = "192.168.1.7";
         query = InetAddressPoint.newExactQuery("field", InetAddresses.forString(ip));
         assertEquals(
-            new IndexOrDocValuesQuery(query, SortedSetDocValuesField.newSlowExactQuery("field", new BytesRef(ip))),
+            new IndexOrDocValuesQuery(
+                query,
+                SortedSetDocValuesField.newSlowExactQuery("field", new BytesRef(((PointRangeQuery) query).getLowerPoint()))
+            ),
             ft.termQuery(ip, null)
         );
 
