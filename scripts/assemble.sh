@@ -14,33 +14,32 @@ set -ex
 
 TEST=${TEST:-false}
 
-if ( $TEST )
-then
-		plugins=(
-		    "performance-analyzer"
-		    "opensearch-security"
-		)
+if ($TEST); then
+    plugins=(
+        "performance-analyzer"
+        "opensearch-security"
+    )
 else
-		plugins=(
-		    "alerting" # "opensearch-alerting"
-		    "opensearch-job-scheduler"
-		    "opensearch-anomaly-detection" # Requires "opensearch-job-scheduler"
-		    "asynchronous-search"          # "opensearch-asynchronous-search"
-		    "opensearch-cross-cluster-replication"
-		    "geospatial" # "opensearch-geospatial"
-		    "opensearch-index-management"
-		    "opensearch-knn"
-		    "opensearch-ml-plugin" # "opensearch-ml"
-		    "neural-search"        # "opensearch-neural-search"
-		    "opensearch-notifications-core"
-		    "notifications" # "opensearch-notifications". Requires "opensearch-notifications-core"
-		    "opensearch-observability"
-		    "performance-analyzer" # "opensearch-performance-analyzer"
-		    "opensearch-reports-scheduler"
-		    "opensearch-security"
-		    "opensearch-security-analytics"
-		    "opensearch-sql-plugin" # "opensearch-sql"
-		)
+    plugins=(
+        "alerting" # "opensearch-alerting"
+        "opensearch-job-scheduler"
+        "opensearch-anomaly-detection" # Requires "opensearch-job-scheduler"
+        "asynchronous-search"          # "opensearch-asynchronous-search"
+        "opensearch-cross-cluster-replication"
+        "geospatial" # "opensearch-geospatial"
+        "opensearch-index-management"
+        "opensearch-knn"
+        "opensearch-ml-plugin" # "opensearch-ml"
+        "neural-search"        # "opensearch-neural-search"
+        "opensearch-notifications-core"
+        "notifications" # "opensearch-notifications". Requires "opensearch-notifications-core"
+        "opensearch-observability"
+        "performance-analyzer" # "opensearch-performance-analyzer"
+        "opensearch-reports-scheduler"
+        "opensearch-security"
+        "opensearch-security-analytics"
+        "opensearch-sql-plugin" # "opensearch-sql"
+    )
 fi
 
 # ====
@@ -214,11 +213,12 @@ function enable_performance_analyzer_rca() {
 # Install plugins
 # ====
 function install_plugins() {
-    # Install plugins from Maven repository
     echo "Install plugins"
+    maven_repo_local="$HOME/maven"
     for plugin in "${plugins[@]}"; do
         plugin_from_maven="org.opensearch.plugin:${plugin}:$VERSION.0"
-        OPENSEARCH_PATH_CONF=$PATH_CONF "${PATH_BIN}/opensearch-plugin" install --batch --verbose "${plugin_from_maven}"
+        mvn -Dmaven.repo.local=$maven_repo_local org.apache.maven.plugins:maven-dependency-plugin:2.1:get -DrepoUrl=https://repo1.maven.org/maven2 -Dartifact=$plugin_from_maven:zip
+        OPENSEARCH_PATH_CONF=$PATH_CONF "${PATH_BIN}/opensearch-plugin" install --batch --verbose "file:${maven_repo_local}/org/opensearch/plugin/${plugin}/$VERSION.0/${plugin}-$VERSION.0.zip"
     done
 }
 

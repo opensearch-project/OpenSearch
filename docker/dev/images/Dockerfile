@@ -7,6 +7,7 @@ RUN gradle clean
 
 FROM eclipse-temurin:17-jdk-alpine
 RUN apk add git && \
+		apk add curl && \
     addgroup -g 1000 wazuh-indexer && \
     adduser -u 1000 -G wazuh-indexer -D -h /home/wazuh-indexer wazuh-indexer && \
     chmod 0775 /home/wazuh-indexer && \
