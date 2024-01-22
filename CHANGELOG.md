@@ -86,6 +86,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `Lucene` from 9.8.0 to 9.9.1 ([#11421](https://github.com/opensearch-project/OpenSearch/pull/11421))
 - Bump `com.networknt:json-schema-validator` from 1.0.86 to 1.1.0 ([#11886](https://github.com/opensearch-project/OpenSearch/pull/11886))
 - Bump `com.google.oauth-client:google-oauth-client` from 1.34.1 to 1.35.0 ([#11960](https://github.com/opensearch-project/OpenSearch/pull/11960))
+- Bump `com.diffplug.spotless` from 6.23.2 to 6.24.0 ([#11962](https://github.com/opensearch-project/OpenSearch/pull/11962))
 
 ### Changed
 - Force merge with `only_expunge_deletes` honors max segment size ([#10036](https://github.com/opensearch-project/OpenSearch/pull/10036))
