@@ -156,7 +156,7 @@ public class CompositeValuesSourceConfig {
     /**
      * Returns true if the source contains a script that can change the value.
      */
-    protected boolean hasScript() {
+    public boolean hasScript() {
         return hasScript;
     }
 

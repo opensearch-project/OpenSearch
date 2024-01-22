@@ -296,6 +296,7 @@ public class AzureDiscoveryClusterFormationTests extends OpenSearchIntegTestCase
      * The {@link HttpsServer} in the JDK has issues with TLSv1.3 when running in a JDK prior to
      * 12.0.1 so we pin to TLSv1.2 when running on an earlier JDK
      */
+    @SuppressWarnings("removal")
     private static String getProtocol() {
         if (Runtime.version().compareTo(Version.parse("12")) < 0) {
             return "TLSv1.2";

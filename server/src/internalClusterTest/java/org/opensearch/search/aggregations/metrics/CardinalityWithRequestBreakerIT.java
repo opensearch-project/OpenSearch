@@ -43,7 +43,7 @@ import org.opensearch.core.common.breaker.CircuitBreakingException;
 import org.opensearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.opensearch.search.aggregations.Aggregator;
 import org.opensearch.search.aggregations.BucketOrder;
-import org.opensearch.test.ParameterizedOpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -54,10 +54,10 @@ import static org.opensearch.search.SearchService.CLUSTER_CONCURRENT_SEGMENT_SEA
 import static org.opensearch.search.aggregations.AggregationBuilders.cardinality;
 import static org.opensearch.search.aggregations.AggregationBuilders.terms;
 
-public class CardinalityWithRequestBreakerIT extends ParameterizedOpenSearchIntegTestCase {
+public class CardinalityWithRequestBreakerIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
 
-    public CardinalityWithRequestBreakerIT(Settings dynamicSettings) {
-        super(dynamicSettings);
+    public CardinalityWithRequestBreakerIT(Settings staticSettings) {
+        super(staticSettings);
     }
 
     @ParametersFactory

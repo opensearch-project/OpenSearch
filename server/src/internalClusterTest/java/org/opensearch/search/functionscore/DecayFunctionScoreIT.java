@@ -56,7 +56,7 @@ import org.opensearch.index.query.functionscore.ScoreFunctionBuilders;
 import org.opensearch.search.MultiValueMode;
 import org.opensearch.search.SearchHit;
 import org.opensearch.search.SearchHits;
-import org.opensearch.test.ParameterizedOpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 import org.opensearch.test.VersionUtils;
 
 import java.time.ZoneOffset;
@@ -91,10 +91,10 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
 
-public class DecayFunctionScoreIT extends ParameterizedOpenSearchIntegTestCase {
+public class DecayFunctionScoreIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
 
-    public DecayFunctionScoreIT(Settings dynamicSettings) {
-        super(dynamicSettings);
+    public DecayFunctionScoreIT(Settings staticSettings) {
+        super(staticSettings);
     }
 
     @ParametersFactory

@@ -40,7 +40,7 @@ import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.test.OpenSearchIntegTestCase.ClusterScope;
 import org.opensearch.test.OpenSearchIntegTestCase.Scope;
-import org.opensearch.test.ParameterizedOpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -57,10 +57,10 @@ import static org.hamcrest.Matchers.equalTo;
  * Integration test for highlighters registered by a plugin.
  */
 @ClusterScope(scope = Scope.SUITE, supportsDedicatedMasters = false, numDataNodes = 1)
-public class CustomHighlighterSearchIT extends ParameterizedOpenSearchIntegTestCase {
+public class CustomHighlighterSearchIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
 
-    public CustomHighlighterSearchIT(Settings dynamicSettings) {
-        super(dynamicSettings);
+    public CustomHighlighterSearchIT(Settings staticSettings) {
+        super(staticSettings);
     }
 
     @ParametersFactory

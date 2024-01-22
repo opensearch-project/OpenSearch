@@ -41,7 +41,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.index.query.MatchPhraseQueryBuilder;
 import org.opensearch.index.search.MatchQuery.ZeroTermsQuery;
-import org.opensearch.test.ParameterizedOpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 import org.junit.Before;
 
 import java.util.ArrayList;
@@ -55,12 +55,12 @@ import static org.opensearch.search.SearchService.CLUSTER_CONCURRENT_SEGMENT_SEA
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
 
-public class MatchPhraseQueryIT extends ParameterizedOpenSearchIntegTestCase {
+public class MatchPhraseQueryIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
 
     private static final String INDEX = "test";
 
-    public MatchPhraseQueryIT(Settings dynamicSettings) {
-        super(dynamicSettings);
+    public MatchPhraseQueryIT(Settings staticSettings) {
+        super(staticSettings);
     }
 
     @ParametersFactory

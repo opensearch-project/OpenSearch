@@ -49,7 +49,7 @@ import org.opensearch.search.SearchHit;
 import org.opensearch.search.profile.ProfileResult;
 import org.opensearch.search.profile.ProfileShardResult;
 import org.opensearch.search.sort.SortOrder;
-import org.opensearch.test.ParameterizedOpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedDynamicSettingsOpenSearchIntegTestCase;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -68,7 +68,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
-public class QueryProfilerIT extends ParameterizedOpenSearchIntegTestCase {
+public class QueryProfilerIT extends ParameterizedDynamicSettingsOpenSearchIntegTestCase {
     private final boolean concurrentSearchEnabled;
     private static final String MAX_PREFIX = "max_";
     private static final String MIN_PREFIX = "min_";
