@@ -86,7 +86,6 @@ import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
@@ -715,6 +714,7 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
         translog.setMinSeqNoToKeep(0);
         // This should not trim anything from local
         translog.trimUnreferencedReaders();
+        assertBusy(() -> assertTrue(translog.isRemoteGenerationDeletionPermitsAvailable()));
         assertEquals(2, translog.readers.size());
         assertBusy(() -> {
             assertEquals(4, translog.allUploaded().size());
@@ -728,6 +728,7 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
         // This should not trim tlog-2.* files from remote as we not uploading any more translog to remote
         translog.setMinSeqNoToKeep(1);
         translog.trimUnreferencedReaders();
+        assertBusy(() -> assertTrue(translog.isRemoteGenerationDeletionPermitsAvailable()));
         assertEquals(1, translog.readers.size());
         assertBusy(() -> {
             assertEquals(4, translog.allUploaded().size());
@@ -766,6 +767,7 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
             addToTranslogAndListAndUpload(translog, ops, new Translog.Index(String.valueOf(i), i, primaryTerm.get(), new byte[] { 1 }));
             translog.setMinSeqNoToKeep(i);
             translog.trimUnreferencedReaders();
+            assertBusy(() -> assertTrue(translog.isRemoteGenerationDeletionPermitsAvailable()));
             assertEquals(1, translog.readers.size());
         }
         assertBusy(() -> assertEquals(4, translog.allUploaded().size()));
@@ -776,6 +778,7 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
             addToTranslogAndListAndUpload(translog, ops, new Translog.Index(String.valueOf(i), i, primaryTerm.get(), new byte[] { 1 }));
         }
         translog.trimUnreferencedReaders();
+        assertBusy(() -> assertTrue(translog.isRemoteGenerationDeletionPermitsAvailable()));
         assertEquals(1 + moreDocs, translog.readers.size());
         assertBusy(() -> assertEquals(2 + 2L * moreDocs, translog.allUploaded().size()));
         assertBusy(() -> assertEquals(1, blobStoreTransferService.listAll(getTranslogDirectory().add(METADATA_DIR)).size()));
@@ -783,6 +786,7 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
         int totalDocs = numDocs + moreDocs;
         translog.setMinSeqNoToKeep(totalDocs - 1);
         translog.trimUnreferencedReaders();
+        assertBusy(() -> assertTrue(translog.isRemoteGenerationDeletionPermitsAvailable()));
 
         addToTranslogAndListAndUpload(
             translog,
@@ -791,6 +795,7 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
         );
         translog.setMinSeqNoToKeep(totalDocs);
         translog.trimUnreferencedReaders();
+        assertBusy(() -> assertTrue(translog.isRemoteGenerationDeletionPermitsAvailable()));
         assertBusy(() -> assertEquals(1, blobStoreTransferService.listAll(getTranslogDirectory().add(METADATA_DIR)).size()));
 
         // Change primary term and test the deletion of older primaries
@@ -841,6 +846,7 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
 
         translog.setMinSeqNoToKeep(0);
         translog.trimUnreferencedReaders();
+        assertBusy(() -> assertTrue(translog.isRemoteGenerationDeletionPermitsAvailable()));
         assertEquals(1, translog.readers.size());
 
         // Case 1 - During ongoing uploads, the available permits are 0.
@@ -869,6 +875,7 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
         // Case 3 - After drainSync, if trimUnreferencedReaders is attempted, we do not delete from remote store.
         translog.setMinSeqNoToKeep(1);
         translog.trimUnreferencedReaders();
+        assertBusy(() -> assertTrue(translog.isRemoteGenerationDeletionPermitsAvailable()));
         assertEquals(1, translog.readers.size());
         assertEquals(6, translog.allUploaded().size());
         assertEquals(mdFiles, blobStoreTransferService.listAll(getTranslogDirectory().add(METADATA_DIR)));
@@ -892,6 +899,7 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
 
         translog.setMinSeqNoToKeep(3);
         translog.trimUnreferencedReaders();
+        assertBusy(() -> assertTrue(translog.isRemoteGenerationDeletionPermitsAvailable()));
         assertEquals(1, translog.readers.size());
         assertBusy(() -> assertEquals(4, translog.allUploaded().size()));
         assertBusy(() -> assertEquals(1, blobStoreTransferService.listAll(getTranslogDirectory().add(METADATA_DIR)).size()));
@@ -1048,7 +1056,7 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
             final int threadId = i;
             writers[i] = new Thread(new AbstractRunnable() {
                 @Override
-                public void doRun() throws BrokenBarrierException, InterruptedException, IOException {
+                public void doRun() throws Exception {
                     barrier.await();
                     int counter = 0;
                     while (run.get() && idGenerator.get() < maxOps) {
@@ -1090,6 +1098,7 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
                                 // deletionPolicy.setLocalCheckpointOfSafeCommit(localCheckpoint);
                                 translog.setMinSeqNoToKeep(localCheckpoint + 1);
                                 translog.trimUnreferencedReaders();
+                                assertBusy(() -> assertTrue(translog.isRemoteGenerationDeletionPermitsAvailable()));
                             }
                         }
                         if (id % 7 == 0) {

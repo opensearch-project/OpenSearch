@@ -50,7 +50,7 @@ import org.opensearch.search.aggregations.bucket.histogram.Histogram.Bucket;
 import org.opensearch.search.aggregations.metrics.Avg;
 import org.opensearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.opensearch.test.OpenSearchIntegTestCase;
-import org.opensearch.test.ParameterizedOpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 import org.hamcrest.Matchers;
 
 import java.util.ArrayList;
@@ -77,7 +77,7 @@ import static org.hamcrest.core.IsNull.notNullValue;
 import static org.hamcrest.core.IsNull.nullValue;
 
 @OpenSearchIntegTestCase.SuiteScopeTestCase
-public class MovAvgIT extends ParameterizedOpenSearchIntegTestCase {
+public class MovAvgIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
     private static final String INTERVAL_FIELD = "l_value";
     private static final String VALUE_FIELD = "v_value";
     private static final String VALUE_FIELD2 = "v_value2";
@@ -133,8 +133,8 @@ public class MovAvgIT extends ParameterizedOpenSearchIntegTestCase {
         }
     }
 
-    public MovAvgIT(Settings dynamicSettings) {
-        super(dynamicSettings);
+    public MovAvgIT(Settings staticSettings) {
+        super(staticSettings);
     }
 
     @ParametersFactory
