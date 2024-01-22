@@ -74,11 +74,6 @@ public class SegmentReplicationSnapshotIT extends AbstractSnapshotIntegTestCase 
         return Settings.builder().put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.DOCUMENT).build();
     }
 
-    @Override
-    protected boolean addMockInternalEngine() {
-        return false;
-    }
-
     public void ingestData(int docCount, String indexName) throws Exception {
         for (int i = 0; i < docCount; i++) {
             client().prepareIndex(indexName).setId(Integer.toString(i)).setSource("field", "value" + i).execute().actionGet();

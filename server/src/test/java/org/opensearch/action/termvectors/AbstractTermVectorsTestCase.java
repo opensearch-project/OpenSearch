@@ -66,7 +66,7 @@ import org.opensearch.action.admin.indices.alias.Alias;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.test.ParameterizedOpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -82,10 +82,10 @@ import static org.opensearch.search.SearchService.CLUSTER_CONCURRENT_SEGMENT_SEA
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 
-public abstract class AbstractTermVectorsTestCase extends ParameterizedOpenSearchIntegTestCase {
+public abstract class AbstractTermVectorsTestCase extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
 
-    public AbstractTermVectorsTestCase(Settings dynamicSettings) {
-        super(dynamicSettings);
+    public AbstractTermVectorsTestCase(Settings staticSettings) {
+        super(staticSettings);
     }
 
     @ParametersFactory

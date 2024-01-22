@@ -54,7 +54,9 @@ import java.util.Objects;
  * @opensearch.internal
  */
 public class FieldMaskingSpanQueryBuilder extends AbstractQueryBuilder<FieldMaskingSpanQueryBuilder> implements SpanQueryBuilder {
-    public static final ParseField SPAN_FIELD_MASKING_FIELD = new ParseField("span_field_masking", "field_masking_span");
+
+    public static final String NAME = "span_field_masking";
+    public static final ParseField SPAN_FIELD_MASKING_FIELD = new ParseField(NAME, "field_masking_span");
 
     private static final ParseField FIELD_FIELD = new ParseField("field");
     private static final ParseField QUERY_FIELD = new ParseField("query");

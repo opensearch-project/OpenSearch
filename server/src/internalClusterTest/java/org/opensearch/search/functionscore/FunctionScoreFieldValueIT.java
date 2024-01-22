@@ -40,7 +40,7 @@ import org.opensearch.common.lucene.search.function.FieldValueFactorFunction;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.search.SearchHit;
-import org.opensearch.test.ParameterizedOpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -61,10 +61,10 @@ import static org.hamcrest.Matchers.containsString;
 /**
  * Tests for the {@code field_value_factor} function in a function_score query.
  */
-public class FunctionScoreFieldValueIT extends ParameterizedOpenSearchIntegTestCase {
+public class FunctionScoreFieldValueIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
 
-    public FunctionScoreFieldValueIT(Settings dynamicSettings) {
-        super(dynamicSettings);
+    public FunctionScoreFieldValueIT(Settings staticSettings) {
+        super(staticSettings);
     }
 
     @ParametersFactory

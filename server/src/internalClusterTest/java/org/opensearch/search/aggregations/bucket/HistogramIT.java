@@ -56,7 +56,7 @@ import org.opensearch.search.aggregations.metrics.Max;
 import org.opensearch.search.aggregations.metrics.Stats;
 import org.opensearch.search.aggregations.metrics.Sum;
 import org.opensearch.test.OpenSearchIntegTestCase;
-import org.opensearch.test.ParameterizedOpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
@@ -91,7 +91,7 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.core.IsNull.notNullValue;
 
 @OpenSearchIntegTestCase.SuiteScopeTestCase
-public class HistogramIT extends ParameterizedOpenSearchIntegTestCase {
+public class HistogramIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
 
     private static final String SINGLE_VALUED_FIELD_NAME = "l_value";
     private static final String MULTI_VALUED_FIELD_NAME = "l_values";
@@ -102,8 +102,8 @@ public class HistogramIT extends ParameterizedOpenSearchIntegTestCase {
     static long[] valueCounts, valuesCounts;
     static Map<Long, Map<String, Object>> expectedMultiSortBuckets;
 
-    public HistogramIT(Settings dynamicSettings) {
-        super(dynamicSettings);
+    public HistogramIT(Settings staticSettings) {
+        super(staticSettings);
     }
 
     @ParametersFactory

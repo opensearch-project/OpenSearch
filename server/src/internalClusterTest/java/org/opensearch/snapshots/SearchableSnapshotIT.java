@@ -7,6 +7,7 @@ package org.opensearch.snapshots;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 
+import org.opensearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.opensearch.action.admin.cluster.node.stats.NodeStats;
 import org.opensearch.action.admin.cluster.node.stats.NodesStatsRequest;
 import org.opensearch.action.admin.cluster.node.stats.NodesStatsResponse;
@@ -25,11 +26,14 @@ import org.opensearch.client.Client;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.block.ClusterBlockException;
 import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.routing.GroupShardsIterator;
 import org.opensearch.cluster.routing.ShardIterator;
 import org.opensearch.cluster.routing.ShardRouting;
+import org.opensearch.common.Priority;
 import org.opensearch.common.io.PathUtils;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.core.index.Index;
 import org.opensearch.index.IndexModule;
@@ -47,6 +51,8 @@ import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
@@ -234,6 +240,62 @@ public final class SearchableSnapshotIT extends AbstractSnapshotIntegTestCase {
         assertDocCount(indexName, 100L);
     }
 
+    public void testSearchableSnapshotAllocationFilterSettings() throws Exception {
+        final int numShardsIndex = randomIntBetween(3, 6);
+        final String indexName = "test-idx";
+        final String restoredIndexName = indexName + "-copy";
+        final String repoName = "test-repo";
+        final String snapshotName = "test-snap";
+        final Client client = client();
+
+        internalCluster().ensureAtLeastNumSearchAndDataNodes(numShardsIndex);
+        createIndexWithDocsAndEnsureGreen(numShardsIndex, 1, 100, indexName);
+        createRepositoryWithSettings(null, repoName);
+        takeSnapshot(client, snapshotName, repoName, indexName);
+
+        restoreSnapshotAndEnsureGreen(client, snapshotName, repoName);
+        assertRemoteSnapshotIndexSettings(client, restoredIndexName);
+        final Set<String> searchNodes = StreamSupport.stream(clusterService().state().getNodes().spliterator(), false)
+            .filter(DiscoveryNode::isSearchNode)
+            .map(DiscoveryNode::getId)
+            .collect(Collectors.toSet());
+
+        for (int i = searchNodes.size(); i > 2; --i) {
+            String pickedNode = randomFrom(searchNodes);
+            searchNodes.remove(pickedNode);
+            assertIndexAssignedToNodeOrNot(restoredIndexName, pickedNode, true);
+            assertTrue(
+                client.admin()
+                    .indices()
+                    .prepareUpdateSettings(restoredIndexName)
+                    .setSettings(Settings.builder().put("index.routing.allocation.exclude._id", pickedNode))
+                    .execute()
+                    .actionGet()
+                    .isAcknowledged()
+            );
+            ClusterHealthResponse clusterHealthResponse = client.admin()
+                .cluster()
+                .prepareHealth()
+                .setWaitForEvents(Priority.LANGUID)
+                .setWaitForNoRelocatingShards(true)
+                .setTimeout(new TimeValue(5, TimeUnit.MINUTES))
+                .execute()
+                .actionGet();
+            assertThat(clusterHealthResponse.isTimedOut(), equalTo(false));
+            assertIndexAssignedToNodeOrNot(restoredIndexName, pickedNode, false);
+            assertIndexAssignedToNodeOrNot(indexName, pickedNode, true);
+        }
+    }
+
+    private void assertIndexAssignedToNodeOrNot(String index, String node, boolean assigned) {
+        final ClusterState state = clusterService().state();
+        if (assigned) {
+            assertTrue(state.getRoutingTable().allShards(index).stream().anyMatch(shard -> shard.currentNodeId().equals(node)));
+        } else {
+            assertTrue(state.getRoutingTable().allShards(index).stream().noneMatch(shard -> shard.currentNodeId().equals(node)));
+        }
+    }
+
     /**
      * Tests the functionality of remote shard allocation to
      * ensure it can handle node drops for failover scenarios and the cluster gets back to a healthy state when
@@ -341,11 +403,16 @@ public final class SearchableSnapshotIT extends AbstractSnapshotIntegTestCase {
     }
 
     private void createIndexWithDocsAndEnsureGreen(int numReplicasIndex, int numOfDocs, String indexName) throws InterruptedException {
+        createIndexWithDocsAndEnsureGreen(1, numReplicasIndex, numOfDocs, indexName);
+    }
+
+    private void createIndexWithDocsAndEnsureGreen(int numShardsIndex, int numReplicasIndex, int numOfDocs, String indexName)
+        throws InterruptedException {
         createIndex(
             indexName,
             Settings.builder()
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, Integer.toString(numReplicasIndex))
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, "1")
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numReplicasIndex)
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numShardsIndex)
                 .put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), IndexModule.Type.FS.getSettingsKey())
                 .build()
         );

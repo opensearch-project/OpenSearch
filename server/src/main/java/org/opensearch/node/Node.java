@@ -46,6 +46,8 @@ import org.opensearch.action.ActionType;
 import org.opensearch.action.admin.cluster.snapshots.status.TransportNodesSnapshotsStatus;
 import org.opensearch.action.search.SearchExecutionStatsCollector;
 import org.opensearch.action.search.SearchPhaseController;
+import org.opensearch.action.search.SearchRequestOperationsCompositeListenerFactory;
+import org.opensearch.action.search.SearchRequestOperationsListener;
 import org.opensearch.action.search.SearchRequestSlowLog;
 import org.opensearch.action.search.SearchRequestStats;
 import org.opensearch.action.search.SearchTransportService;
@@ -783,7 +785,7 @@ public class Node implements Closeable {
                 threadPool
             );
 
-            final SearchRequestStats searchRequestStats = new SearchRequestStats();
+            final SearchRequestStats searchRequestStats = new SearchRequestStats(clusterService.getClusterSettings());
             final SearchRequestSlowLog searchRequestSlowLog = new SearchRequestSlowLog(clusterService);
 
             remoteStoreStatsTrackerFactory = new RemoteStoreStatsTrackerFactory(clusterService, settings);
@@ -878,6 +880,17 @@ public class Node implements Closeable {
                     ).stream()
                 )
                 .collect(Collectors.toList());
+
+            // register all standard SearchRequestOperationsCompositeListenerFactory to the SearchRequestOperationsCompositeListenerFactory
+            final SearchRequestOperationsCompositeListenerFactory searchRequestOperationsCompositeListenerFactory =
+                new SearchRequestOperationsCompositeListenerFactory(
+                    Stream.concat(
+                        Stream.of(searchRequestStats, searchRequestSlowLog),
+                        pluginComponents.stream()
+                            .filter(p -> p instanceof SearchRequestOperationsListener)
+                            .map(p -> (SearchRequestOperationsListener) p)
+                    ).toArray(SearchRequestOperationsListener[]::new)
+                );
 
             ActionModule actionModule = new ActionModule(
                 settings,
@@ -1275,6 +1288,7 @@ public class Node implements Closeable {
                 b.bind(RemoteClusterStateService.class).toProvider(() -> remoteClusterStateService);
                 b.bind(PersistedStateRegistry.class).toInstance(persistedStateRegistry);
                 b.bind(SegmentReplicationStatsTracker.class).toInstance(segmentReplicationStatsTracker);
+                b.bind(SearchRequestOperationsCompositeListenerFactory.class).toInstance(searchRequestOperationsCompositeListenerFactory);
             });
             injector = modules.createInjector();
 

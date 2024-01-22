@@ -74,8 +74,8 @@ import static org.hamcrest.Matchers.sameInstance;
 
 public class TDigestPercentilesIT extends AbstractNumericTestCase {
 
-    public TDigestPercentilesIT(Settings dynamicSettings) {
-        super(dynamicSettings);
+    public TDigestPercentilesIT(Settings staticSettings) {
+        super(staticSettings);
     }
 
     @Override

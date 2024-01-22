@@ -49,7 +49,7 @@ import org.opensearch.script.ScriptType;
 import org.opensearch.search.SearchHit;
 import org.opensearch.search.sort.ScriptSortBuilder.ScriptSortType;
 import org.opensearch.test.InternalSettingsPlugin;
-import org.opensearch.test.ParameterizedOpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -75,12 +75,12 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 
-public class SimpleSortIT extends ParameterizedOpenSearchIntegTestCase {
+public class SimpleSortIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
 
     private static final String DOUBLE_APOSTROPHE = "\u0027\u0027";
 
-    public SimpleSortIT(Settings dynamicSettings) {
-        super(dynamicSettings);
+    public SimpleSortIT(Settings staticSettings) {
+        super(staticSettings);
     }
 
     @ParametersFactory

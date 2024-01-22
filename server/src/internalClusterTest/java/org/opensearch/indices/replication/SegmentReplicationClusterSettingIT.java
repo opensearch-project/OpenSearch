@@ -52,11 +52,6 @@ public class SegmentReplicationClusterSettingIT extends OpenSearchIntegTestCase 
             .build();
     }
 
-    @Override
-    protected boolean addMockInternalEngine() {
-        return false;
-    }
-
     public void testIndexReplicationSettingOverridesSegRepClusterSetting() throws Exception {
         Settings settings = Settings.builder().put(CLUSTER_SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT).build();
         final String ANOTHER_INDEX = "test-index";
