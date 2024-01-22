@@ -220,7 +220,7 @@ public class SegmentReplicationSourceService extends AbstractLifecycleComponent 
      * Cancels any replications on this node to a replica shard that is about to be closed.
      */
     @Override
-    public void beforeIndexShardClosed(ShardId shardId, @Nullable IndexShard indexShard, Settings indexSettings) {
+    public void afterIndexShardClosed(ShardId shardId, @Nullable IndexShard indexShard, Settings indexSettings) {
         if (indexShard != null && indexShard.indexSettings().isSegRepEnabled()) {
             ongoingSegmentReplications.cancel(indexShard, "shard is closed");
         }
