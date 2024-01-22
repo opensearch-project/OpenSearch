@@ -13,6 +13,6 @@ package org.opensearch.common.cache.stats;
  * TODO: Add rest of stats like hits/misses.
  */
 public interface CacheStats {
-    // Provides the number of entries in cache.
+    // Provides the current number of entries in cache.
     long count();
 }
