@@ -44,7 +44,6 @@ import org.opensearch.core.ParseField;
 import org.opensearch.core.common.ParsingException;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.bytes.BytesReference;
-import org.opensearch.core.common.io.stream.ProtobufWriteable;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
@@ -102,7 +101,7 @@ import static org.opensearch.core.xcontent.XContentParserUtils.ensureFieldName;
  * @opensearch.api
  */
 @PublicApi(since = "1.0.0")
-public final class SearchHit implements Writeable, ToXContentObject, Iterable<DocumentField>, ProtobufWriteable {
+public final class SearchHit implements Writeable, ToXContentObject, Iterable<DocumentField> {
 
     private final transient int docId;
 
@@ -343,7 +342,6 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
         }
     }
 
-    @Override
     public void writeTo(OutputStream out) throws IOException {
         out.write(this.searchHitProto.toByteArray());
     }
