@@ -137,7 +137,7 @@ class OngoingSegmentReplications {
      * @return {@link CopyState} the built CopyState for this replication event.
      * @throws IOException - When there is an IO error building CopyState.
      */
-    CopyState prepareForReplication(CheckpointInfoRequest request, FileChunkWriter fileChunkWriter) throws IOException {
+    synchronized CopyState prepareForReplication(CheckpointInfoRequest request, FileChunkWriter fileChunkWriter) throws IOException {
         final CopyState copyState = getCachedCopyState(request.getCheckpoint());
         final SegmentReplicationSourceHandler newHandler = createTargetHandler(
             request.getTargetNode(),
