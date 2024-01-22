@@ -38,7 +38,6 @@ import org.apache.lucene.search.TotalHits.Relation;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.lucene.Lucene;
-import org.opensearch.core.common.io.stream.ProtobufWriteable;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
@@ -63,7 +62,7 @@ import static org.opensearch.core.xcontent.XContentParserUtils.ensureExpectedTok
  * @opensearch.api
  */
 @PublicApi(since = "1.0.0")
-public final class SearchHits implements Writeable, ToXContentFragment, Iterable<SearchHit>, ProtobufWriteable {
+public final class SearchHits implements Writeable, ToXContentFragment, Iterable<SearchHit> {
     public static SearchHits empty() {
         return empty(true);
     }
@@ -364,7 +363,6 @@ public final class SearchHits implements Writeable, ToXContentFragment, Iterable
         }
     }
 
-    @Override
     public void writeTo(OutputStream out) throws IOException {
         out.write(searchHitsProto.toByteArray());
     }
