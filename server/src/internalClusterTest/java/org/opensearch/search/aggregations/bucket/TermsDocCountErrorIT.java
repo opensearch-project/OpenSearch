@@ -45,7 +45,7 @@ import org.opensearch.search.aggregations.bucket.terms.Terms;
 import org.opensearch.search.aggregations.bucket.terms.Terms.Bucket;
 import org.opensearch.search.aggregations.bucket.terms.TermsAggregatorFactory.ExecutionMode;
 import org.opensearch.test.OpenSearchIntegTestCase;
-import org.opensearch.test.ParameterizedOpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -67,7 +67,7 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.core.IsNull.notNullValue;
 
 @OpenSearchIntegTestCase.SuiteScopeTestCase
-public class TermsDocCountErrorIT extends ParameterizedOpenSearchIntegTestCase {
+public class TermsDocCountErrorIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
 
     private static final String STRING_FIELD_NAME = "s_value";
     private static final String LONG_FIELD_NAME = "l_value";
@@ -79,8 +79,8 @@ public class TermsDocCountErrorIT extends ParameterizedOpenSearchIntegTestCase {
 
     private static int numRoutingValues;
 
-    public TermsDocCountErrorIT(Settings dynamicSettings) {
-        super(dynamicSettings);
+    public TermsDocCountErrorIT(Settings staticSettings) {
+        super(staticSettings);
     }
 
     @ParametersFactory

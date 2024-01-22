@@ -10,8 +10,6 @@ package org.opensearch.common.round;
 
 import org.opensearch.common.annotation.InternalApi;
 
-import jdk.incubator.vector.LongVector;
-
 /**
  * Factory class to create and return the fastest implementation of {@link Roundable}.
  *
@@ -34,10 +32,30 @@ public final class RoundableFactory {
      */
     private static final boolean USE_BTREE_SEARCHER;
 
+    /**
+     * This class is initialized only when:
+     *  - JDK-20+
+     *  - jdk.incubator.vector.LongVector is available (--add-modules=jdk.incubator.vector is passed)
+     */
+    private static final class VectorCheck {
+        final static int SPECIES_PREFERRED = jdk.incubator.vector.LongVector.SPECIES_PREFERRED.length();
+    }
+
     static {
         String simdRoundingFeatureFlag = System.getProperty("opensearch.experimental.feature.simd.rounding.enabled");
-        USE_BTREE_SEARCHER = "forced".equalsIgnoreCase(simdRoundingFeatureFlag)
-            || (LongVector.SPECIES_PREFERRED.length() >= 4 && "true".equalsIgnoreCase(simdRoundingFeatureFlag));
+        boolean useBtreeSearcher = false;
+
+        try {
+            final Class<?> incubator = Class.forName("jdk.incubator.vector.LongVector");
+
+            useBtreeSearcher = "forced".equalsIgnoreCase(simdRoundingFeatureFlag)
+                || (VectorCheck.SPECIES_PREFERRED >= 4 && "true".equalsIgnoreCase(simdRoundingFeatureFlag));
+
+        } catch (final ClassNotFoundException ex) {
+            /* do not use BtreeSearcher */
+        }
+
+        USE_BTREE_SEARCHER = useBtreeSearcher;
     }
 
     private RoundableFactory() {}

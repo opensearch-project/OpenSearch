@@ -50,7 +50,7 @@ import org.opensearch.search.aggregations.bucket.histogram.Histogram.Bucket;
 import org.opensearch.search.aggregations.metrics.Sum;
 import org.opensearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 import org.opensearch.test.OpenSearchIntegTestCase;
-import org.opensearch.test.ParameterizedOpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -77,7 +77,7 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 @OpenSearchIntegTestCase.SuiteScopeTestCase
-public class BucketSelectorIT extends ParameterizedOpenSearchIntegTestCase {
+public class BucketSelectorIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
 
     private static final String FIELD_1_NAME = "field1";
     private static final String FIELD_2_NAME = "field2";
@@ -89,8 +89,8 @@ public class BucketSelectorIT extends ParameterizedOpenSearchIntegTestCase {
     private static int minNumber;
     private static int maxNumber;
 
-    public BucketSelectorIT(Settings dynamicSettings) {
-        super(dynamicSettings);
+    public BucketSelectorIT(Settings staticSettings) {
+        super(staticSettings);
     }
 
     @ParametersFactory
