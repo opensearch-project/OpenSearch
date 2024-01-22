@@ -58,7 +58,7 @@ import org.opensearch.search.fetch.subphase.highlight.HighlightBuilder;
 import org.opensearch.search.sort.FieldSortBuilder;
 import org.opensearch.search.sort.SortOrder;
 import org.opensearch.test.InternalSettingsPlugin;
-import org.opensearch.test.ParameterizedOpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -88,10 +88,10 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-public class InnerHitsIT extends ParameterizedOpenSearchIntegTestCase {
+public class InnerHitsIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
 
-    public InnerHitsIT(Settings dynamicSettings) {
-        super(dynamicSettings);
+    public InnerHitsIT(Settings staticSettings) {
+        super(staticSettings);
     }
 
     @ParametersFactory

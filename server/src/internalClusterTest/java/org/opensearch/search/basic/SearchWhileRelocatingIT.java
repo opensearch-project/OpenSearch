@@ -43,7 +43,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.search.SearchHits;
 import org.opensearch.test.OpenSearchIntegTestCase;
-import org.opensearch.test.ParameterizedOpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -60,10 +60,10 @@ import static org.opensearch.test.hamcrest.OpenSearchAssertions.formatShardStatu
 import static org.hamcrest.Matchers.equalTo;
 
 @OpenSearchIntegTestCase.ClusterScope(minNumDataNodes = 2)
-public class SearchWhileRelocatingIT extends ParameterizedOpenSearchIntegTestCase {
+public class SearchWhileRelocatingIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
 
-    public SearchWhileRelocatingIT(Settings dynamicSettings) {
-        super(dynamicSettings);
+    public SearchWhileRelocatingIT(Settings staticSettings) {
+        super(staticSettings);
     }
 
     @ParametersFactory

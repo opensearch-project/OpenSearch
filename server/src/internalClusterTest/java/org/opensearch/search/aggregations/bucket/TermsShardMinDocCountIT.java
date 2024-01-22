@@ -44,7 +44,7 @@ import org.opensearch.search.aggregations.bucket.filter.InternalFilter;
 import org.opensearch.search.aggregations.bucket.terms.SignificantTerms;
 import org.opensearch.search.aggregations.bucket.terms.SignificantTermsAggregatorFactory;
 import org.opensearch.search.aggregations.bucket.terms.Terms;
-import org.opensearch.test.ParameterizedOpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -61,12 +61,12 @@ import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.equalTo;
 
-public class TermsShardMinDocCountIT extends ParameterizedOpenSearchIntegTestCase {
+public class TermsShardMinDocCountIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
 
     private static final String index = "someindex";
 
-    public TermsShardMinDocCountIT(Settings dynamicSettings) {
-        super(dynamicSettings);
+    public TermsShardMinDocCountIT(Settings staticSettings) {
+        super(staticSettings);
     }
 
     @ParametersFactory
@@ -88,6 +88,10 @@ public class TermsShardMinDocCountIT extends ParameterizedOpenSearchIntegTestCas
 
     // see https://github.com/elastic/elasticsearch/issues/5998
     public void testShardMinDocCountSignificantTermsTest() throws Exception {
+        assumeFalse(
+            "For concurrent segment search shard_min_doc_count is not enforced at the slice level. See https://github.com/opensearch-project/OpenSearch/issues/11847",
+            internalCluster().clusterService().getClusterSettings().get(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING)
+        );
         String textMappings;
         if (randomBoolean()) {
             textMappings = "type=long";
@@ -157,6 +161,10 @@ public class TermsShardMinDocCountIT extends ParameterizedOpenSearchIntegTestCas
 
     // see https://github.com/elastic/elasticsearch/issues/5998
     public void testShardMinDocCountTermsTest() throws Exception {
+        assumeFalse(
+            "For concurrent segment search shard_min_doc_count is not enforced at the slice level. See https://github.com/opensearch-project/OpenSearch/issues/11847",
+            internalCluster().clusterService().getClusterSettings().get(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING)
+        );
         final String[] termTypes = { "text", "long", "integer", "float", "double" };
         String termtype = termTypes[randomInt(termTypes.length - 1)];
         String termMappings = "type=" + termtype;
@@ -189,8 +197,8 @@ public class TermsShardMinDocCountIT extends ParameterizedOpenSearchIntegTestCas
             )
             .get();
         assertSearchResponse(response);
-        Terms sigterms = response.getAggregations().get("myTerms");
-        assertThat(sigterms.getBuckets().size(), equalTo(0));
+        Terms terms = response.getAggregations().get("myTerms");
+        assertThat(terms.getBuckets().size(), equalTo(0));
 
         response = client().prepareSearch(index)
             .addAggregation(
@@ -204,8 +212,8 @@ public class TermsShardMinDocCountIT extends ParameterizedOpenSearchIntegTestCas
             )
             .get();
         assertSearchResponse(response);
-        sigterms = response.getAggregations().get("myTerms");
-        assertThat(sigterms.getBuckets().size(), equalTo(2));
+        terms = response.getAggregations().get("myTerms");
+        assertThat(terms.getBuckets().size(), equalTo(2));
 
     }
 

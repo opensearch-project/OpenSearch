@@ -2032,22 +2032,8 @@ public class InternalEngine extends Engine {
     }
 
     @Override
-    public void rollTranslogGeneration() throws EngineException {
-        try (ReleasableLock ignored = readLock.acquire()) {
-            ensureOpen();
-            translogManager().getTranslog().rollGeneration();
-            translogManager().getTranslog().trimUnreferencedReaders();
-        } catch (AlreadyClosedException e) {
-            failOnTragicEvent(e);
-            throw e;
-        } catch (Exception e) {
-            try {
-                failEngine("translog trimming failed", e);
-            } catch (Exception inner) {
-                e.addSuppressed(inner);
-            }
-            throw new EngineException(shardId, "failed to roll translog", e);
-        }
+    public void rollTranslogGeneration() throws EngineException, IOException {
+        translogManager().rollTranslogGeneration();
     }
 
     @Override

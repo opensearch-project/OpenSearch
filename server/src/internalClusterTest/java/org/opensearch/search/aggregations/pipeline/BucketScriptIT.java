@@ -51,7 +51,7 @@ import org.opensearch.search.aggregations.bucket.range.Range;
 import org.opensearch.search.aggregations.metrics.Sum;
 import org.opensearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 import org.opensearch.test.OpenSearchIntegTestCase;
-import org.opensearch.test.ParameterizedOpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -76,7 +76,7 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 @OpenSearchIntegTestCase.SuiteScopeTestCase
-public class BucketScriptIT extends ParameterizedOpenSearchIntegTestCase {
+public class BucketScriptIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
 
     private static final String FIELD_1_NAME = "field1";
     private static final String FIELD_2_NAME = "field2";
@@ -90,8 +90,8 @@ public class BucketScriptIT extends ParameterizedOpenSearchIntegTestCase {
     private static int maxNumber;
     private static long date;
 
-    public BucketScriptIT(Settings dynamicSettings) {
-        super(dynamicSettings);
+    public BucketScriptIT(Settings staticSettings) {
+        super(staticSettings);
     }
 
     @ParametersFactory

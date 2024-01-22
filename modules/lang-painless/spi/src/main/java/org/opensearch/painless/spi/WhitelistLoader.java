@@ -513,6 +513,7 @@ public final class WhitelistLoader {
             }
         }
 
+        @SuppressWarnings("removal")
         ClassLoader loader = AccessController.doPrivileged((PrivilegedAction<ClassLoader>) resource::getClassLoader);
 
         return new Whitelist(loader, allowlistClasses, allowlistStatics, allowlistClassBindings, Collections.emptyList());
