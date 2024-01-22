@@ -36,8 +36,6 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
-import org.apache.lucene.search.MultiTermQuery;
-import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
 
@@ -85,25 +83,16 @@ public class BooleanFieldTypeTests extends FieldTypeTestCase {
         List<BytesRef> terms = new ArrayList<>();
         terms.add(new BytesRef("true"));
         terms.add(new BytesRef("false"));
-        assertEquals(
-            new FieldExistsQuery("field"),
-            ft.termsQuery(terms, null)
-        );
+        assertEquals(new FieldExistsQuery("field"), ft.termsQuery(terms, null));
 
         List<BytesRef> newTerms = new ArrayList<>();
         newTerms.add(new BytesRef("true"));
         assertEquals(
-         new IndexOrDocValuesQuery(
-                new TermQuery(new Term("field", "T")),
-                SortedNumericDocValuesField.newSlowExactQuery("field", 1)
-            ),
+            new IndexOrDocValuesQuery(new TermQuery(new Term("field", "T")), SortedNumericDocValuesField.newSlowExactQuery("field", 1)),
             ft.termsQuery(newTerms, null)
         );
 
-        assertEquals(
-                new MatchNoDocsQuery("Values do not contain True or False"),
-                ft.termsQuery(new ArrayList<>(), null)
-        );
+        assertEquals(new MatchNoDocsQuery("Values do not contain True or False"), ft.termsQuery(new ArrayList<>(), null));
 
         MappedFieldType unsearchable = new BooleanFieldMapper.BooleanFieldType("field", false, false);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> unsearchable.termsQuery(terms, null));
