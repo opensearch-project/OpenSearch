@@ -37,6 +37,7 @@ import org.opensearch.Version;
 import org.opensearch.action.admin.cluster.node.info.PluginsAndModules;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.core.common.io.stream.ByteBufferStreamInput;
+import org.opensearch.semver.SemverRange;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.nio.ByteBuffer;
@@ -102,32 +103,6 @@ public class PluginInfoTests extends OpenSearchTestCase {
         assertEquals("1.0", info.getVersion());
         assertEquals("FakePlugin", info.getClassname());
         assertEquals("~" + Version.CURRENT.toString(), info.getOpenSearchVersionRanges().get(0).toString());
-        assertThat(info.getExtendedPlugins(), empty());
-    }
-
-    public void testReadFromPropertiesWithMultipleOpenSearchRanges() throws Exception {
-        Path pluginDir = createTempDir().resolve("fake-plugin");
-        PluginTestUtil.writePluginProperties(
-            pluginDir,
-            "description",
-            "fake desc",
-            "name",
-            "my_plugin",
-            "version",
-            "1.0",
-            "dependencies",
-            "{opensearch:\"~1.2.3, =1.2.3\"}",
-            "java.version",
-            System.getProperty("java.specification.version"),
-            "classname",
-            "FakePlugin"
-        );
-        PluginInfo info = PluginInfo.readFromProperties(pluginDir);
-        assertEquals("my_plugin", info.getName());
-        assertEquals("fake desc", info.getDescription());
-        assertEquals("1.0", info.getVersion());
-        assertEquals("FakePlugin", info.getClassname());
-        assertEquals("[~1.2.3,=1.2.3]", info.getOpenSearchVersionRangesString());
         assertThat(info.getExtendedPlugins(), empty());
     }
 
@@ -569,12 +544,54 @@ public class PluginInfoTests extends OpenSearchTestCase {
             "version",
             "1.0",
             "dependencies",
-            "{opensearch:\"1.2.3,~1.2.3,<2.2.0\"}",
+            "{opensearch:\"<2.2.0\"}",
             "java.version",
             System.getProperty("java.specification.version"),
             "classname",
             "FakePlugin"
         );
         expectThrows(NumberFormatException.class, () -> PluginInfo.readFromProperties(pluginDir));
+    }
+
+    public void testhMultipleOpenSearchRangesInDependencies() throws Exception {
+        Path pluginDir = createTempDir().resolve("fake-plugin");
+        PluginTestUtil.writePluginProperties(
+            pluginDir,
+            "description",
+            "fake desc",
+            "name",
+            "my_plugin",
+            "version",
+            "1.0",
+            "dependencies",
+            "{opensearch:\"~1.2.3, =1.2.3\"}",
+            "java.version",
+            System.getProperty("java.specification.version"),
+            "classname",
+            "FakePlugin"
+        );
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> PluginInfo.readFromProperties(pluginDir));
+        assertThat(e.getMessage(), containsString("Exactly one range is allowed to be specified in dependencies for the plugin"));
+    }
+
+    public void testhMultipleOpenSearchRangesInConstructor() throws Exception {
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> new PluginInfo(
+                "plugin_name",
+                "foo",
+                "dummy",
+                List.of(
+                    new SemverRange(Version.CURRENT, SemverRange.RangeOperator.EQ),
+                    new SemverRange(Version.CURRENT, SemverRange.RangeOperator.DEFAULT)
+                ),
+                "1.8",
+                "dummyclass",
+                null,
+                Collections.emptyList(),
+                randomBoolean()
+            )
+        );
+        assertThat(e.getMessage(), containsString("Exactly one range is allowed to be specified in dependencies for the plugin"));
     }
 }

@@ -12,6 +12,7 @@ import org.opensearch.Version;
 import org.opensearch.common.Nullable;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.semver.expr.Caret;
 import org.opensearch.semver.expr.Equal;
 import org.opensearch.semver.expr.Expression;
 import org.opensearch.semver.expr.Tilde;
@@ -42,7 +43,7 @@ public class SemverRange implements ToXContentFragment {
      */
     public static SemverRange fromString(final String range) {
         RangeOperator rangeOperator = RangeOperator.fromRange(range);
-        String version = range.replaceFirst(rangeOperator.asString(), "");
+        String version = range.replaceFirst(rangeOperator.asEscapedString(), "");
         if (!Version.stringHasLength(version)) {
             throw new IllegalArgumentException("Version cannot be empty");
         }
@@ -120,6 +121,7 @@ public class SemverRange implements ToXContentFragment {
 
         EQ("=", new Equal()),
         TILDE("~", new Tilde()),
+        CARET("^", new Caret()),
         DEFAULT("", new Equal());
 
         private final String operator;
@@ -136,6 +138,19 @@ public class SemverRange implements ToXContentFragment {
          * @return range operator as string
          */
         public String asString() {
+            return operator;
+        }
+
+        /**
+         * Escaped string representation of the range operator,
+         * if operator is a regex character.
+         *
+         * @return range operator as escaped string, if operator is a regex character
+         */
+        public String asEscapedString() {
+            if (Objects.equals(operator, "^")) {
+                return "\\^";
+            }
             return operator;
         }
 

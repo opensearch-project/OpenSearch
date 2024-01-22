@@ -130,6 +130,12 @@ public class PluginInfo implements Writeable, ToXContentObject {
         this.name = name;
         this.description = description;
         this.version = version;
+        // Ensure only one range is specified (for now)
+        if (opensearchVersionRanges.size() != 1) {
+            throw new IllegalArgumentException(
+                "Exactly one range is allowed to be specified in dependencies for the plugin [" + name + "]"
+            );
+        }
         this.opensearchVersionRanges = opensearchVersionRanges;
         this.javaVersion = javaVersion;
         this.classname = classname;
@@ -280,12 +286,12 @@ public class PluginInfo implements Writeable, ToXContentObject {
                 throw new IllegalArgumentException("Only opensearch is allowed to be specified as a plugin dependency: " + dependenciesMap);
             }
             String[] ranges = dependenciesMap.get("opensearch").split(",");
-            for (String range : ranges) {
-                opensearchVersionRanges.add(SemverRange.fromString(range.trim()));
+            if (ranges.length != 1) {
+                throw new IllegalArgumentException(
+                    "Exactly one range is allowed to be specified in dependencies for the plugin [\" + name + \"]"
+                );
             }
-            if (opensearchVersionRanges.isEmpty()) {
-                throw new IllegalArgumentException("Invalid version specified in dependencies for the plugin [" + name + "]");
-            }
+            opensearchVersionRanges.add(SemverRange.fromString(ranges[0].trim()));
         }
 
         final String javaVersionString = propsMap.remove("java.version");

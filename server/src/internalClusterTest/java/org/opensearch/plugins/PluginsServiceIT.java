@@ -57,9 +57,6 @@ public class PluginsServiceIT extends OpenSearchIntegTestCase {
         // Prepare the plugins directory and then start a node
         Path baseDir = createTempDir();
         Path pluginDir = baseDir.resolve("plugins/dummy-plugin");
-        String range1 = "~" + Version.CURRENT;
-        String range2 = "=" + Version.CURRENT;
-        String ranges = "\"" + range1 + "," + range2 + "\"";
         PluginTestUtil.writePluginProperties(
             pluginDir,
             "description",
@@ -69,7 +66,7 @@ public class PluginsServiceIT extends OpenSearchIntegTestCase {
             "version",
             "1.0",
             "dependencies",
-            "{opensearch:" + ranges + "}",
+            "{opensearch:" + "~" + Version.CURRENT + "}",
             "java.version",
             System.getProperty("java.specification.version"),
             "classname",

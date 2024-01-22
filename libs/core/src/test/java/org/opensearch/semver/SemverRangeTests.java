@@ -43,6 +43,17 @@ public class SemverRangeTests extends OpenSearchTestCase {
         assertFalse(range.isSatisfiedBy("3.0.0"));
     }
 
+    public void testRangeWithCaretOperator() {
+        SemverRange range = SemverRange.fromString("^2.3.4");
+        assertEquals(range.getRangeOperator(), SemverRange.RangeOperator.CARET);
+        assertTrue(range.isSatisfiedBy("2.3.4"));
+        assertTrue(range.isSatisfiedBy("2.3.5"));
+        assertTrue(range.isSatisfiedBy("2.4.12"));
+
+        assertFalse(range.isSatisfiedBy("2.3.3"));
+        assertFalse(range.isSatisfiedBy("3.0.0"));
+    }
+
     public void testInvalidRanges() {
         IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> SemverRange.fromString(""));
         assertEquals("Version cannot be empty", ex.getMessage());
@@ -72,7 +83,7 @@ public class SemverRangeTests extends OpenSearchTestCase {
         assertTrue(ex.getMessage().contains("the version needs to contain major, minor, and revision, and optionally the build"));
 
         ex = expectThrows(IllegalArgumentException.class, () -> SemverRange.fromString("^"));
-        assertTrue(ex.getMessage().contains("the version needs to contain major, minor, and revision, and optionally the build"));
+        assertEquals("Version cannot be empty", ex.getMessage());
 
         ex = expectThrows(IllegalArgumentException.class, () -> SemverRange.fromString("^1"));
         assertTrue(ex.getMessage().contains("the version needs to contain major, minor, and revision, and optionally the build"));
@@ -80,6 +91,15 @@ public class SemverRangeTests extends OpenSearchTestCase {
         ex = expectThrows(IllegalArgumentException.class, () -> SemverRange.fromString("^1.2"));
         assertTrue(ex.getMessage().contains("the version needs to contain major, minor, and revision, and optionally the build"));
 
-        expectThrows(NumberFormatException.class, () -> SemverRange.fromString("^1.2.3"));
+        ex = expectThrows(IllegalArgumentException.class, () -> SemverRange.fromString("$"));
+        assertTrue(ex.getMessage().contains("the version needs to contain major, minor, and revision, and optionally the build"));
+
+        ex = expectThrows(IllegalArgumentException.class, () -> SemverRange.fromString("$1"));
+        assertTrue(ex.getMessage().contains("the version needs to contain major, minor, and revision, and optionally the build"));
+
+        ex = expectThrows(IllegalArgumentException.class, () -> SemverRange.fromString("$1.2"));
+        assertTrue(ex.getMessage().contains("the version needs to contain major, minor, and revision, and optionally the build"));
+
+        expectThrows(NumberFormatException.class, () -> SemverRange.fromString("$1.2.3"));
     }
 }

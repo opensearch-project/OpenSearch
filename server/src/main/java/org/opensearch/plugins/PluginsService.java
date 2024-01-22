@@ -403,7 +403,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
     }
 
     public static boolean isPluginVersionCompatible(final PluginInfo pluginInfo, final Version coreVersion) {
-        // Core version must satisfy all ranges of opensearch version
+        // Core version must satisfy the semver range in plugin info
         for (SemverRange range : pluginInfo.getOpenSearchVersionRanges()) {
             if (!range.isSatisfiedBy(coreVersion)) {
                 return false;

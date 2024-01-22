@@ -735,55 +735,10 @@ public class PluginsServiceTests extends OpenSearchTestCase {
         PluginsService.verifyCompatibility(info);
     }
 
-    public void testCompatibleOpenSearchVersionRanges() {
-        List<SemverRange> pluginCompatibilityRange = List.of(
-            new SemverRange(Version.CURRENT, SemverRange.RangeOperator.TILDE),
-            new SemverRange(Version.CURRENT, SemverRange.RangeOperator.EQ),
-            new SemverRange(Version.CURRENT, SemverRange.RangeOperator.DEFAULT)
-        );
-        PluginInfo info = new PluginInfo(
-            "my_plugin",
-            "desc",
-            "1.0",
-            pluginCompatibilityRange,
-            "1.8",
-            "FakePlugin",
-            null,
-            Collections.emptyList(),
-            false
-        );
-        PluginsService.verifyCompatibility(info);
-    }
-
     public void testIncompatibleOpenSearchVersionRange() {
         // Version.CURRENT is behind by one with respect to patch version in the range
         List<SemverRange> pluginCompatibilityRange = List.of(
             new SemverRange(
-                VersionUtils.getVersion(Version.CURRENT.major, Version.CURRENT.minor, (byte) (Version.CURRENT.revision + 1)),
-                SemverRange.RangeOperator.TILDE
-            )
-        );
-        PluginInfo info = new PluginInfo(
-            "my_plugin",
-            "desc",
-            "1.0",
-            pluginCompatibilityRange,
-            "1.8",
-            "FakePlugin",
-            null,
-            Collections.emptyList(),
-            false
-        );
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> PluginsService.verifyCompatibility(info));
-        assertThat(e.getMessage(), containsString("was built for OpenSearch version "));
-    }
-
-    public void testIncompatibleOpenSearchVersionRanges() {
-        List<SemverRange> pluginCompatibilityRange = List.of(
-            new SemverRange(Version.CURRENT, SemverRange.RangeOperator.EQ),
-            new SemverRange(Version.CURRENT, SemverRange.RangeOperator.DEFAULT),
-            new SemverRange(
-                // Core version will not satisfy this range
                 VersionUtils.getVersion(Version.CURRENT.major, Version.CURRENT.minor, (byte) (Version.CURRENT.revision + 1)),
                 SemverRange.RangeOperator.TILDE
             )
