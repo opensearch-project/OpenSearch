@@ -34,13 +34,13 @@ public abstract class SearchQueryRecord<T extends Number & Comparable<T>>
         ToXContentObject {
 
     private static final Logger log = LogManager.getLogger(SearchQueryRecord.class);
-    protected static final String TIMESTAMP = "timestamp";
-    protected static final String SEARCH_TYPE = "searchType";
-    protected static final String SOURCE = "source";
-    protected static final String TOTAL_SHARDS = "totalShards";
-    protected static final String INDICES = "indices";
-    protected static final String PROPERTY_MAP = "propertyMap";
-    protected static final String VALUE = "value";
+    private static final String TIMESTAMP = "timestamp";
+    private static final String SEARCH_TYPE = "searchType";
+    private static final String SOURCE = "source";
+    private static final String TOTAL_SHARDS = "totalShards";
+    private static final String INDICES = "indices";
+    private static final String PROPERTY_MAP = "propertyMap";
+    private static final String VALUE = "value";
 
     private final Long timestamp;
 
@@ -57,6 +57,13 @@ public abstract class SearchQueryRecord<T extends Number & Comparable<T>>
 
     private T value;
 
+    /**
+     * Constructor of the SearchQueryRecord
+     *
+     * @param in A {@link StreamInput} object.
+     * @throws IOException if the stream cannot be deserialized.
+     * @throws ClassCastException ClassCastException
+     */
     public SearchQueryRecord(final StreamInput in) throws IOException, ClassCastException {
         this.timestamp = in.readLong();
         this.searchType = SearchType.fromString(in.readString().toLowerCase(Locale.ROOT));
@@ -66,6 +73,17 @@ public abstract class SearchQueryRecord<T extends Number & Comparable<T>>
         this.propertyMap = in.readMap();
     }
 
+    /**
+     * Constructor of the SearchQueryRecord
+     *
+     * @param timestamp The timestamp of the query.
+     * @param searchType The manner at which the search operation is executed. see {@link SearchType}
+     * @param source The search source that was executed by the query.
+     * @param totalShards Total number of shards as part of the search query across all indices
+     * @param indices The indices involved in the search query
+     * @param propertyMap Extra attributes and information about a search query
+     * @param value The value on this SearchQueryRecord
+     */
     public SearchQueryRecord(
         final Long timestamp,
         final SearchType searchType,
@@ -79,6 +97,16 @@ public abstract class SearchQueryRecord<T extends Number & Comparable<T>>
         this.value = value;
     }
 
+    /**
+     * Constructor of the SearchQueryRecord
+     *
+     * @param timestamp The timestamp of the query.
+     * @param searchType The manner at which the search operation is executed. see {@link SearchType}
+     * @param source The search source that was executed by the query.
+     * @param totalShards Total number of shards as part of the search query across all indices
+     * @param indices The indices involved in the search query
+     * @param propertyMap Extra attributes and information about a search query
+     */
     public SearchQueryRecord(
         final Long timestamp,
         final SearchType searchType,
@@ -139,6 +167,7 @@ public abstract class SearchQueryRecord<T extends Number & Comparable<T>>
 
     /**
      * Set the value of the query metric record
+     * @param value The value to set on the record
      */
     public void setValue(T value) {
         this.value = value;
@@ -156,14 +185,19 @@ public abstract class SearchQueryRecord<T extends Number & Comparable<T>>
         return value.compareTo(otherRecord.getValue());
     }
 
+    /**
+     * Compare if two SearchQueryRecord are equal
+     * @param other The Other SearchQueryRecord to compare to
+     * @return boolean
+     */
     public boolean equals(SearchQueryRecord<T> other) {
-        if (false == this.timestamp.equals(other.getTimestamp())
-            && this.searchType.equals(other.getSearchType())
-            && this.source.equals(other.getSource())
-            && this.totalShards == other.getTotalShards()
-            && this.indices.length == other.getIndices().length
-            && this.propertyMap.size() == other.getPropertyMap().size()
-            && this.value.equals(other.getValue())) {
+        if (!this.timestamp.equals(other.getTimestamp())
+            || !this.searchType.equals(other.getSearchType())
+            || !this.source.equals(other.getSource())
+            || this.totalShards != other.getTotalShards()
+            || this.indices.length != other.getIndices().length
+            || this.propertyMap.size() != other.getPropertyMap().size()
+            || !this.value.equals(other.getValue())) {
             return false;
         }
         for (int i = 0; i < indices.length; i++) {
@@ -192,15 +226,25 @@ public abstract class SearchQueryRecord<T extends Number & Comparable<T>>
         }
     }
 
+    /**
+     * Add custom XContent fields to the record
+     * @param builder XContent builder
+     * @param params XContent parameters
+     * @throws IOException IOException
+     */
+    protected abstract void addCustomXContent(XContentBuilder builder, Params params) throws IOException;
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject();
         builder.field(TIMESTAMP, timestamp);
         builder.field(SEARCH_TYPE, searchType);
         builder.field(SOURCE, source);
         builder.field(TOTAL_SHARDS, totalShards);
         builder.field(INDICES, indices);
         builder.field(PROPERTY_MAP, propertyMap);
-        return builder;
+        addCustomXContent(builder, params);
+        return builder.endObject();
     }
 
     @Override

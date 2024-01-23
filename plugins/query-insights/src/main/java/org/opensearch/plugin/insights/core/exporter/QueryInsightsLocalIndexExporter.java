@@ -51,13 +51,20 @@ public class QueryInsightsLocalIndexExporter<T extends SearchQueryRecord<?>> ext
     /** The mapping for the local index that holds the data */
     private final InputStream localIndexMapping;
 
+    /**
+     * Create a QueryInsightsLocalIndexExporter Object
+     * @param clusterService The clusterService of the node
+     * @param client The OpenSearch Client to support index operations
+     * @param localIndexName The local index name to export the data to
+     * @param localIndexMapping The mapping for the local index
+     */
     public QueryInsightsLocalIndexExporter(
         ClusterService clusterService,
         Client client,
         String localIndexName,
         InputStream localIndexMapping
     ) {
-        super(QueryInsightsExporterType.LOCAL_INDEX, localIndexName);
+        super(localIndexName);
         this.clusterService = clusterService;
         this.client = client;
         this.localIndexMapping = localIndexMapping;
@@ -70,42 +77,35 @@ public class QueryInsightsLocalIndexExporter<T extends SearchQueryRecord<?>> ext
      * @throws IOException if an error occurs
      */
     @Override
-    public synchronized void export(List<T> records) throws IOException {
+    public void export(List<T> records) throws IOException {
         if (records.size() == 0) {
             return;
         }
-        if (checkIfIndexExists()) {
-            bulkRecord(records);
-        } else {
-            // local index not exist
-            initLocalIndex(new ActionListener<>() {
-                @Override
-                public void onResponse(CreateIndexResponse response) {
-                    if (response.isAcknowledged()) {
-                        log.debug(
-                            String.format(Locale.ROOT, "successfully initialized local index %s for query insight.", getIdentifier())
-                        );
-                        try {
-                            bulkRecord(records);
-                        } catch (IOException e) {
-                            log.error(String.format(Locale.ROOT, "fail to ingest query insight data to local index, error: %s", e));
-                        }
-                    } else {
-                        log.error(
-                            String.format(
-                                Locale.ROOT,
-                                "request to created local index %s for query insight not acknowledged.",
-                                getIdentifier()
-                            )
-                        );
+        boolean indexExists = checkAndInitLocalIndex(new ActionListener<>() {
+            @Override
+            public void onResponse(CreateIndexResponse response) {
+                if (response.isAcknowledged()) {
+                    log.debug(String.format(Locale.ROOT, "successfully initialized local index %s for query insight.", getIdentifier()));
+                    try {
+                        bulkRecord(records);
+                    } catch (IOException e) {
+                        log.error(String.format(Locale.ROOT, "fail to ingest query insight data to local index, error: %s", e));
                     }
+                } else {
+                    log.error(
+                        String.format(Locale.ROOT, "request to created local index %s for query insight not acknowledged.", getIdentifier())
+                    );
                 }
+            }
 
-                @Override
-                public void onFailure(Exception e) {
-                    log.error(String.format(Locale.ROOT, "error creating local index for query insight: %s", e));
-                }
-            });
+            @Override
+            public void onFailure(Exception e) {
+                log.error(String.format(Locale.ROOT, "error creating local index for query insight: %s", e));
+            }
+        });
+
+        if (indexExists) {
+            bulkRecord(records);
         }
     }
 
@@ -120,15 +120,21 @@ public class QueryInsightsLocalIndexExporter<T extends SearchQueryRecord<?>> ext
     }
 
     /**
-     * Initialize the local OpenSearch Index for the exporter
+     * Check and initialize the local OpenSearch Index for the exporter
      *
      * @param listener the listener to be notified upon completion
+     * @return boolean to represent if the index has already been created before calling this function
      * @throws IOException if an error occurs
      */
-    private synchronized void initLocalIndex(ActionListener<CreateIndexResponse> listener) throws IOException {
-        CreateIndexRequest createIndexRequest = new CreateIndexRequest(this.getIdentifier()).mapping(getIndexMappings())
-            .settings(Settings.builder().put("index.hidden", false).build());
-        client.admin().indices().create(createIndexRequest, listener);
+    private synchronized boolean checkAndInitLocalIndex(ActionListener<CreateIndexResponse> listener) throws IOException {
+        if (!checkIfIndexExists()) {
+            CreateIndexRequest createIndexRequest = new CreateIndexRequest(this.getIdentifier()).mapping(getIndexMappings())
+                .settings(Settings.builder().put("index.hidden", false).build());
+            client.admin().indices().create(createIndexRequest, listener);
+            return false;
+        } else {
+            return true;
+        }
     }
 
     /**

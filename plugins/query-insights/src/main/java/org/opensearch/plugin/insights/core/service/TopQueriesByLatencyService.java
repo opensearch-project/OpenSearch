@@ -50,6 +50,12 @@ public class TopQueriesByLatencyService extends QueryInsightsService<
     private final ClusterService clusterService;
     private final Client client;
 
+    /**
+     * Create the TopQueriesByLatencyService Object
+     * @param threadPool The OpenSearch thread pool to run async tasks
+     * @param clusterService The clusterService of this node
+     * @param client The OpenSearch Client
+     */
     @Inject
     public TopQueriesByLatencyService(ThreadPool threadPool, ClusterService clusterService, Client client) {
         super(threadPool, new PriorityBlockingQueue<>(), null);
@@ -100,6 +106,7 @@ public class TopQueriesByLatencyService extends QueryInsightsService<
             return;
         }
         this.threadPool.schedule(() -> {
+            clearOutdatedData();
             super.ingestQueryData(
                 new SearchQueryLatencyRecord(timestamp, searchType, source, totalShards, indices, propertyMap, phaseLatencyMap, tookInNanos)
             );
@@ -117,10 +124,18 @@ public class TopQueriesByLatencyService extends QueryInsightsService<
         store.removeIf(record -> record.getTimestamp() < System.currentTimeMillis() - windowSize.getMillis());
     }
 
+    /**
+     * Set the top N size for TopQueriesByLatencyService service.
+     * @param size the top N size to set
+     */
     public void setTopNSize(int size) {
         this.topNSize = size;
     }
 
+    /**
+     * Validate the top N size based on the internal constrains
+     * @param size the wanted top N size
+     */
     public void validateTopNSize(int size) {
         if (size > QueryInsightsSettings.MAX_N_SIZE) {
             throw new IllegalArgumentException(
@@ -138,14 +153,26 @@ public class TopQueriesByLatencyService extends QueryInsightsService<
         }
     }
 
+    /**
+     * Get the top N size set for TopQueriesByLatencyService
+     * @return the top N size
+     */
     public int getTopNSize() {
         return this.topNSize;
     }
 
+    /**
+     * Set the window size for TopQueriesByLatencyService
+     * @param windowSize window size to set
+     */
     public void setWindowSize(TimeValue windowSize) {
         this.windowSize = windowSize;
     }
 
+    /**
+     * Validate if the window size is valid, based on internal constrains.
+     * @param windowSize the window size to validate
+     */
     public void validateWindowSize(TimeValue windowSize) {
         if (windowSize.compareTo(QueryInsightsSettings.MAX_WINDOW_SIZE) > 0) {
             throw new IllegalArgumentException(
@@ -163,10 +190,18 @@ public class TopQueriesByLatencyService extends QueryInsightsService<
         }
     }
 
+    /**
+     * Get the window size set for TopQueriesByLatencyService
+     * @return the window size
+     */
     public TimeValue getWindowSize() {
         return this.windowSize;
     }
 
+    /**
+     * Set the exporter type to export data generated in TopQueriesByLatencyService
+     * @param type The type of exporter, defined in {@link QueryInsightsExporterType}
+     */
     public void setExporterType(QueryInsightsExporterType type) {
         resetExporter(
             getEnableExport(),
@@ -175,6 +210,10 @@ public class TopQueriesByLatencyService extends QueryInsightsService<
         );
     }
 
+    /**
+     * Set if the exporter is enabled
+     * @param enabled if the exporter is enabled
+     */
     public void setExporterEnabled(boolean enabled) {
         super.setEnableExport(enabled);
         resetExporter(
@@ -184,6 +223,12 @@ public class TopQueriesByLatencyService extends QueryInsightsService<
         );
     }
 
+    /**
+     * Set the identifier of this exporter, which will be used when exporting the data
+     *
+     * For example, for local index exporter, this identifier would be used to define the index name
+     * @param identifier the identifier for the exporter
+     */
     public void setExporterIdentifier(String identifier) {
         resetExporter(
             getEnableExport(),
@@ -192,6 +237,10 @@ public class TopQueriesByLatencyService extends QueryInsightsService<
         );
     }
 
+    /**
+     * Set the export interval for the exporter
+     * @param interval export interval
+     */
     public void setExportInterval(TimeValue interval) {
         super.setExportInterval(interval);
         resetExporter(
@@ -201,6 +250,10 @@ public class TopQueriesByLatencyService extends QueryInsightsService<
         );
     }
 
+    /**
+     * Validate if the export interval is valid, based on internal constrains.
+     * @param exportInterval the export interval to validate
+     */
     public void validateExportInterval(TimeValue exportInterval) {
         if (exportInterval.getSeconds() < MIN_EXPORT_INTERVAL.getSeconds()) {
             throw new IllegalArgumentException(
@@ -219,6 +272,15 @@ public class TopQueriesByLatencyService extends QueryInsightsService<
         }
     }
 
+    /**
+     * Reset the exporter with new config
+     *
+     * This function can be used to enable/disable an exporter, change the type of the exporter,
+     * or change the identifier of the exporter.
+     * @param enabled the enable flag to set on the exporter
+     * @param type The QueryInsightsExporterType to set on the exporter
+     * @param identifier the Identifier to set on the exporter
+     */
     public void resetExporter(boolean enabled, QueryInsightsExporterType type, String identifier) {
         this.stop();
         this.exporter = null;

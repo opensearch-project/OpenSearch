@@ -73,6 +73,7 @@ public class QueryInsightsLocalIndexExporterTests extends OpenSearchTestCase {
 
     private QueryInsightsLocalIndexExporter<SearchQueryLatencyRecord> queryInsightLocalIndexExporter;
 
+    @SuppressWarnings("unchecked")
     @Before
     public void setup() throws IOException {
         final CreateIndexResponse createIndexResponse = new CreateIndexResponse(true, false, "test-index");
@@ -224,6 +225,7 @@ public class QueryInsightsLocalIndexExporterTests extends OpenSearchTestCase {
         );
     }
 
+    @SuppressWarnings("unchecked")
     public void testInitIndexFailed() throws IOException {
         when(mockRoutingTable.hasIndex(anyString())).thenReturn(false);
         when(clusterState.getRoutingTable()).thenReturn(mockRoutingTable);

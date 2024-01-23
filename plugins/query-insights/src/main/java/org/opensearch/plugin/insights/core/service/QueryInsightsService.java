@@ -46,7 +46,7 @@ public abstract class QueryInsightsService<R extends SearchQueryRecord<?>, S ext
     /** enable insight data export */
     private boolean enableExport;
 
-    /** The internal store that holds the query insight data */
+    /** The internal thread-safe store that holds the query insight data */
     @Nullable
     protected S store;
 
@@ -59,8 +59,19 @@ public abstract class QueryInsightsService<R extends SearchQueryRecord<?>, S ext
 
     /** The internal OpenSearch thread pool that execute async processing and exporting tasks*/
     protected final ThreadPool threadPool;
+
+    /**
+     * Holds a reference to delayed operation {@link Scheduler.Cancellable} so it can be cancelled when
+     * the service closed concurrently.
+     */
     protected volatile Scheduler.Cancellable scheduledFuture;
 
+    /**
+     * Create the Query Insights Service object
+     * @param threadPool The OpenSearch thread pool to run async tasks
+     * @param store The in memory store to keep the Query Insights data
+     * @param exporter The optional {@link QueryInsightsExporter} to export the Query Insights data
+     */
     @Inject
     public QueryInsightsService(ThreadPool threadPool, @Nullable S store, @Nullable E exporter) {
         this.threadPool = threadPool;
@@ -102,7 +113,13 @@ public abstract class QueryInsightsService<R extends SearchQueryRecord<?>, S ext
     public abstract void clearOutdatedData();
 
     /**
-     * Restart the exporter with new config
+     * Reset the exporter with new config
+     *
+     * This function can be used to enable/disable an exporter, change the type of the exporter,
+     * or change the identifier of the exporter.
+     * @param enabled the enable flag to set on the exporter
+     * @param type The QueryInsightsExporterType to set on the exporter
+     * @param identifier the Identifier to set on the exporter
      */
     public abstract void resetExporter(boolean enabled, QueryInsightsExporterType type, String identifier);
 
@@ -113,18 +130,34 @@ public abstract class QueryInsightsService<R extends SearchQueryRecord<?>, S ext
         store.clear();
     }
 
+    /**
+     * Set flag to enable or disable Query Insights data collection
+     * @param enableCollect Flag to enable or disable Query Insights data collection
+     */
     public void setEnableCollect(boolean enableCollect) {
         this.enableCollect = enableCollect;
     }
 
+    /**
+     * Get if the Query Insights data collection is enabled
+     * @return if the Query Insights data collection is enabled
+     */
     public boolean getEnableCollect() {
         return this.enableCollect;
     }
 
+    /**
+     * Set flag to enable or disable Query Insights data export
+     * @param enableExport
+     */
     public void setEnableExport(boolean enableExport) {
         this.enableExport = enableExport;
     }
 
+    /**
+     * Get if the Query Insights data export is enabled
+     * @return if the Query Insights data export is enabled
+     */
     public boolean getEnableExport() {
         return this.enableExport;
     }
@@ -156,7 +189,6 @@ public abstract class QueryInsightsService<R extends SearchQueryRecord<?>, S ext
         List<R> storedData = getQueryData();
         try {
             exporter.export(storedData);
-            log.debug(String.format(Locale.ROOT, "finish exporting query insight data to sink %s", storedData));
         } catch (Exception e) {
             throw new RuntimeException(String.format(Locale.ROOT, "failed to export query insight data to sink, error: %s", e));
         }
@@ -165,6 +197,10 @@ public abstract class QueryInsightsService<R extends SearchQueryRecord<?>, S ext
     @Override
     protected void doClose() {}
 
+    /**
+     * Get the export interval set for the {@link QueryInsightsExporter}
+     * @return export interval
+     */
     public TimeValue getExportInterval() {
         return exportInterval;
     }

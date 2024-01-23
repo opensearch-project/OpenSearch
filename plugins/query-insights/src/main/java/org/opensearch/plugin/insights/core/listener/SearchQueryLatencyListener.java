@@ -43,6 +43,12 @@ public final class SearchQueryLatencyListener extends SearchRequestOperationsLis
 
     private final TopQueriesByLatencyService topQueriesByLatencyService;
 
+    /**
+     * Constructor for SearchQueryLatencyListener
+     *
+     * @param clusterService The Node's cluster service.
+     * @param topQueriesByLatencyService The topQueriesByLatencyService associated with this listener
+     */
     @Inject
     public SearchQueryLatencyListener(ClusterService clusterService, TopQueriesByLatencyService topQueriesByLatencyService) {
         this.topQueriesByLatencyService = topQueriesByLatencyService;

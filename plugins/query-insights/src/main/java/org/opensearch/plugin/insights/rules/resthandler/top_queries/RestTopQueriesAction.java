@@ -39,6 +39,9 @@ public class RestTopQueriesAction extends BaseRestHandler {
     /** The metric types that are allowed in top N queries */
     static final Set<String> ALLOWED_METRICS = TopQueriesRequest.Metric.allMetrics();
 
+    /**
+     * Constructor for RestTopQueriesAction
+     */
     public RestTopQueriesAction() {}
 
     @Override
@@ -51,7 +54,7 @@ public class RestTopQueriesAction extends BaseRestHandler {
 
     @Override
     public String getName() {
-        return "top_queries_action";
+        return "query_insights_top_queries_action";
     }
 
     @Override

@@ -39,6 +39,7 @@ import static org.mockito.Mockito.when;
 public class QueryInsightsServiceTests extends OpenSearchTestCase {
     private ThreadPool threadPool = mock(ThreadPool.class);
     private DummyQueryInsightsService dummyQueryInsightsService;
+    @SuppressWarnings("unchecked")
     private QueryInsightsLocalIndexExporter<SearchQueryLatencyRecord> exporter = mock(QueryInsightsLocalIndexExporter.class);
 
     static class DummyQueryInsightsService extends QueryInsightsService<

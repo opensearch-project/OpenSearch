@@ -36,11 +36,25 @@ public class TopQueriesResponse extends BaseNodesResponse<TopQueries> implements
     private static final String CLUSTER_LEVEL_RESULTS_KEY = "top_queries";
     private final int top_n_size;
 
+    /**
+     * Constructor for TopQueriesResponse.
+     *
+     * @param in A {@link StreamInput} object.
+     * @throws IOException if the stream cannot be deserialized.
+     */
     public TopQueriesResponse(StreamInput in) throws IOException {
         super(in);
         top_n_size = in.readInt();
     }
 
+    /**
+     * Constructor for TopQueriesResponse
+     *
+     * @param clusterName The current cluster name
+     * @param nodes A list that contains top queries results from all nodes
+     * @param failures A list that contains FailedNodeException
+     * @param top_n_size The top N size to return to the user
+     */
     public TopQueriesResponse(ClusterName clusterName, List<TopQueries> nodes, List<FailedNodeException> failures, int top_n_size) {
         super(clusterName, nodes, failures);
         this.top_n_size = top_n_size;
