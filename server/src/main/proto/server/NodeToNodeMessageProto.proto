@@ -28,7 +28,6 @@ message NodeToNodeMessage {
   oneof message {
     QueryFetchSearchResult queryFetchSearchResult = 16;
   }
-  bool isProtobuf = 17;
   
   message Header {
     repeated bytes prefix = 1;

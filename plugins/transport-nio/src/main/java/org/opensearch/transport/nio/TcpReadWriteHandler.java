@@ -69,7 +69,6 @@ public class TcpReadWriteHandler extends BytesWriteHandler {
             breaker,
             requestHandlers::getHandler,
             transport::inboundMessage
-            // transport::inboundMessageProtobuf
         );
     }
 

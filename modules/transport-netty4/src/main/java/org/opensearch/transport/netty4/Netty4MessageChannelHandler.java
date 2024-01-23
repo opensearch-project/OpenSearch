@@ -79,7 +79,6 @@ final class Netty4MessageChannelHandler extends ChannelDuplexHandler {
             transport.getInflightBreaker(),
             requestHandlers::getHandler,
             transport::inboundMessage
-            // transport::inboundMessageProtobuf
         );
     }
 

@@ -41,7 +41,6 @@ import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.common.util.concurrent.ThreadContext;
-import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.io.stream.ByteBufferStreamInput;
 import org.opensearch.core.common.io.stream.NamedWriteableAwareStreamInput;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
@@ -125,10 +124,10 @@ public class InboundHandler {
     void inboundMessage(TcpChannel channel, BaseInboundMessage message) throws Exception {
         final long startTime = threadPool.relativeTimeInMillis();
         channel.getChannelStats().markAccessed(startTime);
-        messageReceivedNew(channel, message, startTime);
+        messageReceivedFromPipeline(channel, message, startTime);
     }
 
-    private void messageReceivedNew(TcpChannel channel, BaseInboundMessage message, long startTime) throws IOException {
+    private void messageReceivedFromPipeline(TcpChannel channel, BaseInboundMessage message, long startTime) throws IOException {
         if (message.getProtocol() == Protocol.PROTOBUF) {
             NodeToNodeMessage nodeToNodeMessage = (NodeToNodeMessage) message;
             messageReceivedProtobuf(channel, nodeToNodeMessage, startTime);
@@ -152,13 +151,6 @@ public class InboundHandler {
         } else {
             messageReceived(channel, message, startTime);
         }
-    }
-
-    void inboundMessageProtobuf(TcpChannel channel, BytesReference message) throws IOException {
-        final long startTime = threadPool.relativeTimeInMillis();
-        channel.getChannelStats().markAccessed(startTime);
-        NodeToNodeMessage protobufMessage = new NodeToNodeMessage(BytesReference.toBytes(message));
-        messageReceivedProtobuf(channel, protobufMessage, startTime);
     }
 
     // Empty stream constant to avoid instantiating a new stream for empty messages.

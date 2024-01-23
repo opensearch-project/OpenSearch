@@ -64,7 +64,6 @@ public class InboundPipeline implements Releasable {
     private final InboundDecoder decoder;
     private final InboundAggregator aggregator;
     private final BiConsumer<TcpChannel, BaseInboundMessage> messageHandler;
-    // private final BiConsumer<TcpChannel, BytesReference> messageHandlerProtobuf;
     private Exception uncaughtException;
     private final ArrayDeque<ReleasableBytesReference> pending = new ArrayDeque<>(2);
     private boolean isClosed = false;
@@ -77,7 +76,6 @@ public class InboundPipeline implements Releasable {
         Supplier<CircuitBreaker> circuitBreaker,
         Function<String, RequestHandlerRegistry<TransportRequest>> registryFunction,
         BiConsumer<TcpChannel, BaseInboundMessage> messageHandler
-        // BiConsumer<TcpChannel, BytesReference> messageHandlerProtobuf
     ) {
         this(
             statsTracker,
@@ -85,7 +83,6 @@ public class InboundPipeline implements Releasable {
             new InboundDecoder(version, recycler),
             new InboundAggregator(circuitBreaker, registryFunction),
             messageHandler
-            // messageHandlerProtobuf
         );
     }
 
@@ -95,14 +92,12 @@ public class InboundPipeline implements Releasable {
         InboundDecoder decoder,
         InboundAggregator aggregator,
         BiConsumer<TcpChannel, BaseInboundMessage> messageHandler
-        // BiConsumer<TcpChannel, BytesReference> messageHandlerProtobuf
     ) {
         this.relativeTimeInMillis = relativeTimeInMillis;
         this.statsTracker = statsTracker;
         this.decoder = decoder;
         this.aggregator = aggregator;
         this.messageHandler = messageHandler;
-        // this.messageHandlerProtobuf = messageHandlerProtobuf;
     }
 
     @Override
@@ -194,14 +189,6 @@ public class InboundPipeline implements Releasable {
             }
         }
     }
-
-    // private void forwardFragmentsProtobuf(TcpChannel channel, ReleasableBytesReference reference) throws IOException {
-    // messageHandlerProtobuf.accept(channel, reference);
-    // }
-
-    // private void forwardFragmentsProtobufNew(TcpChannel channel, NodeToNodeMessage protobufMessage) throws IOException {
-    // messageHandler.accept(channel, protobufMessage);
-    // }
 
     private boolean endOfMessage(Object fragment) {
         return fragment == InboundDecoder.PING || fragment == InboundDecoder.END_CONTENT || fragment instanceof Exception;

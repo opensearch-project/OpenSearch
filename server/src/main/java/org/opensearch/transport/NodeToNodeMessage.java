@@ -71,7 +71,6 @@ public class NodeToNodeMessage implements BaseInboundMessage {
             .setQueryFetchSearchResult(queryFetchSearchResult)
             .setAction(action)
             .addAllFeatures(features)
-            .setIsProtobuf(true)
             .build();
 
     }
@@ -111,10 +110,6 @@ public class NodeToNodeMessage implements BaseInboundMessage {
             responseHandlersMap.put(key, setOfResponseHandlers);
         }
         return responseHandlersMap;
-    }
-
-    public boolean isProtobuf() {
-        return this.message.getIsProtobuf();
     }
 
     @Override
