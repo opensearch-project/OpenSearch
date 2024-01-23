@@ -265,7 +265,9 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
         );
         assertThat(
             ex.getMessage(),
-            containsString("failed to parse date field [2016-15-06T15:29:50+08:00] with format [strict_date_optional_time||epoch_millis]")
+            containsString(
+                "failed to parse date field [2016-15-06T15:29:50+08:00] with format [strict_date_time_no_millis||strict_date_optional_time||epoch_millis]"
+            )
         );
 
         // setting mapping format which is compatible with those dates
@@ -275,12 +277,12 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
 
         RangeFieldType fieldType = new RangeFieldType("field", formatter);
         final Query query = fieldType.rangeQuery(from, to, true, true, relation, null, fieldType.dateMathParser(), context);
-        assertEquals("field:<ranges:[1465975790000 : 1466062190999]>", query.toString());
+        assertEquals("field:<ranges:[1465975790000 : 1466062190999]>", ((IndexOrDocValuesQuery) query).getIndexQuery().toString());
 
         // compare lower and upper bounds with what we would get on a `date` field
         DateFieldType dateFieldType = new DateFieldType("field", DateFieldMapper.Resolution.MILLISECONDS, formatter);
         final Query queryOnDateField = dateFieldType.rangeQuery(from, to, true, true, relation, null, fieldType.dateMathParser(), context);
-        assertEquals("field:[1465975790000 TO 1466062190999]", queryOnDateField.toString());
+        assertEquals("field:[1465975790000 TO 1466062190999]", ((IndexOrDocValuesQuery) queryOnDateField).getIndexQuery().toString());
     }
 
     /**

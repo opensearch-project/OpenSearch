@@ -32,6 +32,9 @@
 
 package org.opensearch.ingest.common;
 
+import org.opensearch.common.Nullable;
+import org.opensearch.core.common.Strings;
+import org.opensearch.index.VersionType;
 import org.opensearch.ingest.AbstractProcessor;
 import org.opensearch.ingest.ConfigurationUtils;
 import org.opensearch.ingest.IngestDocument;
@@ -40,9 +43,14 @@ import org.opensearch.script.ScriptService;
 import org.opensearch.script.TemplateScript;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
 import java.util.stream.Collectors;
+
+import static org.opensearch.ingest.ConfigurationUtils.newConfigurationException;
 
 /**
  * Processor that removes existing fields. Nothing happens if the field is not present.
@@ -52,11 +60,28 @@ public final class RemoveProcessor extends AbstractProcessor {
     public static final String TYPE = "remove";
 
     private final List<TemplateScript.Factory> fields;
+    private final List<TemplateScript.Factory> excludeFields;
     private final boolean ignoreMissing;
 
-    RemoveProcessor(String tag, String description, List<TemplateScript.Factory> fields, boolean ignoreMissing) {
+    RemoveProcessor(
+        String tag,
+        String description,
+        @Nullable List<TemplateScript.Factory> fields,
+        @Nullable List<TemplateScript.Factory> excludeFields,
+        boolean ignoreMissing
+    ) {
         super(tag, description);
-        this.fields = new ArrayList<>(fields);
+        if (fields == null && excludeFields == null || fields != null && excludeFields != null) {
+            throw new IllegalArgumentException("ether fields and excludeFields must be set");
+        }
+        if (fields != null) {
+            this.fields = new ArrayList<>(fields);
+            this.excludeFields = null;
+        } else {
+            this.fields = null;
+            this.excludeFields = new ArrayList<>(excludeFields);
+        }
+
         this.ignoreMissing = ignoreMissing;
     }
 
@@ -64,18 +89,76 @@ public final class RemoveProcessor extends AbstractProcessor {
         return fields;
     }
 
+    public List<TemplateScript.Factory> getExcludeFields() {
+        return excludeFields;
+    }
+
     @Override
     public IngestDocument execute(IngestDocument document) {
-        if (ignoreMissing) {
+        if (fields != null && !fields.isEmpty()) {
             fields.forEach(field -> {
                 String path = document.renderTemplate(field);
-                if (document.hasField(path)) {
-                    document.removeField(path);
+                final boolean fieldPathIsNullOrEmpty = Strings.isNullOrEmpty(path);
+                if (fieldPathIsNullOrEmpty || document.hasField(path) == false) {
+                    if (ignoreMissing) {
+                        return;
+                    } else if (fieldPathIsNullOrEmpty) {
+                        throw new IllegalArgumentException("field path cannot be null nor empty");
+                    } else {
+                        throw new IllegalArgumentException("field [" + path + "] doesn't exist");
+                    }
+                }
+
+                // cannot remove _index, _version and _version_type.
+                if (path.equals(IngestDocument.Metadata.INDEX.getFieldName())
+                    || path.equals(IngestDocument.Metadata.VERSION.getFieldName())
+                    || path.equals(IngestDocument.Metadata.VERSION_TYPE.getFieldName())) {
+                    throw new IllegalArgumentException("cannot remove metadata field [" + path + "]");
+                }
+                // removing _id is disallowed when there's an external version specified in the request
+                if (path.equals(IngestDocument.Metadata.ID.getFieldName())
+                    && document.hasField(IngestDocument.Metadata.VERSION_TYPE.getFieldName())) {
+                    String versionType = document.getFieldValue(IngestDocument.Metadata.VERSION_TYPE.getFieldName(), String.class);
+                    if (!Objects.equals(versionType, VersionType.toString(VersionType.INTERNAL))) {
+                        Long version = document.getFieldValue(IngestDocument.Metadata.VERSION.getFieldName(), Long.class, true);
+                        throw new IllegalArgumentException(
+                            "cannot remove metadata field [_id] when specifying external version for the document, version: "
+                                + version
+                                + ", version_type: "
+                                + versionType
+                        );
+                    }
+                }
+                document.removeField(path);
+            });
+        }
+
+        if (excludeFields != null && !excludeFields.isEmpty()) {
+            Set<String> excludeFieldSet = new HashSet<>();
+            excludeFields.forEach(field -> {
+                String path = document.renderTemplate(field);
+                // ignore the empty or null field path
+                if (!Strings.isNullOrEmpty(path)) {
+                    excludeFieldSet.add(path);
                 }
             });
-        } else {
-            fields.forEach(document::removeField);
+
+            if (!excludeFieldSet.isEmpty()) {
+                Set<String> existingFields = new HashSet<>(document.getSourceAndMetadata().keySet());
+                Set<String> metadataFields = document.getMetadata()
+                    .keySet()
+                    .stream()
+                    .map(IngestDocument.Metadata::getFieldName)
+                    .collect(Collectors.toSet());
+                existingFields.forEach(field -> {
+                    // ignore metadata fields such as _index, _id, etc.
+                    if (!metadataFields.contains(field) && !excludeFieldSet.contains(field)) {
+                        document.removeField(field);
+                    }
+                });
+            }
         }
+
         return document;
     }
 
@@ -100,20 +183,41 @@ public final class RemoveProcessor extends AbstractProcessor {
             Map<String, Object> config
         ) throws Exception {
             final List<String> fields = new ArrayList<>();
-            final Object field = ConfigurationUtils.readObject(TYPE, processorTag, config, "field");
-            if (field instanceof List) {
-                @SuppressWarnings("unchecked")
-                List<String> stringList = (List<String>) field;
-                fields.addAll(stringList);
-            } else {
-                fields.add((String) field);
+            final List<String> excludeFields = new ArrayList<>();
+            final Object field = ConfigurationUtils.readOptionalObject(config, "field");
+            final Object excludeField = ConfigurationUtils.readOptionalObject(config, "exclude_field");
+
+            if (field == null && excludeField == null || field != null && excludeField != null) {
+                throw newConfigurationException(TYPE, processorTag, "field", "ether field or exclude_field must be set");
             }
 
-            final List<TemplateScript.Factory> compiledTemplates = fields.stream()
-                .map(f -> ConfigurationUtils.compileTemplate(TYPE, processorTag, "field", f, scriptService))
-                .collect(Collectors.toList());
             boolean ignoreMissing = ConfigurationUtils.readBooleanProperty(TYPE, processorTag, config, "ignore_missing", false);
-            return new RemoveProcessor(processorTag, description, compiledTemplates, ignoreMissing);
+
+            if (field != null) {
+                if (field instanceof List) {
+                    @SuppressWarnings("unchecked")
+                    List<String> stringList = (List<String>) field;
+                    fields.addAll(stringList);
+                } else {
+                    fields.add((String) field);
+                }
+                List<TemplateScript.Factory> fieldCompiledTemplates = fields.stream()
+                    .map(f -> ConfigurationUtils.compileTemplate(TYPE, processorTag, "field", f, scriptService))
+                    .collect(Collectors.toList());
+                return new RemoveProcessor(processorTag, description, fieldCompiledTemplates, null, ignoreMissing);
+            } else {
+                if (excludeField instanceof List) {
+                    @SuppressWarnings("unchecked")
+                    List<String> stringList = (List<String>) excludeField;
+                    excludeFields.addAll(stringList);
+                } else {
+                    excludeFields.add((String) excludeField);
+                }
+                List<TemplateScript.Factory> excludeFieldCompiledTemplates = excludeFields.stream()
+                    .map(f -> ConfigurationUtils.compileTemplate(TYPE, processorTag, "exclude_field", f, scriptService))
+                    .collect(Collectors.toList());
+                return new RemoveProcessor(processorTag, description, null, excludeFieldCompiledTemplates, ignoreMissing);
+            }
         }
     }
 }

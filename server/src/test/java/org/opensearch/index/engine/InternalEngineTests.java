@@ -40,7 +40,6 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.LogEvent;
 import org.apache.logging.log4j.core.appender.AbstractAppender;
 import org.apache.logging.log4j.core.filter.RegexFilter;
-import org.apache.lucene.codecs.LiveDocsFormat;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.KeywordField;
 import org.apache.lucene.document.LongPoint;
@@ -233,7 +232,6 @@ import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
-import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -3238,22 +3236,10 @@ public class InternalEngineTests extends EngineTestCase {
         MockDirectoryWrapper wrapper = newMockDirectory();
         final CountDownLatch cleanupCompleted = new CountDownLatch(1);
         MockDirectoryWrapper.Failure fail = new MockDirectoryWrapper.Failure() {
-            public boolean didFail1;
-            public boolean didFail2;
-
             @Override
             public void eval(MockDirectoryWrapper dir) throws IOException {
-                if (!doFail) {
-                    return;
-                }
-
-                // Fail segment merge with diskfull during merging terms.
-                if (callStackContainsAnyOf("mergeTerms") && !didFail1) {
-                    didFail1 = true;
-                    throw new IOException("No space left on device");
-                }
-                if (callStackContains(LiveDocsFormat.class, "writeLiveDocs") && !didFail2) {
-                    didFail2 = true;
+                // Fail segment merge with diskfull during merging terms
+                if (callStackContainsAnyOf("mergeTerms")) {
                     throw new IOException("No space left on device");
                 }
             }
@@ -3326,7 +3312,6 @@ public class InternalEngineTests extends EngineTestCase {
             segments = engine.segments(false);
             assertThat(segments.size(), equalTo(2));
 
-            fail.setDoFail();
             // IndexWriter can throw either IOException or IllegalStateException depending on whether tragedy is set or not.
             expectThrowsAnyOf(
                 Arrays.asList(IOException.class, IllegalStateException.class),
@@ -3334,6 +3319,9 @@ public class InternalEngineTests extends EngineTestCase {
             );
 
             assertTrue(cleanupCompleted.await(10, TimeUnit.SECONDS));
+            // Cleanup count will be incremented whenever cleanup is performed correctly.
+            long unreferencedFileCleanUpsPerformed = engine.unreferencedFileCleanUpsPerformed();
+            assertThat(unreferencedFileCleanUpsPerformed, equalTo(1L));
         } catch (Exception ex) {
             throw new AssertionError(ex);
         }
@@ -3343,20 +3331,10 @@ public class InternalEngineTests extends EngineTestCase {
         MockDirectoryWrapper wrapper = newMockDirectory();
         final CountDownLatch cleanupCompleted = new CountDownLatch(1);
         MockDirectoryWrapper.Failure fail = new MockDirectoryWrapper.Failure() {
-            public boolean didFail1;
-            public boolean didFail2;
 
             @Override
             public void eval(MockDirectoryWrapper dir) throws IOException {
-                if (!doFail) {
-                    return;
-                }
-                if (callStackContainsAnyOf("mergeTerms") && !didFail1) {
-                    didFail1 = true;
-                    throw new IOException("No space left on device");
-                }
-                if (callStackContains(LiveDocsFormat.class, "writeLiveDocs") && !didFail2) {
-                    didFail2 = true;
+                if (callStackContainsAnyOf("mergeTerms")) {
                     throw new IOException("No space left on device");
                 }
             }
@@ -3437,7 +3415,6 @@ public class InternalEngineTests extends EngineTestCase {
             segments = engine.segments(false);
             assertThat(segments.size(), equalTo(2));
 
-            fail.setDoFail();
             // IndexWriter can throw either IOException or IllegalStateException depending on whether tragedy is set or not.
             expectThrowsAnyOf(
                 Arrays.asList(IOException.class, IllegalStateException.class),
@@ -3445,6 +3422,9 @@ public class InternalEngineTests extends EngineTestCase {
             );
 
             assertTrue(cleanupCompleted.await(10, TimeUnit.SECONDS));
+            // Cleanup count will not be incremented whenever cleanup is disabled.
+            long unreferencedFileCleanUpsPerformed = engine.unreferencedFileCleanUpsPerformed();
+            assertThat(unreferencedFileCleanUpsPerformed, equalTo(0L));
         } catch (Exception ex) {
             throw new AssertionError(ex);
         }
@@ -3454,20 +3434,10 @@ public class InternalEngineTests extends EngineTestCase {
         MockDirectoryWrapper wrapper = newMockDirectory();
         final CountDownLatch cleanupCompleted = new CountDownLatch(1);
         MockDirectoryWrapper.Failure fail = new MockDirectoryWrapper.Failure() {
-            public boolean didFail1;
-            public boolean didFail2;
 
             @Override
             public void eval(MockDirectoryWrapper dir) throws IOException {
-                if (!doFail) {
-                    return;
-                }
-                if (callStackContainsAnyOf("mergeTerms") && !didFail1) {
-                    didFail1 = true;
-                    throw new IOException("No space left on device");
-                }
-                if (callStackContains(LiveDocsFormat.class, "writeLiveDocs") && !didFail2) {
-                    didFail2 = true;
+                if (callStackContainsAnyOf("mergeTerms")) {
                     throw new IOException("No space left on device");
                 }
             }
@@ -3532,7 +3502,6 @@ public class InternalEngineTests extends EngineTestCase {
             segments = engine.segments(false);
             assertThat(segments.size(), equalTo(2));
 
-            fail.setDoFail();
             // Close the store so that unreferenced file cleanup will fail.
             store.close();
 
@@ -3549,6 +3518,9 @@ public class InternalEngineTests extends EngineTestCase {
             );
 
             assertTrue(cleanupCompleted.await(10, TimeUnit.SECONDS));
+            // Cleanup count will not be incremented whenever there is some issue with cleanup.
+            long unreferencedFileCleanUpsPerformed = engine.unreferencedFileCleanUpsPerformed();
+            assertThat(unreferencedFileCleanUpsPerformed, equalTo(0L));
         } catch (Exception ex) {
             throw new AssertionError(ex);
         }
@@ -3997,7 +3969,7 @@ public class InternalEngineTests extends EngineTestCase {
         final Path badTranslogLog = createTempDir();
         final String badUUID = Translog.createEmptyTranslog(badTranslogLog, SequenceNumbers.NO_OPS_PERFORMED, shardId, primaryTerm.get());
         Translog translog = new LocalTranslog(
-            new TranslogConfig(shardId, badTranslogLog, INDEX_SETTINGS, BigArrays.NON_RECYCLING_INSTANCE),
+            new TranslogConfig(shardId, badTranslogLog, INDEX_SETTINGS, BigArrays.NON_RECYCLING_INSTANCE, ""),
             badUUID,
             createTranslogDeletionPolicy(INDEX_SETTINGS),
             () -> SequenceNumbers.NO_OPS_PERFORMED,
@@ -4014,7 +3986,8 @@ public class InternalEngineTests extends EngineTestCase {
             shardId,
             translog.location(),
             config.getIndexSettings(),
-            BigArrays.NON_RECYCLING_INSTANCE
+            BigArrays.NON_RECYCLING_INSTANCE,
+            ""
         );
 
         EngineConfig brokenConfig = new EngineConfig.Builder().shardId(shardId)
@@ -7247,7 +7220,11 @@ public class InternalEngineTests extends EngineTestCase {
             engine.ensureOpen();
             while (running.get()
                 && assertAndGetInternalTranslogManager(engine.translogManager()).getTranslog().currentFileGeneration() < 500) {
-                engine.translogManager().rollTranslogGeneration(); // make adding operations to translog slower
+                try {
+                    engine.translogManager().rollTranslogGeneration(); // make adding operations to translog slower
+                } catch (IOException e) {
+                    fail("io exception not expected");
+                }
             }
         });
         rollTranslog.start();
@@ -7703,7 +7680,8 @@ public class InternalEngineTests extends EngineTestCase {
                 config.getTranslogConfig().getShardId(),
                 createTempDir(),
                 config.getTranslogConfig().getIndexSettings(),
-                config.getTranslogConfig().getBigArrays()
+                config.getTranslogConfig().getBigArrays(),
+                ""
             );
             EngineConfig configWithWarmer = new EngineConfig.Builder().shardId(config.getShardId())
                 .threadPool(config.getThreadPool())
@@ -7823,7 +7801,9 @@ public class InternalEngineTests extends EngineTestCase {
                     assertNotNull(result.getFailure());
                     assertThat(
                         result.getFailure().getMessage(),
-                        containsString("Number of documents in the index can't exceed [" + maxDocs + "]")
+                        containsString(
+                            "Number of documents in shard " + shardId + " exceeds the limit of [" + maxDocs + "] documents per shard"
+                        )
                     );
                     assertThat(result.getSeqNo(), equalTo(UNASSIGNED_SEQ_NO));
                     assertThat(engine.getLocalCheckpointTracker().getMaxSeqNo(), equalTo(maxSeqNo));

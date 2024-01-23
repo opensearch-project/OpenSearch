@@ -17,6 +17,7 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.Repository;
+import org.opensearch.repositories.RepositoryException;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
@@ -133,10 +134,19 @@ public class RemoteStoreNodeService {
                 boolean repositoryAlreadyPresent = false;
                 for (RepositoryMetadata existingRepositoryMetadata : existingRepositories.repositories()) {
                     if (newRepositoryMetadata.name().equals(existingRepositoryMetadata.name())) {
-                        if (newRepositoryMetadata.equalsIgnoreGenerations(existingRepositoryMetadata)) {
+                        try {
+                            // This will help in handling two scenarios -
+                            // 1. When a fresh cluster is formed and a node tries to join the cluster, the repository
+                            // metadata constructed from the node attributes of the joining node will be validated
+                            // against the repository information provided by existing nodes in cluster state.
+                            // 2. It's possible to update repository settings except the restricted ones post the
+                            // creation of a system repository and if a node drops we will need to allow it to join
+                            // even if the non-restricted system repository settings are now different.
+                            repositoriesService.get().ensureValidSystemRepositoryUpdate(newRepositoryMetadata, existingRepositoryMetadata);
+                            newRepositoryMetadata = existingRepositoryMetadata;
                             repositoryAlreadyPresent = true;
                             break;
-                        } else {
+                        } catch (RepositoryException e) {
                             throw new IllegalStateException(
                                 "new repository metadata ["
                                     + newRepositoryMetadata

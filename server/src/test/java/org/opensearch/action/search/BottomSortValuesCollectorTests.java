@@ -34,6 +34,7 @@ package org.opensearch.action.search;
 
 import org.apache.lucene.search.FieldComparator;
 import org.apache.lucene.search.FieldDoc;
+import org.apache.lucene.search.Pruning;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TopFieldDocs;
 import org.apache.lucene.search.TotalHits;
@@ -46,7 +47,6 @@ import org.opensearch.test.OpenSearchTestCase;
 import java.time.ZoneId;
 import java.util.Arrays;
 
-import static org.opensearch.index.mapper.DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.apache.lucene.search.TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO;
@@ -136,7 +136,11 @@ public class BottomSortValuesCollectorTests extends OpenSearchTestCase {
         for (boolean reverse : new boolean[] { true, false }) {
             SortField[] sortFields = new SortField[] { new SortField("foo", SortField.Type.LONG, reverse) };
             DocValueFormat[] sortFormats = new DocValueFormat[] {
-                new DocValueFormat.DateTime(DEFAULT_DATE_TIME_FORMATTER, ZoneId.of("UTC"), DateFieldMapper.Resolution.MILLISECONDS) };
+                new DocValueFormat.DateTime(
+                    DateFieldMapper.getDefaultDateTimeFormatter(),
+                    ZoneId.of("UTC"),
+                    DateFieldMapper.Resolution.MILLISECONDS
+                ) };
             BottomSortValuesCollector collector = new BottomSortValuesCollector(3, sortFields);
             collector.consumeTopDocs(
                 createTopDocs(sortFields[0], 100, newDateArray("2017-06-01T12:18:20Z", "2018-04-03T15:10:27Z", "2013-06-01T13:10:20Z")),
@@ -170,7 +174,11 @@ public class BottomSortValuesCollectorTests extends OpenSearchTestCase {
         for (boolean reverse : new boolean[] { true, false }) {
             SortField[] sortFields = new SortField[] { new SortField("foo", SortField.Type.LONG, reverse) };
             DocValueFormat[] sortFormats = new DocValueFormat[] {
-                new DocValueFormat.DateTime(DEFAULT_DATE_TIME_FORMATTER, ZoneId.of("UTC"), DateFieldMapper.Resolution.NANOSECONDS) };
+                new DocValueFormat.DateTime(
+                    DateFieldMapper.getDefaultDateTimeFormatter(),
+                    ZoneId.of("UTC"),
+                    DateFieldMapper.Resolution.NANOSECONDS
+                ) };
             BottomSortValuesCollector collector = new BottomSortValuesCollector(3, sortFields);
             collector.consumeTopDocs(
                 createTopDocs(sortFields[0], 100, newDateNanoArray("2017-06-01T12:18:20Z", "2018-04-03T15:10:27Z", "2013-06-01T13:10:20Z")),
@@ -242,7 +250,7 @@ public class BottomSortValuesCollectorTests extends OpenSearchTestCase {
     private Object[] newDateArray(String... values) {
         Long[] longs = new Long[values.length];
         for (int i = 0; i < values.length; i++) {
-            longs[i] = DEFAULT_DATE_TIME_FORMATTER.parseMillis(values[i]);
+            longs[i] = DateFieldMapper.getDefaultDateTimeFormatter().parseMillis(values[i]);
         }
         return longs;
     }
@@ -250,14 +258,14 @@ public class BottomSortValuesCollectorTests extends OpenSearchTestCase {
     private Object[] newDateNanoArray(String... values) {
         Long[] longs = new Long[values.length];
         for (int i = 0; i < values.length; i++) {
-            longs[i] = DateUtils.toNanoSeconds(DEFAULT_DATE_TIME_FORMATTER.parseMillis(values[i]));
+            longs[i] = DateUtils.toNanoSeconds(DateFieldMapper.getDefaultDateTimeFormatter().parseMillis(values[i]));
         }
         return longs;
     }
 
     private TopFieldDocs createTopDocs(SortField sortField, int totalHits, Object[] values) {
         FieldDoc[] fieldDocs = new FieldDoc[values.length];
-        FieldComparator cmp = sortField.getComparator(1, false);
+        FieldComparator cmp = sortField.getComparator(1, Pruning.NONE);
         for (int i = 0; i < values.length; i++) {
             fieldDocs[i] = new FieldDoc(i, Float.NaN, new Object[] { values[i] });
         }

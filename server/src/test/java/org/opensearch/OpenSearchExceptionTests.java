@@ -976,7 +976,7 @@ public class OpenSearchExceptionTests extends OpenSearchTestCase {
 
     /**
      * Builds a {@link ToXContent} using a JSON XContentBuilder and compares the result to the given json in string format.
-     *
+     * <p>
      * By default, the stack trace of the exception is not rendered. The parameter `errorTrace` forces the stack trace to
      * be rendered like the REST API does when the "error_trace" parameter is set to true.
      */

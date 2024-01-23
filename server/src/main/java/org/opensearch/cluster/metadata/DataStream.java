@@ -37,6 +37,7 @@ import org.apache.lucene.index.PointValues;
 import org.opensearch.OpenSearchException;
 import org.opensearch.cluster.AbstractDiffable;
 import org.opensearch.cluster.Diff;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.ParseField;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
@@ -59,8 +60,9 @@ import java.util.Objects;
 /**
  * Primary DataStream class
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public final class DataStream extends AbstractDiffable<DataStream> implements ToXContentObject {
 
     public static final String BACKING_INDEX_PREFIX = ".ds-";
@@ -258,8 +260,9 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
     /**
      * A timestamp field.
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public static final class TimestampField implements Writeable, ToXContentObject {
 
         static ParseField NAME_FIELD = new ParseField("name");

@@ -61,11 +61,6 @@ public class SegmentReplicationBaseIT extends OpenSearchIntegTestCase {
     }
 
     @Override
-    protected boolean addMockInternalEngine() {
-        return false;
-    }
-
-    @Override
     public Settings indexSettings() {
         return Settings.builder()
             .put(super.indexSettings())
@@ -197,9 +192,10 @@ public class SegmentReplicationBaseIT extends OpenSearchIntegTestCase {
     protected IndexShard getIndexShard(String node, String indexName) {
         final Index index = resolveIndex(indexName);
         IndicesService indicesService = internalCluster().getInstance(IndicesService.class, node);
-        IndexService indexService = indicesService.indexServiceSafe(index);
+        IndexService indexService = indicesService.indexService(index);
+        assertNotNull(indexService);
         final Optional<Integer> shardId = indexService.shardIds().stream().findFirst();
-        return indexService.getShard(shardId.get());
+        return shardId.map(indexService::getShard).orElse(null);
     }
 
     protected boolean segmentReplicationWithRemoteEnabled() {

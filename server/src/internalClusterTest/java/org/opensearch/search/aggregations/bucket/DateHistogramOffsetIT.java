@@ -43,7 +43,7 @@ import org.opensearch.index.mapper.DateFieldMapper;
 import org.opensearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.opensearch.search.aggregations.bucket.histogram.Histogram;
 import org.opensearch.test.OpenSearchIntegTestCase;
-import org.opensearch.test.ParameterizedOpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 import org.junit.After;
 import org.junit.Before;
 
@@ -69,13 +69,13 @@ import static org.hamcrest.core.IsNull.notNullValue;
  */
 @OpenSearchIntegTestCase.SuiteScopeTestCase
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.SUITE)
-public class DateHistogramOffsetIT extends ParameterizedOpenSearchIntegTestCase {
+public class DateHistogramOffsetIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
 
     private static final String DATE_FORMAT = "yyyy-MM-dd:hh-mm-ss";
     private static final DateFormatter FORMATTER = DateFormatter.forPattern(DATE_FORMAT);
 
-    public DateHistogramOffsetIT(Settings dynamicSettings) {
-        super(dynamicSettings);
+    public DateHistogramOffsetIT(Settings staticSettings) {
+        super(staticSettings);
     }
 
     @ParametersFactory
@@ -92,7 +92,7 @@ public class DateHistogramOffsetIT extends ParameterizedOpenSearchIntegTestCase 
     }
 
     private ZonedDateTime date(String date) {
-        return DateFormatters.from(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parse(date));
+        return DateFormatters.from(DateFieldMapper.getDefaultDateTimeFormatter().parse(date));
     }
 
     @Before

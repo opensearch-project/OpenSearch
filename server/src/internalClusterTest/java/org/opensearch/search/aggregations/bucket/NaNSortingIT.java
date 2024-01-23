@@ -51,7 +51,7 @@ import org.opensearch.search.aggregations.metrics.ExtendedStatsAggregationBuilde
 import org.opensearch.search.aggregations.support.ValuesSource;
 import org.opensearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.opensearch.test.OpenSearchIntegTestCase;
-import org.opensearch.test.ParameterizedOpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -67,7 +67,7 @@ import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertSearchResp
 import static org.hamcrest.core.IsNull.notNullValue;
 
 @OpenSearchIntegTestCase.SuiteScopeTestCase
-public class NaNSortingIT extends ParameterizedOpenSearchIntegTestCase {
+public class NaNSortingIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
 
     private enum SubAggregation {
         AVG("avg") {
@@ -139,8 +139,8 @@ public class NaNSortingIT extends ParameterizedOpenSearchIntegTestCase {
         public abstract double getValue(Aggregation aggregation);
     }
 
-    public NaNSortingIT(Settings dynamicSettings) {
-        super(dynamicSettings);
+    public NaNSortingIT(Settings staticSettings) {
+        super(staticSettings);
     }
 
     @ParametersFactory
@@ -172,6 +172,7 @@ public class NaNSortingIT extends ParameterizedOpenSearchIntegTestCase {
             client().prepareIndex("idx").setSource(source.endObject()).get();
         }
         refresh();
+        indexRandomForMultipleSlices("idx");
         ensureSearchable();
     }
 

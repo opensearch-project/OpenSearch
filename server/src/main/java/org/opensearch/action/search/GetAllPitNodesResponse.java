@@ -11,6 +11,7 @@ package org.opensearch.action.search;
 import org.opensearch.action.FailedNodeException;
 import org.opensearch.action.support.nodes.BaseNodesResponse;
 import org.opensearch.cluster.ClusterName;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.ParseField;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
@@ -31,7 +32,10 @@ import static org.opensearch.core.xcontent.ConstructingObjectParser.constructorA
 
 /**
  * This class transforms active PIT objects from all nodes to unique PIT objects
+ *
+ * @opensearch.api
  */
+@PublicApi(since = "2.3.0")
 public class GetAllPitNodesResponse extends BaseNodesResponse<GetAllPitNodeResponse> implements ToXContentObject {
 
     /**

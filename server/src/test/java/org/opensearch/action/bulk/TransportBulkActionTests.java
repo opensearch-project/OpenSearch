@@ -60,6 +60,7 @@ import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.index.IndexingPressureService;
 import org.opensearch.index.VersionType;
+import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.SystemIndexDescriptor;
 import org.opensearch.indices.SystemIndices;
 import org.opensearch.telemetry.tracing.noop.NoopTracer;
@@ -88,6 +89,7 @@ import static org.opensearch.cluster.metadata.MetadataCreateDataStreamServiceTes
 import static org.opensearch.test.ClusterServiceUtils.createClusterService;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.mockito.Mockito.mock;
 
 public class TransportBulkActionTests extends OpenSearchTestCase {
 
@@ -115,7 +117,9 @@ public class TransportBulkActionTests extends OpenSearchTestCase {
                 new Resolver(),
                 new AutoCreateIndex(Settings.EMPTY, clusterService.getClusterSettings(), new Resolver(), new SystemIndices(emptyMap())),
                 new IndexingPressureService(Settings.EMPTY, clusterService),
-                new SystemIndices(emptyMap())
+                mock(IndicesService.class),
+                new SystemIndices(emptyMap()),
+                NoopTracer.INSTANCE
             );
         }
 

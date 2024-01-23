@@ -56,7 +56,7 @@ import org.opensearch.search.aggregations.bucket.histogram.Histogram.Bucket;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.OpenSearchIntegTestCase.ClusterScope;
 import org.opensearch.test.OpenSearchIntegTestCase.Scope;
-import org.opensearch.test.ParameterizedOpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -93,12 +93,12 @@ import static org.hamcrest.Matchers.sameInstance;
 
 @ClusterScope(scope = Scope.SUITE)
 @OpenSearchIntegTestCase.SuiteScopeTestCase
-public class ScriptedMetricIT extends ParameterizedOpenSearchIntegTestCase {
+public class ScriptedMetricIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
 
     private static long numDocs;
 
-    public ScriptedMetricIT(Settings dynamicSettings) {
-        super(dynamicSettings);
+    public ScriptedMetricIT(Settings staticSettings) {
+        super(staticSettings);
     }
 
     @ParametersFactory

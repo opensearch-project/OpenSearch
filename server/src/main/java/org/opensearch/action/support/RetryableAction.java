@@ -36,6 +36,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.action.ActionRunnable;
 import org.opensearch.action.bulk.BackoffPolicy;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
@@ -52,8 +53,9 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * default. The action will be retried with exponentially increasing delay periods until the timeout period
  * has been reached.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public abstract class RetryableAction<Response> {
 
     private final Logger logger;

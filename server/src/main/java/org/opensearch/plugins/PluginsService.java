@@ -468,7 +468,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
 
     /**
      * Return the given bundles, sorted in dependency loading order.
-     *
+     * <p>
      * This sort is stable, so that if two plugins do not have any interdependency,
      * their relative order from iteration of the provided set will not change.
      *
@@ -682,6 +682,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
         }
     }
 
+    @SuppressWarnings("removal")
     private Plugin loadBundle(Bundle bundle, Map<String, Plugin> loaded) {
         String name = bundle.plugin.getName();
 

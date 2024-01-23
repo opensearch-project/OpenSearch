@@ -8,7 +8,6 @@
 
 package org.opensearch.telemetry.tracing.channels;
 
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.http.HttpChannel;
 import org.opensearch.http.HttpResponse;
@@ -18,6 +17,7 @@ import org.opensearch.telemetry.tracing.listener.TraceableActionListener;
 
 import java.net.InetSocketAddress;
 import java.util.Objects;
+import java.util.Optional;
 
 /**
  * Tracer wrapped {@link HttpChannel}
@@ -49,11 +49,18 @@ public class TraceableHttpChannel implements HttpChannel {
      * @return http channel
      */
     public static HttpChannel create(HttpChannel delegate, Span span, Tracer tracer) {
-        if (FeatureFlags.isEnabled(FeatureFlags.TELEMETRY) == true) {
+        if (tracer.isRecording() == true) {
             return new TraceableHttpChannel(delegate, span, tracer);
         } else {
             return delegate;
         }
+    }
+
+    @Override
+    public void handleException(Exception ex) {
+        span.addEvent("The HttpChannel was closed without sending the response");
+        span.setError(ex);
+        span.endSpan();
     }
 
     @Override
@@ -84,5 +91,10 @@ public class TraceableHttpChannel implements HttpChannel {
     @Override
     public InetSocketAddress getRemoteAddress() {
         return delegate.getRemoteAddress();
+    }
+
+    @Override
+    public <T> Optional<T> get(String name, Class<T> clazz) {
+        return delegate.get(name, clazz);
     }
 }

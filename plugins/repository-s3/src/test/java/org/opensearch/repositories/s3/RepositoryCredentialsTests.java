@@ -75,6 +75,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 
+@SuppressWarnings("removal")
 @SuppressForbidden(reason = "test requires to set a System property to allow insecure settings when running in IDE")
 public class RepositoryCredentialsTests extends OpenSearchSingleNodeTestCase implements ConfigPathSupport {
 
@@ -302,7 +303,7 @@ public class RepositoryCredentialsTests extends OpenSearchSingleNodeTestCase imp
             ClusterService clusterService,
             RecoverySettings recoverySettings
         ) {
-            return new S3Repository(metadata, registry, service, clusterService, recoverySettings, null, null, null, null, false) {
+            return new S3Repository(metadata, registry, service, clusterService, recoverySettings, null, null, null, null, null, false) {
                 @Override
                 protected void assertSnapshotOrGenericThread() {
                     // eliminate thread name check as we create repo manually on test/main threads

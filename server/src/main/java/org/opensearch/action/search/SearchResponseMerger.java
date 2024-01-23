@@ -110,7 +110,7 @@ final class SearchResponseMerger {
     /**
      * Add a search response to the list of responses to be merged together into one.
      * Merges currently happen at once when all responses are available and
-     * {@link #getMergedResponse(SearchResponse.Clusters)} )} is called.
+     * {@link #getMergedResponse(SearchResponse.Clusters, SearchRequestContext)} )} is called.
      * That may change in the future as it's possible to introduce incremental merges as responses come in if necessary.
      */
     void add(SearchResponse searchResponse) {
@@ -126,7 +126,7 @@ final class SearchResponseMerger {
      * Returns the merged response. To be called once all responses have been added through {@link #add(SearchResponse)}
      * so that all responses are merged into a single one.
      */
-    SearchResponse getMergedResponse(SearchResponse.Clusters clusters) {
+    SearchResponse getMergedResponse(SearchResponse.Clusters clusters, SearchRequestContext searchRequestContext) {
         // if the search is only across remote clusters, none of them are available, and all of them have skip_unavailable set to true,
         // we end up calling merge without anything to merge, we just return an empty search response
         if (searchResponses.size() == 0) {
@@ -236,6 +236,7 @@ final class SearchResponseMerger {
             successfulShards,
             skippedShards,
             tookInMillis,
+            searchRequestContext.getPhaseTook(),
             shardFailures,
             clusters,
             null

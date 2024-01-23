@@ -216,7 +216,7 @@ public class DateHistogramValuesSourceBuilder extends CompositeValuesSourceBuild
     /**
      * Sets the interval of the DateHistogram using calendar units (`1d`, `1w`, `1M`, etc).  These units
      * are calendar-aware, meaning they respect leap additions, variable days per month, etc.
-     *
+     * <p>
      * This is mutually exclusive with {@link DateHistogramValuesSourceBuilder#fixedInterval(DateHistogramInterval)}
      *
      * @param interval The calendar interval to use with the aggregation
@@ -229,7 +229,7 @@ public class DateHistogramValuesSourceBuilder extends CompositeValuesSourceBuild
     /**
      * Sets the interval of the DateHistogram using fixed units (`1ms`, `1s`, `10m`, `4h`, etc).  These are
      * not calendar aware and are simply multiples of fixed, SI units.
-     *
+     * <p>
      * This is mutually exclusive with {@link DateHistogramValuesSourceBuilder#calendarInterval(DateHistogramInterval)}
      *
      * @param interval The fixed interval to use with the aggregation
@@ -298,7 +298,7 @@ public class DateHistogramValuesSourceBuilder extends CompositeValuesSourceBuild
                 // TODO once composite is plugged in to the values source registry or at least understands Date values source types use it
                 // here
                 Rounding.Prepared preparedRounding = rounding.prepareForUnknown();
-                RoundingValuesSource vs = new RoundingValuesSource(numeric, preparedRounding);
+                RoundingValuesSource vs = new RoundingValuesSource(numeric, preparedRounding, rounding);
                 // is specified in the builder.
                 final DocValueFormat docValueFormat = format == null ? DocValueFormat.RAW : valuesSourceConfig.format();
                 final MappedFieldType fieldType = valuesSourceConfig.fieldType();

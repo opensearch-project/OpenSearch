@@ -98,7 +98,7 @@ public class IngestCommonModulePlugin extends Plugin implements ActionPlugin, In
         processors.put(ScriptProcessor.TYPE, new ScriptProcessor.Factory(parameters.scriptService));
         processors.put(DotExpanderProcessor.TYPE, new DotExpanderProcessor.Factory());
         processors.put(JsonProcessor.TYPE, new JsonProcessor.Factory());
-        processors.put(KeyValueProcessor.TYPE, new KeyValueProcessor.Factory());
+        processors.put(KeyValueProcessor.TYPE, new KeyValueProcessor.Factory(parameters.scriptService));
         processors.put(URLDecodeProcessor.TYPE, new URLDecodeProcessor.Factory());
         processors.put(BytesProcessor.TYPE, new BytesProcessor.Factory());
         processors.put(PipelineProcessor.TYPE, new PipelineProcessor.Factory(parameters.ingestService));
@@ -106,6 +106,7 @@ public class IngestCommonModulePlugin extends Plugin implements ActionPlugin, In
         processors.put(DropProcessor.TYPE, new DropProcessor.Factory());
         processors.put(HtmlStripProcessor.TYPE, new HtmlStripProcessor.Factory());
         processors.put(CsvProcessor.TYPE, new CsvProcessor.Factory());
+        processors.put(CopyProcessor.TYPE, new CopyProcessor.Factory(parameters.scriptService));
         return Collections.unmodifiableMap(processors);
     }
 

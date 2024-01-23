@@ -48,6 +48,7 @@ import org.opensearch.cluster.metadata.MappingMetadata;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.UUIDs;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.lucene.uid.Versions;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.common.xcontent.XContentType;
@@ -76,22 +77,23 @@ import static org.opensearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 /**
  * Index request to index a typed JSON document into a specific index and make it searchable. Best
  * created using {@link org.opensearch.client.Requests#indexRequest(String)}.
- *
+ * <p>
  * The index requires the {@link #index()}, {@link #id(String)} and
  * {@link #source(byte[], MediaType)} to be set.
- *
+ * <p>
  * The source (content to index) can be set in its bytes form using ({@link #source(byte[], MediaType)}),
  * its string form ({@link #source(String, MediaType)}) or using a {@link XContentBuilder}
  * ({@link #source(XContentBuilder)}).
- *
+ * <p>
  * If the {@link #id(String)} is not set, it will be automatically generated.
  *
  * @see IndexResponse
  * @see org.opensearch.client.Requests#indexRequest(String)
  * @see org.opensearch.client.Client#index(IndexRequest)
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implements DocWriteRequest<IndexRequest>, CompositeIndicesRequest {
 
     private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(IndexRequest.class);
@@ -388,7 +390,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
 
     /**
      * Sets the document source to index.
-     *
+     * <p>
      * Note, its preferable to either set it using {@link #source(XContentBuilder)}
      * or using the {@link #source(byte[], MediaType)}.
      */
@@ -591,7 +593,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
 
     /**
      * If set, only perform this indexing request if the document was last modification was assigned this primary term.
-     *
+     * <p>
      * If the document last modification was assigned a different term a
      * {@link org.opensearch.index.engine.VersionConflictEngineException} will be thrown.
      */

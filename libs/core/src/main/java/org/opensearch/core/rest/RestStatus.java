@@ -527,6 +527,15 @@ public enum RestStatus {
         return status;
     }
 
+    /**
+     * Get category class of a rest status code.
+     *
+     * @return Integer representing class category of the concrete rest status code
+     */
+    public int getStatusFamilyCode() {
+        return status / 100;
+    }
+
     public static RestStatus readFrom(StreamInput in) throws IOException {
         return RestStatus.valueOf(in.readString());
     }

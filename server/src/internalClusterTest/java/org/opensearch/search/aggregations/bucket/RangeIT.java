@@ -51,7 +51,7 @@ import org.opensearch.search.aggregations.bucket.range.Range.Bucket;
 import org.opensearch.search.aggregations.bucket.terms.Terms;
 import org.opensearch.search.aggregations.metrics.Sum;
 import org.opensearch.test.OpenSearchIntegTestCase;
-import org.opensearch.test.ParameterizedOpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 import org.hamcrest.Matchers;
 
 import java.util.ArrayList;
@@ -79,15 +79,15 @@ import static org.hamcrest.core.IsNull.notNullValue;
 import static org.hamcrest.core.IsNull.nullValue;
 
 @OpenSearchIntegTestCase.SuiteScopeTestCase
-public class RangeIT extends ParameterizedOpenSearchIntegTestCase {
+public class RangeIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
 
     private static final String SINGLE_VALUED_FIELD_NAME = "l_value";
     private static final String MULTI_VALUED_FIELD_NAME = "l_values";
 
     static int numDocs;
 
-    public RangeIT(Settings dynamicSettings) {
-        super(dynamicSettings);
+    public RangeIT(Settings staticSettings) {
+        super(staticSettings);
     }
 
     @ParametersFactory
@@ -184,6 +184,7 @@ public class RangeIT extends ParameterizedOpenSearchIntegTestCase {
         builders.add(client().prepareIndex("new_index").setSource(Collections.emptyMap()));
 
         indexRandom(true, builders);
+        indexRandomForMultipleSlices("idx", "old_index", "new_index");
         ensureSearchable();
     }
 
@@ -917,6 +918,7 @@ public class RangeIT extends ParameterizedOpenSearchIntegTestCase {
     }
 
     public void testEmptyAggregation() throws Exception {
+        indexRandomForConcurrentSearch("empty_bucket_idx");
         SearchResponse searchResponse = client().prepareSearch("empty_bucket_idx")
             .setQuery(matchAllQuery())
             .addAggregation(

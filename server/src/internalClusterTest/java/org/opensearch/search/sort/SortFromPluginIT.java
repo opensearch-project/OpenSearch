@@ -19,7 +19,7 @@ import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.search.sort.plugin.CustomSortBuilder;
 import org.opensearch.search.sort.plugin.CustomSortPlugin;
 import org.opensearch.test.InternalSettingsPlugin;
-import org.opensearch.test.ParameterizedOpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -27,7 +27,7 @@ import java.util.Collection;
 import static org.opensearch.search.SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING;
 import static org.hamcrest.Matchers.equalTo;
 
-public class SortFromPluginIT extends ParameterizedOpenSearchIntegTestCase {
+public class SortFromPluginIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
     public SortFromPluginIT(Settings settings) {
         super(settings);
     }
@@ -59,6 +59,7 @@ public class SortFromPluginIT extends ParameterizedOpenSearchIntegTestCase {
         client().prepareIndex("test").setId("3").setSource("field", 0).get();
 
         refresh();
+        indexRandomForConcurrentSearch("test");
 
         SearchResponse searchResponse = client().prepareSearch("test").addSort(new CustomSortBuilder("field", SortOrder.ASC)).get();
         assertThat(searchResponse.getHits().getAt(0).getId(), equalTo("3"));
@@ -80,6 +81,7 @@ public class SortFromPluginIT extends ParameterizedOpenSearchIntegTestCase {
         client().prepareIndex("test").setId("3").setSource("field", 0).get();
 
         refresh();
+        indexRandomForConcurrentSearch("test");
 
         // builder -> json -> builder
         SearchResponse searchResponse = client().prepareSearch("test")

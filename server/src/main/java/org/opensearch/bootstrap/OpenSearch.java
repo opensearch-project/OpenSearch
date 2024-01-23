@@ -83,6 +83,7 @@ class OpenSearch extends EnvironmentAwareCommand {
     /**
      * Main entry point for starting opensearch
      */
+    @SuppressWarnings("removal")
     public static void main(final String[] args) throws Exception {
         overrideDnsCachePolicyProperties();
         /*
@@ -188,9 +189,9 @@ class OpenSearch extends EnvironmentAwareCommand {
     /**
      * Required method that's called by Apache Commons procrun when
      * running as a service on Windows, when the service is stopped.
-     *
+     * <p>
      * http://commons.apache.org/proper/commons-daemon/procrun.html
-     *
+     * <p>
      * NOTE: If this method is renamed and/or moved, make sure to
      * update opensearch-service.bat!
      */

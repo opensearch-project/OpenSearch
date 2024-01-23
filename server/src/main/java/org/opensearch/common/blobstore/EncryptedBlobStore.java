@@ -76,6 +76,16 @@ public class EncryptedBlobStore implements BlobStore {
     }
 
     /**
+     * Retrieves extended statistics about the BlobStore. Delegates the call to the underlying BlobStore's extendedStats() method.
+     *
+     * @return A map containing extended statistics about the BlobStore.
+     */
+    @Override
+    public Map<Metric, Map<String, Long>> extendedStats() {
+        return blobStore.extendedStats();
+    }
+
+    /**
      * Closes the EncryptedBlobStore by decrementing the reference count of the CryptoManager and closing the
      * underlying BlobStore. This ensures proper cleanup of resources.
      *

@@ -32,10 +32,13 @@
 
 package org.opensearch.threadpool;
 
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.OpenSearchThreadPoolExecutor;
 
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
@@ -43,14 +46,29 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.Matchers.equalTo;
 
 public class ScalingThreadPoolTests extends OpenSearchThreadPoolTestCase {
 
+    @ParametersFactory
+    public static Collection<Object[]> scalingThreadPools() {
+        return ThreadPool.THREAD_POOL_TYPES.entrySet()
+            .stream()
+            .filter(t -> t.getValue().equals(ThreadPool.ThreadPoolType.SCALING))
+            .map(e -> new String[] { e.getKey() })
+            .collect(Collectors.toList());
+    }
+
+    private final String threadPoolName;
+
+    public ScalingThreadPoolTests(String threadPoolName) {
+        this.threadPoolName = threadPoolName;
+    }
+
     public void testScalingThreadPoolConfiguration() throws InterruptedException {
-        final String threadPoolName = randomThreadPool(ThreadPool.ThreadPoolType.SCALING);
         final Settings.Builder builder = Settings.builder();
 
         final int core;
@@ -132,15 +150,15 @@ public class ScalingThreadPoolTests extends OpenSearchThreadPoolTestCase {
         sizes.put(ThreadPool.Names.SNAPSHOT, ThreadPool::halfAllocatedProcessorsMaxFive);
         sizes.put(ThreadPool.Names.FETCH_SHARD_STARTED, ThreadPool::twiceAllocatedProcessors);
         sizes.put(ThreadPool.Names.FETCH_SHARD_STORE, ThreadPool::twiceAllocatedProcessors);
-        sizes.put(ThreadPool.Names.TRANSLOG_TRANSFER, ThreadPool::halfAllocatedProcessorsMaxTen);
+        sizes.put(ThreadPool.Names.TRANSLOG_TRANSFER, ThreadPool::halfAllocatedProcessors);
         sizes.put(ThreadPool.Names.TRANSLOG_SYNC, n -> 4 * n);
-        sizes.put(ThreadPool.Names.REMOTE_PURGE, ThreadPool::halfAllocatedProcessorsMaxFive);
-        sizes.put(ThreadPool.Names.REMOTE_REFRESH_RETRY, ThreadPool::halfAllocatedProcessorsMaxTen);
+        sizes.put(ThreadPool.Names.REMOTE_PURGE, ThreadPool::halfAllocatedProcessors);
+        sizes.put(ThreadPool.Names.REMOTE_REFRESH_RETRY, ThreadPool::halfAllocatedProcessors);
+        sizes.put(ThreadPool.Names.REMOTE_RECOVERY, ThreadPool::twiceAllocatedProcessors);
         return sizes.get(threadPoolName).apply(numberOfProcessors);
     }
 
     public void testScalingThreadPoolIsBounded() throws InterruptedException {
-        final String threadPoolName = randomThreadPool(ThreadPool.ThreadPoolType.SCALING);
         final int size = randomIntBetween(32, 512);
         final Settings settings = Settings.builder().put("thread_pool." + threadPoolName + ".max", size).build();
         runScalingThreadPoolTest(settings, (clusterSettings, threadPool) -> {
@@ -170,7 +188,6 @@ public class ScalingThreadPoolTests extends OpenSearchThreadPoolTestCase {
     }
 
     public void testScalingThreadPoolThreadsAreTerminatedAfterKeepAlive() throws InterruptedException {
-        final String threadPoolName = randomThreadPool(ThreadPool.ThreadPoolType.SCALING);
         final int min = "generic".equals(threadPoolName) ? 4 : 1;
         final Settings settings = Settings.builder()
             .put("thread_pool." + threadPoolName + ".max", 128)

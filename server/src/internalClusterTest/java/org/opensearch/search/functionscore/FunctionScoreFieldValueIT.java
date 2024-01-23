@@ -40,7 +40,7 @@ import org.opensearch.common.lucene.search.function.FieldValueFactorFunction;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.search.SearchHit;
-import org.opensearch.test.ParameterizedOpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -61,10 +61,10 @@ import static org.hamcrest.Matchers.containsString;
 /**
  * Tests for the {@code field_value_factor} function in a function_score query.
  */
-public class FunctionScoreFieldValueIT extends ParameterizedOpenSearchIntegTestCase {
+public class FunctionScoreFieldValueIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
 
-    public FunctionScoreFieldValueIT(Settings dynamicSettings) {
-        super(dynamicSettings);
+    public FunctionScoreFieldValueIT(Settings staticSettings) {
+        super(staticSettings);
     }
 
     @ParametersFactory
@@ -80,7 +80,7 @@ public class FunctionScoreFieldValueIT extends ParameterizedOpenSearchIntegTestC
         return Settings.builder().put(super.featureFlagSettings()).put(FeatureFlags.CONCURRENT_SEGMENT_SEARCH, "true").build();
     }
 
-    public void testFieldValueFactor() throws IOException {
+    public void testFieldValueFactor() throws IOException, InterruptedException {
         assertAcked(
             prepareCreate("test").setMapping(
                 jsonBuilder().startObject()
@@ -99,8 +99,8 @@ public class FunctionScoreFieldValueIT extends ParameterizedOpenSearchIntegTestC
         client().prepareIndex("test").setId("1").setSource("test", 5, "body", "foo").get();
         client().prepareIndex("test").setId("2").setSource("test", 17, "body", "foo").get();
         client().prepareIndex("test").setId("3").setSource("body", "bar").get();
-
         refresh();
+        indexRandomForConcurrentSearch("test");
 
         // document 2 scores higher because 17 > 5
         SearchResponse response = client().prepareSearch("test")
@@ -189,7 +189,7 @@ public class FunctionScoreFieldValueIT extends ParameterizedOpenSearchIntegTestC
         }
     }
 
-    public void testFieldValueFactorExplain() throws IOException {
+    public void testFieldValueFactorExplain() throws IOException, InterruptedException {
         assertAcked(
             prepareCreate("test").setMapping(
                 jsonBuilder().startObject()
@@ -210,6 +210,7 @@ public class FunctionScoreFieldValueIT extends ParameterizedOpenSearchIntegTestC
         client().prepareIndex("test").setId("3").setSource("body", "bar").get();
 
         refresh();
+        indexRandomForConcurrentSearch("test");
 
         // document 2 scores higher because 17 > 5
         final String functionName = "func1";

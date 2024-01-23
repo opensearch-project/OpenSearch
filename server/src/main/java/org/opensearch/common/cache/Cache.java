@@ -32,6 +32,7 @@
 
 package org.opensearch.common.cache;
 
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.util.concurrent.ReleasableLock;
 
@@ -80,8 +81,9 @@ import java.util.function.ToLongBiFunction;
  * @param <K> The type of the keys
  * @param <V> The type of the values
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class Cache<K, V> {
 
     // positive if entries have an expiration
@@ -403,7 +405,7 @@ public class Cache<K, V> {
      * If the specified key is not already associated with a value (or is mapped to null), attempts to compute its
      * value using the given mapping function and enters it into this map unless null. The load method for a given key
      * will be invoked at most once.
-     *
+     * <p>
      * Use of different {@link CacheLoader} implementations on the same key concurrently may result in only the first
      * loader function being called and the second will be returned the result provided by the first including any exceptions
      * thrown during the execution of the first.
@@ -422,68 +424,74 @@ public class Cache<K, V> {
             }
         });
         if (value == null) {
-            // we need to synchronize loading of a value for a given key; however, holding the segment lock while
-            // invoking load can lead to deadlock against another thread due to dependent key loading; therefore, we
-            // need a mechanism to ensure that load is invoked at most once, but we are not invoking load while holding
-            // the segment lock; to do this, we atomically put a future in the map that can load the value, and then
-            // get the value from this future on the thread that won the race to place the future into the segment map
-            CacheSegment<K, V> segment = getCacheSegment(key);
-            CompletableFuture<Entry<K, V>> future;
-            CompletableFuture<Entry<K, V>> completableFuture = new CompletableFuture<>();
+            value = compute(key, loader);
+        }
+        return value;
+    }
 
-            try (ReleasableLock ignored = segment.writeLock.acquire()) {
-                future = segment.map.putIfAbsent(key, completableFuture);
-            }
+    private V compute(K key, CacheLoader<K, V> loader) throws ExecutionException {
+        long now = now();
+        // we need to synchronize loading of a value for a given key; however, holding the segment lock while
+        // invoking load can lead to deadlock against another thread due to dependent key loading; therefore, we
+        // need a mechanism to ensure that load is invoked at most once, but we are not invoking load while holding
+        // the segment lock; to do this, we atomically put a future in the map that can load the value, and then
+        // get the value from this future on the thread that won the race to place the future into the segment map
+        CacheSegment<K, V> segment = getCacheSegment(key);
+        CompletableFuture<Entry<K, V>> future;
+        CompletableFuture<Entry<K, V>> completableFuture = new CompletableFuture<>();
 
-            BiFunction<? super Entry<K, V>, Throwable, ? extends V> handler = (ok, ex) -> {
-                if (ok != null) {
-                    try (ReleasableLock ignored = lruLock.acquire()) {
-                        promote(ok, now);
-                    }
-                    return ok.value;
-                } else {
-                    try (ReleasableLock ignored = segment.writeLock.acquire()) {
-                        CompletableFuture<Entry<K, V>> sanity = segment.map.get(key);
-                        if (sanity != null && sanity.isCompletedExceptionally()) {
-                            segment.map.remove(key);
-                        }
-                    }
-                    return null;
-                }
-            };
+        try (ReleasableLock ignored = segment.writeLock.acquire()) {
+            future = segment.map.putIfAbsent(key, completableFuture);
+        }
 
-            CompletableFuture<V> completableValue;
-            if (future == null) {
-                future = completableFuture;
-                completableValue = future.handle(handler);
-                V loaded;
-                try {
-                    loaded = loader.load(key);
-                } catch (Exception e) {
-                    future.completeExceptionally(e);
-                    throw new ExecutionException(e);
+        BiFunction<? super Entry<K, V>, Throwable, ? extends V> handler = (ok, ex) -> {
+            if (ok != null) {
+                try (ReleasableLock ignored = lruLock.acquire()) {
+                    promote(ok, now);
                 }
-                if (loaded == null) {
-                    NullPointerException npe = new NullPointerException("loader returned a null value");
-                    future.completeExceptionally(npe);
-                    throw new ExecutionException(npe);
-                } else {
-                    future.complete(new Entry<>(key, loaded, now));
-                }
+                return ok.value;
             } else {
-                completableValue = future.handle(handler);
-            }
-
-            try {
-                value = completableValue.get();
-                // check to ensure the future hasn't been completed with an exception
-                if (future.isCompletedExceptionally()) {
-                    future.get(); // call get to force the exception to be thrown for other concurrent callers
-                    throw new IllegalStateException("the future was completed exceptionally but no exception was thrown");
+                try (ReleasableLock ignored = segment.writeLock.acquire()) {
+                    CompletableFuture<Entry<K, V>> sanity = segment.map.get(key);
+                    if (sanity != null && sanity.isCompletedExceptionally()) {
+                        segment.map.remove(key);
+                    }
                 }
-            } catch (InterruptedException e) {
-                throw new IllegalStateException(e);
+                return null;
             }
+        };
+
+        CompletableFuture<V> completableValue;
+        if (future == null) {
+            future = completableFuture;
+            completableValue = future.handle(handler);
+            V loaded;
+            try {
+                loaded = loader.load(key);
+            } catch (Exception e) {
+                future.completeExceptionally(e);
+                throw new ExecutionException(e);
+            }
+            if (loaded == null) {
+                NullPointerException npe = new NullPointerException("loader returned a null value");
+                future.completeExceptionally(npe);
+                throw new ExecutionException(npe);
+            } else {
+                future.complete(new Entry<>(key, loaded, now));
+            }
+        } else {
+            completableValue = future.handle(handler);
+        }
+        V value;
+        try {
+            value = completableValue.get();
+            // check to ensure the future hasn't been completed with an exception
+            if (future.isCompletedExceptionally()) {
+                future.get(); // call get to force the exception to be thrown for other concurrent callers
+                throw new IllegalStateException("the future was completed exceptionally but no exception was thrown");
+            }
+        } catch (InterruptedException e) {
+            throw new IllegalStateException(e);
         }
         return value;
     }
@@ -732,8 +740,9 @@ public class Cache<K, V> {
     /**
      * Cache statistics
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public static class CacheStats {
         private long hits;
         private long misses;

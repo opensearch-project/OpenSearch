@@ -34,6 +34,7 @@ package org.opensearch.cluster.metadata;
 
 import org.opensearch.cluster.AbstractDiffable;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.XContentHelper;
@@ -58,8 +59,9 @@ import java.util.Objects;
  * it is entirely independent from an index. It's a building block forming part of a regular index
  * template and a {@link ComponentTemplate}.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class Template extends AbstractDiffable<Template> implements ToXContentObject {
     private static final ParseField SETTINGS = new ParseField("settings");
     private static final ParseField MAPPINGS = new ParseField("mappings");

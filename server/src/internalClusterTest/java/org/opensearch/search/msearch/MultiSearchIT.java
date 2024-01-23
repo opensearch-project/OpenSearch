@@ -40,7 +40,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.index.query.QueryBuilders;
-import org.opensearch.test.ParameterizedOpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -52,10 +52,10 @@ import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertNoFailures
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.hasId;
 import static org.hamcrest.Matchers.equalTo;
 
-public class MultiSearchIT extends ParameterizedOpenSearchIntegTestCase {
+public class MultiSearchIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
 
-    public MultiSearchIT(Settings dynamicSettings) {
-        super(dynamicSettings);
+    public MultiSearchIT(Settings staticSettings) {
+        super(staticSettings);
     }
 
     @ParametersFactory
@@ -71,12 +71,13 @@ public class MultiSearchIT extends ParameterizedOpenSearchIntegTestCase {
         return Settings.builder().put(super.featureFlagSettings()).put(FeatureFlags.CONCURRENT_SEGMENT_SEARCH, "true").build();
     }
 
-    public void testSimpleMultiSearch() {
+    public void testSimpleMultiSearch() throws InterruptedException {
         createIndex("test");
         ensureGreen();
         client().prepareIndex("test").setId("1").setSource("field", "xxx").get();
         client().prepareIndex("test").setId("2").setSource("field", "yyy").get();
         refresh();
+        indexRandomForConcurrentSearch("test");
         MultiSearchResponse response = client().prepareMultiSearch()
             .add(client().prepareSearch("test").setQuery(QueryBuilders.termQuery("field", "xxx")))
             .add(client().prepareSearch("test").setQuery(QueryBuilders.termQuery("field", "yyy")))
@@ -94,13 +95,14 @@ public class MultiSearchIT extends ParameterizedOpenSearchIntegTestCase {
         assertFirstHit(response.getResponses()[1].getResponse(), hasId("2"));
     }
 
-    public void testSimpleMultiSearchMoreRequests() {
+    public void testSimpleMultiSearchMoreRequests() throws InterruptedException {
         createIndex("test");
         int numDocs = randomIntBetween(0, 16);
         for (int i = 0; i < numDocs; i++) {
             client().prepareIndex("test").setId(Integer.toString(i)).setSource("{}", MediaTypeRegistry.JSON).get();
         }
         refresh();
+        indexRandomForConcurrentSearch("test");
 
         int numSearchRequests = randomIntBetween(1, 64);
         MultiSearchRequest request = new MultiSearchRequest();

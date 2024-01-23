@@ -48,6 +48,7 @@ import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.CheckedFunction;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
@@ -95,6 +96,7 @@ import org.opensearch.index.translog.TranslogFactory;
 import org.opensearch.indices.cluster.IndicesClusterStateService;
 import org.opensearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.opensearch.indices.mapper.MapperRegistry;
+import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpointPublisher;
 import org.opensearch.plugins.IndexStorePlugin;
@@ -129,8 +131,9 @@ import static org.opensearch.common.collect.MapBuilder.newMapBuilder;
 /**
  * The main OpenSearch index service
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class IndexService extends AbstractIndexComponent implements IndicesClusterStateService.AllocatedIndex<IndexShard> {
 
     private final IndexEventListener eventListener;
@@ -178,6 +181,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     private final BiFunction<IndexSettings, ShardRouting, TranslogFactory> translogFactorySupplier;
     private final Supplier<TimeValue> clusterDefaultRefreshIntervalSupplier;
     private final Supplier<TimeValue> clusterRemoteTranslogBufferIntervalSupplier;
+    private final RecoverySettings recoverySettings;
 
     public IndexService(
         IndexSettings indexSettings,
@@ -212,7 +216,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         IndexStorePlugin.RecoveryStateFactory recoveryStateFactory,
         BiFunction<IndexSettings, ShardRouting, TranslogFactory> translogFactorySupplier,
         Supplier<TimeValue> clusterDefaultRefreshIntervalSupplier,
-        Supplier<TimeValue> clusterRemoteTranslogBufferIntervalSupplier
+        Supplier<TimeValue> clusterRemoteTranslogBufferIntervalSupplier,
+        RecoverySettings recoverySettings
     ) {
         super(indexSettings);
         this.allowExpensiveQueries = allowExpensiveQueries;
@@ -289,6 +294,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         this.retentionLeaseSyncTask = new AsyncRetentionLeaseSyncTask(this);
         this.translogFactorySupplier = translogFactorySupplier;
         this.clusterRemoteTranslogBufferIntervalSupplier = clusterRemoteTranslogBufferIntervalSupplier;
+        this.recoverySettings = recoverySettings;
         updateFsyncTaskIfNecessary();
     }
 
@@ -300,8 +306,9 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     /**
      * Context for index creation
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public enum IndexCreationContext {
         CREATE_INDEX,
         METADATA_VERIFICATION
@@ -481,7 +488,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             Store remoteStore = null;
             if (this.indexSettings.isRemoteStoreEnabled()) {
                 Directory remoteDirectory = remoteDirectoryFactory.newDirectory(this.indexSettings, path);
-                remoteStore = new Store(shardId, this.indexSettings, remoteDirectory, lock, Store.OnClose.EMPTY);
+                remoteStore = new Store(shardId, this.indexSettings, remoteDirectory, lock, Store.OnClose.EMPTY, path);
             }
 
             Directory directory = directoryFactory.newDirectory(this.indexSettings, path);
@@ -490,7 +497,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 this.indexSettings,
                 directory,
                 lock,
-                new StoreCloseListener(shardId, () -> eventListener.onStoreClosed(shardId))
+                new StoreCloseListener(shardId, () -> eventListener.onStoreClosed(shardId)),
+                path
             );
             eventListener.onStoreCreated(shardId);
             indexShard = new IndexShard(
@@ -518,7 +526,9 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 this.indexSettings.isSegRepEnabled() ? checkpointPublisher : null,
                 remoteStore,
                 remoteStoreStatsTrackerFactory,
-                clusterRemoteTranslogBufferIntervalSupplier
+                clusterRemoteTranslogBufferIntervalSupplier,
+                nodeEnv.nodeId(),
+                recoverySettings
             );
             eventListener.indexShardStateChanged(indexShard, null, indexShard.state(), "shard created");
             eventListener.afterIndexShardCreated(indexShard);
@@ -689,7 +699,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
 
     /**
      * Creates a new QueryShardContext.
-     *
+     * <p>
      * Passing a {@code null} {@link IndexSearcher} will return a valid context, however it won't be able to make
      * {@link IndexReader}-specific optimizations, such as rewriting containing range queries.
      */
@@ -699,7 +709,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
 
     /**
      * Creates a new QueryShardContext.
-     *
+     * <p>
      * Passing a {@code null} {@link IndexSearcher} will return a valid context, however it won't be able to make
      * {@link IndexReader}-specific optimizations, such as rewriting containing range queries.
      */
@@ -972,8 +982,9 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     /**
      * Shard Store Deleter Interface
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public interface ShardStoreDeleter {
         void deleteShardStore(String reason, ShardLock lock, IndexSettings indexSettings) throws IOException;
 

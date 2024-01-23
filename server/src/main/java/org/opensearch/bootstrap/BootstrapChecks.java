@@ -73,7 +73,7 @@ import static org.opensearch.discovery.SettingsBasedSeedHostsProvider.DISCOVERY_
 
 /**
  * We enforce bootstrap checks once a node has the transport protocol bound to a non-loopback interface or if the system property {@code
- * opensearch.enforce.bootstrap.checks} is set to {@true}. In this case we assume the node is running in production and
+ * opensearch.enforce.bootstrap.checks} is set to {@code true}. In this case we assume the node is running in production and
  * all bootstrap checks must pass.
  *
  * @opensearch.internal
@@ -718,6 +718,7 @@ final class BootstrapChecks {
             return BootstrapCheckResult.success();
         }
 
+        @SuppressWarnings("removal")
         boolean isAllPermissionGranted() {
             final SecurityManager sm = System.getSecurityManager();
             assert sm != null;

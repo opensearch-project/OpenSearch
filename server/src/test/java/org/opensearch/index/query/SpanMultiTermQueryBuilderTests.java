@@ -60,6 +60,8 @@ import org.opensearch.index.mapper.MapperService;
 import org.opensearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 
 import static java.util.Collections.singleton;
 import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -305,5 +307,13 @@ public class SpanMultiTermQueryBuilderTests extends AbstractQueryTestCase<SpanMu
             assertFalse(rewriteMethod instanceof SpanBooleanQueryRewriteWithMaxClause);
         }
 
+    }
+
+    public void testVisit() {
+        MultiTermQueryBuilder multiTermQueryBuilder = new PrefixQueryBuilderTests().createTestQueryBuilder();
+        SpanMultiTermQueryBuilder spanMultiTermQueryBuilder = new SpanMultiTermQueryBuilder(multiTermQueryBuilder);
+        List<QueryBuilder> visitorQueries = new ArrayList<>();
+        spanMultiTermQueryBuilder.visit(createTestVisitor(visitorQueries));
+        assertEquals(2, visitorQueries.size());
     }
 }

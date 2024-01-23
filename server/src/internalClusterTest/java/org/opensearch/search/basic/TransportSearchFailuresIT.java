@@ -48,7 +48,7 @@ import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.query.MatchQueryBuilder;
 import org.opensearch.search.builder.SearchSourceBuilder;
-import org.opensearch.test.ParameterizedOpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -64,10 +64,10 @@ import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
-public class TransportSearchFailuresIT extends ParameterizedOpenSearchIntegTestCase {
+public class TransportSearchFailuresIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
 
-    public TransportSearchFailuresIT(Settings dynamicSettings) {
-        super(dynamicSettings);
+    public TransportSearchFailuresIT(Settings staticSettings) {
+        super(staticSettings);
     }
 
     @ParametersFactory

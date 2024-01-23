@@ -11,13 +11,16 @@ package org.opensearch.telemetry;
 import org.opensearch.SpecialPermission;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.telemetry.metrics.exporter.OTelMetricsExporterFactory;
 import org.opensearch.telemetry.tracing.exporter.OTelSpanExporterFactory;
 
 import java.security.AccessController;
 import java.security.PrivilegedActionException;
 import java.security.PrivilegedExceptionAction;
 
+import io.opentelemetry.exporter.logging.LoggingMetricExporter;
 import io.opentelemetry.exporter.logging.LoggingSpanExporter;
+import io.opentelemetry.sdk.metrics.export.MetricExporter;
 import io.opentelemetry.sdk.trace.export.SpanExporter;
 
 /**
@@ -63,7 +66,7 @@ public final class OTelTelemetrySettings {
     /**
      * Span Exporter type setting.
      */
-    @SuppressWarnings("unchecked")
+    @SuppressWarnings({ "unchecked", "removal" })
     public static final Setting<Class<SpanExporter>> OTEL_TRACER_SPAN_EXPORTER_CLASS_SETTING = new Setting<>(
         "telemetry.otel.tracer.span.exporter.class",
         LoggingSpanExporter.class.getName(),
@@ -75,6 +78,30 @@ public final class OTelTelemetrySettings {
                 return AccessController.doPrivileged((PrivilegedExceptionAction<Class<SpanExporter>>) () -> {
                     final ClassLoader loader = OTelSpanExporterFactory.class.getClassLoader();
                     return (Class<SpanExporter>) loader.loadClass(className);
+                });
+            } catch (PrivilegedActionException ex) {
+                throw new IllegalStateException("Unable to load span exporter class:" + className, ex.getCause());
+            }
+        },
+        Setting.Property.NodeScope,
+        Setting.Property.Final
+    );
+
+    /**
+     * Metrics Exporter type setting.
+     */
+    @SuppressWarnings({ "unchecked", "removal" })
+    public static final Setting<Class<MetricExporter>> OTEL_METRICS_EXPORTER_CLASS_SETTING = new Setting<>(
+        "telemetry.otel.metrics.exporter.class",
+        LoggingMetricExporter.class.getName(),
+        className -> {
+            // Check we ourselves are not being called by unprivileged code.
+            SpecialPermission.check();
+
+            try {
+                return AccessController.doPrivileged((PrivilegedExceptionAction<Class<MetricExporter>>) () -> {
+                    final ClassLoader loader = OTelMetricsExporterFactory.class.getClassLoader();
+                    return (Class<MetricExporter>) loader.loadClass(className);
                 });
             } catch (PrivilegedActionException ex) {
                 throw new IllegalStateException("Unable to load span exporter class:" + className, ex.getCause());

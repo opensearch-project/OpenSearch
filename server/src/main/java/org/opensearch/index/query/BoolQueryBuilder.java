@@ -427,4 +427,35 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
         }
         return changed;
     }
+
+    @Override
+    public void visit(QueryBuilderVisitor visitor) {
+        visitor.accept(this);
+        if (mustClauses.isEmpty() == false) {
+            QueryBuilderVisitor subVisitor = visitor.getChildVisitor(Occur.MUST);
+            for (QueryBuilder mustClause : mustClauses) {
+                mustClause.visit(subVisitor);
+            }
+        }
+        if (shouldClauses.isEmpty() == false) {
+            QueryBuilderVisitor subVisitor = visitor.getChildVisitor(Occur.SHOULD);
+            for (QueryBuilder shouldClause : shouldClauses) {
+                shouldClause.visit(subVisitor);
+            }
+        }
+        if (mustNotClauses.isEmpty() == false) {
+            QueryBuilderVisitor subVisitor = visitor.getChildVisitor(Occur.MUST_NOT);
+            for (QueryBuilder mustNotClause : mustNotClauses) {
+                mustNotClause.visit(subVisitor);
+            }
+        }
+        if (filterClauses.isEmpty() == false) {
+            QueryBuilderVisitor subVisitor = visitor.getChildVisitor(Occur.FILTER);
+            for (QueryBuilder filterClause : filterClauses) {
+                filterClause.visit(subVisitor);
+            }
+        }
+
+    }
+
 }

@@ -11,9 +11,6 @@ package org.opensearch.common.settings;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.util.FeatureFlags;
 
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashSet;
 import java.util.Set;
 
 /**
@@ -32,15 +29,12 @@ public class FeatureFlagSettings extends AbstractScopedSettings {
         super(settings, settingsSet, settingUpgraders, scope);
     }
 
-    public static final Set<Setting<?>> BUILT_IN_FEATURE_FLAGS = Collections.unmodifiableSet(
-        new HashSet<>(
-            Arrays.asList(
-                FeatureFlags.SEGMENT_REPLICATION_EXPERIMENTAL_SETTING,
-                FeatureFlags.EXTENSIONS_SETTING,
-                FeatureFlags.IDENTITY_SETTING,
-                FeatureFlags.CONCURRENT_SEGMENT_SEARCH_SETTING,
-                FeatureFlags.TELEMETRY_SETTING
-            )
-        )
+    public static final Set<Setting<?>> BUILT_IN_FEATURE_FLAGS = Set.of(
+        FeatureFlags.EXTENSIONS_SETTING,
+        FeatureFlags.IDENTITY_SETTING,
+        FeatureFlags.CONCURRENT_SEGMENT_SEARCH_SETTING,
+        FeatureFlags.TELEMETRY_SETTING,
+        FeatureFlags.DATETIME_FORMATTER_CACHING_SETTING,
+        FeatureFlags.WRITEABLE_REMOTE_INDEX_SETTING
     );
 }

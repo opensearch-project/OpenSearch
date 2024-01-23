@@ -46,7 +46,7 @@ import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.rest.RestStatus;
 import org.opensearch.search.SearchService;
 import org.opensearch.test.OpenSearchIntegTestCase;
-import org.opensearch.test.ParameterizedOpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 import org.junit.After;
 
 import java.util.Arrays;
@@ -61,10 +61,10 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.lessThan;
 
 @OpenSearchIntegTestCase.ClusterScope(minNumDataNodes = 2)
-public class SearchRedStateIndexIT extends ParameterizedOpenSearchIntegTestCase {
+public class SearchRedStateIndexIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
 
-    public SearchRedStateIndexIT(Settings dynamicSettings) {
-        super(dynamicSettings);
+    public SearchRedStateIndexIT(Settings staticSettings) {
+        super(staticSettings);
     }
 
     @ParametersFactory
@@ -153,6 +153,7 @@ public class SearchRedStateIndexIT extends ParameterizedOpenSearchIntegTestCase 
             client().prepareIndex("test").setId("" + i).setSource("field1", "value1").get();
         }
         refresh();
+        indexRandomForConcurrentSearch("test");
 
         internalCluster().stopRandomDataNode();
 

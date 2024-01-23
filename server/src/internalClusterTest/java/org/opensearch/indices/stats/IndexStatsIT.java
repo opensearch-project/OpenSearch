@@ -66,8 +66,8 @@ import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.IndexSettings;
-import org.opensearch.index.MergePolicyConfig;
 import org.opensearch.index.MergeSchedulerConfig;
+import org.opensearch.index.TieredMergePolicyProvider;
 import org.opensearch.index.VersionType;
 import org.opensearch.index.cache.query.QueryCacheStats;
 import org.opensearch.index.engine.VersionConflictEngineException;
@@ -85,7 +85,7 @@ import org.opensearch.search.sort.SortOrder;
 import org.opensearch.test.InternalSettingsPlugin;
 import org.opensearch.test.OpenSearchIntegTestCase.ClusterScope;
 import org.opensearch.test.OpenSearchIntegTestCase.Scope;
-import org.opensearch.test.ParameterizedOpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -122,7 +122,7 @@ import static org.hamcrest.Matchers.nullValue;
 
 @ClusterScope(scope = Scope.SUITE, numDataNodes = 2, numClientNodes = 0)
 @SuppressCodecs("*") // requires custom completion format
-public class IndexStatsIT extends ParameterizedOpenSearchIntegTestCase {
+public class IndexStatsIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
     public IndexStatsIT(Settings settings) {
         super(settings);
     }
@@ -169,7 +169,7 @@ public class IndexStatsIT extends ParameterizedOpenSearchIntegTestCase {
         return Settings.builder().put(indexSettings());
     }
 
-    public void testFieldDataStats() {
+    public void testFieldDataStats() throws InterruptedException {
         assertAcked(
             client().admin()
                 .indices()
@@ -182,6 +182,7 @@ public class IndexStatsIT extends ParameterizedOpenSearchIntegTestCase {
         client().prepareIndex("test").setId("1").setSource("field", "value1", "field2", "value1").execute().actionGet();
         client().prepareIndex("test").setId("2").setSource("field", "value2", "field2", "value2").execute().actionGet();
         client().admin().indices().prepareRefresh().execute().actionGet();
+        indexRandomForConcurrentSearch("test");
 
         NodesStatsResponse nodesStats = client().admin().cluster().prepareNodesStats("data:true").setIndices(true).execute().actionGet();
         assertThat(
@@ -305,6 +306,7 @@ public class IndexStatsIT extends ParameterizedOpenSearchIntegTestCase {
         client().prepareIndex("test").setId("1").setSource("field", "value1").execute().actionGet();
         client().prepareIndex("test").setId("2").setSource("field", "value2").execute().actionGet();
         client().admin().indices().prepareRefresh().execute().actionGet();
+        indexRandomForConcurrentSearch("test");
 
         NodesStatsResponse nodesStats = client().admin().cluster().prepareNodesStats("data:true").setIndices(true).execute().actionGet();
         assertThat(
@@ -589,8 +591,8 @@ public class IndexStatsIT extends ParameterizedOpenSearchIntegTestCase {
             prepareCreate("test").setSettings(
                 settingsBuilder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, "1")
                     .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, "0")
-                    .put(MergePolicyConfig.INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE_SETTING.getKey(), "2")
-                    .put(MergePolicyConfig.INDEX_MERGE_POLICY_SEGMENTS_PER_TIER_SETTING.getKey(), "2")
+                    .put(TieredMergePolicyProvider.INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE_SETTING.getKey(), "2")
+                    .put(TieredMergePolicyProvider.INDEX_MERGE_POLICY_SEGMENTS_PER_TIER_SETTING.getKey(), "2")
                     .put(MergeSchedulerConfig.MAX_THREAD_COUNT_SETTING.getKey(), "1")
                     .put(MergeSchedulerConfig.MAX_MERGE_COUNT_SETTING.getKey(), "10000")
             )
@@ -621,8 +623,8 @@ public class IndexStatsIT extends ParameterizedOpenSearchIntegTestCase {
             prepareCreate("test").setSettings(
                 settingsBuilder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, "1")
                     .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, "0")
-                    .put(MergePolicyConfig.INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE_SETTING.getKey(), "2")
-                    .put(MergePolicyConfig.INDEX_MERGE_POLICY_SEGMENTS_PER_TIER_SETTING.getKey(), "2")
+                    .put(TieredMergePolicyProvider.INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE_SETTING.getKey(), "2")
+                    .put(TieredMergePolicyProvider.INDEX_MERGE_POLICY_SEGMENTS_PER_TIER_SETTING.getKey(), "2")
                     .put(MergeSchedulerConfig.MAX_THREAD_COUNT_SETTING.getKey(), "1")
                     .put(MergeSchedulerConfig.MAX_MERGE_COUNT_SETTING.getKey(), "1")
                     .put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), Translog.Durability.ASYNC.name())

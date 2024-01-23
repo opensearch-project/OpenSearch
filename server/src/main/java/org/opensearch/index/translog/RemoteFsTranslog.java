@@ -9,6 +9,7 @@
 package org.opensearch.index.translog;
 
 import org.apache.logging.log4j.Logger;
+import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.SetOnce;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lease.Releasables;
@@ -39,6 +40,9 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Semaphore;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BooleanSupplier;
 import java.util.function.LongConsumer;
 import java.util.function.LongSupplier;
@@ -54,13 +58,11 @@ import java.util.function.LongSupplier;
 public class RemoteFsTranslog extends Translog {
 
     private final Logger logger;
-    private final BlobStoreRepository blobStoreRepository;
     private final TranslogTransferManager translogTransferManager;
     private final FileTransferTracker fileTransferTracker;
-    private final BooleanSupplier primaryModeSupplier;
+    private final BooleanSupplier startedPrimarySupplier;
     private final RemoteTranslogTransferTracker remoteTranslogTransferTracker;
     private volatile long maxRemoteTranslogGenerationUploaded;
-    private final Object uploadMutex = new Object();
 
     private volatile long minSeqNoToKeep;
 
@@ -77,6 +79,11 @@ public class RemoteFsTranslog extends Translog {
     // Semaphore used to allow only single remote generation to happen at a time
     private final Semaphore remoteGenerationDeletionPermits = new Semaphore(REMOTE_DELETION_PERMITS);
 
+    // These permits exist to allow any inflight background triggered upload.
+    private static final int SYNC_PERMIT = 1;
+    private final Semaphore syncPermit = new Semaphore(SYNC_PERMIT);
+    private final AtomicBoolean pauseSync = new AtomicBoolean(false);
+
     public RemoteFsTranslog(
         TranslogConfig config,
         String translogUUID,
@@ -86,13 +93,12 @@ public class RemoteFsTranslog extends Translog {
         LongConsumer persistedSequenceNumberConsumer,
         BlobStoreRepository blobStoreRepository,
         ThreadPool threadPool,
-        BooleanSupplier primaryModeSupplier,
+        BooleanSupplier startedPrimarySupplier,
         RemoteTranslogTransferTracker remoteTranslogTransferTracker
     ) throws IOException {
         super(config, translogUUID, deletionPolicy, globalCheckpointSupplier, primaryTermSupplier, persistedSequenceNumberConsumer);
         logger = Loggers.getLogger(getClass(), shardId);
-        this.blobStoreRepository = blobStoreRepository;
-        this.primaryModeSupplier = primaryModeSupplier;
+        this.startedPrimarySupplier = startedPrimarySupplier;
         this.remoteTranslogTransferTracker = remoteTranslogTransferTracker;
         fileTransferTracker = new FileTransferTracker(shardId, remoteTranslogTransferTracker);
         this.translogTransferManager = buildTranslogTransferManager(
@@ -105,6 +111,7 @@ public class RemoteFsTranslog extends Translog {
         try {
             download(translogTransferManager, location, logger);
             Checkpoint checkpoint = readCheckpoint(location);
+            logger.info("Downloaded data from remote translog till maxSeqNo = {}", checkpoint.maxSeqNo);
             this.readers.addAll(recoverFromFiles(checkpoint));
             if (readers.isEmpty()) {
                 String errorMsg = String.format(Locale.ROOT, "%s at least one reader must be recovered", shardId);
@@ -163,6 +170,7 @@ public class RemoteFsTranslog extends Translog {
             remoteTranslogTransferTracker
         );
         RemoteFsTranslog.download(translogTransferManager, location, logger);
+        logger.trace(remoteTranslogTransferTracker.toString());
     }
 
     static void download(TranslogTransferManager translogTransferManager, Path location, Logger logger) throws IOException {
@@ -175,19 +183,25 @@ public class RemoteFsTranslog extends Translog {
          */
         IOException ex = null;
         for (int i = 0; i <= DOWNLOAD_RETRIES; i++) {
+            boolean success = false;
+            long startTimeMs = System.currentTimeMillis();
             try {
                 downloadOnce(translogTransferManager, location, logger);
+                success = true;
                 return;
             } catch (FileNotFoundException | NoSuchFileException e) {
                 // continue till download retries
                 ex = e;
+            } finally {
+                logger.trace("downloadOnce success={} timeElapsed={}", success, (System.currentTimeMillis() - startTimeMs));
             }
         }
+        logger.info("Exhausted all download retries during translog/checkpoint file download");
         throw ex;
     }
 
     static private void downloadOnce(TranslogTransferManager translogTransferManager, Path location, Logger logger) throws IOException {
-        logger.trace("Downloading translog files from remote");
+        logger.debug("Downloading translog files from remote");
         RemoteTranslogTransferTracker statsTracker = translogTransferManager.getRemoteTranslogTransferTracker();
         long prevDownloadBytesSucceeded = statsTracker.getDownloadBytesSucceeded();
         long prevDownloadTimeInMillis = statsTracker.getTotalDownloadTimeInMillis();
@@ -207,6 +221,11 @@ public class RemoteFsTranslog extends Translog {
                 String generation = Long.toString(i);
                 translogTransferManager.downloadTranslog(generationToPrimaryTermMapper.get(generation), generation, location);
             }
+            logger.info(
+                "Downloaded translog and checkpoint files from={} to={}",
+                translogMetadata.getMinTranslogGeneration(),
+                translogMetadata.getGeneration()
+            );
 
             statsTracker.recordDownloadStats(prevDownloadBytesSucceeded, prevDownloadTimeInMillis);
 
@@ -217,7 +236,7 @@ public class RemoteFsTranslog extends Translog {
                 location.resolve(Translog.CHECKPOINT_FILE_NAME)
             );
         }
-        logger.trace("Downloaded translog files from remote");
+        logger.debug("downloadOnce execution completed");
     }
 
     public static TranslogTransferManager buildTranslogTransferManager(
@@ -238,24 +257,10 @@ public class RemoteFsTranslog extends Translog {
 
     @Override
     public boolean ensureSynced(Location location) throws IOException {
-        try {
-            boolean shouldUpload = false;
-            try (ReleasableLock ignored = writeLock.acquire()) {
-                assert location.generation <= current.getGeneration();
-                if (location.generation == current.getGeneration()) {
-                    ensureOpen();
-                    if (prepareForUpload(location.generation) == false) {
-                        return false;
-                    }
-                    shouldUpload = true;
-                }
-            }
-            if (shouldUpload) {
-                return performUpload(primaryTermSupplier.getAsLong(), location.generation);
-            }
-        } catch (final Exception ex) {
-            closeOnTragicEvent(ex);
-            throw ex;
+        assert location.generation <= current.getGeneration();
+        if (location.generation == current.getGeneration()) {
+            ensureOpen();
+            return prepareAndUpload(primaryTermSupplier.getAsLong(), location.generation);
         }
         return false;
     }
@@ -266,15 +271,27 @@ public class RemoteFsTranslog extends Translog {
         if (current.totalOperations() == 0 && primaryTermSupplier.getAsLong() == current.getPrimaryTerm()) {
             return;
         }
-        if (prepareForUpload(null)) {
-            performUpload(primaryTermSupplier.getAsLong(), null);
-        }
+        prepareAndUpload(primaryTermSupplier.getAsLong(), null);
     }
 
-    private boolean prepareForUpload(Long generation) throws IOException {
+    private boolean prepareAndUpload(Long primaryTerm, Long generation) throws IOException {
+        // During primary relocation, both the old and new primary have engine created with RemoteFsTranslog and having
+        // ReplicationTracker.primaryMode() as true. However, before we perform the `internal:index/shard/replication/segments_sync`
+        // action which re-downloads the segments and translog on the new primary. We are ensuring 2 things here -
+        // 1. Using startedPrimarySupplier, we prevent the new primary to do pre-emptive syncs
+        // 2. Using syncPermits, we prevent syncs at the desired time during primary relocation.
+        if (startedPrimarySupplier.getAsBoolean() == false || syncPermit.tryAcquire(SYNC_PERMIT) == false) {
+            logger.debug("skipped uploading translog for {} {} syncPermits={}", primaryTerm, generation, syncPermit.availablePermits());
+            // NO-OP
+            return false;
+        }
+        long maxSeqNo = -1;
         try (Releasable ignored = writeLock.acquire()) {
             if (generation == null || generation == current.getGeneration()) {
                 try {
+                    if (closed.get() == false) {
+                        maxSeqNo = getMaxSeqNo();
+                    }
                     final TranslogReader reader = current.closeIntoReader();
                     readers.add(reader);
                     copyCheckpointTo(location.resolve(getCommitCheckpointFileName(current.getGeneration())));
@@ -282,61 +299,41 @@ public class RemoteFsTranslog extends Translog {
                         logger.trace("Creating new writer for gen: [{}]", current.getGeneration() + 1);
                         current = createWriter(current.getGeneration() + 1);
                     }
+                    assert writeLock.isHeldByCurrentThread() : "Write lock must be held before we acquire the read lock";
+                    // Here we are downgrading the write lock by acquiring the read lock and releasing the write lock
+                    // This ensures that other threads can still acquire the read locks while also protecting the
+                    // readers and writer to not be mutated any further.
+                    readLock.acquire();
                 } catch (final Exception e) {
                     tragedy.setTragicException(e);
                     closeOnTragicEvent(e);
                     throw e;
                 }
-                return true;
-            } else return generation >= current.getGeneration();
+            } else if (generation < current.getGeneration()) {
+                return false;
+            }
         }
-    }
 
-    /**
-     * This method does the remote store upload by first acquiring the lock on the uploadMutex monitor. The synchronized
-     * is required to restrict multiple uploads happening concurrently. The read lock is required to ensure that the
-     * underlying translog readers are not deleted and the current writer is not converted to a reader at the time of
-     * upload.
-     *
-     * @param primaryTerm current primary term
-     * @param generation  current generation
-     * @return true if upload is successful
-     * @throws IOException if the upload fails due to any underlying exceptions.
-     */
-    private boolean performUpload(Long primaryTerm, Long generation) throws IOException {
-        synchronized (uploadMutex) {
-            try (Releasable ignored = readLock.acquire()) {
-                // Do we need remote writes in sync fashion ?
-                // If we don't , we should swallow FileAlreadyExistsException while writing to remote store
-                // and also verify for same during primary-primary relocation
-                // Writing remote in sync fashion doesn't hurt as global ckp update
-                // is not updated in remote translog except in primary to primary recovery.
-                long generationToUpload;
-                if (generation == null) {
-                    if (closed.get() == false) {
-                        generationToUpload = current.getGeneration() - 1;
-                    } else {
-                        generationToUpload = current.getGeneration();
-                    }
+        assert readLock.isHeldByCurrentThread() == true;
+        try (Releasable ignored = readLock; Releasable ignoredGenLock = deletionPolicy.acquireTranslogGen(getMinFileGeneration())) {
+            // Do we need remote writes in sync fashion ?
+            // If we don't , we should swallow FileAlreadyExistsException while writing to remote store
+            // and also verify for same during primary-primary relocation
+            // Writing remote in sync fashion doesn't hurt as global ckp update
+            // is not updated in remote translog except in primary to primary recovery.
+            if (generation == null) {
+                if (closed.get() == false) {
+                    return upload(primaryTerm, current.getGeneration() - 1, maxSeqNo);
                 } else {
-                    generationToUpload = generation;
+                    return upload(primaryTerm, current.getGeneration(), maxSeqNo);
                 }
-                return upload(primaryTerm, generationToUpload);
+            } else {
+                return upload(primaryTerm, generation, maxSeqNo);
             }
         }
     }
 
-    private boolean upload(Long primaryTerm, Long generation) throws IOException {
-        // During primary relocation (primary-primary peer recovery), both the old and the new primary have engine
-        // created with the RemoteFsTranslog. Both primaries are equipped to upload the translogs. The primary mode check
-        // below ensures that the real primary only is uploading. Before the primary mode is set as true for the new
-        // primary, the engine is reset to InternalEngine which also initialises the RemoteFsTranslog which in turns
-        // downloads all the translogs from remote store and does a flush before the relocation finishes.
-        if (primaryModeSupplier.getAsBoolean() == false) {
-            logger.trace("skipped uploading translog for {} {}", primaryTerm, generation);
-            // NO-OP
-            return true;
-        }
+    private boolean upload(long primaryTerm, long generation, long maxSeqNo) throws IOException {
         logger.trace("uploading translog for {} {}", primaryTerm, generation);
         try (
             TranslogCheckpointTransferSnapshot transferSnapshotProvider = new TranslogCheckpointTransferSnapshot.Builder(
@@ -344,14 +341,16 @@ public class RemoteFsTranslog extends Translog {
                 generation,
                 location,
                 readers,
-                Translog::getCommitCheckpointFileName
+                Translog::getCommitCheckpointFileName,
+                config.getNodeId()
             ).build()
         ) {
-            Releasable transferReleasable = Releasables.wrap(deletionPolicy.acquireTranslogGen(getMinFileGeneration()));
             return translogTransferManager.transferSnapshot(
                 transferSnapshotProvider,
-                new RemoteFsTranslogTransferListener(transferReleasable, generation, primaryTerm)
+                new RemoteFsTranslogTransferListener(generation, primaryTerm, maxSeqNo)
             );
+        } finally {
+            syncPermit.release(SYNC_PERMIT);
         }
 
     }
@@ -372,14 +371,8 @@ public class RemoteFsTranslog extends Translog {
 
     @Override
     public void sync() throws IOException {
-        try {
-            if ((syncToDisk() || syncNeeded()) && prepareForUpload(null)) {
-                performUpload(primaryTermSupplier.getAsLong(), null);
-            }
-        } catch (final Exception e) {
-            tragedy.setTragicException(e);
-            closeOnTragicEvent(e);
-            throw e;
+        if (syncToDisk() || syncNeeded()) {
+            prepareAndUpload(primaryTermSupplier.getAsLong(), null);
         }
     }
 
@@ -397,12 +390,14 @@ public class RemoteFsTranslog extends Translog {
     public void close() throws IOException {
         assert Translog.calledFromOutsideOrViaTragedyClose() : shardId
             + "Translog.close method is called from inside Translog, but not via closeOnTragicEvent method";
-        if (closed.compareAndSet(false, true)) {
-            try (ReleasableLock lock = writeLock.acquire()) {
-                sync();
-            } finally {
-                logger.debug("translog closed");
-                closeFilesIfNoPendingRetentionLocks();
+        try (ReleasableLock lock = writeLock.acquire()) {
+            if (closed.compareAndSet(false, true)) {
+                try {
+                    sync();
+                } finally {
+                    logger.debug("translog closed");
+                    closeFilesIfNoPendingRetentionLocks();
+                }
             }
         }
     }
@@ -439,9 +434,37 @@ public class RemoteFsTranslog extends Translog {
     }
 
     @Override
+    protected Releasable drainSync() {
+        try {
+            if (syncPermit.tryAcquire(SYNC_PERMIT, 1, TimeUnit.MINUTES)) {
+                boolean result = pauseSync.compareAndSet(false, true);
+                assert result && syncPermit.availablePermits() == 0;
+                logger.info("All inflight remote translog syncs finished and further syncs paused");
+                return Releasables.releaseOnce(() -> {
+                    syncPermit.release(SYNC_PERMIT);
+                    boolean wasSyncPaused = pauseSync.getAndSet(false);
+                    assert syncPermit.availablePermits() == SYNC_PERMIT : "Available permits is " + syncPermit.availablePermits();
+                    assert wasSyncPaused : "RemoteFsTranslog sync was not paused before re-enabling it";
+                    logger.info("Resumed remote translog sync back on relocation failure");
+                });
+            } else {
+                throw new TimeoutException("Timeout while acquiring all permits");
+            }
+        } catch (TimeoutException | InterruptedException e) {
+            throw new RuntimeException("Failed to acquire all permits", e);
+        }
+    }
+
+    @Override
     public void trimUnreferencedReaders() throws IOException {
         // clean up local translog files and updates readers
         super.trimUnreferencedReaders();
+
+        // This is to ensure that after the permits are acquired during primary relocation, there are no further modification on remote
+        // store.
+        if (startedPrimarySupplier.getAsBoolean() == false || pauseSync.get()) {
+            return;
+        }
 
         // Since remote generation deletion is async, this ensures that only one generation deletion happens at a time.
         // Remote generations involves 2 async operations - 1) Delete translog generation files 2) Delete metadata files
@@ -453,7 +476,7 @@ public class RemoteFsTranslog extends Translog {
         // cleans up remote translog files not referenced in latest uploaded metadata.
         // This enables us to restore translog from the metadata in case of failover or relocation.
         Set<Long> generationsToDelete = new HashSet<>();
-        for (long generation = minRemoteGenReferenced - 1; generation >= 0; generation--) {
+        for (long generation = minRemoteGenReferenced - 1 - indexSettings().getRemoteTranslogExtraKeep(); generation >= 0; generation--) {
             if (fileTransferTracker.uploaded(Translog.getFilename(generation)) == false) {
                 break;
             }
@@ -520,13 +543,14 @@ public class RemoteFsTranslog extends Translog {
     }
 
     protected void onDelete() {
-        if (primaryModeSupplier.getAsBoolean() == false) {
-            logger.trace("skipped delete translog");
-            // NO-OP
-            return;
-        }
+        ClusterService.assertClusterOrClusterManagerStateThread();
         // clean up all remote translog files
         translogTransferManager.delete();
+    }
+
+    // Visible for testing
+    boolean isRemoteGenerationDeletionPermitsAvailable() {
+        return remoteGenerationDeletionPermits.availablePermits() == REMOTE_DELETION_PERMITS;
     }
 
     /**
@@ -535,32 +559,35 @@ public class RemoteFsTranslog extends Translog {
      * @opensearch.internal
      */
     private class RemoteFsTranslogTransferListener implements TranslogTransferListener {
-        /**
-         * Releasable instance for the translog
-         */
-        private final Releasable transferReleasable;
 
         /**
          * Generation for the translog
          */
-        private final Long generation;
+        private final long generation;
 
         /**
          * Primary Term for the translog
          */
-        private final Long primaryTerm;
+        private final long primaryTerm;
 
-        RemoteFsTranslogTransferListener(Releasable transferReleasable, Long generation, Long primaryTerm) {
-            this.transferReleasable = transferReleasable;
+        private final long maxSeqNo;
+
+        RemoteFsTranslogTransferListener(long generation, long primaryTerm, long maxSeqNo) {
             this.generation = generation;
             this.primaryTerm = primaryTerm;
+            this.maxSeqNo = maxSeqNo;
         }
 
         @Override
         public void onUploadComplete(TransferSnapshot transferSnapshot) throws IOException {
             maxRemoteTranslogGenerationUploaded = generation;
             minRemoteGenReferenced = getMinFileGeneration();
-            logger.trace("uploaded translog for {} {} ", primaryTerm, generation);
+            logger.debug(
+                "Successfully uploaded translog for primary term = {}, generation = {}, maxSeqNo = {}",
+                primaryTerm,
+                generation,
+                maxSeqNo
+            );
         }
 
         @Override
@@ -571,10 +598,15 @@ public class RemoteFsTranslog extends Translog {
                 throw (RuntimeException) ex;
             }
         }
+    }
 
-        @Override
-        public void close() {
-            transferReleasable.close();
-        }
+    @Override
+    public long getMinUnreferencedSeqNoInSegments(long minUnrefCheckpointInLastCommit) {
+        return minSeqNoToKeep;
+    }
+
+    // Visible for testing
+    int availablePermits() {
+        return syncPermit.availablePermits();
     }
 }

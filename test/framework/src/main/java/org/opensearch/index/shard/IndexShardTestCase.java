@@ -119,6 +119,7 @@ import org.opensearch.index.translog.TranslogFactory;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.opensearch.indices.recovery.AsyncRecoveryTarget;
+import org.opensearch.indices.recovery.DefaultRecoverySettings;
 import org.opensearch.indices.recovery.PeerRecoveryTargetService;
 import org.opensearch.indices.recovery.RecoveryFailedException;
 import org.opensearch.indices.recovery.RecoveryResponse;
@@ -173,6 +174,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -272,11 +274,11 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
     }
 
     protected Store createStore(IndexSettings indexSettings, ShardPath shardPath) throws IOException {
-        return createStore(shardPath.getShardId(), indexSettings, newFSDirectory(shardPath.resolveIndex()));
+        return createStore(shardPath.getShardId(), indexSettings, newFSDirectory(shardPath.resolveIndex()), shardPath);
     }
 
-    protected Store createStore(ShardId shardId, IndexSettings indexSettings, Directory directory) throws IOException {
-        return new Store(shardId, indexSettings, directory, new DummyShardLock(shardId));
+    protected Store createStore(ShardId shardId, IndexSettings indexSettings, Directory directory, ShardPath shardPath) throws IOException {
+        return new Store(shardId, indexSettings, directory, new DummyShardLock(shardId), Store.OnClose.EMPTY, shardPath);
     }
 
     protected Releasable acquirePrimaryOperationPermitBlockingly(IndexShard indexShard) throws ExecutionException, InterruptedException {
@@ -640,7 +642,7 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
                 Collections.emptyList(),
                 clusterSettings
             );
-            Store remoteStore = null;
+            Store remoteStore;
             RemoteStoreStatsTrackerFactory remoteStoreStatsTrackerFactory = null;
             RepositoriesService mockRepoSvc = mock(RepositoriesService.class);
 
@@ -654,11 +656,13 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
                     remotePath = createTempDir();
                 }
 
-                remoteStore = createRemoteStore(remotePath, routing, indexMetadata);
+                remoteStore = createRemoteStore(remotePath, routing, indexMetadata, shardPath);
 
                 remoteStoreStatsTrackerFactory = new RemoteStoreStatsTrackerFactory(clusterService, indexSettings.getSettings());
                 BlobStoreRepository repo = createRepository(remotePath);
                 when(mockRepoSvc.repository(any())).thenAnswer(invocationOnMock -> repo);
+            } else {
+                remoteStore = null;
             }
 
             final BiFunction<IndexSettings, ShardRouting, TranslogFactory> translogFactorySupplier = (settings, shardRouting) -> {
@@ -697,7 +701,9 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
                 checkpointPublisher,
                 remoteStore,
                 remoteStoreStatsTrackerFactory,
-                () -> IndexSettings.DEFAULT_REMOTE_TRANSLOG_BUFFER_INTERVAL
+                () -> IndexSettings.DEFAULT_REMOTE_TRANSLOG_BUFFER_INTERVAL,
+                "dummy-node",
+                DefaultRecoverySettings.INSTANCE
             );
             indexShard.addShardFailureCallback(DEFAULT_SHARD_FAILURE_HANDLER);
             if (remoteStoreStatsTrackerFactory != null) {
@@ -768,11 +774,12 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
         return repositoriesService;
     }
 
-    protected Store createRemoteStore(Path path, ShardRouting shardRouting, IndexMetadata metadata) throws IOException {
+    protected Store createRemoteStore(Path path, ShardRouting shardRouting, IndexMetadata metadata, ShardPath shardPath)
+        throws IOException {
         Settings nodeSettings = Settings.builder().put("node.name", shardRouting.currentNodeId()).build();
         ShardId shardId = shardRouting.shardId();
         RemoteSegmentStoreDirectory remoteSegmentStoreDirectory = createRemoteSegmentStoreDirectory(shardId, path);
-        return createStore(shardId, new IndexSettings(metadata, nodeSettings), remoteSegmentStoreDirectory);
+        return createStore(shardId, new IndexSettings(metadata, nodeSettings), remoteSegmentStoreDirectory, shardPath);
     }
 
     protected RemoteSegmentStoreDirectory createRemoteSegmentStoreDirectory(ShardId shardId, Path path) throws IOException {
@@ -783,7 +790,7 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
         RemoteStoreLockManager remoteStoreLockManager = new RemoteStoreMetadataLockManager(
             new RemoteBufferedOutputDirectory(getBlobContainer(remoteShardPath.resolveIndex()))
         );
-        return new RemoteSegmentStoreDirectory(dataDirectory, metadataDirectory, remoteStoreLockManager, threadPool);
+        return new RemoteSegmentStoreDirectory(dataDirectory, metadataDirectory, remoteStoreLockManager, threadPool, shardId);
     }
 
     private RemoteDirectory newRemoteDirectory(Path f) throws IOException {
@@ -1080,7 +1087,7 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
     /**
      * Recovers a replica from the give primary, allow the user to supply a custom recovery target. A typical usage of a custom recovery
      * target is to assert things in the various stages of recovery.
-     *
+     * <p>
      * Note: this method keeps the shard in {@link IndexShardState#POST_RECOVERY} and doesn't start it.
      *
      * @param replica                the recovery target shard
@@ -1614,6 +1621,7 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
                 ReplicationCheckpoint checkpoint,
                 List<StoreFileMetadata> filesToFetch,
                 IndexShard indexShard,
+                BiConsumer<String, Long> fileProgressTracker,
                 ActionListener<GetSegmentFilesResponse> listener
             ) {
                 try (

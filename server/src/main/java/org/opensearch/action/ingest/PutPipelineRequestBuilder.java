@@ -35,14 +35,16 @@ package org.opensearch.action.ingest;
 import org.opensearch.action.ActionRequestBuilder;
 import org.opensearch.action.support.master.AcknowledgedResponse;
 import org.opensearch.client.OpenSearchClient;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.xcontent.MediaType;
 
 /**
  * Transport request builder to put a pipeline
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class PutPipelineRequestBuilder extends ActionRequestBuilder<PutPipelineRequest, AcknowledgedResponse> {
 
     public PutPipelineRequestBuilder(OpenSearchClient client, PutPipelineAction action) {

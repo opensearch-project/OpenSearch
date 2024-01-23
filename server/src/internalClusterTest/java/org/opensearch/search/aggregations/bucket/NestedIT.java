@@ -57,7 +57,7 @@ import org.opensearch.search.aggregations.metrics.Max;
 import org.opensearch.search.aggregations.metrics.Stats;
 import org.opensearch.search.aggregations.metrics.Sum;
 import org.opensearch.test.OpenSearchIntegTestCase;
-import org.opensearch.test.ParameterizedOpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 import org.hamcrest.Matchers;
 
 import java.util.ArrayList;
@@ -92,14 +92,14 @@ import static org.hamcrest.Matchers.sameInstance;
 import static org.hamcrest.core.IsNull.notNullValue;
 
 @OpenSearchIntegTestCase.SuiteScopeTestCase
-public class NestedIT extends ParameterizedOpenSearchIntegTestCase {
+public class NestedIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
 
     private static int numParents;
     private static int[] numChildren;
     private static SubAggCollectionMode aggCollectionMode;
 
-    public NestedIT(Settings dynamicSettings) {
-        super(dynamicSettings);
+    public NestedIT(Settings staticSettings) {
+        super(staticSettings);
     }
 
     @ParametersFactory
@@ -224,6 +224,7 @@ public class NestedIT extends ParameterizedOpenSearchIntegTestCase {
                 )
         );
         indexRandom(true, builders);
+        indexRandomForMultipleSlices("idx");
         ensureSearchable();
     }
 
@@ -354,6 +355,7 @@ public class NestedIT extends ParameterizedOpenSearchIntegTestCase {
     }
 
     public void testNestNestedAggs() throws Exception {
+        indexRandomForConcurrentSearch("idx_nested_nested_aggs");
         SearchResponse response = client().prepareSearch("idx_nested_nested_aggs")
             .addAggregation(
                 nested("level1", "nested1").subAggregation(
@@ -607,6 +609,7 @@ public class NestedIT extends ParameterizedOpenSearchIntegTestCase {
             )
             .get();
         refresh();
+        indexRandomForConcurrentSearch("idx4");
 
         SearchResponse response = client().prepareSearch("idx4")
             .addAggregation(
@@ -782,6 +785,7 @@ public class NestedIT extends ParameterizedOpenSearchIntegTestCase {
             )
             .get();
         refresh();
+        indexRandomForConcurrentSearch("classes");
 
         SearchResponse response = client().prepareSearch("classes")
             .addAggregation(

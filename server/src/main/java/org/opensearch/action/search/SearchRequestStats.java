@@ -8,9 +8,12 @@
 
 package org.opensearch.action.search;
 
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.metrics.CounterMetric;
 import org.opensearch.common.metrics.MeanMetric;
+import org.opensearch.common.settings.ClusterSettings;
+import org.opensearch.common.settings.Setting;
 
 import java.util.EnumMap;
 import java.util.Map;
@@ -19,13 +22,24 @@ import java.util.concurrent.TimeUnit;
 /**
  * Request level search stats to track coordinator level node search latencies
  *
- * @opensearch.internal
+ * @opensearch.api
  */
-public final class SearchRequestStats implements SearchRequestOperationsListener {
+@PublicApi(since = "2.11.0")
+public final class SearchRequestStats extends SearchRequestOperationsListener {
     Map<SearchPhaseName, StatsHolder> phaseStatsMap = new EnumMap<>(SearchPhaseName.class);
 
+    public static final String SEARCH_REQUEST_STATS_ENABLED_KEY = "search.request_stats_enabled";
+    public static final Setting<Boolean> SEARCH_REQUEST_STATS_ENABLED = Setting.boolSetting(
+        SEARCH_REQUEST_STATS_ENABLED_KEY,
+        false,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
     @Inject
-    public SearchRequestStats() {
+    public SearchRequestStats(ClusterSettings clusterSettings) {
+        this.setEnabled(clusterSettings.get(SEARCH_REQUEST_STATS_ENABLED));
+        clusterSettings.addSettingsUpdateConsumer(SEARCH_REQUEST_STATS_ENABLED, this::setEnabled);
         for (SearchPhaseName searchPhaseName : SearchPhaseName.values()) {
             phaseStatsMap.put(searchPhaseName, new StatsHolder());
         }
@@ -44,12 +58,12 @@ public final class SearchRequestStats implements SearchRequestOperationsListener
     }
 
     @Override
-    public void onPhaseStart(SearchPhaseContext context) {
+    void onPhaseStart(SearchPhaseContext context) {
         phaseStatsMap.get(context.getCurrentPhase().getSearchPhaseName()).current.inc();
     }
 
     @Override
-    public void onPhaseEnd(SearchPhaseContext context) {
+    void onPhaseEnd(SearchPhaseContext context, SearchRequestContext searchRequestContext) {
         StatsHolder phaseStats = phaseStatsMap.get(context.getCurrentPhase().getSearchPhaseName());
         phaseStats.current.dec();
         phaseStats.total.inc();
@@ -57,7 +71,7 @@ public final class SearchRequestStats implements SearchRequestOperationsListener
     }
 
     @Override
-    public void onPhaseFailure(SearchPhaseContext context) {
+    void onPhaseFailure(SearchPhaseContext context) {
         phaseStatsMap.get(context.getCurrentPhase().getSearchPhaseName()).current.dec();
     }
 

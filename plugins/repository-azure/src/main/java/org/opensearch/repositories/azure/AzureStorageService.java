@@ -212,8 +212,8 @@ public class AzureStorageService implements AutoCloseable {
 
     /**
      * The location mode is not there in v12 APIs anymore but it is possible to mimic its semantics using
-     * retry options and combination of primary / secondary endpoints. Refer to migration guide for mode details:
-     * https://github.com/Azure/azure-sdk-for-java/blob/main/sdk/storage/azure-storage-blob/migrationGuides/V8_V12.md#miscellaneous
+     * retry options and combination of primary / secondary endpoints. Refer to
+     * <a href="https://github.com/Azure/azure-sdk-for-java/blob/main/sdk/storage/azure-storage-blob/migrationGuides/V8_V12.md#miscellaneous">migration guide</a> for mode details:
      */
     private BlobServiceClientBuilder applyLocationMode(final BlobServiceClientBuilder builder, final AzureStorageSettings settings) {
         final StorageConnectionString storageConnectionString = StorageConnectionString.create(settings.getConnectString(), logger);
@@ -335,8 +335,8 @@ public class AzureStorageService implements AutoCloseable {
     }
 
     /**
-     * Implements HTTP pipeline policy to collect statistics on API calls. See please:
-     * https://github.com/Azure/azure-sdk-for-java/blob/main/sdk/storage/azure-storage-blob/migrationGuides/V8_V12.md#miscellaneous
+     * Implements HTTP pipeline policy to collect statistics on API calls. See :
+     * <a href="https://github.com/Azure/azure-sdk-for-java/blob/main/sdk/storage/azure-storage-blob/migrationGuides/V8_V12.md#miscellaneous">migration guide</a>
      */
     private static class HttpStatsPolicy implements HttpPipelinePolicy {
         private final BiConsumer<HttpRequest, HttpResponse> statsCollector;
@@ -389,6 +389,7 @@ public class AzureStorageService implements AutoCloseable {
         private final AtomicInteger threadNumber = new AtomicInteger(1);
         private final String namePrefix;
 
+        @SuppressWarnings("removal")
         NioThreadFactory() {
             SecurityManager s = System.getSecurityManager();
             group = (s != null) ? s.getThreadGroup() : Thread.currentThread().getThreadGroup();

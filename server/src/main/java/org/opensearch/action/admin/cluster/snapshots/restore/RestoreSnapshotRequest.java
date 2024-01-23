@@ -37,6 +37,7 @@ import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.action.support.clustermanager.ClusterManagerNodeRequest;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.XContentType;
@@ -63,15 +64,19 @@ import static org.opensearch.common.xcontent.support.XContentMapValues.nodeBoole
 /**
  * Restore snapshot request
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class RestoreSnapshotRequest extends ClusterManagerNodeRequest<RestoreSnapshotRequest> implements ToXContentObject {
 
     private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(RestoreSnapshotRequest.class);
 
     /**
      * Enumeration of possible storage types
+     *
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public enum StorageType {
         LOCAL("local"),
         REMOTE_SNAPSHOT("remote_snapshot");
@@ -497,7 +502,7 @@ public class RestoreSnapshotRequest extends ClusterManagerNodeRequest<RestoreSna
      * this is the snapshot that this request restores. If the client can only identify a snapshot by its name then there is a risk that the
      * desired snapshot may be deleted and replaced by a new snapshot with the same name which is inconsistent with the original one. This
      * method lets us fail the restore if the precise snapshot we want is not available.
-     *
+     * <p>
      * This is for internal use only and is not exposed in the REST layer.
      */
     public RestoreSnapshotRequest snapshotUuid(String snapshotUuid) {

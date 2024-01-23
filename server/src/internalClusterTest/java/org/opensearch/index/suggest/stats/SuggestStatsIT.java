@@ -50,7 +50,7 @@ import org.opensearch.search.suggest.SuggestBuilder;
 import org.opensearch.search.suggest.phrase.PhraseSuggestionBuilder;
 import org.opensearch.search.suggest.term.TermSuggestionBuilder;
 import org.opensearch.test.OpenSearchIntegTestCase;
-import org.opensearch.test.ParameterizedOpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -68,10 +68,10 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 @OpenSearchIntegTestCase.ClusterScope(minNumDataNodes = 2)
-public class SuggestStatsIT extends ParameterizedOpenSearchIntegTestCase {
+public class SuggestStatsIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
 
-    public SuggestStatsIT(Settings dynamicSettings) {
-        super(dynamicSettings);
+    public SuggestStatsIT(Settings staticSettings) {
+        super(staticSettings);
     }
 
     @ParametersFactory

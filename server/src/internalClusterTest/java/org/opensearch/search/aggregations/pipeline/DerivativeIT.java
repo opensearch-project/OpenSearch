@@ -51,7 +51,7 @@ import org.opensearch.search.aggregations.metrics.Sum;
 import org.opensearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 import org.opensearch.search.aggregations.support.AggregationPath;
 import org.opensearch.test.OpenSearchIntegTestCase;
-import org.opensearch.test.ParameterizedOpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedDynamicSettingsOpenSearchIntegTestCase;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
@@ -78,7 +78,7 @@ import static org.hamcrest.core.IsNull.notNullValue;
 import static org.hamcrest.core.IsNull.nullValue;
 
 @OpenSearchIntegTestCase.SuiteScopeTestCase
-public class DerivativeIT extends ParameterizedOpenSearchIntegTestCase {
+public class DerivativeIT extends ParameterizedDynamicSettingsOpenSearchIntegTestCase {
 
     private static final String SINGLE_VALUED_FIELD_NAME = "l_value";
 
@@ -693,6 +693,7 @@ public class DerivativeIT extends ParameterizedOpenSearchIntegTestCase {
         }
 
         refresh();
+        indexRandomForConcurrentSearch("movavg_npe");
 
         SearchResponse response = client().prepareSearch("movavg_npe")
             .addAggregation(

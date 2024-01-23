@@ -52,7 +52,7 @@ import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.search.SearchHit;
 import org.opensearch.search.builder.PointInTimeBuilder;
 import org.opensearch.search.sort.SortOrder;
-import org.opensearch.test.ParameterizedOpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 import org.hamcrest.Matchers;
 
 import java.util.ArrayList;
@@ -69,7 +69,7 @@ import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
-public class SearchAfterIT extends ParameterizedOpenSearchIntegTestCase {
+public class SearchAfterIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
     private static final String INDEX_NAME = "test";
     private static final int NUM_DOCS = 100;
 
@@ -220,8 +220,8 @@ public class SearchAfterIT extends ParameterizedOpenSearchIntegTestCase {
             .setPointInTime(new PointInTimeBuilder(pitResponse.getId()))
             .get();
         assertEquals(3, sr.getHits().getHits().length);
-        /**
-         * Add new data and assert PIT results remain the same and normal search results gets refreshed
+        /*
+          Add new data and assert PIT results remain the same and normal search results gets refreshed
          */
         indexRandom(true, client().prepareIndex("test").setId("4").setSource("field1", 102));
         sr = client().prepareSearch()

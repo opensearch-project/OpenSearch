@@ -64,7 +64,7 @@ import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.search.SearchHit;
-import org.opensearch.test.ParameterizedOpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 import org.opensearch.test.VersionUtils;
 import org.junit.BeforeClass;
 
@@ -99,10 +99,10 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
-public class GeoFilterIT extends ParameterizedOpenSearchIntegTestCase {
+public class GeoFilterIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
 
-    public GeoFilterIT(Settings dynamicSettings) {
-        super(dynamicSettings);
+    public GeoFilterIT(Settings staticSettings) {
+        super(staticSettings);
     }
 
     @ParametersFactory
@@ -266,6 +266,7 @@ public class GeoFilterIT extends ParameterizedOpenSearchIntegTestCase {
 
         client().prepareIndex("shapes").setId("1").setSource(data, MediaTypeRegistry.JSON).get();
         client().admin().indices().prepareRefresh().get();
+        indexRandomForConcurrentSearch("shapes");
 
         // Point in polygon
         SearchResponse result = client().prepareSearch()
@@ -427,6 +428,7 @@ public class GeoFilterIT extends ParameterizedOpenSearchIntegTestCase {
 
         client().admin().indices().prepareCreate("countries").setSettings(settings).setMapping(xContentBuilder).get();
         BulkResponse bulk = client().prepareBulk().add(bulkAction, 0, bulkAction.length, null, xContentBuilder.contentType()).get();
+        indexRandomForConcurrentSearch("countries");
 
         for (BulkItemResponse item : bulk.getItems()) {
             assertFalse("unable to index data", item.isFailed());

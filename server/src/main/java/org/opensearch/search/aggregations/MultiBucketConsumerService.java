@@ -32,6 +32,7 @@
 package org.opensearch.search.aggregations;
 
 import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.common.breaker.CircuitBreaker;
@@ -123,8 +124,9 @@ public class MultiBucketConsumerService {
      * It is used by aggregators to limit the number of bucket creation during
      * {@link Aggregator#buildAggregations} and {@link InternalAggregation#reduce}.
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public static class MultiBucketConsumer implements IntConsumer {
         private final int limit;
         private final CircuitBreaker breaker;

@@ -53,7 +53,7 @@ import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.IndexSettings;
-import org.opensearch.index.MergePolicyConfig;
+import org.opensearch.index.MergePolicyProvider;
 import org.opensearch.index.engine.Engine;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.index.shard.ShardPath;
@@ -519,7 +519,7 @@ public class RecoveryFromGatewayIT extends OpenSearchIntegTestCase {
                     .put("number_of_replicas", 1)
 
                     // disable merges to keep segments the same
-                    .put(MergePolicyConfig.INDEX_MERGE_ENABLED, false)
+                    .put(MergePolicyProvider.INDEX_MERGE_ENABLED, false)
 
                     // expire retention leases quickly
                     .put(IndexService.RETENTION_LEASE_SYNC_INTERVAL_SETTING.getKey(), "100ms")

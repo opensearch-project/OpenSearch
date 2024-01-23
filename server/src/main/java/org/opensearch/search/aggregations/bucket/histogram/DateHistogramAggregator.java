@@ -33,6 +33,7 @@ package org.opensearch.search.aggregations.bucket.histogram;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedNumericDocValues;
+import org.apache.lucene.search.CollectionTerminatedException;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.util.CollectionUtil;
 import org.opensearch.common.Nullable;
@@ -47,6 +48,7 @@ import org.opensearch.search.aggregations.InternalAggregation;
 import org.opensearch.search.aggregations.LeafBucketCollector;
 import org.opensearch.search.aggregations.LeafBucketCollectorBase;
 import org.opensearch.search.aggregations.bucket.BucketsAggregator;
+import org.opensearch.search.aggregations.bucket.FastFilterRewriteHelper;
 import org.opensearch.search.aggregations.bucket.terms.LongKeyedBucketOrds;
 import org.opensearch.search.aggregations.support.ValuesSource;
 import org.opensearch.search.aggregations.support.ValuesSourceConfig;
@@ -66,7 +68,6 @@ import java.util.function.BiConsumer;
  * @opensearch.internal
  */
 class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAggregator {
-
     private final ValuesSource.Numeric valuesSource;
     private final DocValueFormat formatter;
     private final Rounding rounding;
@@ -76,12 +77,12 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
     private final Rounding.Prepared preparedRounding;
     private final BucketOrder order;
     private final boolean keyed;
-
     private final long minDocCount;
     private final LongBounds extendedBounds;
     private final LongBounds hardBounds;
-
     private final LongKeyedBucketOrds bucketOrds;
+
+    private final FastFilterRewriteHelper.FastFilterContext fastFilterContext;
 
     DateHistogramAggregator(
         String name,
@@ -99,7 +100,6 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
         CardinalityUpperBound cardinality,
         Map<String, Object> metadata
     ) throws IOException {
-
         super(name, factories, aggregationContext, parent, CardinalityUpperBound.MANY, metadata);
         this.rounding = rounding;
         this.preparedRounding = preparedRounding;
@@ -114,6 +114,30 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
         this.formatter = valuesSourceConfig.format();
 
         bucketOrds = LongKeyedBucketOrds.build(context.bigArrays(), cardinality);
+
+        fastFilterContext = new FastFilterRewriteHelper.FastFilterContext();
+        fastFilterContext.setAggregationType(
+            new FastFilterRewriteHelper.DateHistogramAggregationType(
+                valuesSourceConfig.fieldType(),
+                valuesSourceConfig.missing() != null,
+                valuesSourceConfig.script() != null
+            )
+        );
+        if (fastFilterContext.isRewriteable(parent, subAggregators.length)) {
+            fastFilterContext.buildFastFilter(context, this::computeBounds, x -> rounding, () -> preparedRounding);
+        }
+    }
+
+    private long[] computeBounds(final FastFilterRewriteHelper.DateHistogramAggregationType fieldContext) throws IOException {
+        final long[] bounds = FastFilterRewriteHelper.getAggregationBounds(context, fieldContext.getFieldType().name());
+        if (bounds != null) {
+            // Update min/max limit if user specified any hard bounds
+            if (hardBounds != null) {
+                bounds[0] = Math.max(bounds[0], hardBounds.getMin());
+                bounds[1] = Math.min(bounds[1], hardBounds.getMax() - 1); // hard bounds max is exclusive
+            }
+        }
+        return bounds;
     }
 
     @Override
@@ -129,6 +153,17 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
         if (valuesSource == null) {
             return LeafBucketCollector.NO_OP_COLLECTOR;
         }
+
+        boolean optimized = FastFilterRewriteHelper.tryFastFilterAggregation(
+            ctx,
+            fastFilterContext,
+            (key, count) -> incrementBucketDocCount(
+                FastFilterRewriteHelper.getBucketOrd(bucketOrds.add(0, preparedRounding.round(key))),
+                count
+            )
+        );
+        if (optimized) throw new CollectionTerminatedException();
+
         SortedNumericDocValues values = valuesSource.longValues(ctx);
         return new LeafBucketCollectorBase(sub, values) {
             @Override
@@ -216,9 +251,7 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
     }
 
     /**
-     * Returns the size of the bucket in specified units.
-     *
-     * If unitSize is null, returns 1.0
+     * @return the size of the bucket in specified units, or 1.0 if unitSize is null
      */
     @Override
     public double bucketSize(long bucket, Rounding.DateTimeUnit unitSize) {

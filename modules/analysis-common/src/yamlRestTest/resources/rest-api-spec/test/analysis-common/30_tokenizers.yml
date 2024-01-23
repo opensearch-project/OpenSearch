@@ -298,6 +298,9 @@
 
 ---
 "path_hierarchy":
+    - skip:
+        features: "allowed_warnings"
+
     - do:
         indices.analyze:
           body:
@@ -312,6 +315,8 @@
     - match:  { detail.tokenizer.tokens.2.token: a/b/c }
 
     - do:
+        allowed_warnings:
+          - 'The [PathHierarchy] tokenizer name is deprecated and will be removed in a future version. Please change the tokenizer name to [path_hierarchy] instead.'
         indices.analyze:
           body:
             text: "a/b/c"
@@ -337,11 +342,13 @@
     - match:  { detail.tokenizer.tokens.2.token: a/b/c }
 
     - do:
+        allowed_warnings:
+          - 'The [PathHierarchy] tokenizer name is deprecated and will be removed in a future version. Please change the tokenizer name to [path_hierarchy] instead.'
         indices.analyze:
           body:
             text: "a/b/c"
             explain: true
-            tokenizer:  PathHierarchy
+            tokenizer: PathHierarchy
     - length: { detail.tokenizer.tokens: 3 }
     - match:  { detail.tokenizer.name: PathHierarchy }
     - match:  { detail.tokenizer.tokens.0.token: a }

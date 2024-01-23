@@ -56,7 +56,7 @@ import org.opensearch.search.sort.NestedSortBuilder;
 import org.opensearch.search.sort.SortBuilders;
 import org.opensearch.search.sort.SortMode;
 import org.opensearch.search.sort.SortOrder;
-import org.opensearch.test.ParameterizedOpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -77,10 +77,10 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.startsWith;
 
-public class SimpleNestedIT extends ParameterizedOpenSearchIntegTestCase {
+public class SimpleNestedIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
 
-    public SimpleNestedIT(Settings dynamicSettings) {
-        super(dynamicSettings);
+    public SimpleNestedIT(Settings staticSettings) {
+        super(staticSettings);
     }
 
     @ParametersFactory
@@ -126,6 +126,7 @@ public class SimpleNestedIT extends ParameterizedOpenSearchIntegTestCase {
             .get();
 
         waitForRelocation(ClusterHealthStatus.GREEN);
+        indexRandomForConcurrentSearch("test");
         GetResponse getResponse = client().prepareGet("test", "1").get();
         assertThat(getResponse.isExists(), equalTo(true));
         assertThat(getResponse.getSourceAsBytes(), notNullValue());
@@ -293,6 +294,7 @@ public class SimpleNestedIT extends ParameterizedOpenSearchIntegTestCase {
         refresh();
         // check the numDocs
         assertDocumentCount("test", 7);
+        indexRandomForConcurrentSearch("test");
 
         // do some multi nested queries
         SearchResponse searchResponse = client().prepareSearch("test")
@@ -453,7 +455,13 @@ public class SimpleNestedIT extends ParameterizedOpenSearchIntegTestCase {
         assertDocumentCount("test", 6);
     }
 
-    public void testExplain() throws Exception {
+    /*
+    * Tests the explain output for single doc. Concurrent search with only slice 1 is tested
+    * here as call to indexRandomForMultipleSlices has implications on the range of child docs
+    * in the explain output. Separate test class is created to test explain for multiple slices
+    * case in concurrent search, refer {@link SimpleNestedExplainIT}
+    * */
+    public void testExplainWithSingleDoc() throws Exception {
         assertAcked(
             prepareCreate("test").setMapping(
                 jsonBuilder().startObject()
@@ -567,6 +575,7 @@ public class SimpleNestedIT extends ParameterizedOpenSearchIntegTestCase {
             )
             .get();
         refresh();
+        indexRandomForConcurrentSearch("test");
 
         SearchResponse searchResponse = client().prepareSearch("test")
             .setQuery(QueryBuilders.matchAllQuery())
@@ -675,6 +684,7 @@ public class SimpleNestedIT extends ParameterizedOpenSearchIntegTestCase {
             )
             .get();
         refresh();
+        indexRandomForConcurrentSearch("test");
 
         SearchRequestBuilder searchRequestBuilder = client().prepareSearch("test")
             .setQuery(QueryBuilders.matchAllQuery())
@@ -863,6 +873,7 @@ public class SimpleNestedIT extends ParameterizedOpenSearchIntegTestCase {
             )
             .get();
         refresh();
+        indexRandomForConcurrentSearch("test");
 
         // access id = 1, read, max value, asc, should use grault and quxx
         SearchResponse searchResponse = client().prepareSearch()
@@ -1035,6 +1046,7 @@ public class SimpleNestedIT extends ParameterizedOpenSearchIntegTestCase {
             .get();
 
         refresh();
+        indexRandomForConcurrentSearch("test");
 
         SearchResponse searchResponse = client().prepareSearch()
             .setQuery(termQuery("_id", 2))
@@ -1215,6 +1227,7 @@ public class SimpleNestedIT extends ParameterizedOpenSearchIntegTestCase {
             )
             .get();
         refresh();
+        indexRandomForConcurrentSearch("test");
 
         // Without nested filter
         SearchResponse searchResponse = client().prepareSearch()
@@ -1595,6 +1608,7 @@ public class SimpleNestedIT extends ParameterizedOpenSearchIntegTestCase {
             .get();
         assertTrue(indexResponse2.getShardInfo().getSuccessful() > 0);
         refresh();
+        indexRandomForConcurrentSearch("test");
 
         SearchResponse searchResponse = client().prepareSearch("test")
             .addSort(SortBuilders.fieldSort("users.first").setNestedPath("users").order(SortOrder.ASC))
@@ -1627,6 +1641,7 @@ public class SimpleNestedIT extends ParameterizedOpenSearchIntegTestCase {
         client().prepareIndex("test").setId("1").setSource("field", "value").get();
         refresh();
         ensureSearchable("test");
+        indexRandomForConcurrentSearch("test");
 
         // No nested mapping yet, there shouldn't be anything in the fixed bit set cache
         ClusterStatsResponse clusterStatsResponse = client().admin().cluster().prepareClusterStats().get();

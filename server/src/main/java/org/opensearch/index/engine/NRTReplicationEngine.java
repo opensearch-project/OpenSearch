@@ -13,6 +13,7 @@ import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.SoftDeletesDirectoryReaderWrapper;
 import org.apache.lucene.search.ReferenceManager;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.lucene.index.OpenSearchDirectoryReader;
@@ -51,8 +52,9 @@ import static org.opensearch.index.seqno.SequenceNumbers.MAX_SEQ_NO;
  * is enabled.  This Engine does not create an IndexWriter, rather it refreshes a {@link NRTReplicationReaderManager}
  * with new Segments when received from an external source.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class NRTReplicationEngine extends Engine {
 
     private volatile SegmentInfos lastCommittedSegmentInfos;
@@ -123,7 +125,7 @@ public class NRTReplicationEngine extends Engine {
                 },
                 this,
                 engineConfig.getTranslogFactory(),
-                engineConfig.getPrimaryModeSupplier()
+                engineConfig.getStartedPrimarySupplier()
             );
             this.translogManager = translogManagerRef;
             success = true;
@@ -180,7 +182,7 @@ public class NRTReplicationEngine extends Engine {
 
     /**
      * Persist the latest live SegmentInfos.
-     *
+     * <p>
      * This method creates a commit point from the latest SegmentInfos.
      *
      * @throws IOException - When there is an IO error committing the SegmentInfos.
@@ -379,6 +381,7 @@ public class NRTReplicationEngine extends Engine {
             try {
                 commitSegmentInfos();
             } catch (IOException e) {
+                maybeFailEngine("flush", e);
                 throw new FlushFailedEngineException(shardId, e);
             } finally {
                 flushLock.unlock();
@@ -437,13 +440,29 @@ public class NRTReplicationEngine extends Engine {
                     latestSegmentInfos.counter = latestSegmentInfos.counter + SI_COUNTER_INCREMENT;
                     latestSegmentInfos.changed();
                 }
-                commitSegmentInfos(latestSegmentInfos);
-                IOUtils.close(readerManager, translogManager, store::decRef);
+                try {
+                    commitSegmentInfos(latestSegmentInfos);
+                } catch (IOException e) {
+                    // mark the store corrupted unless we are closing as result of engine failure.
+                    // in this case Engine#failShard will handle store corruption.
+                    if (failEngineLock.isHeldByCurrentThread() == false && store.isMarkedCorrupted() == false) {
+                        try {
+                            store.markStoreCorrupted(e);
+                        } catch (IOException ex) {
+                            logger.warn("Unable to mark store corrupted", ex);
+                        }
+                    }
+                }
+                IOUtils.close(readerManager, translogManager);
             } catch (Exception e) {
-                logger.warn("failed to close engine", e);
+                logger.error("failed to close engine", e);
             } finally {
-                logger.debug("engine closed [{}]", reason);
-                closedLatch.countDown();
+                try {
+                    store.decRef();
+                    logger.debug("engine closed [{}]", reason);
+                } finally {
+                    closedLatch.countDown();
+                }
             }
         }
     }
