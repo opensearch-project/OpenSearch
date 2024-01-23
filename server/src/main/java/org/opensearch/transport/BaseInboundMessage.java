@@ -8,8 +8,17 @@
 
 package org.opensearch.transport;
 
+/**
+ * Base class for inbound data as a message.
+ * Different implementations are used for different protocols.
+ *
+ * @opensearch.internal
+ */
 public interface BaseInboundMessage {
 
+    /**
+     * The protocol used to encode this message
+     */
     enum Protocol {
         DEFAULT,
         PROTOBUF,
@@ -21,7 +30,7 @@ public interface BaseInboundMessage {
     public Protocol getProtocol();
 
     /**
-     * set the protocol used to encode this message
+     * Set the protocol used to encode this message
      */
     public void setProtocol();
 }

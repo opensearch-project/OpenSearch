@@ -328,7 +328,6 @@ public class MockNioTransport extends TcpTransport {
                 breaker,
                 requestHandlers::getHandler,
                 transport::inboundMessage
-                // transport::inboundMessageProtobuf
             );
         }
 

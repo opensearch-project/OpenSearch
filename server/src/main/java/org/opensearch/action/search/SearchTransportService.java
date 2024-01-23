@@ -70,6 +70,7 @@ import org.opensearch.transport.TransportActionProxy;
 import org.opensearch.transport.TransportException;
 import org.opensearch.transport.TransportRequest;
 import org.opensearch.transport.TransportRequestOptions;
+import org.opensearch.transport.TransportResponseHandler;
 import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
@@ -244,30 +245,22 @@ public class SearchTransportService {
         // we optimize this and expect a QueryFetchSearchResult if we only have a single shard in the search request
         // this used to be the QUERY_AND_FETCH which doesn't exist anymore.
         final boolean fetchDocuments = request.numberOfShards() == 1;
+        final ActionListener handler = responseWrapper.apply(connection, listener);
+        TransportResponseHandler transportResponseHandler;
         // System.setProperty(FeatureFlags.PROTOBUF, "true");
         if (FeatureFlags.isEnabled(FeatureFlags.PROTOBUF_SETTING)) {
             ProtobufWriteable.Reader<SearchPhaseResult> reader = fetchDocuments ? QueryFetchSearchResult::new : QuerySearchResult::new;
-
-            final ActionListener handler = responseWrapper.apply(connection, listener);
-            transportService.sendChildRequest(
-                connection,
-                QUERY_ACTION_NAME,
-                request,
-                task,
-                new ProtobufConnectionCountingHandler<>(handler, reader, clientConnections, connection.getNode().getId())
+            transportResponseHandler = new ProtobufConnectionCountingHandler<>(
+                handler,
+                reader,
+                clientConnections,
+                connection.getNode().getId()
             );
         } else {
             Writeable.Reader<SearchPhaseResult> reader = fetchDocuments ? QueryFetchSearchResult::new : QuerySearchResult::new;
-
-            final ActionListener handler = responseWrapper.apply(connection, listener);
-            transportService.sendChildRequest(
-                connection,
-                QUERY_ACTION_NAME,
-                request,
-                task,
-                new ConnectionCountingHandler<>(handler, reader, clientConnections, connection.getNode().getId())
-            );
+            transportResponseHandler = new ConnectionCountingHandler<>(handler, reader, clientConnections, connection.getNode().getId());
         }
+        transportService.sendChildRequest(connection, QUERY_ACTION_NAME, request, task, transportResponseHandler);
     }
 
     public void sendExecuteQuery(
