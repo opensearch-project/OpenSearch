@@ -32,11 +32,21 @@ public class TopQueries extends BaseNodeResponse implements ToXContentObject {
     @Nullable
     private final List<SearchQueryLatencyRecord> latencyRecords;
 
+    /**
+     * Create the TopQueries Object from StreamInput
+     * @param in A {@link StreamInput} object.
+     * @throws IOException IOException
+     */
     public TopQueries(StreamInput in) throws IOException {
         super(in);
         latencyRecords = in.readList(SearchQueryLatencyRecord::new);
     }
 
+    /**
+     * Create the TopQueries Object
+     * @param node A node that is part of the cluster.
+     * @param latencyRecords The top queries by latency records stored on this node
+     */
     public TopQueries(DiscoveryNode node, @Nullable List<SearchQueryLatencyRecord> latencyRecords) {
         super(node);
         this.latencyRecords = latencyRecords;

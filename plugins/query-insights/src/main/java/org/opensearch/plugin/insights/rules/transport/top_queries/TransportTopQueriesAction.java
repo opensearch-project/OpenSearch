@@ -43,6 +43,15 @@ public class TransportTopQueriesAction extends TransportNodesAction<
 
     private final TopQueriesByLatencyService topQueriesByLatencyService;
 
+    /**
+     * Create the TransportTopQueriesAction Object
+
+     * @param threadPool The OpenSearch thread pool to run async tasks
+     * @param clusterService The clusterService of this node
+     * @param transportService The TransportService of this node
+     * @param topQueriesByLatencyService The topQueriesByLatencyService associated with this Transport Action
+     * @param actionFilters the action filters
+     */
     @Inject
     public TransportTopQueriesAction(
         ThreadPool threadPool,
@@ -113,11 +122,20 @@ public class TransportTopQueriesAction extends TransportNodesAction<
 
         TopQueriesRequest request;
 
+        /**
+         * Create the NodeResponse object from StreamInput
+         * @param in the StreamInput to read the object
+         * @throws IOException IOException
+         */
         public NodeRequest(StreamInput in) throws IOException {
             super(in);
             request = new TopQueriesRequest(in);
         }
 
+        /**
+         * Create the NodeResponse object from a TopQueriesRequest
+         * @param request the TopQueriesRequest object
+         */
         public NodeRequest(TopQueriesRequest request) {
             this.request = request;
         }

@@ -15,7 +15,6 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.plugin.insights.core.service.TopQueriesByLatencyService;
 import org.opensearch.plugin.insights.rules.action.top_queries.TopQueriesRequest;
 import org.opensearch.plugin.insights.rules.action.top_queries.TopQueriesResponse;
-import org.opensearch.plugin.insights.rules.transport.top_queries.TransportTopQueriesAction;
 import org.opensearch.plugin.insights.settings.QueryInsightsSettings;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.ThreadPool;

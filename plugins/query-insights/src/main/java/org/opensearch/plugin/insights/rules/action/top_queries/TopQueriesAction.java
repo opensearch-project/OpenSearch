@@ -17,7 +17,13 @@ import org.opensearch.action.ActionType;
  */
 public class TopQueriesAction extends ActionType<TopQueriesResponse> {
 
+    /**
+     * The TopQueriesAction Instance.
+     */
     public static final TopQueriesAction INSTANCE = new TopQueriesAction();
+    /**
+     * The name of this Action
+     */
     public static final String NAME = "cluster:monitor/insights/top_queries";
 
     private TopQueriesAction() {
