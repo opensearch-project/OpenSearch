@@ -233,8 +233,11 @@ class OpenSearchTestClusterRule implements MethodRule {
         return clazz.getAnnotation(SuiteScopeTestCase.class) != null;
     }
 
-    private static boolean hasParametersChanged(final OpenSearchIntegTestCase instance, final ParameterizedOpenSearchIntegTestCase target) {
-        return !((ParameterizedOpenSearchIntegTestCase) instance).hasSameParametersAs(target);
+    private static boolean hasParametersChanged(
+        final ParameterizedOpenSearchIntegTestCase instance,
+        final ParameterizedOpenSearchIntegTestCase target
+    ) {
+        return !instance.hasSameParametersAs(target);
     }
 
     private boolean runTestScopeLifecycle() {
@@ -387,7 +390,10 @@ class OpenSearchTestClusterRule implements MethodRule {
             // Catching the case when parameterized test cases are run: the test class stays the same but the test instances changes.
             if (target instanceof ParameterizedOpenSearchIntegTestCase) {
                 assert suiteInstance instanceof ParameterizedOpenSearchIntegTestCase;
-                if (hasParametersChanged(suiteInstance, (ParameterizedOpenSearchIntegTestCase) target)) {
+                if (hasParametersChanged(
+                    (ParameterizedOpenSearchIntegTestCase) suiteInstance,
+                    (ParameterizedOpenSearchIntegTestCase) target
+                )) {
                     printTestMessage("new instance of parameterized test class, recreating cluster scope", method);
                     afterClass();
                     beforeClass();
