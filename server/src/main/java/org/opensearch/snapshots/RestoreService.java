@@ -120,7 +120,9 @@ import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_HISTORY_UUID
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_INDEX_UUID;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_SEGMENT_STORE_REPOSITORY;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_STORE_ENABLED;
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REPLICATION_TYPE;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_VERSION_CREATED;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_VERSION_UPGRADED;
@@ -160,20 +162,29 @@ public class RestoreService implements ClusterStateApplier {
 
     private static final Logger logger = LogManager.getLogger(RestoreService.class);
 
-    private static final Set<String> UNMODIFIABLE_SETTINGS = unmodifiableSet(
-        newHashSet(SETTING_NUMBER_OF_SHARDS, SETTING_VERSION_CREATED, SETTING_INDEX_UUID, SETTING_CREATION_DATE, SETTING_HISTORY_UUID)
+    private static final Set<String> USER_UNMODIFIABLE_SETTINGS = unmodifiableSet(
+        newHashSet(
+            SETTING_NUMBER_OF_SHARDS,
+            SETTING_VERSION_CREATED,
+            SETTING_INDEX_UUID,
+            SETTING_CREATION_DATE,
+            SETTING_HISTORY_UUID,
+            SETTING_REMOTE_STORE_ENABLED,
+            SETTING_REMOTE_SEGMENT_STORE_REPOSITORY,
+            SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY
+        )
     );
 
     // It's OK to change some settings, but we shouldn't allow simply removing them
-    private static final Set<String> UNREMOVABLE_SETTINGS;
+    private static final Set<String> USER_UNREMOVABLE_SETTINGS;
 
     static {
-        Set<String> unremovable = new HashSet<>(UNMODIFIABLE_SETTINGS.size() + 4);
-        unremovable.addAll(UNMODIFIABLE_SETTINGS);
+        Set<String> unremovable = new HashSet<>(USER_UNMODIFIABLE_SETTINGS.size() + 4);
+        unremovable.addAll(USER_UNMODIFIABLE_SETTINGS);
         unremovable.add(SETTING_NUMBER_OF_REPLICAS);
         unremovable.add(SETTING_AUTO_EXPAND_REPLICAS);
         unremovable.add(SETTING_VERSION_UPGRADED);
-        UNREMOVABLE_SETTINGS = unmodifiableSet(unremovable);
+        USER_UNREMOVABLE_SETTINGS = unmodifiableSet(unremovable);
     }
 
     private final ClusterService clusterService;
@@ -378,13 +389,15 @@ public class RestoreService implements ClusterStateApplier {
 
                                 IndexId snapshotIndexId = repositoryData.resolveIndexId(index);
 
-                                final Settings updatedRequestSettings = getUpdatedRequestSettings();
-                                final String[] updatedIgnoredSettings = getUpdatedIgnoredSettings();
+                                final Settings overrideSettingsInternal = getOverrideSettingsInternal();
+                                final String[] ignoreSettingsInternal = getIgnoreSettingsInternal();
 
                                 IndexMetadata snapshotIndexMetadata = updateIndexSettings(
                                     metadata.index(index),
-                                    updatedRequestSettings,
-                                    updatedIgnoredSettings
+                                    request.indexSettings(),
+                                    request.ignoreIndexSettings(),
+                                    overrideSettingsInternal,
+                                    ignoreSettingsInternal
                                 );
                                 if (isRemoteSnapshot) {
                                     snapshotIndexMetadata = addSnapshotToIndexSettings(snapshotIndexMetadata, snapshot, snapshotIndexId);
@@ -651,18 +664,18 @@ public class RestoreService implements ClusterStateApplier {
                         }
                     }
 
-                    private String[] getUpdatedIgnoredSettings() {
+                    private String[] getIgnoreSettingsInternal() {
                         // for non-remote store enabled domain, we will remove all the remote store
                         // related index settings present in the snapshot.
-                        String[] indexSettingsToBeIgnored = request.ignoreIndexSettings();
+                        String[] indexSettingsToBeIgnored = new String[] {};
                         if (false == RemoteStoreNodeAttribute.isRemoteStoreAttributePresent(clusterService.getSettings())) {
                             indexSettingsToBeIgnored = ArrayUtils.concat(indexSettingsToBeIgnored, new String[] { "index.remote_store.*" });
                         }
                         return indexSettingsToBeIgnored;
                     }
 
-                    private Settings getUpdatedRequestSettings() {
-                        final Settings.Builder settingsBuilder = Settings.builder().put(request.indexSettings());
+                    private Settings getOverrideSettingsInternal() {
+                        final Settings.Builder settingsBuilder = Settings.builder();
                         updateReplicationStrategy(
                             settingsBuilder,
                             request.indexSettings(),
@@ -766,7 +779,9 @@ public class RestoreService implements ClusterStateApplier {
                     private IndexMetadata updateIndexSettings(
                         IndexMetadata indexMetadata,
                         Settings changeSettings,
-                        String[] ignoreSettings
+                        String[] ignoreSettings,
+                        Settings changeSettingsInternal,
+                        String[] ignoreSettingsInternal
                     ) {
                         Settings normalizedChangeSettings = Settings.builder()
                             .put(changeSettings)
@@ -786,7 +801,7 @@ public class RestoreService implements ClusterStateApplier {
                         List<String> simpleMatchPatterns = new ArrayList<>();
                         for (String ignoredSetting : ignoreSettings) {
                             if (!Regex.isSimpleMatchPattern(ignoredSetting)) {
-                                if (UNREMOVABLE_SETTINGS.contains(ignoredSetting)) {
+                                if (USER_UNREMOVABLE_SETTINGS.contains(ignoredSetting)) {
                                     throw new SnapshotRestoreException(
                                         snapshot,
                                         "cannot remove setting [" + ignoredSetting + "] on restore"
@@ -798,8 +813,18 @@ public class RestoreService implements ClusterStateApplier {
                                 simpleMatchPatterns.add(ignoredSetting);
                             }
                         }
+
+                        // add internal settings to ignore settings list
+                        for (String ignoredSetting : ignoreSettingsInternal) {
+                            if (!Regex.isSimpleMatchPattern(ignoredSetting)) {
+                                keyFilters.add(ignoredSetting);
+                            } else {
+                                simpleMatchPatterns.add(ignoredSetting);
+                            }
+                        }
+
                         Predicate<String> settingsFilter = k -> {
-                            if (UNREMOVABLE_SETTINGS.contains(k) == false) {
+                            if (USER_UNREMOVABLE_SETTINGS.contains(k) == false) {
                                 for (String filterKey : keyFilters) {
                                     if (k.equals(filterKey)) {
                                         return false;
@@ -816,12 +841,17 @@ public class RestoreService implements ClusterStateApplier {
                         Settings.Builder settingsBuilder = Settings.builder()
                             .put(settings.filter(settingsFilter))
                             .put(normalizedChangeSettings.filter(k -> {
-                                if (UNMODIFIABLE_SETTINGS.contains(k)) {
+                                if (USER_UNMODIFIABLE_SETTINGS.contains(k)) {
                                     throw new SnapshotRestoreException(snapshot, "cannot modify setting [" + k + "] on restore");
                                 } else {
                                     return true;
                                 }
                             }));
+
+                        // override internal settings
+                        if (changeSettingsInternal != null) {
+                            settingsBuilder.put(changeSettingsInternal).normalizePrefix(IndexMetadata.INDEX_SETTING_PREFIX);
+                        }
                         settingsBuilder.remove(MetadataIndexStateService.VERIFIED_BEFORE_CLOSE_SETTING.getKey());
                         return builder.settings(settingsBuilder).build();
                     }
