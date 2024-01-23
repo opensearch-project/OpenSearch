@@ -816,7 +816,8 @@ public final class SearchableSnapshotIT extends AbstractSnapshotIntegTestCase {
                 .setRenamePattern("(.+)")
                 .setRenameReplacement("$1-copy")
                 .setIndexSettings(
-                    Settings.builder().put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), RestoreSnapshotRequest.StorageType.REMOTE_SNAPSHOT)
+                    Settings.builder()
+                        .put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), RestoreSnapshotRequest.StorageType.REMOTE_SNAPSHOT)
                 )
                 .setWaitForCompletion(true)
                 .execute()
