@@ -11,6 +11,7 @@ package org.opensearch.index.store.lockmanager;
 import org.opensearch.common.annotation.PublicApi;
 
 import java.io.IOException;
+import java.util.Collection;
 
 /**
  * An Interface that defines Remote Store Lock Manager.
@@ -42,6 +43,8 @@ public interface RemoteStoreLockManager {
      * @throws IOException throws exception in case there is a problem in checking if a given file is locked or not.
      */
     Boolean isAcquired(LockInfo lockInfo) throws IOException;
+
+    public Collection<String> listAllLocks(String prefix) throws IOException;
 
     /**
      * Acquires lock on the file mentioned in originalLockInfo for acquirer mentioned in clonedLockInfo.

@@ -101,6 +101,10 @@ public class RemoteStoreMetadataLockManager implements RemoteStoreLockManager {
         return !lockFiles.isEmpty();
     }
 
+    public Collection<String> listAllLocks(String prefix) throws IOException {
+        return lockDirectory.listFilesByPrefix(prefix);
+    }
+
     /**
      * Acquires lock on the file mentioned in originalLockInfo for acquirer mentioned in clonedLockInfo.
      * Snapshot layer enforces thread safety by having checks in place to ensure that the source snapshot is not being deleted before proceeding

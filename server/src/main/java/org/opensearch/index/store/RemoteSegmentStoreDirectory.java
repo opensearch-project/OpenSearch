@@ -749,20 +749,16 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
             lastNMetadataFilesToKeep,
             sortedMetadataFileList.size()
         );
-        List<String> metadataFilesToBeDeleted = metadataFilesEligibleToDelete.stream().filter(metadataFile -> {
-            try {
-                return !isLockAcquired(metadataFile);
-            } catch (IOException e) {
-                logger.error(
-                    "skipping metadata file ("
-                        + metadataFile
-                        + ") deletion for this run,"
-                        + " as checking lock for metadata is failing with error: "
-                        + e
-                );
-                return false;
-            }
-        }).collect(Collectors.toList());
+        Set<String> allLockFiles;
+        try {
+            allLockFiles = new HashSet<>(mdLockManager.listAllLocks(MetadataFilenameUtils.METADATA_PREFIX));
+        } catch (Exception e) {
+            logger.error("Exception while fetching segment metadata lock files, skipping deleteStaleSegments", e);
+            return;
+        }
+        List<String> metadataFilesToBeDeleted = metadataFilesEligibleToDelete.stream()
+            .filter(metadataFile -> allLockFiles.contains(metadataFile) == false)
+            .collect(Collectors.toList());
 
         sortedMetadataFileList.removeAll(metadataFilesToBeDeleted);
         logger.debug(
