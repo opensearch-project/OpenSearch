@@ -35,10 +35,11 @@ package org.opensearch.search.aggregations.bucket.terms;
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.index.Terms;
-import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
@@ -49,6 +50,7 @@ import org.opensearch.common.util.LongArray;
 import org.opensearch.common.util.LongHash;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.index.mapper.DocCountFieldMapper;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.aggregations.AggregationExecutionException;
 import org.opensearch.search.aggregations.Aggregator;
@@ -64,7 +66,6 @@ import org.opensearch.search.aggregations.bucket.LocalBucketCountThresholds;
 import org.opensearch.search.aggregations.bucket.terms.SignificanceLookup.BackgroundFrequencyForBytes;
 import org.opensearch.search.aggregations.bucket.terms.heuristic.SignificanceHeuristic;
 import org.opensearch.search.aggregations.support.ValuesSource;
-import org.opensearch.search.aggregations.support.ValuesSource.Bytes.WithOrdinals;
 import org.opensearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -78,6 +79,7 @@ import java.util.logging.Logger;
 
 import static org.opensearch.search.aggregations.InternalOrder.isKeyOrder;
 import static org.apache.lucene.index.SortedSetDocValues.NO_MORE_ORDS;
+import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
 
 /**
  * An aggregator of string values that relies on global ordinals in order to build buckets.
@@ -93,6 +95,8 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
 
     private final LongPredicate acceptedGlobalOrdinals;
     private final long valueCount;
+
+    private final String fieldName;
 
     private Weight weight;
     private final GlobalOrdLookupFunction lookupGlobalOrd;
@@ -146,6 +150,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
                 return new DenseGlobalOrds();
             });
         }
+        this.fieldName = ((ValuesSource.Bytes.WithOrdinals.FieldData) valuesSource).indexFieldData.getFieldName();
     }
 
     String descriptCollectionStrategy() {
@@ -156,22 +161,80 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         this.weight = weight;
     }
 
+    /**
+     Collects term frequencies for a given field from a LeafReaderContext.
+     @param ctx The LeafReaderContext to collect terms from
+     @param ords The SortedSetDocValues for the field's ordinals
+     @param ordCountConsumer A consumer to accept collected term frequencies
+     @return A LeafBucketCollector implementation that throws an exception, since collection is complete
+     @throws IOException If an I/O error occurs during reading */
+    LeafBucketCollector termDocFreqCollector(LeafReaderContext ctx, SortedSetDocValues ords, BiConsumer<Long, Integer> ordCountConsumer)
+        throws IOException {
+        // long n0 = System.nanoTime(), n1, n2, n3, n4, n5 = 0;
+        if (weight.count(ctx) != ctx.reader().maxDoc()) {
+            // Top-level query does not match all docs in this segment.
+            return null;
+        }
+        // n1 = System.nanoTime();
+
+        Terms aggTerms = ctx.reader().terms(this.fieldName);
+        if (aggTerms == null) {
+            // Field is not indexed.
+            return null;
+        }
+        // n2 = System.nanoTime();
+        NumericDocValues docCountValues = DocValues.getNumeric(ctx.reader(), DocCountFieldMapper.NAME);
+        if (docCountValues.nextDoc() != NO_MORE_DOCS) {
+            // This segment has at least one document with the _doc_count field.
+            return null;
+        }
+        // n3 = System.nanoTime();
+        TermsEnum indexTermsEnum = aggTerms.iterator();
+        BytesRef indexTerm = indexTermsEnum.next();
+        TermsEnum ordinalTermsEnum = ords.termsEnum();
+        BytesRef ordinalTerm = ordinalTermsEnum.next();
+        // n4 = System.nanoTime();
+        while (indexTerm != null && ordinalTerm != null) {
+            int compare = indexTerm.compareTo(ordinalTerm);
+            if (compare == 0) {
+                if (acceptedGlobalOrdinals.test(ordinalTermsEnum.ord())) {
+                    ordCountConsumer.accept(ordinalTermsEnum.ord(), indexTermsEnum.docFreq());
+                }
+                indexTerm = indexTermsEnum.next();
+                ordinalTerm = ordinalTermsEnum.next();
+            } else if (compare < 0) {
+                indexTerm = indexTermsEnum.next();
+            } else {
+                ordinalTerm = ordinalTermsEnum.next();
+            }
+            // n5 = System.nanoTime();
+        }
+        // logger.info((n1 - n0) + " " + (n2 - n1) + " " + (n3 - n2) + " " + (n4 - n3) + " " + (n5 - n4));
+        // return new LeafBucketCollector() {
+        // @Override
+        // public void collect(int doc, long owningBucketOrd) {
+        // throw new CollectionTerminatedException();
+        // }
+        // };
+        return LeafBucketCollector.NO_OP_COLLECTOR;
+    }
+
     @Override
     public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub) throws IOException {
-        if (weight != null && weight.getQuery() instanceof MatchAllDocsQuery) {
-            if ((weight.count(ctx) == 0)
-                && Terms.getTerms(ctx.reader(), String.valueOf(((WithOrdinals.FieldData) valuesSource).indexFieldData.getFieldName()))
-                    .size() == 0) {
-                return LeafBucketCollector.NO_OP_COLLECTOR;
-                // } else if (weight.count(ctx) == ctx.reader().maxDoc() && weight.getQuery() instanceof MatchAllDocsQuery) {
-                // no deleted documents & top level query matches everything
-                // iterate over the terms - doc frequency for each termsEnum directly
-                // return appropriate LeafCollector
+        SortedSetDocValues globalOrds = valuesSource.globalOrdinalsValues(ctx);
+        collectionStrategy.globalOrdsReady(globalOrds);
+
+        if (collectionStrategy instanceof DenseGlobalOrds && sub == LeafBucketCollector.NO_OP_COLLECTOR) {
+            LeafBucketCollector termDocFreqCollector = termDocFreqCollector(
+                ctx,
+                globalOrds,
+                (o, c) -> incrementBucketDocCount(collectionStrategy.globalOrdToBucketOrd(0, o), c)
+            );
+            if (termDocFreqCollector != null) {
+                return termDocFreqCollector;
             }
         }
 
-        SortedSetDocValues globalOrds = valuesSource.globalOrdinalsValues(ctx);
-        collectionStrategy.globalOrdsReady(globalOrds);
         SortedDocValues singleValues = DocValues.unwrapSingleton(globalOrds);
         if (singleValues != null) {
             segmentsWithSingleValuedOrds++;
@@ -369,6 +432,16 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
             final SortedSetDocValues segmentOrds = valuesSource.ordinalsValues(ctx);
             segmentDocCounts = context.bigArrays().grow(segmentDocCounts, 1 + segmentOrds.getValueCount());
             assert sub == LeafBucketCollector.NO_OP_COLLECTOR;
+
+            LeafBucketCollector termDocFreqCollector = this.termDocFreqCollector(
+                ctx,
+                segmentOrds,
+                (o, c) -> segmentDocCounts.increment(o + 1, c)
+            );
+            if (termDocFreqCollector != null) {
+                return termDocFreqCollector;
+            }
+
             final SortedDocValues singleValues = DocValues.unwrapSingleton(segmentOrds);
             mapping = valuesSource.globalOrdinalsMapping(ctx);
             // Dense mode doesn't support include/exclude so we don't have to check it here.
