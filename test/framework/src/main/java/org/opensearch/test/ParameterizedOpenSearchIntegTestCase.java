@@ -35,7 +35,8 @@ abstract class ParameterizedOpenSearchIntegTestCase extends OpenSearchIntegTestC
 
     // This method shouldn't be called in setupSuiteScopeCluster(). Only call this method inside single test.
     public void indexRandomForConcurrentSearch(String... indices) throws InterruptedException {
-        if (settings.get(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey()).equals("true")) {
+        String isConcurrentSegmentSearchEnabled = settings.get(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey());
+        if (isConcurrentSegmentSearchEnabled != null && isConcurrentSegmentSearchEnabled.equals("true")) {
             indexRandomForMultipleSlices(indices);
         }
     }

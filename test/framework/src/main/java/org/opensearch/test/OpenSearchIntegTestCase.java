@@ -2364,52 +2364,55 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
      * Checks if replica shards caught up with primary shard when Segment Replication is enabled.
      */
     protected void waitForReplicasToCatchUpWithPrimary() {
-        try {
-            assertBusy(() -> {
-                final ClusterState clusterState = client(internalCluster().getClusterManagerName()).admin()
-                    .cluster()
-                    .prepareState()
-                    .get()
-                    .getState();
-                for (IndexRoutingTable indexRoutingTable : clusterState.routingTable()) {
-                    for (IndexShardRoutingTable shardRoutingTable : indexRoutingTable) {
-                        final ShardRouting primaryRouting = shardRoutingTable.primaryShard();
-                        if (primaryRouting.state().toString().equals("STARTED")) {
-                            final String indexName = primaryRouting.getIndexName();
-                            if (isSegmentReplicationEnabledForIndex(indexName)) {
-                                final List<ShardRouting> replicaRouting = shardRoutingTable.replicaShards();
-                                final IndexShard primaryShard = getIndexShard(clusterState, primaryRouting, indexName);
-                                final Map<String, StoreFileMetadata> primarySegmentMetadata = primaryShard.getSegmentMetadataMap();
-                                for (ShardRouting replica : replicaRouting) {
-                                    if (replica.state().toString().equals("STARTED")) {
-                                        IndexShard replicaShard = getIndexShard(clusterState, replica, indexName);
-                                        final Store.RecoveryDiff recoveryDiff = Store.segmentReplicationDiff(
-                                            primarySegmentMetadata,
-                                            replicaShard.getSegmentMetadataMap()
-                                        );
-                                        if (recoveryDiff.missing.isEmpty() == false || recoveryDiff.different.isEmpty() == false) {
-                                            fail(
-                                                "Expected no missing or different segments between primary and replica but diff was missing: "
-                                                    + recoveryDiff.missing
-                                                    + " Different: "
-                                                    + recoveryDiff.different
-                                                    + " Primary Replication Checkpoint : "
-                                                    + primaryShard.getLatestReplicationCheckpoint()
-                                                    + " Replica Replication Checkpoint: "
-                                                    + replicaShard.getLatestReplicationCheckpoint()
+        if (isInternalCluster()) {
+            try {
+                assertBusy(() -> {
+                    final ClusterState clusterState = clusterAdmin().prepareState().get().getState();
+                    for (IndexRoutingTable indexRoutingTable : clusterState.routingTable()) {
+                        for (IndexShardRoutingTable shardRoutingTable : indexRoutingTable) {
+                            final ShardRouting primaryRouting = shardRoutingTable.primaryShard();
+                            if (primaryRouting.state().toString().equals("STARTED")) {
+                                final String indexName = primaryRouting.getIndexName();
+                                if (isSegmentReplicationEnabledForIndex(indexName)) {
+                                    final List<ShardRouting> replicaRouting = shardRoutingTable.replicaShards();
+                                    final IndexShard primaryShard = getIndexShard(clusterState, primaryRouting, indexName);
+                                    final int primaryDocCount = getDocCountFromShard(primaryShard);
+                                    final Map<String, StoreFileMetadata> primarySegmentMetadata = primaryShard.getSegmentMetadataMap();
+                                    for (ShardRouting replica : replicaRouting) {
+                                        if (replica.state().toString().equals("STARTED")) {
+                                            IndexShard replicaShard = getIndexShard(clusterState, replica, indexName);
+                                            final Store.RecoveryDiff recoveryDiff = Store.segmentReplicationDiff(
+                                                primarySegmentMetadata,
+                                                replicaShard.getSegmentMetadataMap()
                                             );
+                                            if (recoveryDiff.missing.isEmpty() == false || recoveryDiff.different.isEmpty() == false) {
+                                                fail(
+                                                    "Expected no missing or different segments between primary and replica but diff was missing: "
+                                                        + recoveryDiff.missing
+                                                        + " Different: "
+                                                        + recoveryDiff.different
+                                                        + " Primary Replication Checkpoint : "
+                                                        + primaryShard.getLatestReplicationCheckpoint()
+                                                        + " Replica Replication Checkpoint: "
+                                                        + replicaShard.getLatestReplicationCheckpoint()
+                                                );
+                                            }
+                                            final int replicaDocCount = getDocCountFromShard(replicaShard);
+                                            assertEquals("Doc counts should match", primaryDocCount, replicaDocCount);
+
+                                            // calls to readCommit will fail if a valid commit point and all its segments are not in the
+                                            // store.
+                                            replicaShard.store().readLastCommittedSegmentsInfo();
                                         }
-                                        // calls to readCommit will fail if a valid commit point and all its segments are not in the store.
-                                        replicaShard.store().readLastCommittedSegmentsInfo();
                                     }
                                 }
                             }
                         }
                     }
-                }
-            }, 30, TimeUnit.SECONDS);
-        } catch (Exception e) {
-            throw new RuntimeException(e);
+                }, 30, TimeUnit.SECONDS);
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
         }
     }
 
