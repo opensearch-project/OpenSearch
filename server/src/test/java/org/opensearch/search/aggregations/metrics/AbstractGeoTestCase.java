@@ -48,7 +48,7 @@ import org.opensearch.search.SearchHit;
 import org.opensearch.search.sort.SortBuilders;
 import org.opensearch.search.sort.SortOrder;
 import org.opensearch.test.OpenSearchIntegTestCase;
-import org.opensearch.test.ParameterizedOpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 import org.opensearch.test.geo.RandomGeoGenerator;
 
 import java.util.ArrayList;
@@ -65,7 +65,7 @@ import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertSearchResp
 import static org.hamcrest.Matchers.equalTo;
 
 @OpenSearchIntegTestCase.SuiteScopeTestCase
-public abstract class AbstractGeoTestCase extends ParameterizedOpenSearchIntegTestCase {
+public abstract class AbstractGeoTestCase extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
 
     protected static final String SINGLE_VALUED_FIELD_NAME = "geo_value";
     protected static final String MULTI_VALUED_FIELD_NAME = "geo_values";

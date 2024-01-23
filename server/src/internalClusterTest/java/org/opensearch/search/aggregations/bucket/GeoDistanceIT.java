@@ -50,7 +50,7 @@ import org.opensearch.search.aggregations.bucket.range.Range;
 import org.opensearch.search.aggregations.bucket.range.Range.Bucket;
 import org.opensearch.search.aggregations.bucket.terms.Terms;
 import org.opensearch.test.OpenSearchIntegTestCase;
-import org.opensearch.test.ParameterizedOpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 import org.opensearch.test.VersionUtils;
 import org.hamcrest.Matchers;
 
@@ -76,10 +76,10 @@ import static org.hamcrest.core.IsNull.notNullValue;
 import static org.hamcrest.core.IsNull.nullValue;
 
 @OpenSearchIntegTestCase.SuiteScopeTestCase
-public class GeoDistanceIT extends ParameterizedOpenSearchIntegTestCase {
+public class GeoDistanceIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
 
-    public GeoDistanceIT(Settings dynamicSettings) {
-        super(dynamicSettings);
+    public GeoDistanceIT(Settings staticSettings) {
+        super(staticSettings);
     }
 
     @Override

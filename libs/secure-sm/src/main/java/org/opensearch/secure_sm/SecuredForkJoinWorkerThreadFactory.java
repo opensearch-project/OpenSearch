@@ -18,6 +18,7 @@ import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.ForkJoinPool.ForkJoinWorkerThreadFactory;
 import java.util.concurrent.ForkJoinWorkerThread;
 
+@SuppressWarnings("removal")
 public class SecuredForkJoinWorkerThreadFactory implements ForkJoinWorkerThreadFactory {
     static AccessControlContext contextWithPermissions(Permission... perms) {
         Permissions permissions = new Permissions();

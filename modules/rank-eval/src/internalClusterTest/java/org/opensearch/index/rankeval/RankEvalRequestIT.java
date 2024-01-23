@@ -47,7 +47,7 @@ import org.opensearch.index.rankeval.PrecisionAtK.Detail;
 import org.opensearch.indices.IndexClosedException;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.search.builder.SearchSourceBuilder;
-import org.opensearch.test.ParameterizedOpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 import org.junit.Before;
 
 import java.util.ArrayList;
@@ -62,14 +62,14 @@ import static org.opensearch.search.SearchService.CLUSTER_CONCURRENT_SEGMENT_SEA
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.instanceOf;
 
-public class RankEvalRequestIT extends ParameterizedOpenSearchIntegTestCase {
+public class RankEvalRequestIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
 
     private static final String TEST_INDEX = "test";
     private static final String INDEX_ALIAS = "alias0";
     private static final int RELEVANT_RATING_1 = 1;
 
-    public RankEvalRequestIT(Settings dynamicSettings) {
-        super(dynamicSettings);
+    public RankEvalRequestIT(Settings staticSettings) {
+        super(staticSettings);
     }
 
     @ParametersFactory
