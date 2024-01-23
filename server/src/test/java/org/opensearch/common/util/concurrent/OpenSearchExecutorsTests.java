@@ -49,6 +49,7 @@ import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 /**
  * Tests for OpenSearchExecutors and its components like OpenSearchAbortPolicy.
@@ -276,6 +277,41 @@ public class OpenSearchExecutorsTests extends OpenSearchTestCase {
             assertThat("wrong active count", pool.getActiveCount(), equalTo(0));
             assertThat("idle threads didn't shrink below max. (" + pool.getPoolSize() + ")", pool.getPoolSize(), lessThan(max));
         });
+        terminate(pool);
+    }
+
+    /**
+     * The test case is adapted from https://bugs.openjdk.org/browse/JDK-8323659 reproducer.
+     */
+    public void testScaleUpWithSpawningTask() throws Exception {
+        ThreadPoolExecutor pool = OpenSearchExecutors.newScaling(
+            getClass().getName() + "/" + getTestName(),
+            0,
+            1,
+            between(1, 100),
+            randomTimeUnit(),
+            OpenSearchExecutors.daemonThreadFactory("test"),
+            threadContext
+        );
+        assertThat("Min property", pool.getCorePoolSize(), equalTo(0));
+        assertThat("Max property", pool.getMaximumPoolSize(), equalTo(1));
+
+        final CountDownLatch latch = new CountDownLatch(10);
+        class TestTask implements Runnable {
+            @Override
+            public void run() {
+                latch.countDown();
+                if (latch.getCount() > 0) {
+                    pool.execute(TestTask.this);
+                }
+            }
+        }
+        pool.execute(new TestTask());
+        latch.await();
+
+        assertThat("wrong pool size", pool.getPoolSize(), lessThanOrEqualTo(1));
+        assertThat("wrong active size", pool.getActiveCount(), lessThanOrEqualTo(1));
+
         terminate(pool);
     }
 
