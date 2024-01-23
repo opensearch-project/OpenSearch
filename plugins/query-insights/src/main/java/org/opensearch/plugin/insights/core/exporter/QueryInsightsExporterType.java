@@ -16,15 +16,19 @@ import java.util.Locale;
  * @opensearch.internal
  */
 public enum QueryInsightsExporterType {
-    /* local index exporter */
-    LOCAL_INDEX("local_index");
+    /** local index exporter */
+    LOCAL_INDEX;
 
-    private final String type;
-
-    QueryInsightsExporterType(String type) {
-        this.type = type;
+    @Override
+    public String toString() {
+        return super.toString().toLowerCase(Locale.ROOT);
     }
 
+    /**
+     * Parse QueryInsightsExporterType from String
+     * @param type the String representation of the QueryInsightsExporterType
+     * @return QueryInsightsExporterType
+     */
     public static QueryInsightsExporterType parse(String type) {
         return valueOf(type.toUpperCase(Locale.ROOT));
     }

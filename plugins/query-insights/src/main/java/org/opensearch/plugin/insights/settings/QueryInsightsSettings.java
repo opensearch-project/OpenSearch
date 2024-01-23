@@ -26,8 +26,11 @@ public class QueryInsightsSettings {
      * Default Values and Settings
      */
     public static final TimeValue MAX_WINDOW_SIZE = new TimeValue(21600, TimeUnit.SECONDS);
+    /** Default N size for top N queries */
     public static final int MAX_N_SIZE = 100;
-    public static final TimeValue MIN_EXPORT_INTERVAL = new TimeValue(21600, TimeUnit.SECONDS);
+    /** Default min export interval for Query Insights exporters */
+    public static final TimeValue MIN_EXPORT_INTERVAL = new TimeValue(1, TimeUnit.SECONDS);
+    /** Default local index mapping for top n queries records */
     public static final String DEFAULT_LOCAL_INDEX_MAPPING = "mappings/top_n_queries_record.json";
     /** Default window size in seconds to keep the top N queries with latency data in query insight store */
     public static final int DEFAULT_WINDOW_SIZE = 60;
@@ -43,8 +46,9 @@ public class QueryInsightsSettings {
      *
      */
     public static final String TOP_QUERIES_BASE_URI = PLUGINS_BASE_URI + "/top_queries";
+    /** Default prefix for top N queries feature */
     public static final String TOP_N_QUERIES_SETTING_PREFIX = "search.top_n_queries";
-
+    /** Default prefix for top N queries by latency feature */
     public static final String TOP_N_LATENCY_QUERIES_PREFIX = TOP_N_QUERIES_SETTING_PREFIX + ".latency";
     /**
      * Boolean setting for enabling top queries by latency.

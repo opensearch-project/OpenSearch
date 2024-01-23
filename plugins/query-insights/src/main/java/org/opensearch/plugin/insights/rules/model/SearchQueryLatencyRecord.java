@@ -29,12 +29,36 @@ public final class SearchQueryLatencyRecord extends SearchQueryRecord<Long> {
     // latency info for each search phase
     private final Map<String, Long> phaseLatencyMap;
 
+    /**
+     * Constructor for SearchQueryLatencyRecord
+     *
+     * @param in A {@link StreamInput} object.
+     * @throws IOException if the stream cannot be deserialized.
+     */
     public SearchQueryLatencyRecord(final StreamInput in) throws IOException {
         super(in);
         this.phaseLatencyMap = in.readMap(StreamInput::readString, StreamInput::readLong);
         this.setValue(in.readLong());
     }
 
+    @Override
+    protected void addCustomXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.field(PHASE_LATENCY_MAP, this.getPhaseLatencyMap());
+        builder.field(TOOK, this.getValue());
+    }
+
+    /**
+     * Constructor of the SearchQueryLatencyRecord
+     *
+     * @param timestamp The timestamp of the query.
+     * @param searchType The manner at which the search operation is executed. see {@link SearchType}
+     * @param source The search source that was executed by the query.
+     * @param totalShards Total number of shards as part of the search query across all indices
+     * @param indices The indices involved in the search query
+     * @param propertyMap Extra attributes and information about a search query
+     * @param phaseLatencyMap A map contains per-phase latency data
+     * @param tookInNanos Total time took to finish this request
+     */
     public SearchQueryLatencyRecord(
         final Long timestamp,
         final SearchType searchType,
@@ -49,17 +73,13 @@ public final class SearchQueryLatencyRecord extends SearchQueryRecord<Long> {
         this.phaseLatencyMap = phaseLatencyMap;
     }
 
+    /**
+     * Get the phase level latency map of this request record
+     *
+     * @return Map contains per-phase latency of this request record
+     */
     public Map<String, Long> getPhaseLatencyMap() {
         return phaseLatencyMap;
-    }
-
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject();
-        super.toXContent(builder, params);
-        builder.field(PHASE_LATENCY_MAP, this.getPhaseLatencyMap());
-        builder.field(TOOK, this.getValue());
-        return builder.endObject();
     }
 
     @Override
@@ -69,6 +89,11 @@ public final class SearchQueryLatencyRecord extends SearchQueryRecord<Long> {
         out.writeLong(getValue());
     }
 
+    /**
+     * Compare if two SearchQueryLatencyRecord are equal
+     * @param other The Other SearchQueryLatencyRecord to compare to
+     * @return boolean
+     */
     public boolean equals(SearchQueryLatencyRecord other) {
         if (!super.equals(other)) {
             return false;

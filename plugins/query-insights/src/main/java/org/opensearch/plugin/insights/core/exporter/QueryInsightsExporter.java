@@ -20,11 +20,9 @@ import java.util.List;
  * @opensearch.internal
  */
 public abstract class QueryInsightsExporter<T extends SearchQueryRecord<?>> {
-    private QueryInsightsExporterType type;
-    private String identifier;
+    private final String identifier;
 
-    QueryInsightsExporter(QueryInsightsExporterType type, String identifier) {
-        this.type = type;
+    QueryInsightsExporter(String identifier) {
         this.identifier = identifier;
     }
 
@@ -35,18 +33,10 @@ public abstract class QueryInsightsExporter<T extends SearchQueryRecord<?>> {
      */
     public abstract void export(List<T> records) throws Exception;
 
-    public void setType(QueryInsightsExporterType type) {
-        this.type = type;
-    }
-
-    public QueryInsightsExporterType getType() {
-        return type;
-    }
-
-    public void setIdentifier(String identifier) {
-        this.identifier = identifier;
-    }
-
+    /**
+     * Get the identifier of this exporter
+     * @return identifier of this exporter
+     */
     public String getIdentifier() {
         return identifier;
     }
