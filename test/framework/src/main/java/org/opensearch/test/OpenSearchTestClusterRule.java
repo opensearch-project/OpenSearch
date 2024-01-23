@@ -56,6 +56,7 @@ import static org.junit.Assert.assertThat;
  * on the way cluster settings are being managed.
  */
 class OpenSearchTestClusterRule implements MethodRule {
+    // Maps each TestCluster instance to the exact test suite instance that triggered its creation
     private final Map<TestCluster, OpenSearchIntegTestCase> suites = new IdentityHashMap<>();
     private final Map<Class<?>, TestCluster> clusters = new IdentityHashMap<>();
     private final Logger logger = LogManager.getLogger(getClass());
