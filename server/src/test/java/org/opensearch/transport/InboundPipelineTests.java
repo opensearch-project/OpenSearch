@@ -72,24 +72,25 @@ public class InboundPipelineTests extends OpenSearchTestCase {
         final List<Tuple<MessageData, Exception>> expected = new ArrayList<>();
         final List<Tuple<MessageData, Exception>> actual = new ArrayList<>();
         final List<ReleasableBytesReference> toRelease = new ArrayList<>();
-        final BiConsumer<TcpChannel, InboundMessage> messageHandler = (c, m) -> {
+        final BiConsumer<TcpChannel, BaseInboundMessage> messageHandler = (c, m) -> {
             try {
-                final Header header = m.getHeader();
+                InboundMessage message = (InboundMessage) m;
+                final Header header = message.getHeader();
                 final MessageData actualData;
                 final Version version = header.getVersion();
                 final boolean isRequest = header.isRequest();
                 final long requestId = header.getRequestId();
                 final boolean isCompressed = header.isCompressed();
-                if (m.isShortCircuit()) {
+                if (message.isShortCircuit()) {
                     actualData = new MessageData(version, requestId, isRequest, isCompressed, header.getActionName(), null);
                 } else if (isRequest) {
-                    final TestRequest request = new TestRequest(m.openOrGetStreamInput());
+                    final TestRequest request = new TestRequest(message.openOrGetStreamInput());
                     actualData = new MessageData(version, requestId, isRequest, isCompressed, header.getActionName(), request.value);
                 } else {
-                    final TestResponse response = new TestResponse(m.openOrGetStreamInput());
+                    final TestResponse response = new TestResponse(message.openOrGetStreamInput());
                     actualData = new MessageData(version, requestId, isRequest, isCompressed, null, response.value);
                 }
-                actual.add(new Tuple<>(actualData, m.getException()));
+                actual.add(new Tuple<>(actualData, message.getException()));
             } catch (IOException e) {
                 throw new AssertionError(e);
             }
@@ -105,13 +106,8 @@ public class InboundPipelineTests extends OpenSearchTestCase {
         final TestCircuitBreaker circuitBreaker = new TestCircuitBreaker();
         circuitBreaker.startBreaking();
         final InboundAggregator aggregator = new InboundAggregator(() -> circuitBreaker, canTripBreaker);
-        final InboundPipeline pipeline = new InboundPipeline(
-            statsTracker,
-            millisSupplier,
-            decoder,
-            aggregator,
-            messageHandler,
-            messageHandlerProtobuf
+        final InboundPipeline pipeline = new InboundPipeline(statsTracker, millisSupplier, decoder, aggregator, messageHandler
+        // messageHandlerProtobuf
         );
         final FakeTcpChannel channel = new FakeTcpChannel();
 
@@ -222,20 +218,15 @@ public class InboundPipelineTests extends OpenSearchTestCase {
     }
 
     public void testDecodeExceptionIsPropagated() throws IOException {
-        BiConsumer<TcpChannel, InboundMessage> messageHandler = (c, m) -> {};
+        BiConsumer<TcpChannel, BaseInboundMessage> messageHandler = (c, m) -> {};
         final BiConsumer<TcpChannel, BytesReference> messageHandlerProtobuf = (c, m) -> {};
         final StatsTracker statsTracker = new StatsTracker();
         final LongSupplier millisSupplier = () -> TimeValue.nsecToMSec(System.nanoTime());
         final InboundDecoder decoder = new InboundDecoder(Version.CURRENT, PageCacheRecycler.NON_RECYCLING_INSTANCE);
         final Supplier<CircuitBreaker> breaker = () -> new NoopCircuitBreaker("test");
         final InboundAggregator aggregator = new InboundAggregator(breaker, (Predicate<String>) action -> true);
-        final InboundPipeline pipeline = new InboundPipeline(
-            statsTracker,
-            millisSupplier,
-            decoder,
-            aggregator,
-            messageHandler,
-            messageHandlerProtobuf
+        final InboundPipeline pipeline = new InboundPipeline(statsTracker, millisSupplier, decoder, aggregator, messageHandler
+        // messageHandlerProtobuf
         );
 
         try (BytesStreamOutput streamOutput = new BytesStreamOutput()) {
@@ -284,20 +275,15 @@ public class InboundPipelineTests extends OpenSearchTestCase {
     }
 
     public void testEnsureBodyIsNotPrematurelyReleased() throws IOException {
-        BiConsumer<TcpChannel, InboundMessage> messageHandler = (c, m) -> {};
+        BiConsumer<TcpChannel, BaseInboundMessage> messageHandler = (c, m) -> {};
         final BiConsumer<TcpChannel, BytesReference> messageHandlerProtobuf = (c, m) -> {};
         final StatsTracker statsTracker = new StatsTracker();
         final LongSupplier millisSupplier = () -> TimeValue.nsecToMSec(System.nanoTime());
         final InboundDecoder decoder = new InboundDecoder(Version.CURRENT, PageCacheRecycler.NON_RECYCLING_INSTANCE);
         final Supplier<CircuitBreaker> breaker = () -> new NoopCircuitBreaker("test");
         final InboundAggregator aggregator = new InboundAggregator(breaker, (Predicate<String>) action -> true);
-        final InboundPipeline pipeline = new InboundPipeline(
-            statsTracker,
-            millisSupplier,
-            decoder,
-            aggregator,
-            messageHandler,
-            messageHandlerProtobuf
+        final InboundPipeline pipeline = new InboundPipeline(statsTracker, millisSupplier, decoder, aggregator, messageHandler
+        // messageHandlerProtobuf
         );
 
         try (BytesStreamOutput streamOutput = new BytesStreamOutput()) {

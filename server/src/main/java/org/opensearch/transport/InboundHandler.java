@@ -55,6 +55,7 @@ import org.opensearch.telemetry.tracing.SpanScope;
 import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.telemetry.tracing.channels.TraceableTcpTransportChannel;
 import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.transport.BaseInboundMessage.Protocol;
 
 import java.io.EOFException;
 import java.io.IOException;
@@ -119,6 +120,27 @@ public class InboundHandler {
 
     void setSlowLogThreshold(TimeValue slowLogThreshold) {
         this.slowLogThresholdMs = slowLogThreshold.getMillis();
+    }
+
+    void inboundMessage(TcpChannel channel, BaseInboundMessage message) throws Exception {
+        final long startTime = threadPool.relativeTimeInMillis();
+        channel.getChannelStats().markAccessed(startTime);
+        messageReceivedNew(channel, message, startTime);
+    }
+
+    private void messageReceivedNew(TcpChannel channel, BaseInboundMessage message, long startTime) throws IOException {
+        if (message.getProtocol() == Protocol.PROTOBUF) {
+            NodeToNodeMessage nodeToNodeMessage = (NodeToNodeMessage) message;
+            messageReceivedProtobuf(channel, nodeToNodeMessage, startTime);
+        } else {
+            InboundMessage inboundMessage = (InboundMessage) message;
+            TransportLogger.logInboundMessage(channel, inboundMessage);
+            if (inboundMessage.isPing()) {
+                keepAlive.receiveKeepAlive(channel);
+            } else {
+                messageReceived(channel, inboundMessage, startTime);
+            }
+        }
     }
 
     void inboundMessage(TcpChannel channel, InboundMessage message) throws Exception {

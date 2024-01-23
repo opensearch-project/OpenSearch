@@ -31,10 +31,11 @@ import java.util.stream.Collectors;
 *
 * @opensearch.internal
 */
-public class NodeToNodeMessage {
+public class NodeToNodeMessage implements BaseInboundMessage {
 
     private final NodeToNodeMessageProto.NodeToNodeMessage message;
     private static final byte[] PREFIX = { (byte) 'E', (byte) 'S' };
+    private Protocol protocol;
 
     public NodeToNodeMessage(
         long requestId,
@@ -114,5 +115,15 @@ public class NodeToNodeMessage {
 
     public boolean isProtobuf() {
         return this.message.getIsProtobuf();
+    }
+
+    @Override
+    public Protocol getProtocol() {
+        return Protocol.PROTOBUF;
+    }
+
+    @Override
+    public void setProtocol() {
+        this.protocol = Protocol.PROTOBUF;
     }
 }
