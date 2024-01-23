@@ -38,6 +38,7 @@ import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.search.Sort;
+import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.IOContext;
@@ -806,14 +807,19 @@ final class StoreRecovery {
         long startNanos = System.nanoTime();
 
         while (System.nanoTime() - startNanos < indexShard.getRecoverySettings().internalRemoteUploadTimeout().nanos()) {
-            if (indexShard.isRemoteSegmentStoreInSync()) {
-                break;
-            } else {
-                try {
-                    Thread.sleep(TimeValue.timeValueMinutes(1).seconds());
-                } catch (InterruptedException ie) {
-                    throw new OpenSearchException("Interrupted waiting for completion of [{}]", ie);
+            try {
+                if (indexShard.isRemoteSegmentStoreInSync()) {
+                    break;
+                } else {
+                    try {
+                        Thread.sleep(TimeValue.timeValueMinutes(1).seconds());
+                    } catch (InterruptedException ie) {
+                        throw new OpenSearchException("Interrupted waiting for completion of [{}]", ie);
+                    }
                 }
+            } catch (AlreadyClosedException e) {
+                // There is no point in waiting as shard is now closed .
+                return;
             }
         }
     }

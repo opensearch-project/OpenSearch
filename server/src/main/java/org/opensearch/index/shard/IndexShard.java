@@ -2057,6 +2057,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     )
                 );
             }
+        } catch (AlreadyClosedException e) {
+            throw e;
         } catch (Throwable e) {
             logger.error("Exception while reading latest metadata", e);
         }
