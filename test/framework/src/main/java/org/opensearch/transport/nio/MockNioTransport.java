@@ -327,8 +327,8 @@ public class MockNioTransport extends TcpTransport {
                 threadPool::relativeTimeInMillis,
                 breaker,
                 requestHandlers::getHandler,
-                transport::inboundMessage,
-                transport::inboundMessageProtobuf
+                transport::inboundMessage
+                // transport::inboundMessageProtobuf
             );
         }
 
