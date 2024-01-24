@@ -202,6 +202,10 @@ public class RepositoriesMetadata extends AbstractNamedDiffable<Custom> implemen
         XContentParser.Token token;
         List<RepositoryMetadata> repository = new ArrayList<>();
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+            if (token == XContentParser.Token.START_OBJECT) {
+                // move to next token if parsing the whole object
+                token = parser.nextToken();
+            }
             if (token == XContentParser.Token.FIELD_NAME) {
                 String name = parser.currentName();
                 if (parser.nextToken() != XContentParser.Token.START_OBJECT) {
