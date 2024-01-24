@@ -101,6 +101,11 @@ public class BooleanFieldMapper extends ParametrizedFieldMapper {
         public static final BytesRef FALSE = new BytesRef("F");
     }
 
+    /**
+     * ExpandedValues for Booleans that can be used for this field mapper
+     *
+     * @opensearch.internal
+     */
     public static class ExpandedValues {
         public static final BytesRef TRUE = new BytesRef("true");
         public static final BytesRef FALSE = new BytesRef("false");
