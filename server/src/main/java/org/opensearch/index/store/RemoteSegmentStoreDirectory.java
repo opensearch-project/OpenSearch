@@ -751,7 +751,9 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
         );
         Set<String> allLockFiles;
         try {
-            allLockFiles = new HashSet<>(((RemoteStoreMetadataLockManager) mdLockManager).fetchLocks(MetadataFilenameUtils.METADATA_PREFIX));
+            allLockFiles = new HashSet<>(
+                ((RemoteStoreMetadataLockManager) mdLockManager).fetchLocks(MetadataFilenameUtils.METADATA_PREFIX)
+            );
         } catch (Exception e) {
             logger.error("Exception while fetching segment metadata lock files, skipping deleteStaleSegments", e);
             return;

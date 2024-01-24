@@ -11,7 +11,6 @@ package org.opensearch.index.store.lockmanager;
 import org.opensearch.common.annotation.PublicApi;
 
 import java.io.IOException;
-import java.util.Collection;
 
 /**
  * An Interface that defines Remote Store Lock Manager.

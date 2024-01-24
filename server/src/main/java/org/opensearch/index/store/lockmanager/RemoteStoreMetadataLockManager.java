@@ -90,9 +90,7 @@ public class RemoteStoreMetadataLockManager implements RemoteStoreLockManager {
 
     public Collection<String> fetchLocks(String filenamePrefix) throws IOException {
         Collection<String> lockFiles = lockDirectory.listFilesByPrefix(filenamePrefix);
-        return lockFiles.stream()
-            .map(FileLockInfo.LockFileUtils::getFileToLockNameFromLock)
-            .collect(Collectors.toList());
+        return lockFiles.stream().map(FileLockInfo.LockFileUtils::getFileToLockNameFromLock).collect(Collectors.toList());
     }
 
     /**
