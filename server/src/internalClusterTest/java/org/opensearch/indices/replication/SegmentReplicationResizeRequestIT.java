@@ -123,7 +123,7 @@ public class SegmentReplicationResizeRequestIT extends SegmentReplicationBaseIT 
             for (int i = 0; i < docs; i++) {
                 client().prepareIndex("test").setSource("{\"foo\" : \"bar\", \"i\" : " + i + "}", MediaTypeRegistry.JSON).get();
             }
-            refresh();
+            refreshWithNoWaitForReplicas("test");
             assertBusy(() -> {
                 assertHitCount(
                     client().prepareSearch("test")
@@ -199,7 +199,7 @@ public class SegmentReplicationResizeRequestIT extends SegmentReplicationBaseIT 
             for (int i = 0; i < docs; i++) {
                 client().prepareIndex("test").setSource("{\"foo\" : \"bar\", \"i\" : " + i + "}", MediaTypeRegistry.JSON).get();
             }
-            refresh();
+            refreshWithNoWaitForReplicas("test");
             assertBusy(() -> {
                 assertHitCount(
                     client().prepareSearch("test")

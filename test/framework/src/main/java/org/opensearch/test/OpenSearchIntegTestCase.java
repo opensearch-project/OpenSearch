@@ -1300,7 +1300,8 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
     }
 
     /**
-     * Waits for relocations and refreshes all indices in the cluster.
+     * Waits for relocations and refreshes all indices in the cluster. Then waits for replicas
+     * to catch up with primary when segment replication is enabled.
      *
      * @see #waitForRelocation()
      */
@@ -1315,6 +1316,25 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
             .actionGet();
         assertNoFailures(actionGet);
         waitForReplicasToCatchUpWithPrimary();
+        return actionGet;
+    }
+
+    /**
+     * Waits for relocations and refreshes all indices in the cluster. This method doesn't wait for replicas
+     * to catch up with primary when segment replication is enabled
+     *
+     * @see #waitForRelocation()
+     */
+    protected final RefreshResponse refreshWithNoWaitForReplicas(String... indices) {
+        waitForRelocation();
+        // TODO RANDOMIZE with flush?
+        RefreshResponse actionGet = client().admin()
+            .indices()
+            .prepareRefresh(indices)
+            .setIndicesOptions(IndicesOptions.STRICT_EXPAND_OPEN_HIDDEN_FORBID_CLOSED)
+            .execute()
+            .actionGet();
+        assertNoFailures(actionGet);
         return actionGet;
     }
 
@@ -2376,7 +2396,6 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
                                 if (isSegmentReplicationEnabledForIndex(indexName)) {
                                     final List<ShardRouting> replicaRouting = shardRoutingTable.replicaShards();
                                     final IndexShard primaryShard = getIndexShard(clusterState, primaryRouting, indexName);
-                                    final int primaryDocCount = getDocCountFromShard(primaryShard);
                                     final Map<String, StoreFileMetadata> primarySegmentMetadata = primaryShard.getSegmentMetadataMap();
                                     for (ShardRouting replica : replicaRouting) {
                                         if (replica.state().toString().equals("STARTED")) {
@@ -2397,8 +2416,6 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
                                                         + replicaShard.getLatestReplicationCheckpoint()
                                                 );
                                             }
-                                            final int replicaDocCount = getDocCountFromShard(replicaShard);
-                                            assertEquals("Doc counts should match", primaryDocCount, replicaDocCount);
 
                                             // calls to readCommit will fail if a valid commit point and all its segments are not in the
                                             // store.

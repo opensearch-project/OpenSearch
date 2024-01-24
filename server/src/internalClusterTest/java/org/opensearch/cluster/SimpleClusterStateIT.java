@@ -82,7 +82,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 
 import static org.opensearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK;
-import static org.opensearch.indices.IndicesService.CLUSTER_SETTING_REPLICATION_TYPE;
+import static org.opensearch.indices.IndicesService.CLUSTER_REPLICATION_TYPE_SETTING;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertIndexTemplateExists;
 import static org.hamcrest.Matchers.equalTo;
@@ -104,8 +104,8 @@ public class SimpleClusterStateIT extends ParameterizedStaticSettingsOpenSearchI
     @ParametersFactory
     public static Collection<Object[]> parameters() {
         return Arrays.asList(
-            new Object[] { Settings.builder().put(CLUSTER_SETTING_REPLICATION_TYPE, ReplicationType.DOCUMENT).build() },
-            new Object[] { Settings.builder().put(CLUSTER_SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT).build() }
+            new Object[] { Settings.builder().put(CLUSTER_REPLICATION_TYPE_SETTING.getKey(), ReplicationType.DOCUMENT).build() },
+            new Object[] { Settings.builder().put(CLUSTER_REPLICATION_TYPE_SETTING.getKey(), ReplicationType.SEGMENT).build() }
         );
     }
 

@@ -93,7 +93,7 @@ public class SegmentReplicationDisruptionIT extends SegmentReplicationBaseIT {
         }
         final long originalRecoveryTime = getRecoveryStopTime(replicaNode);
         assertNotEquals(originalRecoveryTime, 0);
-        refresh(INDEX_NAME);
+        refreshWithNoWaitForReplicas(INDEX_NAME);
         latch.await();
         assertTrue(failed.get());
         waitForNewPeerRecovery(replicaNode, originalRecoveryTime);
@@ -124,7 +124,7 @@ public class SegmentReplicationDisruptionIT extends SegmentReplicationBaseIT {
                 .setSource(jsonBuilder().startObject().field("field", i).endObject())
                 .get();
         }
-        refresh(INDEX_NAME);
+        refreshWithNoWaitForReplicas(INDEX_NAME);
         ensureGreen(INDEX_NAME);
         final long originalRecoveryTime = getRecoveryStopTime(replicaNode);
 
@@ -138,7 +138,7 @@ public class SegmentReplicationDisruptionIT extends SegmentReplicationBaseIT {
                 .setSource(jsonBuilder().startObject().field("field", i).endObject())
                 .get();
         }
-        refresh(INDEX_NAME);
+        refreshWithNoWaitForReplicas(INDEX_NAME);
         waitForNewPeerRecovery(replicaNode, originalRecoveryTime);
         resetCheckIndexStatus();
         waitForSearchableDocs(20, primaryNode, replicaNode);

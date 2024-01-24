@@ -108,7 +108,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.opensearch.indices.IndicesService.CLUSTER_SETTING_REPLICATION_TYPE;
+import static org.opensearch.indices.IndicesService.CLUSTER_REPLICATION_TYPE_SETTING;
 import static org.opensearch.search.SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAllSuccessful;
@@ -133,8 +133,8 @@ public class IndexStatsIT extends ParameterizedStaticSettingsOpenSearchIntegTest
         return Arrays.asList(
             new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), false).build() },
             new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), true).build() },
-            new Object[] { Settings.builder().put(CLUSTER_SETTING_REPLICATION_TYPE, ReplicationType.DOCUMENT).build() },
-            new Object[] { Settings.builder().put(CLUSTER_SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT).build() }
+            new Object[] { Settings.builder().put(CLUSTER_REPLICATION_TYPE_SETTING.getKey(), ReplicationType.DOCUMENT).build() },
+            new Object[] { Settings.builder().put(CLUSTER_REPLICATION_TYPE_SETTING.getKey(), ReplicationType.SEGMENT).build() }
         );
     }
 
@@ -691,7 +691,13 @@ public class IndexStatsIT extends ParameterizedStaticSettingsOpenSearchIntegTest
         assertThat(stats.getPrimaries().getIndexing().getTotal().getIndexFailedCount(), equalTo(0L));
         assertThat(stats.getPrimaries().getIndexing().getTotal().isThrottled(), equalTo(false));
         assertThat(stats.getPrimaries().getIndexing().getTotal().getThrottleTime().millis(), equalTo(0L));
-        assertThat(stats.getTotal().getIndexing().getTotal().getIndexCount(), equalTo(totalExpectedWrites));
+
+        // This assert should not be done on segrep enabled indices because we are asserting Indexing/Write operations count on
+        // all primary and replica shards. But in case of segrep, Indexing/Write operation don't happen on replica shards. So we can
+        // ignore this assert check for segrep enabled indices.
+        if (isSegmentReplicationEnabledForIndex("test1") == false && isSegmentReplicationEnabledForIndex("test2") == false) {
+            assertThat(stats.getTotal().getIndexing().getTotal().getIndexCount(), equalTo(totalExpectedWrites));
+        }
         assertThat(stats.getTotal().getStore(), notNullValue());
         assertThat(stats.getTotal().getMerge(), notNullValue());
         assertThat(stats.getTotal().getFlush(), notNullValue());

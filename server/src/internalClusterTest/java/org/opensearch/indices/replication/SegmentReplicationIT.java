@@ -138,7 +138,7 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
         ensureGreen(INDEX_NAME);
 
         client().prepareIndex(INDEX_NAME).setId("1").setSource("foo", "bar").setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
-        refresh(INDEX_NAME);
+        refreshWithNoWaitForReplicas(INDEX_NAME);
 
         waitForSearchableDocs(1, primary, replica);
 
@@ -164,7 +164,7 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
         String nodeC = internalCluster().startDataOnlyNode();
         ensureGreen(INDEX_NAME);
         client().prepareIndex(INDEX_NAME).setId("4").setSource("baz", "baz").get();
-        refresh(INDEX_NAME);
+        refreshWithNoWaitForReplicas(INDEX_NAME);
         waitForSearchableDocs(4, nodeC, replica);
     }
 
@@ -179,7 +179,7 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
 
         final int initialDocCount = 1;
         client().prepareIndex(INDEX_NAME).setId("1").setSource("foo", "bar").setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
-        refresh(INDEX_NAME);
+        refreshWithNoWaitForReplicas(INDEX_NAME);
 
         waitForSearchableDocs(initialDocCount, replica, primary);
 
@@ -203,7 +203,7 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
         final int initialDocCount = 1;
 
         client().prepareIndex(INDEX_NAME).setId("1").setSource("foo", "bar").setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
-        refresh(INDEX_NAME);
+        refreshWithNoWaitForReplicas(INDEX_NAME);
 
         waitForSearchableDocs(initialDocCount, replica, primary);
 
@@ -250,7 +250,7 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
         ) {
             indexer.start(initialDocCount);
             waitForDocs(initialDocCount, indexer);
-            refresh(INDEX_NAME);
+            refreshWithNoWaitForReplicas(INDEX_NAME);
             waitForSearchableDocs(initialDocCount, nodeA, nodeB);
 
             final int additionalDocCount = scaledRandomIntBetween(0, 10);
@@ -343,7 +343,7 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
         client().prepareClearScroll().addScrollId(searchResponse.getScrollId()).get();
 
         assertBusy(() -> {
-            refresh();
+            refreshWithNoWaitForReplicas();
             assertTrue(pendingIndexResponses.stream().allMatch(ActionFuture::isDone));
             assertTrue(pendingSearchResponse.stream().allMatch(ActionFuture::isDone));
         }, 1, TimeUnit.MINUTES);
@@ -378,7 +378,7 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
         ) {
             indexer.start(initialDocCount);
             waitForDocs(initialDocCount, indexer);
-            refresh(INDEX_NAME);
+            refreshWithNoWaitForReplicas(INDEX_NAME);
             waitForSearchableDocs(initialDocCount, nodeA, nodeB);
 
             final int additionalDocCount = scaledRandomIntBetween(0, 10);
@@ -426,7 +426,7 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
 
             // Force a merge here so that the in memory SegmentInfos does not reference old segments on disk.
             client().admin().indices().prepareForceMerge(INDEX_NAME).setMaxNumSegments(1).setFlush(false).get();
-            refresh(INDEX_NAME);
+            refreshWithNoWaitForReplicas(INDEX_NAME);
         }
     }
 
@@ -509,7 +509,7 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
             client().prepareIndex(INDEX_NAME).setId(Integer.toString(i)).setSource("field", "value" + i).execute().get();
         }
         // Refresh, this should trigger round of segment replication
-        refresh(INDEX_NAME);
+        refreshWithNoWaitForReplicas(INDEX_NAME);
         blockFileCopy.countDown();
         internalCluster().stopRandomNode(InternalTestCluster.nameFilter(primaryNode));
         ensureYellow(INDEX_NAME);
@@ -603,7 +603,7 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
 
         // Force a merge here so that the in memory SegmentInfos does not reference old segments on disk.
         client().admin().indices().prepareForceMerge(INDEX_NAME).setMaxNumSegments(1).setFlush(false).get();
-        refresh(INDEX_NAME);
+        refreshWithNoWaitForReplicas(INDEX_NAME);
 
         assertAcked(
             client().admin()
@@ -618,7 +618,7 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
         assertHitCount(client(replicaNode).prepareSearch(INDEX_NAME).setSize(0).setPreference("_only_local").get(), 2);
 
         client().prepareIndex(INDEX_NAME).setId("3").setSource("foo", "bar").get();
-        refresh(INDEX_NAME);
+        refreshWithNoWaitForReplicas(INDEX_NAME);
         waitForSearchableDocs(3, primaryNode, replicaNode);
         assertHitCount(client(primaryNode).prepareSearch(INDEX_NAME).setSize(0).setPreference("_only_local").get(), 3);
         assertHitCount(client(replicaNode).prepareSearch(INDEX_NAME).setSize(0).setPreference("_only_local").get(), 3);
@@ -645,7 +645,7 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
         ) {
             indexer.start(initialDocCount);
             waitForDocs(initialDocCount, indexer);
-            refresh(INDEX_NAME);
+            refreshWithNoWaitForReplicas(INDEX_NAME);
             waitForSearchableDocs(initialDocCount, nodeA, nodeB);
 
             final int additionalDocCount = scaledRandomIntBetween(0, 2);
@@ -661,7 +661,7 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
             String id = ids.toArray()[0].toString();
             client(nodeA).prepareDelete(INDEX_NAME, id).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
 
-            refresh(INDEX_NAME);
+            refreshWithNoWaitForReplicas(INDEX_NAME);
             waitForSearchableDocs(expectedHitCount - 1, nodeA, nodeB);
         }
     }
@@ -680,7 +680,7 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
         for (int i = 0; i < initialDocCount; i++) {
             client().prepareIndex(INDEX_NAME).setId(String.valueOf(i)).setSource("foo", "bar").get();
         }
-        refresh(INDEX_NAME);
+        refreshWithNoWaitForReplicas(INDEX_NAME);
         waitForSearchableDocs(initialDocCount, primary, replica);
 
         final int deletedDocCount = randomIntBetween(1, initialDocCount);
@@ -715,7 +715,7 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
         final ShardRouting replicaShardRouting = getShardRoutingForNodeName(replica);
         assertNotNull(replicaShardRouting);
         assertTrue(replicaShardRouting + " should be promoted as a primary", replicaShardRouting.primary());
-        refresh(INDEX_NAME);
+        refreshWithNoWaitForReplicas(INDEX_NAME);
         final long expectedHitCount = initialDocCount + additionalDocs - deletedDocCount;
         assertHitCount(client(replica).prepareSearch(INDEX_NAME).setSize(0).setPreference("_only_local").get(), expectedHitCount);
 
@@ -724,7 +724,7 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
 
         // index another doc.
         client().prepareIndex(INDEX_NAME).setId(String.valueOf(expectedMaxSeqNo + 1)).setSource("another", "doc").get();
-        refresh(INDEX_NAME);
+        refreshWithNoWaitForReplicas(INDEX_NAME);
         assertHitCount(client(replica).prepareSearch(INDEX_NAME).setSize(0).setPreference("_only_local").get(), expectedHitCount + 1);
     }
 
@@ -749,7 +749,7 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
         ) {
             indexer.start(initialDocCount);
             waitForDocs(initialDocCount, indexer);
-            refresh(INDEX_NAME);
+            refreshWithNoWaitForReplicas(INDEX_NAME);
             waitForSearchableDocs(initialDocCount, asList(primary, replica));
 
             final int additionalDocCount = scaledRandomIntBetween(0, 5);
@@ -767,7 +767,7 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
             assertFalse("request shouldn't have forced a refresh", updateResponse.forcedRefresh());
             assertEquals(2, updateResponse.getVersion());
 
-            refresh(INDEX_NAME);
+            refreshWithNoWaitForReplicas(INDEX_NAME);
 
             assertSearchHits(client(primary).prepareSearch(INDEX_NAME).setQuery(matchQuery("foo", "baz")).get(), id);
             assertSearchHits(client(replica).prepareSearch(INDEX_NAME).setQuery(matchQuery("foo", "baz")).get(), id);
@@ -800,7 +800,7 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
         ) {
             indexer.start(initialDocCount);
             waitForDocs(initialDocCount, indexer);
-            refresh(INDEX_NAME);
+            refreshWithNoWaitForReplicas(INDEX_NAME);
             // don't wait for replication to complete, stop the primary immediately.
             internalCluster().stopRandomNode(InternalTestCluster.nameFilter(primaryNode));
             ensureYellow(INDEX_NAME);
@@ -864,7 +864,7 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
         for (int i = 0; i < docCount; i++) {
             client().prepareIndex(INDEX_NAME).setId(Integer.toString(i)).setSource("field", "value" + i).execute().get();
             // Refresh, this should trigger round of segment replication
-            refresh(INDEX_NAME);
+            refreshWithNoWaitForReplicas(INDEX_NAME);
         }
         ensureGreen(INDEX_NAME);
         waitForSearchableDocs(docCount, primaryNode, replicaNode);
@@ -893,7 +893,7 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
         ) {
             indexer.start(initialDocCount);
             waitForDocs(initialDocCount, indexer);
-            refresh(INDEX_NAME);
+            refreshWithNoWaitForReplicas(INDEX_NAME);
 
             // get shard references.
             final IndexShard primaryShard = getIndexShard(primaryNode, INDEX_NAME);
@@ -992,7 +992,7 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
                 .setSource(jsonBuilder().startObject().field("field", i).endObject())
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
                 .get();
-            refresh(INDEX_NAME);
+            refreshWithNoWaitForReplicas(INDEX_NAME);
         }
         assertBusy(
             () -> assertEquals(
@@ -1024,7 +1024,7 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
 
         for (int i = 3; i < 5; i++) {
             client().prepareDelete(INDEX_NAME, String.valueOf(i)).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
-            refresh(INDEX_NAME);
+            refreshWithNoWaitForReplicas(INDEX_NAME);
             if (randomBoolean()) {
                 client().admin().indices().prepareForceMerge(INDEX_NAME).setMaxNumSegments(1).setFlush(true).get();
                 flush(INDEX_NAME);
@@ -1102,7 +1102,7 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
                 .get();
         }
         // catch up replica with primary
-        refresh(INDEX_NAME);
+        refreshWithNoWaitForReplicas(INDEX_NAME);
         assertBusy(
             () -> assertEquals(
                 getIndexShard(primary, INDEX_NAME).getLatestReplicationCheckpoint().getSegmentInfosVersion(),
@@ -1160,7 +1160,7 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
         );
 
         // perform refresh to start round of segment replication
-        refresh(INDEX_NAME);
+        refreshWithNoWaitForReplicas(INDEX_NAME);
 
         // wait for segrep to start and copy temporary files
         waitForFileCopy.await();
@@ -1216,7 +1216,7 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
                 .setSource("foo", randomInt())
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
                 .get();
-            refresh(INDEX_NAME);
+            refreshWithNoWaitForReplicas(INDEX_NAME);
         }
         // wait until replication finishes, then make the pit request.
         assertBusy(
@@ -1266,7 +1266,7 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
                 .setSource("foo", randomInt())
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
                 .get();
-            refresh(INDEX_NAME);
+            refreshWithNoWaitForReplicas(INDEX_NAME);
             if (randomBoolean()) {
                 client().admin().indices().prepareForceMerge(INDEX_NAME).setMaxNumSegments(1).setFlush(true).get();
                 flush(INDEX_NAME);
@@ -1337,7 +1337,7 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
 
         // index a doc.
         client().prepareIndex(INDEX_NAME).setId("1").setSource("foo", randomInt()).get();
-        refresh(INDEX_NAME);
+        refreshWithNoWaitForReplicas(INDEX_NAME);
 
         CountDownLatch latch = new CountDownLatch(1);
         // block replication
@@ -1352,7 +1352,7 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
             ensureYellow(INDEX_NAME);
             // index another doc while blocked, this would not get replicated to replica.
             client().prepareIndex(INDEX_NAME).setId("2").setSource("foo2", randomInt()).get();
-            refresh(INDEX_NAME);
+            refreshWithNoWaitForReplicas(INDEX_NAME);
         }
         ensureGreen(INDEX_NAME);
         waitForSearchableDocs(2, nodes);
@@ -1405,7 +1405,7 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
             .setRouting(randomAlphaOfLength(2))
             .setSource("online", true, "ts", System.currentTimeMillis() - 123123, "type", "bs")
             .get();
-        refresh();
+        refreshWithNoWaitForReplicas(INDEX_NAME);
         ensureGreen(INDEX_NAME);
         waitForSearchableDocs(4, primaryNode, replicaNode);
 
@@ -1441,7 +1441,7 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
         if (randomBoolean()) {
             flush(INDEX_NAME);
         } else {
-            refresh(INDEX_NAME);
+            refreshWithNoWaitForReplicas(INDEX_NAME);
         }
 
         internalCluster().restartNode(primary);
@@ -1789,7 +1789,7 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
 
         // index a doc.
         client().prepareIndex(INDEX_NAME).setId("1").setSource("foo", randomInt()).get();
-        refresh(INDEX_NAME);
+        refreshWithNoWaitForReplicas(INDEX_NAME);
 
         internalCluster().stopRandomNode(InternalTestCluster.nameFilter(primaryNode));
         ensureYellowAndNoInitializingShards(INDEX_NAME);
