@@ -97,7 +97,7 @@ import static org.opensearch.search.aggregations.MultiBucketConsumerService.MAX_
  *
  * @opensearch.internal
  */
-final class CompositeAggregator extends BucketsAggregator {
+public final class CompositeAggregator extends BucketsAggregator {
     private final int size;
     private final List<String> sourceNames;
     private final int[] reverseMuls;
@@ -167,21 +167,52 @@ final class CompositeAggregator extends BucketsAggregator {
         fastFilterContext = new FastFilterRewriteHelper.FastFilterContext();
         if (!FastFilterRewriteHelper.isCompositeAggRewriteable(sourceConfigs)) return;
         fastFilterContext.setAggregationType(
-            new FastFilterRewriteHelper.CompositeAggregationType(sourceConfigs, rawAfterKey, formats, size)
+            new CompositeAggregationType()
         );
         if (fastFilterContext.isRewriteable(parent, subAggregators.length)) {
             // bucketOrds is the data structure for saving date histogram results
             bucketOrds = LongKeyedBucketOrds.build(context.bigArrays(), CardinalityUpperBound.ONE);
             // Currently the filter rewrite is only supported for date histograms
-            FastFilterRewriteHelper.CompositeAggregationType aggregationType =
-                (FastFilterRewriteHelper.CompositeAggregationType) fastFilterContext.aggregationType;
-            preparedRounding = aggregationType.getRoundingPreparer();
+            // FastFilterRewriteHelper.CompositeAggregationType aggregationType =
+            //     (FastFilterRewriteHelper.CompositeAggregationType) fastFilterContext.aggregationType;
+            // preparedRounding = aggregationType.getRoundingPreparer();
             fastFilterContext.buildFastFilter(
-                context,
-                fc -> FastFilterRewriteHelper.getAggregationBounds(context, fc.getFieldType().name()),
-                x -> aggregationType.getRounding(),
-                () -> preparedRounding
+                context
             );
+        }
+    }
+
+    public class CompositeAggregationType extends FastFilterRewriteHelper.AbstractDateHistogramAggregationType {
+        private final RoundingValuesSource valuesSource;
+        private long afterKey = -1L;
+
+        public CompositeAggregationType() {
+            super(sourceConfigs[0].fieldType(), sourceConfigs[0].missingBucket(), sourceConfigs[0].hasScript());
+            this.valuesSource = (RoundingValuesSource) sourceConfigs[0].valuesSource();
+            if (rawAfterKey != null) {
+                assert rawAfterKey.size() == 1 && formats.size() == 1;
+                this.afterKey = formats.get(0).parseLong(rawAfterKey.get(0).toString(), false, () -> {
+                    throw new IllegalArgumentException("now() is not supported in [after] key");
+                });
+            }
+        }
+
+        @Override
+        public Rounding getRounding(final long low, final long high) {
+            return valuesSource.getRounding();
+        }
+
+        @Override
+        protected void processAfterKey(long[] bound, long interval) {
+            bound[0] = afterKey + interval;
+        }
+
+        public Rounding.Prepared getRoundingPrepared() {
+            return valuesSource.getPreparedRounding();
+        }
+
+        public int getSize() {
+            return size;
         }
     }
 
