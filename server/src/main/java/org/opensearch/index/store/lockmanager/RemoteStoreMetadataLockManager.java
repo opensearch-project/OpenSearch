@@ -21,6 +21,7 @@ import java.nio.file.NoSuchFileException;
 import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
@@ -88,9 +89,9 @@ public class RemoteStoreMetadataLockManager implements RemoteStoreLockManager {
         return lockFilesForAcquirer.get(0);
     }
 
-    public Collection<String> fetchLocks(String filenamePrefix) throws IOException {
+    public Set<String> fetchLocks(String filenamePrefix) throws IOException {
         Collection<String> lockFiles = lockDirectory.listFilesByPrefix(filenamePrefix);
-        return lockFiles.stream().map(FileLockInfo.LockFileUtils::getFileToLockNameFromLock).collect(Collectors.toList());
+        return lockFiles.stream().map(FileLockInfo.LockFileUtils::getFileToLockNameFromLock).collect(Collectors.toSet());
     }
 
     /**

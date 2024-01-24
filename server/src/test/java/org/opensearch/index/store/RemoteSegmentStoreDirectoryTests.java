@@ -993,7 +993,7 @@ public class RemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
         remoteSegmentStoreDirectory.init();
 
         // Locking one of the metadata files to ensure that it is not getting deleted.
-        when(mdLockManager.fetchLocks(any())).thenReturn(List.of(metadataFilename2));
+        when(mdLockManager.fetchLocks(any())).thenReturn(Set.of(metadataFilename2));
 
         // popluateMetadata() adds stub to return 3 metadata files
         // We are passing lastNMetadataFilesToKeep=2 here so that oldest 1 metadata file will be deleted
@@ -1012,13 +1012,26 @@ public class RemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
         remoteSegmentStoreDirectory.init();
 
         // Locking all the old metadata files to ensure that none of the segment files are getting deleted.
-        when(mdLockManager.fetchLocks(any())).thenReturn(List.of(metadataFilename2, metadataFilename3));
+        when(mdLockManager.fetchLocks(any())).thenReturn(Set.of(metadataFilename2, metadataFilename3));
 
         // popluateMetadata() adds stub to return 3 metadata files
         // We are passing lastNMetadataFilesToKeep=2 here so that oldest 1 metadata file will be deleted
         remoteSegmentStoreDirectory.deleteStaleSegmentsAsync(1);
 
         assertBusy(() -> assertThat(remoteSegmentStoreDirectory.canDeleteStaleCommits.get(), is(true)));
+        verify(remoteMetadataDirectory, times(0)).deleteFile(any());
+    }
+
+    public void testDeleteStaleCommitsExceptionWhileFetchingLocks() throws Exception {
+        remoteSegmentStoreDirectory.init();
+
+        // Locking one of the metadata files to ensure that it is not getting deleted.
+        when(mdLockManager.fetchLocks(any())).thenThrow(new RuntimeException("Rate limit exceeded"));
+
+        // popluateMetadata() adds stub to return 3 metadata files
+        // We are passing lastNMetadataFilesToKeep=2 here so that oldest 1 metadata file will be deleted
+        remoteSegmentStoreDirectory.deleteStaleSegmentsAsync(1);
+
         verify(remoteMetadataDirectory, times(0)).deleteFile(any());
     }
 
