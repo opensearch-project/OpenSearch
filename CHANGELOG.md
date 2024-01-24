@@ -103,7 +103,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Add search query categorizer ([#10255](https://github.com/opensearch-project/OpenSearch/pull/10255))
 - Per request phase latency ([#10351](https://github.com/opensearch-project/OpenSearch/issues/10351))
 - Add cluster state stats ([#10670](https://github.com/opensearch-project/OpenSearch/pull/10670))
-- Remove ingest processor supports excluding fields ([#10967](https://github.com/opensearch-project/OpenSearch/pull/10967))
+- Remove ingest processor supports excluding fields ([#10967](https://github.com/opensearch-project/OpenSearch/pull/10967), [#11983](https://github.com/opensearch-project/OpenSearch/pull/11983))
 - [Tiered caching] Enabling serialization for IndicesRequestCache key object ([#10275](https://github.com/opensearch-project/OpenSearch/pull/10275))
 - [Tiered caching] Defining interfaces, listeners and extending IndicesRequestCache with Tiered cache support ([#10753](https://github.com/opensearch-project/OpenSearch/pull/10753))
 - [Remote cluster state] Restore cluster state version during remote state auto restore ([#10853](https://github.com/opensearch-project/OpenSearch/pull/10853))
@@ -132,6 +132,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Introduce new feature flag "WRITEABLE_REMOTE_INDEX" to gate the writeable remote index functionality ([#11717](https://github.com/opensearch-project/OpenSearch/pull/11170))
 - Bump OpenTelemetry from 1.32.0 to 1.34.1 ([#11891](https://github.com/opensearch-project/OpenSearch/pull/11891))
 - Support index level allocation filtering for searchable snapshot index ([#11563](https://github.com/opensearch-project/OpenSearch/pull/11563))
+- Add `org.opensearch.rest.MethodHandlers` and `RestController#getAllHandlers` ([11876](https://github.com/opensearch-project/OpenSearch/pull/11876))
 
 ### Dependencies
 - Bumps jetty version to 9.4.52.v20230823 to fix GMS-2023-1857 ([#9822](https://github.com/opensearch-project/OpenSearch/pull/9822))
@@ -173,8 +174,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `net.java.dev.jna:jna` from 5.13.0 to 5.14.0 ([#11798](https://github.com/opensearch-project/OpenSearch/pull/11798))
 - Bump `lycheeverse/lychee-action` from 1.8.0 to 1.9.1 ([#11795](https://github.com/opensearch-project/OpenSearch/pull/11795), [#11887](https://github.com/opensearch-project/OpenSearch/pull/11887))
 - Bump `Lucene` from 9.8.0 to 9.9.1 ([#11421](https://github.com/opensearch-project/OpenSearch/pull/11421))
-- Bump `com.networknt:json-schema-validator` from 1.0.86 to 1.1.0 ([#11886](https://github.com/opensearch-project/OpenSearch/pull/11886))
+- Bump `com.networknt:json-schema-validator` from 1.0.86 to 1.2.0 ([#11886](https://github.com/opensearch-project/OpenSearch/pull/11886), [#11963](https://github.com/opensearch-project/OpenSearch/pull/11963))
 - Bump `com.google.api:gax-httpjson` from 0.103.1 to 2.39.0 ([#11794](https://github.com/opensearch-project/OpenSearch/pull/11794))
+- Bump `com.google.oauth-client:google-oauth-client` from 1.34.1 to 1.35.0 ([#11960](https://github.com/opensearch-project/OpenSearch/pull/11960))
+- Bump `com.diffplug.spotless` from 6.23.2 to 6.24.0 ([#11962](https://github.com/opensearch-project/OpenSearch/pull/11962))
+- Bump `com.google.cloud:google-cloud-core` from 2.5.10 to 2.30.0 ([#11961](https://github.com/opensearch-project/OpenSearch/pull/11961))
 
 ### Changed
 - Mute the query profile IT with concurrent execution ([#9840](https://github.com/opensearch-project/OpenSearch/pull/9840))
@@ -205,6 +209,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Use slice_size == shard_size heuristic in terms aggs for concurrent segment search and properly calculate the doc_count_error ([#11732](https://github.com/opensearch-project/OpenSearch/pull/11732))
 - Added Support for dynamically adding SearchRequestOperationsListeners with SearchRequestOperationsCompositeListenerFactory ([#11526](https://github.com/opensearch-project/OpenSearch/pull/11526))
 - Ensure Jackson default maximums introduced in 2.16.0 do not conflict with OpenSearch settings ([#11890](https://github.com/opensearch-project/OpenSearch/pull/11890))
+- Extract cluster management for integration tests into JUnit test rule out of OpenSearchIntegTestCase ([#11877](https://github.com/opensearch-project/OpenSearch/pull/11877))
+- Workaround for https://bugs.openjdk.org/browse/JDK-8323659 regression, introduced in JDK-21.0.2 ([#11968](https://github.com/opensearch-project/OpenSearch/pull/11968))
 
 ### Deprecated
 
@@ -234,6 +240,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Fix issue when calling Delete PIT endpoint and no PITs exist ([#11711](https://github.com/opensearch-project/OpenSearch/pull/11711))
 - Fix tracing context propagation for local transport instrumentation ([#11490](https://github.com/opensearch-project/OpenSearch/pull/11490))
 - Fix parsing of single line comments in `lang-painless` ([#11815](https://github.com/opensearch-project/OpenSearch/issues/11815))
+- Fix memory leak issue in ReorganizingLongHash ([#11953](https://github.com/opensearch-project/OpenSearch/issues/11953))
 
 ### Security
 

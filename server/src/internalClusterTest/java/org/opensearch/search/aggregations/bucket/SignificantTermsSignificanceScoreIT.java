@@ -65,7 +65,7 @@ import org.opensearch.search.aggregations.bucket.terms.heuristic.MutualInformati
 import org.opensearch.search.aggregations.bucket.terms.heuristic.ScriptHeuristic;
 import org.opensearch.search.aggregations.bucket.terms.heuristic.SignificanceHeuristic;
 import org.opensearch.test.OpenSearchIntegTestCase;
-import org.opensearch.test.ParameterizedOpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 import org.opensearch.test.search.aggregations.bucket.SharedSignificantTermsTestMethods;
 
 import java.io.IOException;
@@ -95,14 +95,14 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.SUITE)
-public class SignificantTermsSignificanceScoreIT extends ParameterizedOpenSearchIntegTestCase {
+public class SignificantTermsSignificanceScoreIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
 
     static final String INDEX_NAME = "testidx";
     static final String TEXT_FIELD = "text";
     static final String CLASS_FIELD = "class";
 
-    public SignificantTermsSignificanceScoreIT(Settings dynamicSettings) {
-        super(dynamicSettings);
+    public SignificantTermsSignificanceScoreIT(Settings staticSettings) {
+        super(staticSettings);
     }
 
     @ParametersFactory

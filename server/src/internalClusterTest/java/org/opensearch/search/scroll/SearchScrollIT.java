@@ -60,7 +60,7 @@ import org.opensearch.search.SearchHit;
 import org.opensearch.search.sort.FieldSortBuilder;
 import org.opensearch.search.sort.SortOrder;
 import org.opensearch.test.InternalTestCluster;
-import org.opensearch.test.ParameterizedOpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 import org.opensearch.test.hamcrest.OpenSearchAssertions;
 import org.junit.After;
 
@@ -92,7 +92,7 @@ import static org.hamcrest.Matchers.notNullValue;
 /**
  * Tests for scrolling.
  */
-public class SearchScrollIT extends ParameterizedOpenSearchIntegTestCase {
+public class SearchScrollIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
     public SearchScrollIT(Settings settings) {
         super(settings);
     }

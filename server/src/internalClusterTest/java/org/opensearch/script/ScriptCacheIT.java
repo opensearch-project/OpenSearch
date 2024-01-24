@@ -21,7 +21,7 @@ import org.opensearch.node.NodeMocksPlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.search.MockSearchService;
 import org.opensearch.test.MockHttpTransport;
-import org.opensearch.test.ParameterizedOpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 import org.opensearch.test.TestGeoShapeFieldMapperPlugin;
 import org.opensearch.test.store.MockFSIndexStore;
 import org.opensearch.test.transport.MockTransportService;
@@ -38,7 +38,7 @@ import java.util.function.Function;
 import static org.opensearch.search.SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING;
 import static org.apache.logging.log4j.core.util.Throwables.getRootCause;
 
-public class ScriptCacheIT extends ParameterizedOpenSearchIntegTestCase {
+public class ScriptCacheIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
     public ScriptCacheIT(Settings settings) {
         super(settings);
     }

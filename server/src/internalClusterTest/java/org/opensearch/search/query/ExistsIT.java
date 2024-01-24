@@ -44,7 +44,7 @@ import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.search.SearchHit;
-import org.opensearch.test.ParameterizedOpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -62,10 +62,10 @@ import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertSearchResponse;
 
-public class ExistsIT extends ParameterizedOpenSearchIntegTestCase {
+public class ExistsIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
 
-    public ExistsIT(Settings dynamicSettings) {
-        super(dynamicSettings);
+    public ExistsIT(Settings staticSettings) {
+        super(staticSettings);
     }
 
     @ParametersFactory

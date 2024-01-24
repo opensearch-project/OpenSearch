@@ -57,7 +57,7 @@ import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.search.fetch.subphase.highlight.HighlightBuilder;
 import org.opensearch.search.sort.SortOrder;
-import org.opensearch.test.ParameterizedOpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -90,10 +90,10 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.core.IsNull.notNullValue;
 
-public class PercolatorQuerySearchIT extends ParameterizedOpenSearchIntegTestCase {
+public class PercolatorQuerySearchIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
 
-    public PercolatorQuerySearchIT(Settings dynamicSettings) {
-        super(dynamicSettings);
+    public PercolatorQuerySearchIT(Settings staticSettings) {
+        super(staticSettings);
     }
 
     @ParametersFactory
