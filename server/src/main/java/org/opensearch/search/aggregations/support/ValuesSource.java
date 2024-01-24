@@ -238,10 +238,14 @@ public abstract class ValuesSource {
              */
             public static class FieldData extends WithOrdinals {
 
-                public final IndexOrdinalsFieldData indexFieldData;
+                protected final IndexOrdinalsFieldData indexFieldData;
 
                 public FieldData(IndexOrdinalsFieldData indexFieldData) {
                     this.indexFieldData = indexFieldData;
+                }
+
+                public String getIndexFieldName() {
+                    return this.indexFieldData.getFieldName();
                 }
 
                 @Override
