@@ -779,7 +779,9 @@ public class JavaJodaTimeDuellingTests extends OpenSearchTestCase {
         DateTime jodaDate = new DateTime(year, month, day, hour, minute, second, DateTimeZone.UTC);
 
         for (FormatNames format : FormatNames.values()) {
-            if (format == FormatNames.ISO8601 || format == FormatNames.STRICT_DATE_OPTIONAL_TIME_NANOS) {
+            if (format == FormatNames.ISO8601
+                || format == FormatNames.STRICT_DATE_OPTIONAL_TIME_NANOS
+                || format == FormatNames.RFC3339_LENIENT) {
                 // Nanos aren't supported by joda
                 continue;
             }
