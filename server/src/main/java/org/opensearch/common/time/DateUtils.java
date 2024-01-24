@@ -35,12 +35,15 @@ package org.opensearch.common.time;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.joda.time.DateTimeZone;
 
+import java.text.ParsePosition;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
+import java.time.format.DateTimeParseException;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
@@ -57,6 +60,18 @@ import static org.opensearch.common.time.DateUtilsRounding.utcMillisAtStartOfYea
  * @opensearch.internal
  */
 public class DateUtils {
+    public static final char DATE_SEPARATOR = '-';
+    public static final char TIME_SEPARATOR = ':';
+    public static final char SEPARATOR_UPPER = 'T';
+    static final char PLUS = '+';
+    static final char MINUS = '-';
+    static final char SEPARATOR_LOWER = 't';
+    static final char SEPARATOR_SPACE = ' ';
+    static final char FRACTION_SEPARATOR_1 = '.';
+    static final char FRACTION_SEPARATOR_2 = ',';
+    static final char ZULU_UPPER = 'Z';
+    static final char ZULU_LOWER = 'z';
+
     public static DateTimeZone zoneIdToDateTimeZone(ZoneId zoneId) {
         if (zoneId == null) {
             return null;
@@ -429,5 +444,137 @@ public class DateUtils {
     public static ZonedDateTime nowWithMillisResolution(Clock clock) {
         Clock millisResolutionClock = Clock.tick(clock, Duration.ofMillis(1));
         return ZonedDateTime.now(millisResolutionClock);
+    }
+
+    private static boolean isDigit(char c) {
+        return (c >= '0' && c <= '9');
+    }
+
+    private static int digit(char c) {
+        return c - '0';
+    }
+
+    static int readInt(final char[] strNum, ParsePosition pos, int n) {
+        int start = pos.getIndex(), end = start + n;
+        if (end > strNum.length) {
+            pos.setErrorIndex(end);
+            throw new DateTimeParseException("Unexpected end of expression at position " + strNum.length, new String(strNum), end);
+        }
+
+        int result = 0;
+        for (int i = start; i < end; i++) {
+            final char c = strNum[i];
+            if (isDigit(c) == false) {
+                pos.setErrorIndex(i);
+                throw new DateTimeParseException("Character " + c + " is not a digit", new String(strNum), i);
+            }
+            int digit = digit(c);
+            result = result * 10 + digit;
+        }
+        pos.setIndex(end);
+        return result;
+    }
+
+    static int readIntUnchecked(final char[] strNum, ParsePosition pos, int n) {
+        int start = pos.getIndex(), end = start + n;
+        int result = 0;
+        for (int i = start; i < end; i++) {
+            final char c = strNum[i];
+            int digit = digit(c);
+            result = result * 10 + digit;
+        }
+        pos.setIndex(end);
+        return result;
+    }
+
+    private static boolean isValidOffset(char[] chars, int offset) {
+        if (offset >= chars.length) {
+            return false;
+        }
+        return true;
+    }
+
+    static void consumeChar(char[] chars, ParsePosition pos, char expected) {
+        int offset = pos.getIndex();
+        if (isValidOffset(chars, offset) == false) {
+            throw new DateTimeParseException("Unexpected end of input", new String(chars), offset);
+        }
+
+        if (chars[offset] != expected) {
+            throw new DateTimeParseException("Expected character " + expected + " at position " + offset, new String(chars), offset);
+        }
+        pos.setIndex(offset + 1);
+    }
+
+    static void consumeNextChar(char[] chars, ParsePosition pos) {
+        int offset = pos.getIndex();
+        if (isValidOffset(chars, offset) == false) {
+            throw new DateTimeParseException("Unexpected end of input", new String(chars), offset);
+        }
+        pos.setIndex(offset + 1);
+    }
+
+    static boolean checkPositionContains(char[] chars, ParsePosition pos, char... expected) {
+        int offset = pos.getIndex();
+        if (offset >= chars.length) {
+            throw new DateTimeParseException("Unexpected end of input", new String(chars), offset);
+        }
+
+        boolean found = false;
+        for (char e : expected) {
+            if (chars[offset] == e) {
+                found = true;
+                break;
+            }
+        }
+        return found;
+    }
+
+    static void consumeChar(char[] chars, ParsePosition pos, char... expected) {
+        int offset = pos.getIndex();
+        if (offset >= chars.length) {
+            throw new DateTimeParseException("Unexpected end of input", new String(chars), offset);
+        }
+
+        boolean found = false;
+        for (char e : expected) {
+            if (chars[offset] == e) {
+                found = true;
+                pos.setIndex(offset + 1);
+                break;
+            }
+        }
+        if (!found) {
+            throw new DateTimeParseException(
+                "Expected character " + Arrays.toString(expected) + " at position " + offset,
+                new String(chars),
+                offset
+            );
+        }
+    }
+
+    static void assertNoMoreChars(char[] chars, ParsePosition pos) {
+        if (chars.length > pos.getIndex()) {
+            throw new DateTimeParseException("Trailing junk data after position " + pos.getIndex(), new String(chars), pos.getIndex());
+        }
+    }
+
+    public static int indexOfNonDigit(final char[] text, int offset) {
+        for (int i = offset; i < text.length; i++) {
+            if (isDigit(text[i]) == false) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    public static void consumeDigits(final char[] text, ParsePosition pos) {
+        final int idx = indexOfNonDigit(text, pos.getIndex());
+        if (idx == -1) {
+            pos.setErrorIndex(text.length);
+            pos.setIndex(text.length);
+        } else {
+            pos.setIndex(idx);
+        }
     }
 }

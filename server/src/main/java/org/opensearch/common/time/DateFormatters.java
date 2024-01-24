@@ -1299,6 +1299,73 @@ public class DateFormatters {
             .withResolverStyle(ResolverStyle.STRICT)
     );
 
+    /**
+     * Returns RFC 3339 a popular ISO 8601 profile compatible date time formatter and parser.
+     * This is not fully compatible to the existing spec, its more linient and closely follows w3c note on datetime
+     */
+
+    public static final DateFormatter RFC3339_DATE_FORMATTER = new JavaDateFormatter(
+        "rfc3339",
+        new OpenSearchDateTimeFormatter(STRICT_DATE_OPTIONAL_TIME_PRINTER),
+        new RFC3339DateTimeFormatter(
+            new DateTimeFormatterBuilder().append(DATE_FORMATTER)
+                .optionalStart()
+                .appendLiteral('T')
+                .appendValue(HOUR_OF_DAY, 1, 2, SignStyle.NOT_NEGATIVE)
+                .appendLiteral(':')
+                .appendValue(MINUTE_OF_HOUR, 1, 2, SignStyle.NOT_NEGATIVE)
+                .optionalStart()
+                .appendLiteral(':')
+                .appendValue(SECOND_OF_MINUTE, 1, 2, SignStyle.NOT_NEGATIVE)
+                .optionalStart()
+                .appendFraction(NANO_OF_SECOND, 1, 9, true)
+                .optionalEnd()
+                .optionalStart()
+                .appendLiteral(',')
+                .appendFraction(NANO_OF_SECOND, 1, 9, false)
+                .optionalEnd()
+                .optionalStart()
+                .appendOffsetId()
+                .optionalEnd()
+                .optionalEnd()
+                .optionalEnd()
+                .toFormatter(Locale.ROOT)
+                .withResolverStyle(ResolverStyle.STRICT)
+        )
+    );
+
+    public static final DateFormatter LOCAL_DATETIME_FORMATTER = new JavaDateFormatter(
+        "local_date_time",
+        new OpenSearchDateTimeFormatter(STRICT_DATE_OPTIONAL_TIME_PRINTER),
+        new LocalDateTimeFormatter(
+            new DateTimeFormatterBuilder().append(DATE_FORMATTER)
+                .optionalStart()
+                .optionalStart()
+                .appendLiteral(' ')
+                .optionalEnd()
+                .optionalStart()
+                .appendLiteral('T')
+                .optionalEnd()
+                .appendValue(HOUR_OF_DAY, 1, 2, SignStyle.NOT_NEGATIVE)
+                .appendLiteral(':')
+                .appendValue(MINUTE_OF_HOUR, 1, 2, SignStyle.NOT_NEGATIVE)
+                .optionalStart()
+                .appendLiteral(':')
+                .appendValue(SECOND_OF_MINUTE, 1, 2, SignStyle.NOT_NEGATIVE)
+                .optionalStart()
+                .appendFraction(NANO_OF_SECOND, 1, 9, true)
+                .optionalEnd()
+                .optionalStart()
+                .appendLiteral(',')
+                .appendFraction(NANO_OF_SECOND, 1, 9, false)
+                .optionalEnd()
+                .optionalEnd()
+                .optionalEnd()
+                .toFormatter(Locale.ROOT)
+                .withResolverStyle(ResolverStyle.STRICT)
+        )
+    );
+
     private static final DateTimeFormatter HOUR_MINUTE_SECOND_FORMATTER = new DateTimeFormatterBuilder().append(HOUR_MINUTE_FORMATTER)
         .appendLiteral(":")
         .appendValue(SECOND_OF_MINUTE, 1, 2, SignStyle.NOT_NEGATIVE)
@@ -2152,6 +2219,10 @@ public class DateFormatters {
             return STRICT_YEAR_MONTH;
         } else if (FormatNames.STRICT_YEAR_MONTH_DAY.matches(input)) {
             return STRICT_YEAR_MONTH_DAY;
+        } else if (FormatNames.RFC3339.matches(input)) {
+            return RFC3339_DATE_FORMATTER;
+        } else if (FormatNames.LOCAL_DATE_TIME.matches(input)) {
+            return LOCAL_DATETIME_FORMATTER;
         } else {
             try {
                 return new JavaDateFormatter(

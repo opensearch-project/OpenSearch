@@ -44,6 +44,8 @@ import java.util.stream.Stream;
  */
 public enum FormatNames {
     ISO8601(null, "iso8601"),
+    RFC3339(null, "rfc3339"),
+    LOCAL_DATE_TIME("localDateTime", "local_date_time"),
     BASIC_DATE("basicDate", "basic_date"),
     BASIC_DATE_TIME("basicDateTime", "basic_date_time"),
     BASIC_DATE_TIME_NO_MILLIS("basicDateTimeNoMillis", "basic_date_time_no_millis"),
