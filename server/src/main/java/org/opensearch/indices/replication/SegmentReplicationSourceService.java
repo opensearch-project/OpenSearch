@@ -29,7 +29,6 @@ import org.opensearch.index.shard.IndexShard;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.indices.recovery.RetryableTransportClient;
-import org.opensearch.indices.replication.common.CopyState;
 import org.opensearch.indices.replication.common.ReplicationTimer;
 import org.opensearch.tasks.Task;
 import org.opensearch.threadpool.ThreadPool;
@@ -126,16 +125,17 @@ public class SegmentReplicationSourceService extends AbstractLifecycleComponent 
                 new AtomicLong(0),
                 (throttleTime) -> {}
             );
-            final CopyState copyState = ongoingSegmentReplications.prepareForReplication(request, segmentSegmentFileChunkWriter);
-            channel.sendResponse(
-                new CheckpointInfoResponse(copyState.getCheckpoint(), copyState.getMetadataMap(), copyState.getInfosBytes())
+            final SegmentReplicationSourceHandler handler = ongoingSegmentReplications.prepareForReplication(
+                request,
+                segmentSegmentFileChunkWriter
             );
+            channel.sendResponse(new CheckpointInfoResponse(handler.getCheckpoint(), handler.getInfosBytes()));
             timer.stop();
             logger.trace(
                 new ParameterizedMessage(
                     "[replication id {}] Source node sent checkpoint info [{}] to target node [{}], timing: {}",
                     request.getReplicationId(),
-                    copyState.getCheckpoint(),
+                    handler.getCheckpoint(),
                     request.getTargetNode().getId(),
                     timer.time()
                 )
