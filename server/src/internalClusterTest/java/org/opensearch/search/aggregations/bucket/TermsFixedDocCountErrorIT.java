@@ -23,6 +23,7 @@ import java.util.Arrays;
 import java.util.Collection;
 
 import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.opensearch.index.IndexSettings.MINIMUM_REFRESH_INTERVAL;
 import static org.opensearch.search.SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING;
 import static org.opensearch.search.aggregations.AggregationBuilders.terms;
 import static org.opensearch.test.OpenSearchIntegTestCase.Scope.TEST;
@@ -71,7 +72,10 @@ public class TermsFixedDocCountErrorIT extends ParameterizedStaticSettingsOpenSe
         assertAcked(
             prepareCreate("idx_mshard_1").setMapping(STRING_FIELD_NAME, "type=keyword")
                 .setSettings(
-                    Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                    Settings.builder()
+                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                        .put("index.refresh_interval", MINIMUM_REFRESH_INTERVAL)
                 )
         );
         client().prepareIndex("idx_mshard_1").setSource(jsonBuilder().startObject().field(STRING_FIELD_NAME, "A").endObject()).get();
@@ -89,7 +93,10 @@ public class TermsFixedDocCountErrorIT extends ParameterizedStaticSettingsOpenSe
         assertAcked(
             prepareCreate("idx_mshard_2").setMapping(STRING_FIELD_NAME, "type=keyword")
                 .setSettings(
-                    Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                    Settings.builder()
+                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                        .put("index.refresh_interval", MINIMUM_REFRESH_INTERVAL)
                 )
         );
         client().prepareIndex("idx_mshard_2").setSource(jsonBuilder().startObject().field(STRING_FIELD_NAME, "A").endObject()).get();
@@ -127,7 +134,10 @@ public class TermsFixedDocCountErrorIT extends ParameterizedStaticSettingsOpenSe
         assertAcked(
             prepareCreate("idx_shard_error").setMapping(STRING_FIELD_NAME, "type=keyword")
                 .setSettings(
-                    Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                    Settings.builder()
+                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                        .put("index.refresh_interval", MINIMUM_REFRESH_INTERVAL)
                 )
         );
         client().prepareIndex("idx_shard_error").setSource(jsonBuilder().startObject().field(STRING_FIELD_NAME, "A").endObject()).get();
@@ -170,7 +180,10 @@ public class TermsFixedDocCountErrorIT extends ParameterizedStaticSettingsOpenSe
         assertAcked(
             prepareCreate("idx_slice_error").setMapping(STRING_FIELD_NAME, "type=keyword")
                 .setSettings(
-                    Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                    Settings.builder()
+                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                        .put("index.refresh_interval", MINIMUM_REFRESH_INTERVAL)
                 )
         );
         client().prepareIndex("idx_slice_error").setSource(jsonBuilder().startObject().field(STRING_FIELD_NAME, "A").endObject()).get();
@@ -248,7 +261,10 @@ public class TermsFixedDocCountErrorIT extends ParameterizedStaticSettingsOpenSe
         assertAcked(
             prepareCreate("idx_mshard_1").setMapping(STRING_FIELD_NAME, "type=keyword")
                 .setSettings(
-                    Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                    Settings.builder()
+                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                        .put("index.refresh_interval", MINIMUM_REFRESH_INTERVAL)
                 )
         );
         client().prepareIndex("idx_mshard_1").setSource(jsonBuilder().startObject().field(STRING_FIELD_NAME, "A").endObject()).get();
@@ -288,7 +304,10 @@ public class TermsFixedDocCountErrorIT extends ParameterizedStaticSettingsOpenSe
         assertAcked(
             prepareCreate("idx_mshard_2").setMapping(STRING_FIELD_NAME, "type=keyword")
                 .setSettings(
-                    Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                    Settings.builder()
+                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                        .put("index.refresh_interval", MINIMUM_REFRESH_INTERVAL)
                 )
         );
         client().prepareIndex("idx_mshard_2").setSource(jsonBuilder().startObject().field(STRING_FIELD_NAME, "A").endObject()).get();
