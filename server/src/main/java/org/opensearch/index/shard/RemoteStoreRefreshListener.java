@@ -183,8 +183,10 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
     /**
      * Checks if all files present in local store are uploaded to remote store or part of excluded files.
      *
-     * Different from IndexShard#isRemoteSegmentStoreInSync as it uses files uploaded cache in RemoteDirectory
-     * And it doesn't make a remote store call.
+     * Different from IndexShard#isRemoteSegmentStoreInSync as
+     *  it uses files uploaded cache in RemoteDirector and it doesn't make a remote store call.
+     *  Doesn't throw an exception on store getting closed as store will be open
+     *
      *
      * @return true iff all the local files are uploaded to remote store.
      */
