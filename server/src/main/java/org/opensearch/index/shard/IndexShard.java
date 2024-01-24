@@ -2029,33 +2029,27 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * is in sync with local
      */
     boolean isRemoteSegmentStoreInSync() {
-        return isRemoteSegmentStoreInSync(true);
-    }
-
-    boolean isRemoteSegmentStoreInSync(boolean verifyMetadata) {
         assert indexSettings.isRemoteStoreEnabled();
         try {
             RemoteSegmentStoreDirectory directory = getRemoteDirectory();
-            if (verifyMetadata && directory.readLatestMetadataFile() == null) {
-                return false;
-            }
-
-            Collection<String> uploadFiles = directory.getSegmentsUploadedToRemoteStore().keySet();
-            try (GatedCloseable<SegmentInfos> segmentInfosGatedCloseable = getSegmentInfosSnapshot()) {
-                Collection<String> localSegmentInfosFiles = segmentInfosGatedCloseable.get().files(true);
-                Set<String> localFiles = new HashSet<>(localSegmentInfosFiles);
-                // verifying that all files except EXCLUDE_FILES are uploaded to the remote
-                localFiles.removeAll(RemoteStoreRefreshListener.EXCLUDE_FILES);
-                if (uploadFiles.containsAll(localFiles)) {
-                    return true;
+            if (directory.readLatestMetadataFile() != null) {
+                Collection<String> uploadFiles = directory.getSegmentsUploadedToRemoteStore().keySet();
+                try (GatedCloseable<SegmentInfos> segmentInfosGatedCloseable = getSegmentInfosSnapshot()) {
+                    Collection<String> localSegmentInfosFiles = segmentInfosGatedCloseable.get().files(true);
+                    Set<String> localFiles = new HashSet<>(localSegmentInfosFiles);
+                    // verifying that all files except EXCLUDE_FILES are uploaded to the remote
+                    localFiles.removeAll(RemoteStoreRefreshListener.EXCLUDE_FILES);
+                    if (uploadFiles.containsAll(localFiles)) {
+                        return true;
+                    }
+                    logger.debug(
+                        () -> new ParameterizedMessage(
+                            "RemoteSegmentStoreSyncStatus localSize={} remoteSize={}",
+                            localFiles.size(),
+                            uploadFiles.size()
+                        )
+                    );
                 }
-                logger.debug(
-                    () -> new ParameterizedMessage(
-                        "RemoteSegmentStoreSyncStatus localSize={} remoteSize={}",
-                        localFiles.size(),
-                        uploadFiles.size()
-                    )
-                );
             }
         } catch (AlreadyClosedException e) {
             throw e;
@@ -2063,7 +2057,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             logger.error("Exception while reading latest metadata", e);
         }
         return false;
-
     }
 
     public void preRecovery() {
