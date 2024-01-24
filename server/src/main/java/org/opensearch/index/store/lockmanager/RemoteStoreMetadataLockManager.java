@@ -88,6 +88,13 @@ public class RemoteStoreMetadataLockManager implements RemoteStoreLockManager {
         return lockFilesForAcquirer.get(0);
     }
 
+    public Collection<String> fetchLocks(String filenamePrefix) throws IOException {
+        Collection<String> lockFiles = lockDirectory.listFilesByPrefix(filenamePrefix);
+        return lockFiles.stream()
+            .map(FileLockInfo.LockFileUtils::getFileToLockNameFromLock)
+            .collect(Collectors.toList());
+    }
+
     /**
      * Checks whether a given file have any lock on it or not.
      * @param lockInfo File Lock Info instance for which we need to check if lock is acquired.
@@ -99,10 +106,6 @@ public class RemoteStoreMetadataLockManager implements RemoteStoreLockManager {
         assert lockInfo instanceof FileLockInfo : "lockInfo should be instance of FileLockInfo";
         Collection<String> lockFiles = lockDirectory.listFilesByPrefix(((FileLockInfo) lockInfo).getLockPrefix());
         return !lockFiles.isEmpty();
-    }
-
-    public Collection<String> listAllLocks(String prefix) throws IOException {
-        return lockDirectory.listFilesByPrefix(prefix);
     }
 
     /**

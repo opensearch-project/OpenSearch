@@ -44,8 +44,6 @@ public interface RemoteStoreLockManager {
      */
     Boolean isAcquired(LockInfo lockInfo) throws IOException;
 
-    public Collection<String> listAllLocks(String prefix) throws IOException;
-
     /**
      * Acquires lock on the file mentioned in originalLockInfo for acquirer mentioned in clonedLockInfo.
      * There can occur a race condition where the original file is deleted before we can use it to acquire lock for the new acquirer. Until we have a
