@@ -74,6 +74,7 @@ import java.util.Random;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 public class MockRepository extends FsRepository {
@@ -124,6 +125,8 @@ public class MockRepository extends FsRepository {
     private final boolean skipExceptionOnListBlobs;
 
     private final List<String> skipExceptionOnBlobs;
+
+    private final List<String> regexesToFailIO;
 
     private final boolean useLuceneCorruptionException;
 
@@ -188,6 +191,7 @@ public class MockRepository extends FsRepository {
         skipExceptionOnVerificationFile = metadata.settings().getAsBoolean("skip_exception_on_verification_file", false);
         skipExceptionOnListBlobs = metadata.settings().getAsBoolean("skip_exception_on_list_blobs", false);
         skipExceptionOnBlobs = metadata.settings().getAsList("skip_exception_on_blobs");
+        regexesToFailIO = metadata.settings().getAsList("regexes_to_fail_io");
         useLuceneCorruptionException = metadata.settings().getAsBoolean("use_lucene_corruption", false);
         maximumNumberOfFailures = metadata.settings().getAsLong("max_failure_number", 100L);
         blockOnAnyFiles = metadata.settings().getAsBoolean("block_on_control", false);
@@ -401,6 +405,12 @@ public class MockRepository extends FsRepository {
                     // Condition 4 - This condition allows to skip exception on specific blobName or blobPrefix
                     return;
                 }
+
+                if (failIOForBlobsMatchingRegex(blobName) && (incrementAndGetFailureCount() < maximumNumberOfFailures)) {
+                    logger.info("throwing random IOException for file [{}] at path [{}]", blobName, path());
+                    throw new IOException("Random IOException");
+                }
+
                 if (blobName.startsWith("__")) {
                     if (shouldFail(blobName, randomDataFileIOExceptionRate) && (incrementAndGetFailureCount() < maximumNumberOfFailures)) {
                         logger.info("throwing random IOException for file [{}] at path [{}]", blobName, path());
@@ -610,6 +620,10 @@ public class MockRepository extends FsRepository {
 
         private boolean skipExceptionOnBlob(String blobName) {
             return skipExceptionOnBlobs.contains(blobName);
+        }
+
+        private boolean failIOForBlobsMatchingRegex(String blobName) {
+            return regexesToFailIO.stream().anyMatch(regex -> Pattern.compile(regex).matcher(blobName).find());
         }
     }
 }
