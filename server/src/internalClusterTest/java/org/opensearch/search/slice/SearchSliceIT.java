@@ -53,7 +53,7 @@ import org.opensearch.search.SearchException;
 import org.opensearch.search.SearchHit;
 import org.opensearch.search.builder.PointInTimeBuilder;
 import org.opensearch.search.sort.SortBuilders;
-import org.opensearch.test.ParameterizedOpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -70,9 +70,9 @@ import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.startsWith;
 
-public class SearchSliceIT extends ParameterizedOpenSearchIntegTestCase {
-    public SearchSliceIT(Settings dynamicSettings) {
-        super(dynamicSettings);
+public class SearchSliceIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
+    public SearchSliceIT(Settings staticSettings) {
+        super(staticSettings);
     }
 
     @ParametersFactory

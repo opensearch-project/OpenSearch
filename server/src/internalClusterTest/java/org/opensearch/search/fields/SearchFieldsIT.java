@@ -63,7 +63,7 @@ import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.search.lookup.FieldLookup;
 import org.opensearch.search.sort.SortOrder;
 import org.opensearch.test.InternalSettingsPlugin;
-import org.opensearch.test.ParameterizedOpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.joda.time.format.DateTimeFormat;
@@ -104,10 +104,10 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-public class SearchFieldsIT extends ParameterizedOpenSearchIntegTestCase {
+public class SearchFieldsIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
 
-    public SearchFieldsIT(Settings dynamicSettings) {
-        super(dynamicSettings);
+    public SearchFieldsIT(Settings staticSettings) {
+        super(staticSettings);
     }
 
     @ParametersFactory

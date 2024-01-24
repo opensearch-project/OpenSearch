@@ -21,7 +21,6 @@ import org.openjdk.jmh.annotations.Warmup;
 import org.openjdk.jmh.infra.Blackhole;
 
 import java.util.Random;
-import java.util.function.Supplier;
 
 @Fork(value = 3)
 @Warmup(iterations = 3, time = 1)
@@ -83,17 +82,17 @@ public class RoundableBenchmark {
             "256" })
         public Integer size;
 
-        @Param({ "binary", "linear" })
+        @Param({ "binary", "linear", "btree" })
         public String type;
 
         @Param({ "uniform", "skewed_edge", "skewed_center" })
         public String distribution;
 
         public long[] queries;
-        public Supplier<Roundable> supplier;
+        public RoundableSupplier supplier;
 
         @Setup
-        public void setup() {
+        public void setup() throws ClassNotFoundException {
             Random random = new Random(size);
             long[] values = new long[size];
             for (int i = 1; i < values.length; i++) {
@@ -128,16 +127,7 @@ public class RoundableBenchmark {
                     throw new IllegalArgumentException("invalid distribution: " + distribution);
             }
 
-            switch (type) {
-                case "binary":
-                    supplier = () -> new BinarySearcher(values, size);
-                    break;
-                case "linear":
-                    supplier = () -> new BidirectionalLinearSearcher(values, size);
-                    break;
-                default:
-                    throw new IllegalArgumentException("invalid type: " + type);
-            }
+            supplier = new RoundableSupplier(type, values, size);
         }
 
         private static long nextPositiveLong(Random random) {

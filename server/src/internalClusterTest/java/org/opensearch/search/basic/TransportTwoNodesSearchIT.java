@@ -54,7 +54,7 @@ import org.opensearch.search.aggregations.bucket.filter.Filter;
 import org.opensearch.search.aggregations.bucket.global.Global;
 import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.search.sort.SortOrder;
-import org.opensearch.test.ParameterizedOpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -80,10 +80,10 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
 
-public class TransportTwoNodesSearchIT extends ParameterizedOpenSearchIntegTestCase {
+public class TransportTwoNodesSearchIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
 
-    public TransportTwoNodesSearchIT(Settings dynamicSettings) {
-        super(dynamicSettings);
+    public TransportTwoNodesSearchIT(Settings staticSettings) {
+        super(staticSettings);
     }
 
     @ParametersFactory
