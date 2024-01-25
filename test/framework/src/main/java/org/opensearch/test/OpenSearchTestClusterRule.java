@@ -56,6 +56,8 @@ import static org.junit.Assert.assertThat;
  * on the way cluster settings are being managed.
  */
 class OpenSearchTestClusterRule implements MethodRule {
+    // Maps each TestCluster instance to the exact test suite instance that triggered its creation
+    private final Map<TestCluster, OpenSearchIntegTestCase> suites = new IdentityHashMap<>();
     private final Map<Class<?>, TestCluster> clusters = new IdentityHashMap<>();
     private final Logger logger = LogManager.getLogger(getClass());
 
@@ -86,7 +88,13 @@ class OpenSearchTestClusterRule implements MethodRule {
                 printTestMessage("cleaning up after");
                 afterInternal(true, null);
                 OpenSearchTestCase.checkStaticState(true);
-                clusters.remove(getTestClass());
+                synchronized (clusters) {
+                    final TestCluster cluster = clusters.remove(getTestClass());
+                    IOUtils.closeWhileHandlingException(cluster);
+                    if (cluster != null) {
+                        suites.remove(cluster);
+                    }
+                }
             }
             StrictCheckSpanProcessor.validateTracingStateOnShutdown();
         } finally {
@@ -226,8 +234,11 @@ class OpenSearchTestClusterRule implements MethodRule {
         return clazz.getAnnotation(SuiteScopeTestCase.class) != null;
     }
 
-    private boolean hasParametersChanged(final ParameterizedOpenSearchIntegTestCase target) {
-        return !((ParameterizedOpenSearchIntegTestCase) suiteInstance).hasSameParametersAs(target);
+    private static boolean hasParametersChanged(
+        final ParameterizedOpenSearchIntegTestCase instance,
+        final ParameterizedOpenSearchIntegTestCase target
+    ) {
+        return !instance.hasSameParametersAs(target);
     }
 
     private boolean runTestScopeLifecycle() {
@@ -242,8 +253,24 @@ class OpenSearchTestClusterRule implements MethodRule {
             clearClusters(); // all leftovers are gone by now... this is really just a double safety if we miss something somewhere
             switch (currentClusterScope) {
                 case SUITE:
+                    if (testCluster != null && target instanceof ParameterizedOpenSearchIntegTestCase) {
+                        final OpenSearchIntegTestCase instance = suites.get(testCluster);
+                        if (instance != null) {
+                            assert instance instanceof ParameterizedOpenSearchIntegTestCase;
+                            if (hasParametersChanged(
+                                (ParameterizedOpenSearchIntegTestCase) instance,
+                                (ParameterizedOpenSearchIntegTestCase) target
+                            )) {
+                                IOUtils.closeWhileHandlingException(testCluster);
+                                printTestMessage("new instance of parameterized test class, recreating test cluster for suite");
+                                testCluster = null;
+                            }
+                        }
+                    }
+
                     if (testCluster == null) { // only build if it's not there yet
                         testCluster = buildWithPrivateContext(currentClusterScope, seed, target);
+                        suites.put(testCluster, target);
                     }
                     break;
                 case TEST:
@@ -310,6 +337,7 @@ class OpenSearchTestClusterRule implements MethodRule {
         synchronized (clusters) {
             if (!clusters.isEmpty()) {
                 IOUtils.close(clusters.values());
+                suites.clear();
                 clusters.clear();
             }
         }
@@ -363,7 +391,10 @@ class OpenSearchTestClusterRule implements MethodRule {
             // Catching the case when parameterized test cases are run: the test class stays the same but the test instances changes.
             if (target instanceof ParameterizedOpenSearchIntegTestCase) {
                 assert suiteInstance instanceof ParameterizedOpenSearchIntegTestCase;
-                if (hasParametersChanged((ParameterizedOpenSearchIntegTestCase) target)) {
+                if (hasParametersChanged(
+                    (ParameterizedOpenSearchIntegTestCase) suiteInstance,
+                    (ParameterizedOpenSearchIntegTestCase) target
+                )) {
                     printTestMessage("new instance of parameterized test class, recreating cluster scope", method);
                     afterClass();
                     beforeClass();
