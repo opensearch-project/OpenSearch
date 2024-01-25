@@ -75,7 +75,6 @@ import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.function.LongPredicate;
 import java.util.function.LongUnaryOperator;
-import java.util.logging.Logger;
 
 import static org.opensearch.search.aggregations.InternalOrder.isKeyOrder;
 import static org.apache.lucene.index.SortedSetDocValues.NO_MORE_ORDS;
@@ -87,9 +86,6 @@ import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
  * @opensearch.internal
  */
 public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggregator {
-
-    // testing only - will remove
-    protected Logger logger = Logger.getLogger(GlobalOrdinalsStringTermsAggregator.class.getName());
     protected final ResultStrategy<?, ?, ?> resultStrategy;
     protected final ValuesSource.Bytes.WithOrdinals valuesSource;
 
@@ -164,58 +160,52 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
     /**
      Collects term frequencies for a given field from a LeafReaderContext.
      @param ctx The LeafReaderContext to collect terms from
-     @param ords The SortedSetDocValues for the field's ordinals
+     @param globalOrds The SortedSetDocValues for the field's ordinals
      @param ordCountConsumer A consumer to accept collected term frequencies
-     @return A LeafBucketCollector implementation that throws an exception, since collection is complete
-     @throws IOException If an I/O error occurs during reading */
-    LeafBucketCollector termDocFreqCollector(LeafReaderContext ctx, SortedSetDocValues ords, BiConsumer<Long, Integer> ordCountConsumer)
-        throws IOException {
-        // long n0 = System.nanoTime(), n1, n2, n3, n4, n5 = 0;
+     @return A no-operation LeafBucketCollector implementation, since collection is complete
+     @throws IOException If an I/O error occurs during reading
+     */
+    LeafBucketCollector termDocFreqCollector(
+        LeafReaderContext ctx,
+        SortedSetDocValues globalOrds,
+        BiConsumer<Long, Integer> ordCountConsumer
+    ) throws IOException {
         if (weight.count(ctx) != ctx.reader().maxDoc()) {
             // Top-level query does not match all docs in this segment.
             return null;
         }
-        // n1 = System.nanoTime();
 
-        Terms aggTerms = ctx.reader().terms(this.fieldName);
-        if (aggTerms == null) {
+        Terms segmentTerms = ctx.reader().terms(this.fieldName);
+        if (segmentTerms == null) {
             // Field is not indexed.
             return null;
         }
-        // n2 = System.nanoTime();
+
         NumericDocValues docCountValues = DocValues.getNumeric(ctx.reader(), DocCountFieldMapper.NAME);
         if (docCountValues.nextDoc() != NO_MORE_DOCS) {
             // This segment has at least one document with the _doc_count field.
             return null;
         }
-        // n3 = System.nanoTime();
-        TermsEnum indexTermsEnum = aggTerms.iterator();
+
+        TermsEnum indexTermsEnum = segmentTerms.iterator();
         BytesRef indexTerm = indexTermsEnum.next();
-        TermsEnum ordinalTermsEnum = ords.termsEnum();
-        BytesRef ordinalTerm = ordinalTermsEnum.next();
-        // n4 = System.nanoTime();
+        TermsEnum globalOrdinalTermsEnum = globalOrds.termsEnum();
+        BytesRef ordinalTerm = globalOrdinalTermsEnum.next();
+
         while (indexTerm != null && ordinalTerm != null) {
             int compare = indexTerm.compareTo(ordinalTerm);
             if (compare == 0) {
-                if (acceptedGlobalOrdinals.test(ordinalTermsEnum.ord())) {
-                    ordCountConsumer.accept(ordinalTermsEnum.ord(), indexTermsEnum.docFreq());
+                if (acceptedGlobalOrdinals.test(globalOrdinalTermsEnum.ord())) {
+                    ordCountConsumer.accept(globalOrdinalTermsEnum.ord(), indexTermsEnum.docFreq());
                 }
                 indexTerm = indexTermsEnum.next();
-                ordinalTerm = ordinalTermsEnum.next();
+                ordinalTerm = globalOrdinalTermsEnum.next();
             } else if (compare < 0) {
                 indexTerm = indexTermsEnum.next();
             } else {
-                ordinalTerm = ordinalTermsEnum.next();
+                ordinalTerm = globalOrdinalTermsEnum.next();
             }
-            // n5 = System.nanoTime();
         }
-        // logger.info((n1 - n0) + " " + (n2 - n1) + " " + (n3 - n2) + " " + (n4 - n3) + " " + (n5 - n4));
-        // return new LeafBucketCollector() {
-        // @Override
-        // public void collect(int doc, long owningBucketOrd) {
-        // throw new CollectionTerminatedException();
-        // }
-        // };
         return LeafBucketCollector.NO_OP_COLLECTOR;
     }
 
@@ -228,10 +218,10 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
             LeafBucketCollector termDocFreqCollector = termDocFreqCollector(
                 ctx,
                 globalOrds,
-                (o, c) -> incrementBucketDocCount(collectionStrategy.globalOrdToBucketOrd(0, o), c)
+                (ord, docCount) -> incrementBucketDocCount(collectionStrategy.globalOrdToBucketOrd(0, ord), docCount)
             );
             if (termDocFreqCollector != null) {
-                return termDocFreqCollector;
+                return null;
             }
         }
 
@@ -436,7 +426,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
             LeafBucketCollector termDocFreqCollector = this.termDocFreqCollector(
                 ctx,
                 segmentOrds,
-                (o, c) -> segmentDocCounts.increment(o + 1, c)
+                (ord, docCount) -> segmentDocCounts.increment(ord + 1, docCount)
             );
             if (termDocFreqCollector != null) {
                 return termDocFreqCollector;
