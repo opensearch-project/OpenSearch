@@ -24,7 +24,13 @@ import java.util.Optional;
 import static java.util.Arrays.stream;
 
 /**
- * Represents a single semver range.
+ * Represents a single semver range that allows for specifying which {@code org.opensearch.Version}s satisfy the range.
+ * It is composed of a range version and a range operator. Following are the supported operators:
+ * <ul>
+ *     <li>'=' Requires exact match with the range version. For example, =1.2.3 range would match only 1.2.3</li>
+ *     <li>'~' Allows for patch version variability starting from the range version. For example, ~1.2.3 range would match versions greater than or equal to 1.2.3 but less than 1.3.0</li>
+ *     <li>'^' Allows for patch and minor version variability starting from the range version. For example, ^1.2.3 range would match versions greater than or equal to 1.2.3 but less than 2.0.0</li>
+ * </ul>
  */
 public class SemverRange implements ToXContentFragment {
 

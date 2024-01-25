@@ -8,17 +8,11 @@
 
 package org.opensearch.backwards;
 
-import org.opensearch.Version;
 import org.opensearch.client.Request;
 import org.opensearch.client.Response;
-import org.opensearch.cluster.metadata.IndexMetadata;
-import org.opensearch.common.settings.Settings;
-
 import org.opensearch.test.rest.OpenSearchRestTestCase;
 import org.opensearch.test.rest.yaml.ObjectPath;
 
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Map;
 
 public class PluginInfoIT extends OpenSearchRestTestCase {
