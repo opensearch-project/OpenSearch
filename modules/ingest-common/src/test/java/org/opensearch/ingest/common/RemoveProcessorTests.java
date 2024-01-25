@@ -203,7 +203,7 @@ public class RemoveProcessorTests extends OpenSearchTestCase {
 
     public void testCreateRemoveProcessorWithBothFieldsAndExcludeFields() throws Exception {
         assertThrows(
-            "ether fields and excludeFields must be set",
+            "either fields or excludeFields must be set",
             IllegalArgumentException.class,
             () -> new RemoveProcessor(randomAlphaOfLength(10), null, null, null, false)
         );
@@ -223,7 +223,7 @@ public class RemoveProcessorTests extends OpenSearchTestCase {
         }
 
         assertThrows(
-            "ether fields and excludeFields must be set",
+            "either fields or excludeFields must be set",
             IllegalArgumentException.class,
             () -> new RemoveProcessor(randomAlphaOfLength(10), null, fields, excludeFields, false)
         );
