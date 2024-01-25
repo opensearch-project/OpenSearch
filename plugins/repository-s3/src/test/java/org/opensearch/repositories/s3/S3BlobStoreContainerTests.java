@@ -32,6 +32,20 @@
 
 package org.opensearch.repositories.s3;
 
+import org.mockito.ArgumentCaptor;
+import org.mockito.ArgumentMatchers;
+import org.opensearch.action.LatchedActionListener;
+import org.opensearch.common.blobstore.BlobContainer;
+import org.opensearch.common.blobstore.BlobMetadata;
+import org.opensearch.common.blobstore.BlobPath;
+import org.opensearch.common.blobstore.BlobStoreException;
+import org.opensearch.common.blobstore.DeleteResult;
+import org.opensearch.common.blobstore.stream.read.ReadContext;
+import org.opensearch.common.collect.Tuple;
+import org.opensearch.common.io.InputStreamContainer;
+import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.common.unit.ByteSizeUnit;
+import org.opensearch.test.OpenSearchTestCase;
 import software.amazon.awssdk.core.ResponseInputStream;
 import software.amazon.awssdk.core.async.AsyncResponseTransformer;
 import software.amazon.awssdk.core.exception.SdkException;
@@ -70,19 +84,6 @@ import software.amazon.awssdk.services.s3.model.UploadPartRequest;
 import software.amazon.awssdk.services.s3.model.UploadPartResponse;
 import software.amazon.awssdk.services.s3.paginators.ListObjectsV2Iterable;
 
-import org.opensearch.action.LatchedActionListener;
-import org.opensearch.common.blobstore.BlobContainer;
-import org.opensearch.common.blobstore.BlobMetadata;
-import org.opensearch.common.blobstore.BlobPath;
-import org.opensearch.common.blobstore.BlobStoreException;
-import org.opensearch.common.blobstore.DeleteResult;
-import org.opensearch.common.blobstore.stream.read.ReadContext;
-import org.opensearch.common.collect.Tuple;
-import org.opensearch.common.io.InputStreamContainer;
-import org.opensearch.core.action.ActionListener;
-import org.opensearch.core.common.unit.ByteSizeUnit;
-import org.opensearch.test.OpenSearchTestCase;
-
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -102,9 +103,6 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
-
-import org.mockito.ArgumentCaptor;
-import org.mockito.ArgumentMatchers;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -914,6 +912,15 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
 
     public void testListBlobsByPrefixInLexicographicOrderWithLimitLessThanPageSize() throws IOException {
         testListBlobsByPrefixInLexicographicOrder(2, 1, BlobContainer.BlobNameSortOrder.LEXICOGRAPHIC);
+    }
+
+    /**
+     * Test the boundary value at page size to ensure
+     * unnecessary calls are not made to S3 by fetching the next page.
+     * @throws IOException
+     */
+    public void testListBlobsByPrefixInLexicographicOrderWithLimitEqualToPageSize() throws IOException {
+        testListBlobsByPrefixInLexicographicOrder(5, 1, BlobContainer.BlobNameSortOrder.LEXICOGRAPHIC);
     }
 
     public void testListBlobsByPrefixInLexicographicOrderWithLimitGreaterThanPageSize() throws IOException {
