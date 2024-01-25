@@ -9,7 +9,6 @@
 package org.opensearch.gateway;
 
 import org.opensearch.OpenSearchException;
-import org.opensearch.Version;
 import org.opensearch.action.ActionType;
 import org.opensearch.action.FailedNodeException;
 import org.opensearch.action.support.ActionFilters;
@@ -272,7 +271,7 @@ public class TransportNodesListGatewayStartedShardsBatch extends TransportNodesA
             } else {
                 storeException = null;
             }
-            if (in.getVersion().onOrAfter(Version.V_2_3_0) && in.readBoolean()) {
+            if (in.readBoolean()) {
                 replicationCheckpoint = new ReplicationCheckpoint(in);
             } else {
                 replicationCheckpoint = null;
@@ -320,13 +319,11 @@ public class TransportNodesListGatewayStartedShardsBatch extends TransportNodesA
             } else {
                 out.writeBoolean(false);
             }
-            if (out.getVersion().onOrAfter(Version.V_2_3_0)) {
-                if (replicationCheckpoint != null) {
-                    out.writeBoolean(true);
-                    replicationCheckpoint.writeTo(out);
-                } else {
-                    out.writeBoolean(false);
-                }
+            if (replicationCheckpoint != null) {
+                out.writeBoolean(true);
+                replicationCheckpoint.writeTo(out);
+            } else {
+                out.writeBoolean(false);
             }
         }
 
