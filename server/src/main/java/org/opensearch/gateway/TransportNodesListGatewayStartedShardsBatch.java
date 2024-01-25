@@ -50,15 +50,15 @@ import static org.opensearch.gateway.TransportNodesGatewayStartedShardHelper.get
  *
  * @opensearch.internal
  */
-public class TransportNodesListGatewayStartedBatchShards extends TransportNodesAction<
-    TransportNodesListGatewayStartedBatchShards.Request,
-    TransportNodesListGatewayStartedBatchShards.NodesGatewayStartedShardsBatch,
-    TransportNodesListGatewayStartedBatchShards.NodeRequest,
-    TransportNodesListGatewayStartedBatchShards.NodeGatewayStartedShardsBatch>
+public class TransportNodesListGatewayStartedShardsBatch extends TransportNodesAction<
+    TransportNodesListGatewayStartedShardsBatch.Request,
+    TransportNodesListGatewayStartedShardsBatch.NodesGatewayStartedShardsBatch,
+    TransportNodesListGatewayStartedShardsBatch.NodeRequest,
+    TransportNodesListGatewayStartedShardsBatch.NodeGatewayStartedShardsBatch>
     implements
         AsyncShardFetch.Lister<
-            TransportNodesListGatewayStartedBatchShards.NodesGatewayStartedShardsBatch,
-            TransportNodesListGatewayStartedBatchShards.NodeGatewayStartedShardsBatch> {
+            TransportNodesListGatewayStartedShardsBatch.NodesGatewayStartedShardsBatch,
+            TransportNodesListGatewayStartedShardsBatch.NodeGatewayStartedShardsBatch> {
 
     public static final String ACTION_NAME = "internal:gateway/local/started_shards_batch";
     public static final ActionType<NodesGatewayStartedShardsBatch> TYPE = new ActionType<>(
@@ -72,7 +72,7 @@ public class TransportNodesListGatewayStartedBatchShards extends TransportNodesA
     private final NamedXContentRegistry namedXContentRegistry;
 
     @Inject
-    public TransportNodesListGatewayStartedBatchShards(
+    public TransportNodesListGatewayStartedShardsBatch(
         Settings settings,
         ThreadPool threadPool,
         ClusterService clusterService,
@@ -250,8 +250,11 @@ public class TransportNodesListGatewayStartedBatchShards extends TransportNodesA
     }
 
     /**
-     * Class for storing shard information received from other node.
-     * This is used in {@link NodeGatewayStartedShardsBatch} to construct the response for each node
+     * This class encapsulates the metadata about a started shard that needs to be persisted or sent between nodes.
+     * This is used in {@link NodeGatewayStartedShardsBatch} to construct the response for each node, instead of
+     * {@link TransportNodesListGatewayStartedShards.NodeGatewayStartedShards} because we don't need to save an extra
+     * {@link DiscoveryNode} object like in {@link TransportNodesListGatewayStartedShards.NodeGatewayStartedShards}
+     * which reduces memory footprint of its objects.
      *
      * @opensearch.internal
      */

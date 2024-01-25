@@ -28,16 +28,16 @@ import java.io.IOException;
 
 /**
  * This class has the common code used in {@link TransportNodesListGatewayStartedShards} and
- * {@link TransportNodesListGatewayStartedBatchShards} to get the shard info on the local node.
+ * {@link TransportNodesListGatewayStartedShardsBatch} to get the shard info on the local node.
  * <p>
  * This class should not be used to add more functions and will be removed when the
  * {@link TransportNodesListGatewayStartedShards} will be deprecated and all the code will be moved to
- * {@link TransportNodesListGatewayStartedBatchShards}
+ * {@link TransportNodesListGatewayStartedShardsBatch}
  *
  * @opensearch.internal
  */
 public class TransportNodesGatewayStartedShardHelper {
-    public static TransportNodesListGatewayStartedBatchShards.NodeGatewayStartedShard getShardInfoOnLocalNode(
+    public static TransportNodesListGatewayStartedShardsBatch.NodeGatewayStartedShard getShardInfoOnLocalNode(
         Logger logger,
         final ShardId shardId,
         NamedXContentRegistry namedXContentRegistry,
@@ -90,7 +90,7 @@ public class TransportNodesGatewayStartedShardHelper {
                         exception
                     );
                     String allocationId = shardStateMetadata.allocationId != null ? shardStateMetadata.allocationId.getId() : null;
-                    return new TransportNodesListGatewayStartedBatchShards.NodeGatewayStartedShard(
+                    return new TransportNodesListGatewayStartedShardsBatch.NodeGatewayStartedShard(
                         allocationId,
                         shardStateMetadata.primary,
                         null,
@@ -102,13 +102,13 @@ public class TransportNodesGatewayStartedShardHelper {
             logger.debug("{} shard state info found: [{}]", shardId, shardStateMetadata);
             String allocationId = shardStateMetadata.allocationId != null ? shardStateMetadata.allocationId.getId() : null;
             final IndexShard shard = indicesService.getShardOrNull(shardId);
-            return new TransportNodesListGatewayStartedBatchShards.NodeGatewayStartedShard(
+            return new TransportNodesListGatewayStartedShardsBatch.NodeGatewayStartedShard(
                 allocationId,
                 shardStateMetadata.primary,
                 shard != null ? shard.getLatestReplicationCheckpoint() : null
             );
         }
         logger.trace("{} no local shard info found", shardId);
-        return new TransportNodesListGatewayStartedBatchShards.NodeGatewayStartedShard(null, false, null);
+        return new TransportNodesListGatewayStartedShardsBatch.NodeGatewayStartedShard(null, false, null);
     }
 }

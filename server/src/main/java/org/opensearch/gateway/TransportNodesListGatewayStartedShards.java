@@ -154,7 +154,7 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesAction
     @Override
     protected NodeGatewayStartedShards nodeOperation(NodeRequest request) {
         try {
-            TransportNodesListGatewayStartedBatchShards.NodeGatewayStartedShard shardInfo = getShardInfoOnLocalNode(
+            TransportNodesListGatewayStartedShardsBatch.NodeGatewayStartedShard shardInfo = getShardInfoOnLocalNode(
                 logger,
                 request.getShardId(),
                 namedXContentRegistry,

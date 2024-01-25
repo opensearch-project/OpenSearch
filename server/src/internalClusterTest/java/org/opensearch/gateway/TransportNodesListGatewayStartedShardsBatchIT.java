@@ -36,7 +36,7 @@ import java.util.concurrent.ExecutionException;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 
-public class TransportNodesListGatewayStartedBatchShardsIT extends OpenSearchIntegTestCase {
+public class TransportNodesListGatewayStartedShardsBatchIT extends OpenSearchIntegTestCase {
 
     public void testSingleShardFetch() throws Exception {
         String indexName = "test";
@@ -44,14 +44,14 @@ public class TransportNodesListGatewayStartedBatchShardsIT extends OpenSearchInt
 
         ClusterSearchShardsResponse searchShardsResponse = client().admin().cluster().prepareSearchShards(indexName).get();
 
-        TransportNodesListGatewayStartedBatchShards.NodesGatewayStartedShardsBatch response;
+        TransportNodesListGatewayStartedShardsBatch.NodesGatewayStartedShardsBatch response;
         response = ActionTestUtils.executeBlocking(
-            internalCluster().getInstance(TransportNodesListGatewayStartedBatchShards.class),
-            new TransportNodesListGatewayStartedBatchShards.Request(searchShardsResponse.getNodes(), shardIdShardAttributesMap)
+            internalCluster().getInstance(TransportNodesListGatewayStartedShardsBatch.class),
+            new TransportNodesListGatewayStartedShardsBatch.Request(searchShardsResponse.getNodes(), shardIdShardAttributesMap)
         );
         final Index index = resolveIndex(indexName);
         final ShardId shardId = new ShardId(index, 0);
-        TransportNodesListGatewayStartedBatchShards.NodeGatewayStartedShard nodeGatewayStartedShards = response.getNodesMap()
+        TransportNodesListGatewayStartedShardsBatch.NodeGatewayStartedShard nodeGatewayStartedShards = response.getNodesMap()
             .get(searchShardsResponse.getNodes()[0].getId())
             .getNodeGatewayStartedShardsBatch()
             .get(shardId);
@@ -70,16 +70,16 @@ public class TransportNodesListGatewayStartedBatchShardsIT extends OpenSearchInt
         );
         ClusterSearchShardsResponse searchShardsResponse = client().admin().cluster().prepareSearchShards(indexName1, indexName2).get();
         assertEquals(internalCluster().numDataNodes(), searchShardsResponse.getNodes().length);
-        TransportNodesListGatewayStartedBatchShards.NodesGatewayStartedShardsBatch response;
+        TransportNodesListGatewayStartedShardsBatch.NodesGatewayStartedShardsBatch response;
         response = ActionTestUtils.executeBlocking(
-            internalCluster().getInstance(TransportNodesListGatewayStartedBatchShards.class),
-            new TransportNodesListGatewayStartedBatchShards.Request(searchShardsResponse.getNodes(), shardIdShardAttributesMap)
+            internalCluster().getInstance(TransportNodesListGatewayStartedShardsBatch.class),
+            new TransportNodesListGatewayStartedShardsBatch.Request(searchShardsResponse.getNodes(), shardIdShardAttributesMap)
         );
         for (ClusterSearchShardsGroup clusterSearchShardsGroup : searchShardsResponse.getGroups()) {
             ShardId shardId = clusterSearchShardsGroup.getShardId();
             assertEquals(1, clusterSearchShardsGroup.getShards().length);
             String nodeId = clusterSearchShardsGroup.getShards()[0].currentNodeId();
-            TransportNodesListGatewayStartedBatchShards.NodeGatewayStartedShard nodeGatewayStartedShards = response.getNodesMap()
+            TransportNodesListGatewayStartedShardsBatch.NodeGatewayStartedShard nodeGatewayStartedShards = response.getNodesMap()
                 .get(nodeId)
                 .getNodeGatewayStartedShardsBatch()
                 .get(shardId);
@@ -94,14 +94,14 @@ public class TransportNodesListGatewayStartedBatchShardsIT extends OpenSearchInt
         final Index index = resolveIndex(indexName);
         final ShardId shardId = new ShardId(index, 0);
         corruptShard(searchShardsResponse.getNodes()[0].getName(), shardId);
-        TransportNodesListGatewayStartedBatchShards.NodesGatewayStartedShardsBatch response;
+        TransportNodesListGatewayStartedShardsBatch.NodesGatewayStartedShardsBatch response;
         internalCluster().restartNode(searchShardsResponse.getNodes()[0].getName());
         response = ActionTestUtils.executeBlocking(
-            internalCluster().getInstance(TransportNodesListGatewayStartedBatchShards.class),
-            new TransportNodesListGatewayStartedBatchShards.Request(getDiscoveryNodes(), shardIdShardAttributesMap)
+            internalCluster().getInstance(TransportNodesListGatewayStartedShardsBatch.class),
+            new TransportNodesListGatewayStartedShardsBatch.Request(getDiscoveryNodes(), shardIdShardAttributesMap)
         );
         DiscoveryNode[] discoveryNodes = getDiscoveryNodes();
-        TransportNodesListGatewayStartedBatchShards.NodeGatewayStartedShard nodeGatewayStartedShards = response.getNodesMap()
+        TransportNodesListGatewayStartedShardsBatch.NodeGatewayStartedShard nodeGatewayStartedShards = response.getNodesMap()
             .get(discoveryNodes[0].getId())
             .getNodeGatewayStartedShardsBatch()
             .get(shardId);
@@ -122,7 +122,7 @@ public class TransportNodesListGatewayStartedBatchShardsIT extends OpenSearchInt
     }
 
     private void assertNodeGatewayStartedShardsHappyCase(
-        TransportNodesListGatewayStartedBatchShards.NodeGatewayStartedShard nodeGatewayStartedShards
+        TransportNodesListGatewayStartedShardsBatch.NodeGatewayStartedShard nodeGatewayStartedShards
     ) {
         assertNull(nodeGatewayStartedShards.storeException());
         assertNotNull(nodeGatewayStartedShards.allocationId());
