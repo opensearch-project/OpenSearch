@@ -40,7 +40,6 @@ import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
-import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
@@ -99,7 +98,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
 
     private final String fieldName;
 
-    private final Weight weight;
+    private Weight weight;
     private final GlobalOrdLookupFunction lookupGlobalOrd;
     protected final CollectionStrategy collectionStrategy;
     protected int segmentsWithSingleValuedOrds = 0;
@@ -152,11 +151,14 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
             });
         }
         this.fieldName = ((ValuesSource.Bytes.WithOrdinals.FieldData) valuesSource).getIndexFieldName();
-        this.weight = context.searcher().createWeight(context.query(), ScoreMode.COMPLETE_NO_SCORES, 1f);
     }
 
     String descriptCollectionStrategy() {
         return collectionStrategy.describe();
+    }
+
+    public void setWeight(Weight weight) {
+        this.weight = weight;
     }
 
     /**
