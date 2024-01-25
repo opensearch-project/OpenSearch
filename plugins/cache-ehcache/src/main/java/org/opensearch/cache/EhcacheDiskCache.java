@@ -6,21 +6,25 @@
  * compatible open source license.
  */
 
-package org.opensearch.common.cache.store;
+package org.opensearch.cache;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.OpenSearchException;
 import org.opensearch.common.SuppressForbidden;
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.cache.LoadAwareCacheLoader;
 import org.opensearch.common.cache.RemovalReason;
+import org.opensearch.common.cache.provider.CacheProvider;
 import org.opensearch.common.cache.stats.CacheStats;
+import org.opensearch.common.cache.store.StoreAwareCache;
+import org.opensearch.common.cache.store.StoreAwareCacheRemovalNotification;
 import org.opensearch.common.cache.store.builders.StoreAwareCacheBuilder;
+import org.opensearch.common.cache.store.config.StoreAwareCacheConfig;
 import org.opensearch.common.cache.store.enums.CacheStoreType;
 import org.opensearch.common.cache.store.listeners.StoreAwareCacheEventListener;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.metrics.CounterMetric;
-import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 
@@ -53,6 +57,11 @@ import org.ehcache.impl.config.store.disk.OffHeapDiskStoreConfiguration;
 import org.ehcache.spi.loaderwriter.CacheLoadingException;
 import org.ehcache.spi.loaderwriter.CacheWritingException;
 
+import static org.opensearch.cache.EhcacheSettings.DISK_SEGMENTS;
+import static org.opensearch.cache.EhcacheSettings.DISK_WRITE_CONCURRENCY;
+import static org.opensearch.cache.EhcacheSettings.DISK_WRITE_MAXIMUM_THREADS;
+import static org.opensearch.cache.EhcacheSettings.DISK_WRITE_MINIMUM_THREADS;
+
 /**
  * This variant of disk cache uses Ehcache underneath.
  *  @param <K> Type of key.
@@ -61,9 +70,10 @@ import org.ehcache.spi.loaderwriter.CacheWritingException;
  *  @opensearch.experimental
  *
  */
-public class EhCacheDiskCache<K, V> implements StoreAwareCache<K, V> {
+@ExperimentalApi
+public class EhcacheDiskCache<K, V> implements StoreAwareCache<K, V> {
 
-    private static final Logger logger = LogManager.getLogger(EhCacheDiskCache.class);
+    private static final Logger logger = LogManager.getLogger(EhcacheDiskCache.class);
 
     // A Cache manager can create many caches.
     private final PersistentCacheManager cacheManager;
@@ -93,22 +103,6 @@ public class EhCacheDiskCache<K, V> implements StoreAwareCache<K, V> {
 
     private final static int MINIMUM_MAX_SIZE_IN_BYTES = 1024 * 100; // 100KB
 
-    // Ehcache disk write minimum threads for its pool
-    public final Setting<Integer> DISK_WRITE_MINIMUM_THREADS;
-
-    // Ehcache disk write maximum threads for its pool
-    public final Setting<Integer> DISK_WRITE_MAXIMUM_THREADS;
-
-    // Not be to confused with number of disk segments, this is different. Defines
-    // distinct write queues created for disk store where a group of segments share a write queue. This is
-    // implemented with ehcache using a partitioned thread pool exectutor By default all segments share a single write
-    // queue ie write concurrency is 1. Check OffHeapDiskStoreConfiguration and DiskWriteThreadPool.
-    public final Setting<Integer> DISK_WRITE_CONCURRENCY;
-
-    // Defines how many segments the disk cache is separated into. Higher number achieves greater concurrency but
-    // will hold that many file pointers. Default is 16.
-    public final Setting<Integer> DISK_SEGMENTS;
-
     private final StoreAwareCacheEventListener<K, V> eventListener;
 
     /**
@@ -117,7 +111,7 @@ public class EhCacheDiskCache<K, V> implements StoreAwareCache<K, V> {
      */
     Map<K, CompletableFuture<Tuple<K, V>>> completableFutureMap = new ConcurrentHashMap<>();
 
-    private EhCacheDiskCache(Builder<K, V> builder) {
+    private EhcacheDiskCache(Builder<K, V> builder) {
         this.keyType = Objects.requireNonNull(builder.keyType, "Key type shouldn't be null");
         this.valueType = Objects.requireNonNull(builder.valueType, "Value type shouldn't be null");
         this.expireAfterAccess = Objects.requireNonNull(builder.getExpireAfterAcess(), "ExpireAfterAccess value shouldn't " + "be null");
@@ -131,14 +125,7 @@ public class EhCacheDiskCache<K, V> implements StoreAwareCache<K, V> {
         } else {
             this.threadPoolAlias = builder.threadPoolAlias;
         }
-        this.settings = Objects.requireNonNull(builder.settings, "Settings objects shouldn't be null");
-        Objects.requireNonNull(builder.settingPrefix, "Setting prefix shouldn't be null");
-        this.DISK_WRITE_MINIMUM_THREADS = Setting.intSetting(builder.settingPrefix + ".tier.disk.ehcache.min_threads", 2, 1, 5);
-        this.DISK_WRITE_MAXIMUM_THREADS = Setting.intSetting(builder.settingPrefix + ".tier.disk.ehcache.max_threads", 2, 1, 20);
-        // Default value is 1 within EhCache.
-        this.DISK_WRITE_CONCURRENCY = Setting.intSetting(builder.settingPrefix + ".tier.disk.ehcache.concurrency", 2, 1, 3);
-        // Default value is 16 within Ehcache.
-        this.DISK_SEGMENTS = Setting.intSetting(builder.settingPrefix + "tier.disk.ehcache.segments", 16, 1, 32);
+        this.settings = Objects.requireNonNull(builder.getSettings(), "Settings objects shouldn't be null");
         this.cacheManager = buildCacheManager();
         Objects.requireNonNull(builder.getEventListener(), "Listener can't be null");
         this.eventListener = builder.getEventListener();
@@ -146,53 +133,46 @@ public class EhCacheDiskCache<K, V> implements StoreAwareCache<K, V> {
         this.cache = buildCache(Duration.ofMillis(expireAfterAccess.getMillis()), builder);
     }
 
-    @SuppressForbidden(reason = "Ehcache uses File.io")
-    private PersistentCacheManager buildCacheManager() {
-        // In case we use multiple ehCaches, we can define this cache manager at a global level.
-        return CacheManagerBuilder.newCacheManagerBuilder()
-            .with(CacheManagerBuilder.persistence(new File(storagePath)))
-            .using(
-                PooledExecutionServiceConfigurationBuilder.newPooledExecutionServiceConfigurationBuilder()
-                    .defaultPool(THREAD_POOL_ALIAS_PREFIX + "Default", 1, 3) // Default pool used for other tasks like
-                    // event listeners
-                    .pool(this.threadPoolAlias, DISK_WRITE_MINIMUM_THREADS.get(settings), DISK_WRITE_MAXIMUM_THREADS.get(settings))
-                    .build()
-            )
-            .build(true);
-    }
-
     private Cache<K, V> buildCache(Duration expireAfterAccess, Builder<K, V> builder) {
-        return this.cacheManager.createCache(
-            DISK_CACHE_ALIAS,
-            CacheConfigurationBuilder.newCacheConfigurationBuilder(
-                this.keyType,
-                this.valueType,
-                ResourcePoolsBuilder.newResourcePoolsBuilder().disk(maxWeightInBytes, MemoryUnit.B)
-            ).withExpiry(new ExpiryPolicy<>() {
-                @Override
-                public Duration getExpiryForCreation(K key, V value) {
-                    return INFINITE;
-                }
+        try {
+            return this.cacheManager.createCache(
+                builder.diskCacheAlias,
+                CacheConfigurationBuilder.newCacheConfigurationBuilder(
+                    this.keyType,
+                    this.valueType,
+                    ResourcePoolsBuilder.newResourcePoolsBuilder().disk(maxWeightInBytes, MemoryUnit.B)
+                ).withExpiry(new ExpiryPolicy<>() {
+                    @Override
+                    public Duration getExpiryForCreation(K key, V value) {
+                        return INFINITE;
+                    }
 
-                @Override
-                public Duration getExpiryForAccess(K key, Supplier<? extends V> value) {
-                    return expireAfterAccess;
-                }
+                    @Override
+                    public Duration getExpiryForAccess(K key, Supplier<? extends V> value) {
+                        return expireAfterAccess;
+                    }
 
-                @Override
-                public Duration getExpiryForUpdate(K key, Supplier<? extends V> oldValue, V newValue) {
-                    return INFINITE;
-                }
-            })
-                .withService(getListenerConfiguration(builder))
-                .withService(
-                    new OffHeapDiskStoreConfiguration(
-                        this.threadPoolAlias,
-                        DISK_WRITE_CONCURRENCY.get(settings),
-                        DISK_SEGMENTS.get(settings)
+                    @Override
+                    public Duration getExpiryForUpdate(K key, Supplier<? extends V> oldValue, V newValue) {
+                        return INFINITE;
+                    }
+                })
+                    .withService(getListenerConfiguration(builder))
+                    .withService(
+                        new OffHeapDiskStoreConfiguration(
+                            this.threadPoolAlias,
+                            DISK_WRITE_CONCURRENCY.get(settings),
+                            DISK_SEGMENTS.get(settings)
+                        )
                     )
-                )
-        );
+            );
+        } catch (IllegalArgumentException ex) {
+            logger.error("Ehcache disk cache initialization failed due to illegal argument: {}", ex.getMessage());
+            throw ex;
+        } catch (IllegalStateException ex) {
+            logger.error("Ehcache disk cache initialization failed: {}", ex.getMessage());
+            throw ex;
+        }
     }
 
     private CacheEventListenerConfigurationBuilder getListenerConfiguration(Builder<K, V> builder) {
@@ -216,12 +196,26 @@ public class EhCacheDiskCache<K, V> implements StoreAwareCache<K, V> {
         return completableFutureMap;
     }
 
+    @SuppressForbidden(reason = "Ehcache uses File.io")
+    private PersistentCacheManager buildCacheManager() {
+        // In case we use multiple ehCaches, we can define this cache manager at a global level.
+        return CacheManagerBuilder.newCacheManagerBuilder()
+            .with(CacheManagerBuilder.persistence(new File(storagePath)))
+            .using(
+                PooledExecutionServiceConfigurationBuilder.newPooledExecutionServiceConfigurationBuilder()
+                    .defaultPool(THREAD_POOL_ALIAS_PREFIX + "Default", 1, 3) // Default pool used for other tasks like
+                    // event listeners
+                    .pool(this.threadPoolAlias, DISK_WRITE_MINIMUM_THREADS.get(settings), DISK_WRITE_MAXIMUM_THREADS.get(settings))
+                    .build()
+            )
+            .build(true);
+    }
+
     @Override
     public V get(K key) {
         if (key == null) {
             throw new IllegalArgumentException("Key passed to ehcache disk cache was null.");
         }
-        // Optimize it by adding key store.
         V value;
         try {
             value = cache.get(key);
@@ -236,6 +230,11 @@ public class EhCacheDiskCache<K, V> implements StoreAwareCache<K, V> {
         return value;
     }
 
+    /**
+     * Puts the item into cache.
+     * @param key Type of key.
+     * @param value Type of value.
+     */
     @Override
     public void put(K key, V value) {
         try {
@@ -245,6 +244,13 @@ public class EhCacheDiskCache<K, V> implements StoreAwareCache<K, V> {
         }
     }
 
+    /**
+     * Computes the value using loader in case key is not present, otherwise fetches it.
+     * @param key Type of key
+     * @param loader loader to load the value in case key is missing
+     * @return value
+     * @throws Exception
+     */
     @Override
     public V computeIfAbsent(K key, LoadAwareCacheLoader<K, V> loader) throws Exception {
         // Ehache doesn't provide any computeIfAbsent function. Exposes putIfAbsent but that works differently and is
@@ -315,27 +321,37 @@ public class EhCacheDiskCache<K, V> implements StoreAwareCache<K, V> {
         return value;
     }
 
+    /**
+     * Invalidate the item.
+     * @param key key to be invalidated.
+     */
     @Override
     public void invalidate(K key) {
-        // There seems to be an thread leak issue while calling this and then closing cache.
         try {
             cache.remove(key);
         } catch (CacheWritingException ex) {
             // Handle
             throw new RuntimeException(ex);
         }
+
     }
 
     @Override
-    public void invalidateAll() {
-        // TODO
-    }
+    public void invalidateAll() {}
 
+    /**
+     * Provides a way to iterate over disk cache keys.
+     * @return Iterable
+     */
     @Override
     public Iterable<K> keys() {
         return () -> new EhCacheKeyIterator<>(cache.iterator());
     }
 
+    /**
+     * Gives the current count of keys in disk cache.
+     * @return
+     */
     @Override
     public long count() {
         return stats.count();
@@ -344,11 +360,6 @@ public class EhCacheDiskCache<K, V> implements StoreAwareCache<K, V> {
     @Override
     public void refresh() {
         // TODO: ehcache doesn't provide a way to refresh a cache.
-    }
-
-    @Override
-    public CacheStoreType getTierType() {
-        return CacheStoreType.DISK;
     }
 
     @Override
@@ -362,20 +373,59 @@ public class EhCacheDiskCache<K, V> implements StoreAwareCache<K, V> {
         }
     }
 
+    /**
+     * Relevant stats for this cache.
+     * @return CacheStats
+     */
     @Override
     public CacheStats stats() {
         return stats;
     }
 
     /**
+     * Returns the tier type.
+     * @return CacheStoreType.DISK
+     */
+    @Override
+    public CacheStoreType getTierType() {
+        return CacheStoreType.DISK;
+    }
+
+    /**
      * Stats related to disk cache.
      */
-    class DiskCacheStats implements CacheStats {
-        private CounterMetric count = new CounterMetric();
+    static class DiskCacheStats implements CacheStats {
+        private final CounterMetric count = new CounterMetric();
 
         @Override
         public long count() {
             return count.count();
+        }
+    }
+
+    /**
+     * This iterator wraps ehCache iterator and only iterates over its keys.
+     * @param <K> Type of key
+     */
+    class EhCacheKeyIterator<K> implements Iterator<K> {
+
+        Iterator<Cache.Entry<K, V>> iterator;
+
+        EhCacheKeyIterator(Iterator<Cache.Entry<K, V>> iterator) {
+            this.iterator = iterator;
+        }
+
+        @Override
+        public boolean hasNext() {
+            return iterator.hasNext();
+        }
+
+        @Override
+        public K next() {
+            if (!hasNext()) {
+                throw new NoSuchElementException();
+            }
+            return iterator.next().getKey();
         }
     }
 
@@ -445,28 +495,26 @@ public class EhCacheDiskCache<K, V> implements StoreAwareCache<K, V> {
     }
 
     /**
-     * This iterator wraps ehCache iterator and only iterates over its keys.
-     * @param <K> Type of key
+     * Factory to create an ehcache disk cache.
      */
-    class EhCacheKeyIterator<K> implements Iterator<K> {
+    static class EhcacheDiskCacheFactory implements StoreAwareCache.Factory {
 
-        Iterator<Cache.Entry<K, V>> iterator;
-
-        EhCacheKeyIterator(Iterator<Cache.Entry<K, V>> iterator) {
-            this.iterator = iterator;
+        @Override
+        public <K, V> StoreAwareCache<K, V> create(StoreAwareCacheConfig<K, V> storeAwareCacheConfig) {
+            return new Builder<K, V>().setStoragePath(storeAwareCacheConfig.getStoragePath())
+                .setDiskCacheAlias(storeAwareCacheConfig.getCacheAlias())
+                .setKeyType(storeAwareCacheConfig.getKeyType())
+                .setValueType(storeAwareCacheConfig.getValueType())
+                .setEventListener(storeAwareCacheConfig.getEventListener())
+                .setExpireAfterAccess(storeAwareCacheConfig.getExpireAfterAcess())
+                .setMaximumWeightInBytes(storeAwareCacheConfig.getMaxWeightInBytes())
+                .setSettings(storeAwareCacheConfig.getSettings())
+                .build();
         }
 
         @Override
-        public boolean hasNext() {
-            return iterator.hasNext();
-        }
-
-        @Override
-        public K next() {
-            if (!hasNext()) {
-                throw new NoSuchElementException();
-            }
-            return iterator.next().getKey();
+        public String getCacheName() {
+            return CacheProvider.CacheType.EHCACHE.getValue();
         }
     }
 
@@ -476,68 +524,88 @@ public class EhCacheDiskCache<K, V> implements StoreAwareCache<K, V> {
      * @param <V> Type of value
      */
     public static class Builder<K, V> extends StoreAwareCacheBuilder<K, V> {
-        private Class<K> keyType;
-
-        private Class<V> valueType;
 
         private String storagePath;
 
         private String threadPoolAlias;
 
-        private Settings settings;
-
         private String diskCacheAlias;
-
-        private String settingPrefix;
 
         // Provides capability to make ehCache event listener to run in sync mode. Used for testing too.
         private boolean isEventListenerModeSync;
 
+        private Class<K> keyType;
+
+        private Class<V> valueType;
+
+        /**
+         * Default constructor. Added to fix javadocs.
+         */
         public Builder() {}
 
-        public EhCacheDiskCache.Builder<K, V> setKeyType(Class<K> keyType) {
+        /**
+         * Sets the key type of value.
+         * @param keyType type of key
+         * @return builder
+         */
+        public Builder<K, V> setKeyType(Class<K> keyType) {
             this.keyType = keyType;
             return this;
         }
 
-        public EhCacheDiskCache.Builder<K, V> setValueType(Class<V> valueType) {
+        /**
+         * Sets the class type of value.
+         * @param valueType type of value
+         * @return builder
+         */
+        public Builder<K, V> setValueType(Class<V> valueType) {
             this.valueType = valueType;
             return this;
         }
 
-        public EhCacheDiskCache.Builder<K, V> setStoragePath(String storagePath) {
+        /**
+         * Desired storage path for disk cache.
+         * @param storagePath path for disk cache
+         * @return builder
+         */
+        public Builder<K, V> setStoragePath(String storagePath) {
             this.storagePath = storagePath;
             return this;
         }
 
-        public EhCacheDiskCache.Builder<K, V> setThreadPoolAlias(String threadPoolAlias) {
+        /**
+         * Thread pool alias for the cache.
+         * @param threadPoolAlias alias
+         * @return builder
+         */
+        public Builder<K, V> setThreadPoolAlias(String threadPoolAlias) {
             this.threadPoolAlias = threadPoolAlias;
             return this;
         }
 
-        public EhCacheDiskCache.Builder<K, V> setSettings(Settings settings) {
-            this.settings = settings;
-            return this;
-        }
-
-        public EhCacheDiskCache.Builder<K, V> setDiskCacheAlias(String diskCacheAlias) {
+        /**
+         * Cache alias
+         * @param diskCacheAlias
+         * @return builder
+         */
+        public Builder<K, V> setDiskCacheAlias(String diskCacheAlias) {
             this.diskCacheAlias = diskCacheAlias;
             return this;
         }
 
-        public EhCacheDiskCache.Builder<K, V> setSettingPrefix(String settingPrefix) {
-            // TODO: Do some basic validation. So that it doesn't end with "." etc.
-            this.settingPrefix = settingPrefix;
-            return this;
-        }
-
-        public EhCacheDiskCache.Builder<K, V> setIsEventListenerModeSync(boolean isEventListenerModeSync) {
+        /**
+         * Determines whether event listener is triggered async/sync.
+         * @param isEventListenerModeSync mode sync
+         * @return builder
+         */
+        public Builder<K, V> setIsEventListenerModeSync(boolean isEventListenerModeSync) {
             this.isEventListenerModeSync = isEventListenerModeSync;
             return this;
         }
 
-        public EhCacheDiskCache<K, V> build() {
-            return new EhCacheDiskCache<>(this);
+        @Override
+        public EhcacheDiskCache<K, V> build() {
+            return new EhcacheDiskCache<>(this);
         }
     }
 }

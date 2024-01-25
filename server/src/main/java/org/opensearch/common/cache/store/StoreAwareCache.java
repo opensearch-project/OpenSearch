@@ -8,7 +8,9 @@
 
 package org.opensearch.common.cache.store;
 
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.cache.ICache;
+import org.opensearch.common.cache.store.config.StoreAwareCacheConfig;
 import org.opensearch.common.cache.store.enums.CacheStoreType;
 
 /**
@@ -18,6 +20,16 @@ import org.opensearch.common.cache.store.enums.CacheStoreType;
  *
  * @opensearch.experimental
  */
+@ExperimentalApi
 public interface StoreAwareCache<K, V> extends ICache<K, V> {
     CacheStoreType getTierType();
+
+    /**
+     * Provides a way to create a new cache.
+     */
+    interface Factory {
+        <K, V> StoreAwareCache<K, V> create(StoreAwareCacheConfig<K, V> storeAwareCacheConfig);
+
+        String getCacheName();
+    }
 }
