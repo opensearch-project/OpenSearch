@@ -21,6 +21,7 @@ import org.opensearch.common.cache.store.listeners.StoreAwareCacheEventListener;
 import org.opensearch.common.util.concurrent.ReleasableLock;
 import org.opensearch.common.util.iterable.Iterables;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -177,7 +178,7 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V>, StoreAwareCache
     }
 
     @Override
-    public void close() {
+    public void close() throws IOException {
         for (StoreAwareCache<K, V> storeAwareCache : cacheList) {
             storeAwareCache.close();
         }
