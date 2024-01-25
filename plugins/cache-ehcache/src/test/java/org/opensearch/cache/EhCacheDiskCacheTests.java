@@ -6,9 +6,11 @@
  * compatible open source license.
  */
 
-package org.opensearch.common.cache.store;
+package org.opensearch.cache;
 
 import org.opensearch.common.cache.LoadAwareCacheLoader;
+import org.opensearch.common.cache.store.StoreAwareCache;
+import org.opensearch.common.cache.store.StoreAwareCacheRemovalNotification;
 import org.opensearch.common.cache.store.enums.CacheStoreType;
 import org.opensearch.common.cache.store.listeners.StoreAwareCacheEventListener;
 import org.opensearch.common.settings.Settings;
@@ -33,18 +35,17 @@ import static org.hamcrest.CoreMatchers.instanceOf;
 public class EhCacheDiskCacheTests extends OpenSearchSingleNodeTestCase {
 
     private static final int CACHE_SIZE_IN_BYTES = 1024 * 101;
-    private static final String SETTING_PREFIX = "indices.request.cache";
 
     public void testBasicGetAndPut() throws IOException {
         Settings settings = Settings.builder().build();
         MockEventListener<String, String> mockEventListener = new MockEventListener<>();
         try (NodeEnvironment env = newNodeEnvironment(settings)) {
-            StoreAwareCache<String, String> ehcacheTest = new EhCacheDiskCache.Builder<String, String>().setKeyType(String.class)
-                .setValueType(String.class)
-                .setSettings(settings)
+            StoreAwareCache<String, String> ehcacheTest = new EhcacheDiskCache.Builder<String, String>().setDiskCacheAlias("test1")
                 .setThreadPoolAlias("ehcacheTest")
                 .setStoragePath(env.nodePaths()[0].indicesPath.toString() + "/request_cache")
-                .setSettingPrefix(SETTING_PREFIX)
+                .setKeyType(String.class)
+                .setValueType(String.class)
+                .setSettings(settings)
                 .setExpireAfterAccess(TimeValue.MAX_VALUE)
                 .setMaximumWeightInBytes(CACHE_SIZE_IN_BYTES)
                 .setEventListener(mockEventListener)
@@ -79,12 +80,12 @@ public class EhCacheDiskCacheTests extends OpenSearchSingleNodeTestCase {
         Settings settings = Settings.builder().build();
         MockEventListener<String, String> mockEventListener = new MockEventListener<>();
         try (NodeEnvironment env = newNodeEnvironment(settings)) {
-            StoreAwareCache<String, String> ehcacheTest = new EhCacheDiskCache.Builder<String, String>().setKeyType(String.class)
-                .setValueType(String.class)
-                .setSettings(settings)
+            StoreAwareCache<String, String> ehcacheTest = new EhcacheDiskCache.Builder<String, String>().setDiskCacheAlias("test1")
                 .setThreadPoolAlias("ehcacheTest")
                 .setStoragePath(env.nodePaths()[0].indicesPath.toString() + "/request_cache")
-                .setSettingPrefix(SETTING_PREFIX)
+                .setKeyType(String.class)
+                .setValueType(String.class)
+                .setSettings(settings)
                 .setExpireAfterAccess(TimeValue.MAX_VALUE)
                 .setMaximumWeightInBytes(CACHE_SIZE_IN_BYTES)
                 .setEventListener(mockEventListener)
@@ -122,13 +123,13 @@ public class EhCacheDiskCacheTests extends OpenSearchSingleNodeTestCase {
         Settings settings = Settings.builder().build();
         MockEventListener<String, String> mockEventListener = new MockEventListener<>();
         try (NodeEnvironment env = newNodeEnvironment(settings)) {
-            StoreAwareCache<String, String> ehcacheTest = new EhCacheDiskCache.Builder<String, String>().setKeyType(String.class)
-                .setValueType(String.class)
-                .setSettings(settings)
+            StoreAwareCache<String, String> ehcacheTest = new EhcacheDiskCache.Builder<String, String>().setDiskCacheAlias("test1")
                 .setThreadPoolAlias("ehcacheTest")
                 .setStoragePath(env.nodePaths()[0].indicesPath.toString() + "/request_cache")
-                .setSettingPrefix(SETTING_PREFIX)
                 .setIsEventListenerModeSync(true) // For accurate count
+                .setKeyType(String.class)
+                .setValueType(String.class)
+                .setSettings(settings)
                 .setExpireAfterAccess(TimeValue.MAX_VALUE)
                 .setMaximumWeightInBytes(CACHE_SIZE_IN_BYTES)
                 .setEventListener(mockEventListener)
@@ -165,12 +166,12 @@ public class EhCacheDiskCacheTests extends OpenSearchSingleNodeTestCase {
     public void testEhcacheKeyIterator() throws Exception {
         Settings settings = Settings.builder().build();
         try (NodeEnvironment env = newNodeEnvironment(settings)) {
-            StoreAwareCache<String, String> ehcacheTest = new EhCacheDiskCache.Builder<String, String>().setKeyType(String.class)
+            StoreAwareCache<String, String> ehcacheTest = new EhcacheDiskCache.Builder<String, String>().setDiskCacheAlias("test1")
+                .setThreadPoolAlias("ehcacheTest")
+                .setStoragePath(env.nodePaths()[0].indicesPath.toString() + "/request_cache")
+                .setKeyType(String.class)
                 .setValueType(String.class)
                 .setSettings(settings)
-                .setThreadPoolAlias("ehcacheTest")
-                .setSettingPrefix(SETTING_PREFIX)
-                .setStoragePath(env.nodePaths()[0].indicesPath.toString() + "/request_cache")
                 .setExpireAfterAccess(TimeValue.MAX_VALUE)
                 .setMaximumWeightInBytes(CACHE_SIZE_IN_BYTES)
                 .setEventListener(new MockEventListener<>())
@@ -201,13 +202,13 @@ public class EhCacheDiskCacheTests extends OpenSearchSingleNodeTestCase {
         Settings settings = Settings.builder().build();
         MockEventListener<String, String> mockEventListener = new MockEventListener<>();
         try (NodeEnvironment env = newNodeEnvironment(settings)) {
-            StoreAwareCache<String, String> ehcacheTest = new EhCacheDiskCache.Builder<String, String>().setKeyType(String.class)
+            StoreAwareCache<String, String> ehcacheTest = new EhcacheDiskCache.Builder<String, String>().setDiskCacheAlias("test1")
+                .setStoragePath(env.nodePaths()[0].indicesPath.toString() + "/request_cache")
+                .setIsEventListenerModeSync(true)
+                .setThreadPoolAlias("ehcacheTest")
+                .setKeyType(String.class)
                 .setValueType(String.class)
                 .setSettings(settings)
-                .setThreadPoolAlias("ehcacheTest")
-                .setSettingPrefix(SETTING_PREFIX)
-                .setIsEventListenerModeSync(true)
-                .setStoragePath(env.nodePaths()[0].indicesPath.toString() + "/request_cache")
                 .setExpireAfterAccess(TimeValue.MAX_VALUE)
                 .setMaximumWeightInBytes(CACHE_SIZE_IN_BYTES)
                 .setEventListener(mockEventListener)
@@ -230,13 +231,13 @@ public class EhCacheDiskCacheTests extends OpenSearchSingleNodeTestCase {
         Settings settings = Settings.builder().build();
         MockEventListener<String, String> mockEventListener = new MockEventListener<>();
         try (NodeEnvironment env = newNodeEnvironment(settings)) {
-            StoreAwareCache<String, String> ehcacheTest = new EhCacheDiskCache.Builder<String, String>().setKeyType(String.class)
-                .setValueType(String.class)
-                .setSettings(settings)
-                .setThreadPoolAlias("ehcacheTest")
-                .setSettingPrefix(SETTING_PREFIX)
+            StoreAwareCache<String, String> ehcacheTest = new EhcacheDiskCache.Builder<String, String>().setDiskCacheAlias("test1")
                 .setIsEventListenerModeSync(true)
                 .setStoragePath(env.nodePaths()[0].indicesPath.toString() + "/request_cache")
+                .setThreadPoolAlias("ehcacheTest")
+                .setKeyType(String.class)
+                .setValueType(String.class)
+                .setSettings(settings)
                 .setExpireAfterAccess(TimeValue.MAX_VALUE)
                 .setMaximumWeightInBytes(CACHE_SIZE_IN_BYTES)
                 .setEventListener(mockEventListener)
@@ -288,7 +289,7 @@ public class EhCacheDiskCacheTests extends OpenSearchSingleNodeTestCase {
                 }
             }
             assertEquals(1, numberOfTimesValueLoaded);
-            assertEquals(0, ((EhCacheDiskCache) ehcacheTest).getCompletableFutureMap().size());
+            assertEquals(0, ((EhcacheDiskCache) ehcacheTest).getCompletableFutureMap().size());
             assertEquals(1, mockEventListener.onMissCount.get());
             assertEquals(1, mockEventListener.onCachedCount.get());
             assertEquals(numberOfRequest - 1, mockEventListener.onHitCount.get());
@@ -300,13 +301,13 @@ public class EhCacheDiskCacheTests extends OpenSearchSingleNodeTestCase {
         Settings settings = Settings.builder().build();
         MockEventListener<String, String> mockEventListener = new MockEventListener<>();
         try (NodeEnvironment env = newNodeEnvironment(settings)) {
-            StoreAwareCache<String, String> ehcacheTest = new EhCacheDiskCache.Builder<String, String>().setKeyType(String.class)
+            StoreAwareCache<String, String> ehcacheTest = new EhcacheDiskCache.Builder<String, String>().setDiskCacheAlias("test1")
+                .setStoragePath(env.nodePaths()[0].indicesPath.toString() + "/request_cache")
+                .setIsEventListenerModeSync(true)
+                .setThreadPoolAlias("ehcacheTest")
+                .setKeyType(String.class)
                 .setValueType(String.class)
                 .setSettings(settings)
-                .setThreadPoolAlias("ehcacheTest")
-                .setSettingPrefix(SETTING_PREFIX)
-                .setIsEventListenerModeSync(true)
-                .setStoragePath(env.nodePaths()[0].indicesPath.toString() + "/request_cache")
                 .setExpireAfterAccess(TimeValue.MAX_VALUE)
                 .setMaximumWeightInBytes(CACHE_SIZE_IN_BYTES)
                 .setEventListener(mockEventListener)
@@ -347,7 +348,7 @@ public class EhCacheDiskCacheTests extends OpenSearchSingleNodeTestCase {
             phaser.arriveAndAwaitAdvance();
             countDownLatch.await();
 
-            assertEquals(0, ((EhCacheDiskCache) ehcacheTest).getCompletableFutureMap().size());
+            assertEquals(0, ((EhcacheDiskCache) ehcacheTest).getCompletableFutureMap().size());
             ehcacheTest.close();
         }
     }
@@ -356,13 +357,13 @@ public class EhCacheDiskCacheTests extends OpenSearchSingleNodeTestCase {
         Settings settings = Settings.builder().build();
         MockEventListener<String, String> mockEventListener = new MockEventListener<>();
         try (NodeEnvironment env = newNodeEnvironment(settings)) {
-            StoreAwareCache<String, String> ehcacheTest = new EhCacheDiskCache.Builder<String, String>().setKeyType(String.class)
-                .setValueType(String.class)
-                .setSettings(settings)
+            StoreAwareCache<String, String> ehcacheTest = new EhcacheDiskCache.Builder<String, String>().setDiskCacheAlias("test1")
                 .setThreadPoolAlias("ehcacheTest")
-                .setSettingPrefix(SETTING_PREFIX)
                 .setIsEventListenerModeSync(true)
                 .setStoragePath(env.nodePaths()[0].indicesPath.toString() + "/request_cache")
+                .setKeyType(String.class)
+                .setValueType(String.class)
+                .setSettings(settings)
                 .setExpireAfterAccess(TimeValue.MAX_VALUE)
                 .setMaximumWeightInBytes(CACHE_SIZE_IN_BYTES)
                 .setEventListener(mockEventListener)
@@ -408,7 +409,7 @@ public class EhCacheDiskCacheTests extends OpenSearchSingleNodeTestCase {
             phaser.arriveAndAwaitAdvance();
             countDownLatch.await();
 
-            assertEquals(0, ((EhCacheDiskCache) ehcacheTest).getCompletableFutureMap().size());
+            assertEquals(0, ((EhcacheDiskCache) ehcacheTest).getCompletableFutureMap().size());
             ehcacheTest.close();
         }
     }
@@ -418,19 +419,11 @@ public class EhCacheDiskCacheTests extends OpenSearchSingleNodeTestCase {
         StringBuilder randomString = new StringBuilder(length);
 
         for (int i = 0; i < length; i++) {
-            int index = (int) (Math.random() * characters.length());
+            int index = (int) (randomDouble() * characters.length());
             randomString.append(characters.charAt(index));
         }
 
         return randomString.toString();
-    }
-
-    // TODO: Remove this from here in final PR.
-    enum EventType {
-        ON_HIT,
-        ON_MISS,
-        ON_CACHED,
-        ON_REMOVAL;
     }
 
     class MockEventListener<K, V> implements StoreAwareCacheEventListener<K, V> {
