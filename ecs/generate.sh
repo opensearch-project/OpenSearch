@@ -27,6 +27,7 @@ generate_mappings() {
     --subset "$IN_FILES_DIR/subset.yml" \
     --template-settings "$IN_FILES_DIR/template-settings.json" \
     --template-settings-legacy "$IN_FILES_DIR/template-settings-legacy.json" \
+    --mapping-settings "$IN_FILES_DIR/mapping-settings.json" \
     --out "$OUT_DIR" || exit 1
 
   # Replace "match_only_text" type (not supported by OpenSearch) with "text"

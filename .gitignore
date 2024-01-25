@@ -1,6 +1,9 @@
 # build files
 artifacts/
 
+.java
+.m2
+
 # intellij files
 .idea/
 *.iml
