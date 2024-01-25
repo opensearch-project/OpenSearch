@@ -164,7 +164,7 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
      */
     public RemoteSegmentMetadata initializeToSpecificCommit(long primaryTerm, long commitGeneration, String acquirerId) throws IOException {
         String metadataFilePrefix = MetadataFilenameUtils.getMetadataFilePrefixForCommit(primaryTerm, commitGeneration);
-        String metadataFile = ((RemoteStoreMetadataLockManager) mdLockManager).fetchLock(metadataFilePrefix, acquirerId);
+        String metadataFile = ((RemoteStoreMetadataLockManager) mdLockManager).fetchLockedMetadataFile(metadataFilePrefix, acquirerId);
         RemoteSegmentMetadata remoteSegmentMetadata = readMetadataFile(metadataFile);
         if (remoteSegmentMetadata != null) {
             this.segmentsUploadedToRemoteStore = new ConcurrentHashMap<>(remoteSegmentMetadata.getMetadata());
@@ -751,7 +751,7 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
         );
         Set<String> allLockFiles;
         try {
-            allLockFiles = ((RemoteStoreMetadataLockManager) mdLockManager).fetchLocks(MetadataFilenameUtils.METADATA_PREFIX);
+            allLockFiles = ((RemoteStoreMetadataLockManager) mdLockManager).fetchLockedMetadataFiles(MetadataFilenameUtils.METADATA_PREFIX);
         } catch (Exception e) {
             logger.error("Exception while fetching segment metadata lock files, skipping deleteStaleSegments", e);
             return;

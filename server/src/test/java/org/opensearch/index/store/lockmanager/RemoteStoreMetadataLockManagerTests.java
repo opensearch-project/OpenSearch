@@ -100,7 +100,7 @@ public class RemoteStoreMetadataLockManagerTests extends OpenSearchTestCase {
 
     public void testFetchLocksEmpty() throws IOException {
         when(lockDirectory.listFilesByPrefix("metadata")).thenReturn(Set.of());
-        assertEquals(0, remoteStoreMetadataLockManager.fetchLocks("metadata").size());
+        assertEquals(0, remoteStoreMetadataLockManager.fetchLockedMetadataFiles("metadata").size());
     }
 
     public void testFetchLocksNonEmpty() throws IOException {
@@ -112,11 +112,11 @@ public class RemoteStoreMetadataLockManagerTests extends OpenSearchTestCase {
                 FileLockInfo.LockFileUtils.generateLockName(metadata2, "snapshot2")
             )
         );
-        assertEquals(Set.of(metadata1, metadata2), remoteStoreMetadataLockManager.fetchLocks("metadata"));
+        assertEquals(Set.of(metadata1, metadata2), remoteStoreMetadataLockManager.fetchLockedMetadataFiles("metadata"));
     }
 
     public void testFetchLocksException() throws IOException {
         when(lockDirectory.listFilesByPrefix("metadata")).thenThrow(new IOException("Something went wrong"));
-        assertThrows(IOException.class, () -> remoteStoreMetadataLockManager.fetchLocks("metadata"));
+        assertThrows(IOException.class, () -> remoteStoreMetadataLockManager.fetchLockedMetadataFiles("metadata"));
     }
 }

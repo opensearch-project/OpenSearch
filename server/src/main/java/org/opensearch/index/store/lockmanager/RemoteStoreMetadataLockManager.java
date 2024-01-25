@@ -76,7 +76,7 @@ public class RemoteStoreMetadataLockManager implements RemoteStoreLockManager {
         }
     }
 
-    public String fetchLock(String filenamePrefix, String acquirerId) throws IOException {
+    public String fetchLockedMetadataFile(String filenamePrefix, String acquirerId) throws IOException {
         Collection<String> lockFiles = lockDirectory.listFilesByPrefix(filenamePrefix);
         List<String> lockFilesForAcquirer = lockFiles.stream()
             .filter(lockFile -> acquirerId.equals(FileLockInfo.LockFileUtils.getAcquirerIdFromLock(lockFile)))
@@ -89,7 +89,7 @@ public class RemoteStoreMetadataLockManager implements RemoteStoreLockManager {
         return lockFilesForAcquirer.get(0);
     }
 
-    public Set<String> fetchLocks(String filenamePrefix) throws IOException {
+    public Set<String> fetchLockedMetadataFiles(String filenamePrefix) throws IOException {
         Collection<String> lockFiles = lockDirectory.listFilesByPrefix(filenamePrefix);
         return lockFiles.stream().map(FileLockInfo.LockFileUtils::getFileToLockNameFromLock).collect(Collectors.toSet());
     }
