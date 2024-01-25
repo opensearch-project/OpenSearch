@@ -44,7 +44,7 @@ import org.opensearch.script.MockScriptPlugin;
 import org.opensearch.script.Script;
 import org.opensearch.script.ScriptType;
 import org.opensearch.test.OpenSearchIntegTestCase;
-import org.opensearch.test.ParameterizedOpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -59,7 +59,7 @@ import static org.opensearch.search.SearchService.CLUSTER_CONCURRENT_SEGMENT_SEA
 import static org.opensearch.search.SearchTimeoutIT.ScriptedTimeoutPlugin.SCRIPT_NAME;
 
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.SUITE)
-public class SearchTimeoutIT extends ParameterizedOpenSearchIntegTestCase {
+public class SearchTimeoutIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
     public SearchTimeoutIT(Settings settings) {
         super(settings);
     }

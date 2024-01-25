@@ -47,7 +47,7 @@ import org.opensearch.script.ScoreAccessor;
 import org.opensearch.script.Script;
 import org.opensearch.script.ScriptType;
 import org.opensearch.search.SearchHit;
-import org.opensearch.test.ParameterizedOpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 import org.hamcrest.CoreMatchers;
 
 import java.util.Arrays;
@@ -76,10 +76,10 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.nullValue;
 
-public class RandomScoreFunctionIT extends ParameterizedOpenSearchIntegTestCase {
+public class RandomScoreFunctionIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
 
-    public RandomScoreFunctionIT(Settings dynamicSettings) {
-        super(dynamicSettings);
+    public RandomScoreFunctionIT(Settings staticSettings) {
+        super(staticSettings);
     }
 
     @ParametersFactory

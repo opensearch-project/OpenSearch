@@ -66,7 +66,7 @@ public final class OTelTelemetrySettings {
     /**
      * Span Exporter type setting.
      */
-    @SuppressWarnings("unchecked")
+    @SuppressWarnings({ "unchecked", "removal" })
     public static final Setting<Class<SpanExporter>> OTEL_TRACER_SPAN_EXPORTER_CLASS_SETTING = new Setting<>(
         "telemetry.otel.tracer.span.exporter.class",
         LoggingSpanExporter.class.getName(),
@@ -90,7 +90,7 @@ public final class OTelTelemetrySettings {
     /**
      * Metrics Exporter type setting.
      */
-    @SuppressWarnings("unchecked")
+    @SuppressWarnings({ "unchecked", "removal" })
     public static final Setting<Class<MetricExporter>> OTEL_METRICS_EXPORTER_CLASS_SETTING = new Setting<>(
         "telemetry.otel.metrics.exporter.class",
         LoggingMetricExporter.class.getName(),

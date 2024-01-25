@@ -220,9 +220,11 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
             ADD_PARSER.declareField(AliasActions::searchRouting, XContentParser::text, SEARCH_ROUTING, ValueType.INT);
             ADD_PARSER.declareField(AliasActions::writeIndex, XContentParser::booleanValue, IS_WRITE_INDEX, ValueType.BOOLEAN);
             ADD_PARSER.declareField(AliasActions::isHidden, XContentParser::booleanValue, IS_HIDDEN, ValueType.BOOLEAN);
-            ADD_PARSER.declareField(AliasActions::mustExist, XContentParser::booleanValue, MUST_EXIST, ValueType.BOOLEAN);
         }
         private static final ObjectParser<AliasActions, Void> REMOVE_PARSER = parser(REMOVE.getPreferredName(), AliasActions::remove);
+        static {
+            REMOVE_PARSER.declareField(AliasActions::mustExist, XContentParser::booleanValue, MUST_EXIST, ValueType.BOOLEAN);
+        }
         private static final ObjectParser<AliasActions, Void> REMOVE_INDEX_PARSER = parser(
             REMOVE_INDEX.getPreferredName(),
             AliasActions::removeIndex
@@ -554,6 +556,9 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
             if (null != isHidden) {
                 builder.field(IS_HIDDEN.getPreferredName(), isHidden);
             }
+            if (null != mustExist) {
+                builder.field(MUST_EXIST.getPreferredName(), mustExist);
+            }
             builder.endObject();
             builder.endObject();
             return builder;
@@ -582,6 +587,8 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
                 + searchRouting
                 + ",writeIndex="
                 + writeIndex
+                + ",mustExist="
+                + mustExist
                 + "]";
         }
 
@@ -600,12 +607,13 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
                 && Objects.equals(indexRouting, other.indexRouting)
                 && Objects.equals(searchRouting, other.searchRouting)
                 && Objects.equals(writeIndex, other.writeIndex)
-                && Objects.equals(isHidden, other.isHidden);
+                && Objects.equals(isHidden, other.isHidden)
+                && Objects.equals(mustExist, other.mustExist);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(type, indices, aliases, filter, routing, indexRouting, searchRouting, writeIndex, isHidden);
+            return Objects.hash(type, indices, aliases, filter, routing, indexRouting, searchRouting, writeIndex, isHidden, mustExist);
         }
     }
 

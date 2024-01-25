@@ -65,7 +65,7 @@ import org.opensearch.search.suggest.completion.context.CategoryContextMapping;
 import org.opensearch.search.suggest.completion.context.ContextMapping;
 import org.opensearch.search.suggest.completion.context.GeoContextMapping;
 import org.opensearch.test.InternalSettingsPlugin;
-import org.opensearch.test.ParameterizedOpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -100,7 +100,7 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 
 @SuppressCodecs("*") // requires custom completion format
-public class CompletionSuggestSearchIT extends ParameterizedOpenSearchIntegTestCase {
+public class CompletionSuggestSearchIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
     public CompletionSuggestSearchIT(Settings settings) {
         super(settings);
     }
