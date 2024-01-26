@@ -243,19 +243,21 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
 
     public SearchHit(byte[] in) throws IOException {
         this.searchHitProto = FetchSearchResultProto.SearchHit.parseFrom(in);
-        docId = -1;
-        score = this.searchHitProto.getScore();
-        id = new Text(this.searchHitProto.getId());
+        this.docId = -1;
+        this.score = this.searchHitProto.getScore();
+        this.id = new Text(this.searchHitProto.getId());
         // Support for nestedIdentity to be added in the future
-        nestedIdentity = null;
-        version = this.searchHitProto.getVersion();
-        seqNo = this.searchHitProto.getSeqNo();
-        primaryTerm = this.searchHitProto.getPrimaryTerm();
-        source = BytesReference.fromByteBuffer(ByteBuffer.wrap(this.searchHitProto.getSource().toByteArray()));
+        this.nestedIdentity = null;
+        this.version = this.searchHitProto.getVersion();
+        this.seqNo = this.searchHitProto.getSeqNo();
+        this.primaryTerm = this.searchHitProto.getPrimaryTerm();
+        this.source = BytesReference.fromByteBuffer(ByteBuffer.wrap(this.searchHitProto.getSource().toByteArray()));
         if (source.length() == 0) {
             source = null;
         }
-        metaFields = new HashMap<>();
+        // add support for metaFields and documentFields
+        this.metaFields = new HashMap<>();
+        this.documentFields = new HashMap<>();
     }
 
     private Map<String, DocumentField> readFields(StreamInput in) throws IOException {

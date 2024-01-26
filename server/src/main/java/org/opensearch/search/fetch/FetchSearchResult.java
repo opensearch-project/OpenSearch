@@ -32,6 +32,7 @@
 
 package org.opensearch.search.fetch;
 
+import com.google.protobuf.ByteString;
 import org.apache.lucene.search.TotalHits.Relation;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.util.FeatureFlags;
@@ -115,6 +116,15 @@ public final class FetchSearchResult extends SearchPhaseResult {
             FetchSearchResultProto.SearchHits.Builder searchHitsBuilder = FetchSearchResultProto.SearchHits.newBuilder();
             searchHitsBuilder.setMaxScore(hits.getMaxScore());
             searchHitsBuilder.setTotalHits(totalHitsBuilder.build());
+            for (SearchHit hit : hits.getHits()) {
+                FetchSearchResultProto.SearchHit.Builder searchHitBuilder = FetchSearchResultProto.SearchHit.newBuilder();
+                searchHitBuilder.setId(hit.getId());
+                searchHitBuilder.setSource(ByteString.copyFrom(hit.getSourceRef().toBytesRef().bytes));
+                searchHitBuilder.setVersion(hit.getVersion());
+                searchHitBuilder.setSeqNo(hit.getSeqNo());
+                searchHitBuilder.setPrimaryTerm(hit.getPrimaryTerm());
+                searchHitsBuilder.addHits(searchHitBuilder.build());
+            }
             this.fetchSearchResultProto = this.fetchSearchResultProto.toBuilder().setHits(searchHitsBuilder.build()).build();
         }
     }
@@ -127,6 +137,15 @@ public final class FetchSearchResult extends SearchPhaseResult {
     }
 
     public SearchHits hits() {
+        if (FeatureFlags.isEnabled(FeatureFlags.PROTOBUF_SETTING)) {
+            SearchHits hits;
+            try {
+                hits = new SearchHits(this.fetchSearchResultProto.getHits().toByteArray());
+                return hits;
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        }
         return hits;
     }
 

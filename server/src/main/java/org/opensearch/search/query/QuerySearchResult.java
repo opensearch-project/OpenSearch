@@ -387,11 +387,17 @@ public final class QuerySearchResult extends SearchPhaseResult {
     }
 
     public int from() {
+        if (FeatureFlags.isEnabled(FeatureFlags.PROTOBUF_SETTING)) {
+            return this.querySearchResultProto.getFrom();
+        }
         return from;
     }
 
     public QuerySearchResult from(int from) {
         this.from = from;
+        if (this.querySearchResultProto != null) {
+            this.querySearchResultProto = this.querySearchResultProto.toBuilder().setFrom(from).build();
+        }
         return this;
     }
 
@@ -399,11 +405,17 @@ public final class QuerySearchResult extends SearchPhaseResult {
      * Returns the maximum size of this results top docs.
      */
     public int size() {
+        if (FeatureFlags.isEnabled(FeatureFlags.PROTOBUF_SETTING)) {
+            return this.querySearchResultProto.getSize();
+        }
         return size;
     }
 
     public QuerySearchResult size(int size) {
         this.size = size;
+        if (this.querySearchResultProto != null) {
+            this.querySearchResultProto = this.querySearchResultProto.toBuilder().setSize(size).build();
+        }
         return this;
     }
 
