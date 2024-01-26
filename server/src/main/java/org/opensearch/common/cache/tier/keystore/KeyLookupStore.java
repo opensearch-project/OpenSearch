@@ -58,14 +58,6 @@ public interface KeyLookupStore<T> {
     boolean contains(T value);
 
     /**
-     * Returns the transformed version of the input value, that would be used to stored it in the keystore.
-     * This transformation should be always be the same for a given instance.
-     * @param value The value to transform.
-     * @return The transformed value.
-     */
-    T getInternalRepresentation(T value);
-
-    /**
      * Attempts to safely remove a value from the internal structure, maintaining the property that contains(value)
      * will never return a false negative. If removing would lead to a false negative, the value won't be removed.
      * Classes may not implement safe removal.
@@ -80,26 +72,6 @@ public interface KeyLookupStore<T> {
      * @return The number of values
      */
     int getSize();
-
-    /**
-     * Returns the number of times add() has been run, including unsuccessful attempts.
-     * @return The number of adding attempts.
-     */
-    int getAddAttempts();
-
-    /**
-     * Returns the number of times add() has returned false due to a collision.
-     * @return The number of collisions.
-     */
-    int getCollisions();
-
-    /**
-     * Checks if two values would collide after being transformed by this store's transformation.
-     * @param value1 The first value to compare.
-     * @param value2 The second value to compare.
-     * @return true if the transformations are equal, false otherwise.
-     */
-    boolean isCollision(T value1, T value2);
 
     /**
      * Returns an estimate of the store's memory usage.

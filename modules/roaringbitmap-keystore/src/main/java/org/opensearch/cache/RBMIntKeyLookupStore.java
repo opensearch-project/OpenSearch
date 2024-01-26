@@ -167,7 +167,6 @@ public class RBMIntKeyLookupStore implements KeyLookupStore<Integer> {
         }
     }
 
-    @Override
     public Integer getInternalRepresentation(Integer value) {
         if (value == null) {
             return 0;
@@ -252,17 +251,14 @@ public class RBMIntKeyLookupStore implements KeyLookupStore<Integer> {
         }
     }
 
-    @Override
     public int getAddAttempts() {
         return (int) stats.numAddAttempts.count();
     }
 
-    @Override
     public int getCollisions() {
         return (int) stats.numCollisions.count();
     }
 
-    @Override
     public boolean isCollision(Integer value1, Integer value2) {
         if (value1 == null || value2 == null) {
             return false;
