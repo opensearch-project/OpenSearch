@@ -146,7 +146,6 @@ public class RBMIntKeyLookupStoreTests extends OpenSearchTestCase {
         for (int i = 0; i < maxEntriesArr.length; i++) {
             double multiplier = RBMIntKeyLookupStore.getRBMSizeMultiplier(maxEntriesArr[i], moduloValue.getValue());
             long memSizeCapInBytes = (long) (rbmReportedSizes[i] * multiplier);
-            // long memSizeCapInBytes = RBMSizeEstimator.getSizeInBytesWithModuloValue(maxEntries, moduloValue);
             RBMIntKeyLookupStore kls = new RBMIntKeyLookupStore(moduloValue, memSizeCapInBytes);
             for (int j = 0; j < maxEntriesArr[i] + 5000; j++) {
                 kls.add(rand.nextInt());
