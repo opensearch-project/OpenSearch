@@ -67,8 +67,7 @@ public class CodecTests extends OpenSearchTestCase {
 
     public void testResolveDefaultCodecs() throws Exception {
         CodecService codecService = createCodecService(false);
-        assertThat(codecService.codec("default"), instanceOf(PerFieldMappingPostingFormatCodec.class));
-        assertThat(codecService.codec("default"), instanceOf(Lucene99Codec.class));
+        assertThat(codecService.codec("default"), instanceOf(Lucene99CoreCodec.class));
     }
 
     public void testDefault() throws Exception {
@@ -84,13 +83,13 @@ public class CodecTests extends OpenSearchTestCase {
     public void testLZ4() throws Exception {
         Codec codec = createCodecService(false).codec("lz4");
         assertStoredFieldsCompressionEquals(Lucene99Codec.Mode.BEST_SPEED, codec);
-        assert codec instanceof PerFieldMappingPostingFormatCodec;
+        assert codec instanceof Lucene99CoreCodec;
     }
 
     public void testZlib() throws Exception {
         Codec codec = createCodecService(false).codec("zlib");
         assertStoredFieldsCompressionEquals(Lucene99Codec.Mode.BEST_COMPRESSION, codec);
-        assert codec instanceof PerFieldMappingPostingFormatCodec;
+        assert codec instanceof Lucene99CoreCodec;
     }
 
     public void testBestCompressionWithCompressionLevel() {
@@ -144,7 +143,7 @@ public class CodecTests extends OpenSearchTestCase {
     // write some docs with it, inspect .si to see this was the used compression
     private void assertStoredFieldsCompressionEquals(Lucene99Codec.Mode expected, Codec actual) throws Exception {
         SegmentReader sr = getSegmentReader(actual);
-        String v = sr.getSegmentInfo().info.getAttribute(Lucene90StoredFieldsFormat.MODE_KEY);
+        String v = sr.getSegmentInfo().info.getAttribute(Lucene99CoreStoredFieldsFormat.MODE_KEY);
         assertNotNull(v);
         assertEquals(expected, Lucene99Codec.Mode.valueOf(v));
     }
