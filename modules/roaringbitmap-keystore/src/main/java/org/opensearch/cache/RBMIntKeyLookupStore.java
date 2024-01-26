@@ -49,16 +49,17 @@ public class RBMIntKeyLookupStore implements KeyLookupStore<Integer> {
         }
     }
 
+    // The modulo applied to values before adding into the RBM
     protected final int modulo;
-    protected final int modulo_bitmask;
+    private final int modulo_bitmask;
     // Since our modulo is always a power of two we can optimize it by ANDing with a particular bitmask
     KeyStoreStats stats;
-    protected RoaringBitmap rbm;
+    private RoaringBitmap rbm;
     private HashMap<Integer, CounterMetric> collidedIntCounters;
     private HashMap<Integer, HashSet<Integer>> removalSets;
-    protected final ReentrantReadWriteLock lock = new ReentrantReadWriteLock();
-    protected final Lock readLock = lock.readLock();
-    protected final Lock writeLock = lock.writeLock();
+    private final ReentrantReadWriteLock lock = new ReentrantReadWriteLock();
+    private final Lock readLock = lock.readLock();
+    private final Lock writeLock = lock.writeLock();
     private long mostRecentByteEstimate;
 
     // Refresh size estimate every X new elements. Refreshes use the RBM's internal size estimator, which takes ~0.01 ms,
