@@ -247,7 +247,6 @@ public class SearchTransportService {
         final boolean fetchDocuments = request.numberOfShards() == 1;
         final ActionListener handler = responseWrapper.apply(connection, listener);
         TransportResponseHandler transportResponseHandler;
-        // System.setProperty(FeatureFlags.PROTOBUF, "true");
         if (FeatureFlags.isEnabled(FeatureFlags.PROTOBUF_SETTING)) {
             ProtobufWriteable.Reader<SearchPhaseResult> reader = fetchDocuments ? QueryFetchSearchResult::new : QuerySearchResult::new;
             transportResponseHandler = new ProtobufConnectionCountingHandler<>(

@@ -32,12 +32,14 @@
 
 package org.opensearch.search;
 
+import com.google.protobuf.ByteString;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.search.TotalHits.Relation;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.lucene.Lucene;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
@@ -45,6 +47,8 @@ import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.rest.action.search.RestSearchAction;
+import org.opensearch.server.proto.FetchSearchResultProto;
+import org.opensearch.server.proto.QuerySearchResultProto;
 
 import java.io.IOException;
 import java.io.OutputStream;
@@ -103,6 +107,39 @@ public final class SearchHits implements Writeable, ToXContentFragment, Iterable
         this.sortFields = sortFields;
         this.collapseField = collapseField;
         this.collapseValues = collapseValues;
+        if (FeatureFlags.isEnabled(FeatureFlags.PROTOBUF_SETTING)) {
+            List<FetchSearchResultProto.SearchHit> searchHitList = new ArrayList<>();
+            for (int i = 0; i < hits.length; i++) {
+                FetchSearchResultProto.SearchHit.Builder searchHitBuilder = FetchSearchResultProto.SearchHit.newBuilder();
+                if (hits[i].getIndex() != null) {
+                    searchHitBuilder.setIndex(hits[i].getIndex());
+                }
+                searchHitBuilder.setId(hits[i].getId());
+                searchHitBuilder.setScore(hits[i].getScore());
+                searchHitBuilder.setSeqNo(hits[i].getSeqNo());
+                searchHitBuilder.setPrimaryTerm(hits[i].getPrimaryTerm());
+                searchHitBuilder.setVersion(hits[i].getVersion());
+                if (hits[i].getSourceRef() != null) {
+                    searchHitBuilder.setSource(ByteString.copyFrom(hits[i].getSourceRef().toBytesRef().bytes));
+                }
+                searchHitList.add(searchHitBuilder.build());
+            }
+            QuerySearchResultProto.TotalHits.Builder totalHitsBuilder = QuerySearchResultProto.TotalHits.newBuilder();
+            totalHitsBuilder.setValue(totalHits.value);
+            totalHitsBuilder.setRelation(
+                totalHits.relation == Relation.EQUAL_TO
+                    ? QuerySearchResultProto.TotalHits.Relation.EQUAL_TO
+                    : QuerySearchResultProto.TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO
+            );
+            FetchSearchResultProto.SearchHits.Builder searchHitsBuilder = FetchSearchResultProto.SearchHits.newBuilder();
+            searchHitsBuilder.setMaxScore(maxScore);
+            searchHitsBuilder.addAllHits(searchHitList);
+            searchHitsBuilder.setTotalHits(totalHitsBuilder.build());
+            if (collapseField != null) {
+                searchHitsBuilder.setCollapseField(collapseField);
+            }
+            this.searchHitsProto = searchHitsBuilder.build();
+        }
     }
 
     public SearchHits(StreamInput in) throws IOException {

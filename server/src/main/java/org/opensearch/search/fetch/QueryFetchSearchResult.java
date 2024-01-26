@@ -121,7 +121,6 @@ public final class QueryFetchSearchResult extends SearchPhaseResult {
 
     @Override
     public boolean isMessageProtobuf() {
-        // System.setProperty(FeatureFlags.PROTOBUF, "true");
         if (FeatureFlags.isEnabled(FeatureFlags.PROTOBUF_SETTING)) {
             return true;
         }
