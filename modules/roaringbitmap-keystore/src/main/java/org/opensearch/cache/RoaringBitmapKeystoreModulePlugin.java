@@ -7,7 +7,7 @@
  */
 
 package org.opensearch.cache;
+
 import org.opensearch.plugins.Plugin;
 
-public class RoaringBitmapKeystoreModulePlugin extends Plugin {
-}
+public class RoaringBitmapKeystoreModulePlugin extends Plugin {}

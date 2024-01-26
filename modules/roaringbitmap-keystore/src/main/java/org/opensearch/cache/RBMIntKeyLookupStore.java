@@ -8,7 +8,6 @@
 
 package org.opensearch.cache;
 
-
 import org.opensearch.common.cache.tier.keystore.KeyLookupStore;
 import org.opensearch.common.metrics.CounterMetric;
 import org.opensearch.core.common.unit.ByteSizeValue;
@@ -66,7 +65,6 @@ public class RBMIntKeyLookupStore implements KeyLookupStore<Integer> {
     // so we don't want to do it on every get(), and it doesn't matter much if there are +- 10000 keys in this store
     // in terms of storage impact
     static final int REFRESH_SIZE_EST_INTERVAL = 10_000;
-
 
     // Use this constructor to specify memory cap with default modulo = 2^28, which we found in experiments
     // to be the best tradeoff between lower memory usage and risk of collisions
@@ -204,7 +202,8 @@ public class RBMIntKeyLookupStore implements KeyLookupStore<Integer> {
                 if (removalSet == null) {
                     // First time a removal has been attempted for this transformed value
                     HashSet<Integer> newRemovalSet = new HashSet<>();
-                    newRemovalSet.add(value); // Add the key value, not the transformed value, to the list of attempted removals for this transformedValue
+                    newRemovalSet.add(value); // Add the key value, not the transformed value, to the list of attempted removals for this
+                                              // transformedValue
                     removalSets.put(transformedValue, newRemovalSet);
                     numCollisions.dec();
                 } else {
@@ -379,4 +378,3 @@ public class RBMIntKeyLookupStore implements KeyLookupStore<Integer> {
         }
     }
 }
-

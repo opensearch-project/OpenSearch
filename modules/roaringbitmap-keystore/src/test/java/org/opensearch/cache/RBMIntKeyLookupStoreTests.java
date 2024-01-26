@@ -13,7 +13,6 @@ import org.opensearch.common.metrics.CounterMetric;
 import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.test.OpenSearchTestCase;
-import org.roaringbitmap.RoaringBitmap;
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -22,9 +21,12 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.ThreadPoolExecutor;
 
+import org.roaringbitmap.RoaringBitmap;
+
 public class RBMIntKeyLookupStoreTests extends OpenSearchTestCase {
 
     final int BYTES_IN_MB = 1048576;
+
     public void testInit() {
         long memCap = 100 * BYTES_IN_MB;
         RBMIntKeyLookupStore kls = new RBMIntKeyLookupStore(memCap);
@@ -130,10 +132,10 @@ public class RBMIntKeyLookupStoreTests extends OpenSearchTestCase {
         // as that's what our size estimator is designed for.
         // If we add a run of integers, our size estimator is not valid, especially for small RBMs.
 
-        int[] maxEntriesArr = new int[] { 1342000, 100000, 3000000};
+        int[] maxEntriesArr = new int[] { 1342000, 100000, 3000000 };
         long[] rbmReportedSizes = new long[4];
         Random rand = Randomness.get();
-        for (int j = 0; j < maxEntriesArr.length; j++)  {
+        for (int j = 0; j < maxEntriesArr.length; j++) {
             RoaringBitmap rbm = new RoaringBitmap();
             for (int i = 0; i < maxEntriesArr[j]; i++) {
                 rbm.add(rand.nextInt());
@@ -144,7 +146,7 @@ public class RBMIntKeyLookupStoreTests extends OpenSearchTestCase {
         for (int i = 0; i < maxEntriesArr.length; i++) {
             double multiplier = RBMIntKeyLookupStore.getRBMSizeMultiplier(maxEntriesArr[i], moduloValue.getValue());
             long memSizeCapInBytes = (long) (rbmReportedSizes[i] * multiplier);
-            //long memSizeCapInBytes = RBMSizeEstimator.getSizeInBytesWithModuloValue(maxEntries, moduloValue);
+            // long memSizeCapInBytes = RBMSizeEstimator.getSizeInBytesWithModuloValue(maxEntries, moduloValue);
             RBMIntKeyLookupStore kls = new RBMIntKeyLookupStore(moduloValue, memSizeCapInBytes);
             for (int j = 0; j < maxEntriesArr[i] + 5000; j++) {
                 kls.add(rand.nextInt());
@@ -406,4 +408,3 @@ public class RBMIntKeyLookupStoreTests extends OpenSearchTestCase {
         assertFalse(kls.add(rand.nextInt()));
     }
 }
-

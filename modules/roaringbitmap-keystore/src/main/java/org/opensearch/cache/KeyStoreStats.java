@@ -35,4 +35,3 @@ public class KeyStoreStats {
         this.numSuccessfulRemovals = new CounterMetric();
     }
 }
-
