@@ -64,12 +64,7 @@ public class Lucene99CoreStoredFieldsFormat extends StoredFieldsFormat {
      */
     @Override
     public StoredFieldsReader fieldsReader(Directory directory, SegmentInfo si, FieldInfos fn, IOContext context) throws IOException {
-
-        if (si.getAttribute(Lucene90StoredFieldsFormat.MODE_KEY) != null) {
-            String value = si.getAttribute(Lucene90StoredFieldsFormat.MODE_KEY);
-            Lucene90StoredFieldsFormat.Mode mode = Lucene90StoredFieldsFormat.Mode.valueOf(value);
-            return impl(mode).fieldsReader(directory, si, fn, context);
-        } else if (si.getAttribute(MODE_KEY) != null) {
+        if (si.getAttribute(MODE_KEY) != null) {
             String value = si.getAttribute(MODE_KEY);
             Lucene99Codec.Mode mode = Lucene99Codec.Mode.valueOf(value);
             return impl(mode).fieldsReader(directory, si, fn, context);
@@ -77,17 +72,6 @@ public class Lucene99CoreStoredFieldsFormat extends StoredFieldsFormat {
             throw new IllegalStateException("missing value for " + MODE_KEY + " for segment: " + si.name);
         }
 
-    }
-
-    private StoredFieldsFormat impl(Lucene90StoredFieldsFormat.Mode mode) {
-        switch (mode) {
-            case BEST_SPEED:
-                return getLZ4CompressingStoredFieldsFormat();
-            case BEST_COMPRESSION:
-                return getZlibCompressingStoredFieldsFormat();
-            default:
-                throw new AssertionError();
-        }
     }
 
     /**
