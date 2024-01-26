@@ -124,10 +124,6 @@ dependencies {
   api "com.google.protobuf:protobuf-java:${versions.protobuf}"
   api "jakarta.annotation:jakarta.annotation-api:${versions.jakarta_annotation}"
 
-  // roaring bitmaps
-  api 'org.roaringbitmap:RoaringBitmap:0.9.49'
-  runtimeOnly 'org.roaringbitmap:shims:0.9.49' // might fix complaining about ArraysShims?
-
   testImplementation(project(":test:framework")) {
     // tests use the locally compiled version of server
     exclude group: 'org.opensearch', module: 'server'

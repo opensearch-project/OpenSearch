@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.common.cache.tier.keystore;
+package org.opensearch.cache;
 
 import org.opensearch.common.metrics.CounterMetric;
 
@@ -35,3 +35,4 @@ public class KeyStoreStats {
         this.numSuccessfulRemovals = new CounterMetric();
     }
 }
+
