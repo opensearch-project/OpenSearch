@@ -44,7 +44,7 @@ public class RemoteStoreRestoreIT extends BaseRemoteStoreRestoreIT {
      * @throws IOException IO Exception.
      */
     public void testRemoteTranslogRestoreWithNoDataPostCommit() throws Exception {
-        testRestoreFlow(1, true, randomIntBetween(1, 5));
+        testRestoreFlow(1, true, true, randomIntBetween(1, 5));
     }
 
     /**
@@ -52,7 +52,7 @@ public class RemoteStoreRestoreIT extends BaseRemoteStoreRestoreIT {
      * @throws IOException IO Exception.
      */
     public void testRemoteTranslogRestoreWithNoDataPostRefresh() throws Exception {
-        testRestoreFlow(1, false, randomIntBetween(1, 5));
+        testRestoreFlow(1, false, true, randomIntBetween(1, 5));
     }
 
     /**
@@ -61,7 +61,7 @@ public class RemoteStoreRestoreIT extends BaseRemoteStoreRestoreIT {
      * @throws IOException IO Exception.
      */
     public void testRemoteTranslogRestoreWithRefreshedData() throws Exception {
-        testRestoreFlow(randomIntBetween(2, 5), false, randomIntBetween(1, 5));
+        testRestoreFlow(randomIntBetween(2, 5), false, false, randomIntBetween(1, 5));
     }
 
     /**
@@ -70,7 +70,7 @@ public class RemoteStoreRestoreIT extends BaseRemoteStoreRestoreIT {
      * @throws IOException IO Exception.
      */
     public void testRemoteTranslogRestoreWithCommittedData() throws Exception {
-        testRestoreFlow(randomIntBetween(2, 5), true, randomIntBetween(1, 5));
+        testRestoreFlow(randomIntBetween(2, 5), true, false, randomIntBetween(1, 5));
     }
 
     /**
@@ -78,7 +78,7 @@ public class RemoteStoreRestoreIT extends BaseRemoteStoreRestoreIT {
      * @throws IOException IO Exception.
      */
     public void testRTSRestoreWithNoDataPostCommitPrimaryReplicaDown() throws Exception {
-        testRestoreFlowBothPrimaryReplicasDown(1, true, randomIntBetween(1, 5));
+        testRestoreFlowBothPrimaryReplicasDown(1, true, true, randomIntBetween(1, 5));
     }
 
     /**
@@ -86,7 +86,7 @@ public class RemoteStoreRestoreIT extends BaseRemoteStoreRestoreIT {
      * @throws IOException IO Exception.
      */
     public void testRTSRestoreWithNoDataPostRefreshPrimaryReplicaDown() throws Exception {
-        testRestoreFlowBothPrimaryReplicasDown(1, false, randomIntBetween(1, 5));
+        testRestoreFlowBothPrimaryReplicasDown(1, false, true, randomIntBetween(1, 5));
     }
 
     /**
@@ -95,7 +95,7 @@ public class RemoteStoreRestoreIT extends BaseRemoteStoreRestoreIT {
      * @throws IOException IO Exception.
      */
     public void testRTSRestoreWithRefreshedDataPrimaryReplicaDown() throws Exception {
-        testRestoreFlowBothPrimaryReplicasDown(randomIntBetween(2, 5), false, randomIntBetween(1, 5));
+        testRestoreFlowBothPrimaryReplicasDown(randomIntBetween(2, 5), false, false, randomIntBetween(1, 5));
     }
 
     /**
@@ -104,7 +104,7 @@ public class RemoteStoreRestoreIT extends BaseRemoteStoreRestoreIT {
      * @throws IOException IO Exception.
      */
     public void testRTSRestoreWithCommittedDataPrimaryReplicaDown() throws Exception {
-        testRestoreFlowBothPrimaryReplicasDown(randomIntBetween(2, 5), true, randomIntBetween(1, 5));
+        testRestoreFlowBothPrimaryReplicasDown(randomIntBetween(2, 5), true, false, randomIntBetween(1, 5));
     }
 
     private void restoreAndVerify(int shardCount, int replicaCount, Map<String, Long> indexStats) throws Exception {
@@ -122,9 +122,9 @@ public class RemoteStoreRestoreIT extends BaseRemoteStoreRestoreIT {
      * @param invokeFlush If true, a flush is invoked. Otherwise, a refresh is invoked.
      * @throws IOException IO Exception.
      */
-    private void testRestoreFlow(int numberOfIterations, boolean invokeFlush, int shardCount) throws Exception {
+    private void testRestoreFlow(int numberOfIterations, boolean invokeFlush, boolean emptyTranslog, int shardCount) throws Exception {
         prepareCluster(1, 3, INDEX_NAME, 0, shardCount);
-        Map<String, Long> indexStats = indexData(numberOfIterations, invokeFlush, INDEX_NAME);
+        Map<String, Long> indexStats = indexData(numberOfIterations, invokeFlush, emptyTranslog, INDEX_NAME);
         assertEquals(shardCount, getNumShards(INDEX_NAME).totalNumShards);
 
         assertHitCount(client().prepareSearch(INDEX_NAME).setSize(0).get(), indexStats.get(REFRESHED_OR_FLUSHED_OPERATIONS));
@@ -141,9 +141,10 @@ public class RemoteStoreRestoreIT extends BaseRemoteStoreRestoreIT {
      * @param invokeFlush If true, a flush is invoked. Otherwise, a refresh is invoked.
      * @throws IOException IO Exception.
      */
-    private void testRestoreFlowBothPrimaryReplicasDown(int numberOfIterations, boolean invokeFlush, int shardCount) throws Exception {
+    private void testRestoreFlowBothPrimaryReplicasDown(int numberOfIterations, boolean invokeFlush, boolean emptyTranslog, int shardCount)
+        throws Exception {
         prepareCluster(1, 2, INDEX_NAME, 1, shardCount);
-        Map<String, Long> indexStats = indexData(numberOfIterations, invokeFlush, INDEX_NAME);
+        Map<String, Long> indexStats = indexData(numberOfIterations, invokeFlush, emptyTranslog, INDEX_NAME);
         assertEquals(shardCount * 2, getNumShards(INDEX_NAME).totalNumShards);
 
         internalCluster().stopRandomNode(InternalTestCluster.nameFilter(replicaNodeName(INDEX_NAME)));
@@ -391,7 +392,7 @@ public class RemoteStoreRestoreIT extends BaseRemoteStoreRestoreIT {
      * @throws IOException IO Exception.
      */
     public void testRTSRestoreDataOnlyInTranslog() throws Exception {
-        testRestoreFlow(0, true, randomIntBetween(1, 5));
+        testRestoreFlow(0, true, false, randomIntBetween(1, 5));
     }
 
     public void testRateLimitedRemoteDownloads() throws Exception {

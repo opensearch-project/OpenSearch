@@ -53,7 +53,7 @@ public final class RestRemoteClusterInfoAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return singletonList(new Route(GET, "_remote/info"));
+        return singletonList(new Route(GET, "/_remote/info"));
     }
 
     @Override

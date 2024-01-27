@@ -84,6 +84,10 @@ public class RemoteStoreBaseIntegTestCase extends OpenSearchIntegTestCase {
     );
 
     protected Map<String, Long> indexData(int numberOfIterations, boolean invokeFlush, String index) {
+        return indexData(numberOfIterations, invokeFlush, false, index);
+    }
+
+    protected Map<String, Long> indexData(int numberOfIterations, boolean invokeFlush, boolean emptyTranslog, String index) {
         long totalOperations = 0;
         long refreshedOrFlushedOperations = 0;
         long maxSeqNo = -1;
@@ -95,6 +99,11 @@ public class RemoteStoreBaseIntegTestCase extends OpenSearchIntegTestCase {
                 flushAndRefresh(index);
             } else {
                 refresh(index);
+            }
+
+            // skip indexing if last iteration as we dont want to have any data in remote translog
+            if (emptyTranslog && i == numberOfIterations - 1) {
+                continue;
             }
             maxSeqNoRefreshedOrFlushed = maxSeqNo;
             indexingStats.put(MAX_SEQ_NO_REFRESHED_OR_FLUSHED + "-shard-" + shardId, maxSeqNoRefreshedOrFlushed);
