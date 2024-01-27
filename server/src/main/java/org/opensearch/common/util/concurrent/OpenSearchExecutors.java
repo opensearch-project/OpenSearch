@@ -447,6 +447,30 @@ public class OpenSearchExecutors {
             }
         }
 
+        /**
+         * Workaround for https://bugs.openjdk.org/browse/JDK-8323659 regression, introduced in JDK-21.0.2.
+         */
+        @Override
+        public void put(E e) {
+            super.offer(e);
+        }
+
+        /**
+         * Workaround for https://bugs.openjdk.org/browse/JDK-8323659 regression, introduced in JDK-21.0.2.
+         */
+        @Override
+        public boolean offer(E e, long timeout, TimeUnit unit) {
+            return super.offer(e);
+        }
+
+        /**
+         * Workaround for https://bugs.openjdk.org/browse/JDK-8323659 regression, introduced in JDK-21.0.2.
+         */
+        @Override
+        public boolean add(E e) {
+            return super.offer(e);
+        }
+
     }
 
     /**
