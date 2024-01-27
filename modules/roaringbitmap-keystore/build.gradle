@@ -8,7 +8,7 @@
 
 opensearchplugin {
   description 'Roaring bitmap-based implementation of a key lookup store, used for tiered caching.'
-  classname 'org.opensearch.cache.RoaringBitmapKeystorePlugin'
+  classname 'org.opensearch.cache.RoaringBitmapKeystoreModulePlugin'
   hasClientJar = true
 }
 
