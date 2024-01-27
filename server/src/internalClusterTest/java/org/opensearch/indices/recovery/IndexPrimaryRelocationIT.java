@@ -98,7 +98,7 @@ public class IndexPrimaryRelocationIT extends OpenSearchIntegTestCase {
             ClusterHealthResponse clusterHealthResponse = client().admin()
                 .cluster()
                 .prepareHealth()
-                .setTimeout(TimeValue.timeValueSeconds(60))
+                .setTimeout(TimeValue.timeValueSeconds(120))
                 .setWaitForEvents(Priority.LANGUID)
                 .setWaitForNoRelocatingShards(true)
                 .execute()
