@@ -78,6 +78,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
@@ -204,9 +205,15 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
         sortValues = new SearchSortValues(in);
 
         size = in.readVInt();
-        if (in.getVersion().onOrAfter(Version.V_2_12_0)) {
+        if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
             if (size > 0) {
-                matchedQueries = in.readOrderedMap(StreamInput::readString, StreamInput::readFloat);
+                Map<String, Float> tempMap = in.readMap(StreamInput::readString, StreamInput::readFloat);
+                matchedQueries = tempMap.entrySet()
+                    .stream()
+                    .sorted(Map.Entry.comparingByKey())
+                    .collect(
+                        Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue, (oldValue, newValue) -> oldValue, LinkedHashMap::new)
+                    );
             }
         } else {
             matchedQueries = new LinkedHashMap<>(size);
@@ -262,7 +269,7 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
         sortValues.writeTo(out);
 
         out.writeVInt(matchedQueries.size());
-        if (out.getVersion().onOrAfter(Version.V_2_12_0)) {
+        if (out.getVersion().onOrAfter(Version.V_3_0_0)) {
             if (!matchedQueries.isEmpty()) {
                 out.writeMap(matchedQueries, StreamOutput::writeString, StreamOutput::writeFloat);
             }
@@ -536,8 +543,18 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
         return clusterAlias;
     }
 
-    public void matchedQueries(Map<String, Float> matchedQueries) {
-        this.matchedQueries = matchedQueries;
+    public void matchedQueries(String[] matchedQueries) {
+        if (matchedQueries != null) {
+            for (String query : matchedQueries) {
+                this.matchedQueries.put(query, Float.NaN);
+            }
+        }
+    }
+
+    public void matchedQueriesWithScores(Map<String, Float> matchedQueries) {
+        if (matchedQueries != null) {
+            this.matchedQueries = matchedQueries;
+        }
     }
 
     /**
@@ -678,7 +695,7 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
             builder.endObject();
         }
         sortValues.toXContent(builder, params);
-        if (matchedQueries != null && !matchedQueries.isEmpty()) {
+        if (!matchedQueries.isEmpty()) {
             boolean includeMatchedQueriesScore = params.paramAsBoolean(RestSearchAction.INCLUDE_NAMED_QUERIES_SCORE_PARAM, false);
             if (includeMatchedQueriesScore) {
                 builder.startObject(Fields.MATCHED_QUERIES);
@@ -813,6 +830,8 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
                 while (p.nextToken() != XContentParser.Token.END_ARRAY) {
                     matchedQueries.put(p.text(), Float.NaN);
                 }
+            } else {
+                throw new IllegalStateException("expected object or array but got [" + token + "]");
             }
             map.put(Fields.MATCHED_QUERIES, matchedQueries);
         }, new ParseField(Fields.MATCHED_QUERIES), ObjectParser.ValueType.OBJECT_ARRAY);
@@ -860,7 +879,7 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
         searchHit.sourceRef(get(SourceFieldMapper.NAME, values, null));
         searchHit.explanation(get(Fields._EXPLANATION, values, null));
         searchHit.setInnerHits(get(Fields.INNER_HITS, values, null));
-        searchHit.matchedQueries(get(Fields.MATCHED_QUERIES, values, null));
+        searchHit.matchedQueriesWithScores(get(Fields.MATCHED_QUERIES, values, null));
         return searchHit;
     }
 

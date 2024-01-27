@@ -92,7 +92,7 @@ public class SearchHitTests extends AbstractWireSerializingTestCase<SearchHit> {
         for (int i = 0; i < size; i++) {
             matchedQueries.put(randomAlphaOfLength(5), randomFloat());
         }
-        searchHit.matchedQueries(matchedQueries);
+        searchHit.matchedQueriesWithScores(matchedQueries);
         return searchHit;
     }
 
@@ -153,7 +153,7 @@ public class SearchHitTests extends AbstractWireSerializingTestCase<SearchHit> {
             for (int i = 0; i < size; i++) {
                 matchedQueries.put(randomAlphaOfLength(5), Float.NaN);
             }
-            hit.matchedQueries(matchedQueries);
+            hit.matchedQueriesWithScores(matchedQueries);
         }
         if (randomBoolean()) {
             hit.explanation(createExplanation(randomIntBetween(0, 5)));
@@ -336,17 +336,17 @@ public class SearchHitTests extends AbstractWireSerializingTestCase<SearchHit> {
         Map<String, SearchHits> innerHits = new HashMap<>();
         SearchHit innerHit1 = new SearchHit(0, "_id", null, null);
         innerHit1.shard(target);
-        innerHit1.matchedQueries(getSampleMatchedQueries());
+        innerHit1.matchedQueriesWithScores(getSampleMatchedQueries());
         SearchHit innerInnerHit2 = new SearchHit(0, "_id", null, null);
         innerInnerHit2.shard(target);
         innerHits.put("1", new SearchHits(new SearchHit[] { innerInnerHit2 }, new TotalHits(1, TotalHits.Relation.EQUAL_TO), 1f));
         innerHit1.setInnerHits(innerHits);
         SearchHit innerHit2 = new SearchHit(0, "_id", null, null);
         innerHit2.shard(target);
-        innerHit2.matchedQueries(getSampleMatchedQueries());
+        innerHit2.matchedQueriesWithScores(getSampleMatchedQueries());
         SearchHit innerHit3 = new SearchHit(0, "_id", null, null);
         innerHit3.shard(target);
-        innerHit3.matchedQueries(getSampleMatchedQueries());
+        innerHit3.matchedQueriesWithScores(getSampleMatchedQueries());
 
         innerHits = new HashMap<>();
         SearchHit hit1 = new SearchHit(0, "_id", null, null);

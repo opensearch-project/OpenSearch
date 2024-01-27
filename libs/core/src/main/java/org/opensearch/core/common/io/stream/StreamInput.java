@@ -633,34 +633,6 @@ public abstract class StreamInput extends InputStream {
     }
 
     /**
-     * Reads an ordered {@link Map} from a data source using provided key and value readers.
-     *
-     * This method creates a `LinkedHashMap`, ensuring that the iteration order of the map
-     * matches the order in which the entries were read from the data source. It uses the
-     * `keyReader` and `valueReader` to read each key-value pair and constructs the map
-     * with an initial capacity optimized based on the expected size.
-     *
-     * Usage example:
-     * <pre><code>
-     * Map&lt;Integer, String&gt; orderedMap = readOrderedMap(StreamInput::readInteger, StreamInput::readString);
-     * </code></pre>
-     *
-     * @param keyReader The {@link Writeable.Reader} used to read the keys of the map.
-     * @param valueReader The {@link Writeable.Reader} used to read the values of the map.
-     * @return A {@link LinkedHashMap} containing the keys and values read from the data source.
-     *         The map maintains the order in which keys and values were read.
-     * @throws IOException If an I/O error occurs during reading from the data source.
-     */
-    public <K, V> Map<K, V> readOrderedMap(Writeable.Reader<K> keyReader, Writeable.Reader<V> valueReader) throws IOException {
-        return readMap(keyReader, valueReader, (expectedSize) -> new LinkedHashMap<>(capacity(expectedSize)));
-    }
-
-    static int capacity(int expectedSize) {
-        assert expectedSize >= 0;
-        return expectedSize < 2 ? expectedSize + 1 : (int) (expectedSize / 0.75 + 1.0);
-    }
-
-    /**
      * Reads a {@link Map} from a data source using provided key and value readers and a map constructor.
      *
      * This method is a flexible utility for reading a map from a data source, such as a file or network stream.

@@ -103,7 +103,7 @@ public final class MatchedQueriesPhase implements FetchSubPhase {
                         matches.put(entry.getKey(), scorer.score());
                     }
                 }
-                hitContext.hit().matchedQueries(matches);
+                hitContext.hit().matchedQueriesWithScores(matches);
             }
         };
     }

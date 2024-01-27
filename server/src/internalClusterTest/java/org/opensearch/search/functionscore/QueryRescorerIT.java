@@ -84,6 +84,7 @@ import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertSearchResp
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertSecondHit;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertThirdHit;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.hasId;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.hasMatchedQueries;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.hasScore;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -128,7 +129,7 @@ public class QueryRescorerIT extends ParameterizedOpenSearchIntegTestCase {
                     new QueryRescorerBuilder(
                         functionScoreQuery(matchAllQuery(), ScoreFunctionBuilders.weightFactorFunction(100)).boostMode(
                             CombineFunction.REPLACE
-                        ).queryName("hello world")
+                        )
                     ).setQueryWeight(0.0f).setRescoreQueryWeight(1.0f),
                     1
                 )
@@ -600,7 +601,7 @@ public class QueryRescorerIT extends ParameterizedOpenSearchIntegTestCase {
 
             SearchResponse searchResponse = client().prepareSearch()
                 .setSearchType(SearchType.DFS_QUERY_THEN_FETCH)
-                .setQuery(QueryBuilders.matchQuery("field1", "the quick brown").operator(Operator.OR))
+                .setQuery(QueryBuilders.matchQuery("field1", "the quick brown").operator(Operator.OR).queryName("hello-world"))
                 .setRescorer(innerRescoreQuery, 5)
                 .setExplain(true)
                 .get();
@@ -608,7 +609,10 @@ public class QueryRescorerIT extends ParameterizedOpenSearchIntegTestCase {
             assertFirstHit(searchResponse, hasId("1"));
             assertSecondHit(searchResponse, hasId("2"));
             assertThirdHit(searchResponse, hasId("3"));
-
+            final String[] matchedQueries = { "hello-world" };
+            assertFirstHit(searchResponse, hasMatchedQueries(matchedQueries));
+            assertSecondHit(searchResponse, hasMatchedQueries(matchedQueries));
+            assertThirdHit(searchResponse, hasMatchedQueries(matchedQueries));
             for (int j = 0; j < 3; j++) {
                 assertThat(searchResponse.getHits().getAt(j).getExplanation().getDescription(), equalTo(descriptionModes[innerMode]));
             }
