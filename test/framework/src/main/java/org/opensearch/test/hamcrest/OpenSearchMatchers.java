@@ -31,7 +31,6 @@
 
 package org.opensearch.test.hamcrest;
 
-import java.util.Arrays;
 import org.opensearch.search.SearchHit;
 import org.hamcrest.Description;
 import org.hamcrest.FeatureMatcher;
@@ -39,6 +38,7 @@ import org.hamcrest.Matcher;
 import org.hamcrest.TypeSafeMatcher;
 import org.hamcrest.core.CombinableMatcher;
 
+import java.util.Arrays;
 import java.util.function.Function;
 
 public class OpenSearchMatchers {
@@ -132,14 +132,12 @@ public class OpenSearchMatchers {
 
         @Override
         public void describeMismatchSafely(final SearchHit searchHit, final Description mismatchDescription) {
-            mismatchDescription.appendText(" matched queries were ")
-                .appendValue(Arrays.toString(searchHit.getMatchedQueries()));
+            mismatchDescription.appendText(" matched queries were ").appendValue(Arrays.toString(searchHit.getMatchedQueries()));
         }
 
         @Override
         public void describeTo(final Description description) {
-            description.appendText("searchHit matched queries should be ")
-                .appendValue(Arrays.toString(matchedQueries));
+            description.appendText("searchHit matched queries should be ").appendValue(Arrays.toString(matchedQueries));
         }
     }
 

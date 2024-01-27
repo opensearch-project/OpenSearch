@@ -532,7 +532,6 @@ public class OpenSearchAssertions {
         return new OpenSearchMatchers.SearchHitMatchedQueriesMatcher(matchedQueries);
     }
 
-
     public static <T, V> CombinableMatcher<T> hasProperty(Function<? super T, ? extends V> property, Matcher<V> valueMatcher) {
         return OpenSearchMatchers.HasPropertyLambdaMatcher.hasProperty(property, valueMatcher);
     }
