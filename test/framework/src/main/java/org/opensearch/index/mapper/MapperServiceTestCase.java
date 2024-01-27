@@ -247,6 +247,8 @@ public abstract class MapperServiceTestCase extends OpenSearchTestCase {
         when(queryShardContext.getSearchQuoteAnalyzer(any())).thenCallRealMethod();
         when(queryShardContext.getSearchAnalyzer(any())).thenCallRealMethod();
         when(queryShardContext.getIndexSettings()).thenReturn(mapperService.getIndexSettings());
+        when(queryShardContext.getObjectMapper(anyString())).thenAnswer(
+            inv -> mapperService.getObjectMapper(inv.getArguments()[0].toString()));
         when(queryShardContext.simpleMatchToIndexNames(any())).thenAnswer(
             inv -> mapperService.simpleMatchToFullName(inv.getArguments()[0].toString())
         );

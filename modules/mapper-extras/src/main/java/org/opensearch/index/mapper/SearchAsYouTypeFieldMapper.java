@@ -454,11 +454,6 @@ public class SearchAsYouTypeFieldMapper extends ParametrizedFieldMapper {
         public String toString() {
             return super.toString() + ",prefixChars=" + minChars + ":" + maxChars;
         }
-
-        @Override
-        public Query existsQuery(QueryShardContext context) {
-            throw new UnsupportedOperationException();
-        }
     }
 
     static final class PrefixFieldMapper extends FieldMapper {
