@@ -45,7 +45,7 @@ import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.index.query.TermQueryBuilder;
 import org.opensearch.search.SearchHit;
-import org.opensearch.test.ParameterizedOpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -66,10 +66,10 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasItemInArray;
 import static org.hamcrest.Matchers.hasKey;
 
-public class MatchedQueriesIT extends ParameterizedOpenSearchIntegTestCase {
+public class MatchedQueriesIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
 
-    public MatchedQueriesIT(Settings dynamicSettings) {
-        super(dynamicSettings);
+    public MatchedQueriesIT(Settings staticSettings) {
+        super(staticSettings);
     }
 
     @ParametersFactory

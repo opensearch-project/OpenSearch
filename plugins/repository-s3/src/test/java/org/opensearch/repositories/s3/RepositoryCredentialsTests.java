@@ -75,6 +75,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 
+@SuppressWarnings("removal")
 @SuppressForbidden(reason = "test requires to set a System property to allow insecure settings when running in IDE")
 public class RepositoryCredentialsTests extends OpenSearchSingleNodeTestCase implements ConfigPathSupport {
 

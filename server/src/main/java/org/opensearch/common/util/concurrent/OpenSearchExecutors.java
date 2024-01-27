@@ -393,6 +393,7 @@ public class OpenSearchExecutors {
         final AtomicInteger threadNumber = new AtomicInteger(1);
         final String namePrefix;
 
+        @SuppressWarnings("removal")
         OpenSearchThreadFactory(String namePrefix) {
             this.namePrefix = namePrefix;
             SecurityManager s = System.getSecurityManager();

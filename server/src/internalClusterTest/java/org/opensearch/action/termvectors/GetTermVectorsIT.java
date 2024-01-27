@@ -74,8 +74,8 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
 
-    public GetTermVectorsIT(Settings dynamicSettings) {
-        super(dynamicSettings);
+    public GetTermVectorsIT(Settings staticSettings) {
+        super(staticSettings);
     }
 
     @Override

@@ -45,7 +45,7 @@ import org.opensearch.search.aggregations.bucket.filter.Filter;
 import org.opensearch.search.aggregations.bucket.global.Global;
 import org.opensearch.search.aggregations.bucket.terms.Terms;
 import org.opensearch.test.OpenSearchIntegTestCase;
-import org.opensearch.test.ParameterizedOpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -73,10 +73,10 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 
 @OpenSearchIntegTestCase.SuiteScopeTestCase
-public class ValueCountIT extends ParameterizedOpenSearchIntegTestCase {
+public class ValueCountIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
 
-    public ValueCountIT(Settings dynamicSettings) {
-        super(dynamicSettings);
+    public ValueCountIT(Settings staticSettings) {
+        super(staticSettings);
     }
 
     @ParametersFactory

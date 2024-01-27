@@ -55,7 +55,7 @@ import org.opensearch.search.SearchHits;
 import org.opensearch.search.rescore.QueryRescoreMode;
 import org.opensearch.search.rescore.QueryRescorerBuilder;
 import org.opensearch.search.sort.SortBuilders;
-import org.opensearch.test.ParameterizedOpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -92,10 +92,10 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 
-public class QueryRescorerIT extends ParameterizedOpenSearchIntegTestCase {
+public class QueryRescorerIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
 
-    public QueryRescorerIT(Settings dynamicSettings) {
-        super(dynamicSettings);
+    public QueryRescorerIT(Settings staticSettings) {
+        super(staticSettings);
     }
 
     @ParametersFactory

@@ -17,7 +17,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.search.aggregations.bucket.terms.Terms;
 import org.opensearch.test.OpenSearchIntegTestCase;
-import org.opensearch.test.ParameterizedOpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -29,12 +29,12 @@ import static org.opensearch.test.OpenSearchIntegTestCase.Scope.TEST;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 
 @OpenSearchIntegTestCase.ClusterScope(scope = TEST, numClientNodes = 0, maxNumDataNodes = 1, supportsDedicatedMasters = false)
-public class TermsFixedDocCountErrorIT extends ParameterizedOpenSearchIntegTestCase {
+public class TermsFixedDocCountErrorIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
 
     private static final String STRING_FIELD_NAME = "s_value";
 
-    public TermsFixedDocCountErrorIT(Settings dynamicSettings) {
-        super(dynamicSettings);
+    public TermsFixedDocCountErrorIT(Settings staticSettings) {
+        super(staticSettings);
     }
 
     @ParametersFactory
