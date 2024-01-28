@@ -89,4 +89,4 @@ setup:
         rest_total_hits_as_int: true
         index: test1
         body: {"query" : {"match" : {"field1" : "quick"}}, "highlight" : {"type" : "plain", "fields" : {"field1" : {"max_analyzer_offset": 10}}}}
-  - match: {hits.hits.0.highlight.field1.0: "The <em>quick</em> brown fox went to the forest and saw another fox."}
+  - match: {hits.hits.0.highlight.field1.0: "The <em>quick</em> "}
