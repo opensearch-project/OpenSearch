@@ -34,7 +34,6 @@ package org.opensearch.search;
 
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.TotalHits;
-import org.junit.Assert;
 import org.opensearch.Version;
 import org.opensearch.action.OriginalIndices;
 import org.opensearch.common.document.DocumentField;
@@ -57,6 +56,7 @@ import org.opensearch.search.fetch.subphase.highlight.HighlightFieldTests;
 import org.opensearch.test.AbstractWireSerializingTestCase;
 import org.opensearch.test.RandomObjects;
 import org.opensearch.test.VersionUtils;
+import org.junit.Assert;
 
 import java.io.IOException;
 import java.util.ArrayList;
