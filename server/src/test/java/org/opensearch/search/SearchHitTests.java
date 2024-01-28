@@ -34,6 +34,7 @@ package org.opensearch.search;
 
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.TotalHits;
+import org.junit.Assert;
 import org.opensearch.Version;
 import org.opensearch.action.OriginalIndices;
 import org.opensearch.common.document.DocumentField;
@@ -251,7 +252,7 @@ public class SearchHitTests extends AbstractWireSerializingTestCase<SearchHit> {
         SearchHit deserializedSearchHit = copyWriteable(searchHit, getNamedWriteableRegistry(), SearchHit::new, Version.V_2_12_0);
         assertEquals(searchHit, deserializedSearchHit);
         assertEquals(searchHit.getMatchedQueriesAndScores(), deserializedSearchHit.getMatchedQueriesAndScores());
-        assertEquals(searchHit.getMatchedQueries(), deserializedSearchHit.getMatchedQueries());
+        Assert.assertArrayEquals(searchHit.getMatchedQueries(), deserializedSearchHit.getMatchedQueries());
     }
 
     /**
