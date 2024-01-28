@@ -204,7 +204,7 @@ final class S3ClientSettings {
     static final Setting.AffixSetting<Integer> MAX_SYNC_CONNECTIONS_SETTING = Setting.affixKeySetting(
         PREFIX,
         "max_sync_connections",
-        key -> Setting.intSetting(key, 100, Property.NodeScope)
+        key -> Setting.intSetting(key, 500, Property.NodeScope)
     );
 
     /** Connection acquisition timeout for new connections to S3. */
