@@ -246,6 +246,14 @@ public class SearchHitTests extends AbstractWireSerializingTestCase<SearchHit> {
         assertEquals(searchHit.getMatchedQueriesAndScores(), deserializedSearchHit.getMatchedQueriesAndScores());
     }
 
+    public void testSerializationDeserializationWithMatchedQueriesList() throws IOException {
+        SearchHit searchHit = createTestItem(true, true);
+        SearchHit deserializedSearchHit = copyWriteable(searchHit, getNamedWriteableRegistry(), SearchHit::new, Version.V_2_12_0);
+        assertEquals(searchHit, deserializedSearchHit);
+        assertEquals(searchHit.getMatchedQueriesAndScores(), deserializedSearchHit.getMatchedQueriesAndScores());
+        assertEquals(searchHit.getMatchedQueries(), deserializedSearchHit.getMatchedQueries());
+    }
+
     /**
      * When e.g. with "stored_fields": "_none_", only "_index" and "_score" are returned.
      */
