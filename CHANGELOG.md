@@ -153,11 +153,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `stefanzweifel/git-auto-commit-action` from 4 to 5 ([#11171](https://github.com/opensearch-project/OpenSearch/pull/11171))
 - Bump `actions/github-script` from 6 to 7 ([#11271](https://github.com/opensearch-project/OpenSearch/pull/11271))
 - Bump `jackson` and `jackson_databind` from 2.15.2 to 2.16.0 ([#11273](https://github.com/opensearch-project/OpenSearch/pull/11273))
-- Bump `netty` from 4.1.100.Final to 4.1.104.Final ([#11294](https://github.com/opensearch-project/OpenSearch/pull/11294), [#11775](https://github.com/opensearch-project/OpenSearch/pull/11775))
+- Bump `netty` from 4.1.100.Final to 4.1.106.Final ([#11294](https://github.com/opensearch-project/OpenSearch/pull/11294), [#11775](https://github.com/opensearch-project/OpenSearch/pull/11775)), [#12034](https://github.com/opensearch-project/OpenSearch/pull/12034))
 - Bump `com.avast.gradle:gradle-docker-compose-plugin` from 0.16.12 to 0.17.6 ([#10163](https://github.com/opensearch-project/OpenSearch/pull/10163), [#11692](https://github.com/opensearch-project/OpenSearch/pull/11692))
 - Bump `com.squareup.okhttp3:okhttp` from 4.11.0 to 4.12.0 ([#10861](https://github.com/opensearch-project/OpenSearch/pull/10861))
 - Bump `org.apache.commons:commons-text` from 1.10.0 to 1.11.0 ([#11344](https://github.com/opensearch-project/OpenSearch/pull/11344))
-- Bump `reactor-netty-core` from 1.1.12 to 1.1.13 ([#11350](https://github.com/opensearch-project/OpenSearch/pull/11350))
+- Bump `reactor-netty-core` from 1.1.12 to 1.1.15 ([#11350](https://github.com/opensearch-project/OpenSearch/pull/11350)), ([#12042](https://github.com/opensearch-project/OpenSearch/pull/12042))
 - Bump `com.gradle.enterprise` from 3.14.1 to 3.16.1 ([#11339](https://github.com/opensearch-project/OpenSearch/pull/11339), [#11629](https://github.com/opensearch-project/OpenSearch/pull/11629))
 - Bump `actions/setup-java` from 3 to 4 ([#11447](https://github.com/opensearch-project/OpenSearch/pull/11447))
 - Bump `commons-net:commons-net` from 3.9.0 to 3.10.0 ([#11450](https://github.com/opensearch-project/OpenSearch/pull/11450))
@@ -181,6 +181,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `com.google.oauth-client:google-oauth-client` from 1.34.1 to 1.35.0 ([#11960](https://github.com/opensearch-project/OpenSearch/pull/11960))
 - Bump `com.diffplug.spotless` from 6.23.2 to 6.24.0 ([#11962](https://github.com/opensearch-project/OpenSearch/pull/11962))
 - Bump `com.google.cloud:google-cloud-core` from 2.5.10 to 2.30.0 ([#11961](https://github.com/opensearch-project/OpenSearch/pull/11961))
+- Bump `reactor-core` from 3.5.11 to 3.5.14 ([#12042](https://github.com/opensearch-project/OpenSearch/pull/12042))
 
 ### Changed
 - Mute the query profile IT with concurrent execution ([#9840](https://github.com/opensearch-project/OpenSearch/pull/9840))
