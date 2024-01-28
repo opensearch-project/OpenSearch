@@ -57,7 +57,7 @@ public class SegmentReplicationUsingRemoteStoreDisruptionIT extends AbstractRemo
         blockNodeOnAnySegmentFile(REPOSITORY_NAME, replicaNode);
         final IndexShard indexShard = getIndexShard(replicaNode, INDEX_NAME);
         indexSingleDoc();
-        refreshWithNoWaitForReplicas(INDEX_NAME);
+        refresh(INDEX_NAME);
         waitForBlock(replicaNode, REPOSITORY_NAME, TimeValue.timeValueSeconds(10));
         final SegmentReplicationState state = targetService.getOngoingEventSegmentReplicationState(indexShard.shardId());
         assertEquals(SegmentReplicationState.Stage.GET_FILES, state.getStage());
@@ -92,7 +92,7 @@ public class SegmentReplicationUsingRemoteStoreDisruptionIT extends AbstractRemo
         blockNodeOnAnyFiles(REPOSITORY_NAME, replicaNode);
         final IndexShard indexShard = getIndexShard(replicaNode, INDEX_NAME);
         indexSingleDoc();
-        refreshWithNoWaitForReplicas(INDEX_NAME);
+        refresh(INDEX_NAME);
         waitForBlock(replicaNode, REPOSITORY_NAME, TimeValue.timeValueSeconds(10));
         final SegmentReplicationState state = targetService.getOngoingEventSegmentReplicationState(indexShard.shardId());
         assertEquals(SegmentReplicationState.Stage.GET_CHECKPOINT_INFO, state.getStage());
@@ -128,7 +128,7 @@ public class SegmentReplicationUsingRemoteStoreDisruptionIT extends AbstractRemo
 
         // index a doc.
         client().prepareIndex(INDEX_NAME).setId("1").setSource("foo", randomInt()).get();
-        refreshWithNoWaitForReplicas(INDEX_NAME);
+        refresh(INDEX_NAME);
 
         logger.info("--> start another node");
         final String newPrimary = internalCluster().startDataOnlyNode(nodeSettings);

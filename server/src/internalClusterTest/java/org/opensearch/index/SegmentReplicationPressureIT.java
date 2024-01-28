@@ -97,7 +97,7 @@ public class SegmentReplicationPressureIT extends SegmentReplicationBaseIT {
 
             indexDoc();
             totalDocs.incrementAndGet();
-            refreshWithNoWaitForReplicas(INDEX_NAME);
+            refresh(INDEX_NAME);
             // index again while we are stale.
             assertBusy(() -> {
                 expectThrows(OpenSearchRejectedExecutionException.class, () -> {
@@ -109,7 +109,7 @@ public class SegmentReplicationPressureIT extends SegmentReplicationBaseIT {
             expectThrows(OpenSearchRejectedExecutionException.class, () -> {
                 indexDoc();
                 totalDocs.incrementAndGet();
-                refreshWithNoWaitForReplicas(INDEX_NAME);
+                refresh(INDEX_NAME);
             });
 
             // Verify the rejected doc count.
@@ -123,13 +123,13 @@ public class SegmentReplicationPressureIT extends SegmentReplicationBaseIT {
 
             assertEquals(perGroupStats.getRejectedRequestCount(), 2L);
         }
-        refreshWithNoWaitForReplicas(INDEX_NAME);
+        refresh(INDEX_NAME);
 
         // wait for the replicas to catch up after block is released.
         assertReplicaCheckpointUpdated(primaryShard);
         // index another doc showing there is no pressure enforced.
         indexDoc();
-        refreshWithNoWaitForReplicas(INDEX_NAME);
+        waitForReplication(true, INDEX_NAME);
         waitForSearchableDocs(totalDocs.incrementAndGet(), replicaNodes.toArray(new String[] {}));
     }
 
@@ -158,7 +158,7 @@ public class SegmentReplicationPressureIT extends SegmentReplicationBaseIT {
             latch.await();
             indexDoc();
             totalDocs.incrementAndGet();
-            refreshWithNoWaitForReplicas(INDEX_NAME);
+            refresh(INDEX_NAME);
             // index again while we are stale.
             assertBusy(() -> {
                 expectThrows(OpenSearchRejectedExecutionException.class, () -> {
@@ -177,13 +177,13 @@ public class SegmentReplicationPressureIT extends SegmentReplicationBaseIT {
         }
         ensureGreen(INDEX_NAME);
         waitForSearchableDocs(totalDocs.get(), replicaNodes);
-        refreshWithNoWaitForReplicas(INDEX_NAME);
+        refresh(INDEX_NAME);
         // wait for the replicas to catch up after block is released.
         assertReplicaCheckpointUpdated(primaryShard);
 
         // index another doc showing there is no pressure enforced.
         indexDoc();
-        refreshWithNoWaitForReplicas(INDEX_NAME);
+        waitForReplication(true, INDEX_NAME);
         waitForSearchableDocs(totalDocs.incrementAndGet(), replicaNodes.toArray(new String[] {}));
     }
 
@@ -211,11 +211,11 @@ public class SegmentReplicationPressureIT extends SegmentReplicationBaseIT {
             latch.await();
             indexDoc();
             totalDocs.incrementAndGet();
-            refreshWithNoWaitForReplicas(INDEX_NAME);
+            refresh(INDEX_NAME);
         }
         // index another doc showing there is no pressure enforced.
         indexDoc();
-        refreshWithNoWaitForReplicas(INDEX_NAME);
+        waitForReplication(true, INDEX_NAME);
         waitForSearchableDocs(totalDocs.incrementAndGet(), replicaNodes.toArray(new String[] {}));
     }
 
@@ -245,7 +245,7 @@ public class SegmentReplicationPressureIT extends SegmentReplicationBaseIT {
             latch.await();
             // index again while we are stale.
             indexDoc();
-            refreshWithNoWaitForReplicas(INDEX_NAME);
+            refresh(INDEX_NAME);
             totalDocs.incrementAndGet();
 
             // Verify that replica shard is closed.
@@ -280,7 +280,7 @@ public class SegmentReplicationPressureIT extends SegmentReplicationBaseIT {
         totalDocs.getAndSet(indexUntilCheckpointCount());
         // index again after stale limit.
         indexDoc();
-        refreshWithNoWaitForReplicas(INDEX_NAME);
+        refresh(INDEX_NAME);
         totalDocs.incrementAndGet();
         // verify total doc count is same and docs are not rejected.
         assertHitCount(client(primaryNode).prepareSearch(INDEX_NAME).setSize(0).setPreference("_only_local").get(), totalDocs.get());
@@ -309,7 +309,7 @@ public class SegmentReplicationPressureIT extends SegmentReplicationBaseIT {
             Thread indexingThread = new Thread(() -> {
                 for (int i = 0; i < MAX_CHECKPOINTS_BEHIND + 1; i++) {
                     executeBulkRequest(nodes, docsPerBatch);
-                    refreshWithNoWaitForReplicas(INDEX_NAME);
+                    refresh(INDEX_NAME);
                 }
             });
             indexingThread.start();
@@ -318,12 +318,13 @@ public class SegmentReplicationPressureIT extends SegmentReplicationBaseIT {
             // try and index again while we are stale.
             assertBusy(() -> { assertFailedRequests(executeBulkRequest(nodes, randomIntBetween(1, 200))); });
         }
-        refreshWithNoWaitForReplicas(INDEX_NAME);
+        refresh(INDEX_NAME);
         // wait for the replicas to catch up after block is released.
         assertReplicaCheckpointUpdated(primaryShard);
 
         // index another doc showing there is no pressure enforced.
         executeBulkRequest(nodes, totalDocs);
+        waitForReplication(false);
         waitForSearchableDocs(totalDocs * 2L, replicaNodes.toArray(new String[] {}));
     }
 
@@ -335,7 +336,7 @@ public class SegmentReplicationPressureIT extends SegmentReplicationBaseIT {
             bulkRequest.add(request);
         }
         final BulkResponse bulkItemResponses = client(randomFrom(nodes)).bulk(bulkRequest).actionGet();
-        refreshWithNoWaitForReplicas(INDEX_NAME);
+        refresh(INDEX_NAME);
         return bulkItemResponses;
     }
 
@@ -351,7 +352,7 @@ public class SegmentReplicationPressureIT extends SegmentReplicationBaseIT {
                 indexDoc();
             }
             total += numDocs;
-            refreshWithNoWaitForReplicas(INDEX_NAME);
+            refresh(INDEX_NAME);
         }
         return total;
     }

@@ -119,7 +119,7 @@ public class SimpleClusterStateIT extends ParameterizedStaticSettingsOpenSearchI
         index("foo", "bar", "1", XContentFactory.jsonBuilder().startObject().field("foo", "foo").endObject());
         index("fuu", "buu", "1", XContentFactory.jsonBuilder().startObject().field("fuu", "fuu").endObject());
         index("baz", "baz", "1", XContentFactory.jsonBuilder().startObject().field("baz", "baz").endObject());
-        refresh();
+        waitForReplication(true);
     }
 
     public void testRoutingTable() throws Exception {

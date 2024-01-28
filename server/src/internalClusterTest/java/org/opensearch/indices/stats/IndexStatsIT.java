@@ -184,7 +184,7 @@ public class IndexStatsIT extends ParameterizedStaticSettingsOpenSearchIntegTest
         ensureGreen();
         client().prepareIndex("test").setId("1").setSource("field", "value1", "field2", "value1").execute().actionGet();
         client().prepareIndex("test").setId("2").setSource("field", "value2", "field2", "value2").execute().actionGet();
-        refresh();
+        waitForReplication(true);
         indexRandomForConcurrentSearch("test");
 
         NodesStatsResponse nodesStats = client().admin().cluster().prepareNodesStats("data:true").setIndices(true).execute().actionGet();
@@ -308,7 +308,7 @@ public class IndexStatsIT extends ParameterizedStaticSettingsOpenSearchIntegTest
         client().admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
         client().prepareIndex("test").setId("1").setSource("field", "value1").execute().actionGet();
         client().prepareIndex("test").setId("2").setSource("field", "value2").execute().actionGet();
-        refresh();
+        waitForReplication(true);
         indexRandomForConcurrentSearch("test");
 
         NodesStatsResponse nodesStats = client().admin().cluster().prepareNodesStats("data:true").setIndices(true).execute().actionGet();
@@ -676,7 +676,7 @@ public class IndexStatsIT extends ParameterizedStaticSettingsOpenSearchIntegTest
         client().prepareIndex("test1").setId(Integer.toString(1)).setSource("field", "value").execute().actionGet();
         client().prepareIndex("test1").setId(Integer.toString(2)).setSource("field", "value").execute().actionGet();
         client().prepareIndex("test2").setId(Integer.toString(1)).setSource("field", "value").execute().actionGet();
-        refresh();
+        waitForReplication(true);
 
         NumShards test1 = getNumShards("test1");
         long test1ExpectedWrites = 2 * test1.dataCopies;
@@ -838,7 +838,7 @@ public class IndexStatsIT extends ParameterizedStaticSettingsOpenSearchIntegTest
             client().admin().indices().prepareFlush().execute().actionGet();
         }
         client().admin().indices().prepareForceMerge().setMaxNumSegments(1).execute().actionGet();
-        waitForReplicasToCatchUpWithPrimary();
+        waitForReplication(false);
         stats = client().admin().indices().prepareStats().setMerge(true).execute().actionGet();
 
         assertThat(stats.getTotal().getMerge(), notNullValue());
@@ -867,7 +867,7 @@ public class IndexStatsIT extends ParameterizedStaticSettingsOpenSearchIntegTest
 
         client().admin().indices().prepareFlush().get();
         client().admin().indices().prepareForceMerge().setMaxNumSegments(1).execute().actionGet();
-        refresh();
+        waitForReplication(true);
         stats = client().admin().indices().prepareStats().setSegments(true).get();
 
         assertThat(stats.getTotal().getSegments(), notNullValue());
@@ -885,7 +885,7 @@ public class IndexStatsIT extends ParameterizedStaticSettingsOpenSearchIntegTest
         client().prepareIndex("test_index").setId(Integer.toString(2)).setSource("field", "value").execute().actionGet();
         client().prepareIndex("test_index_2").setId(Integer.toString(1)).setSource("field", "value").execute().actionGet();
 
-        refresh();
+        waitForReplication(true);
         IndicesStatsRequestBuilder builder = client().admin().indices().prepareStats();
         Flag[] values = CommonStatsFlags.Flag.values();
         for (Flag flag : values) {
@@ -1469,7 +1469,7 @@ public class IndexStatsIT extends ParameterizedStaticSettingsOpenSearchIntegTest
                 .get()
                 .status()
         );
-        waitForReplicasToCatchUpWithPrimary();
+        waitForReplication(false);
         ShardStats shard = client().admin().indices().prepareStats(indexName).setSegments(true).setTranslog(true).get().getShards()[0];
         RemoteSegmentStats remoteSegmentStatsFromIndexStats = shard.getStats().getSegments().getRemoteSegmentStats();
         assertZeroRemoteSegmentStats(remoteSegmentStatsFromIndexStats);

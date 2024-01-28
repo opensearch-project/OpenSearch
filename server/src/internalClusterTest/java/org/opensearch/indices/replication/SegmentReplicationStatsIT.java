@@ -59,7 +59,7 @@ public class SegmentReplicationStatsIT extends SegmentReplicationBaseIT {
         for (int i = 0; i < numDocs; i++) {
             index(INDEX_NAME, "doc", Integer.toString(i));
         }
-        refreshWithNoWaitForReplicas(INDEX_NAME);
+        refresh(INDEX_NAME);
         ensureSearchable(INDEX_NAME);
 
         assertBusy(() -> {
@@ -95,7 +95,7 @@ public class SegmentReplicationStatsIT extends SegmentReplicationBaseIT {
         for (int i = 0; i < 10; i++) {
             client().prepareIndex(INDEX_NAME).setId(Integer.toString(i)).setSource("field", "value" + i).execute().actionGet();
         }
-        refreshWithNoWaitForReplicas(INDEX_NAME);
+        refresh(INDEX_NAME);
 
         // index 10 more docs
         waitForSearchableDocs(10L, asList(primaryNode, replicaNode));
@@ -124,7 +124,7 @@ public class SegmentReplicationStatsIT extends SegmentReplicationBaseIT {
                 connection.sendRequest(requestId, action, request, options);
             }
         );
-        refreshWithNoWaitForReplicas(INDEX_NAME);
+        refresh(INDEX_NAME);
         try {
             waitForReplication.await();
         } catch (InterruptedException e) {
@@ -174,7 +174,7 @@ public class SegmentReplicationStatsIT extends SegmentReplicationBaseIT {
         for (int i = 0; i < numDocs; i++) {
             index(INDEX_NAME, "doc", Integer.toString(i));
         }
-        refreshWithNoWaitForReplicas(INDEX_NAME);
+        refresh(INDEX_NAME);
         waitForSearchableDocs(numDocs, nodes);
 
         final IndexShard indexShard = getIndexShard(primaryNode, INDEX_NAME);
@@ -222,7 +222,7 @@ public class SegmentReplicationStatsIT extends SegmentReplicationBaseIT {
         for (int i = 0; i < numDocs; i++) {
             index(INDEX_NAME, "doc", Integer.toString(i));
         }
-        refreshWithNoWaitForReplicas(INDEX_NAME);
+        refresh(INDEX_NAME);
         waitForSearchableDocs(numDocs, nodes);
 
         final IndexShard indexShard = getIndexShard(primaryNode, INDEX_NAME);
@@ -281,7 +281,7 @@ public class SegmentReplicationStatsIT extends SegmentReplicationBaseIT {
             index(INDEX_NAME, "doc", Integer.toString(i));
             index(index_2, "doc", Integer.toString(i));
         }
-        refreshWithNoWaitForReplicas(INDEX_NAME);
+        refresh(INDEX_NAME);
         waitForSearchableDocs(INDEX_NAME, numDocs, nodes);
         waitForSearchableDocs(index_2, numDocs, nodes);
 
@@ -353,7 +353,7 @@ public class SegmentReplicationStatsIT extends SegmentReplicationBaseIT {
         for (int i = 0; i < numDocs; i++) {
             index(INDEX_NAME, "doc", Integer.toString(i));
         }
-        refreshWithNoWaitForReplicas(INDEX_NAME);
+        refresh(INDEX_NAME);
 
         // search for all
         SegmentReplicationStatsResponse segmentReplicationStatsResponse = client().admin()
@@ -385,7 +385,7 @@ public class SegmentReplicationStatsIT extends SegmentReplicationBaseIT {
             // index another doc while blocked, this would not get replicated to the replicas.
             Thread indexingThread = new Thread(() -> {
                 client().prepareIndex(INDEX_NAME).setId("2").setSource("foo2", randomInt()).get();
-                refreshWithNoWaitForReplicas(INDEX_NAME);
+                refresh(INDEX_NAME);
             });
 
             indexingThread.start();

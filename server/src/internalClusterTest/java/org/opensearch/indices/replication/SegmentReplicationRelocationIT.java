@@ -126,6 +126,7 @@ public class SegmentReplicationRelocationIT extends SegmentReplicationBaseIT {
         flushAndRefresh(INDEX_NAME);
         logger.info("--> verify count again {}", 2 * initialDocCount);
         waitForSearchableDocs(2 * initialDocCount, newPrimary, replica);
+        waitForReplication(false);
     }
 
     /**
@@ -211,6 +212,7 @@ public class SegmentReplicationRelocationIT extends SegmentReplicationBaseIT {
         }, 1, TimeUnit.MINUTES);
         flushAndRefresh(INDEX_NAME);
         waitForSearchableDocs(2 * initialDocCount, oldPrimary, replica);
+        waitForReplication(false);
     }
 
     /**
@@ -284,6 +286,7 @@ public class SegmentReplicationRelocationIT extends SegmentReplicationBaseIT {
         }, 1, TimeUnit.MINUTES);
         flushAndRefresh(INDEX_NAME);
         waitForSearchableDocs(totalDocCount, newPrimary, replica);
+        waitForReplication(false);
     }
 
     /**
@@ -394,6 +397,7 @@ public class SegmentReplicationRelocationIT extends SegmentReplicationBaseIT {
         }, 2, TimeUnit.MINUTES);
         flushAndRefresh(INDEX_NAME);
         waitForSearchableDocs(totalDocCount, replica, newPrimary);
+        waitForReplication(false);
     }
 
     /**
@@ -426,6 +430,7 @@ public class SegmentReplicationRelocationIT extends SegmentReplicationBaseIT {
         ensureGreen(INDEX_NAME);
         flushAndRefresh(INDEX_NAME);
         waitForSearchableDocs(20, primary, replica);
+        waitForReplication(false);
     }
 
     /**
