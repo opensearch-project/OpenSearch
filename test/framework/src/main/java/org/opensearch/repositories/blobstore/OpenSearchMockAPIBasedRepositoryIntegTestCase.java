@@ -236,6 +236,7 @@ public abstract class OpenSearchMockAPIBasedRepositoryIntegTestCase extends Open
         String assertionErrorMsg = String.format("SDK sent [%s] calls and handler measured [%s] calls", sdkRequestCounts, mockCalls);
 
         assertEquals(assertionErrorMsg, mockCalls, sdkRequestCounts);
+        fail();
     }
 
     protected Map<String, Long> getMockRequestCounts() {
