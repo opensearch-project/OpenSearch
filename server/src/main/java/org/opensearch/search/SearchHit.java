@@ -565,7 +565,14 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
     }
 
     /**
-     * @return The score of the provided named query if it matches, {@code null} otherwise.
+     * Returns the score of the provided named query if it matches.
+     * <p>
+     * If the 'include_named_queries_score' is not set, this method will return {@link Float#NaN}
+     * for each named query instead of a numerical score.
+     * </p>
+     *
+     * @param name The name of the query to retrieve the score for.
+     * @return The score of the named query, or {@link Float#NaN} if 'include_named_queries_score' is not set.
      */
     public Float getMatchedQueryScore(String name) {
         return getMatchedQueriesAndScores().get(name);
