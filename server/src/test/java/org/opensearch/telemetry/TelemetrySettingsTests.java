@@ -44,11 +44,11 @@ public class TelemetrySettingsTests extends OpenSearchTestCase {
         TelemetrySettings telemetrySettings = new TelemetrySettings(Settings.EMPTY, clusterSettings);
 
         // There should be no override for action initially
-        assertFalse(telemetrySettings.isActionSamplingOverrideSet("dummy_action"));
+        assertEquals(0.001, telemetrySettings.getActionSamplingProbability(), 0.000d);
 
-        clusterSettings.applySettings(Settings.builder().put("telemetry.tracer.action.sampler.dummy_action.probability", "0.01").build());
+        clusterSettings.applySettings(Settings.builder().put("telemetry.tracer.action.sampler.probability", "0.01").build());
         // Validating if value of override for action 'dummy_action' is correct
-        assertTrue(telemetrySettings.isActionSamplingOverrideSet("dummy_action"));
+        assertEquals(0.01, telemetrySettings.getActionSamplingProbability(), 0.00d);
     }
 
     public void testSetSamplingProbability() {
@@ -80,10 +80,13 @@ public class TelemetrySettingsTests extends OpenSearchTestCase {
         // Validating default value of Sampling is 1%
         assertEquals(0.01, telemetrySettings.getSamplingProbability(), 0.00d);
 
-        clusterSettings.applySettings(Settings.builder().put("telemetry.tracer.sampler.probability", "0.02").build());
+        clusterSettings.applySettings(Settings.builder().put("telemetry.tracer.action.sampler.probability", "0.02").build());
 
-        // Validating if default sampling is updated to 2%
-        assertEquals(0.02, telemetrySettings.getSamplingProbability(), 0.00d);
+        // Validating if action sampling is updated to 2%
+        assertEquals(0.02, telemetrySettings.getActionSamplingProbability(), 0.00d);
+
+        // Validating if default sampling is still 1%
+        assertEquals(0.01, telemetrySettings.getSamplingProbability(), 0.00d);
     }
 
     public void testSetActionSamplingProbability() {
@@ -93,10 +96,10 @@ public class TelemetrySettingsTests extends OpenSearchTestCase {
         );
         TelemetrySettings telemetrySettings = new TelemetrySettings(Settings.EMPTY, clusterSettings);
 
-        clusterSettings.applySettings(Settings.builder().put("telemetry.tracer.action.sampler.dummy_action.probability", "0.5").build());
+        clusterSettings.applySettings(Settings.builder().put("telemetry.tracer.action.sampler.probability", "0.5").build());
 
         // Validating if value of override for action 'dummy_action' is correct
-        assertEquals(0.5, telemetrySettings.getActionSamplingProbability("dummy_action"), 0.00d);
+        assertEquals(0.5, telemetrySettings.getActionSamplingProbability(), 0.00d);
 
     }
 
@@ -107,13 +110,13 @@ public class TelemetrySettingsTests extends OpenSearchTestCase {
         );
         TelemetrySettings telemetrySettings = new TelemetrySettings(Settings.EMPTY, clusterSettings);
 
-        clusterSettings.applySettings(Settings.builder().put("telemetry.tracer.action.sampler.dummy_action.probability", "0.01").build());
+        clusterSettings.applySettings(Settings.builder().put("telemetry.tracer.action.sampler.probability", "0.01").build());
         // Validating if value of override for action 'dummy_action' is correct i.e. 1%
-        assertEquals(0.01, telemetrySettings.getActionSamplingProbability("dummy_action"), 0.00d);
+        assertEquals(0.01, telemetrySettings.getActionSamplingProbability(), 0.00d);
 
-        clusterSettings.applySettings(Settings.builder().put("telemetry.tracer.action.sampler.dummy_action.probability", "0.02").build());
+        clusterSettings.applySettings(Settings.builder().put("telemetry.tracer.action.sampler.probability", "0.02").build());
         // Validating if value of override for action 'dummy_action' is correct i.e. 2%
-        assertEquals(0.02, telemetrySettings.getActionSamplingProbability("dummy_action"), 0.00d);
+        assertEquals(0.02, telemetrySettings.getActionSamplingProbability(), 0.00d);
     }
 
 }

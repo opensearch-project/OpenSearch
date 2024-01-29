@@ -8,36 +8,39 @@
 
 package org.opensearch.telemetry.tracing.sampler;
 
+import org.opensearch.common.settings.ClusterSettings;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.telemetry.TelemetrySettings;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.Collections;
+import java.util.Set;
 
 import io.opentelemetry.api.common.AttributeKey;
 import io.opentelemetry.api.common.Attributes;
 import io.opentelemetry.api.trace.SpanKind;
 import io.opentelemetry.context.Context;
-import io.opentelemetry.sdk.trace.samplers.Sampler;
 import io.opentelemetry.sdk.trace.samplers.SamplingResult;
 
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyString;
+import static org.opensearch.telemetry.OTelTelemetrySettings.TRACER_EXPORTER_DELAY_SETTING;
+import static org.opensearch.telemetry.TelemetrySettings.TRACER_ENABLED_SETTING;
+import static org.opensearch.telemetry.TelemetrySettings.TRACER_SAMPLER_ACTION_PROBABILITY;
+import static org.opensearch.telemetry.TelemetrySettings.TRACER_SAMPLER_PROBABILITY;
+import static org.opensearch.telemetry.tracing.AttributeNames.TRANSPORT_ACTION;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
 
 public class RequestSamplerTests extends OpenSearchTestCase {
 
     public void testShouldSampleWithTraceAttributeAsTrue() {
+        Settings settings = Settings.builder().put(TRACER_EXPORTER_DELAY_SETTING.getKey(), "1s").build();
+        TelemetrySettings telemetrySettings = new TelemetrySettings(
+            Settings.EMPTY,
+            new ClusterSettings(settings, Set.of(TRACER_SAMPLER_PROBABILITY, TRACER_ENABLED_SETTING, TRACER_SAMPLER_ACTION_PROBABILITY))
+        );
+        // Create an instance of requestSampler
+        RequestSampler requestSampler = new RequestSampler(telemetrySettings);
 
-        // Create a mock default sampler
-        Sampler defaultSampler = mock(Sampler.class);
-        when(defaultSampler.shouldSample(any(), anyString(), anyString(), any(), any(), any())).thenReturn(SamplingResult.drop());
-
-        // Create an instance of HeadSampler with the mock default sampler
-        RequestSampler requestSampler = new RequestSampler(defaultSampler);
-
-        // Create a mock Context and Attributes
+        // Create a mock Context and Attributes with trace as true
         Context parentContext = mock(Context.class);
         Attributes attributes = Attributes.of(AttributeKey.stringKey("trace"), "true");
 
@@ -52,25 +55,21 @@ public class RequestSamplerTests extends OpenSearchTestCase {
         );
 
         assertEquals(SamplingResult.recordAndSample(), result);
-
-        // Verify that the default sampler's shouldSample method was not called
-        verify(defaultSampler, never()).shouldSample(any(), anyString(), anyString(), any(), any(), any());
     }
 
-    public void testShouldSampleWithoutTraceAttribute() {
-
-        // Create a mock default sampler
-        Sampler defaultSampler = mock(Sampler.class);
-        when(defaultSampler.shouldSample(any(), anyString(), anyString(), any(), any(), any())).thenReturn(
-            SamplingResult.recordAndSample()
+    public void testShouldSampleWithTraceAttributeAsFalse() {
+        Settings settings = Settings.builder().put(TRACER_EXPORTER_DELAY_SETTING.getKey(), "1s").build();
+        TelemetrySettings telemetrySettings = new TelemetrySettings(
+            Settings.EMPTY,
+            new ClusterSettings(settings, Set.of(TRACER_SAMPLER_PROBABILITY, TRACER_ENABLED_SETTING, TRACER_SAMPLER_ACTION_PROBABILITY))
         );
 
-        // Create an instance of HeadSampler with the mock default sampler
-        RequestSampler requestSampler = new RequestSampler(defaultSampler);
+        // Create an instance of requestSampler
+        RequestSampler requestSampler = new RequestSampler(telemetrySettings);
 
-        // Create a mock Context and Attributes
+        // Create a mock Context and Attributes with trace as false
         Context parentContext = mock(Context.class);
-        Attributes attributes = Attributes.empty();
+        Attributes attributes = Attributes.of(AttributeKey.stringKey("trace"), "false");
 
         // Call shouldSample on HeadSampler
         SamplingResult result = requestSampler.shouldSample(
@@ -81,12 +80,74 @@ public class RequestSamplerTests extends OpenSearchTestCase {
             attributes,
             Collections.emptyList()
         );
+        assertEquals(SamplingResult.drop(), result);
+    }
 
-        // Verify that HeadSampler returned SamplingResult.recordAndSample()
+    public void testShouldSampleWithoutTraceAttribute() {
+        ClusterSettings clusterSettings = new ClusterSettings(
+            Settings.EMPTY,
+            Set.of(TRACER_SAMPLER_PROBABILITY, TRACER_ENABLED_SETTING, TRACER_SAMPLER_ACTION_PROBABILITY)
+        );
+        TelemetrySettings telemetrySettings = new TelemetrySettings(Settings.EMPTY, clusterSettings);
+
+        // Create an instance of requestSampler
+        RequestSampler requestSampler = new RequestSampler(telemetrySettings);
+
+        clusterSettings.applySettings(Settings.builder().put("telemetry.tracer.action.sampler.probability", "1.0").build());
+
+        // Create a mock Context and Attributes with dummy action
+        Context parentContext = mock(Context.class);
+        Attributes attributes = Attributes.builder().put(TRANSPORT_ACTION, "dummy_action").build();
+
+        // Calling shouldSample to update samplingRatio
+        SamplingResult result = requestSampler.shouldSample(
+            parentContext,
+            "00000000000000000000000000000000",
+            "spanName",
+            SpanKind.INTERNAL,
+            attributes,
+            Collections.emptyList()
+        );
+
+        // Verify that request is sampled
         assertEquals(SamplingResult.recordAndSample(), result);
 
-        // Verify that the default sampler's shouldSample method was called
-        verify(defaultSampler).shouldSample(any(), anyString(), anyString(), any(), any(), any());
+        // Verify that sampler dropped the request
+        clusterSettings.applySettings(Settings.builder().put("telemetry.tracer.action.sampler.probability", "0.0").build());
+        result = requestSampler.shouldSample(
+            parentContext,
+            "00000000000000000000000000000000",
+            "spanName",
+            SpanKind.INTERNAL,
+            attributes,
+            Collections.emptyList()
+        );
+        assertEquals(SamplingResult.drop(), result);
+
+        // Verify that request is sampled when probability is set to 1
+        clusterSettings.applySettings(Settings.builder().put("telemetry.tracer.sampler.probability", "1.0").build());
+        result = requestSampler.shouldSample(
+            parentContext,
+            "00000000000000000000000000000000",
+            "spanName",
+            SpanKind.INTERNAL,
+            Attributes.empty(),
+            Collections.emptyList()
+        );
+        assertEquals(SamplingResult.recordAndSample(), result);
+
+        // Verify that request is not sampled when probability is set to 0
+        clusterSettings.applySettings(Settings.builder().put("telemetry.tracer.sampler.probability", "0.0").build());
+        result = requestSampler.shouldSample(
+            parentContext,
+            "00000000000000000000000000000000",
+            "spanName",
+            SpanKind.INTERNAL,
+            Attributes.empty(),
+            Collections.emptyList()
+        );
+        assertEquals(SamplingResult.drop(), result);
+
     }
 
 }

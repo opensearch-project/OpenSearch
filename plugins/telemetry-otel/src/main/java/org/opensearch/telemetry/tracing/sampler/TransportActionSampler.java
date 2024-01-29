@@ -11,6 +11,7 @@ package org.opensearch.telemetry.tracing.sampler;
 import org.opensearch.telemetry.TelemetrySettings;
 
 import java.util.List;
+import java.util.Objects;
 
 import io.opentelemetry.api.common.AttributeKey;
 import io.opentelemetry.api.common.Attributes;
@@ -20,24 +21,24 @@ import io.opentelemetry.sdk.trace.data.LinkData;
 import io.opentelemetry.sdk.trace.samplers.Sampler;
 import io.opentelemetry.sdk.trace.samplers.SamplingResult;
 
-import static org.opensearch.telemetry.tracing.AttributeNames.TRACE;
 import static org.opensearch.telemetry.tracing.AttributeNames.TRANSPORT_ACTION;
 
 /**
- * HeadBased sampler
+ * TransportActionSampler sampler samples request with action based on defined probability
  */
-public class RequestSampler implements Sampler {
-    private final Sampler defaultSampler;
-
-    private final Sampler actionSampler;
+public class TransportActionSampler implements Sampler {
+    private Sampler actionSampler;
+    private final TelemetrySettings telemetrySettings;
+    private double actionSamplingRatio;
 
     /**
-     * Creates action sampler which samples request for all actions based on defined probability
+     * Creates TransportActionSampler sampler
      * @param telemetrySettings TelemetrySettings
      */
-    public RequestSampler(TelemetrySettings telemetrySettings) {
-        this.defaultSampler = new ProbabilisticSampler(telemetrySettings);
-        this.actionSampler = new TransportActionSampler(telemetrySettings);
+    public TransportActionSampler(TelemetrySettings telemetrySettings) {
+        this.telemetrySettings = Objects.requireNonNull(telemetrySettings);
+        this.actionSamplingRatio = telemetrySettings.getActionSamplingProbability();
+        this.actionSampler = Sampler.traceIdRatioBased(actionSamplingRatio);
     }
 
     @Override
@@ -49,23 +50,31 @@ public class RequestSampler implements Sampler {
         Attributes attributes,
         List<LinkData> parentLinks
     ) {
-        final String trace = attributes.get(AttributeKey.stringKey(TRACE));
         final String action = attributes.get(AttributeKey.stringKey(TRANSPORT_ACTION));
-
-        // Determine the sampling decision based on the availability of trace information and action,
-        // either recording and sampling, delegating to action sampler, or falling back to default sampler.
-        if (trace != null) {
-            return (Boolean.parseBoolean(trace) == true) ? SamplingResult.recordAndSample() : SamplingResult.drop();
-        } else if (action != null) {
+        if (action != null) {
+            double newActionSamplingRatio = telemetrySettings.getActionSamplingProbability();
+            if (isSamplingRatioChanged(newActionSamplingRatio)) {
+                synchronized (this) {
+                    this.actionSamplingRatio = newActionSamplingRatio;
+                    actionSampler = Sampler.traceIdRatioBased(actionSamplingRatio);
+                }
+            }
             return actionSampler.shouldSample(parentContext, traceId, name, spanKind, attributes, parentLinks);
-        } else {
-            return defaultSampler.shouldSample(parentContext, traceId, name, spanKind, attributes, parentLinks);
         }
+        return SamplingResult.drop();
+    }
+
+    private boolean isSamplingRatioChanged(double newSamplingRatio) {
+        return Double.compare(this.actionSamplingRatio, newSamplingRatio) != 0;
+    }
+
+    double getSamplingRatio() {
+        return actionSamplingRatio;
     }
 
     @Override
     public String getDescription() {
-        return "Request Sampler";
+        return "Transport Action Sampler";
     }
 
     @Override
