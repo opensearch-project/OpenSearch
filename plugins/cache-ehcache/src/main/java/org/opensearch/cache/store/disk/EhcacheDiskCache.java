@@ -6,16 +6,17 @@
  * compatible open source license.
  */
 
-package org.opensearch.cache;
+package org.opensearch.cache.store.disk;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.OpenSearchException;
+import org.opensearch.cache.EhcacheSettings;
 import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.common.cache.CacheType;
 import org.opensearch.common.cache.LoadAwareCacheLoader;
 import org.opensearch.common.cache.RemovalReason;
-import org.opensearch.common.cache.provider.CacheProvider;
 import org.opensearch.common.cache.stats.CacheStats;
 import org.opensearch.common.cache.store.StoreAwareCache;
 import org.opensearch.common.cache.store.StoreAwareCacheRemovalNotification;
@@ -25,6 +26,7 @@ import org.opensearch.common.cache.store.enums.CacheStoreType;
 import org.opensearch.common.cache.store.listeners.StoreAwareCacheEventListener;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.metrics.CounterMetric;
+import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 
@@ -34,6 +36,7 @@ import java.util.Iterator;
 import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Objects;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
@@ -57,10 +60,13 @@ import org.ehcache.impl.config.store.disk.OffHeapDiskStoreConfiguration;
 import org.ehcache.spi.loaderwriter.CacheLoadingException;
 import org.ehcache.spi.loaderwriter.CacheWritingException;
 
-import static org.opensearch.cache.EhcacheSettings.DISK_SEGMENTS;
-import static org.opensearch.cache.EhcacheSettings.DISK_WRITE_CONCURRENCY;
-import static org.opensearch.cache.EhcacheSettings.DISK_WRITE_MAXIMUM_THREADS;
-import static org.opensearch.cache.EhcacheSettings.DISK_WRITE_MINIMUM_THREADS;
+import static org.opensearch.cache.EhcacheSettings.DISK_CACHE_ALIAS_KEY;
+import static org.opensearch.cache.EhcacheSettings.DISK_CACHE_EXPIRE_AFTER_ACCESS_KEY;
+import static org.opensearch.cache.EhcacheSettings.DISK_MAX_SIZE_IN_BYTES_KEY;
+import static org.opensearch.cache.EhcacheSettings.DISK_SEGMENT_KEY;
+import static org.opensearch.cache.EhcacheSettings.DISK_WRITE_CONCURRENCY_KEY;
+import static org.opensearch.cache.EhcacheSettings.DISK_WRITE_MAXIMUM_THREADS_KEY;
+import static org.opensearch.cache.EhcacheSettings.DISK_WRITE_MIN_THREADS_KEY;
 
 /**
  * This variant of disk cache uses Ehcache underneath.
@@ -75,6 +81,11 @@ public class EhcacheDiskCache<K, V> implements StoreAwareCache<K, V> {
 
     private static final Logger logger = LogManager.getLogger(EhcacheDiskCache.class);
 
+    // Unique id associated with this cache.
+    private final static String UNIQUE_ID = UUID.randomUUID().toString();
+    private final static String THREAD_POOL_ALIAS_PREFIX = "ehcachePool";
+    private final static int MINIMUM_MAX_SIZE_IN_BYTES = 1024 * 100; // 100KB
+
     // A Cache manager can create many caches.
     private final PersistentCacheManager cacheManager;
 
@@ -82,28 +93,16 @@ public class EhcacheDiskCache<K, V> implements StoreAwareCache<K, V> {
     private Cache<K, V> cache;
     private final long maxWeightInBytes;
     private final String storagePath;
-
     private final Class<K> keyType;
-
     private final Class<V> valueType;
-
     private final TimeValue expireAfterAccess;
-
     private final DiskCacheStats stats = new DiskCacheStats();
-
     private final EhCacheEventListener<K, V> ehCacheEventListener;
-
     private final String threadPoolAlias;
-
     private final Settings settings;
-
-    private final static String DISK_CACHE_ALIAS = "ehDiskCache";
-
-    private final static String THREAD_POOL_ALIAS_PREFIX = "ehcachePool";
-
-    private final static int MINIMUM_MAX_SIZE_IN_BYTES = 1024 * 100; // 100KB
-
     private final StoreAwareCacheEventListener<K, V> eventListener;
+    private final CacheType cacheType;
+    private final String diskCacheAlias;
 
     /**
      * Used in computeIfAbsent to synchronize loading of a given key. This is needed as ehcache doesn't provide a
@@ -119,9 +118,15 @@ public class EhcacheDiskCache<K, V> implements StoreAwareCache<K, V> {
         if (this.maxWeightInBytes <= MINIMUM_MAX_SIZE_IN_BYTES) {
             throw new IllegalArgumentException("Ehcache Disk tier cache size should be greater than " + MINIMUM_MAX_SIZE_IN_BYTES);
         }
+        this.cacheType = Objects.requireNonNull(builder.cacheType, "Cache type shouldn't be null");
+        if (builder.diskCacheAlias == null || builder.diskCacheAlias.isBlank()) {
+            this.diskCacheAlias = this.cacheType + "#" + UNIQUE_ID;
+        } else {
+            this.diskCacheAlias = builder.diskCacheAlias;
+        }
         this.storagePath = Objects.requireNonNull(builder.storagePath, "Storage path shouldn't be null");
         if (builder.threadPoolAlias == null || builder.threadPoolAlias.isBlank()) {
-            this.threadPoolAlias = THREAD_POOL_ALIAS_PREFIX + "DiskWrite";
+            this.threadPoolAlias = THREAD_POOL_ALIAS_PREFIX + "DiskWrite#" + UNIQUE_ID;
         } else {
             this.threadPoolAlias = builder.threadPoolAlias;
         }
@@ -161,8 +166,12 @@ public class EhcacheDiskCache<K, V> implements StoreAwareCache<K, V> {
                     .withService(
                         new OffHeapDiskStoreConfiguration(
                             this.threadPoolAlias,
-                            DISK_WRITE_CONCURRENCY.get(settings),
-                            DISK_SEGMENTS.get(settings)
+                            (Integer) EhcacheSettings.getSettingListForCacheTypeAndStore(cacheType, CacheStoreType.DISK)
+                                .get(DISK_WRITE_CONCURRENCY_KEY)
+                                .get(settings),
+                            (Integer) EhcacheSettings.getSettingListForCacheTypeAndStore(cacheType, CacheStoreType.DISK)
+                                .get(DISK_SEGMENT_KEY)
+                                .get(settings)
                         )
                     )
             );
@@ -203,9 +212,17 @@ public class EhcacheDiskCache<K, V> implements StoreAwareCache<K, V> {
             .with(CacheManagerBuilder.persistence(new File(storagePath)))
             .using(
                 PooledExecutionServiceConfigurationBuilder.newPooledExecutionServiceConfigurationBuilder()
-                    .defaultPool(THREAD_POOL_ALIAS_PREFIX + "Default", 1, 3) // Default pool used for other tasks like
-                    // event listeners
-                    .pool(this.threadPoolAlias, DISK_WRITE_MINIMUM_THREADS.get(settings), DISK_WRITE_MAXIMUM_THREADS.get(settings))
+                    .defaultPool(THREAD_POOL_ALIAS_PREFIX + "Default#" + UNIQUE_ID, 1, 3) // Default pool used for other tasks
+                    // like event listeners
+                    .pool(
+                        this.threadPoolAlias,
+                        (Integer) EhcacheSettings.getSettingListForCacheTypeAndStore(cacheType, CacheStoreType.DISK)
+                            .get(DISK_WRITE_MIN_THREADS_KEY)
+                            .get(settings),
+                        (Integer) EhcacheSettings.getSettingListForCacheTypeAndStore(cacheType, CacheStoreType.DISK)
+                            .get(DISK_WRITE_MAXIMUM_THREADS_KEY)
+                            .get(settings)
+                    )
                     .build()
             )
             .build(true);
@@ -364,10 +381,10 @@ public class EhcacheDiskCache<K, V> implements StoreAwareCache<K, V> {
 
     @Override
     public void close() {
-        cacheManager.removeCache(DISK_CACHE_ALIAS);
+        cacheManager.removeCache(this.diskCacheAlias);
         cacheManager.close();
         try {
-            cacheManager.destroyCache(DISK_CACHE_ALIAS);
+            cacheManager.destroyCache(this.diskCacheAlias);
         } catch (CachePersistenceException e) {
             throw new OpenSearchException("Exception occurred while destroying ehcache and associated data", e);
         }
@@ -497,24 +514,37 @@ public class EhcacheDiskCache<K, V> implements StoreAwareCache<K, V> {
     /**
      * Factory to create an ehcache disk cache.
      */
-    static class EhcacheDiskCacheFactory implements StoreAwareCache.Factory {
+    public static class EhcacheDiskCacheFactory implements StoreAwareCache.Factory {
+
+        /**
+         * Ehcache disk cache name.
+         */
+        public static final String EHCACHE_DISK_CACHE_NAME = "ehcacheDiskCache";
+
+        /**
+         * Default constructor.
+         */
+        public EhcacheDiskCacheFactory() {}
 
         @Override
-        public <K, V> StoreAwareCache<K, V> create(StoreAwareCacheConfig<K, V> storeAwareCacheConfig) {
-            return new Builder<K, V>().setStoragePath(storeAwareCacheConfig.getStoragePath())
-                .setDiskCacheAlias(storeAwareCacheConfig.getCacheAlias())
-                .setKeyType(storeAwareCacheConfig.getKeyType())
-                .setValueType(storeAwareCacheConfig.getValueType())
-                .setEventListener(storeAwareCacheConfig.getEventListener())
-                .setExpireAfterAccess(storeAwareCacheConfig.getExpireAfterAcess())
-                .setMaximumWeightInBytes(storeAwareCacheConfig.getMaxWeightInBytes())
-                .setSettings(storeAwareCacheConfig.getSettings())
+        public <K, V> StoreAwareCache<K, V> create(StoreAwareCacheConfig<K, V> config, CacheType cacheType) {
+            Map<String, Setting<?>> settingList = EhcacheSettings.getSettingListForCacheTypeAndStore(cacheType, CacheStoreType.DISK);
+            Settings settings = config.getSettings();
+
+            return new Builder<K, V>().setStoragePath((String) settingList.get(DISK_SEGMENT_KEY).get(settings))
+                .setDiskCacheAlias((String) settingList.get(DISK_CACHE_ALIAS_KEY).get(settings))
+                .setKeyType((config.getKeyType()))
+                .setValueType(config.getValueType())
+                .setEventListener(config.getEventListener())
+                .setExpireAfterAccess((TimeValue) settingList.get(DISK_CACHE_EXPIRE_AFTER_ACCESS_KEY).get(settings))
+                .setMaximumWeightInBytes((Long) settingList.get(DISK_MAX_SIZE_IN_BYTES_KEY).get(settings))
+                .setSettings(settings)
                 .build();
         }
 
         @Override
         public String getCacheName() {
-            return CacheProvider.CacheType.EHCACHE.getValue();
+            return EHCACHE_DISK_CACHE_NAME;
         }
     }
 
@@ -525,6 +555,7 @@ public class EhcacheDiskCache<K, V> implements StoreAwareCache<K, V> {
      */
     public static class Builder<K, V> extends StoreAwareCacheBuilder<K, V> {
 
+        private CacheType cacheType;
         private String storagePath;
 
         private String threadPoolAlias;
@@ -542,6 +573,16 @@ public class EhcacheDiskCache<K, V> implements StoreAwareCache<K, V> {
          * Default constructor. Added to fix javadocs.
          */
         public Builder() {}
+
+        /**
+         * Sets the desired cache type.
+         * @param cacheType
+         * @return builder
+         */
+        public Builder<K, V> setCacheType(CacheType cacheType) {
+            this.cacheType = cacheType;
+            return this;
+        }
 
         /**
          * Sets the key type of value.

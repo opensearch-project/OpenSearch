@@ -19,5 +19,5 @@ import org.opensearch.common.annotation.ExperimentalApi;
 public enum CacheStoreType {
 
     ON_HEAP,
-    DISK;
+    DISK
 }

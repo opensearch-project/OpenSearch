@@ -978,6 +978,9 @@ public class Setting<T> implements ToXContentObject {
          * Get a setting with the given namespace filled in for prefix and suffix.
          */
         public Setting<T> getConcreteSettingForNamespace(String namespace) {
+            if (namespace == null) {
+                throw new IllegalArgumentException("Namespace should not be null");
+            }
             String fullKey = key.toConcreteKey(namespace).toString();
             return getConcreteSetting(namespace, fullKey);
         }
@@ -2804,6 +2807,12 @@ public class Setting<T> implements ToXContentObject {
         return affixKeySetting(new AffixKey(prefix), delegateFactoryWithNamespace);
     }
 
+    public static <T> AffixSetting<T> suffixKeySetting(String suffix, Function<String, Setting<T>> delegateFactory) {
+        BiFunction<String, String, Setting<T>> delegateFactoryWithNamespace = (ns, k) -> delegateFactory.apply(k);
+        AffixKey affixKey = new AffixKey(null, suffix);
+        return affixKeySetting(affixKey, delegateFactoryWithNamespace);
+    }
+
     /**
      * This setting type allows to validate settings that have the same type and a common prefix and suffix. For instance
      * storage.${backend}.enable=[true|false] can easily be added with this setting. Yet, affix key settings don't support updaters
@@ -2943,12 +2952,14 @@ public class Setting<T> implements ToXContentObject {
             assert prefix != null || suffix != null : "Either prefix or suffix must be non-null";
 
             this.prefix = prefix;
-            if (prefix.endsWith(".") == false) {
+            if (prefix != null && prefix.endsWith(".") == false) {
                 throw new IllegalArgumentException("prefix must end with a '.'");
             }
             this.suffix = suffix;
             if (suffix == null) {
                 pattern = Pattern.compile("(" + Pattern.quote(prefix) + "((?:[-\\w]+[.])*[-\\w]+$))");
+            } else if (prefix == null) {
+                pattern = Pattern.compile("((?:[-\\w]+[.])*[-\\w]+\\." + Pattern.quote(suffix) + ")");
             } else {
                 // the last part of this regexp is to support both list and group keys
                 pattern = Pattern.compile("(" + Pattern.quote(prefix) + "([-\\w]+)\\." + Pattern.quote(suffix) + ")(?:\\..*)?");
