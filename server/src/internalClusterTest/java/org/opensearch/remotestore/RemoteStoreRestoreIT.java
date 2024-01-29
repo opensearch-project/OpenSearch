@@ -17,13 +17,20 @@ import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.common.unit.ByteSizeUnit;
+import org.opensearch.core.index.Index;
+import org.opensearch.index.IndexService;
+import org.opensearch.index.shard.IndexShard;
+import org.opensearch.index.store.remote.metadata.RemoteSegmentMetadata;
+import org.opensearch.indices.IndicesService;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.Repository;
 import org.opensearch.test.InternalTestCluster;
 import org.opensearch.test.OpenSearchIntegTestCase;
+import org.opensearch.test.junit.annotations.TestIssueLogging;
 
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
@@ -133,6 +140,58 @@ public class RemoteStoreRestoreIT extends BaseRemoteStoreRestoreIT {
         ensureRed(INDEX_NAME);
 
         restoreAndVerify(shardCount, 0, indexStats);
+    }
+
+    @TestIssueLogging(value = "org.opensearch:TRACE", issueUrl = "to get trace level logs for debug")
+    public void testMultipleWriters() throws Exception {
+        prepareCluster(1, 2, INDEX_NAME, 1, 1);
+        Map<String, Long> indexStats = indexData(randomIntBetween(2, 5), true, true, INDEX_NAME);
+        assertEquals(2, getNumShards(INDEX_NAME).totalNumShards);
+
+        // ensure replica has latest checkpoint
+        flushAndRefresh(INDEX_NAME);
+        flushAndRefresh(INDEX_NAME);
+
+        Index indexObj = clusterService().state().metadata().indices().get(INDEX_NAME).getIndex();
+        IndicesService indicesService = internalCluster().getInstance(IndicesService.class, primaryNodeName(INDEX_NAME));
+        IndexService indexService = indicesService.indexService(indexObj);
+        IndexShard indexShard = indexService.getShard(0);
+        RemoteSegmentMetadata remoteSegmentMetadataBeforeFailover = indexShard.getRemoteDirectory().readLatestMetadataFile();
+
+        // ensure all segments synced to replica
+        assertBusy(
+            () -> assertHitCount(
+                client(primaryNodeName(INDEX_NAME)).prepareSearch(INDEX_NAME).setSize(0).get(),
+                indexStats.get(TOTAL_OPERATIONS)
+            ),
+            30,
+            TimeUnit.SECONDS
+        );
+        assertBusy(
+            () -> assertHitCount(
+                client(replicaNodeName(INDEX_NAME)).prepareSearch(INDEX_NAME).setSize(0).get(),
+                indexStats.get(TOTAL_OPERATIONS)
+            ),
+            30,
+            TimeUnit.SECONDS
+        );
+
+        String newPrimaryNodeName = replicaNodeName(INDEX_NAME);
+        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(primaryNodeName(INDEX_NAME)));
+        ensureYellow(INDEX_NAME);
+
+        indicesService = internalCluster().getInstance(IndicesService.class, newPrimaryNodeName);
+        indexService = indicesService.indexService(indexObj);
+        indexShard = indexService.getShard(0);
+        IndexShard finalIndexShard = indexShard;
+        assertBusy(() -> assertTrue(finalIndexShard.isPrimaryMode()));
+        RemoteSegmentMetadata remoteSegmentMetadataAfterFailover = indexShard.getRemoteDirectory().readLatestMetadataFile();
+
+        assertNotEquals(
+            new ArrayList<>(remoteSegmentMetadataAfterFailover.toMapOfStrings().values()),
+            new ArrayList<>(remoteSegmentMetadataBeforeFailover.toMapOfStrings().values())
+        );
+        assertEquals(remoteSegmentMetadataAfterFailover.getPrimaryTerm(), remoteSegmentMetadataBeforeFailover.getPrimaryTerm() + 1);
     }
 
     /**
