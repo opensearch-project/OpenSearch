@@ -14,8 +14,10 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.OutputStreamIndexOutput;
 import org.opensearch.action.LatchedActionListener;
 import org.opensearch.common.SetOnce;
+import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.blobstore.BlobMetadata;
 import org.opensearch.common.blobstore.BlobPath;
+import org.opensearch.common.blobstore.BlobStore;
 import org.opensearch.common.blobstore.stream.write.WritePriority;
 import org.opensearch.common.io.VersionedCodecStreamWrapper;
 import org.opensearch.common.io.stream.BytesStreamOutput;
@@ -26,13 +28,12 @@ import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.remote.RemoteStoreUtils;
 import org.opensearch.index.remote.RemoteTranslogTransferTracker;
+import org.opensearch.index.remote.transfer.DownloadManager;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.index.translog.transfer.listener.TranslogTransferListener;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
-import java.io.InputStream;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -56,9 +57,11 @@ public class TranslogTransferManager {
 
     private final ShardId shardId;
     private final TransferService transferService;
+    private final BlobStore blobStore;
     private final BlobPath remoteDataTransferPath;
     private final BlobPath remoteMetadataTransferPath;
     private final BlobPath remoteBaseTransferPath;
+    private final DownloadManager downloadManager;
     private final FileTransferTracker fileTransferTracker;
     private final RemoteTranslogTransferTracker remoteTranslogTransferTracker;
 
@@ -70,7 +73,7 @@ public class TranslogTransferManager {
     private final static String METADATA_DIR = "metadata";
     private final static String DATA_DIR = "data";
 
-    private static final VersionedCodecStreamWrapper<TranslogTransferMetadata> metadataStreamWrapper = new VersionedCodecStreamWrapper<>(
+    private static final VersionedCodecStreamWrapper<TranslogTransferMetadata> METADATA_STREAM_WRAPPER = new VersionedCodecStreamWrapper<>(
         new TranslogTransferMetadataHandler(),
         TranslogTransferMetadata.CURRENT_VERSION,
         TranslogTransferMetadata.METADATA_CODEC
@@ -79,18 +82,22 @@ public class TranslogTransferManager {
     public TranslogTransferManager(
         ShardId shardId,
         TransferService transferService,
+        BlobStore blobStore,
         BlobPath remoteBaseTransferPath,
         FileTransferTracker fileTransferTracker,
-        RemoteTranslogTransferTracker remoteTranslogTransferTracker
+        RemoteTranslogTransferTracker remoteTranslogTransferTracker,
+        DownloadManager downloadManager
     ) {
         this.shardId = shardId;
         this.transferService = transferService;
+        this.blobStore = blobStore;
         this.remoteBaseTransferPath = remoteBaseTransferPath;
         this.remoteDataTransferPath = remoteBaseTransferPath.add(DATA_DIR);
         this.remoteMetadataTransferPath = remoteBaseTransferPath.add(METADATA_DIR);
         this.fileTransferTracker = fileTransferTracker;
         this.logger = Loggers.getLogger(getClass(), shardId);
         this.remoteTranslogTransferTracker = remoteTranslogTransferTracker;
+        this.downloadManager = downloadManager;
     }
 
     public RemoteTranslogTransferTracker getRemoteTranslogTransferTracker() {
@@ -238,39 +245,21 @@ public class TranslogTransferManager {
             generation,
             location
         );
+
+        final BlobContainer blobContainer = blobStore.blobContainer(remoteDataTransferPath.add(primaryTerm));
+
         // Download Checkpoint file from remote to local FS
         String ckpFileName = Translog.getCommitCheckpointFileName(Long.parseLong(generation));
-        downloadToFS(ckpFileName, location, primaryTerm);
+        downloadManager.downloadFileFromRemoteStore(blobContainer, ckpFileName, location);
+        // Mark in FileTransferTracker so that the same files are not uploaded at the time of translog sync
+        fileTransferTracker.add(ckpFileName, true);
+
         // Download translog file from remote to local FS
         String translogFilename = Translog.getFilename(Long.parseLong(generation));
-        downloadToFS(translogFilename, location, primaryTerm);
-        return true;
-    }
-
-    private void downloadToFS(String fileName, Path location, String primaryTerm) throws IOException {
-        Path filePath = location.resolve(fileName);
-        // Here, we always override the existing file if present.
-        // We need to change this logic when we introduce incremental download
-        if (Files.exists(filePath)) {
-            Files.delete(filePath);
-        }
-
-        boolean downloadStatus = false;
-        long bytesToRead = 0, downloadStartTime = System.nanoTime();
-        try (InputStream inputStream = transferService.downloadBlob(remoteDataTransferPath.add(primaryTerm), fileName)) {
-            // Capture number of bytes for stats before reading
-            bytesToRead = inputStream.available();
-            Files.copy(inputStream, filePath);
-            downloadStatus = true;
-        } finally {
-            remoteTranslogTransferTracker.addDownloadTimeInMillis((System.nanoTime() - downloadStartTime) / 1_000_000L);
-            if (downloadStatus) {
-                remoteTranslogTransferTracker.addDownloadBytesSucceeded(bytesToRead);
-            }
-        }
-
+        downloadManager.downloadFileFromRemoteStore(blobContainer, translogFilename, location);
         // Mark in FileTransferTracker so that the same files are not uploaded at the time of translog sync
-        fileTransferTracker.add(fileName, true);
+        fileTransferTracker.add(translogFilename, true);
+        return true;
     }
 
     public TranslogTransferMetadata readMetadata() throws IOException {
@@ -284,24 +273,14 @@ public class TranslogTransferManager {
                     blobMetadataList.stream().map(BlobMetadata::name).collect(Collectors.toList()),
                     TranslogTransferMetadata::getNodeIdByPrimaryTermAndGen
                 );
-                String filename = blobMetadataList.get(0).name();
-                boolean downloadStatus = false;
-                long downloadStartTime = System.nanoTime(), bytesToRead = 0;
-                try (InputStream inputStream = transferService.downloadBlob(remoteMetadataTransferPath, filename)) {
-                    // Capture number of bytes for stats before reading
-                    bytesToRead = inputStream.available();
-                    IndexInput indexInput = new ByteArrayIndexInput("metadata file", inputStream.readAllBytes());
-                    metadataSetOnce.set(metadataStreamWrapper.readStream(indexInput));
-                    downloadStatus = true;
+
+                final BlobContainer blobContainer = blobStore.blobContainer(remoteMetadataTransferPath);
+                final String filename = blobMetadataList.get(0).name();
+                try {
+                    metadataSetOnce.set(fetchTranslogTransferMetadata(blobContainer, filename));
                 } catch (IOException e) {
                     logger.error(() -> new ParameterizedMessage("Exception while reading metadata file: {}", filename), e);
                     exceptionSetOnce.set(e);
-                } finally {
-                    remoteTranslogTransferTracker.addDownloadTimeInMillis((System.nanoTime() - downloadStartTime) / 1_000_000L);
-                    logger.debug("translogMetadataDownloadStatus={}", downloadStatus);
-                    if (downloadStatus) {
-                        remoteTranslogTransferTracker.addDownloadBytesSucceeded(bytesToRead);
-                    }
                 }
             }, e -> {
                 if (e instanceof RuntimeException) {
@@ -332,6 +311,20 @@ public class TranslogTransferManager {
         return metadataSetOnce.get();
     }
 
+    /**
+     * Downloads the {@link TranslogTransferMetadata} file from the blob container stored as a part of remote store
+     * metadata
+     * @param blobContainer location where the metadata file is stored
+     * @param fileName name of the metadata file
+     * @return deserialized metadata object
+     * @throws IOException exception when reading from the remote file
+     */
+    private TranslogTransferMetadata fetchTranslogTransferMetadata(BlobContainer blobContainer, String fileName) throws IOException {
+        byte[] data = downloadManager.downloadFileFromRemoteStoreToMemory(blobContainer, fileName);
+        IndexInput indexInput = new ByteArrayIndexInput("metadata file", data);
+        return TranslogTransferManager.METADATA_STREAM_WRAPPER.readStream(indexInput);
+    }
+
     private TransferFileSnapshot prepareMetadata(TransferSnapshot transferSnapshot) throws IOException {
         Map<String, String> generationPrimaryTermMap = transferSnapshot.getTranslogFileSnapshots().stream().map(s -> {
             assert s instanceof TranslogFileSnapshot;
@@ -359,7 +352,7 @@ public class TranslogTransferManager {
      * @param metadata The object to be parsed
      * @return Byte representation for the given metadata
      */
-    public byte[] getMetadataBytes(TranslogTransferMetadata metadata) throws IOException {
+    public static byte[] getMetadataBytes(TranslogTransferMetadata metadata) throws IOException {
         byte[] metadataBytes;
 
         try (BytesStreamOutput output = new BytesStreamOutput()) {
@@ -371,7 +364,7 @@ public class TranslogTransferManager {
                     TranslogTransferMetadata.BUFFER_SIZE
                 )
             ) {
-                metadataStreamWrapper.writeStream(indexOutput, metadata);
+                METADATA_STREAM_WRAPPER.writeStream(indexOutput, metadata);
             }
             metadataBytes = BytesReference.toBytes(output.bytes());
         }

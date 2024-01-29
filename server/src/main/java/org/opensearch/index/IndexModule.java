@@ -70,6 +70,7 @@ import org.opensearch.index.engine.Engine;
 import org.opensearch.index.engine.EngineConfigFactory;
 import org.opensearch.index.engine.EngineFactory;
 import org.opensearch.index.mapper.MapperService;
+import org.opensearch.index.remote.transfer.DownloadManager;
 import org.opensearch.index.shard.IndexEventListener;
 import org.opensearch.index.shard.IndexingOperationListener;
 import org.opensearch.index.shard.SearchOperationListener;
@@ -605,7 +606,8 @@ public final class IndexModule {
         BiFunction<IndexSettings, ShardRouting, TranslogFactory> translogFactorySupplier,
         Supplier<TimeValue> clusterDefaultRefreshIntervalSupplier,
         Supplier<TimeValue> clusterRemoteTranslogBufferIntervalSupplier,
-        RecoverySettings recoverySettings
+        RecoverySettings recoverySettings,
+        DownloadManager downloadManager
     ) throws IOException {
         final IndexEventListener eventListener = freeze();
         Function<IndexService, CheckedFunction<DirectoryReader, DirectoryReader, IOException>> readerWrapperFactory = indexReaderWrapper
@@ -664,7 +666,8 @@ public final class IndexModule {
                 translogFactorySupplier,
                 clusterDefaultRefreshIntervalSupplier,
                 clusterRemoteTranslogBufferIntervalSupplier,
-                recoverySettings
+                recoverySettings,
+                downloadManager
             );
             success = true;
             return indexService;

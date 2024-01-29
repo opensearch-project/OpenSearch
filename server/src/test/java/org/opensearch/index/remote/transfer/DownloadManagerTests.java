@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.index.store;
+package org.opensearch.index.remote.transfer;
 
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FilterDirectory;
@@ -16,12 +16,12 @@ import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.NIOFSDirectory;
 import org.opensearch.OpenSearchTimeoutException;
 import org.opensearch.action.support.PlainActionFuture;
+import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.CancellableThreads;
 import org.opensearch.core.action.ActionListener;
-import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.TestThreadPool;
@@ -29,9 +29,13 @@ import org.opensearch.threadpool.ThreadPool;
 import org.junit.After;
 import org.junit.Before;
 
+import java.io.ByteArrayInputStream;
 import java.io.EOFException;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -42,14 +46,19 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
-public class RemoteStoreFileDownloaderTests extends OpenSearchTestCase {
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
+public class DownloadManagerTests extends OpenSearchTestCase {
     private ThreadPool threadPool;
     private Directory source;
     private Directory destination;
     private Directory secondDestination;
-    private RemoteStoreFileDownloader fileDownloader;
-    private Map<String, Integer> files = new HashMap<>();
+    private BlobContainer blobContainer;
+    private DownloadManager downloadManager;
+    private Path path;
+    private final Map<String, Integer> files = new HashMap<>();
 
     @Before
     public void setup() throws IOException {
@@ -62,6 +71,8 @@ public class RemoteStoreFileDownloaderTests extends OpenSearchTestCase {
         source = new NIOFSDirectory(createTempDir());
         destination = new NIOFSDirectory(createTempDir());
         secondDestination = new NIOFSDirectory(createTempDir());
+        blobContainer = mock(BlobContainer.class);
+        path = createTempDir("DownloadManagerTests");
         for (int i = 0; i < 10; i++) {
             final String filename = "file_" + i;
             final int content = randomInt();
@@ -70,11 +81,7 @@ public class RemoteStoreFileDownloaderTests extends OpenSearchTestCase {
             }
             files.put(filename, content);
         }
-        fileDownloader = new RemoteStoreFileDownloader(
-            ShardId.fromString("[RemoteStoreFileDownloaderTests][0]"),
-            threadPool,
-            recoverySettings
-        );
+        downloadManager = new DownloadManager(threadPool, recoverySettings);
     }
 
     @After
@@ -83,59 +90,102 @@ public class RemoteStoreFileDownloaderTests extends OpenSearchTestCase {
         assertTrue(threadPool.awaitTermination(5, TimeUnit.SECONDS));
     }
 
-    public void testDownload() throws IOException {
+    public void testDownloadFileFromRemoteStoreToMemory() throws Exception {
+        byte[] expectedData = "test".getBytes(StandardCharsets.UTF_16);
+        when(blobContainer.readBlob(anyString())).thenReturn(new ByteArrayInputStream(expectedData));
+        byte[] actualData = downloadManager.downloadFileFromRemoteStoreToMemory(blobContainer, "test-file");
+        assertArrayEquals(expectedData, actualData);
+    }
+
+    public void testDownloadFileFromRemoteStoreToMemoryException() throws Exception {
+        when(blobContainer.readBlob(anyString())).thenThrow(new IOException("something happened"));
+        assertThrows(IOException.class, () -> downloadManager.downloadFileFromRemoteStoreToMemory(blobContainer, "test-file"));
+    }
+
+    public void testDownloadFileFromRemoteStore() throws Exception {
+        final String fileName = "test-file";
+        final byte[] expectedData = "test".getBytes(StandardCharsets.UTF_16);
+        final Path fileLocation = path.resolve(fileName);
+        when(blobContainer.readBlob(anyString())).thenReturn(new ByteArrayInputStream(expectedData));
+        downloadManager.downloadFileFromRemoteStore(blobContainer, fileName, path);
+
+        assertTrue(Files.exists(fileLocation));
+        assertTrue(Files.size(fileLocation) > 0);
+    }
+
+    public void testDownloadFileFromRemoteStoreException() throws Exception {
+        final String fileName = "test-file";
+        final Path fileLocation = path.resolve(fileName);
+        when(blobContainer.readBlob(anyString())).thenThrow(new IOException("unexpected error"));
+        assertThrows(IOException.class, () -> downloadManager.downloadFileFromRemoteStore(blobContainer, fileName, path));
+        assertFalse(Files.exists(fileLocation));
+    }
+
+    public void testCopySegmentsFromRemoteStoreAsync() throws IOException {
         final PlainActionFuture<Void> l = new PlainActionFuture<>();
-        fileDownloader.downloadAsync(new CancellableThreads(), source, destination, files.keySet(), l);
+        downloadManager.copySegmentsFromRemoteStoreAsync(new CancellableThreads(), source, destination, files.keySet(), l);
         l.actionGet();
         assertContent(files, destination);
     }
 
-    public void testDownloadWithSecondDestination() throws IOException, InterruptedException {
-        fileDownloader.download(source, destination, secondDestination, files.keySet(), () -> {});
+    public void testCopySegmentsFromRemoteStore() throws IOException, InterruptedException {
+        downloadManager.copySegmentsFromRemoteStore(source, destination, secondDestination, files.keySet(), () -> {});
         assertContent(files, destination);
         assertContent(files, secondDestination);
     }
 
-    public void testDownloadWithFileCompletionHandler() throws IOException, InterruptedException {
+    public void testCopySegmentsWithFileCompletionHandler() throws IOException, InterruptedException {
         final AtomicInteger counter = new AtomicInteger(0);
-        fileDownloader.download(source, destination, null, files.keySet(), counter::incrementAndGet);
+        downloadManager.copySegmentsFromRemoteStore(source, destination, null, files.keySet(), counter::incrementAndGet);
         assertContent(files, destination);
         assertEquals(files.size(), counter.get());
     }
 
-    public void testDownloadNonExistentFile() throws InterruptedException {
+    public void testCopyNonExistentFile() throws InterruptedException {
         final CountDownLatch latch = new CountDownLatch(1);
-        fileDownloader.downloadAsync(new CancellableThreads(), source, destination, Set.of("not real"), new ActionListener<>() {
-            @Override
-            public void onResponse(Void unused) {}
+        downloadManager.copySegmentsFromRemoteStoreAsync(
+            new CancellableThreads(),
+            source,
+            destination,
+            Set.of("not real"),
+            new ActionListener<>() {
+                @Override
+                public void onResponse(Void unused) {}
 
-            @Override
-            public void onFailure(Exception e) {
-                assertEquals(NoSuchFileException.class, e.getClass());
-                latch.countDown();
+                @Override
+                public void onFailure(Exception e) {
+                    assertEquals(NoSuchFileException.class, e.getClass());
+                    latch.countDown();
+                }
             }
-        });
+        );
         assertTrue(latch.await(10, TimeUnit.SECONDS));
     }
 
-    public void testDownloadExtraNonExistentFile() throws InterruptedException {
+    public void testCopySegmentsExtraNonExistentFile() throws InterruptedException {
         final CountDownLatch latch = new CountDownLatch(1);
         final List<String> filesWithExtra = new ArrayList<>(files.keySet());
         filesWithExtra.add("not real");
-        fileDownloader.downloadAsync(new CancellableThreads(), source, destination, filesWithExtra, new ActionListener<>() {
-            @Override
-            public void onResponse(Void unused) {}
+        downloadManager.copySegmentsFromRemoteStoreAsync(
+            new CancellableThreads(),
+            source,
+            destination,
+            filesWithExtra,
+            new ActionListener<>() {
+                @Override
+                public void onResponse(Void unused) {}
 
-            @Override
-            public void onFailure(Exception e) {
-                assertEquals(NoSuchFileException.class, e.getClass());
-                latch.countDown();
+                @Override
+                public void onFailure(Exception e) {
+                    assertEquals(NoSuchFileException.class, e.getClass());
+                    latch.countDown();
+                }
             }
-        });
+        );
         assertTrue(latch.await(10, TimeUnit.SECONDS));
     }
 
-    public void testCancellable() {
+    public void testCopySegmentsCancellable() {
         final CancellableThreads cancellableThreads = new CancellableThreads();
         final PlainActionFuture<Void> blockingListener = new PlainActionFuture<>();
         final Directory blockingDestination = new FilterDirectory(destination) {
@@ -149,7 +199,7 @@ public class RemoteStoreFileDownloaderTests extends OpenSearchTestCase {
                 }
             }
         };
-        fileDownloader.downloadAsync(cancellableThreads, source, blockingDestination, files.keySet(), blockingListener);
+        downloadManager.copySegmentsFromRemoteStoreAsync(cancellableThreads, source, blockingDestination, files.keySet(), blockingListener);
         assertThrows(
             "Expected to timeout due to blocking directory",
             OpenSearchTimeoutException.class,
@@ -163,7 +213,7 @@ public class RemoteStoreFileDownloaderTests extends OpenSearchTestCase {
         );
     }
 
-    public void testBlockingCallCanBeInterrupted() throws Exception {
+    public void testCopySegmentsBlockingCallCanBeInterrupted() throws Exception {
         final Directory blockingDestination = new FilterDirectory(destination) {
             @Override
             public void copyFrom(Directory from, String src, String dest, IOContext context) {
@@ -178,7 +228,7 @@ public class RemoteStoreFileDownloaderTests extends OpenSearchTestCase {
         final AtomicReference<Exception> capturedException = new AtomicReference<>();
         final Thread thread = new Thread(() -> {
             try {
-                fileDownloader.download(source, blockingDestination, null, files.keySet(), () -> {});
+                downloadManager.copySegmentsFromRemoteStore(source, blockingDestination, null, files.keySet(), () -> {});
             } catch (Exception e) {
                 capturedException.set(e);
             }
@@ -189,26 +239,35 @@ public class RemoteStoreFileDownloaderTests extends OpenSearchTestCase {
         assertEquals(InterruptedException.class, capturedException.get().getClass());
     }
 
-    public void testIOException() throws IOException, InterruptedException {
+    public void testCopySegmentsIOException() throws IOException, InterruptedException {
         final Directory failureDirectory = new FilterDirectory(destination) {
             @Override
             public void copyFrom(Directory from, String src, String dest, IOContext context) throws IOException {
                 throw new IOException("test");
             }
         };
-        assertThrows(IOException.class, () -> fileDownloader.download(source, failureDirectory, null, files.keySet(), () -> {}));
+        assertThrows(
+            IOException.class,
+            () -> downloadManager.copySegmentsFromRemoteStore(source, failureDirectory, null, files.keySet(), () -> {})
+        );
 
         final CountDownLatch latch = new CountDownLatch(1);
-        fileDownloader.downloadAsync(new CancellableThreads(), source, failureDirectory, files.keySet(), new ActionListener<>() {
-            @Override
-            public void onResponse(Void unused) {}
+        downloadManager.copySegmentsFromRemoteStoreAsync(
+            new CancellableThreads(),
+            source,
+            failureDirectory,
+            files.keySet(),
+            new ActionListener<>() {
+                @Override
+                public void onResponse(Void unused) {}
 
-            @Override
-            public void onFailure(Exception e) {
-                assertEquals(IOException.class, e.getClass());
-                latch.countDown();
+                @Override
+                public void onFailure(Exception e) {
+                    assertEquals(IOException.class, e.getClass());
+                    latch.countDown();
+                }
             }
-        });
+        );
         assertTrue(latch.await(10, TimeUnit.SECONDS));
     }
 

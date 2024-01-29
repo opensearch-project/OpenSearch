@@ -116,6 +116,7 @@ public interface TransferService {
      */
     void listFoldersAsync(String threadpoolName, Iterable<String> path, ActionListener<Set<String>> listener);
 
+    // TODO: Remove this API. Only used in tests.
     /**
      *
      * @param path  the remote path from where download should be made

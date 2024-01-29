@@ -120,8 +120,8 @@ public class RemoteStoreReplicationSource implements SegmentReplicationSource {
                     assert directoryFiles.contains(file) == false : "Local store already contains the file " + file;
                     toDownloadSegmentNames.add(file);
                 }
-                indexShard.getFileDownloader()
-                    .downloadAsync(
+                indexShard.getDownloadManager()
+                    .copySegmentsFromRemoteStoreAsync(
                         cancellableThreads,
                         remoteDirectory,
                         new ReplicationStatsDirectoryWrapper(storeDirectory, fileProgressTracker),

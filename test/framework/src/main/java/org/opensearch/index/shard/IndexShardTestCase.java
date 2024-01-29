@@ -99,6 +99,7 @@ import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.SourceToParse;
 import org.opensearch.index.remote.RemoteStoreStatsTrackerFactory;
 import org.opensearch.index.remote.RemoteTranslogTransferTracker;
+import org.opensearch.index.remote.transfer.DownloadManager;
 import org.opensearch.index.replication.TestReplicationSource;
 import org.opensearch.index.seqno.ReplicationTracker;
 import org.opensearch.index.seqno.RetentionLeaseSyncer;
@@ -664,6 +665,7 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
             } else {
                 remoteStore = null;
             }
+            final DownloadManager downloadManager = new DownloadManager(threadPool, DefaultRecoverySettings.INSTANCE);
 
             final BiFunction<IndexSettings, ShardRouting, TranslogFactory> translogFactorySupplier = (settings, shardRouting) -> {
                 if (settings.isRemoteTranslogStoreEnabled() && shardRouting.primary()) {
@@ -671,7 +673,8 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
                         () -> mockRepoSvc,
                         threadPool,
                         settings.getRemoteStoreTranslogRepository(),
-                        new RemoteTranslogTransferTracker(shardRouting.shardId(), 20)
+                        new RemoteTranslogTransferTracker(shardRouting.shardId(), 20),
+                        downloadManager
                     );
                 }
                 return new InternalTranslogFactory();
@@ -703,7 +706,8 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
                 remoteStoreStatsTrackerFactory,
                 () -> IndexSettings.DEFAULT_REMOTE_TRANSLOG_BUFFER_INTERVAL,
                 "dummy-node",
-                DefaultRecoverySettings.INSTANCE
+                DefaultRecoverySettings.INSTANCE,
+                downloadManager
             );
             indexShard.addShardFailureCallback(DEFAULT_SHARD_FAILURE_HANDLER);
             if (remoteStoreStatsTrackerFactory != null) {

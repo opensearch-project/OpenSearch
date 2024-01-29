@@ -43,6 +43,8 @@ import org.opensearch.env.TestEnvironment;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.MissingHistoryOperationsException;
 import org.opensearch.index.remote.RemoteTranslogTransferTracker;
+import org.opensearch.index.remote.transfer.DownloadManager;
+import org.opensearch.index.remote.transfer.StatsTrackingDownloadManager;
 import org.opensearch.index.seqno.LocalCheckpointTracker;
 import org.opensearch.index.seqno.LocalCheckpointTrackerTests;
 import org.opensearch.index.seqno.SequenceNumbers;
@@ -50,6 +52,7 @@ import org.opensearch.index.translog.transfer.BlobStoreTransferService;
 import org.opensearch.index.translog.transfer.TranslogTransferManager;
 import org.opensearch.index.translog.transfer.TranslogTransferMetadata;
 import org.opensearch.index.translog.transfer.TranslogUploadFailedException;
+import org.opensearch.indices.recovery.DefaultRecoverySettings;
 import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.repositories.blobstore.BlobStoreRepository;
@@ -124,6 +127,7 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
     private final AtomicBoolean primaryMode = new AtomicBoolean(true);
     private final AtomicReference<LongConsumer> persistedSeqNoConsumer = new AtomicReference<>();
     private ThreadPool threadPool;
+    private DownloadManager downloadManager;
     private final static String METADATA_DIR = "metadata";
     private final static String DATA_DIR = "data";
     AtomicInteger writeCalls = new AtomicInteger();
@@ -178,6 +182,8 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
         final TranslogDeletionPolicy deletionPolicy = createTranslogDeletionPolicy(translogConfig.getIndexSettings());
         threadPool = new TestThreadPool(getClass().getName());
         blobStoreTransferService = new BlobStoreTransferService(repository.blobStore(), threadPool);
+        RemoteTranslogTransferTracker translogTransferTracker = new RemoteTranslogTransferTracker(shardId, 10);
+        downloadManager = new StatsTrackingDownloadManager(threadPool, DefaultRecoverySettings.INSTANCE, translogTransferTracker);
         return new RemoteFsTranslog(
             translogConfig,
             translogUUID,
@@ -188,7 +194,8 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
             repository,
             threadPool,
             primaryMode::get,
-            new RemoteTranslogTransferTracker(shardId, 10)
+            translogTransferTracker,
+            downloadManager
         );
     }
 
@@ -447,6 +454,8 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
         );
         TranslogDeletionPolicy deletionPolicy = createTranslogDeletionPolicy(config.getIndexSettings());
         ArrayList<Translog.Operation> ops = new ArrayList<>();
+        RemoteTranslogTransferTracker translogTransferTracker = new RemoteTranslogTransferTracker(shardId, 10);
+        downloadManager = new StatsTrackingDownloadManager(threadPool, DefaultRecoverySettings.INSTANCE, translogTransferTracker);
         try (
             RemoteFsTranslog translog = new RemoteFsTranslog(
                 config,
@@ -458,7 +467,8 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
                 repository,
                 threadPool,
                 () -> Boolean.TRUE,
-                new RemoteTranslogTransferTracker(shardId, 10)
+                translogTransferTracker,
+                downloadManager
             ) {
                 @Override
                 ChannelFactory getChannelFactory() {
@@ -1496,6 +1506,9 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
             primaryTerm.get()
         );
 
+        RemoteTranslogTransferTracker translogTransferTracker = new RemoteTranslogTransferTracker(shardId, 10);
+        downloadManager = new StatsTrackingDownloadManager(threadPool, DefaultRecoverySettings.INSTANCE, translogTransferTracker);
+
         try (
             Translog translog = new RemoteFsTranslog(
                 config,
@@ -1507,7 +1520,8 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
                 repository,
                 threadPool,
                 () -> Boolean.TRUE,
-                new RemoteTranslogTransferTracker(shardId, 10)
+                translogTransferTracker,
+                downloadManager
             ) {
                 @Override
                 ChannelFactory getChannelFactory() {
@@ -1604,6 +1618,9 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
             primaryTerm.get()
         );
 
+        RemoteTranslogTransferTracker translogTransferTracker = new RemoteTranslogTransferTracker(shardId, 10);
+        downloadManager = new StatsTrackingDownloadManager(threadPool, DefaultRecoverySettings.INSTANCE, translogTransferTracker);
+
         try (
             Translog translog = new RemoteFsTranslog(
                 config,
@@ -1615,7 +1632,8 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
                 repository,
                 threadPool,
                 () -> Boolean.TRUE,
-                new RemoteTranslogTransferTracker(shardId, 10)
+                translogTransferTracker,
+                downloadManager
             ) {
                 @Override
                 ChannelFactory getChannelFactory() {

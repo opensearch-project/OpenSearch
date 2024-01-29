@@ -19,6 +19,8 @@ import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.util.FileSystemUtils;
 import org.opensearch.index.remote.RemoteTranslogTransferTracker;
+import org.opensearch.index.remote.transfer.DownloadManager;
+import org.opensearch.index.remote.transfer.StatsTrackingDownloadManager;
 import org.opensearch.index.translog.transfer.BlobStoreTransferService;
 import org.opensearch.index.translog.transfer.FileTransferTracker;
 import org.opensearch.index.translog.transfer.TransferSnapshot;
@@ -94,19 +96,21 @@ public class RemoteFsTranslog extends Translog {
         BlobStoreRepository blobStoreRepository,
         ThreadPool threadPool,
         BooleanSupplier startedPrimarySupplier,
-        RemoteTranslogTransferTracker remoteTranslogTransferTracker
+        RemoteTranslogTransferTracker remoteTranslogTransferTracker,
+        DownloadManager downloadManager
     ) throws IOException {
         super(config, translogUUID, deletionPolicy, globalCheckpointSupplier, primaryTermSupplier, persistedSequenceNumberConsumer);
         logger = Loggers.getLogger(getClass(), shardId);
         this.startedPrimarySupplier = startedPrimarySupplier;
         this.remoteTranslogTransferTracker = remoteTranslogTransferTracker;
-        fileTransferTracker = new FileTransferTracker(shardId, remoteTranslogTransferTracker);
+        this.fileTransferTracker = new FileTransferTracker(shardId, remoteTranslogTransferTracker);
         this.translogTransferManager = buildTranslogTransferManager(
             blobStoreRepository,
             threadPool,
             shardId,
             fileTransferTracker,
-            remoteTranslogTransferTracker
+            remoteTranslogTransferTracker,
+            downloadManager
         );
         try {
             download(translogTransferManager, location, logger);
@@ -162,12 +166,14 @@ public class RemoteFsTranslog extends Translog {
         // TODO: To be revisited as part of https://github.com/opensearch-project/OpenSearch/issues/7567
         RemoteTranslogTransferTracker remoteTranslogTransferTracker = new RemoteTranslogTransferTracker(shardId, 1000);
         FileTransferTracker fileTransferTracker = new FileTransferTracker(shardId, remoteTranslogTransferTracker);
+        DownloadManager downloadManager = new StatsTrackingDownloadManager(threadPool, null, remoteTranslogTransferTracker);
         TranslogTransferManager translogTransferManager = buildTranslogTransferManager(
             blobStoreRepository,
             threadPool,
             shardId,
             fileTransferTracker,
-            remoteTranslogTransferTracker
+            remoteTranslogTransferTracker,
+            downloadManager
         );
         RemoteFsTranslog.download(translogTransferManager, location, logger);
         logger.trace(remoteTranslogTransferTracker.toString());
@@ -244,14 +250,17 @@ public class RemoteFsTranslog extends Translog {
         ThreadPool threadPool,
         ShardId shardId,
         FileTransferTracker fileTransferTracker,
-        RemoteTranslogTransferTracker remoteTranslogTransferTracker
+        RemoteTranslogTransferTracker remoteTranslogTransferTracker,
+        DownloadManager downloadManager
     ) {
         return new TranslogTransferManager(
             shardId,
             new BlobStoreTransferService(blobStoreRepository.blobStore(), threadPool),
+            blobStoreRepository.blobStore(),
             blobStoreRepository.basePath().add(shardId.getIndex().getUUID()).add(String.valueOf(shardId.id())).add(TRANSLOG),
             fileTransferTracker,
-            remoteTranslogTransferTracker
+            remoteTranslogTransferTracker,
+            new StatsTrackingDownloadManager(downloadManager, remoteTranslogTransferTracker)
         );
     }
 
@@ -531,12 +540,14 @@ public class RemoteFsTranslog extends Translog {
         // TODO: To be revisited as part of https://github.com/opensearch-project/OpenSearch/issues/7567
         RemoteTranslogTransferTracker remoteTranslogTransferTracker = new RemoteTranslogTransferTracker(shardId, 1000);
         FileTransferTracker fileTransferTracker = new FileTransferTracker(shardId, remoteTranslogTransferTracker);
+        DownloadManager downloadManager = new StatsTrackingDownloadManager(threadPool, null, remoteTranslogTransferTracker);
         TranslogTransferManager translogTransferManager = buildTranslogTransferManager(
             blobStoreRepository,
             threadPool,
             shardId,
             fileTransferTracker,
-            remoteTranslogTransferTracker
+            remoteTranslogTransferTracker,
+            downloadManager
         );
         // clean up all remote translog files
         translogTransferManager.deleteTranslogFiles();

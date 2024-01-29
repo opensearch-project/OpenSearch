@@ -6,8 +6,9 @@
  * compatible open source license.
  */
 
-package org.opensearch.index.store;
+package org.opensearch.index.remote.transfer;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
@@ -15,36 +16,75 @@ import org.opensearch.action.support.GroupedActionListener;
 import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.annotation.PublicApi;
-import org.opensearch.common.logging.Loggers;
+import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.util.CancellableThreads;
 import org.opensearch.core.action.ActionListener;
-import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.index.store.RemoteSegmentStoreDirectory;
 import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
+import java.io.InputStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.Collection;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutionException;
 
 /**
- * Helper class to downloads files from a {@link RemoteSegmentStoreDirectory}
- * instance to a local {@link Directory} instance in parallel depending on thread
- * pool size and recovery settings.
+ * Manages file downloads from the remote store and from a {@link RemoteSegmentStoreDirectory}
+ * instance to a local {@link Directory} instance.
  *
  * @opensearch.api
  */
-@PublicApi(since = "2.11.0")
-public final class RemoteStoreFileDownloader {
-    private final Logger logger;
+@PublicApi(since = "2.13.0")
+public class DownloadManager {
+
     private final ThreadPool threadPool;
     private final RecoverySettings recoverySettings;
+    private static final Logger logger = LogManager.getLogger(DownloadManager.class);
 
-    public RemoteStoreFileDownloader(ShardId shardId, ThreadPool threadPool, RecoverySettings recoverySettings) {
-        this.logger = Loggers.getLogger(RemoteStoreFileDownloader.class, shardId);
+    public DownloadManager(ThreadPool threadPool, RecoverySettings recoverySettings) {
         this.threadPool = threadPool;
         this.recoverySettings = recoverySettings;
+    }
+
+    public DownloadManager(DownloadManager other) {
+        this.threadPool = other.threadPool;
+        this.recoverySettings = other.recoverySettings;
+    }
+
+    /**
+     * Downloads a file stored in the blob container into memory
+     * @param blobContainer location of the blob
+     * @param fileName name of the blob to be downloaded
+     * @return in-memory byte representation of the blob
+     * @throws IOException exception when reading from the repository file
+     */
+    public byte[] downloadFileFromRemoteStoreToMemory(BlobContainer blobContainer, String fileName) throws IOException {
+        // TODO: Add a circuit breaker check before putting all the data in heap
+        try (InputStream inputStream = blobContainer.readBlob(fileName)) {
+            return inputStream.readAllBytes();
+        }
+    }
+
+    /**
+     * Downloads a file stored within the blob container onto local disk specified using {@link Path} based location.
+     * @param blobContainer location of the blob
+     * @param fileName name of the blob to be downloaded
+     * @param location location on disk where the blob will be downloaded
+     * @throws IOException exception when reading from the repository file or writing to disk
+     */
+    public void downloadFileFromRemoteStore(BlobContainer blobContainer, String fileName, Path location) throws IOException {
+        Path filePath = location.resolve(fileName);
+        // Here, we always override the existing file if present.
+        // We need to change this logic when we introduce incremental download
+        Files.deleteIfExists(filePath);
+
+        try (InputStream inputStream = blobContainer.readBlob(fileName)) {
+            Files.copy(inputStream, filePath);
+        }
     }
 
     /**
@@ -55,14 +95,14 @@ public final class RemoteStoreFileDownloader {
      * @param toDownloadSegments The list of segment files to download
      * @param listener Callback listener to be notified upon completion
      */
-    public void downloadAsync(
+    public void copySegmentsFromRemoteStoreAsync(
         CancellableThreads cancellableThreads,
         Directory source,
         Directory destination,
         Collection<String> toDownloadSegments,
         ActionListener<Void> listener
     ) {
-        downloadInternal(cancellableThreads, source, destination, null, toDownloadSegments, () -> {}, listener);
+        copySegmentsInternal(cancellableThreads, source, destination, null, toDownloadSegments, () -> {}, listener);
     }
 
     /**
@@ -77,7 +117,7 @@ public final class RemoteStoreFileDownloader {
      *                         Must be thread safe as this may be invoked concurrently from
      *                         different threads.
      */
-    public void download(
+    public void copySegmentsFromRemoteStore(
         Directory source,
         Directory destination,
         Directory secondDestination,
@@ -86,7 +126,7 @@ public final class RemoteStoreFileDownloader {
     ) throws InterruptedException, IOException {
         final CancellableThreads cancellableThreads = new CancellableThreads();
         final PlainActionFuture<Void> listener = PlainActionFuture.newFuture();
-        downloadInternal(cancellableThreads, source, destination, secondDestination, toDownloadSegments, onFileCompletion, listener);
+        copySegmentsInternal(cancellableThreads, source, destination, secondDestination, toDownloadSegments, onFileCompletion, listener);
         try {
             listener.get();
         } catch (ExecutionException e) {
@@ -105,7 +145,7 @@ public final class RemoteStoreFileDownloader {
         }
     }
 
-    private void downloadInternal(
+    private void copySegmentsInternal(
         CancellableThreads cancellableThreads,
         Directory source,
         Directory destination,
@@ -126,11 +166,19 @@ public final class RemoteStoreFileDownloader {
         logger.trace("Starting download of {} files with {} threads", queue.size(), threads);
         final ActionListener<Void> allFilesListener = new GroupedActionListener<>(ActionListener.map(listener, r -> null), threads);
         for (int i = 0; i < threads; i++) {
-            copyOneFile(cancellableThreads, source, destination, secondDestination, queue, onFileCompletion, allFilesListener);
+            copyFileFromRemoteStoreDirectory(
+                cancellableThreads,
+                source,
+                destination,
+                secondDestination,
+                queue,
+                onFileCompletion,
+                allFilesListener
+            );
         }
     }
 
-    private void copyOneFile(
+    private void copyFileFromRemoteStoreDirectory(
         CancellableThreads cancellableThreads,
         Directory source,
         Directory destination,
@@ -160,7 +208,15 @@ public final class RemoteStoreFileDownloader {
                     listener.onFailure(e);
                     return;
                 }
-                copyOneFile(cancellableThreads, source, destination, secondDestination, queue, onFileCompletion, listener);
+                copyFileFromRemoteStoreDirectory(
+                    cancellableThreads,
+                    source,
+                    destination,
+                    secondDestination,
+                    queue,
+                    onFileCompletion,
+                    listener
+                );
             });
         }
     }
