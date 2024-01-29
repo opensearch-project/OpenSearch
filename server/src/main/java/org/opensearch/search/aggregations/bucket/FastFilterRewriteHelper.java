@@ -123,14 +123,8 @@ public final class FastFilterRewriteHelper {
         } else if (cq instanceof MatchAllDocsQuery) {
             return indexBounds;
         }
-        // Check if the top-level query (which may be a PRQ on another field) is functionally match-all
-        Weight weight = context.searcher().createWeight(context.query(), ScoreMode.COMPLETE_NO_SCORES, 1f);
-        for (LeafReaderContext ctx : context.searcher().getIndexReader().leaves()) {
-            if (weight.count(ctx) != ctx.reader().numDocs()) {
-                return null;
-            }
-        }
-        return indexBounds;
+
+        return null;
     }
 
     /**
