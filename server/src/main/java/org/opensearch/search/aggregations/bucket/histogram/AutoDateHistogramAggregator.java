@@ -157,7 +157,7 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
         this.roundingPreparer = roundingPreparer;
         this.preparedRounding = prepareRounding(0);
 
-        fastFilterContext = new FastFilterRewriteHelper.FastFilterContext();
+        fastFilterContext = new FastFilterRewriteHelper.FastFilterContext(context);
         fastFilterContext.setAggregationType(
             new AutoHistogramAggregationType(
                 valuesSourceConfig.fieldType(),
@@ -166,32 +166,12 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
             )
         );
         if (fastFilterContext.isRewriteable(parent, subAggregators.length)) {
-            fastFilterContext.buildFastFilter(context);
+            fastFilterContext.buildFastFilter();
         }
     }
 
-    // private Rounding getMinimumRounding(final long low, final long high) {
-    //     // max - min / targetBuckets = bestDuration
-    //     // find the right innerInterval this bestDuration belongs to
-    //     // since we cannot exceed targetBuckets, bestDuration should go up,
-    //     // so the right innerInterval should be an upper bound
-    //     long bestDuration = (high - low) / targetBuckets;
-    //     while (roundingIdx < roundingInfos.length - 1) {
-    //         final RoundingInfo curRoundingInfo = roundingInfos[roundingIdx];
-    //         final int temp = curRoundingInfo.innerIntervals[curRoundingInfo.innerIntervals.length - 1];
-    //         // If the interval duration is covered by the maximum inner interval,
-    //         // we can start with this outer interval for creating the buckets
-    //         if (bestDuration <= temp * curRoundingInfo.roughEstimateDurationMillis) {
-    //             break;
-    //         }
-    //         roundingIdx++;
-    //     }
-    //
-    //     preparedRounding = prepareRounding(roundingIdx);
-    //     return roundingInfos[roundingIdx].rounding;
-    // }
-
     private class AutoHistogramAggregationType extends FastFilterRewriteHelper.AbstractDateHistogramAggregationType {
+
         public AutoHistogramAggregationType(MappedFieldType fieldType, boolean missing, boolean hasScript) {
             super(fieldType, missing, hasScript);
         }

@@ -8,6 +8,8 @@
 
 package org.opensearch.search.aggregations.bucket;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.PointValues;
 import org.apache.lucene.search.ConstantScoreQuery;
@@ -53,6 +55,8 @@ public final class FastFilterRewriteHelper {
 
     private FastFilterRewriteHelper() {}
 
+    private static final Logger logger = LogManager.getLogger(FastFilterRewriteHelper.class);
+
     private static final int MAX_NUM_FILTER_BUCKETS = 1024;
     private static final Map<Class<?>, Function<Query, Query>> queryWrappers;
 
@@ -86,6 +90,7 @@ public final class FastFilterRewriteHelper {
         // Since the query does not specify bounds for aggregation, we can
         // build the global min/max from local min/max within each segment
         for (LeafReaderContext leaf : leaves) {
+            // return null if the field is not indexed
             final PointValues values = leaf.reader().getPointValues(fieldName);
             if (values != null) {
                 min = Math.min(min, NumericUtils.sortableBytesToLong(values.getMinPackedValue(), 0));
@@ -187,14 +192,18 @@ public final class FastFilterRewriteHelper {
     }
 
     /**
-     * Context object to do fast filter optimization
+     * Context object for fast filter optimization
+     *
+     * filters equals to null if the optimization cannot be applied
      */
     public static class FastFilterContext {
+        private boolean rewriteable = false;
         private Weight[] filters = null;
         public AggregationType aggregationType;
+        protected final SearchContext context;
 
-        private void setFilters(Weight[] filters) {
-            this.filters = filters;
+        public FastFilterContext(SearchContext context) {
+            this.context = context;
         }
 
         public void setAggregationType(AggregationType aggregationType) {
@@ -202,64 +211,39 @@ public final class FastFilterRewriteHelper {
         }
 
         public boolean isRewriteable(final Object parent, final int subAggLength) {
-            return aggregationType.isRewriteable(parent, subAggLength);
+            boolean rewriteable = aggregationType.isRewriteable(parent, subAggLength);
+            logger.debug("Fast filter rewriteable: {}", rewriteable);
+            this.rewriteable = rewriteable;
+            return rewriteable;
         }
 
-        /**
-         * This filter build method is for date histogram aggregation type
-         *
-         */
-        // public void buildFastFilter(
-        //     SearchContext context,
-        //     CheckedFunction<DateHistogramAggregationType, long[], IOException> computeBounds,
-        //     Function<long[], Rounding> roundingFunction,
-        //     Supplier<Rounding.Prepared> preparedRoundingSupplier
-        // ) throws IOException {
-        //     assert this.aggregationType instanceof DateHistogramAggregationType;
-        //     DateHistogramAggregationType aggregationType = (DateHistogramAggregationType) this.aggregationType;
-        //     DateFieldMapper.DateFieldType fieldType = aggregationType.getFieldType();
-        //     final long[] bounds = computeBounds.apply(aggregationType);
-        //     if (bounds == null) return;
-        //
-        //     final Rounding rounding = roundingFunction.apply(bounds);
-        //     final OptionalLong intervalOpt = Rounding.getInterval(rounding);
-        //     if (intervalOpt.isEmpty()) return;
-        //     final long interval = intervalOpt.getAsLong();
-        //
-        //     // afterKey is the last bucket key in previous response, while the bucket key
-        //     // is the start of the bucket values, so add the interval
-        //     if (aggregationType instanceof CompositeAggregationType && ((CompositeAggregationType) aggregationType).afterKey != -1) {
-        //         bounds[0] = ((CompositeAggregationType) aggregationType).afterKey + interval;
-        //     }
-        //
-        //     final Weight[] filters = FastFilterRewriteHelper.createFilterForAggregations(
-        //         context,
-        //         interval,
-        //         preparedRoundingSupplier.get(),
-        //         fieldType.name(),
-        //         fieldType,
-        //         bounds[0],
-        //         bounds[1]
-        //     );
-        //     this.setFilters(filters);
-        // }
-
-        public void buildFastFilter(SearchContext context) throws IOException {
-            Weight[] filters = this.aggregationType.buildFastFilter(context);
-            this.setFilters(filters);
+        public void buildFastFilter() throws IOException {
+            Weight[] filters = this.buildFastFilter(null);
+            logger.debug("Fast filter built: {}", filters == null ? "no" : "yes");
+            this.filters = filters;
         }
 
-        // this method should delegate to specific aggregation type
+        public Weight[] buildFastFilter(LeafReaderContext ctx) throws IOException {
+            Weight[] filters = this.aggregationType.buildFastFilter(context, ctx);
+            logger.debug("Fast filter built: {}", filters == null ? "no" : "yes");
+            this.filters = filters;
+            return filters;
+        }
 
-        // can this all be triggered in aggregation type?
+        public boolean hasfilterBuilt() {
+            return filters != null;
+        }
     }
 
     /**
      * Different types have different pre-conditions, filter building logic, etc.
      */
     public interface AggregationType {
+
         boolean isRewriteable(Object parent, int subAggLength);
-        Weight[] buildFastFilter(SearchContext context) throws IOException;
+
+        // Weight[] buildFastFilter(SearchContext context) throws IOException;
+        Weight[] buildFastFilter(SearchContext context, LeafReaderContext ctx) throws IOException;
     }
 
     /**
@@ -269,7 +253,7 @@ public final class FastFilterRewriteHelper {
         private final MappedFieldType fieldType;
         private final boolean missing;
         private final boolean hasScript;
-        private LongBounds hardBounds = null;
+        private LongBounds hardBounds;
 
         public AbstractDateHistogramAggregationType(MappedFieldType fieldType, boolean missing, boolean hasScript) {
             this.fieldType = fieldType;
@@ -284,6 +268,9 @@ public final class FastFilterRewriteHelper {
 
         @Override
         public boolean isRewriteable(Object parent, int subAggLength) {
+            // at shard level these are the pre-conditions
+            // these still need to apply at segment level
+            // while the effectively segment level match all, should be plugged in within compute bound
             if (parent == null && subAggLength == 0 && !missing && !hasScript) {
                 return fieldType != null && fieldType instanceof DateFieldMapper.DateFieldType;
             }
@@ -291,26 +278,21 @@ public final class FastFilterRewriteHelper {
         }
 
         @Override
-        public Weight[] buildFastFilter(SearchContext context) throws IOException {
-            // the procedure in this method can be separated
-            // 1. compute bound
-            // 2. get rounding, interval
-            // 3. get prepared rounding, better combined with step 2
-            Weight[] result = {};
-
-            long[] bounds = computeBounds(context);
-            if (bounds == null) return result;
+        public Weight[] buildFastFilter(SearchContext context, LeafReaderContext ctx) throws IOException {
+            long[] bounds;
+            if (ctx != null) {
+                bounds = getIndexBounds(context, fieldType.name());
+            } else {
+                bounds = computeBounds(context);
+            }
+            if (bounds == null) return null;
 
             final Rounding rounding = getRounding(bounds[0], bounds[1]);
             final OptionalLong intervalOpt = Rounding.getInterval(rounding);
-            if (intervalOpt.isEmpty()) return result;
+            if (intervalOpt.isEmpty()) return null;
             final long interval = intervalOpt.getAsLong();
 
-            // afterKey is the last bucket key in previous response, while the bucket key
-            // is the start of the bucket values, so add the interval
-            // if (aggregationType instanceof CompositeAggregationType && ((CompositeAggregationType) aggregationType).afterKey != -1) {
-            //     bounds[0] = ((CompositeAggregationType) aggregationType).afterKey + interval;
-            // }
+            // process the after key from composite agg
             processAfterKey(bounds, interval);
 
             return FastFilterRewriteHelper.createFilterForAggregations(
@@ -337,6 +319,7 @@ public final class FastFilterRewriteHelper {
         }
 
         protected abstract Rounding getRounding(final long low, final long high);
+
         protected abstract Rounding.Prepared getRoundingPrepared();
 
         protected void processAfterKey(long[] bound, long interval) {};
@@ -346,40 +329,6 @@ public final class FastFilterRewriteHelper {
             return (DateFieldMapper.DateFieldType) fieldType;
         }
     }
-
-    /**
-     * For composite aggregation with date histogram as a source
-     */
-    // public static class CompositeAggregationType extends DateHistogramAggregationType {
-    //     private final RoundingValuesSource valuesSource;
-    //     private long afterKey = -1L;
-    //     private final int size;
-    //
-    //     public CompositeAggregationType(
-    //         CompositeValuesSourceConfig[] sourceConfigs,
-    //         CompositeKey rawAfterKey,
-    //         List<DocValueFormat> formats,
-    //         int size
-    //     ) {
-    //         super(sourceConfigs[0].fieldType(), sourceConfigs[0].missingBucket(), sourceConfigs[0].hasScript());
-    //         this.valuesSource = (RoundingValuesSource) sourceConfigs[0].valuesSource();
-    //         this.size = size;
-    //         if (rawAfterKey != null) {
-    //             assert rawAfterKey.size() == 1 && formats.size() == 1;
-    //             this.afterKey = formats.get(0).parseLong(rawAfterKey.get(0).toString(), false, () -> {
-    //                 throw new IllegalArgumentException("now() is not supported in [after] key");
-    //             });
-    //         }
-    //     }
-    //
-    //     public Rounding getRounding() {
-    //         return valuesSource.getRounding();
-    //     }
-    //
-    //     public Rounding.Prepared getRoundingPreparer() {
-    //         return valuesSource.getPreparedRounding();
-    //     }
-    // }
 
     public static boolean isCompositeAggRewriteable(CompositeValuesSourceConfig[] sourceConfigs) {
         return sourceConfigs.length == 1 && sourceConfigs[0].valuesSource() instanceof RoundingValuesSource;
@@ -394,7 +343,7 @@ public final class FastFilterRewriteHelper {
     }
 
     /**
-     * This is executed for each segment by passing the leaf reader context
+     * Try to get the bucket doc counts from the fast filters for the aggregation
      *
      * @param incrementDocCount takes in the bucket key value and the bucket count
      */
@@ -404,7 +353,17 @@ public final class FastFilterRewriteHelper {
         final BiConsumer<Long, Integer> incrementDocCount
     ) throws IOException {
         if (fastFilterContext == null) return false;
-        if (fastFilterContext.filters == null) return false;
+        if (!fastFilterContext.hasfilterBuilt() && fastFilterContext.rewriteable) {
+            // Check if the query is functionally match-all at segment level
+            // if so, we still compute the index bounds and use it to build the filters
+            SearchContext context = fastFilterContext.context;
+            Weight weight = context.searcher().createWeight(context.query(), ScoreMode.COMPLETE_NO_SCORES, 1f);
+            boolean segmentRewriteable = weight != null && weight.count(ctx) == ctx.reader().numDocs();
+            if (segmentRewriteable) {
+                fastFilterContext.buildFastFilter(ctx);
+            }
+        }
+        if (!fastFilterContext.hasfilterBuilt()) return false;
 
         final Weight[] filters = fastFilterContext.filters;
         final int[] counts = new int[filters.length];
@@ -424,8 +383,8 @@ public final class FastFilterRewriteHelper {
             if (counts[i] > 0) {
                 long bucketKey = i; // the index of filters is the key for filters aggregation
                 if (fastFilterContext.aggregationType instanceof AbstractDateHistogramAggregationType) {
-                    final DateFieldMapper.DateFieldType fieldType = ((AbstractDateHistogramAggregationType) fastFilterContext.aggregationType)
-                        .getFieldType();
+                    final DateFieldMapper.DateFieldType fieldType =
+                        ((AbstractDateHistogramAggregationType) fastFilterContext.aggregationType).getFieldType();
                     bucketKey = fieldType.convertNanosToMillis(
                         NumericUtils.sortableBytesToLong(((PointRangeQuery) filters[i].getQuery()).getLowerPoint(), 0)
                     );

@@ -31,10 +31,13 @@
 
 package org.opensearch.search.aggregations.bucket.histogram;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.CollectionTerminatedException;
 import org.apache.lucene.search.ScoreMode;
+import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.CollectionUtil;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.Rounding;
@@ -84,6 +87,9 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
     private final LongKeyedBucketOrds bucketOrds;
 
     private final FastFilterRewriteHelper.FastFilterContext fastFilterContext;
+    private Weight weight;
+
+    private static final Logger logger = LogManager.getLogger(DateHistogramAggregator.class);
 
     DateHistogramAggregator(
         String name,
@@ -116,7 +122,7 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
 
         bucketOrds = LongKeyedBucketOrds.build(context.bigArrays(), cardinality);
 
-        fastFilterContext = new FastFilterRewriteHelper.FastFilterContext();
+        fastFilterContext = new FastFilterRewriteHelper.FastFilterContext(context);
         fastFilterContext.setAggregationType(
             new DateHistogramAggregationType(
                 valuesSourceConfig.fieldType(),
@@ -126,21 +132,9 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
             )
         );
         if (fastFilterContext.isRewriteable(parent, subAggregators.length)) {
-            fastFilterContext.buildFastFilter(context);
+            fastFilterContext.buildFastFilter();
         }
     }
-
-    // private long[] computeBounds(final FastFilterRewriteHelper.DateHistogramAggregationType fieldContext) throws IOException {
-    //     final long[] bounds = FastFilterRewriteHelper.getAggregationBounds(context, fieldContext.getFieldType().name());
-    //     if (bounds != null) {
-    //         // Update min/max limit if user specified any hard bounds
-    //         if (hardBounds != null) {
-    //             bounds[0] = Math.max(bounds[0], hardBounds.getMin());
-    //             bounds[1] = Math.min(bounds[1], hardBounds.getMax() - 1); // hard bounds max is exclusive
-    //         }
-    //     }
-    //     return bounds;
-    // }
 
     private class DateHistogramAggregationType extends FastFilterRewriteHelper.AbstractDateHistogramAggregationType {
 
@@ -173,8 +167,6 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
             return LeafBucketCollector.NO_OP_COLLECTOR;
         }
 
-        // assume we found out at segment level, it's effectively a match all
-        //
         boolean optimized = FastFilterRewriteHelper.tryFastFilterAggregation(
             ctx,
             fastFilterContext,
@@ -183,6 +175,7 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
                 count
             )
         );
+        logger.info("optimized = " + optimized);
         if (optimized) throw new CollectionTerminatedException();
 
         SortedNumericDocValues values = valuesSource.longValues(ctx);

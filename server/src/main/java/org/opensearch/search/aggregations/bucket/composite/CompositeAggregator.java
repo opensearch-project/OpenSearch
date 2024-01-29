@@ -164,24 +164,20 @@ public final class CompositeAggregator extends BucketsAggregator {
         this.queue = new CompositeValuesCollectorQueue(context.bigArrays(), sources, size, rawAfterKey);
         this.rawAfterKey = rawAfterKey;
 
-        fastFilterContext = new FastFilterRewriteHelper.FastFilterContext();
+        fastFilterContext = new FastFilterRewriteHelper.FastFilterContext(context);
         if (!FastFilterRewriteHelper.isCompositeAggRewriteable(sourceConfigs)) return;
-        fastFilterContext.setAggregationType(
-            new CompositeAggregationType()
-        );
+        fastFilterContext.setAggregationType(new CompositeAggregationType());
         if (fastFilterContext.isRewriteable(parent, subAggregators.length)) {
-            // bucketOrds is the data structure for saving date histogram results
+            // bucketOrds is used for saving date histogram results
             bucketOrds = LongKeyedBucketOrds.build(context.bigArrays(), CardinalityUpperBound.ONE);
-            // Currently the filter rewrite is only supported for date histograms
-            // FastFilterRewriteHelper.CompositeAggregationType aggregationType =
-            //     (FastFilterRewriteHelper.CompositeAggregationType) fastFilterContext.aggregationType;
-            // preparedRounding = aggregationType.getRoundingPreparer();
-            fastFilterContext.buildFastFilter(
-                context
-            );
+            preparedRounding = ((CompositeAggregationType) fastFilterContext.aggregationType).getRoundingPrepared();
+            fastFilterContext.buildFastFilter();
         }
     }
 
+    /**
+     * Currently the filter rewrite is only supported for date histograms
+     */
     public class CompositeAggregationType extends FastFilterRewriteHelper.AbstractDateHistogramAggregationType {
         private final RoundingValuesSource valuesSource;
         private long afterKey = -1L;
@@ -197,18 +193,19 @@ public final class CompositeAggregator extends BucketsAggregator {
             }
         }
 
-        @Override
         public Rounding getRounding(final long low, final long high) {
             return valuesSource.getRounding();
         }
 
-        @Override
-        protected void processAfterKey(long[] bound, long interval) {
-            bound[0] = afterKey + interval;
-        }
-
         public Rounding.Prepared getRoundingPrepared() {
             return valuesSource.getPreparedRounding();
+        }
+
+        @Override
+        protected void processAfterKey(long[] bound, long interval) {
+            // afterKey is the last bucket key in previous response, and the bucket key
+            // is the minimum of all values in the bucket, so need to add the interval
+            bound[0] = afterKey + interval;
         }
 
         public int getSize() {
