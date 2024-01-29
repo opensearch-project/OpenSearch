@@ -53,8 +53,6 @@ import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.ShardRoutingState;
 import org.opensearch.cluster.routing.allocation.command.CancelAllocationCommand;
 import org.opensearch.common.action.ActionFuture;
-import org.opensearch.common.collect.Tuple;
-import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lucene.index.OpenSearchDirectoryReader;
 import org.opensearch.common.settings.Settings;
@@ -73,7 +71,6 @@ import org.opensearch.index.engine.EngineConfig;
 import org.opensearch.index.engine.NRTReplicationReaderManager;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.indices.recovery.FileChunkRequest;
-import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.node.NodeClosedException;
 import org.opensearch.search.SearchService;
@@ -997,27 +994,20 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
         final String replica = internalCluster().startDataOnlyNode();
         ensureGreen(INDEX_NAME);
 
-        // index 10 docs
-        for (int i = 0; i < 10; i++) {
-            client().prepareIndex(INDEX_NAME)
-                .setId(String.valueOf(i))
-                .setSource(jsonBuilder().startObject().field("field", i).endObject())
-                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-                .get();
-            refresh(INDEX_NAME);
-        }
+        client().prepareIndex(INDEX_NAME)
+            .setId(String.valueOf(0))
+            .setSource(jsonBuilder().startObject().field("field", 0).endObject())
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .get();
+        refresh(INDEX_NAME);
+
         assertBusy(
             () -> assertEquals(
                 getIndexShard(primary, INDEX_NAME).getLatestReplicationCheckpoint().getSegmentInfosVersion(),
                 getIndexShard(replica, INDEX_NAME).getLatestReplicationCheckpoint().getSegmentInfosVersion()
             )
         );
-        final IndexShard replicaShard = getIndexShard(replica, INDEX_NAME);
-        final Tuple<GatedCloseable<SegmentInfos>, ReplicationCheckpoint> tuple = replicaShard.getLatestSegmentInfosAndCheckpoint();
-        final Collection<String> snapshottedSegments;
-        try (final GatedCloseable<SegmentInfos> closeable = tuple.v1()) {
-            snapshottedSegments = closeable.get().files(false);
-        }
+
         // opens a scrolled query before a flush is called.
         // this is for testing scroll segment consistency between refresh and flush
         SearchResponse searchResponse = client(replica).prepareSearch()
@@ -1031,17 +1021,20 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
             .setScroll(TimeValue.timeValueDays(1))
             .get();
 
-        // force call flush
-        flush(INDEX_NAME);
+        final IndexShard replicaShard = getIndexShard(replica, INDEX_NAME);
+        SegmentInfos latestSegmentInfos = getLatestSegmentInfos(replicaShard);
+        Collection<String> snapshottedSegments = latestSegmentInfos.files(false);
+        logger.info("Segments {}", snapshottedSegments);
 
-        for (int i = 3; i < 5; i++) {
-            client().prepareDelete(INDEX_NAME, String.valueOf(i)).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
-            refresh(INDEX_NAME);
-            if (randomBoolean()) {
-                client().admin().indices().prepareForceMerge(INDEX_NAME).setMaxNumSegments(1).setFlush(true).get();
-                flush(INDEX_NAME);
-            }
+        // index more docs and force merge down to 1 segment
+        for (int i = 1; i < 5; i++) {
+            client().prepareIndex(INDEX_NAME)
+                .setId(String.valueOf(i))
+                .setSource(jsonBuilder().startObject().field("field", i).endObject())
+                .get();
         }
+        // create new on-disk segments and copy them out.
+        refresh(INDEX_NAME);
         assertBusy(() -> {
             assertEquals(
                 getIndexShard(primary, INDEX_NAME).getLatestReplicationCheckpoint().getSegmentInfosVersion(),
@@ -1049,13 +1042,19 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
             );
         });
 
+        // force merge and flush.
         client().admin().indices().prepareForceMerge(INDEX_NAME).setMaxNumSegments(1).setFlush(true).get();
+        // wait for replication to complete
         assertBusy(() -> {
             assertEquals(
                 getIndexShard(primary, INDEX_NAME).getLatestReplicationCheckpoint().getSegmentInfosVersion(),
                 getIndexShard(replica, INDEX_NAME).getLatestReplicationCheckpoint().getSegmentInfosVersion()
             );
         });
+        logger.info("Local segments after force merge and commit {}", getLatestSegmentInfos(replicaShard).files(false));
+        List<String> filesBeforeClearScroll = List.of(replicaShard.store().directory().listAll());
+        assertTrue("Files should be preserved", filesBeforeClearScroll.containsAll(snapshottedSegments));
+
         // Test stats
         logger.info("--> Collect all scroll query hits");
         long scrollHits = 0;
@@ -1064,20 +1063,19 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
             searchResponse = client(replica).prepareSearchScroll(searchResponse.getScrollId()).setScroll(TimeValue.timeValueDays(1)).get();
             assertAllSuccessful(searchResponse);
         } while (searchResponse.getHits().getHits().length > 0);
-
-        List<String> currentFiles = List.of(replicaShard.store().directory().listAll());
-        assertTrue("Files should be preserved", currentFiles.containsAll(snapshottedSegments));
+        assertEquals(1, scrollHits);
 
         client(replica).prepareClearScroll().addScrollId(searchResponse.getScrollId()).get();
-
-        assertBusy(
-            () -> assertFalse(
-                "Files should be cleaned up post scroll clear request",
-                List.of(replicaShard.store().directory().listAll()).containsAll(snapshottedSegments)
-            )
-        );
-        assertEquals(10, scrollHits);
-
+        List<String> filesAfterClearScroll = List.of(replicaShard.store().directory().listAll());
+        // there should be no active readers, snapshots, or on-disk commits containing the snapshotted files, check that they have been
+        // deleted.
+        for (String file : snapshottedSegments) {
+            assertFalse(
+                "Latest on-disk commit does not contain snapshotted segments",
+                replicaShard.store().readLastCommittedSegmentsInfo().files(false).contains(file)
+            );
+            assertFalse("File " + file + " should no longer be on disk", filesAfterClearScroll.contains(file));
+        }
     }
 
     /**
