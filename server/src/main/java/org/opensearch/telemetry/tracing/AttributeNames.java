@@ -41,7 +41,7 @@ public final class AttributeNames {
     public static final String HTTP_URI = "http.uri";
 
     /**
-     * Http Request Query Path.
+     * Http Request Query Parameters.
      */
     public static final String HTTP_REQ_QUERY_PARAMS = "url.query";
 

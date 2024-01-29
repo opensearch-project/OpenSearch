@@ -19,7 +19,6 @@ import org.opensearch.telemetry.tracing.attributes.Attributes;
 import org.opensearch.transport.TcpChannel;
 import org.opensearch.transport.Transport;
 
-import java.net.URI;
 import java.util.Arrays;
 import java.util.List;
 
@@ -91,7 +90,9 @@ public final class SpanBuilder {
 
         Tuple<String,String> uriParts = splitUri(httpRequest.uri());
         String query = uriParts.v2();
-        attributes.addAttribute(AttributeNames.HTTP_REQ_QUERY_PARAMS, query);
+        if(query.isBlank() == false) {
+            attributes.addAttribute(AttributeNames.HTTP_REQ_QUERY_PARAMS, query);
+        }
 
         return attributes;
     }
@@ -138,8 +139,9 @@ public final class SpanBuilder {
 
             Tuple<String,String> uriParts = splitUri(restRequest.uri());
             String query = uriParts.v2();
-            attributes.addAttribute(AttributeNames.HTTP_REQ_QUERY_PARAMS, query);
-
+            if(query.isBlank() == false) {
+                attributes.addAttribute(AttributeNames.HTTP_REQ_QUERY_PARAMS, query);
+            }
             return attributes;
         } else {
             return Attributes.EMPTY;

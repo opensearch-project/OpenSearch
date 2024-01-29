@@ -36,20 +36,22 @@ public class SpanBuilderTests extends OpenSearchTestCase {
         HttpRequest httpRequest = createHttpRequest();
         SpanCreationContext context = SpanBuilder.from(httpRequest);
         Attributes attributes = context.getAttributes();
-        assertEquals("GET /_test", context.getSpanName());
+        assertEquals("GET /_test/resource", context.getSpanName());
         assertEquals("true", attributes.getAttributesMap().get(AttributeNames.TRACE));
         assertEquals("GET", attributes.getAttributesMap().get(AttributeNames.HTTP_METHOD));
         assertEquals("HTTP_1_0", attributes.getAttributesMap().get(AttributeNames.HTTP_PROTOCOL_VERSION));
-        assertEquals("/_test", attributes.getAttributesMap().get(AttributeNames.HTTP_URI));
+        assertEquals("/_test/resource?name=John&age=25", attributes.getAttributesMap().get(AttributeNames.HTTP_URI));
+        assertEquals("name=John&age=25", attributes.getAttributesMap().get(AttributeNames.HTTP_REQ_QUERY_PARAMS));
     }
 
     public void testRestRequestContext() {
         RestRequest restRequest = RestRequest.request(null, createHttpRequest(), null);
         SpanCreationContext context = SpanBuilder.from(restRequest);
         Attributes attributes = context.getAttributes();
-        assertEquals("GET /_test", context.getSpanName());
-        assertEquals("/_test", attributes.getAttributesMap().get(AttributeNames.REST_REQ_RAW_PATH));
+        assertEquals("GET /_test/resource", context.getSpanName());
+        assertEquals("/_test/resource", attributes.getAttributesMap().get(AttributeNames.REST_REQ_RAW_PATH));
         assertNotNull(attributes.getAttributesMap().get(AttributeNames.REST_REQ_ID));
+        assertEquals("name=John&age=25", attributes.getAttributesMap().get(AttributeNames.HTTP_REQ_QUERY_PARAMS));
     }
 
     public void testRestRequestContextForNull() {
@@ -106,7 +108,7 @@ public class SpanBuilderTests extends OpenSearchTestCase {
 
             @Override
             public String uri() {
-                return "/_test";
+                return "/_test/resource?name=John&age=25";
             }
 
             @Override
