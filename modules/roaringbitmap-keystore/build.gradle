@@ -6,7 +6,6 @@
  * compatible open source license.
  */
 
-apply plugin: 'opensearch.yaml-rest-test'
 apply plugin: 'opensearch.internal-cluster-test'
 
 opensearchplugin {
