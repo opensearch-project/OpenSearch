@@ -158,7 +158,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `com.squareup.okhttp3:okhttp` from 4.11.0 to 4.12.0 ([#10861](https://github.com/opensearch-project/OpenSearch/pull/10861))
 - Bump `org.apache.commons:commons-text` from 1.10.0 to 1.11.0 ([#11344](https://github.com/opensearch-project/OpenSearch/pull/11344))
 - Bump `reactor-netty-core` from 1.1.12 to 1.1.15 ([#11350](https://github.com/opensearch-project/OpenSearch/pull/11350)), ([#12042](https://github.com/opensearch-project/OpenSearch/pull/12042))
-- Bump `com.gradle.enterprise` from 3.14.1 to 3.16.1 ([#11339](https://github.com/opensearch-project/OpenSearch/pull/11339), [#11629](https://github.com/opensearch-project/OpenSearch/pull/11629))
+- Bump `com.gradle.enterprise` from 3.14.1 to 3.16.2 ([#11339](https://github.com/opensearch-project/OpenSearch/pull/11339), [#11629](https://github.com/opensearch-project/OpenSearch/pull/11629), [#12056](https://github.com/opensearch-project/OpenSearch/pull/12056))
 - Bump `actions/setup-java` from 3 to 4 ([#11447](https://github.com/opensearch-project/OpenSearch/pull/11447))
 - Bump `commons-net:commons-net` from 3.9.0 to 3.10.0 ([#11450](https://github.com/opensearch-project/OpenSearch/pull/11450))
 - Bump `org.apache.maven:maven-model` from 3.9.4 to 3.9.6 ([#11445](https://github.com/opensearch-project/OpenSearch/pull/11445))
