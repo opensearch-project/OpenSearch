@@ -6,8 +6,5 @@
  * compatible open source license.
  */
 
-grant {
-  permission java.lang.RuntimePermission "accessClassInPackage.sun.misc";
-  permission java.lang.RuntimePermission "createClassLoader";
-};
-
+/** Base package for cache settings */
+package org.opensearch.common.cache.settings;

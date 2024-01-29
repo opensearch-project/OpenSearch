@@ -6,8 +6,9 @@
  * compatible open source license.
  */
 
-package org.opensearch.cache;
+package org.opensearch.cache.store.disk;
 
+import org.opensearch.common.cache.CacheType;
 import org.opensearch.common.cache.LoadAwareCacheLoader;
 import org.opensearch.common.cache.store.StoreAwareCache;
 import org.opensearch.common.cache.store.StoreAwareCacheRemovalNotification;
@@ -45,6 +46,7 @@ public class EhCacheDiskCacheTests extends OpenSearchSingleNodeTestCase {
                 .setStoragePath(env.nodePaths()[0].indicesPath.toString() + "/request_cache")
                 .setKeyType(String.class)
                 .setValueType(String.class)
+                .setCacheType(CacheType.INDICES_REQUEST_CACHE)
                 .setSettings(settings)
                 .setExpireAfterAccess(TimeValue.MAX_VALUE)
                 .setMaximumWeightInBytes(CACHE_SIZE_IN_BYTES)
@@ -85,6 +87,7 @@ public class EhCacheDiskCacheTests extends OpenSearchSingleNodeTestCase {
                 .setStoragePath(env.nodePaths()[0].indicesPath.toString() + "/request_cache")
                 .setKeyType(String.class)
                 .setValueType(String.class)
+                .setCacheType(CacheType.INDICES_REQUEST_CACHE)
                 .setSettings(settings)
                 .setExpireAfterAccess(TimeValue.MAX_VALUE)
                 .setMaximumWeightInBytes(CACHE_SIZE_IN_BYTES)
@@ -129,6 +132,7 @@ public class EhCacheDiskCacheTests extends OpenSearchSingleNodeTestCase {
                 .setIsEventListenerModeSync(true) // For accurate count
                 .setKeyType(String.class)
                 .setValueType(String.class)
+                .setCacheType(CacheType.INDICES_REQUEST_CACHE)
                 .setSettings(settings)
                 .setExpireAfterAccess(TimeValue.MAX_VALUE)
                 .setMaximumWeightInBytes(CACHE_SIZE_IN_BYTES)
@@ -171,6 +175,7 @@ public class EhCacheDiskCacheTests extends OpenSearchSingleNodeTestCase {
                 .setStoragePath(env.nodePaths()[0].indicesPath.toString() + "/request_cache")
                 .setKeyType(String.class)
                 .setValueType(String.class)
+                .setCacheType(CacheType.INDICES_REQUEST_CACHE)
                 .setSettings(settings)
                 .setExpireAfterAccess(TimeValue.MAX_VALUE)
                 .setMaximumWeightInBytes(CACHE_SIZE_IN_BYTES)
@@ -208,6 +213,7 @@ public class EhCacheDiskCacheTests extends OpenSearchSingleNodeTestCase {
                 .setThreadPoolAlias("ehcacheTest")
                 .setKeyType(String.class)
                 .setValueType(String.class)
+                .setCacheType(CacheType.INDICES_REQUEST_CACHE)
                 .setSettings(settings)
                 .setExpireAfterAccess(TimeValue.MAX_VALUE)
                 .setMaximumWeightInBytes(CACHE_SIZE_IN_BYTES)
@@ -237,6 +243,7 @@ public class EhCacheDiskCacheTests extends OpenSearchSingleNodeTestCase {
                 .setThreadPoolAlias("ehcacheTest")
                 .setKeyType(String.class)
                 .setValueType(String.class)
+                .setCacheType(CacheType.INDICES_REQUEST_CACHE)
                 .setSettings(settings)
                 .setExpireAfterAccess(TimeValue.MAX_VALUE)
                 .setMaximumWeightInBytes(CACHE_SIZE_IN_BYTES)
@@ -307,6 +314,7 @@ public class EhCacheDiskCacheTests extends OpenSearchSingleNodeTestCase {
                 .setThreadPoolAlias("ehcacheTest")
                 .setKeyType(String.class)
                 .setValueType(String.class)
+                .setCacheType(CacheType.INDICES_REQUEST_CACHE)
                 .setSettings(settings)
                 .setExpireAfterAccess(TimeValue.MAX_VALUE)
                 .setMaximumWeightInBytes(CACHE_SIZE_IN_BYTES)
@@ -363,6 +371,7 @@ public class EhCacheDiskCacheTests extends OpenSearchSingleNodeTestCase {
                 .setStoragePath(env.nodePaths()[0].indicesPath.toString() + "/request_cache")
                 .setKeyType(String.class)
                 .setValueType(String.class)
+                .setCacheType(CacheType.INDICES_REQUEST_CACHE)
                 .setSettings(settings)
                 .setExpireAfterAccess(TimeValue.MAX_VALUE)
                 .setMaximumWeightInBytes(CACHE_SIZE_IN_BYTES)

@@ -8,6 +8,7 @@
 
 package org.opensearch.common.cache.store.listeners;
 
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.cache.store.StoreAwareCacheRemovalNotification;
 import org.opensearch.common.cache.store.enums.CacheStoreType;
 
@@ -16,8 +17,9 @@ import org.opensearch.common.cache.store.enums.CacheStoreType;
  * @param <K> Type of key
  * @param <V> Type of value
  *
- * @opensearch.internal
+ * @opensearch.experimental
  */
+@ExperimentalApi
 public interface StoreAwareCacheEventListener<K, V> {
 
     void onMiss(K key, CacheStoreType cacheStoreType);

@@ -5,9 +5,7 @@
  * this file be licensed under the Apache-2.0 license or a
  * compatible open source license.
  */
-
-grant {
-  permission java.lang.RuntimePermission "accessClassInPackage.sun.misc";
-  permission java.lang.RuntimePermission "createClassLoader";
-};
-
+/**
+ * Base package for disk cache related stuff.
+ */
+package org.opensearch.cache.store.disk;
