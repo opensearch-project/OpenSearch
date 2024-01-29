@@ -6,8 +6,6 @@
  * compatible open source license.
  */
 
-apply plugin: 'opensearch.internal-cluster-test'
-
 opensearchplugin {
   description 'Roaring bitmap-based implementation of a key lookup store, used for tiered caching.'
   classname 'org.opensearch.cache.RoaringBitmapKeystoreModulePlugin'
@@ -19,10 +17,10 @@ dependencies {
   runtimeOnly 'org.roaringbitmap:shims:0.9.49'
 }
 
-/*tasks {
+tasks {
   javadoc {
     options {
       (this as CoreJavadocOptions).addStringOption('Xdoclint:none', '-quiet')
     }
   }
-}*/
+}
