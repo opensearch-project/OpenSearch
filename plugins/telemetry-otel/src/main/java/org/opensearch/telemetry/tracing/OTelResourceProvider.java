@@ -9,7 +9,9 @@
 package org.opensearch.telemetry.tracing;
 
 import org.opensearch.common.settings.Settings;
+import org.opensearch.telemetry.OTelTelemetrySettings;
 import org.opensearch.telemetry.TelemetrySettings;
+import org.opensearch.telemetry.metrics.HistogramType;
 import org.opensearch.telemetry.metrics.exporter.OTelMetricsExporterFactory;
 import org.opensearch.telemetry.tracing.exporter.OTelSpanExporterFactory;
 import org.opensearch.telemetry.tracing.sampler.ProbabilisticSampler;
@@ -23,8 +25,13 @@ import io.opentelemetry.api.common.Attributes;
 import io.opentelemetry.api.trace.propagation.W3CTraceContextPropagator;
 import io.opentelemetry.context.propagation.ContextPropagators;
 import io.opentelemetry.sdk.OpenTelemetrySdk;
+import io.opentelemetry.sdk.metrics.InstrumentSelector;
+import io.opentelemetry.sdk.metrics.InstrumentType;
 import io.opentelemetry.sdk.metrics.SdkMeterProvider;
+import io.opentelemetry.sdk.metrics.View;
 import io.opentelemetry.sdk.metrics.export.PeriodicMetricReader;
+import io.opentelemetry.sdk.metrics.internal.view.Base2ExponentialHistogramAggregation;
+import io.opentelemetry.sdk.metrics.internal.view.ExplicitBucketHistogramAggregation;
 import io.opentelemetry.sdk.resources.Resource;
 import io.opentelemetry.sdk.trace.SdkTracerProvider;
 import io.opentelemetry.sdk.trace.export.BatchSpanProcessor;
@@ -92,7 +99,27 @@ public final class OTelResourceProvider {
                     .setInterval(TelemetrySettings.METRICS_PUBLISH_INTERVAL_SETTING.get(settings).getSeconds(), TimeUnit.SECONDS)
                     .build()
             )
+            .registerView(InstrumentSelector.builder().setType(InstrumentType.HISTOGRAM).build(), createHistogramTypeView(settings))
             .build();
+    }
+
+    private static View createHistogramTypeView(Settings settings) {
+        if (HistogramType.DYNAMIC == TelemetrySettings.METRICS_HISTOGRAM_TYPE.get(settings)) {
+            return View.builder()
+                .setAggregation(
+                    Base2ExponentialHistogramAggregation.create(
+                        OTelTelemetrySettings.OTEL_METRICS_HISTOGRAM_EXPONENTIAL_MAX_BUCKETS.get(settings),
+                        OTelTelemetrySettings.OTEL_METRICS_HISTOGRAM_EXPONENTIAL_MAX_SCALE.get(settings)
+                    )
+                )
+                .build();
+        } else {
+            return View.builder()
+                .setAggregation(
+                    ExplicitBucketHistogramAggregation.create(OTelTelemetrySettings.OTEL_METRICS_HISTOGRAM_FIXED_BUCKETS.get(settings))
+                )
+                .build();
+        }
     }
 
     private static SdkTracerProvider createSdkTracerProvider(
