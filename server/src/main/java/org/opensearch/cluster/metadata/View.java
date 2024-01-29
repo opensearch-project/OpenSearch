@@ -50,11 +50,12 @@ public class View extends AbstractDiffable<View> implements ToXContentObject {
     }
 
     /** TODO */
+    @ExperimentalApi
     public static class Target implements Writeable, ToXContentObject {
 
         public final String indexPattern;
 
-        private Target(final String indexPattern) {
+        Target(final String indexPattern) {
             this.indexPattern = indexPattern;
         }
 
