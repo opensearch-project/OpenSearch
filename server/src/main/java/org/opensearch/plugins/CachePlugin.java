@@ -23,15 +23,15 @@ import java.util.Map;
 public interface CachePlugin {
 
     /**
-     * Returns a map of cacheStoreType -> a factory via which objects can be created on demand.
+     * Returns a map of cacheStoreType and a factory via which objects can be created on demand.
      * For example:
      * If there are two implementations of this plugin, lets say A and B, each may return below which can be
      * aggregated by fetching all plugins.
      *
-     * A -> Map.of(DISK, new ADiskCache.Factor(),
+     * A: Map.of(DISK, new ADiskCache.Factor(),
      *             ON_HEAP, new AOnHeapCache.Factor())
      *
-     * B -> Map.of(ON_HEAP, new ADiskCache.Factor())
+     * B: Map.of(ON_HEAP, new ADiskCache.Factor())
      *
      * @return
      */
