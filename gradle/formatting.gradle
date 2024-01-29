@@ -99,7 +99,7 @@ allprojects {
           }
         }
         format 'misc', {
-            target '*.md', '*.gradle', '**/*.yaml', '**/*.yml', '**/*.svg'   
+            target '*.md', '*.gradle', '**/*.json', '**/*.yaml', '**/*.yml', '**/*.svg'
 
             trimTrailingWhitespace()
             endWithNewline()
