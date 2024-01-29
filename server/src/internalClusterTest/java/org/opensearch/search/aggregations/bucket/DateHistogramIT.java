@@ -183,9 +183,9 @@ public class DateHistogramIT extends ParameterizedStaticSettingsOpenSearchIntegT
                 indexDoc(2, 15, 3), // date: Feb 15, dates: Feb 15, Mar 16
                 indexDoc(3, 2, 4),  // date: Mar 2, dates: Mar 2, Apr 3
                 indexDoc(3, 15, 5), // date: Mar 15, dates: Mar 15, Apr 16
-                indexDoc(3, 23, 6)
+                indexDoc(3, 23, 6)  // date: Mar 23, dates: Mar 23, Apr 24
             )
-        ); // date: Mar 23, dates: Mar 23, Apr 24
+        );
         indexRandom(true, builders);
         ensureSearchable();
     }
