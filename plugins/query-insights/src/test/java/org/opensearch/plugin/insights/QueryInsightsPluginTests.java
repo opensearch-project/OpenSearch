@@ -14,8 +14,8 @@ import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.action.ActionResponse;
-import org.opensearch.plugin.insights.core.listener.SearchQueryLatencyListener;
-import org.opensearch.plugin.insights.core.service.TopQueriesByLatencyService;
+import org.opensearch.plugin.insights.core.listener.QueryInsightsListener;
+import org.opensearch.plugin.insights.core.service.QueryInsightsService;
 import org.opensearch.plugin.insights.rules.action.top_queries.TopQueriesAction;
 import org.opensearch.plugin.insights.rules.resthandler.top_queries.RestTopQueriesAction;
 import org.opensearch.plugin.insights.settings.QueryInsightsSettings;
@@ -47,10 +47,6 @@ public class QueryInsightsPluginTests extends OpenSearchTestCase {
         clusterSettings.registerSetting(QueryInsightsSettings.TOP_N_LATENCY_QUERIES_ENABLED);
         clusterSettings.registerSetting(QueryInsightsSettings.TOP_N_LATENCY_QUERIES_SIZE);
         clusterSettings.registerSetting(QueryInsightsSettings.TOP_N_LATENCY_QUERIES_WINDOW_SIZE);
-        clusterSettings.registerSetting(QueryInsightsSettings.TOP_N_LATENCY_QUERIES_EXPORTER_ENABLED);
-        clusterSettings.registerSetting(QueryInsightsSettings.TOP_N_LATENCY_QUERIES_EXPORTER_TYPE);
-        clusterSettings.registerSetting(QueryInsightsSettings.TOP_N_LATENCY_QUERIES_EXPORTER_INTERVAL);
-        clusterSettings.registerSetting(QueryInsightsSettings.TOP_N_LATENCY_QUERIES_EXPORTER_IDENTIFIER);
 
         clusterService = new ClusterService(settings, clusterSettings, threadPool);
 
@@ -61,11 +57,7 @@ public class QueryInsightsPluginTests extends OpenSearchTestCase {
             Arrays.asList(
                 QueryInsightsSettings.TOP_N_LATENCY_QUERIES_ENABLED,
                 QueryInsightsSettings.TOP_N_LATENCY_QUERIES_SIZE,
-                QueryInsightsSettings.TOP_N_LATENCY_QUERIES_WINDOW_SIZE,
-                QueryInsightsSettings.TOP_N_LATENCY_QUERIES_EXPORTER_ENABLED,
-                QueryInsightsSettings.TOP_N_LATENCY_QUERIES_EXPORTER_TYPE,
-                QueryInsightsSettings.TOP_N_LATENCY_QUERIES_EXPORTER_INTERVAL,
-                QueryInsightsSettings.TOP_N_LATENCY_QUERIES_EXPORTER_IDENTIFIER
+                QueryInsightsSettings.TOP_N_LATENCY_QUERIES_WINDOW_SIZE
             ),
             queryInsightsPlugin.getSettings()
         );
@@ -86,8 +78,8 @@ public class QueryInsightsPluginTests extends OpenSearchTestCase {
             null
         );
         assertEquals(2, components.size());
-        assertTrue(components.get(0) instanceof TopQueriesByLatencyService);
-        assertTrue(components.get(1) instanceof SearchQueryLatencyListener);
+        assertTrue(components.get(0) instanceof QueryInsightsService);
+        assertTrue(components.get(1) instanceof QueryInsightsListener);
     }
 
     public void testGetRestHandlers() {

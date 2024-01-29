@@ -8,8 +8,6 @@
  * Modifications Copyright OpenSearch Contributors. See
  * GitHub history for details.
  */
-apply plugin: 'opensearch.java-rest-test'
-apply plugin: 'opensearch.internal-cluster-test'
 
 opensearchplugin {
   description 'OpenSearch Query Insights Plugin.'

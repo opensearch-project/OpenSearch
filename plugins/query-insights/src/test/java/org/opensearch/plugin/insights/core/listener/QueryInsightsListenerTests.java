@@ -15,12 +15,14 @@ import org.opensearch.action.search.SearchType;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.plugin.insights.core.service.TopQueriesByLatencyService;
+import org.opensearch.plugin.insights.core.service.QueryInsightsService;
+import org.opensearch.plugin.insights.rules.model.MetricType;
 import org.opensearch.plugin.insights.settings.QueryInsightsSettings;
 import org.opensearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.opensearch.search.aggregations.support.ValueType;
 import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.test.OpenSearchTestCase;
+import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -29,38 +31,35 @@ import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Phaser;
 
-import static org.mockito.ArgumentMatchers.anyLong;
-import static org.mockito.Mockito.anyMap;
-import static org.mockito.Mockito.eq;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * Unit Tests for {@link SearchQueryLatencyListener}.
+ * Unit Tests for {@link QueryInsightsListener}.
  */
-public class SearchQueryLatencyListenerTests extends OpenSearchTestCase {
+public class QueryInsightsListenerTests extends OpenSearchTestCase {
+    private final SearchRequestContext searchRequestContext = mock(SearchRequestContext.class);
+    private final SearchPhaseContext searchPhaseContext = mock(SearchPhaseContext.class);
+    private final SearchRequest searchRequest = mock(SearchRequest.class);
+    private final QueryInsightsService queryInsightsService = mock(QueryInsightsService.class);
+    private ClusterService clusterService;
 
-    public void testOnRequestEnd() {
-        final SearchRequestContext searchRequestContext = mock(SearchRequestContext.class);
-        final SearchPhaseContext searchPhaseContext = mock(SearchPhaseContext.class);
-        final SearchRequest searchRequest = mock(SearchRequest.class);
-        final TopQueriesByLatencyService topQueriesByLatencyService = mock(TopQueriesByLatencyService.class);
-
+    @Before
+    public void setup() {
         Settings.Builder settingsBuilder = Settings.builder();
         Settings settings = settingsBuilder.build();
         ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         clusterSettings.registerSetting(QueryInsightsSettings.TOP_N_LATENCY_QUERIES_ENABLED);
         clusterSettings.registerSetting(QueryInsightsSettings.TOP_N_LATENCY_QUERIES_SIZE);
         clusterSettings.registerSetting(QueryInsightsSettings.TOP_N_LATENCY_QUERIES_WINDOW_SIZE);
-        clusterSettings.registerSetting(QueryInsightsSettings.TOP_N_LATENCY_QUERIES_EXPORTER_ENABLED);
-        clusterSettings.registerSetting(QueryInsightsSettings.TOP_N_LATENCY_QUERIES_EXPORTER_TYPE);
-        clusterSettings.registerSetting(QueryInsightsSettings.TOP_N_LATENCY_QUERIES_EXPORTER_INTERVAL);
-        clusterSettings.registerSetting(QueryInsightsSettings.TOP_N_LATENCY_QUERIES_EXPORTER_IDENTIFIER);
+        clusterService = new ClusterService(settings, clusterSettings, null);
+        when(queryInsightsService.isCollectionEnabled(MetricType.LATENCY)).thenReturn(true);
+    }
 
-        ClusterService clusterService = new ClusterService(settings, clusterSettings, null);
-
+    public void testOnRequestEnd() {
         Long timestamp = System.currentTimeMillis() - 100L;
         SearchType searchType = SearchType.QUERY_THEN_FETCH;
 
@@ -77,7 +76,7 @@ public class SearchQueryLatencyListenerTests extends OpenSearchTestCase {
 
         int numberOfShards = 10;
 
-        SearchQueryLatencyListener searchQueryLatencyListener = new SearchQueryLatencyListener(clusterService, topQueriesByLatencyService);
+        QueryInsightsListener queryInsightsListener = new QueryInsightsListener(clusterService, queryInsightsService);
 
         when(searchRequest.getOrCreateAbsoluteStartMillis()).thenReturn(timestamp);
         when(searchRequest.searchType()).thenReturn(searchType);
@@ -87,39 +86,12 @@ public class SearchQueryLatencyListenerTests extends OpenSearchTestCase {
         when(searchPhaseContext.getRequest()).thenReturn(searchRequest);
         when(searchPhaseContext.getNumShards()).thenReturn(numberOfShards);
 
-        searchQueryLatencyListener.onRequestEnd(searchPhaseContext, searchRequestContext);
+        queryInsightsListener.onRequestEnd(searchPhaseContext, searchRequestContext);
 
-        verify(topQueriesByLatencyService, times(1)).ingestQueryData(
-            eq(timestamp),
-            eq(searchType),
-            eq(searchSourceBuilder.toString()),
-            eq(numberOfShards),
-            eq(indices),
-            anyMap(),
-            eq(phaseLatencyMap),
-            anyLong()
-        );
+        verify(queryInsightsService, times(1)).addRecord(any());
     }
 
     public void testConcurrentOnRequestEnd() throws InterruptedException {
-        final SearchRequestContext searchRequestContext = mock(SearchRequestContext.class);
-        final SearchPhaseContext searchPhaseContext = mock(SearchPhaseContext.class);
-        final SearchRequest searchRequest = mock(SearchRequest.class);
-        final TopQueriesByLatencyService topQueriesByLatencyService = mock(TopQueriesByLatencyService.class);
-
-        Settings.Builder settingsBuilder = Settings.builder();
-        Settings settings = settingsBuilder.build();
-        ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        clusterSettings.registerSetting(QueryInsightsSettings.TOP_N_LATENCY_QUERIES_ENABLED);
-        clusterSettings.registerSetting(QueryInsightsSettings.TOP_N_LATENCY_QUERIES_SIZE);
-        clusterSettings.registerSetting(QueryInsightsSettings.TOP_N_LATENCY_QUERIES_WINDOW_SIZE);
-        clusterSettings.registerSetting(QueryInsightsSettings.TOP_N_LATENCY_QUERIES_EXPORTER_ENABLED);
-        clusterSettings.registerSetting(QueryInsightsSettings.TOP_N_LATENCY_QUERIES_EXPORTER_TYPE);
-        clusterSettings.registerSetting(QueryInsightsSettings.TOP_N_LATENCY_QUERIES_EXPORTER_INTERVAL);
-        clusterSettings.registerSetting(QueryInsightsSettings.TOP_N_LATENCY_QUERIES_EXPORTER_IDENTIFIER);
-
-        ClusterService clusterService = new ClusterService(settings, clusterSettings, null);
-
         Long timestamp = System.currentTimeMillis() - 100L;
         SearchType searchType = SearchType.QUERY_THEN_FETCH;
 
@@ -136,7 +108,7 @@ public class SearchQueryLatencyListenerTests extends OpenSearchTestCase {
 
         int numberOfShards = 10;
 
-        final List<SearchQueryLatencyListener> searchListenersList = new ArrayList<>();
+        final List<QueryInsightsListener> searchListenersList = new ArrayList<>();
 
         when(searchRequest.getOrCreateAbsoluteStartMillis()).thenReturn(timestamp);
         when(searchRequest.searchType()).thenReturn(searchType);
@@ -152,14 +124,14 @@ public class SearchQueryLatencyListenerTests extends OpenSearchTestCase {
         CountDownLatch countDownLatch = new CountDownLatch(numRequests);
 
         for (int i = 0; i < numRequests; i++) {
-            searchListenersList.add(new SearchQueryLatencyListener(clusterService, topQueriesByLatencyService));
+            searchListenersList.add(new QueryInsightsListener(clusterService, queryInsightsService));
         }
 
         for (int i = 0; i < numRequests; i++) {
             int finalI = i;
             threads[i] = new Thread(() -> {
                 phaser.arriveAndAwaitAdvance();
-                SearchQueryLatencyListener thisListener = searchListenersList.get(finalI);
+                QueryInsightsListener thisListener = searchListenersList.get(finalI);
                 thisListener.onRequestEnd(searchPhaseContext, searchRequestContext);
                 countDownLatch.countDown();
             });
@@ -168,15 +140,19 @@ public class SearchQueryLatencyListenerTests extends OpenSearchTestCase {
         phaser.arriveAndAwaitAdvance();
         countDownLatch.await();
 
-        verify(topQueriesByLatencyService, times(numRequests)).ingestQueryData(
-            eq(timestamp),
-            eq(searchType),
-            eq(searchSourceBuilder.toString()),
-            eq(numberOfShards),
-            eq(indices),
-            anyMap(),
-            eq(phaseLatencyMap),
-            anyLong()
-        );
+        verify(queryInsightsService, times(numRequests)).addRecord(any());
+    }
+
+    public void testSetEnabled() {
+        when(queryInsightsService.isCollectionEnabled(MetricType.LATENCY)).thenReturn(true);
+        QueryInsightsListener queryInsightsListener = new QueryInsightsListener(clusterService, queryInsightsService);
+        queryInsightsListener.setEnabled(MetricType.LATENCY, true);
+        assertTrue(queryInsightsListener.isEnabled());
+
+        when(queryInsightsService.isCollectionEnabled(MetricType.LATENCY)).thenReturn(false);
+        when(queryInsightsService.isCollectionEnabled(MetricType.CPU)).thenReturn(false);
+        when(queryInsightsService.isCollectionEnabled(MetricType.JVM)).thenReturn(false);
+        queryInsightsListener.setEnabled(MetricType.LATENCY, false);
+        assertFalse(queryInsightsListener.isEnabled());
     }
 }

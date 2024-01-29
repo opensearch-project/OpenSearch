@@ -18,13 +18,15 @@ import org.opensearch.common.settings.IndexScopedSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsFilter;
+import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.util.concurrent.OpenSearchExecutors;
 import org.opensearch.core.action.ActionResponse;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.env.Environment;
 import org.opensearch.env.NodeEnvironment;
-import org.opensearch.plugin.insights.core.listener.SearchQueryLatencyListener;
-import org.opensearch.plugin.insights.core.service.TopQueriesByLatencyService;
+import org.opensearch.plugin.insights.core.listener.QueryInsightsListener;
+import org.opensearch.plugin.insights.core.service.QueryInsightsService;
 import org.opensearch.plugin.insights.rules.action.top_queries.TopQueriesAction;
 import org.opensearch.plugin.insights.rules.resthandler.top_queries.RestTopQueriesAction;
 import org.opensearch.plugin.insights.rules.transport.top_queries.TransportTopQueriesAction;
@@ -35,6 +37,8 @@ import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.rest.RestController;
 import org.opensearch.rest.RestHandler;
 import org.opensearch.script.ScriptService;
+import org.opensearch.threadpool.ExecutorBuilder;
+import org.opensearch.threadpool.ScalingExecutorBuilder;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.watcher.ResourceWatcherService;
 
@@ -66,10 +70,20 @@ public class QueryInsightsPlugin extends Plugin implements ActionPlugin {
         Supplier<RepositoriesService> repositoriesServiceSupplier
     ) {
         // create top n queries service
-        TopQueriesByLatencyService topQueriesByLatencyService = new TopQueriesByLatencyService(threadPool, clusterService, client);
-        // top n queries listener
-        SearchQueryLatencyListener searchQueryLatencyListener = new SearchQueryLatencyListener(clusterService, topQueriesByLatencyService);
-        return List.of(topQueriesByLatencyService, searchQueryLatencyListener);
+        QueryInsightsService queryInsightsService = new QueryInsightsService(threadPool);
+        return List.of(queryInsightsService, new QueryInsightsListener(clusterService, queryInsightsService));
+    }
+
+    @Override
+    public List<ExecutorBuilder<?>> getExecutorBuilders(Settings settings) {
+        return List.of(
+            new ScalingExecutorBuilder(
+                QueryInsightsSettings.QUERY_INSIGHTS_EXECUTOR,
+                1,
+                Math.min((OpenSearchExecutors.allocatedProcessors(settings) + 1) / 2, QueryInsightsSettings.MAX_THREAD_COUNT),
+                TimeValue.timeValueMinutes(5)
+            )
+        );
     }
 
     @Override
@@ -96,11 +110,7 @@ public class QueryInsightsPlugin extends Plugin implements ActionPlugin {
             // Settings for top N queries
             QueryInsightsSettings.TOP_N_LATENCY_QUERIES_ENABLED,
             QueryInsightsSettings.TOP_N_LATENCY_QUERIES_SIZE,
-            QueryInsightsSettings.TOP_N_LATENCY_QUERIES_WINDOW_SIZE,
-            QueryInsightsSettings.TOP_N_LATENCY_QUERIES_EXPORTER_ENABLED,
-            QueryInsightsSettings.TOP_N_LATENCY_QUERIES_EXPORTER_TYPE,
-            QueryInsightsSettings.TOP_N_LATENCY_QUERIES_EXPORTER_INTERVAL,
-            QueryInsightsSettings.TOP_N_LATENCY_QUERIES_EXPORTER_IDENTIFIER
+            QueryInsightsSettings.TOP_N_LATENCY_QUERIES_WINDOW_SIZE
         );
     }
 }

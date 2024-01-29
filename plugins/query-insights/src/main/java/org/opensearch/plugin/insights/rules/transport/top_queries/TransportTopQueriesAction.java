@@ -16,11 +16,12 @@ import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
-import org.opensearch.plugin.insights.core.service.TopQueriesByLatencyService;
+import org.opensearch.plugin.insights.core.service.QueryInsightsService;
 import org.opensearch.plugin.insights.rules.action.top_queries.TopQueries;
 import org.opensearch.plugin.insights.rules.action.top_queries.TopQueriesAction;
 import org.opensearch.plugin.insights.rules.action.top_queries.TopQueriesRequest;
 import org.opensearch.plugin.insights.rules.action.top_queries.TopQueriesResponse;
+import org.opensearch.plugin.insights.rules.model.MetricType;
 import org.opensearch.plugin.insights.settings.QueryInsightsSettings;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportRequest;
@@ -41,7 +42,7 @@ public class TransportTopQueriesAction extends TransportNodesAction<
     TransportTopQueriesAction.NodeRequest,
     TopQueries> {
 
-    private final TopQueriesByLatencyService topQueriesByLatencyService;
+    private final QueryInsightsService queryInsightsService;
 
     /**
      * Create the TransportTopQueriesAction Object
@@ -49,7 +50,7 @@ public class TransportTopQueriesAction extends TransportNodesAction<
      * @param threadPool The OpenSearch thread pool to run async tasks
      * @param clusterService The clusterService of this node
      * @param transportService The TransportService of this node
-     * @param topQueriesByLatencyService The topQueriesByLatencyService associated with this Transport Action
+     * @param queryInsightsService The topQueriesByLatencyService associated with this Transport Action
      * @param actionFilters the action filters
      */
     @Inject
@@ -57,7 +58,7 @@ public class TransportTopQueriesAction extends TransportNodesAction<
         ThreadPool threadPool,
         ClusterService clusterService,
         TransportService transportService,
-        TopQueriesByLatencyService topQueriesByLatencyService,
+        QueryInsightsService queryInsightsService,
         ActionFilters actionFilters
     ) {
         super(
@@ -71,7 +72,7 @@ public class TransportTopQueriesAction extends TransportNodesAction<
             ThreadPool.Names.GENERIC,
             TopQueries.class
         );
-        this.topQueriesByLatencyService = topQueriesByLatencyService;
+        this.queryInsightsService = queryInsightsService;
     }
 
     @Override
@@ -80,12 +81,13 @@ public class TransportTopQueriesAction extends TransportNodesAction<
         List<TopQueries> responses,
         List<FailedNodeException> failures
     ) {
-        if (topQueriesRequest.getMetricType() == TopQueriesRequest.Metric.LATENCY) {
+        if (topQueriesRequest.getMetricType() == MetricType.LATENCY) {
             return new TopQueriesResponse(
                 clusterService.getClusterName(),
                 responses,
                 failures,
-                clusterService.getClusterSettings().get(QueryInsightsSettings.TOP_N_LATENCY_QUERIES_SIZE)
+                clusterService.getClusterSettings().get(QueryInsightsSettings.TOP_N_LATENCY_QUERIES_SIZE),
+                MetricType.LATENCY
             );
         } else {
             throw new OpenSearchException(String.format(Locale.ROOT, "invalid metric type %s", topQueriesRequest.getMetricType()));
@@ -105,8 +107,8 @@ public class TransportTopQueriesAction extends TransportNodesAction<
     @Override
     protected TopQueries nodeOperation(NodeRequest nodeRequest) {
         TopQueriesRequest request = nodeRequest.request;
-        if (request.getMetricType() == TopQueriesRequest.Metric.LATENCY) {
-            return new TopQueries(clusterService.localNode(), topQueriesByLatencyService.getQueryData());
+        if (request.getMetricType() == MetricType.LATENCY) {
+            return new TopQueries(clusterService.localNode(), queryInsightsService.getTopNRecords(MetricType.LATENCY, true));
         } else {
             throw new OpenSearchException(String.format(Locale.ROOT, "invalid metric type %s", request.getMetricType()));
         }

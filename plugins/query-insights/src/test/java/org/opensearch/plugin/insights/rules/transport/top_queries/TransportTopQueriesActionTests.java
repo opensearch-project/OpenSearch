@@ -12,9 +12,10 @@ import org.opensearch.action.support.ActionFilters;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.plugin.insights.core.service.TopQueriesByLatencyService;
+import org.opensearch.plugin.insights.core.service.QueryInsightsService;
 import org.opensearch.plugin.insights.rules.action.top_queries.TopQueriesRequest;
 import org.opensearch.plugin.insights.rules.action.top_queries.TopQueriesResponse;
+import org.opensearch.plugin.insights.rules.model.MetricType;
 import org.opensearch.plugin.insights.settings.QueryInsightsSettings;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.ThreadPool;
@@ -34,7 +35,7 @@ public class TransportTopQueriesActionTests extends OpenSearchTestCase {
     private final ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
     private final ClusterService clusterService = new ClusterService(settings, clusterSettings, threadPool);
     private final TransportService transportService = mock(TransportService.class);
-    private final TopQueriesByLatencyService topQueriesByLatencyService = mock(TopQueriesByLatencyService.class);
+    private final QueryInsightsService topQueriesByLatencyService = mock(QueryInsightsService.class);
     private final ActionFilters actionFilters = mock(ActionFilters.class);
     private final TransportTopQueriesAction transportTopQueriesAction = new TransportTopQueriesAction(
         threadPool,
@@ -56,14 +57,14 @@ public class TransportTopQueriesActionTests extends OpenSearchTestCase {
             ThreadPool threadPool,
             ClusterService clusterService,
             TransportService transportService,
-            TopQueriesByLatencyService topQueriesByLatencyService,
+            QueryInsightsService topQueriesByLatencyService,
             ActionFilters actionFilters
         ) {
             super(threadPool, clusterService, transportService, topQueriesByLatencyService, actionFilters);
         }
 
         public TopQueriesResponse createNewResponse() {
-            TopQueriesRequest request = new TopQueriesRequest();
+            TopQueriesRequest request = new TopQueriesRequest(MetricType.LATENCY);
             return newResponse(request, List.of(), List.of());
         }
     }
@@ -73,10 +74,6 @@ public class TransportTopQueriesActionTests extends OpenSearchTestCase {
         clusterSettings.registerSetting(QueryInsightsSettings.TOP_N_LATENCY_QUERIES_ENABLED);
         clusterSettings.registerSetting(QueryInsightsSettings.TOP_N_LATENCY_QUERIES_SIZE);
         clusterSettings.registerSetting(QueryInsightsSettings.TOP_N_LATENCY_QUERIES_WINDOW_SIZE);
-        clusterSettings.registerSetting(QueryInsightsSettings.TOP_N_LATENCY_QUERIES_EXPORTER_ENABLED);
-        clusterSettings.registerSetting(QueryInsightsSettings.TOP_N_LATENCY_QUERIES_EXPORTER_TYPE);
-        clusterSettings.registerSetting(QueryInsightsSettings.TOP_N_LATENCY_QUERIES_EXPORTER_INTERVAL);
-        clusterSettings.registerSetting(QueryInsightsSettings.TOP_N_LATENCY_QUERIES_EXPORTER_IDENTIFIER);
     }
 
     public void testNewResponse() {

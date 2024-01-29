@@ -10,11 +10,18 @@ package org.opensearch.plugin.insights.rules.action.top_queries;
 
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.common.io.stream.BytesStreamOutput;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
+import org.opensearch.core.xcontent.ToXContent;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.plugin.insights.QueryInsightsTestUtils;
+import org.opensearch.plugin.insights.rules.model.MetricType;
 import org.opensearch.test.OpenSearchTestCase;
 
+import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 /**
@@ -25,12 +32,27 @@ public class TopQueriesResponseTests extends OpenSearchTestCase {
     /**
      * Check serialization and deserialization
      */
-    public void testToXContent() throws Exception {
-        TopQueries topQueries = QueryInsightsTestUtils.createTopQueries();
+    public void testSerialize() throws Exception {
+        TopQueries topQueries = QueryInsightsTestUtils.createRandomTopQueries();
         ClusterName clusterName = new ClusterName("test-cluster");
-        TopQueriesResponse response = new TopQueriesResponse(clusterName, List.of(topQueries), new ArrayList<>(), 10);
+        TopQueriesResponse response = new TopQueriesResponse(clusterName, List.of(topQueries), new ArrayList<>(), 10, MetricType.LATENCY);
         TopQueriesResponse deserializedResponse = roundTripResponse(response);
         assertEquals(response.toString(), deserializedResponse.toString());
+    }
+
+    public void testToXContent() throws IOException {
+        char[] expectedXcontent =
+            "{\"top_queries\":[{\"timestamp\":1706574180000,\"node_id\":\"node_for_top_queries_test\",\"search_type\":\"query_then_fetch\",\"latency\":1}]}"
+                .toCharArray();
+        TopQueries topQueries = QueryInsightsTestUtils.createFixedTopQueries();
+        ClusterName clusterName = new ClusterName("test-cluster");
+        TopQueriesResponse response = new TopQueriesResponse(clusterName, List.of(topQueries), new ArrayList<>(), 10, MetricType.LATENCY);
+        XContentBuilder builder = MediaTypeRegistry.contentBuilder(MediaTypeRegistry.JSON);
+        char[] xContent = BytesReference.bytes(response.toXContent(builder, ToXContent.EMPTY_PARAMS)).utf8ToString().toCharArray();
+        Arrays.sort(expectedXcontent);
+        Arrays.sort(xContent);
+
+        assertEquals(Arrays.hashCode(expectedXcontent), Arrays.hashCode(xContent));
     }
 
     /**
