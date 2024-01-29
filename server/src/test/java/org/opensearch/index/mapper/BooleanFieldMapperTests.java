@@ -217,4 +217,39 @@ public class BooleanFieldMapperTests extends MapperTestCase {
         );
         assertParseMaximalWarnings();
     }
+
+    public void testIndexedValueForSearch() throws Exception {
+        assertEquals(new BooleanFieldMapper.BooleanFieldType("bool").indexedValueForSearch(null), BooleanFieldMapper.Values.FALSE);
+
+        assertEquals(new BooleanFieldMapper.BooleanFieldType("bool").indexedValueForSearch(false), BooleanFieldMapper.Values.FALSE);
+
+        assertEquals(new BooleanFieldMapper.BooleanFieldType("bool").indexedValueForSearch(true), BooleanFieldMapper.Values.TRUE);
+
+        assertEquals(
+            new BooleanFieldMapper.BooleanFieldType("bool").indexedValueForSearch(new BytesRef("true")),
+            BooleanFieldMapper.Values.TRUE
+        );
+
+        assertEquals(
+            new BooleanFieldMapper.BooleanFieldType("bool").indexedValueForSearch(new BytesRef("false")),
+            BooleanFieldMapper.Values.FALSE
+        );
+
+        assertEquals(
+            new BooleanFieldMapper.BooleanFieldType("bool").indexedValueForSearch(new BytesRef("T")),
+            BooleanFieldMapper.Values.TRUE
+        );
+
+        assertEquals(
+            new BooleanFieldMapper.BooleanFieldType("bool").indexedValueForSearch(new BytesRef("F")),
+            BooleanFieldMapper.Values.FALSE
+        );
+
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> new BooleanFieldMapper.BooleanFieldType("bool").indexedValueForSearch(new BytesRef("random"))
+        );
+
+        assertEquals("Can't parse boolean value [random], expected [true] or [false]", e.getMessage());
+    }
 }

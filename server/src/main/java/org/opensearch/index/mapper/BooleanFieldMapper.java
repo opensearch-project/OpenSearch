@@ -39,8 +39,8 @@ import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BoostQuery;
-import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
+import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
@@ -99,16 +99,6 @@ public class BooleanFieldMapper extends ParametrizedFieldMapper {
     public static class Values {
         public static final BytesRef TRUE = new BytesRef("T");
         public static final BytesRef FALSE = new BytesRef("F");
-    }
-
-    /**
-     * ExpandedValues for Booleans that can be used for this field mapper
-     *
-     * @opensearch.internal
-     */
-    public static class ExpandedValues {
-        public static final BytesRef TRUE = new BytesRef("true");
-        public static final BytesRef FALSE = new BytesRef("false");
     }
 
     private static BooleanFieldMapper toType(FieldMapper in) {
@@ -237,7 +227,11 @@ public class BooleanFieldMapper extends ParametrizedFieldMapper {
             switch (sValue) {
                 case "true":
                     return Values.TRUE;
+                case "T":
+                    return Values.TRUE;
                 case "false":
+                    return Values.FALSE;
+                case "F":
                     return Values.FALSE;
                 default:
                     throw new IllegalArgumentException("Can't parse boolean value [" + sValue + "], expected [true] or [false]");
@@ -300,17 +294,22 @@ public class BooleanFieldMapper extends ParametrizedFieldMapper {
         @Override
         public Query termsQuery(List<?> values, QueryShardContext context) {
             failIfNotIndexedAndNoDocValues();
-            // if we do not get either True or False, we return no docs
-            if (!(values.contains(ExpandedValues.TRUE)) && !(values.contains(ExpandedValues.FALSE))) {
-                return new MatchNoDocsQuery("Values do not contain True or False");
+            boolean seenTrue = false;
+            boolean seenFalse = false;
+            for (Object value : values) {
+                if (Values.TRUE.equals(indexedValueForSearch(value))) seenTrue = true;
+                else seenFalse = true;
             }
-            // if we have either True or False, we delegate to termQuery
-            if ((values.contains(ExpandedValues.TRUE) && !(values.contains(ExpandedValues.FALSE)))
-                || (values.contains(ExpandedValues.FALSE) && !values.contains(ExpandedValues.TRUE))) {
-                return termQuery(values.contains(ExpandedValues.TRUE) ? ExpandedValues.TRUE : ExpandedValues.FALSE, context);
+            if (seenTrue) {
+                if (seenFalse) {
+                    return new MatchAllDocsQuery();
+                }
+                return termQuery(Values.TRUE, context);
             }
-            // if we have both True and False, we acknowledge that the field exists with a value
-            return new FieldExistsQuery(name());
+            if (seenFalse) {
+                return termQuery(Values.FALSE, context);
+            }
+            return new MatchNoDocsQuery("Values did not contain True or False");
         }
 
         @Override
