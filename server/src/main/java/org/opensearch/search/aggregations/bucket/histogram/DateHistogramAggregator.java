@@ -31,13 +31,10 @@
 
 package org.opensearch.search.aggregations.bucket.histogram;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.CollectionTerminatedException;
 import org.apache.lucene.search.ScoreMode;
-import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.CollectionUtil;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.Rounding;
@@ -87,9 +84,6 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
     private final LongKeyedBucketOrds bucketOrds;
 
     private final FastFilterRewriteHelper.FastFilterContext fastFilterContext;
-    private Weight weight;
-
-    private static final Logger logger = LogManager.getLogger(DateHistogramAggregator.class);
 
     DateHistogramAggregator(
         String name,
@@ -175,7 +169,6 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
                 count
             )
         );
-        logger.info("optimized = " + optimized);
         if (optimized) throw new CollectionTerminatedException();
 
         SortedNumericDocValues values = valuesSource.longValues(ctx);

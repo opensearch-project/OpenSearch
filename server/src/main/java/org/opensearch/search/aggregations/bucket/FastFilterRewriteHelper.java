@@ -13,6 +13,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.PointValues;
 import org.apache.lucene.search.ConstantScoreQuery;
+import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.PointRangeQuery;
@@ -122,6 +123,11 @@ public final class FastFilterRewriteHelper {
             }
         } else if (cq instanceof MatchAllDocsQuery) {
             return indexBounds;
+        } else if (cq instanceof FieldExistsQuery) {
+            // when a range query covers all values of a shard, it will be rewrite field exists query
+            if (((FieldExistsQuery) cq).getField().equals(fieldName)) {
+                return indexBounds;
+            }
         }
 
         return null;
@@ -187,14 +193,12 @@ public final class FastFilterRewriteHelper {
 
     /**
      * Context object for fast filter optimization
-     *
-     * filters equals to null if the optimization cannot be applied
      */
     public static class FastFilterContext {
         private boolean rewriteable = false;
         private Weight[] filters = null;
         public AggregationType aggregationType;
-        protected final SearchContext context;
+        private final SearchContext context;
 
         public FastFilterContext(SearchContext context) {
             this.context = context;
@@ -217,14 +221,14 @@ public final class FastFilterRewriteHelper {
             this.filters = filters;
         }
 
-        public Weight[] buildFastFilter(LeafReaderContext ctx) throws IOException {
+        private Weight[] buildFastFilter(LeafReaderContext ctx) throws IOException {
             Weight[] filters = this.aggregationType.buildFastFilter(context, ctx);
             logger.debug("Fast filter built: {}", filters == null ? "no" : "yes");
             this.filters = filters;
             return filters;
         }
 
-        public boolean hasfilterBuilt() {
+        public boolean filterBuilt() {
             return filters != null;
         }
     }
@@ -236,7 +240,6 @@ public final class FastFilterRewriteHelper {
 
         boolean isRewriteable(Object parent, int subAggLength);
 
-        // Weight[] buildFastFilter(SearchContext context) throws IOException;
         Weight[] buildFastFilter(SearchContext context, LeafReaderContext ctx) throws IOException;
     }
 
@@ -262,9 +265,6 @@ public final class FastFilterRewriteHelper {
 
         @Override
         public boolean isRewriteable(Object parent, int subAggLength) {
-            // at shard level these are the pre-conditions
-            // these still need to apply at segment level
-            // while the effectively segment level match all, should be plugged in within compute bound
             if (parent == null && subAggLength == 0 && !missing && !hasScript) {
                 return fieldType != null && fieldType instanceof DateFieldMapper.DateFieldType;
             }
@@ -347,17 +347,20 @@ public final class FastFilterRewriteHelper {
         final BiConsumer<Long, Integer> incrementDocCount
     ) throws IOException {
         if (fastFilterContext == null) return false;
-        if (!fastFilterContext.hasfilterBuilt() && fastFilterContext.rewriteable) {
-            // Check if the query is functionally match-all at segment level
-            // if so, we still compute the index bounds and use it to build the filters
-            SearchContext context = fastFilterContext.context;
-            Weight weight = context.searcher().createWeight(context.query(), ScoreMode.COMPLETE_NO_SCORES, 1f);
-            boolean segmentRewriteable = weight != null && weight.count(ctx) == ctx.reader().numDocs();
-            if (segmentRewriteable) {
-                fastFilterContext.buildFastFilter(ctx);
+
+        // check if the query is functionally match-all at segment level
+        if (segmentMatchAll(fastFilterContext.context, ctx)) {
+            logger.debug("Functionally match all for the segment {}", ctx);
+            if (fastFilterContext.rewriteable) {
+                if (!fastFilterContext.filterBuilt()) {
+                    fastFilterContext.buildFastFilter(ctx);
+                }
+            } else {
+                return false;
             }
         }
-        if (!fastFilterContext.hasfilterBuilt()) return false;
+
+        if (!fastFilterContext.filterBuilt()) return false;
 
         final Weight[] filters = fastFilterContext.filters;
         final int[] counts = new int[filters.length];
@@ -388,10 +391,19 @@ public final class FastFilterRewriteHelper {
                 }
                 incrementDocCount.accept(bucketKey, counts[i]);
                 s++;
-                if (s > size) return true;
+                if (s > size) {
+                    logger.debug("Fast filter optimization applied with size {}", size);
+                    return true;
+                }
             }
         }
 
+        logger.debug("Fast filter optimization applied");
         return true;
+    }
+
+    private static boolean segmentMatchAll(SearchContext ctx, LeafReaderContext leafCtx) throws IOException {
+        Weight weight = ctx.searcher().createWeight(ctx.query(), ScoreMode.COMPLETE_NO_SCORES, 1f);
+        return weight != null && weight.count(leafCtx) == leafCtx.reader().numDocs();
     }
 }
