@@ -35,6 +35,7 @@ package org.opensearch.search.aggregations.bucket.composite;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.DocValuesFieldExistsQuery;
+import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.TermQuery;
 import org.opensearch.OpenSearchParseException;
@@ -1249,6 +1250,66 @@ public class CompositeAggregatorTests extends BaseCompositeAggregatorTestCase {
             (result) -> {
                 assertEquals(0, result.getBuckets().size());
                 assertNull(result.afterKey());
+            }
+        );
+    }
+
+    public void testDateHistogramSourceWithSize() throws IOException {
+        final List<Map<String, List<Object>>> dataset = new ArrayList<>(Arrays.asList(
+                createDocument("date", asLong("2017-10-20T03:08:45")),
+                createDocument("date", asLong("2016-09-20T09:00:34")),
+                createDocument("date", asLong("2016-09-20T11:34:00")),
+                createDocument("date", asLong("2017-10-20T06:09:24")),
+                createDocument("date", asLong("2017-10-19T06:09:24")),
+                createDocument("long", 4L)
+        ));
+        testSearchCase(
+            Arrays.asList(
+                new MatchAllDocsQuery(),
+                new FieldExistsQuery("date"),
+                LongPoint.newRangeQuery("date", asLong("2016-09-20T09:00:34"), asLong("2017-10-20T06:09:24"))
+            ),
+            dataset,
+            () -> {
+                DateHistogramValuesSourceBuilder histo = new DateHistogramValuesSourceBuilder("date").field("date")
+                    .calendarInterval(DateHistogramInterval.days(1));
+                return new CompositeAggregationBuilder("name", Collections.singletonList(histo)).size(1);
+            },
+            (result) -> {
+                assertEquals(1, result.getBuckets().size());
+                assertEquals("{date=1474329600000}", result.afterKey().toString()); // 2017-10-20T00:00:00
+                assertEquals("{date=1474329600000}", result.getBuckets().get(0).getKeyAsString());
+                assertEquals(2L, result.getBuckets().get(0).getDocCount());
+            }
+        );
+    }
+
+    public void testDateHistogramSourceWithDocCountField() throws IOException {
+        final List<Map<String, List<Object>>> dataset = new ArrayList<>(Arrays.asList(
+            createDocument("date", asLong("2017-10-20T03:08:45"), "_doc_count", 5),
+            createDocument("date", asLong("2016-09-20T09:00:34")),
+            createDocument("date", asLong("2016-09-20T11:34:00")),
+            createDocument("date", asLong("2017-10-20T06:09:24")),
+            createDocument("date", asLong("2017-10-19T06:09:24")),
+            createDocument("long", 4L)
+        ));
+        testSearchCase(
+            Arrays.asList(
+                new MatchAllDocsQuery(),
+                new FieldExistsQuery("date"),
+                LongPoint.newRangeQuery("date", asLong("2016-09-20T09:00:34"), asLong("2017-10-20T06:09:24"))
+            ),
+            dataset,
+            () -> {
+                DateHistogramValuesSourceBuilder histo = new DateHistogramValuesSourceBuilder("date").field("date")
+                    .calendarInterval(DateHistogramInterval.days(1));
+                return new CompositeAggregationBuilder("name", Collections.singletonList(histo)).size(1);
+            },
+            (result) -> {
+                assertEquals(1, result.getBuckets().size());
+                assertEquals("{date=1474329600000}", result.afterKey().toString()); // 2017-10-20T00:00:00
+                assertEquals("{date=1474329600000}", result.getBuckets().get(0).getKeyAsString());
+                assertEquals(2L, result.getBuckets().get(0).getDocCount());
             }
         );
     }

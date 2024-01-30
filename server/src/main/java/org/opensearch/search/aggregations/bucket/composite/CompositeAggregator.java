@@ -205,7 +205,9 @@ public final class CompositeAggregator extends BucketsAggregator {
         protected void processAfterKey(long[] bound, long interval) {
             // afterKey is the last bucket key in previous response, and the bucket key
             // is the minimum of all values in the bucket, so need to add the interval
-            bound[0] = afterKey + interval;
+            if (afterKey != -1L) {
+                bound[0] = afterKey + interval;
+            }
         }
 
         public int getSize() {

@@ -106,8 +106,6 @@ public final class FastFilterRewriteHelper {
             }
         }
 
-        // TODO b remove
-        logger.info("get index bounds [{}-{}]", min, max);
         if (min == Long.MAX_VALUE || max == Long.MIN_VALUE) {
             return null;
         }
@@ -162,7 +160,10 @@ public final class FastFilterRewriteHelper {
         int bucketCount = 0;
         while (roundedLow <= fieldType.convertNanosToMillis(high)) {
             bucketCount++;
-            if (bucketCount > MAX_NUM_FILTER_BUCKETS) return null;
+            if (bucketCount > MAX_NUM_FILTER_BUCKETS) {
+                logger.info("2.2.2 max number of filters reached [{}]", MAX_NUM_FILTER_BUCKETS);
+                return null;
+            }
             // Below rounding is needed as the interval could return in
             // non-rounded values for something like calendar month
             roundedLow = preparedRounding.round(roundedLow + interval);
@@ -210,6 +211,7 @@ public final class FastFilterRewriteHelper {
         private boolean rewriteable = false;
         private Weight[] filters = null;
         private boolean filtersBuiltAtShardLevel = false;
+
         public AggregationType aggregationType;
         private final SearchContext context;
 
@@ -223,12 +225,13 @@ public final class FastFilterRewriteHelper {
 
         public boolean isRewriteable(final Object parent, final int subAggLength) {
             boolean rewriteable = aggregationType.isRewriteable(parent, subAggLength);
-            logger.debug("Fast filter rewriteable: {} for shard {}", rewriteable, context.indexShard().shardId());
+            logger.debug("1. Fast filter rewriteable: {} for shard {}", rewriteable, context.indexShard().shardId());
             this.rewriteable = rewriteable;
             return rewriteable;
         }
 
         public void buildFastFilter() throws IOException {
+            logger.info("2. Build filters at shard level");
             this.buildFastFilter(FastFilterRewriteHelper::getDateHistoAggBounds);
         }
 
@@ -236,7 +239,7 @@ public final class FastFilterRewriteHelper {
             assert filters == null : "Filters should only be built once, but they are already built";
             Weight[] filters = this.aggregationType.buildFastFilter(context, getBounds);
             if (filters != null) {
-                logger.info("Fast filter built for shard {}", context.indexShard().shardId());
+                logger.info("2.e Fast filter built for shard {}", context.indexShard().shardId());
                 filtersBuiltAtShardLevel = true;
                 this.filters = filters;
             }
@@ -296,9 +299,8 @@ public final class FastFilterRewriteHelper {
         @Override
         public Weight[] buildFastFilter(SearchContext context, GetBounds<SearchContext, String, long[]> getBounds) throws IOException {
             long[] bounds = getBounds.apply(context, fieldType.name());
-            logger.info("before process: Bounds is {} for shard {}", bounds, context.indexShard().shardId());
             bounds = processHardBounds(bounds);
-            logger.info("Bounds is {} for shard {}", bounds, context.indexShard().shardId());
+            logger.info("2.1 Bounds is {} for shard {}", bounds, context.indexShard().shardId());
             if (bounds == null) {
                 return null;
             }
@@ -343,8 +345,6 @@ public final class FastFilterRewriteHelper {
                     if (bounds[0] > bounds[1]) {
                         return null;
                     }
-                    // bounds[0] = Math.max(bounds[0], hardBounds.getMin());
-                    // bounds[1] = Math.min(bounds[1], hardBounds.getMax() - 1); // hard bounds max is exclusive
                 }
             }
             return bounds;
@@ -383,7 +383,8 @@ public final class FastFilterRewriteHelper {
 
         NumericDocValues docCountValues = DocValues.getNumeric(ctx.reader(), DocCountFieldMapper.NAME);
         if (docCountValues.nextDoc() != NO_MORE_DOCS) {
-            logger.debug("Segment {} has at least one document with _doc_count field", ctx);
+            logger.info("Shard {} segment {} has at least one document with _doc_count field, skip fast filter optimization",
+                fastFilterContext.context.indexShard().shardId(),ctx.ord);
             return false;
         }
 
@@ -392,7 +393,7 @@ public final class FastFilterRewriteHelper {
         if (!fastFilterContext.filtersBuiltAtShardLevel && !segmentMatchAll(fastFilterContext.context, ctx)) return false;
         if (!fastFilterContext.filterBuilt()) {
             logger.info(
-                "Shard {} segment {} functionally match all documents. Build the fast filter",
+                "3.1 Shard {} segment {} functionally match all documents. Build the fast filter",
                 fastFilterContext.context.indexShard().shardId(),
                 ctx.ord
             );
@@ -430,13 +431,13 @@ public final class FastFilterRewriteHelper {
                 incrementDocCount.accept(bucketKey, counts[i]);
                 s++;
                 if (s > size) {
-                    logger.debug("Fast filter optimization applied with size {}", size);
+                    logger.info("3.e1 Fast filter optimization applied with size {}", size);
                     return true;
                 }
             }
         }
 
-        logger.debug("Fast filter optimization applied");
+        logger.info("3.e Fast filter optimization applied");
         return true;
     }
 
