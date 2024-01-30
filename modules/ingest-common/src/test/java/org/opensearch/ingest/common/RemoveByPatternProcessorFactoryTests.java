@@ -102,13 +102,13 @@ public class RemoveByPatternProcessorFactoryTests extends OpenSearchTestCase {
             OpenSearchParseException.class,
             () -> factory.create(null, processorTag, null, config)
         );
-        assertThat(exception.getMessage(), equalTo("[field_pattern] ether field_pattern or exclude_field_pattern must be set"));
+        assertThat(exception.getMessage(), equalTo("[field_pattern] either field_pattern or exclude_field_pattern must be set"));
 
         Map<String, Object> config2 = new HashMap<>();
         config2.put("field_pattern", null);
         config2.put("exclude_field_pattern", null);
 
         exception = expectThrows(OpenSearchParseException.class, () -> factory.create(null, processorTag, null, config2));
-        assertThat(exception.getMessage(), equalTo("[field_pattern] ether field_pattern or exclude_field_pattern must be set"));
+        assertThat(exception.getMessage(), equalTo("[field_pattern] either field_pattern or exclude_field_pattern must be set"));
     }
 }

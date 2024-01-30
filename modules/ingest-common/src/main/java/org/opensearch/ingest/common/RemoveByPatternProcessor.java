@@ -43,7 +43,7 @@ public final class RemoveByPatternProcessor extends AbstractProcessor {
     ) {
         super(tag, description);
         if (fieldPatterns != null && excludeFieldPatterns != null || fieldPatterns == null && excludeFieldPatterns == null) {
-            throw new IllegalArgumentException("ether fieldPatterns and excludeFieldPatterns must be set");
+            throw new IllegalArgumentException("either fieldPatterns and excludeFieldPatterns must be set");
         }
         if (fieldPatterns == null) {
             this.fieldPatterns = null;
@@ -124,7 +124,7 @@ public final class RemoveByPatternProcessor extends AbstractProcessor {
                     TYPE,
                     processorTag,
                     "field_pattern",
-                    "ether field_pattern or exclude_field_pattern must be set"
+                    "either field_pattern or exclude_field_pattern must be set"
                 );
             }
 

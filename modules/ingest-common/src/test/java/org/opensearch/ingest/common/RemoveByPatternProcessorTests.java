@@ -68,7 +68,7 @@ public class RemoveByPatternProcessorTests extends OpenSearchTestCase {
 
     public void testCreateRemoveByPatternProcessorWithBothFieldsAndExcludeFields() throws Exception {
         assertThrows(
-            "ether fieldPatterns and excludeFieldPatterns must be set",
+            "either fieldPatterns and excludeFieldPatterns must be set",
             IllegalArgumentException.class,
             () -> new RemoveByPatternProcessor(randomAlphaOfLength(10), null, null, null)
         );
@@ -88,7 +88,7 @@ public class RemoveByPatternProcessorTests extends OpenSearchTestCase {
         }
 
         assertThrows(
-            "ether fieldPatterns and excludeFieldPatterns must be set",
+            "either fieldPatterns and excludeFieldPatterns must be set",
             IllegalArgumentException.class,
             () -> new RemoveByPatternProcessor(randomAlphaOfLength(10), null, fieldPatterns, excludeFieldPatterns)
         );

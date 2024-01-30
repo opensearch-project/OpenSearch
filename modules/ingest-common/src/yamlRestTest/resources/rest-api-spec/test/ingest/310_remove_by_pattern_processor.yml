@@ -11,7 +11,7 @@ teardown:
       version: " - 2.11.99"
       reason: "introduced in 2.12.0"
   - do:
-      catch: /\[field\_pattern\] ether field\_pattern or exclude\_field\_pattern must be set/
+      catch: /\[field\_pattern\] either field\_pattern or exclude\_field\_pattern must be set/
       ingest.put_pipeline:
         id: "my_pipeline"
         body:  >
@@ -28,7 +28,7 @@ teardown:
           }
 
   - do:
-      catch: /\[field\_pattern\] ether field\_pattern or exclude\_field\_pattern must be set/
+      catch: /\[field\_pattern\] either field\_pattern or exclude\_field\_pattern must be set/
       ingest.put_pipeline:
         id: "my_pipeline"
         body:  >
