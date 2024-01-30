@@ -141,7 +141,6 @@ configure([
   project(":plugins:mapper-annotated-text"),
   project(":plugins:mapper-murmur3"),
   project(":plugins:mapper-size"),
-  project(":plugins:query-insights"),
   project(":plugins:repository-azure"),
   project(":plugins:repository-gcs"),
   project(":plugins:repository-hdfs"),

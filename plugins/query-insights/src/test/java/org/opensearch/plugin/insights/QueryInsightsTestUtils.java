@@ -9,15 +9,20 @@
 package org.opensearch.plugin.insights;
 
 import org.opensearch.action.search.SearchType;
+import org.opensearch.common.util.Maps;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.plugin.insights.rules.model.SearchQueryLatencyRecord;
+import org.opensearch.plugin.insights.rules.model.Attribute;
+import org.opensearch.plugin.insights.rules.model.Measurement;
+import org.opensearch.plugin.insights.rules.model.MetricType;
+import org.opensearch.plugin.insights.rules.model.SearchQueryRecord;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Comparator;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
@@ -25,8 +30,10 @@ import java.util.TreeSet;
 import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.opensearch.test.OpenSearchTestCase.randomAlphaOfLengthBetween;
 import static org.opensearch.test.OpenSearchTestCase.randomArray;
+import static org.opensearch.test.OpenSearchTestCase.randomDouble;
 import static org.opensearch.test.OpenSearchTestCase.randomIntBetween;
 import static org.opensearch.test.OpenSearchTestCase.randomLong;
+import static org.opensearch.test.OpenSearchTestCase.randomLongBetween;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNull;
 
@@ -34,41 +41,57 @@ final public class QueryInsightsTestUtils {
 
     public QueryInsightsTestUtils() {}
 
-    public static List<SearchQueryLatencyRecord> generateQueryInsightRecords(int count) {
-        return generateQueryInsightRecords(count, count);
+    public static List<SearchQueryRecord> generateQueryInsightRecords(int count) {
+        return generateQueryInsightRecords(count, count, System.currentTimeMillis(), 0);
     }
 
     /**
      * Creates a List of random Query Insight Records for testing purpose
      */
-    public static List<SearchQueryLatencyRecord> generateQueryInsightRecords(int lower, int upper) {
-        List<SearchQueryLatencyRecord> records = new ArrayList<>();
+    public static List<SearchQueryRecord> generateQueryInsightRecords(int lower, int upper, long startTimeStamp, long interval) {
+        List<SearchQueryRecord> records = new ArrayList<>();
         int countOfRecords = randomIntBetween(lower, upper);
+        long timestamp = startTimeStamp;
         for (int i = 0; i < countOfRecords; ++i) {
-            Map<String, Object> propertyMap = new HashMap<>();
-            int countOfProperties = randomIntBetween(2, 5);
-            for (int j = 0; j < countOfProperties; ++j) {
-                propertyMap.put(randomAlphaOfLengthBetween(5, 10), randomAlphaOfLengthBetween(5, 10));
-            }
+            Map<MetricType, Measurement<? extends Number>> measurements = Map.of(
+                MetricType.LATENCY,
+                new Measurement<>(MetricType.LATENCY.name(), randomLongBetween(1000, 10000)),
+                MetricType.CPU,
+                new Measurement<>(MetricType.CPU.name(), randomDouble()),
+                MetricType.JVM,
+                new Measurement<>(MetricType.JVM.name(), randomDouble())
+            );
+
             Map<String, Long> phaseLatencyMap = new HashMap<>();
             int countOfPhases = randomIntBetween(2, 5);
             for (int j = 0; j < countOfPhases; ++j) {
                 phaseLatencyMap.put(randomAlphaOfLengthBetween(5, 10), randomLong());
             }
-            records.add(
-                new SearchQueryLatencyRecord(
-                    System.currentTimeMillis(),
-                    SearchType.QUERY_THEN_FETCH,
-                    "{\"size\":20}",
-                    randomIntBetween(1, 100),
-                    randomArray(1, 3, String[]::new, () -> randomAlphaOfLengthBetween(5, 10)),
-                    propertyMap,
-                    phaseLatencyMap,
-                    phaseLatencyMap.values().stream().mapToLong(x -> x).sum()
-                )
-            );
+            Map<Attribute, Object> attributes = new HashMap<>();
+            attributes.put(Attribute.SEARCH_TYPE, SearchType.QUERY_THEN_FETCH.toString().toLowerCase(Locale.ROOT));
+            attributes.put(Attribute.SOURCE, "{\"size\":20}");
+            attributes.put(Attribute.TOTAL_SHARDS, randomIntBetween(1, 100));
+            attributes.put(Attribute.INDICES, randomArray(1, 3, Object[]::new, () -> randomAlphaOfLengthBetween(5, 10)));
+            attributes.put(Attribute.PHASE_LATENCY_MAP, phaseLatencyMap);
+
+            records.add(new SearchQueryRecord(timestamp, measurements, attributes));
+            timestamp += interval;
         }
         return records;
+    }
+
+    public static SearchQueryRecord createFixedSearchQueryRecord() {
+        long timestamp = 1706574180000L;
+        Map<MetricType, Measurement<? extends Number>> measurements = Map.of(
+            MetricType.LATENCY,
+            new Measurement<>(MetricType.LATENCY.name(), 1L)
+        );
+
+        Map<String, Long> phaseLatencyMap = new HashMap<>();
+        Map<Attribute, Object> attributes = new HashMap<>();
+        attributes.put(Attribute.SEARCH_TYPE, SearchType.QUERY_THEN_FETCH.toString().toLowerCase(Locale.ROOT));
+
+        return new SearchQueryRecord(timestamp, measurements, attributes);
     }
 
     public static void compareJson(ToXContent param1, ToXContent param2) throws IOException {
@@ -88,7 +111,8 @@ final public class QueryInsightsTestUtils {
         assertEquals(param1Builder.toString(), param2Builder.toString());
     }
 
-    public static boolean checkRecordsEquals(List<SearchQueryLatencyRecord> records1, List<SearchQueryLatencyRecord> records2) {
+    @SuppressWarnings("unchecked")
+    public static boolean checkRecordsEquals(List<SearchQueryRecord> records1, List<SearchQueryRecord> records2) {
         if (records1.size() != records2.size()) {
             return false;
         }
@@ -96,12 +120,31 @@ final public class QueryInsightsTestUtils {
             if (!records1.get(i).equals(records2.get(i))) {
                 return false;
             }
+            Map<Attribute, Object> attributes1 = records1.get(i).getAttributes();
+            Map<Attribute, Object> attributes2 = records2.get(i).getAttributes();
+            for (Map.Entry<Attribute, Object> entry : attributes1.entrySet()) {
+                Attribute attribute = entry.getKey();
+                Object value = entry.getValue();
+                if (!attributes2.containsKey(attribute)) {
+                    return false;
+                }
+                if (value instanceof Object[] && !Arrays.deepEquals((Object[]) value, (Object[]) attributes2.get(attribute))) {
+                    return false;
+                } else if (value instanceof Map
+                    && !Maps.deepEquals((Map<Object, Object>) value, (Map<Object, Object>) attributes2.get(attribute))) {
+                        return false;
+                    }
+            }
         }
         return true;
     }
 
-    public static boolean checkRecordsEqualsWithoutOrder(List<SearchQueryLatencyRecord> records1, List<SearchQueryLatencyRecord> records2) {
-        Set<SearchQueryLatencyRecord> set2 = new TreeSet<>(new LatencyRecordComparator());
+    public static boolean checkRecordsEqualsWithoutOrder(
+        List<SearchQueryRecord> records1,
+        List<SearchQueryRecord> records2,
+        MetricType metricType
+    ) {
+        Set<SearchQueryRecord> set2 = new TreeSet<>((a, b) -> SearchQueryRecord.compare(a, b, metricType));
         set2.addAll(records2);
         if (records1.size() != records2.size()) {
             return false;
@@ -112,15 +155,5 @@ final public class QueryInsightsTestUtils {
             }
         }
         return true;
-    }
-
-    static class LatencyRecordComparator implements Comparator<SearchQueryLatencyRecord> {
-        @Override
-        public int compare(SearchQueryLatencyRecord record1, SearchQueryLatencyRecord record2) {
-            if (record1.equals(record2)) {
-                return 0;
-            }
-            return record1.compareTo(record2);
-        }
     }
 }

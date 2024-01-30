@@ -14,6 +14,7 @@ import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.action.ActionResponse;
+import org.opensearch.plugin.insights.core.service.QueryInsightsService;
 import org.opensearch.plugin.insights.settings.QueryInsightsSettings;
 import org.opensearch.plugins.ActionPlugin;
 import org.opensearch.rest.RestHandler;
@@ -21,6 +22,7 @@ import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.ThreadPool;
 import org.junit.Before;
 
+import java.util.Arrays;
 import java.util.List;
 
 import static org.mockito.Mockito.mock;
@@ -42,17 +44,20 @@ public class QueryInsightsPluginTests extends OpenSearchTestCase {
         clusterSettings.registerSetting(QueryInsightsSettings.TOP_N_LATENCY_QUERIES_ENABLED);
         clusterSettings.registerSetting(QueryInsightsSettings.TOP_N_LATENCY_QUERIES_SIZE);
         clusterSettings.registerSetting(QueryInsightsSettings.TOP_N_LATENCY_QUERIES_WINDOW_SIZE);
-        clusterSettings.registerSetting(QueryInsightsSettings.TOP_N_LATENCY_QUERIES_EXPORTER_ENABLED);
-        clusterSettings.registerSetting(QueryInsightsSettings.TOP_N_LATENCY_QUERIES_EXPORTER_TYPE);
-        clusterSettings.registerSetting(QueryInsightsSettings.TOP_N_LATENCY_QUERIES_EXPORTER_INTERVAL);
-        clusterSettings.registerSetting(QueryInsightsSettings.TOP_N_LATENCY_QUERIES_EXPORTER_IDENTIFIER);
 
         clusterService = new ClusterService(settings, clusterSettings, threadPool);
 
     }
 
     public void testGetSettings() {
-        assertEquals(0, queryInsightsPlugin.getSettings().size());
+        assertEquals(
+            Arrays.asList(
+                QueryInsightsSettings.TOP_N_LATENCY_QUERIES_ENABLED,
+                QueryInsightsSettings.TOP_N_LATENCY_QUERIES_SIZE,
+                QueryInsightsSettings.TOP_N_LATENCY_QUERIES_WINDOW_SIZE
+            ),
+            queryInsightsPlugin.getSettings()
+        );
     }
 
     public void testCreateComponent() {
@@ -69,7 +74,8 @@ public class QueryInsightsPluginTests extends OpenSearchTestCase {
             null,
             null
         );
-        assertEquals(0, components.size());
+        assertEquals(1, components.size());
+        assertTrue(components.get(0) instanceof QueryInsightsService);
     }
 
     public void testGetRestHandlers() {
