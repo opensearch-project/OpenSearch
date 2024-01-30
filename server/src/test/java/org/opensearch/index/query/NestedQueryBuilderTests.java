@@ -146,6 +146,10 @@ public class NestedQueryBuilderTests extends AbstractQueryTestCase<NestedQueryBu
         }
     }
 
+    public void testPath() {
+        assertEquals("nested1", createTestQueryBuilder().path());
+    }
+
     public void testValidate() {
         QueryBuilder innerQuery = RandomQueryBuilder.createQuery(random());
         IllegalArgumentException e = expectThrows(

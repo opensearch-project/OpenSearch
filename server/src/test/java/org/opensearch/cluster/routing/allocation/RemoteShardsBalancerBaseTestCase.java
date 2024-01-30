@@ -229,6 +229,11 @@ public abstract class RemoteShardsBalancerBaseTestCase extends OpenSearchAllocat
                     return Decision.ALWAYS;
                 }
             }
+
+            @Override
+            public Decision canAllocateAnyShardToNode(RoutingNode node, RoutingAllocation allocation) {
+                return throttle ? Decision.THROTTLE : Decision.YES;
+            }
         });
         Collections.shuffle(deciders, random());
         return new AllocationDeciders(deciders);
