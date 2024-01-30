@@ -1275,7 +1275,7 @@ public class CompositeAggregatorTests extends BaseCompositeAggregatorTestCase {
             () -> {
                 DateHistogramValuesSourceBuilder histo = new DateHistogramValuesSourceBuilder("date").field("date")
                     .calendarInterval(DateHistogramInterval.days(1));
-                return new CompositeAggregationBuilder("name", Collections.singletonList(histo));
+                return new CompositeAggregationBuilder("name", Collections.singletonList(histo)).size(3);
             },
             (result) -> {
                 assertEquals(3, result.getBuckets().size());

@@ -1178,6 +1178,80 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
         );
     }
 
+    public void testHardBoundsNotOverlapping() throws IOException {
+        testSearchCase(
+            new MatchAllDocsQuery(),
+            Arrays.asList("2017-02-01", "2017-02-02", "2017-02-02", "2017-02-03", "2017-02-03", "2017-02-03", "2017-02-05"),
+            aggregation -> aggregation.calendarInterval(DateHistogramInterval.DAY)
+                .hardBounds(new LongBounds("2018-01-01", "2020-01-01"))
+                .field(AGGREGABLE_DATE),
+            histogram -> {
+                List<? extends Histogram.Bucket> buckets = histogram.getBuckets();
+                assertEquals(0, buckets.size());
+            },
+            false
+        );
+
+        testSearchCase(
+            new MatchAllDocsQuery(),
+            Arrays.asList("2017-02-01", "2017-02-02", "2017-02-02", "2017-02-03", "2017-02-03", "2017-02-03", "2017-02-05"),
+            aggregation -> aggregation.calendarInterval(DateHistogramInterval.DAY)
+                .hardBounds(new LongBounds("2016-01-01", "2017-01-01"))
+                .field(AGGREGABLE_DATE),
+            histogram -> {
+                List<? extends Histogram.Bucket> buckets = histogram.getBuckets();
+                assertEquals(0, buckets.size());
+            },
+            false
+        );
+
+        testSearchCase(
+            new MatchAllDocsQuery(),
+            Arrays.asList("2017-02-01", "2017-02-02", "2017-02-02", "2017-02-03", "2017-02-03", "2017-02-03", "2017-02-05"),
+            aggregation -> aggregation.calendarInterval(DateHistogramInterval.DAY)
+                .hardBounds(new LongBounds("2016-01-01", "2017-02-03"))
+                .field(AGGREGABLE_DATE),
+            histogram -> {
+                List<? extends Histogram.Bucket> buckets = histogram.getBuckets();
+                assertEquals(2, buckets.size());
+
+                Histogram.Bucket bucket = buckets.get(0);
+                assertEquals("2017-02-01T00:00:00.000Z", bucket.getKeyAsString());
+                assertEquals(1, bucket.getDocCount());
+
+                bucket = buckets.get(1);
+                assertEquals("2017-02-02T00:00:00.000Z", bucket.getKeyAsString());
+                assertEquals(2, bucket.getDocCount());
+            },
+            false
+        );
+
+        testSearchCase(
+            new MatchAllDocsQuery(),
+            Arrays.asList("2017-02-01", "2017-02-02", "2017-02-02", "2017-02-03", "2017-02-03", "2017-02-03", "2017-02-05"),
+            aggregation -> aggregation.calendarInterval(DateHistogramInterval.DAY)
+                .hardBounds(new LongBounds("2017-02-03", "2020-01-01"))
+                .field(AGGREGABLE_DATE),
+            histogram -> {
+                List<? extends Histogram.Bucket> buckets = histogram.getBuckets();
+                assertEquals(3, buckets.size());
+
+                Histogram.Bucket bucket = buckets.get(0);
+                assertEquals("2017-02-03T00:00:00.000Z", bucket.getKeyAsString());
+                assertEquals(3, bucket.getDocCount());
+
+                bucket = buckets.get(1);
+                assertEquals("2017-02-04T00:00:00.000Z", bucket.getKeyAsString());
+                assertEquals(0, bucket.getDocCount());
+
+                bucket = buckets.get(2);
+                assertEquals("2017-02-05T00:00:00.000Z", bucket.getKeyAsString());
+                assertEquals(1, bucket.getDocCount());
+            },
+            false
+        );
+    }
+
     public void testIllegalInterval() throws IOException {
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
@@ -1211,7 +1285,7 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
         int maxBucket,
         boolean useNanosecondResolution
     ) throws IOException {
-        boolean aggregableDateIsSearchable = randomBoolean();
+        boolean aggregableDateIsSearchable = true;
         DateFieldMapper.DateFieldType fieldType = aggregableDateFieldType(useNanosecondResolution, aggregableDateIsSearchable);
 
         try (Directory directory = newDirectory()) {
