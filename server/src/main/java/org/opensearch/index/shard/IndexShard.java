@@ -1704,7 +1704,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         }
         final ReplicationCheckpoint latestReplicationCheckpoint = getLatestReplicationCheckpoint();
         if (latestReplicationCheckpoint.getSegmentInfosVersion() == segmentInfos.getVersion()
-            && latestReplicationCheckpoint.getSegmentsGen() == segmentInfos.getGeneration()) {
+            && latestReplicationCheckpoint.getSegmentsGen() == segmentInfos.getGeneration()
+            && latestReplicationCheckpoint.getPrimaryTerm() == getOperationPrimaryTerm()) {
             return latestReplicationCheckpoint;
         }
         final Map<String, StoreFileMetadata> metadataMap = store.getSegmentMetadataMap(segmentInfos);
@@ -2023,7 +2024,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     /*
     ToDo : Fix this https://github.com/opensearch-project/OpenSearch/issues/8003
      */
-    private RemoteSegmentStoreDirectory getRemoteDirectory() {
+    public RemoteSegmentStoreDirectory getRemoteDirectory() {
         assert indexSettings.isRemoteStoreEnabled();
         assert remoteStore.directory() instanceof FilterDirectory : "Store.directory is not an instance of FilterDirectory";
         FilterDirectory remoteStoreDirectory = (FilterDirectory) remoteStore.directory();

@@ -18,8 +18,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Add search query categorizor ([#10255](https://github.com/opensearch-project/OpenSearch/pull/10255))
 - Per request phase latency ([#10351](https://github.com/opensearch-project/OpenSearch/issues/10351))
 - Add cluster state stats ([#10670](https://github.com/opensearch-project/OpenSearch/pull/10670))
-- Remove ingest processor supports excluding fields ([#10967](https://github.com/opensearch-project/OpenSearch/pull/10967))
 - [Tiered caching] Defining interfaces, listeners and extending IndicesRequestCache with Tiered cache support ([#10753](https://github.com/opensearch-project/OpenSearch/pull/10753))
+- Remove ingest processor supports excluding fields ([#10967](https://github.com/opensearch-project/OpenSearch/pull/10967), [#11983](https://github.com/opensearch-project/OpenSearch/pull/11983))
 - [Remote cluster state] Restore cluster state version during remote state auto restore ([#10853](https://github.com/opensearch-project/OpenSearch/pull/10853))
 - Update the indexRandom function to create more segments for concurrent search tests ([10247](https://github.com/opensearch-project/OpenSearch/pull/10247))
 - Add support for query profiler with concurrent aggregation ([#9248](https://github.com/opensearch-project/OpenSearch/pull/9248))
@@ -43,8 +43,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Add match_only_text field that is optimized for storage by trading off positional queries performance ([#6836](https://github.com/opensearch-project/OpenSearch/pull/11039))
 - Add copy ingest processor ([#11870](https://github.com/opensearch-project/OpenSearch/pull/11870))
 - Introduce new feature flag "WRITEABLE_REMOTE_INDEX" to gate the writeable remote index functionality ([#11717](https://github.com/opensearch-project/OpenSearch/pull/11170))
+- Add getter for path field in NestedQueryBuilder ([#4636](https://github.com/opensearch-project/OpenSearch/pull/4636))
 - Bump OpenTelemetry from 1.32.0 to 1.34.1 ([#11891](https://github.com/opensearch-project/OpenSearch/pull/11891))
 - Add `org.opensearch.rest.MethodHandlers` and `RestController#getAllHandlers` ([11876](https://github.com/opensearch-project/OpenSearch/pull/11876))
+- Support index level allocation filtering for searchable snapshot index ([#11563](https://github.com/opensearch-project/OpenSearch/pull/11563))
+- [S3 Repository] Add setting to control connection count for sync client ([#12028](https://github.com/opensearch-project/OpenSearch/pull/12028))
 
 ### Dependencies
 - Bumps jetty version to 9.4.52.v20230823 to fix GMS-2023-1857 ([#9822](https://github.com/opensearch-project/OpenSearch/pull/9822))
@@ -63,13 +66,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `aws-actions/configure-aws-credentials` from 2 to 4 ([#10504](https://github.com/opensearch-project/OpenSearch/pull/10504))
 - Bump `stefanzweifel/git-auto-commit-action` from 4 to 5 ([#11171](https://github.com/opensearch-project/OpenSearch/pull/11171))
 - Bump `jackson` and `jackson_databind` from 2.15.2 to 2.16.0 ([#11273](https://github.com/opensearch-project/OpenSearch/pull/11273))
-- Bump `netty` from 4.1.100.Final to 4.1.104.Final ([#11294](https://github.com/opensearch-project/OpenSearch/pull/11294), [#11775](https://github.com/opensearch-project/OpenSearch/pull/11775))
+- Bump `netty` from 4.1.100.Final to 4.1.106.Final ([#11294](https://github.com/opensearch-project/OpenSearch/pull/11294), [#11775](https://github.com/opensearch-project/OpenSearch/pull/11775)), [#12034](https://github.com/opensearch-project/OpenSearch/pull/12034))
 - Bump `com.avast.gradle:gradle-docker-compose-plugin` from 0.16.12 to 0.17.6 ([#10163](https://github.com/opensearch-project/OpenSearch/pull/10163), [#11692](https://github.com/opensearch-project/OpenSearch/pull/11692))
 - Bump OpenTelemetry from 1.31.0 to 1.32.0 and OpenTelemetry Semconv from 1.21.0-alpha to 1.23.1-alpha ([#11305](https://github.com/opensearch-project/OpenSearch/pull/11305))
 - Bump `com.squareup.okhttp3:okhttp` from 4.11.0 to 4.12.0 ([#10861](https://github.com/opensearch-project/OpenSearch/pull/10861))
 - Bump `org.apache.commons:commons-text` from 1.10.0 to 1.11.0 ([#11344](https://github.com/opensearch-project/OpenSearch/pull/11344))
-- Bump `reactor-netty-core` from 1.1.12 to 1.1.13 ([#11350](https://github.com/opensearch-project/OpenSearch/pull/11350))
-- Bump `com.gradle.enterprise` from 3.14.1 to 3.16.1 ([#11339](https://github.com/opensearch-project/OpenSearch/pull/11339), [#11629](https://github.com/opensearch-project/OpenSearch/pull/11629))
+- Bump `reactor-netty-core` from 1.1.12 to 1.1.15 ([#11350](https://github.com/opensearch-project/OpenSearch/pull/11350)), ([#12042](https://github.com/opensearch-project/OpenSearch/pull/12042))
+- Bump `com.gradle.enterprise` from 3.14.1 to 3.16.2 ([#11339](https://github.com/opensearch-project/OpenSearch/pull/11339), [#11629](https://github.com/opensearch-project/OpenSearch/pull/11629), [#12056](https://github.com/opensearch-project/OpenSearch/pull/12056))
 - Bump `actions/setup-java` from 3 to 4 ([#11447](https://github.com/opensearch-project/OpenSearch/pull/11447))
 - Bump `org.apache.xmlbeans:xmlbeans` from 5.1.1 to 5.2.0 ([#11448](https://github.com/opensearch-project/OpenSearch/pull/11448))
 - Bump `org.apache.maven:maven-model` from 3.9.4 to 3.9.6 ([#11445](https://github.com/opensearch-project/OpenSearch/pull/11445))
@@ -84,9 +87,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `org.apache.commons:commons-lang3` from 3.13.0 to 3.14.0 ([#11691](https://github.com/opensearch-project/OpenSearch/pull/11691))
 - Bump `net.java.dev.jna:jna` from 5.13.0 to 5.14.0 ([#11798](https://github.com/opensearch-project/OpenSearch/pull/11798))
 - Bump `lycheeverse/lychee-action` from 1.8.0 to 1.9.1 ([#11795](https://github.com/opensearch-project/OpenSearch/pull/11795), [#11887](https://github.com/opensearch-project/OpenSearch/pull/11887))
-- Bump `Lucene` from 9.8.0 to 9.9.1 ([#11421](https://github.com/opensearch-project/OpenSearch/pull/11421))
-- Bump `com.networknt:json-schema-validator` from 1.0.86 to 1.1.0 ([#11886](https://github.com/opensearch-project/OpenSearch/pull/11886))
+- Bump `Lucene` from 9.8.0 to 9.9.2 ([#11421](https://github.com/opensearch-project/OpenSearch/pull/11421)), ([#12063](https://github.com/opensearch-project/OpenSearch/pull/12063))
+- Bump `com.networknt:json-schema-validator` from 1.0.86 to 1.2.0 ([#11886](https://github.com/opensearch-project/OpenSearch/pull/11886), [#11963](https://github.com/opensearch-project/OpenSearch/pull/11963))
+- Bump `com.google.api:gax-httpjson` from 0.103.1 to 2.39.0 ([#11794](https://github.com/opensearch-project/OpenSearch/pull/11794))
 - Bump `com.google.oauth-client:google-oauth-client` from 1.34.1 to 1.35.0 ([#11960](https://github.com/opensearch-project/OpenSearch/pull/11960))
+- Bump `com.diffplug.spotless` from 6.23.2 to 6.25.0 ([#11962](https://github.com/opensearch-project/OpenSearch/pull/11962), [#12055](https://github.com/opensearch-project/OpenSearch/pull/12055))
+- Bump `com.google.cloud:google-cloud-core` from 2.5.10 to 2.30.0 ([#11961](https://github.com/opensearch-project/OpenSearch/pull/11961))
+- Bump `reactor-core` from 3.5.11 to 3.5.14 ([#12042](https://github.com/opensearch-project/OpenSearch/pull/12042))
+- Bump `com.google.http-client:google-http-client-jackson2` from 1.43.3 to 1.44.1 ([#12059](https://github.com/opensearch-project/OpenSearch/pull/12059))
+- Bump `peter-evans/create-issue-from-file` from 4 to 5 ([#12057](https://github.com/opensearch-project/OpenSearch/pull/12057))
 
 ### Changed
 - Force merge with `only_expunge_deletes` honors max segment size ([#10036](https://github.com/opensearch-project/OpenSearch/pull/10036))
@@ -115,7 +124,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Capture information for additional query types and aggregation types ([#11582](https://github.com/opensearch-project/OpenSearch/pull/11582))
 - Use slice_size == shard_size heuristic in terms aggs for concurrent segment search and properly calculate the doc_count_error ([#11732](https://github.com/opensearch-project/OpenSearch/pull/11732))
 - Ensure Jackson default maximums introduced in 2.16.0 do not conflict with OpenSearch settings ([#11890](https://github.com/opensearch-project/OpenSearch/pull/11890))
-- Extract cluster management for integration tests into JUnit test rule out of OpenSearchIntegTestCase ([#11877](https://github.com/opensearch-project/OpenSearch/pull/11877))
+- Extract cluster management for integration tests into JUnit test rule out of OpenSearchIntegTestCase ([#11877](https://github.com/opensearch-project/OpenSearch/pull/11877)), ([#12000](https://github.com/opensearch-project/OpenSearch/pull/12000))
+- Workaround for https://bugs.openjdk.org/browse/JDK-8323659 regression, introduced in JDK-21.0.2 ([#11968](https://github.com/opensearch-project/OpenSearch/pull/11968))
 
 ### Deprecated
 
@@ -145,6 +155,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Fix parsing of single line comments in `lang-painless` ([#11815](https://github.com/opensearch-project/OpenSearch/issues/11815))
 - Fix typo in API annotation check message ([11836](https://github.com/opensearch-project/OpenSearch/pull/11836))
 - Fix memory leak issue in ReorganizingLongHash ([#11953](https://github.com/opensearch-project/OpenSearch/issues/11953))
+- Prevent setting remote_snapshot store type on index creation ([#11867](https://github.com/opensearch-project/OpenSearch/pull/11867))
+- [BUG] Fix remote shards balancer when filtering throttled nodes ([#11724](https://github.com/opensearch-project/OpenSearch/pull/11724))
 
 ### Security
 
