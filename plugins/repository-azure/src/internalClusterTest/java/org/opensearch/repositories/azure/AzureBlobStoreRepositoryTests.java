@@ -190,7 +190,7 @@ public class AzureBlobStoreRepositoryTests extends OpenSearchMockAPIBasedReposit
     @SuppressForbidden(reason = "this test uses a HttpServer to emulate an Azure endpoint")
     private static class AzureHTTPStatsCollectorHandler extends HttpStatsCollectorHandler {
 
-        private final Logger testLogger = LogManager.getLogger("AzureStatsLogger");
+        private static final Logger testLogger = LogManager.getLogger("AzureHTTPStatsCollectorHandler");
         private static final Pattern listPattern = Pattern.compile("GET /[a-zA-Z0-9]+\\??.+");
         private static final Pattern getPattern = Pattern.compile("GET /[^?/]+/[^?/]+\\??.*");
 
