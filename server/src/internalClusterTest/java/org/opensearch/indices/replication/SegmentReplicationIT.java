@@ -989,7 +989,13 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
     public void testScrollCreatedOnReplica() throws Exception {
         // create the cluster with one primary node containing primary shard and replica node containing replica shard
         final String primary = internalCluster().startDataOnlyNode();
-        createIndex(INDEX_NAME);
+        prepareCreate(
+            INDEX_NAME,
+            Settings.builder()
+                .put(indexSettings())
+                // we want to control refreshes
+                .put("index.refresh_interval", -1)
+        ).get();
         ensureYellowAndNoInitializingShards(INDEX_NAME);
         final String replica = internalCluster().startDataOnlyNode();
         ensureGreen(INDEX_NAME);
@@ -1032,9 +1038,9 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
                 .setId(String.valueOf(i))
                 .setSource(jsonBuilder().startObject().field("field", i).endObject())
                 .get();
+            refresh(INDEX_NAME);
         }
         // create new on-disk segments and copy them out.
-        refresh(INDEX_NAME);
         assertBusy(() -> {
             assertEquals(
                 getIndexShard(primary, INDEX_NAME).getLatestReplicationCheckpoint().getSegmentInfosVersion(),
