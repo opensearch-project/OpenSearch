@@ -349,6 +349,9 @@ function assemble_deb() {
     remove_unneeded_files
     add_wazuh_tools "${version}"
 
+    # Configure debmake to only generate binaries
+    echo 'DEBUILD_DPKG_BUILDPACKAGE_OPTS="-us -uc -ui -b"' >~/.devscripts
+
     # Generate final package
     debmake \
         --fullname "Wazuh Team" \

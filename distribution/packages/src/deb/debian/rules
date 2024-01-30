@@ -13,17 +13,20 @@
 #export DEB_CFLAGS_MAINT_APPEND  = -Wall -pedantic
 #export DEB_LDFLAGS_MAINT_APPEND = -Wl,--as-needed
 
+SHELL != sh -c "command -v /bin/bash"
+.ONESHELL:
+
 %:
 	dh $@
+
+override_dh_strip_nondeterminism:
+	echo "Skipping dh_strip_nondeterminism"
+
+override_dh_fixperms:
+	echo "Skipping dh_fixperms"
 
 override_dh_builddeb:
 	dh_builddeb -- -Zgzip
 
 override_dh_gencontrol:
 	dh_gencontrol -- -DLicense=Apache-2.0
-
-#override_dh_auto_install:
-#	dh_auto_install -- prefix=/usr
-
-#override_dh_install:
-#	dh_install --list-missing -X.pyc -X.pyo
