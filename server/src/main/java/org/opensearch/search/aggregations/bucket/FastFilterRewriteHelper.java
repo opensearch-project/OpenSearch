@@ -161,7 +161,7 @@ public final class FastFilterRewriteHelper {
         while (roundedLow <= fieldType.convertNanosToMillis(high)) {
             bucketCount++;
             if (bucketCount > MAX_NUM_FILTER_BUCKETS) {
-                logger.info("2.2.2 max number of filters reached [{}]", MAX_NUM_FILTER_BUCKETS);
+                logger.debug("Max number of filters reached [{}], skip the fast filter optimization", MAX_NUM_FILTER_BUCKETS);
                 return null;
             }
             // Below rounding is needed as the interval could return in
@@ -225,13 +225,12 @@ public final class FastFilterRewriteHelper {
 
         public boolean isRewriteable(final Object parent, final int subAggLength) {
             boolean rewriteable = aggregationType.isRewriteable(parent, subAggLength);
-            logger.debug("1. Fast filter rewriteable: {} for shard {}", rewriteable, context.indexShard().shardId());
+            logger.debug("Fast filter rewriteable: {} for shard {}", rewriteable, context.indexShard().shardId());
             this.rewriteable = rewriteable;
             return rewriteable;
         }
 
         public void buildFastFilter() throws IOException {
-            logger.info("2. Build filters at shard level");
             this.buildFastFilter(FastFilterRewriteHelper::getDateHistoAggBounds);
         }
 
@@ -239,7 +238,7 @@ public final class FastFilterRewriteHelper {
             assert filters == null : "Filters should only be built once, but they are already built";
             Weight[] filters = this.aggregationType.buildFastFilter(context, getBounds);
             if (filters != null) {
-                logger.info("2.e Fast filter built for shard {}", context.indexShard().shardId());
+                logger.debug("Fast filter built for shard {}", context.indexShard().shardId());
                 filtersBuiltAtShardLevel = true;
                 this.filters = filters;
             }
@@ -300,7 +299,7 @@ public final class FastFilterRewriteHelper {
         public Weight[] buildFastFilter(SearchContext context, GetBounds<SearchContext, String, long[]> getBounds) throws IOException {
             long[] bounds = getBounds.apply(context, fieldType.name());
             bounds = processHardBounds(bounds);
-            logger.info("2.1 Bounds is {} for shard {}", bounds, context.indexShard().shardId());
+            logger.debug("Bounds are {} for shard {}", bounds, context.indexShard().shardId());
             if (bounds == null) {
                 return null;
             }
@@ -383,8 +382,11 @@ public final class FastFilterRewriteHelper {
 
         NumericDocValues docCountValues = DocValues.getNumeric(ctx.reader(), DocCountFieldMapper.NAME);
         if (docCountValues.nextDoc() != NO_MORE_DOCS) {
-            logger.info("Shard {} segment {} has at least one document with _doc_count field, skip fast filter optimization",
-                fastFilterContext.context.indexShard().shardId(),ctx.ord);
+            logger.debug(
+                "Shard {} segment {} has at least one document with _doc_count field, skip fast filter optimization",
+                fastFilterContext.context.indexShard().shardId(),
+                ctx.ord
+            );
             return false;
         }
 
@@ -392,8 +394,8 @@ public final class FastFilterRewriteHelper {
         // check if the query is functionally match-all at segment level
         if (!fastFilterContext.filtersBuiltAtShardLevel && !segmentMatchAll(fastFilterContext.context, ctx)) return false;
         if (!fastFilterContext.filterBuilt()) {
-            logger.info(
-                "3.1 Shard {} segment {} functionally match all documents. Build the fast filter",
+            logger.debug(
+                "Shard {} segment {} functionally match all documents. Build the fast filter",
                 fastFilterContext.context.indexShard().shardId(),
                 ctx.ord
             );
@@ -431,13 +433,13 @@ public final class FastFilterRewriteHelper {
                 incrementDocCount.accept(bucketKey, counts[i]);
                 s++;
                 if (s > size) {
-                    logger.info("3.e1 Fast filter optimization applied with size {}", size);
+                    logger.debug("Fast filter optimization applied to composite aggregation with size {}", size);
                     return true;
                 }
             }
         }
 
-        logger.info("3.e Fast filter optimization applied");
+        logger.debug("Fast filter optimization applied");
         return true;
     }
 

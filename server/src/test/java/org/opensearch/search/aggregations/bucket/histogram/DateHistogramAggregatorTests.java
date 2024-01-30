@@ -1258,8 +1258,7 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
         testSearchCase(
             new MatchAllDocsQuery(),
             Arrays.asList("2017-02-01", "2017-02-02", "2017-02-02"),
-            aggregation -> aggregation.calendarInterval(DateHistogramInterval.DAY)
-                .field(AGGREGABLE_DATE),
+            aggregation -> aggregation.calendarInterval(DateHistogramInterval.DAY).field(AGGREGABLE_DATE),
             histogram -> {
                 List<? extends Histogram.Bucket> buckets = histogram.getBuckets();
                 assertEquals(2, buckets.size());

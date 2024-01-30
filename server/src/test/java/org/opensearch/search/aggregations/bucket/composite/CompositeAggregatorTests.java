@@ -1255,14 +1255,16 @@ public class CompositeAggregatorTests extends BaseCompositeAggregatorTestCase {
     }
 
     public void testDateHistogramSourceWithSize() throws IOException {
-        final List<Map<String, List<Object>>> dataset = new ArrayList<>(Arrays.asList(
+        final List<Map<String, List<Object>>> dataset = new ArrayList<>(
+            Arrays.asList(
                 createDocument("date", asLong("2017-10-20T03:08:45")),
                 createDocument("date", asLong("2016-09-20T09:00:34")),
                 createDocument("date", asLong("2016-09-20T11:34:00")),
                 createDocument("date", asLong("2017-10-20T06:09:24")),
                 createDocument("date", asLong("2017-10-19T06:09:24")),
                 createDocument("long", 4L)
-        ));
+            )
+        );
         testSearchCase(
             Arrays.asList(
                 new MatchAllDocsQuery(),
@@ -1285,14 +1287,16 @@ public class CompositeAggregatorTests extends BaseCompositeAggregatorTestCase {
     }
 
     public void testDateHistogramSourceWithDocCountField() throws IOException {
-        final List<Map<String, List<Object>>> dataset = new ArrayList<>(Arrays.asList(
-            createDocument("date", asLong("2017-10-20T03:08:45"), "_doc_count", 5),
-            createDocument("date", asLong("2016-09-20T09:00:34")),
-            createDocument("date", asLong("2016-09-20T11:34:00")),
-            createDocument("date", asLong("2017-10-20T06:09:24")),
-            createDocument("date", asLong("2017-10-19T06:09:24")),
-            createDocument("long", 4L)
-        ));
+        final List<Map<String, List<Object>>> dataset = new ArrayList<>(
+            Arrays.asList(
+                createDocument("date", asLong("2017-10-20T03:08:45"), "_doc_count", 5),
+                createDocument("date", asLong("2016-09-20T09:00:34")),
+                createDocument("date", asLong("2016-09-20T11:34:00")),
+                createDocument("date", asLong("2017-10-20T06:09:24")),
+                createDocument("date", asLong("2017-10-19T06:09:24")),
+                createDocument("long", 4L)
+            )
+        );
         testSearchCase(
             Arrays.asList(
                 new MatchAllDocsQuery(),
