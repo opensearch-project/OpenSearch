@@ -8,6 +8,7 @@
 
 package org.opensearch.common.cache.store;
 
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.cache.RemovalNotification;
 import org.opensearch.common.cache.RemovalReason;
 import org.opensearch.common.cache.store.enums.CacheStoreType;
@@ -17,8 +18,9 @@ import org.opensearch.common.cache.store.enums.CacheStoreType;
  * @param <K> Type of key.
  * @param <V> Type of value.
  *
- * @opensearch.internal
+ * @opensearch.experimental
  */
+@ExperimentalApi
 public class StoreAwareCacheRemovalNotification<K, V> extends RemovalNotification<K, V> {
     private final CacheStoreType cacheStoreType;
 

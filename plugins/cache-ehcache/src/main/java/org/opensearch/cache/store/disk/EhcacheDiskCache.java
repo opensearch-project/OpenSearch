@@ -266,7 +266,7 @@ public class EhcacheDiskCache<K, V> implements StoreAwareCache<K, V> {
      * @param key Type of key
      * @param loader loader to load the value in case key is missing
      * @return value
-     * @throws Exception
+     * @throws Exception when either internal get or put calls fail.
      */
     @Override
     public V computeIfAbsent(K key, LoadAwareCacheLoader<K, V> loader) throws Exception {
@@ -367,7 +367,7 @@ public class EhcacheDiskCache<K, V> implements StoreAwareCache<K, V> {
 
     /**
      * Gives the current count of keys in disk cache.
-     * @return
+     * @return current count of keys
      */
     @Override
     public long count() {
@@ -576,7 +576,7 @@ public class EhcacheDiskCache<K, V> implements StoreAwareCache<K, V> {
 
         /**
          * Sets the desired cache type.
-         * @param cacheType
+         * @param cacheType cache type
          * @return builder
          */
         public Builder<K, V> setCacheType(CacheType cacheType) {
@@ -626,7 +626,7 @@ public class EhcacheDiskCache<K, V> implements StoreAwareCache<K, V> {
 
         /**
          * Cache alias
-         * @param diskCacheAlias
+         * @param diskCacheAlias disk cache alias
          * @return builder
          */
         public Builder<K, V> setDiskCacheAlias(String diskCacheAlias) {
