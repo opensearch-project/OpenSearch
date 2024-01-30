@@ -33,7 +33,7 @@ public interface CachePlugin {
      *
      * B: Map.of(ON_HEAP, new ADiskCache.Factor())
      *
-     * @return
+     * @return Map of cacheStoreType and an associated factory.
      */
     Map<CacheStoreType, StoreAwareCache.Factory> getCacheStoreTypeMap();
 
