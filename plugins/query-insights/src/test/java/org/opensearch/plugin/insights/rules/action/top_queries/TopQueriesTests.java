@@ -21,22 +21,15 @@ import java.io.IOException;
 public class TopQueriesTests extends OpenSearchTestCase {
 
     public void testTopQueries() throws IOException {
-        TopQueries topQueries = QueryInsightsTestUtils.createTopQueries();
+        TopQueries topQueries = QueryInsightsTestUtils.createRandomTopQueries();
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             topQueries.writeTo(out);
             try (StreamInput in = out.bytes().streamInput()) {
                 TopQueries readTopQueries = new TopQueries(in);
-                assertExpected(topQueries, readTopQueries);
+                assertTrue(
+                    QueryInsightsTestUtils.checkRecordsEquals(topQueries.getTopQueriesRecord(), readTopQueries.getTopQueriesRecord())
+                );
             }
-        }
-    }
-
-    /**
-     * checks all properties that are expected to be unchanged.
-     */
-    private void assertExpected(TopQueries topQueries, TopQueries readTopQueries) throws IOException {
-        for (int i = 0; i < topQueries.getLatencyRecords().size(); i++) {
-            QueryInsightsTestUtils.compareJson(topQueries.getLatencyRecords().get(i), readTopQueries.getLatencyRecords().get(i));
         }
     }
 }

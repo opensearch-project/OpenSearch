@@ -10,6 +10,7 @@ package org.opensearch.plugin.insights.rules.action.top_queries;
 
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.plugin.insights.rules.model.MetricType;
 import org.opensearch.test.OpenSearchTestCase;
 
 /**
@@ -21,8 +22,7 @@ public class TopQueriesRequestTests extends OpenSearchTestCase {
      * Check that we can set the metric type
      */
     public void testSetMetricType() throws Exception {
-        TopQueriesRequest request = new TopQueriesRequest(randomAlphaOfLength(5));
-        request.setMetricType(randomFrom(TopQueriesRequest.Metric.allMetrics()));
+        TopQueriesRequest request = new TopQueriesRequest(MetricType.LATENCY, randomAlphaOfLength(5));
         TopQueriesRequest deserializedRequest = roundTripRequest(request);
         assertEquals(request.getMetricType(), deserializedRequest.getMetricType());
     }

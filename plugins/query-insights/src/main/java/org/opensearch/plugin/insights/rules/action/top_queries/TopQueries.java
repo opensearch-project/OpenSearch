@@ -10,12 +10,11 @@ package org.opensearch.plugin.insights.rules.action.top_queries;
 
 import org.opensearch.action.support.nodes.BaseNodeResponse;
 import org.opensearch.cluster.node.DiscoveryNode;
-import org.opensearch.common.Nullable;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.plugin.insights.rules.model.SearchQueryLatencyRecord;
+import org.opensearch.plugin.insights.rules.model.SearchQueryRecord;
 
 import java.io.IOException;
 import java.util.List;
@@ -28,9 +27,8 @@ import java.util.List;
  * @opensearch.internal
  */
 public class TopQueries extends BaseNodeResponse implements ToXContentObject {
-    /** The store to keep the top N queries with latency records */
-    @Nullable
-    private final List<SearchQueryLatencyRecord> latencyRecords;
+    /** The store to keep the top N queries records */
+    private final List<SearchQueryRecord> topQueriesRecords;
 
     /**
      * Create the TopQueries Object from StreamInput
@@ -39,23 +37,23 @@ public class TopQueries extends BaseNodeResponse implements ToXContentObject {
      */
     public TopQueries(StreamInput in) throws IOException {
         super(in);
-        latencyRecords = in.readList(SearchQueryLatencyRecord::new);
+        topQueriesRecords = in.readList(SearchQueryRecord::new);
     }
 
     /**
      * Create the TopQueries Object
      * @param node A node that is part of the cluster.
-     * @param latencyRecords The top queries by latency records stored on this node
+     * @param searchQueryRecords A list of SearchQueryRecord associated in this TopQueries.
      */
-    public TopQueries(DiscoveryNode node, @Nullable List<SearchQueryLatencyRecord> latencyRecords) {
+    public TopQueries(DiscoveryNode node, List<SearchQueryRecord> searchQueryRecords) {
         super(node);
-        this.latencyRecords = latencyRecords;
+        topQueriesRecords = searchQueryRecords;
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        if (latencyRecords != null) {
-            for (SearchQueryLatencyRecord record : latencyRecords) {
+        if (topQueriesRecords != null) {
+            for (SearchQueryRecord record : topQueriesRecords) {
                 record.toXContent(builder, params);
             }
         }
@@ -65,17 +63,16 @@ public class TopQueries extends BaseNodeResponse implements ToXContentObject {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        if (latencyRecords != null) {
-            out.writeList(latencyRecords);
-        }
+        out.writeList(topQueriesRecords);
+
     }
 
     /**
-     * Get all latency records
+     * Get all top queries records
      *
-     * @return the latency records in this node response
+     * @return the top queries records in this node response
      */
-    public List<SearchQueryLatencyRecord> getLatencyRecords() {
-        return latencyRecords;
+    public List<SearchQueryRecord> getTopQueriesRecord() {
+        return topQueriesRecords;
     }
 }

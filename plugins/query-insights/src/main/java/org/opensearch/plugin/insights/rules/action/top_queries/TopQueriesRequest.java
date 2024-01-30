@@ -12,12 +12,9 @@ import org.opensearch.action.support.nodes.BaseNodesRequest;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.plugin.insights.rules.model.MetricType;
 
 import java.io.IOException;
-import java.util.Arrays;
-import java.util.Locale;
-import java.util.Set;
-import java.util.stream.Collectors;
 
 /**
  * A request to get cluster/node level top queries information.
@@ -27,7 +24,7 @@ import java.util.stream.Collectors;
 @PublicApi(since = "1.0.0")
 public class TopQueriesRequest extends BaseNodesRequest<TopQueriesRequest> {
 
-    Metric metricType = Metric.LATENCY;
+    MetricType metricType;
 
     /**
      * Constructor for TopQueriesRequest
@@ -37,76 +34,35 @@ public class TopQueriesRequest extends BaseNodesRequest<TopQueriesRequest> {
      */
     public TopQueriesRequest(StreamInput in) throws IOException {
         super(in);
-        setMetricType(in.readString());
+        MetricType metricType = MetricType.readFromStream(in);
+        if (false == MetricType.allMetricTypes().contains(metricType)) {
+            throw new IllegalStateException("Invalid metric used in top queries request: " + metricType);
+        }
+        this.metricType = metricType;
     }
 
     /**
      * Get top queries from nodes based on the nodes ids specified.
      * If none are passed, cluster level top queries will be returned.
      *
+     * @param metricType {@link MetricType}
      * @param nodesIds the nodeIds specified in the request
      */
-    public TopQueriesRequest(String... nodesIds) {
+    public TopQueriesRequest(MetricType metricType, String... nodesIds) {
         super(nodesIds);
+        this.metricType = metricType;
     }
 
     /**
      * Get the type of requested metrics
      */
-    public Metric getMetricType() {
+    public MetricType getMetricType() {
         return metricType;
-    }
-
-    /**
-     * Validate and set the metric type of requested metrics
-     *
-     * @param metricType the metric type to set to
-     * @return The current TopQueriesRequest
-     */
-    public TopQueriesRequest setMetricType(String metricType) {
-        metricType = metricType.toUpperCase(Locale.ROOT);
-        if (false == Metric.allMetrics().contains(metricType)) {
-            throw new IllegalStateException("Invalid metric used in top queries request: " + metricType);
-        }
-        this.metricType = Metric.valueOf(metricType);
-        return this;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeString(metricType.metricName());
-    }
-
-    /**
-     * ALl supported metrics for top queries
-     */
-    public enum Metric {
-        /**
-         * Latency metric type, used by top queries by latency
-         */
-        LATENCY("LATENCY");
-
-        private final String metricName;
-
-        Metric(String name) {
-            this.metricName = name;
-        }
-
-        /**
-         * Get the metric name of the Metric
-         * @return the metric name
-         */
-        public String metricName() {
-            return this.metricName;
-        }
-
-        /**
-         * Get all valid metrics
-         * @return A set of String that contains all valid metrics
-         */
-        public static Set<String> allMetrics() {
-            return Arrays.stream(values()).map(Metric::metricName).collect(Collectors.toSet());
-        }
+        out.writeString(metricType.toString());
     }
 }

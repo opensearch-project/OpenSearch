@@ -24,7 +24,7 @@ public class TopQueriesAction extends ActionType<TopQueriesResponse> {
     /**
      * The name of this Action
      */
-    public static final String NAME = "cluster:monitor/insights/top_queries";
+    public static final String NAME = "cluster:admin/opensearch/insights/top_queries";
 
     private TopQueriesAction() {
         super(NAME, TopQueriesResponse::new);

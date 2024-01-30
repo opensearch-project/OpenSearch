@@ -17,11 +17,12 @@ import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.plugin.insights.rules.model.SearchQueryLatencyRecord;
+import org.opensearch.plugin.insights.rules.model.Attribute;
+import org.opensearch.plugin.insights.rules.model.MetricType;
+import org.opensearch.plugin.insights.rules.model.SearchQueryRecord;
 
 import java.io.IOException;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -34,6 +35,7 @@ import java.util.stream.Collectors;
 public class TopQueriesResponse extends BaseNodesResponse<TopQueries> implements ToXContentFragment {
 
     private static final String CLUSTER_LEVEL_RESULTS_KEY = "top_queries";
+    private final MetricType metricType;
     private final int top_n_size;
 
     /**
@@ -45,6 +47,7 @@ public class TopQueriesResponse extends BaseNodesResponse<TopQueries> implements
     public TopQueriesResponse(StreamInput in) throws IOException {
         super(in);
         top_n_size = in.readInt();
+        metricType = in.readEnum(MetricType.class);
     }
 
     /**
@@ -54,10 +57,18 @@ public class TopQueriesResponse extends BaseNodesResponse<TopQueries> implements
      * @param nodes A list that contains top queries results from all nodes
      * @param failures A list that contains FailedNodeException
      * @param top_n_size The top N size to return to the user
+     * @param metricType the {@link MetricType} to be returned in this response
      */
-    public TopQueriesResponse(ClusterName clusterName, List<TopQueries> nodes, List<FailedNodeException> failures, int top_n_size) {
+    public TopQueriesResponse(
+        ClusterName clusterName,
+        List<TopQueries> nodes,
+        List<FailedNodeException> failures,
+        int top_n_size,
+        MetricType metricType
+    ) {
         super(clusterName, nodes, failures);
         this.top_n_size = top_n_size;
+        this.metricType = metricType;
     }
 
     @Override
@@ -69,11 +80,13 @@ public class TopQueriesResponse extends BaseNodesResponse<TopQueries> implements
     protected void writeNodesTo(StreamOutput out, List<TopQueries> nodes) throws IOException {
         out.writeList(nodes);
         out.writeLong(top_n_size);
+        out.writeEnum(metricType);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         List<TopQueries> results = getNodes();
+        postProcess(results);
         builder.startObject();
         toClusterLevelResult(builder, params, results);
         return builder.endObject();
@@ -93,6 +106,20 @@ public class TopQueriesResponse extends BaseNodesResponse<TopQueries> implements
     }
 
     /**
+     * Post process the top queries results to add customized attributes
+     *
+     * @param results the top queries results
+     */
+    private void postProcess(List<TopQueries> results) {
+        for (TopQueries topQueries : results) {
+            String nodeId = topQueries.getNode().getId();
+            for (SearchQueryRecord record : topQueries.getTopQueriesRecord()) {
+                record.addAttribute(Attribute.NODE_ID, nodeId);
+            }
+        }
+    }
+
+    /**
      * Merge top n queries results from nodes into cluster level results in XContent format.
      *
      * @param builder XContent builder
@@ -101,16 +128,17 @@ public class TopQueriesResponse extends BaseNodesResponse<TopQueries> implements
      * @throws IOException if an error occurs
      */
     private void toClusterLevelResult(XContentBuilder builder, Params params, List<TopQueries> results) throws IOException {
-        List<SearchQueryLatencyRecord> all_records = results.stream()
-            .map(TopQueries::getLatencyRecords)
+        List<SearchQueryRecord> all_records = results.stream()
+            .map(TopQueries::getTopQueriesRecord)
             .flatMap(Collection::stream)
-            .sorted(Collections.reverseOrder())
+            .sorted((a, b) -> SearchQueryRecord.compare(a, b, metricType) * -1)
             .limit(top_n_size)
             .collect(Collectors.toList());
         builder.startArray(CLUSTER_LEVEL_RESULTS_KEY);
-        for (SearchQueryLatencyRecord record : all_records) {
+        for (SearchQueryRecord record : all_records) {
             record.toXContent(builder, params);
         }
         builder.endArray();
     }
+
 }
