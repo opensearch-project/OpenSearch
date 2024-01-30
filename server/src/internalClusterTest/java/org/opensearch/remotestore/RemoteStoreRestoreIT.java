@@ -29,7 +29,6 @@ import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.io.IOException;
 import java.nio.file.Path;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
@@ -182,14 +181,11 @@ public class RemoteStoreRestoreIT extends BaseRemoteStoreRestoreIT {
         indexService = indicesService.indexService(indexObj);
         indexShard = indexService.getShard(0);
         IndexShard finalIndexShard = indexShard;
-        assertBusy(() -> assertTrue(finalIndexShard.isPrimaryMode()));
-        RemoteSegmentMetadata remoteSegmentMetadataAfterFailover = indexShard.getRemoteDirectory().readLatestMetadataFile();
-
-        assertNotEquals(
-            new ArrayList<>(remoteSegmentMetadataAfterFailover.toMapOfStrings().values()),
-            new ArrayList<>(remoteSegmentMetadataBeforeFailover.toMapOfStrings().values())
+        assertBusy(() -> assertTrue(finalIndexShard.isStartedPrimary() && finalIndexShard.isPrimaryMode()));
+        assertEquals(
+            finalIndexShard.getLatestSegmentInfosAndCheckpoint().v2().getPrimaryTerm(),
+            remoteSegmentMetadataBeforeFailover.getPrimaryTerm() + 1
         );
-        assertEquals(remoteSegmentMetadataAfterFailover.getPrimaryTerm(), remoteSegmentMetadataBeforeFailover.getPrimaryTerm() + 1);
     }
 
     /**
