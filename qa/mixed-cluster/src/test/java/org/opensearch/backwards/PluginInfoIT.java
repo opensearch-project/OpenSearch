@@ -17,7 +17,7 @@ import java.util.Map;
 
 public class PluginInfoIT extends OpenSearchRestTestCase {
     public void testPluginInfoSerialization() throws Exception {
-        // Ensure all nodes are able to come up
+        // Ensure all nodes are able to come up, validate with GET _nodes.
         Response response = client().performRequest(new Request("GET", "_nodes"));
         ObjectPath objectPath = ObjectPath.createFromResponse(response);
         final Map<String, Object> nodeMap = objectPath.evaluate("nodes");
