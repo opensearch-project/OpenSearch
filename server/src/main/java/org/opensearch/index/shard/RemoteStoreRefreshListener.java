@@ -41,6 +41,7 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
@@ -209,6 +210,16 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
                 try (GatedCloseable<SegmentInfos> segmentInfosGatedCloseable = indexShard.getSegmentInfosSnapshot()) {
                     SegmentInfos segmentInfos = segmentInfosGatedCloseable.get();
                     final ReplicationCheckpoint checkpoint = indexShard.computeReplicationCheckpoint(segmentInfos);
+                    if (checkpoint.getPrimaryTerm() != indexShard.getOperationPrimaryTerm()) {
+                        throw new IllegalStateException(
+                            String.format(
+                                Locale.ROOT,
+                                "primaryTerm mismatch during segments upload to remote store [%s] != [%s]",
+                                checkpoint.getPrimaryTerm(),
+                                indexShard.getOperationPrimaryTerm()
+                            )
+                        );
+                    }
                     // Capture replication checkpoint before uploading the segments as upload can take some time and checkpoint can
                     // move.
                     long lastRefreshedCheckpoint = ((InternalEngine) indexShard.getEngine()).lastRefreshedCheckpoint();
