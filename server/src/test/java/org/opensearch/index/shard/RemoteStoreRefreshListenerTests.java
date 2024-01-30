@@ -500,7 +500,7 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
         when(remoteStore.directory()).thenReturn(remoteStoreFilterDirectory);
 
         // Mock indexShard.getOperationPrimaryTerm()
-        when(shard.getOperationPrimaryTerm()).thenReturn(indexShard.getLatestReplicationCheckpoint().getPrimaryTerm());
+        when(shard.getOperationPrimaryTerm()).thenReturn(indexShard.getOperationPrimaryTerm());
         when(shard.getLatestReplicationCheckpoint()).thenReturn(indexShard.getLatestReplicationCheckpoint());
 
         // Mock indexShard.routingEntry().primary()
