@@ -26,7 +26,6 @@ import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.Repository;
 import org.opensearch.test.InternalTestCluster;
 import org.opensearch.test.OpenSearchIntegTestCase;
-import org.opensearch.test.junit.annotations.TestIssueLogging;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -142,7 +141,6 @@ public class RemoteStoreRestoreIT extends BaseRemoteStoreRestoreIT {
         restoreAndVerify(shardCount, 0, indexStats);
     }
 
-    @TestIssueLogging(value = "org.opensearch:TRACE", issueUrl = "to get trace level logs for debug")
     public void testMultipleWriters() throws Exception {
         prepareCluster(1, 2, INDEX_NAME, 1, 1);
         Map<String, Long> indexStats = indexData(randomIntBetween(2, 5), true, true, INDEX_NAME);
