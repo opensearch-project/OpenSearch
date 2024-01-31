@@ -1079,8 +1079,16 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
         // there should be no active readers, snapshots, or on-disk commits containing the snapshotted files, check that they have been
         // deleted.
         Set<String> latestCommitSegments = new HashSet<>(replicaShard.store().readLastCommittedSegmentsInfo().files(false));
-        assertEquals("Snapshotted files are no longer part of the latest commit", Collections.emptySet(), Sets.intersection(latestCommitSegments, snapshottedSegments));
-        assertEquals("All snapshotted files should be deleted", Collections.emptySet(), Sets.intersection(filesAfterClearScroll, snapshottedSegments));
+        assertEquals(
+            "Snapshotted files are no longer part of the latest commit",
+            Collections.emptySet(),
+            Sets.intersection(latestCommitSegments, snapshottedSegments)
+        );
+        assertEquals(
+            "All snapshotted files should be deleted",
+            Collections.emptySet(),
+            Sets.intersection(filesAfterClearScroll, snapshottedSegments)
+        );
     }
 
     /**
