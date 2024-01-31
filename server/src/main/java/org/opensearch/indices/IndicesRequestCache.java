@@ -460,6 +460,71 @@ public final class IndicesRequestCache implements StoreAwareCacheEventListener<I
                 updateStaleKeysCount(cleanupKey);
             }
         }
+
+        /**
+         * Updates the cleanupKeyToCountMap with the given CleanupKey.
+         * If the ShardId associated with the CleanupKey does not exist in the map, a new entry is created.
+         * The method increments the count of the CleanupKey in the map.
+         * <p>
+         * Why use ShardID as the key ?
+         * CacheEntity mainly contains IndexShard, both of these classes do not override equals() and hashCode() methods.
+         * ShardID class properly overrides equals() and hashCode() methods.
+         * Therefore, to avoid modifying CacheEntity and IndexShard classes to override these methods, we use ShardID as the key.
+         *
+         * @param cleanupKey the CleanupKey to be updated in the map
+         */
+        private void updateCleanupKeyToCountMap(CleanupKey cleanupKey) { // TODO call this oncached
+            IndexShard indexShard = (IndexShard)cleanupKey.entity.getCacheIdentity();
+            if(indexShard == null) {
+                logger.warn("IndexShard is null for CleanupKey: {} while cleaning Indices Request Cache",
+                    cleanupKey.readerCacheKeyId);
+                return;
+            }
+            ShardId shardId = indexShard.shardId();
+
+            cleanupKeyToCountMap
+                .computeIfAbsent(shardId, k -> ConcurrentCollections.newConcurrentMap())
+                .merge(cleanupKey.readerCacheKeyId, 1, Integer::sum);
+        }
+
+        /**
+         * Updates the count of stale keys in the cache.
+         * This method is called when a CleanupKey is added to the keysToClean set.
+         * It increments the staleKeysCount by the count of the CleanupKey in the cleanupKeyToCountMap.
+         * If the CleanupKey's readerCacheKeyId is null or the CleanupKey's entity is not open, it increments the staleKeysCount
+         * by the total count of keys associated with the CleanupKey's ShardId in the cleanupKeyToCountMap and removes the ShardId from the map.
+         *
+         * @param cleanupKey the CleanupKey that has been marked for cleanup
+         */
+        private void updateStaleKeysCount(CleanupKey cleanupKey) {
+            IndexShard indexShard = (IndexShard) cleanupKey.entity.getCacheIdentity();
+            if (indexShard == null) {
+                logger.warn("IndexShard is null for CleanupKey: {}", cleanupKey.readerCacheKeyId);
+                return;
+            }
+            ShardId shardId = indexShard.shardId();
+
+            ConcurrentMap<String, Integer> countMap = cleanupKeyToCountMap.get(shardId);
+
+            if (countMap != null && cleanupKey.readerCacheKeyId == null) {
+                int totalSum = countMap.values().stream().mapToInt(Integer::intValue).sum();
+                staleKeysCount.addAndGet(totalSum);
+                cleanupKeyToCountMap.remove(shardId);
+                return;
+            }
+
+            Integer count = countMap.get(cleanupKey.readerCacheKeyId);
+            if (count != null) {
+                staleKeysCount.addAndGet(count);
+                cache.stats()
+            }
+
+            countMap.remove(cleanupKey.readerCacheKeyId);
+
+            if (countMap.isEmpty()) {
+                cleanupKeyToCountMap.remove(shardId);
+            }
+        }
     }
 
     /**
