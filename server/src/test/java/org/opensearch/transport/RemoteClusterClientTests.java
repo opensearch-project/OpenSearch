@@ -94,17 +94,24 @@ public class RemoteClusterClientTests extends OpenSearchTestCase {
                 service.acceptIncomingRequests();
                 logger.info("now accepting incoming requests on local transport");
                 RemoteClusterService remoteClusterService = service.getRemoteClusterService();
+                logger.info("remote cluster service is able to get");
                 assertBusy(() -> { assertTrue(remoteClusterService.isRemoteNodeConnected("test", remoteNode)); }, 10, TimeUnit.SECONDS);
+                logger.info("remote cluster service is remote node connected");
                 Client client = remoteClusterService.getRemoteClusterClient(threadPool, "test");
+                logger.info("remote cluster client is able to create");
                 ClusterStateResponse clusterStateResponse = client.admin().cluster().prepareState().execute().get();
+                logger.info("able to get cluster state response");
                 assertNotNull(clusterStateResponse);
                 assertEquals("foo_bar_cluster", clusterStateResponse.getState().getClusterName().value());
+                logger.info("before triggering scroll");
                 // also test a failure, there is no handler for scroll registered
                 ActionNotFoundTransportException ex = expectThrows(
                     ActionNotFoundTransportException.class,
                     () -> client.prepareSearchScroll("").get()
                 );
+                logger.info("after triggering scroll");
                 assertEquals("No handler for action [indices:data/read/scroll]", ex.getMessage());
+                logger.info("Test execution successful");
             }
         }
     }

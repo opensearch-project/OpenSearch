@@ -167,7 +167,7 @@ public class NetworkModuleTests extends OpenSearchTestCase {
             .put(NetworkModule.TRANSPORT_DEFAULT_TYPE_SETTING.getKey(), "local")
             .put(NetworkModule.TRANSPORT_TYPE_KEY, "default_custom")
             .build();
-        Supplier<Transport> customTransport = () -> null;  // content doesn't matter we check reference equality
+        Supplier<Transport> customTransport = () -> null; // content doesn't matter we check reference equality
         Supplier<HttpServerTransport> custom = FakeHttpTransport::new;
         Supplier<HttpServerTransport> def = FakeHttpTransport::new;
         NetworkModule module = newNetworkModule(settings, null, new NetworkPlugin() {
@@ -474,13 +474,28 @@ public class NetworkModuleTests extends OpenSearchTestCase {
         try {
             transportInterceptor.interceptHandler("foo/bar/boom", null, true, null);
         } catch (Exception e) {
-            assertEquals(0, called.get());
+            assertEquals(1, called.get());
             assertEquals(1, called1.get());
         }
+
+        coreTransportInterceptors = new ArrayList<>();
+        coreTransportInterceptors.add(interceptor);
+        module = newNetworkModule(settings, coreTransportInterceptors, new NetworkPlugin() {
+            @Override
+            public List<TransportInterceptor> getTransportInterceptors(
+                NamedWriteableRegistry namedWriteableRegistry,
+                ThreadContext threadContext
+            ) {
+                assertNotNull(threadContext);
+                return Collections.singletonList(interceptor1);
+            }
+        });
+
+        transportInterceptor = module.getTransportInterceptor();
         try {
             transportInterceptor.interceptHandler("foo/baz/boom", null, false, null);
         } catch (Exception e) {
-            assertEquals(0, called.get());
+            assertEquals(1, called.get());
             assertEquals(2, called1.get());
         }
     }
