@@ -290,6 +290,10 @@ public class RestSearchAction extends BaseRestHandler {
             searchSourceBuilder.trackScores(request.paramAsBoolean("track_scores", false));
         }
 
+        if (request.hasParam("include_named_queries_score")) {
+            searchSourceBuilder.includeNamedQueriesScores(request.paramAsBoolean("include_named_queries_score", false));
+        }
+
         if (request.hasParam("track_total_hits")) {
             if (Booleans.isBoolean(request.param("track_total_hits"))) {
                 searchSourceBuilder.trackTotalHits(request.paramAsBoolean("track_total_hits", true));

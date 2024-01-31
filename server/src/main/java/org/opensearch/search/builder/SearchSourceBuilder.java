@@ -117,6 +117,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
     public static final ParseField IGNORE_FAILURE_FIELD = new ParseField("ignore_failure");
     public static final ParseField SORT_FIELD = new ParseField("sort");
     public static final ParseField TRACK_SCORES_FIELD = new ParseField("track_scores");
+    public static final ParseField INCLUDE_NAMED_QUERIES_SCORE = new ParseField("include_named_queries_score");
     public static final ParseField TRACK_TOTAL_HITS_FIELD = new ParseField("track_total_hits");
     public static final ParseField INDICES_BOOST_FIELD = new ParseField("indices_boost");
     public static final ParseField AGGREGATIONS_FIELD = new ParseField("aggregations");
@@ -174,6 +175,8 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
     private List<SortBuilder<?>> sorts;
 
     private boolean trackScores = false;
+
+    private boolean includeNamedQueriesScore = false;
 
     private Integer trackTotalHitsUpTo;
 
@@ -566,6 +569,22 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
     public SearchSourceBuilder trackScores(boolean trackScores) {
         this.trackScores = trackScores;
         return this;
+    }
+
+    /**
+     * Applies when there are named queries, to return the scores along as well
+     * Defaults to {@code false}.
+     */
+    public SearchSourceBuilder includeNamedQueriesScores(boolean includeNamedQueriesScore) {
+        this.includeNamedQueriesScore = includeNamedQueriesScore;
+        return this;
+    }
+
+    /**
+     * Indicates whether scores will be returned as part of every search matched query.s
+     */
+    public boolean includeNamedQueriesScore() {
+        return includeNamedQueriesScore;
     }
 
     /**
@@ -1155,6 +1174,8 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                     explain = parser.booleanValue();
                 } else if (TRACK_SCORES_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     trackScores = parser.booleanValue();
+                } else if (INCLUDE_NAMED_QUERIES_SCORE.match(currentFieldName, parser.getDeprecationHandler())) {
+                    includeNamedQueriesScore = parser.booleanValue();
                 } else if (TRACK_TOTAL_HITS_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     if (token == XContentParser.Token.VALUE_BOOLEAN
                         || (token == XContentParser.Token.VALUE_STRING && Booleans.isBoolean(parser.text()))) {
@@ -1416,6 +1437,10 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
 
         if (trackScores) {
             builder.field(TRACK_SCORES_FIELD.getPreferredName(), true);
+        }
+
+        if (includeNamedQueriesScore) {
+            builder.field(INCLUDE_NAMED_QUERIES_SCORE.getPreferredName(), true);
         }
 
         if (trackTotalHitsUpTo != null) {

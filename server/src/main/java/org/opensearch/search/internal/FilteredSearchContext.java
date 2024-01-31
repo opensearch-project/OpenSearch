@@ -340,6 +340,8 @@ public abstract class FilteredSearchContext extends SearchContext {
         return in.searchAfter();
     }
 
+    public abstract SearchContext includeNamedQueriesScore(boolean includeNamedQueriesScore);
+
     @Override
     public SearchContext parsedPostFilter(ParsedQuery postFilter) {
         return in.parsedPostFilter(postFilter);

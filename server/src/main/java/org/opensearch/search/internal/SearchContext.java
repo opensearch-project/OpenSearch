@@ -305,6 +305,10 @@ public abstract class SearchContext implements Releasable {
 
     public abstract boolean trackScores();
 
+    public abstract SearchContext includeNamedQueriesScore(boolean includeNamedQueriesScore);
+
+    public abstract boolean includeNamedQueriesScore();
+
     public abstract SearchContext trackTotalHitsUpTo(int trackTotalHits);
 
     /**
