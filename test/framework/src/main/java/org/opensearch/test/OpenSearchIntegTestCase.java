@@ -481,8 +481,8 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
         }
         if (random.nextBoolean()) {
             builder.put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), new ByteSizeValue(1, ByteSizeUnit.PB)); // just
-            // don't
-            // flush
+                                                                                                                                    // don't
+                                                                                                                                    // flush
         }
         if (random.nextBoolean()) {
             builder.put(
@@ -2422,6 +2422,9 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
         return indexService.getShard(id.get());
     }
 
+    /**
+     * Fetch latest segment info snapshot version of an index.
+     */
     protected long getLatestSegmentInfoVersion(IndexShard shard) {
         try (final GatedCloseable<SegmentInfos> snapshot = shard.getSegmentInfosSnapshot()) {
             return snapshot.get().version;
