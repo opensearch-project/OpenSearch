@@ -57,6 +57,7 @@ import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lucene.index.OpenSearchDirectoryReader;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.util.set.Sets;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.xcontent.XContentBuilder;
@@ -89,6 +90,8 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -1029,7 +1032,7 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
 
         final IndexShard replicaShard = getIndexShard(replica, INDEX_NAME);
         SegmentInfos latestSegmentInfos = getLatestSegmentInfos(replicaShard);
-        Collection<String> snapshottedSegments = latestSegmentInfos.files(false);
+        final Set<String> snapshottedSegments = new HashSet<>(latestSegmentInfos.files(false));
         logger.info("Segments {}", snapshottedSegments);
 
         // index more docs and force merge down to 1 segment
@@ -1072,16 +1075,12 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
         assertEquals(1, scrollHits);
 
         client(replica).prepareClearScroll().addScrollId(searchResponse.getScrollId()).get();
-        List<String> filesAfterClearScroll = List.of(replicaShard.store().directory().listAll());
+        final Set<String> filesAfterClearScroll = Arrays.stream(replicaShard.store().directory().listAll()).collect(Collectors.toSet());
         // there should be no active readers, snapshots, or on-disk commits containing the snapshotted files, check that they have been
         // deleted.
-        for (String file : snapshottedSegments) {
-            assertFalse(
-                "Latest on-disk commit does not contain snapshotted segments",
-                replicaShard.store().readLastCommittedSegmentsInfo().files(false).contains(file)
-            );
-            assertFalse("File " + file + " should no longer be on disk", filesAfterClearScroll.contains(file));
-        }
+        Set<String> latestCommitSegments = new HashSet<>(replicaShard.store().readLastCommittedSegmentsInfo().files(false));
+        assertEquals("Snapshotted files are no longer part of the latest commit", Collections.emptySet(), Sets.intersection(latestCommitSegments, snapshottedSegments));
+        assertEquals("All snapshotted files should be deleted", Collections.emptySet(), Sets.intersection(filesAfterClearScroll, snapshottedSegments));
     }
 
     /**
