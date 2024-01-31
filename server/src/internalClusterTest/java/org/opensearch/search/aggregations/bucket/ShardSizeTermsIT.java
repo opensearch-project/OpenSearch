@@ -47,8 +47,8 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class ShardSizeTermsIT extends ShardSizeTestCase {
 
-    public ShardSizeTermsIT(Settings dynamicSettings) {
-        super(dynamicSettings);
+    public ShardSizeTermsIT(Settings staticSettings) {
+        super(staticSettings);
     }
 
     public void testNoShardSizeString() throws Exception {

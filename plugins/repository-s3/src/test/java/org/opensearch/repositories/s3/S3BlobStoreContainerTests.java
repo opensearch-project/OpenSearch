@@ -916,6 +916,15 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
         testListBlobsByPrefixInLexicographicOrder(2, 1, BlobContainer.BlobNameSortOrder.LEXICOGRAPHIC);
     }
 
+    /**
+     * Test the boundary value at page size to ensure
+     * unnecessary calls are not made to S3 by fetching the next page.
+     * @throws IOException
+     */
+    public void testListBlobsByPrefixInLexicographicOrderWithLimitEqualToPageSize() throws IOException {
+        testListBlobsByPrefixInLexicographicOrder(5, 1, BlobContainer.BlobNameSortOrder.LEXICOGRAPHIC);
+    }
+
     public void testListBlobsByPrefixInLexicographicOrderWithLimitGreaterThanPageSize() throws IOException {
         testListBlobsByPrefixInLexicographicOrder(8, 2, BlobContainer.BlobNameSortOrder.LEXICOGRAPHIC);
     }

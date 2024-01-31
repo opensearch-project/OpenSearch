@@ -42,6 +42,7 @@ public class OTelMetricsTelemetry<T extends MeterProvider & Closeable> implement
         this.otelMeter = meterProvider.get(OTelTelemetryPlugin.INSTRUMENTATION_SCOPE_NAME);
     }
 
+    @SuppressWarnings("removal")
     @Override
     public Counter createCounter(String name, String description, String unit) {
         DoubleCounter doubleCounter = AccessController.doPrivileged(
@@ -54,6 +55,7 @@ public class OTelMetricsTelemetry<T extends MeterProvider & Closeable> implement
         return new OTelCounter(doubleCounter);
     }
 
+    @SuppressWarnings("removal")
     @Override
     public Counter createUpDownCounter(String name, String description, String unit) {
         DoubleUpDownCounter doubleUpDownCounter = AccessController.doPrivileged(

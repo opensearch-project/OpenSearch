@@ -40,7 +40,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.test.OpenSearchIntegTestCase.ClusterScope;
-import org.opensearch.test.ParameterizedOpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -53,7 +53,7 @@ import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertNoFailures;
 
 @ClusterScope(scope = SUITE)
-public class StressSearchServiceReaperIT extends ParameterizedOpenSearchIntegTestCase {
+public class StressSearchServiceReaperIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
     public StressSearchServiceReaperIT(Settings settings) {
         super(settings);
     }

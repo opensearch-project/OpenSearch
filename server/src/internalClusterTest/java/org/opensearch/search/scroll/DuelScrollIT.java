@@ -47,7 +47,7 @@ import org.opensearch.search.SearchHits;
 import org.opensearch.search.sort.SortBuilder;
 import org.opensearch.search.sort.SortBuilders;
 import org.opensearch.search.sort.SortOrder;
-import org.opensearch.test.ParameterizedOpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -60,7 +60,7 @@ import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.equalTo;
 
-public class DuelScrollIT extends ParameterizedOpenSearchIntegTestCase {
+public class DuelScrollIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
     public DuelScrollIT(Settings settings) {
         super(settings);
     }

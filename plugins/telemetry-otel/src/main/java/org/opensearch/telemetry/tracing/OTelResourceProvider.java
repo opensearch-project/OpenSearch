@@ -48,6 +48,7 @@ public final class OTelResourceProvider {
      * @param settings cluster settings
      * @return OpenTelemetrySdk instance
      */
+    @SuppressWarnings("removal")
     public static OpenTelemetrySdk get(TelemetrySettings telemetrySettings, Settings settings) {
         return AccessController.doPrivileged(
             (PrivilegedAction<OpenTelemetrySdk>) () -> get(

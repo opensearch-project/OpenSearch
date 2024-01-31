@@ -75,7 +75,7 @@ import org.opensearch.search.sort.SortBuilders;
 import org.opensearch.search.sort.SortOrder;
 import org.opensearch.test.InternalSettingsPlugin;
 import org.opensearch.test.MockKeywordPlugin;
-import org.opensearch.test.ParameterizedOpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 import org.hamcrest.Matcher;
 import org.hamcrest.Matchers;
 
@@ -128,13 +128,13 @@ import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.startsWith;
 
-public class HighlighterSearchIT extends ParameterizedOpenSearchIntegTestCase {
+public class HighlighterSearchIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
 
     // TODO as we move analyzers out of the core we need to move some of these into HighlighterWithAnalyzersTests
     private static final String[] ALL_TYPES = new String[] { "plain", "fvh", "unified" };
 
-    public HighlighterSearchIT(Settings dynamicSettings) {
-        super(dynamicSettings);
+    public HighlighterSearchIT(Settings staticSettings) {
+        super(staticSettings);
     }
 
     @ParametersFactory

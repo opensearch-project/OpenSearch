@@ -36,7 +36,9 @@ import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.SortedSetDocValues;
+import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
+import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
@@ -222,9 +224,10 @@ public class IpFieldMapper extends ParametrizedFieldMapper {
 
         @Override
         public Query termQuery(Object value, @Nullable QueryShardContext context) {
-            failIfNotIndexed();
+            failIfNotIndexedAndNoDocValues();
+            Query query;
             if (value instanceof InetAddress) {
-                return InetAddressPoint.newExactQuery(name(), (InetAddress) value);
+                query = InetAddressPoint.newExactQuery(name(), (InetAddress) value);
             } else {
                 if (value instanceof BytesRef) {
                     value = ((BytesRef) value).utf8ToString();
@@ -232,15 +235,37 @@ public class IpFieldMapper extends ParametrizedFieldMapper {
                 String term = value.toString();
                 if (term.contains("/")) {
                     final Tuple<InetAddress, Integer> cidr = InetAddresses.parseCidr(term);
+                    query = InetAddressPoint.newPrefixQuery(name(), cidr.v1(), cidr.v2());
+                } else {
+                    InetAddress address = InetAddresses.forString(term);
+                    query = InetAddressPoint.newExactQuery(name(), address);
+                }
+            }
+            if (isSearchable() && hasDocValues()) {
+                String term = value.toString();
+                if (term.contains("/")) {
+                    final Tuple<InetAddress, Integer> cidr = InetAddresses.parseCidr(term);
                     return InetAddressPoint.newPrefixQuery(name(), cidr.v1(), cidr.v2());
                 }
-                InetAddress address = InetAddresses.forString(term);
-                return InetAddressPoint.newExactQuery(name(), address);
+                return new IndexOrDocValuesQuery(
+                    query,
+                    SortedSetDocValuesField.newSlowExactQuery(name(), new BytesRef(((PointRangeQuery) query).getLowerPoint()))
+                );
             }
+            if (hasDocValues()) {
+                String term = value.toString();
+                if (term.contains("/")) {
+                    final Tuple<InetAddress, Integer> cidr = InetAddresses.parseCidr(term);
+                    return InetAddressPoint.newPrefixQuery(name(), cidr.v1(), cidr.v2());
+                }
+                return SortedSetDocValuesField.newSlowExactQuery(name(), new BytesRef(((PointRangeQuery) query).getLowerPoint()));
+            }
+            return query;
         }
 
         @Override
         public Query termsQuery(List<?> values, QueryShardContext context) {
+            failIfNotIndexedAndNoDocValues();
             InetAddress[] addresses = new InetAddress[values.size()];
             int i = 0;
             for (Object value : values) {
@@ -265,14 +290,32 @@ public class IpFieldMapper extends ParametrizedFieldMapper {
 
         @Override
         public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, QueryShardContext context) {
-            failIfNotIndexed();
-            return rangeQuery(
-                lowerTerm,
-                upperTerm,
-                includeLower,
-                includeUpper,
-                (lower, upper) -> InetAddressPoint.newRangeQuery(name(), lower, upper)
-            );
+            failIfNotIndexedAndNoDocValues();
+            return rangeQuery(lowerTerm, upperTerm, includeLower, includeUpper, (lower, upper) -> {
+                Query query = InetAddressPoint.newRangeQuery(name(), lower, upper);
+                if (isSearchable() && hasDocValues()) {
+                    return new IndexOrDocValuesQuery(
+                        query,
+                        SortedSetDocValuesField.newSlowRangeQuery(
+                            ((PointRangeQuery) query).getField(),
+                            new BytesRef(((PointRangeQuery) query).getLowerPoint()),
+                            new BytesRef(((PointRangeQuery) query).getUpperPoint()),
+                            true,
+                            true
+                        )
+                    );
+                }
+                if (hasDocValues()) {
+                    return SortedSetDocValuesField.newSlowRangeQuery(
+                        ((PointRangeQuery) query).getField(),
+                        new BytesRef(((PointRangeQuery) query).getLowerPoint()),
+                        new BytesRef(((PointRangeQuery) query).getUpperPoint()),
+                        true,
+                        true
+                    );
+                }
+                return query;
+            });
         }
 
         /**

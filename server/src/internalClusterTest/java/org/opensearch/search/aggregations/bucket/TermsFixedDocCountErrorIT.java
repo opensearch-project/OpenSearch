@@ -17,24 +17,25 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.search.aggregations.bucket.terms.Terms;
 import org.opensearch.test.OpenSearchIntegTestCase;
-import org.opensearch.test.ParameterizedOpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 
 import java.util.Arrays;
 import java.util.Collection;
 
 import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.opensearch.index.IndexSettings.MINIMUM_REFRESH_INTERVAL;
 import static org.opensearch.search.SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING;
 import static org.opensearch.search.aggregations.AggregationBuilders.terms;
 import static org.opensearch.test.OpenSearchIntegTestCase.Scope.TEST;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 
 @OpenSearchIntegTestCase.ClusterScope(scope = TEST, numClientNodes = 0, maxNumDataNodes = 1, supportsDedicatedMasters = false)
-public class TermsFixedDocCountErrorIT extends ParameterizedOpenSearchIntegTestCase {
+public class TermsFixedDocCountErrorIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
 
     private static final String STRING_FIELD_NAME = "s_value";
 
-    public TermsFixedDocCountErrorIT(Settings dynamicSettings) {
-        super(dynamicSettings);
+    public TermsFixedDocCountErrorIT(Settings staticSettings) {
+        super(staticSettings);
     }
 
     @ParametersFactory
@@ -71,7 +72,10 @@ public class TermsFixedDocCountErrorIT extends ParameterizedOpenSearchIntegTestC
         assertAcked(
             prepareCreate("idx_mshard_1").setMapping(STRING_FIELD_NAME, "type=keyword")
                 .setSettings(
-                    Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                    Settings.builder()
+                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                        .put("index.refresh_interval", MINIMUM_REFRESH_INTERVAL)
                 )
         );
         client().prepareIndex("idx_mshard_1").setSource(jsonBuilder().startObject().field(STRING_FIELD_NAME, "A").endObject()).get();
@@ -89,7 +93,10 @@ public class TermsFixedDocCountErrorIT extends ParameterizedOpenSearchIntegTestC
         assertAcked(
             prepareCreate("idx_mshard_2").setMapping(STRING_FIELD_NAME, "type=keyword")
                 .setSettings(
-                    Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                    Settings.builder()
+                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                        .put("index.refresh_interval", MINIMUM_REFRESH_INTERVAL)
                 )
         );
         client().prepareIndex("idx_mshard_2").setSource(jsonBuilder().startObject().field(STRING_FIELD_NAME, "A").endObject()).get();
@@ -127,7 +134,10 @@ public class TermsFixedDocCountErrorIT extends ParameterizedOpenSearchIntegTestC
         assertAcked(
             prepareCreate("idx_shard_error").setMapping(STRING_FIELD_NAME, "type=keyword")
                 .setSettings(
-                    Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                    Settings.builder()
+                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                        .put("index.refresh_interval", MINIMUM_REFRESH_INTERVAL)
                 )
         );
         client().prepareIndex("idx_shard_error").setSource(jsonBuilder().startObject().field(STRING_FIELD_NAME, "A").endObject()).get();
@@ -170,7 +180,10 @@ public class TermsFixedDocCountErrorIT extends ParameterizedOpenSearchIntegTestC
         assertAcked(
             prepareCreate("idx_slice_error").setMapping(STRING_FIELD_NAME, "type=keyword")
                 .setSettings(
-                    Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                    Settings.builder()
+                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                        .put("index.refresh_interval", MINIMUM_REFRESH_INTERVAL)
                 )
         );
         client().prepareIndex("idx_slice_error").setSource(jsonBuilder().startObject().field(STRING_FIELD_NAME, "A").endObject()).get();
@@ -248,7 +261,10 @@ public class TermsFixedDocCountErrorIT extends ParameterizedOpenSearchIntegTestC
         assertAcked(
             prepareCreate("idx_mshard_1").setMapping(STRING_FIELD_NAME, "type=keyword")
                 .setSettings(
-                    Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                    Settings.builder()
+                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                        .put("index.refresh_interval", MINIMUM_REFRESH_INTERVAL)
                 )
         );
         client().prepareIndex("idx_mshard_1").setSource(jsonBuilder().startObject().field(STRING_FIELD_NAME, "A").endObject()).get();
@@ -288,7 +304,10 @@ public class TermsFixedDocCountErrorIT extends ParameterizedOpenSearchIntegTestC
         assertAcked(
             prepareCreate("idx_mshard_2").setMapping(STRING_FIELD_NAME, "type=keyword")
                 .setSettings(
-                    Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                    Settings.builder()
+                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                        .put("index.refresh_interval", MINIMUM_REFRESH_INTERVAL)
                 )
         );
         client().prepareIndex("idx_mshard_2").setSource(jsonBuilder().startObject().field(STRING_FIELD_NAME, "A").endObject()).get();

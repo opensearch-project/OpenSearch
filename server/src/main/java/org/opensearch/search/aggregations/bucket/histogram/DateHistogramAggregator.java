@@ -33,13 +33,12 @@ package org.opensearch.search.aggregations.bucket.histogram;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedNumericDocValues;
+import org.apache.lucene.search.CollectionTerminatedException;
 import org.apache.lucene.search.ScoreMode;
-import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.CollectionUtil;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.Rounding;
 import org.opensearch.common.lease.Releasables;
-import org.opensearch.index.mapper.DateFieldMapper;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.aggregations.Aggregator;
 import org.opensearch.search.aggregations.AggregatorFactories;
@@ -49,8 +48,8 @@ import org.opensearch.search.aggregations.InternalAggregation;
 import org.opensearch.search.aggregations.LeafBucketCollector;
 import org.opensearch.search.aggregations.LeafBucketCollectorBase;
 import org.opensearch.search.aggregations.bucket.BucketsAggregator;
+import org.opensearch.search.aggregations.bucket.FastFilterRewriteHelper;
 import org.opensearch.search.aggregations.bucket.terms.LongKeyedBucketOrds;
-import org.opensearch.search.aggregations.support.FieldContext;
 import org.opensearch.search.aggregations.support.ValuesSource;
 import org.opensearch.search.aggregations.support.ValuesSourceConfig;
 import org.opensearch.search.internal.SearchContext;
@@ -81,9 +80,9 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
     private final long minDocCount;
     private final LongBounds extendedBounds;
     private final LongBounds hardBounds;
-    private final Weight[] filters;
     private final LongKeyedBucketOrds bucketOrds;
-    private final DateFieldMapper.DateFieldType fieldType;
+
+    private final FastFilterRewriteHelper.FastFilterContext fastFilterContext;
 
     DateHistogramAggregator(
         String name,
@@ -116,26 +115,21 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
 
         bucketOrds = LongKeyedBucketOrds.build(context.bigArrays(), cardinality);
 
-        FilterRewriteHelper.FilterContext filterContext = FilterRewriteHelper.buildFastFilterContext(
-            parent,
-            subAggregators.length,
-            context,
-            x -> rounding,
-            () -> preparedRounding,
-            valuesSourceConfig,
-            this::computeBounds
+        fastFilterContext = new FastFilterRewriteHelper.FastFilterContext();
+        fastFilterContext.setAggregationType(
+            new FastFilterRewriteHelper.DateHistogramAggregationType(
+                valuesSourceConfig.fieldType(),
+                valuesSourceConfig.missing() != null,
+                valuesSourceConfig.script() != null
+            )
         );
-        if (filterContext != null) {
-            fieldType = filterContext.fieldType;
-            filters = filterContext.filters;
-        } else {
-            filters = null;
-            fieldType = null;
+        if (fastFilterContext.isRewriteable(parent, subAggregators.length)) {
+            fastFilterContext.buildFastFilter(context, this::computeBounds, x -> rounding, () -> preparedRounding);
         }
     }
 
-    private long[] computeBounds(final FieldContext fieldContext) throws IOException {
-        final long[] bounds = FilterRewriteHelper.getAggregationBounds(context, fieldContext.field());
+    private long[] computeBounds(final FastFilterRewriteHelper.DateHistogramAggregationType fieldContext) throws IOException {
+        final long[] bounds = FastFilterRewriteHelper.getAggregationBounds(context, fieldContext.getFieldType().name());
         if (bounds != null) {
             // Update min/max limit if user specified any hard bounds
             if (hardBounds != null) {
@@ -160,26 +154,20 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
             return LeafBucketCollector.NO_OP_COLLECTOR;
         }
 
-        // Need to be declared as final and array for usage within the
-        // LeafBucketCollectorBase subclass below
-        final boolean[] useOpt = new boolean[1];
-        useOpt[0] = filters != null;
+        boolean optimized = FastFilterRewriteHelper.tryFastFilterAggregation(
+            ctx,
+            fastFilterContext,
+            (key, count) -> incrementBucketDocCount(
+                FastFilterRewriteHelper.getBucketOrd(bucketOrds.add(0, preparedRounding.round(key))),
+                count
+            )
+        );
+        if (optimized) throw new CollectionTerminatedException();
 
         SortedNumericDocValues values = valuesSource.longValues(ctx);
         return new LeafBucketCollectorBase(sub, values) {
             @Override
             public void collect(int doc, long owningBucketOrd) throws IOException {
-                // Try fast filter aggregation if the filters have been created
-                // Skip if tried before and gave incorrect/incomplete results
-                if (useOpt[0]) {
-                    useOpt[0] = FilterRewriteHelper.tryFastFilterAggregation(ctx, filters, fieldType, (key, count) -> {
-                        incrementBucketDocCount(
-                            FilterRewriteHelper.getBucketOrd(bucketOrds.add(owningBucketOrd, preparedRounding.round(key))),
-                            count
-                        );
-                    });
-                }
-
                 if (values.advanceExact(doc)) {
                     int valuesCount = values.docValueCount();
 
