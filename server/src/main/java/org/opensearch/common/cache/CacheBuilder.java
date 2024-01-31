@@ -32,6 +32,7 @@
 
 package org.opensearch.common.cache;
 
+import org.opensearch.common.cache.cleaner.ICacheCleaner;
 import org.opensearch.common.unit.TimeValue;
 
 import java.util.Objects;
@@ -48,6 +49,8 @@ public class CacheBuilder<K, V> {
     private long expireAfterWriteNanos = -1;
     private ToLongBiFunction<K, V> weigher;
     private RemovalListener<K, V> removalListener;
+
+    private ICacheCleaner<K, V> cacheCleaner;
 
     public static <K, V> CacheBuilder<K, V> builder() {
         return new CacheBuilder<>();
@@ -93,6 +96,15 @@ public class CacheBuilder<K, V> {
         }
         this.expireAfterWriteNanos = expireAfterWriteNanos;
         return this;
+    }
+
+    public CacheBuilder<K, V> setCacheCleaner(ICacheCleaner<K, V> cacheCleaner) {
+        this.cacheCleaner = cacheCleaner;
+        return this;
+    }
+
+    public ICacheCleaner<K, V> getCacheCleaner(ICacheCleaner<K, V> cacheCleaner) {
+        return this.cacheCleaner;
     }
 
     public CacheBuilder<K, V> weigher(ToLongBiFunction<K, V> weigher) {
