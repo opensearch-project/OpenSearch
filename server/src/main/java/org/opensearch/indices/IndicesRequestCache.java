@@ -42,6 +42,7 @@ import org.opensearch.common.CheckedSupplier;
 import org.opensearch.common.cache.CacheType;
 import org.opensearch.common.cache.ICache;
 import org.opensearch.common.cache.LoadAwareCacheLoader;
+import org.opensearch.common.cache.cleaner.CacheCleaner;
 import org.opensearch.common.cache.store.OpenSearchOnHeapCache;
 import org.opensearch.common.cache.store.StoreAwareCacheRemovalNotification;
 import org.opensearch.common.cache.store.builders.StoreAwareCacheBuilder;
@@ -61,6 +62,7 @@ import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.shard.IndexShard;
+import org.opensearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -73,6 +75,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
 import java.util.function.Function;
+import java.util.function.Predicate;
 
 /**
  * The indices request cache allows to cache a shard level request stage responses, helping with improving
@@ -123,7 +126,6 @@ public final class IndicesRequestCache implements StoreAwareCacheEventListener<I
     private final Function<ShardId, Optional<CacheEntity>> cacheEntityLookup;
     private final ICache<Key, BytesReference> cache;
 
-    IndicesRequestCache(Settings settings, Function<ShardId, Optional<CacheEntity>> cacheEntityFunction) {
     private final ThreadPool threadpool;
 
     IndicesRequestCache(
