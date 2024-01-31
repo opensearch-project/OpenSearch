@@ -64,6 +64,8 @@ import static org.opensearch.cache.EhcacheSettings.DISK_CACHE_ALIAS_KEY;
 import static org.opensearch.cache.EhcacheSettings.DISK_CACHE_EXPIRE_AFTER_ACCESS_KEY;
 import static org.opensearch.cache.EhcacheSettings.DISK_MAX_SIZE_IN_BYTES_KEY;
 import static org.opensearch.cache.EhcacheSettings.DISK_SEGMENT_KEY;
+import static org.opensearch.cache.EhcacheSettings.DISK_STORAGE_PATH_KEY;
+import static org.opensearch.cache.EhcacheSettings.DISK_STORAGE_PATH_SETTING;
 import static org.opensearch.cache.EhcacheSettings.DISK_WRITE_CONCURRENCY_KEY;
 import static org.opensearch.cache.EhcacheSettings.DISK_WRITE_MAXIMUM_THREADS_KEY;
 import static org.opensearch.cache.EhcacheSettings.DISK_WRITE_MIN_THREADS_KEY;
@@ -120,11 +122,14 @@ public class EhcacheDiskCache<K, V> implements StoreAwareCache<K, V> {
         }
         this.cacheType = Objects.requireNonNull(builder.cacheType, "Cache type shouldn't be null");
         if (builder.diskCacheAlias == null || builder.diskCacheAlias.isBlank()) {
-            this.diskCacheAlias = this.cacheType + "#" + UNIQUE_ID;
+            this.diskCacheAlias = "ehcacheDiskCache#" + this.cacheType;
         } else {
             this.diskCacheAlias = builder.diskCacheAlias;
         }
-        this.storagePath = Objects.requireNonNull(builder.storagePath, "Storage path shouldn't be null");
+        this.storagePath = builder.storagePath;
+        if (this.storagePath == null || this.storagePath.isBlank()) {
+            throw new IllegalArgumentException("Storage path shouldn't be null or empty");
+        }
         if (builder.threadPoolAlias == null || builder.threadPoolAlias.isBlank()) {
             this.threadPoolAlias = THREAD_POOL_ALIAS_PREFIX + "DiskWrite#" + UNIQUE_ID;
         } else {
@@ -141,7 +146,7 @@ public class EhcacheDiskCache<K, V> implements StoreAwareCache<K, V> {
     private Cache<K, V> buildCache(Duration expireAfterAccess, Builder<K, V> builder) {
         try {
             return this.cacheManager.createCache(
-                builder.diskCacheAlias,
+                this.diskCacheAlias,
                 CacheConfigurationBuilder.newCacheConfigurationBuilder(
                     this.keyType,
                     this.valueType,
@@ -210,6 +215,7 @@ public class EhcacheDiskCache<K, V> implements StoreAwareCache<K, V> {
         // In case we use multiple ehCaches, we can define this cache manager at a global level.
         return CacheManagerBuilder.newCacheManagerBuilder()
             .with(CacheManagerBuilder.persistence(new File(storagePath)))
+
             .using(
                 PooledExecutionServiceConfigurationBuilder.newPooledExecutionServiceConfigurationBuilder()
                     .defaultPool(THREAD_POOL_ALIAS_PREFIX + "Default#" + UNIQUE_ID, 1, 3) // Default pool used for other tasks
@@ -530,9 +536,12 @@ public class EhcacheDiskCache<K, V> implements StoreAwareCache<K, V> {
         public <K, V> StoreAwareCache<K, V> create(StoreAwareCacheConfig<K, V> config, CacheType cacheType) {
             Map<String, Setting<?>> settingList = EhcacheSettings.getSettingListForCacheTypeAndStore(cacheType, CacheStoreType.DISK);
             Settings settings = config.getSettings();
-
-            return new Builder<K, V>().setStoragePath((String) settingList.get(DISK_SEGMENT_KEY).get(settings))
+            Setting<String> stringSetting = DISK_STORAGE_PATH_SETTING.getConcreteSettingForNamespace(
+                CacheType.INDICES_REQUEST_CACHE.getSettingPrefix()
+            );
+            return new Builder<K, V>().setStoragePath((String) settingList.get(DISK_STORAGE_PATH_KEY).get(settings))
                 .setDiskCacheAlias((String) settingList.get(DISK_CACHE_ALIAS_KEY).get(settings))
+                .setCacheType(cacheType)
                 .setKeyType((config.getKeyType()))
                 .setValueType(config.getValueType())
                 .setEventListener(config.getEventListener())

@@ -30,6 +30,9 @@ public class StoreAwareCacheConfig<K, V> {
 
     private StoreAwareCacheConfig(Builder<K, V> builder) {
         this.keyType = builder.keyType;
+        this.valueType = builder.valueType;
+        this.settings = builder.settings;
+        this.eventListener = builder.eventListener;
     }
 
     public StoreAwareCacheEventListener<K, V> getEventListener() {
@@ -80,8 +83,8 @@ public class StoreAwareCacheConfig<K, V> {
             return this;
         }
 
-        public Builder<K, V> setValueType(Class<K> keyType) {
-            this.keyType = keyType;
+        public Builder<K, V> setValueType(Class<V> valueType) {
+            this.valueType = valueType;
             return this;
         }
 
