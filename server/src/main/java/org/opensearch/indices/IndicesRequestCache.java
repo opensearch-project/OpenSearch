@@ -124,10 +124,18 @@ public final class IndicesRequestCache implements StoreAwareCacheEventListener<I
     private final ICache<Key, BytesReference> cache;
 
     IndicesRequestCache(Settings settings, Function<ShardId, Optional<CacheEntity>> cacheEntityFunction) {
+    private final ThreadPool threadpool;
+
+    IndicesRequestCache(
+        Settings settings,
+        ThreadPool threadpool,
+        Function<ShardId, Optional<CacheEntity>> cacheEntityFunction
+    ) {
         this.size = INDICES_CACHE_QUERY_SIZE.get(settings);
         this.expire = INDICES_CACHE_QUERY_EXPIRE.exists(settings) ? INDICES_CACHE_QUERY_EXPIRE.get(settings) : null;
         long sizeInBytes = size.getBytes();
         this.cacheEntityLookup = cacheEntityFunction;
+        this.threadpool = threadpool;
         String cacheTypeInString = FeatureFlags.INDICES_REQUEST_CACHE_TYPE.get(settings);
         StoreAwareCacheBuilder<Key, BytesReference> openSearchOnHeapCacheBuilder = new OpenSearchOnHeapCache.Builder<Key, BytesReference>()
             .setMaximumWeightInBytes(sizeInBytes)
@@ -143,8 +151,10 @@ public final class IndicesRequestCache implements StoreAwareCacheEventListener<I
         }
         switch (cacheType) {
             case ON_HEAP:
-                openSearchOnHeapCacheBuilder.setEventListener(this);
-                cache = openSearchOnHeapCacheBuilder.build();
+                cache = openSearchOnHeapCacheBuilder
+                    .setEventListener(this)
+                    .setCacheCleanerBuilder(getCacheCleanerBuilder())
+                    .build();
                 break;
             default:
                 throw new IllegalArgumentException("Unknown cache type");
@@ -159,6 +169,28 @@ public final class IndicesRequestCache implements StoreAwareCacheEventListener<I
     void clear(CacheEntity entity) {
         keysToClean.add(new CleanupKey(entity, null));
         cleanCache();
+    }
+
+    private CacheCleaner.Builder<Key, BytesReference> getCacheCleanerBuilder() {
+        return new CacheCleaner.Builder<Key, BytesReference>()
+            .setThreadPool(threadpool)
+            .setCleanInterval(new TimeValue(1000))
+            .setThreshold(0.50) // TODO extract this from settings
+            .setKeyCleanupCondition(predicateForOnHeap());
+    }
+
+    private Predicate<Key> predicateForOnHeap() {
+        return key -> {
+            //start of predicate
+            if (closedShardKeys.contains(key.shardId)) {
+                return true;
+            } else {
+                // If the flow comes here, then we should have an open shard available on node.
+                return outdatedReaderCacheKeys.contains(
+                    new CleanupKey(cacheEntityLookup.apply(key.shardId).orElse(null), key.readerCacheKeyId)
+                );
+            }
+        };
     }
 
     BytesReference getOrCompute(
@@ -178,7 +210,7 @@ public final class IndicesRequestCache implements StoreAwareCacheEventListener<I
         Loader cacheLoader = new Loader(cacheEntity, loader);
         BytesReference value = cache.computeIfAbsent(key, cacheLoader);
         if (cacheLoader.isLoaded()) {
-            // see if its the first time we see this reader, and make sure to register a cleanup key
+            // register a cleanup key if it's the first time we see this reader
             CleanupKey cleanupKey = new CleanupKey(cacheEntity, readerCacheKeyId);
             if (!registeredClosedListeners.containsKey(cleanupKey)) {
                 Boolean previous = registeredClosedListeners.putIfAbsent(cleanupKey, Boolean.TRUE);
@@ -192,9 +224,10 @@ public final class IndicesRequestCache implements StoreAwareCacheEventListener<I
 
     /**
      * Invalidates the given the cache entry for the given key and it's context
+     *
      * @param cacheEntity the cache entity to invalidate for
-     * @param reader the reader to invalidate the cache entry for
-     * @param cacheKey the cache key to invalidate
+     * @param reader      the reader to invalidate the cache entry for
+     * @param cacheKey    the cache key to invalidate
      */
     void invalidate(IndicesService.IndexShardCacheEntity cacheEntity, DirectoryReader reader, BytesReference cacheKey) {
         assert reader.getReaderCacheHelper() != null;
