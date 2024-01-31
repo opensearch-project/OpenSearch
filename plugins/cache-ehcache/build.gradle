@@ -19,6 +19,10 @@ opensearchplugin {
   hasClientJar = true
 }
 
+versions << [
+  'ehcache'  : '3.10.8'
+]
+
 dependencies {
   api "org.ehcache:ehcache:${versions.ehcache}"
 }
