@@ -58,6 +58,7 @@ import org.opensearch.search.internal.InternalSearchResponse;
 import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.internal.ShardSearchRequest;
 import org.opensearch.search.pipeline.PipelinedRequest;
+import org.opensearch.telemetry.tracing.SpanScope;
 import org.opensearch.transport.Transport;
 
 import java.util.ArrayDeque;
@@ -220,6 +221,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                     null
                 )
             );
+            searchRequestContext.getSearchRequestOperationsListener().onRequestEnd(searchRequestContext);
             return;
         }
         executePhase(this);
@@ -439,21 +441,23 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         }
     }
 
-    void onPhaseStart(SearchPhase phase) {
+    void onPhaseStart(SearchPhase phase, SearchRequestContext searchRequestContext) {
         setCurrentPhase(phase);
         if (SearchPhaseName.isValidName(phase.getName())) {
-            this.searchRequestContext.getSearchRequestOperationsListener().onPhaseStart(this);
+            this.searchRequestContext.getSearchRequestOperationsListener().onPhaseStart(this, searchRequestContext);
         }
     }
 
     private void onRequestEnd(SearchRequestContext searchRequestContext) {
-        this.searchRequestContext.getSearchRequestOperationsListener().onRequestEnd(this, searchRequestContext);
+        this.searchRequestContext.getSearchRequestOperationsListener().onRequestEnd(searchRequestContext);
     }
 
     private void executePhase(SearchPhase phase) {
         try {
-            onPhaseStart(phase);
-            phase.recordAndRun();
+            onPhaseStart(phase, searchRequestContext);
+            try (SpanScope spanScope = searchRequestContext.getTracer().withSpanInScope(searchRequestContext.getPhaseSpan())) {
+                phase.recordAndRun();
+            }
         } catch (Exception e) {
             if (logger.isDebugEnabled()) {
                 logger.debug(new ParameterizedMessage("Failed to execute [{}] while moving to [{}] phase", request, phase.getName()), e);
@@ -705,6 +709,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                     searchContextId = null;
                 }
             }
+            searchRequestContext.setSearchTask(getTask());
             searchRequestContext.setTotalHits(internalSearchResponse.hits().getTotalHits());
             searchRequestContext.setShardStats(results.getNumShards(), successfulOps.get(), skippedOps.get(), failures.length);
             onPhaseEnd(searchRequestContext);
@@ -717,7 +722,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     @Override
     public final void onPhaseFailure(SearchPhase phase, String msg, Throwable cause) {
         if (SearchPhaseName.isValidName(phase.getName())) {
-            this.searchRequestContext.getSearchRequestOperationsListener().onPhaseFailure(this);
+            this.searchRequestContext.getSearchRequestOperationsListener().onPhaseFailure(this, searchRequestContext);
         }
         raisePhaseFailure(new SearchPhaseExecutionException(phase.getName(), msg, cause, buildShardFailures()));
     }

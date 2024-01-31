@@ -420,17 +420,32 @@ public class AbstractSearchAsyncActionTests extends OpenSearchTestCase {
         action.onPhaseStart(new SearchPhase("test") {
             @Override
             public void run() {}
-        });
+        },
+            new SearchRequestContext(
+                new SearchRequestOperationsListener.CompositeListener(List.of(), LogManager.getLogger()),
+                new SearchRequest()
+            )
+        );
         action.onPhaseStart(new SearchPhase("none") {
             @Override
             public void run() {}
-        });
+        },
+            new SearchRequestContext(
+                new SearchRequestOperationsListener.CompositeListener(List.of(), LogManager.getLogger()),
+                new SearchRequest()
+            )
+        );
         assertEquals(0, testListener.getPhaseCurrent(action.getSearchPhaseName()));
 
         action.onPhaseStart(new SearchPhase(action.getName()) {
             @Override
             public void run() {}
-        });
+        },
+            new SearchRequestContext(
+                new SearchRequestOperationsListener.CompositeListener(List.of(), LogManager.getLogger()),
+                new SearchRequest()
+            )
+        );
         assertEquals(1, testListener.getPhaseCurrent(action.getSearchPhaseName()));
     }
 

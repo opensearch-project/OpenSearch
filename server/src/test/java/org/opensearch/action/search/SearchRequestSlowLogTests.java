@@ -114,7 +114,6 @@ public class SearchRequestSlowLogTests extends OpenSearchTestCase {
     public void testOnRequestEnd() throws InterruptedException {
         final Logger logger = mock(Logger.class);
         final SearchRequestContext searchRequestContext = mock(SearchRequestContext.class);
-        final SearchPhaseContext searchPhaseContext = mock(SearchPhaseContext.class);
         final SearchRequest searchRequest = mock(SearchRequest.class);
         final SearchTask searchTask = mock(SearchTask.class);
 
@@ -132,11 +131,11 @@ public class SearchRequestSlowLogTests extends OpenSearchTestCase {
             new SearchRequestOperationsListener.CompositeListener(searchListenersList, logger)
         );
         when(searchRequestContext.getAbsoluteStartNanos()).thenReturn(System.nanoTime() - 1L);
-        when(searchPhaseContext.getRequest()).thenReturn(searchRequest);
-        when(searchPhaseContext.getTask()).thenReturn(searchTask);
+        when(searchRequestContext.getSearchRequest()).thenReturn(searchRequest);
+        when(searchRequestContext.getSearchTask()).thenReturn(searchTask);
         when(searchRequest.searchType()).thenReturn(SearchType.QUERY_THEN_FETCH);
 
-        searchRequestContext.getSearchRequestOperationsListener().onRequestEnd(searchPhaseContext, searchRequestContext);
+        searchRequestContext.getSearchRequestOperationsListener().onRequestEnd(searchRequestContext);
 
         verify(logger, never()).warn(any(SearchRequestSlowLog.SearchRequestSlowLogMessage.class));
         verify(logger, times(1)).info(any(SearchRequestSlowLog.SearchRequestSlowLogMessage.class));
@@ -146,7 +145,6 @@ public class SearchRequestSlowLogTests extends OpenSearchTestCase {
 
     public void testConcurrentOnRequestEnd() throws InterruptedException {
         final Logger logger = mock(Logger.class);
-        final SearchPhaseContext searchPhaseContext = mock(SearchPhaseContext.class);
         final SearchRequest searchRequest = mock(SearchRequest.class);
         final SearchTask searchTask = mock(SearchTask.class);
 
@@ -161,8 +159,6 @@ public class SearchRequestSlowLogTests extends OpenSearchTestCase {
         SearchRequestSlowLog searchRequestSlowLog = new SearchRequestSlowLog(clusterService, logger);
         final List<SearchRequestOperationsListener> searchListenersList = new ArrayList<>(List.of(searchRequestSlowLog));
 
-        when(searchPhaseContext.getRequest()).thenReturn(searchRequest);
-        when(searchPhaseContext.getTask()).thenReturn(searchTask);
         when(searchRequest.searchType()).thenReturn(SearchType.QUERY_THEN_FETCH);
 
         int numRequests = 50;
@@ -179,6 +175,7 @@ public class SearchRequestSlowLogTests extends OpenSearchTestCase {
                 new SearchRequestOperationsListener.CompositeListener(searchListenersList, logger),
                 searchRequest
             );
+            searchRequestContext.setSearchTask(searchTask);
             searchRequestContext.setAbsoluteStartNanos((i < numRequestsLogged) ? 0 : System.nanoTime());
             searchRequestContexts.add(searchRequestContext);
         }
@@ -188,7 +185,7 @@ public class SearchRequestSlowLogTests extends OpenSearchTestCase {
             threads[i] = new Thread(() -> {
                 phaser.arriveAndAwaitAdvance();
                 SearchRequestContext thisContext = searchRequestContexts.get(finalI);
-                thisContext.getSearchRequestOperationsListener().onRequestEnd(searchPhaseContext, thisContext);
+                thisContext.getSearchRequestOperationsListener().onRequestEnd(thisContext);
                 countDownLatch.countDown();
             });
             threads[i].start();
@@ -210,11 +207,7 @@ public class SearchRequestSlowLogTests extends OpenSearchTestCase {
             new SearchRequestOperationsListener.CompositeListener(List.of(), LogManager.getLogger()),
             searchRequest
         );
-        SearchRequestSlowLog.SearchRequestSlowLogMessage p = new SearchRequestSlowLog.SearchRequestSlowLogMessage(
-            searchPhaseContext,
-            10,
-            searchRequestContext
-        );
+        SearchRequestSlowLog.SearchRequestSlowLogMessage p = new SearchRequestSlowLog.SearchRequestSlowLogMessage(10, searchRequestContext);
 
         assertThat(p.getValueFor("took"), equalTo("10nanos"));
         assertThat(p.getValueFor("took_millis"), equalTo("0"));
@@ -223,7 +216,7 @@ public class SearchRequestSlowLogTests extends OpenSearchTestCase {
         assertThat(p.getValueFor("search_type"), equalTo("QUERY_THEN_FETCH"));
         assertThat(p.getValueFor("shards"), equalTo(""));
         assertThat(p.getValueFor("source"), equalTo("{\\\"query\\\":{\\\"match_all\\\":{\\\"boost\\\":1.0}}}"));
-        assertThat(p.getValueFor("id"), equalTo(null));
+        assertThat(p.getValueFor("id"), equalTo(""));
     }
 
     public void testSearchRequestSlowLogHasJsonFields_NotEmptySearchRequestContext() throws IOException {
@@ -239,11 +232,7 @@ public class SearchRequestSlowLogTests extends OpenSearchTestCase {
         searchRequestContext.updatePhaseTookMap(SearchPhaseName.EXPAND.getName(), 5L);
         searchRequestContext.setTotalHits(new TotalHits(3L, TotalHits.Relation.EQUAL_TO));
         searchRequestContext.setShardStats(10, 8, 1, 1);
-        SearchRequestSlowLog.SearchRequestSlowLogMessage p = new SearchRequestSlowLog.SearchRequestSlowLogMessage(
-            searchPhaseContext,
-            10,
-            searchRequestContext
-        );
+        SearchRequestSlowLog.SearchRequestSlowLogMessage p = new SearchRequestSlowLog.SearchRequestSlowLogMessage(10, searchRequestContext);
 
         assertThat(p.getValueFor("took"), equalTo("10nanos"));
         assertThat(p.getValueFor("took_millis"), equalTo("0"));
@@ -252,7 +241,7 @@ public class SearchRequestSlowLogTests extends OpenSearchTestCase {
         assertThat(p.getValueFor("search_type"), equalTo("QUERY_THEN_FETCH"));
         assertThat(p.getValueFor("shards"), equalTo("{total:10, successful:8, skipped:1, failed:1}"));
         assertThat(p.getValueFor("source"), equalTo("{\\\"query\\\":{\\\"match_all\\\":{\\\"boost\\\":1.0}}}"));
-        assertThat(p.getValueFor("id"), equalTo(null));
+        assertThat(p.getValueFor("id"), equalTo(""));
     }
 
     public void testSearchRequestSlowLogHasJsonFields_PartialContext() throws IOException {
@@ -269,7 +258,6 @@ public class SearchRequestSlowLogTests extends OpenSearchTestCase {
         searchRequestContext.setTotalHits(new TotalHits(3L, TotalHits.Relation.EQUAL_TO));
         searchRequestContext.setShardStats(5, 3, 1, 1);
         SearchRequestSlowLog.SearchRequestSlowLogMessage p = new SearchRequestSlowLog.SearchRequestSlowLogMessage(
-            searchPhaseContext,
             10000000000L,
             searchRequestContext
         );
@@ -281,7 +269,7 @@ public class SearchRequestSlowLogTests extends OpenSearchTestCase {
         assertThat(p.getValueFor("search_type"), equalTo("QUERY_THEN_FETCH"));
         assertThat(p.getValueFor("shards"), equalTo("{total:5, successful:3, skipped:1, failed:1}"));
         assertThat(p.getValueFor("source"), equalTo("{\\\"query\\\":{\\\"match_all\\\":{\\\"boost\\\":1.0}}}"));
-        assertThat(p.getValueFor("id"), equalTo(null));
+        assertThat(p.getValueFor("id"), equalTo(""));
     }
 
     public void testSearchRequestSlowLogSearchContextPrinterToLog() throws IOException {
@@ -298,7 +286,6 @@ public class SearchRequestSlowLogTests extends OpenSearchTestCase {
         searchRequestContext.setTotalHits(new TotalHits(3L, TotalHits.Relation.EQUAL_TO));
         searchRequestContext.setShardStats(10, 8, 1, 1);
         SearchRequestSlowLog.SearchRequestSlowLogMessage p = new SearchRequestSlowLog.SearchRequestSlowLogMessage(
-            searchPhaseContext,
             100000,
             searchRequestContext
         );

@@ -2313,7 +2313,8 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                             client
                         ),
                         NoopMetricsRegistry.INSTANCE,
-                        searchRequestOperationsCompositeListenerFactory
+                        searchRequestOperationsCompositeListenerFactory,
+                        NoopTracer.INSTANCE
                     )
                 );
                 actions.put(

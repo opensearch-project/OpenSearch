@@ -134,29 +134,29 @@ public final class SearchRequestSlowLog extends SearchRequestOperationsListener 
     }
 
     @Override
-    void onPhaseStart(SearchPhaseContext context) {}
+    void onPhaseStart(SearchPhaseContext context, SearchRequestContext searchRequestContext) {}
 
     @Override
     void onPhaseEnd(SearchPhaseContext context, SearchRequestContext searchRequestContext) {}
 
     @Override
-    void onPhaseFailure(SearchPhaseContext context) {}
+    void onPhaseFailure(SearchPhaseContext context, SearchRequestContext searchRequestContext) {}
 
     @Override
     void onRequestStart(SearchRequestContext searchRequestContext) {}
 
     @Override
-    void onRequestEnd(SearchPhaseContext context, SearchRequestContext searchRequestContext) {
+    void onRequestEnd(SearchRequestContext searchRequestContext) {
         long tookInNanos = System.nanoTime() - searchRequestContext.getAbsoluteStartNanos();
 
         if (warnThreshold >= 0 && tookInNanos > warnThreshold && level.isLevelEnabledFor(SlowLogLevel.WARN)) {
-            logger.warn(new SearchRequestSlowLogMessage(context, tookInNanos, searchRequestContext));
+            logger.warn(new SearchRequestSlowLogMessage(tookInNanos, searchRequestContext));
         } else if (infoThreshold >= 0 && tookInNanos > infoThreshold && level.isLevelEnabledFor(SlowLogLevel.INFO)) {
-            logger.info(new SearchRequestSlowLogMessage(context, tookInNanos, searchRequestContext));
+            logger.info(new SearchRequestSlowLogMessage(tookInNanos, searchRequestContext));
         } else if (debugThreshold >= 0 && tookInNanos > debugThreshold && level.isLevelEnabledFor(SlowLogLevel.DEBUG)) {
-            logger.debug(new SearchRequestSlowLogMessage(context, tookInNanos, searchRequestContext));
+            logger.debug(new SearchRequestSlowLogMessage(tookInNanos, searchRequestContext));
         } else if (traceThreshold >= 0 && tookInNanos > traceThreshold && level.isLevelEnabledFor(SlowLogLevel.TRACE)) {
-            logger.trace(new SearchRequestSlowLogMessage(context, tookInNanos, searchRequestContext));
+            logger.trace(new SearchRequestSlowLogMessage(tookInNanos, searchRequestContext));
         }
     }
 
@@ -167,15 +167,11 @@ public final class SearchRequestSlowLog extends SearchRequestOperationsListener 
      */
     static final class SearchRequestSlowLogMessage extends OpenSearchLogMessage {
 
-        SearchRequestSlowLogMessage(SearchPhaseContext context, long tookInNanos, SearchRequestContext searchRequestContext) {
-            super(prepareMap(context, tookInNanos, searchRequestContext), message(context, tookInNanos, searchRequestContext));
+        SearchRequestSlowLogMessage(long tookInNanos, SearchRequestContext searchRequestContext) {
+            super(prepareMap(tookInNanos, searchRequestContext), message(tookInNanos, searchRequestContext));
         }
 
-        private static Map<String, Object> prepareMap(
-            SearchPhaseContext context,
-            long tookInNanos,
-            SearchRequestContext searchRequestContext
-        ) {
+        private static Map<String, Object> prepareMap(long tookInNanos, SearchRequestContext searchRequestContext) {
             final Map<String, Object> messageFields = new HashMap<>();
             messageFields.put("took", TimeValue.timeValueNanos(tookInNanos));
             messageFields.put("took_millis", TimeUnit.NANOSECONDS.toMillis(tookInNanos));
@@ -185,22 +181,24 @@ public final class SearchRequestSlowLog extends SearchRequestOperationsListener 
             } else {
                 messageFields.put("total_hits", "-1");
             }
-            messageFields.put("search_type", context.getRequest().searchType());
+            messageFields.put("search_type", searchRequestContext.getSearchRequest().searchType());
             messageFields.put("shards", searchRequestContext.formattedShardStats());
-
-            if (context.getRequest().source() != null) {
-                String source = escapeJson(context.getRequest().source().toString(FORMAT_PARAMS));
+            if (searchRequestContext.getSearchRequest().source() != null) {
+                String source = escapeJson(searchRequestContext.getSearchRequest().source().toString(FORMAT_PARAMS));
                 messageFields.put("source", source);
             } else {
                 messageFields.put("source", "{}");
             }
-
-            messageFields.put("id", context.getTask().getHeader(Task.X_OPAQUE_ID));
+            if (searchRequestContext.getSearchTask() != null) {
+                messageFields.put("id", searchRequestContext.getSearchTask().getHeader(Task.X_OPAQUE_ID));
+            } else {
+                messageFields.put("id", "");
+            }
             return messageFields;
         }
 
         // Message will be used in plaintext logs
-        private static String message(SearchPhaseContext context, long tookInNanos, SearchRequestContext searchRequestContext) {
+        private static String message(long tookInNanos, SearchRequestContext searchRequestContext) {
             final StringBuilder sb = new StringBuilder();
             sb.append("took[").append(TimeValue.timeValueNanos(tookInNanos)).append("], ");
             sb.append("took_millis[").append(TimeUnit.NANOSECONDS.toMillis(tookInNanos)).append("], ");
@@ -210,15 +208,15 @@ public final class SearchRequestSlowLog extends SearchRequestOperationsListener 
             } else {
                 sb.append("total_hits[-1]");
             }
-            sb.append("search_type[").append(context.getRequest().searchType()).append("], ");
+            sb.append("search_type[").append(searchRequestContext.getSearchRequest().searchType()).append("], ");
             sb.append("shards[").append(searchRequestContext.formattedShardStats()).append("], ");
-            if (context.getRequest().source() != null) {
-                sb.append("source[").append(context.getRequest().source().toString(FORMAT_PARAMS)).append("], ");
+            if (searchRequestContext.getSearchRequest().source() != null) {
+                sb.append("source[").append(searchRequestContext.getSearchRequest().source().toString(FORMAT_PARAMS)).append("], ");
             } else {
                 sb.append("source[], ");
             }
-            if (context.getTask().getHeader(Task.X_OPAQUE_ID) != null) {
-                sb.append("id[").append(context.getTask().getHeader(Task.X_OPAQUE_ID)).append("]");
+            if (searchRequestContext.getSearchTask() != null) {
+                sb.append("id[").append(searchRequestContext.getSearchTask().getHeader(Task.X_OPAQUE_ID)).append("]");
             } else {
                 sb.append("id[]");
             }

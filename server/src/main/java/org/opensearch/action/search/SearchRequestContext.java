@@ -10,6 +10,10 @@ package org.opensearch.action.search;
 
 import org.apache.lucene.search.TotalHits;
 import org.opensearch.common.annotation.InternalApi;
+import org.opensearch.telemetry.tracing.Span;
+import org.opensearch.telemetry.tracing.Tracer;
+import org.opensearch.telemetry.tracing.noop.NoopSpan;
+import org.opensearch.telemetry.tracing.noop.NoopTracer;
 
 import java.util.EnumMap;
 import java.util.HashMap;
@@ -23,20 +27,45 @@ import java.util.Map;
  */
 @InternalApi
 class SearchRequestContext {
+    private final SearchRequest searchRequest;
+    private SearchTask searchTask;
     private final SearchRequestOperationsListener searchRequestOperationsListener;
     private long absoluteStartNanos;
     private final Map<String, Long> phaseTookMap;
     private TotalHits totalHits;
     private final EnumMap<ShardStatsFieldNames, Integer> shardStats;
+    private final Tracer tracer;
+    private Span requestSpan;
+    private Span phaseSpan;
 
-    private final SearchRequest searchRequest;
+    /**
+     * This constructor is for testing only
+     */
+    SearchRequestContext(SearchRequestOperationsListener searchRequestOperationsListener, SearchRequest searchRequest) {
+        this(searchRequestOperationsListener, searchRequest, NoopTracer.INSTANCE);
+    }
 
-    SearchRequestContext(final SearchRequestOperationsListener searchRequestOperationsListener, final SearchRequest searchRequest) {
+    SearchRequestContext(SearchRequestOperationsListener searchRequestOperationsListener, SearchRequest searchRequest, Tracer tracer) {
         this.searchRequestOperationsListener = searchRequestOperationsListener;
+        this.searchRequest = searchRequest;
+        this.tracer = tracer;
         this.absoluteStartNanos = System.nanoTime();
         this.phaseTookMap = new HashMap<>();
         this.shardStats = new EnumMap<>(ShardStatsFieldNames.class);
-        this.searchRequest = searchRequest;
+        this.requestSpan = NoopSpan.INSTANCE;
+        this.phaseSpan = NoopSpan.INSTANCE;
+    }
+
+    SearchRequest getSearchRequest() {
+        return searchRequest;
+    }
+
+    void setSearchTask(SearchTask searchTask) {
+        this.searchTask = searchTask;
+    }
+
+    SearchTask getSearchTask() {
+        return searchTask;
     }
 
     SearchRequestOperationsListener getSearchRequestOperationsListener() {
@@ -106,6 +135,26 @@ class SearchRequestContext {
                 shardStats.get(ShardStatsFieldNames.SEARCH_REQUEST_SLOWLOG_SHARD_FAILED)
             );
         }
+    }
+
+    Tracer getTracer() {
+        return tracer;
+    }
+
+    void setRequestSpan(Span requestSpan) {
+        this.requestSpan = requestSpan;
+    }
+
+    Span getRequestSpan() {
+        return requestSpan;
+    }
+
+    void setPhaseSpan(Span phaseSpan) {
+        this.phaseSpan = phaseSpan;
+    }
+
+    Span getPhaseSpan() {
+        return phaseSpan;
     }
 }
 

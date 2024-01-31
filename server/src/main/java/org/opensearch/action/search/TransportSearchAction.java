@@ -88,6 +88,11 @@ import org.opensearch.search.profile.SearchProfileShardResults;
 import org.opensearch.tasks.CancellableTask;
 import org.opensearch.tasks.Task;
 import org.opensearch.telemetry.metrics.MetricsRegistry;
+import org.opensearch.telemetry.tracing.Span;
+import org.opensearch.telemetry.tracing.SpanBuilder;
+import org.opensearch.telemetry.tracing.SpanScope;
+import org.opensearch.telemetry.tracing.Tracer;
+import org.opensearch.telemetry.tracing.listener.TraceableActionListener;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.RemoteClusterAware;
 import org.opensearch.transport.RemoteClusterService;
@@ -173,6 +178,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
     private final CircuitBreaker circuitBreaker;
     private final SearchPipelineService searchPipelineService;
     private final SearchRequestOperationsCompositeListenerFactory searchRequestOperationsCompositeListenerFactory;
+    private final Tracer tracer;
 
     private volatile boolean searchQueryMetricsEnabled;
 
@@ -195,7 +201,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         NamedWriteableRegistry namedWriteableRegistry,
         SearchPipelineService searchPipelineService,
         MetricsRegistry metricsRegistry,
-        SearchRequestOperationsCompositeListenerFactory searchRequestOperationsCompositeListenerFactory
+        SearchRequestOperationsCompositeListenerFactory searchRequestOperationsCompositeListenerFactory,
+        Tracer tracer
     ) {
         super(SearchAction.NAME, transportService, actionFilters, (Writeable.Reader<SearchRequest>) SearchRequest::new);
         this.client = client;
@@ -215,6 +222,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         this.searchRequestOperationsCompositeListenerFactory = searchRequestOperationsCompositeListenerFactory;
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(SEARCH_QUERY_METRICS_ENABLED_SETTING, this::setSearchQueryMetricsEnabled);
+        this.tracer = tracer;
     }
 
     private void setSearchQueryMetricsEnabled(boolean searchQueryMetricsEnabled) {
@@ -433,11 +441,16 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         }
         SearchRequestOperationsListener.CompositeListener requestOperationsListeners = searchRequestOperationsCompositeListenerFactory
             .buildCompositeListener(originalSearchRequest, logger);
-        SearchRequestContext searchRequestContext = new SearchRequestContext(requestOperationsListeners, originalSearchRequest);
+        SearchRequestContext searchRequestContext = new SearchRequestContext(requestOperationsListeners, originalSearchRequest, tracer);
         searchRequestContext.getSearchRequestOperationsListener().onRequestStart(searchRequestContext);
 
         PipelinedRequest searchRequest;
         ActionListener<SearchResponse> listener;
+
+        Span requestSpan = tracer.startSpan(SpanBuilder.from("coordReq"));
+        originalListener = TraceableActionListener.create(originalListener, requestSpan, tracer);
+        searchRequestContext.setRequestSpan(requestSpan);
+
         try {
             searchRequest = searchPipelineService.resolvePipeline(originalSearchRequest);
             listener = searchRequest.transformResponseListener(originalListener);
@@ -473,7 +486,9 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 );
             }
         }, listener::onFailure);
-        searchRequest.transformRequest(requestTransformListener);
+        try (SpanScope spanScope = tracer.withSpanInScope(requestSpan)) {
+            searchRequest.transformRequest(requestTransformListener);
+        }
     }
 
     private ActionListener<SearchSourceBuilder> buildRewriteListener(

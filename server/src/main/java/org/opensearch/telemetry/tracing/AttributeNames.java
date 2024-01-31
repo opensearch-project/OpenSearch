@@ -94,4 +94,19 @@ public final class AttributeNames {
      * Refresh Policy
      */
     public static final String REFRESH_POLICY = "refresh_policy";
+
+    /**
+     * Search Request Source
+     */
+    public static final String SOURCE = "source";
+
+    /**
+     * Search Response Shard Stats
+     */
+    public static final String SHARDS = "shards";
+
+    /**
+     * Search Response Total Hits
+     */
+    public static final String TOTAL_HITS = "total_hits";
 }

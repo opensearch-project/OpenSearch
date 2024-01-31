@@ -119,13 +119,13 @@ public class SearchRequestOperationsCompositeListenerFactoryTests extends OpenSe
     public SearchRequestOperationsListener createTestSearchRequestOperationsListener() {
         return new SearchRequestOperationsListener() {
             @Override
-            void onPhaseStart(SearchPhaseContext context) {}
+            void onPhaseStart(SearchPhaseContext context, SearchRequestContext searchRequestContext) {}
 
             @Override
             void onPhaseEnd(SearchPhaseContext context, SearchRequestContext searchRequestContext) {}
 
             @Override
-            void onPhaseFailure(SearchPhaseContext context) {}
+            void onPhaseFailure(SearchPhaseContext context, SearchRequestContext searchRequestContext) {}
         };
     }
 }

@@ -43,6 +43,15 @@ public final class SpanBuilder {
     }
 
     /**
+     * Creates {@link SpanCreationContext} from String
+     * @param spanName String.
+     * @return context.
+     */
+    public static SpanCreationContext from(String spanName) {
+        return SpanCreationContext.server().name(spanName);
+    }
+
+    /**
      * Creates {@link SpanCreationContext} from the {@link HttpRequest}
      * @param request Http request.
      * @return context.
@@ -170,4 +179,13 @@ public final class SpanBuilder {
         return attributes;
     }
 
+    /**
+     * Creates {@link SpanCreationContext} with parent set to specified SpanContext.
+     * @param spanName name of span.
+     * @param parentSpan target parent span.
+     * @return context
+     */
+    public static SpanCreationContext from(String spanName, SpanContext parentSpan) {
+        return SpanCreationContext.server().name(spanName).parent(parentSpan);
+    }
 }
