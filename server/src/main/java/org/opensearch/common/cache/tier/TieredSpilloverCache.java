@@ -11,6 +11,7 @@ package org.opensearch.common.cache.tier;
 import org.opensearch.common.cache.ICache;
 import org.opensearch.common.cache.LoadAwareCacheLoader;
 import org.opensearch.common.cache.RemovalReason;
+import org.opensearch.common.cache.stats.CacheStats;
 import org.opensearch.common.cache.store.StoreAwareCache;
 import org.opensearch.common.cache.store.StoreAwareCacheRemovalNotification;
 import org.opensearch.common.cache.store.StoreAwareCacheValue;
@@ -20,6 +21,7 @@ import org.opensearch.common.cache.store.listeners.StoreAwareCacheEventListener;
 import org.opensearch.common.util.concurrent.ReleasableLock;
 import org.opensearch.common.util.iterable.Iterables;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -179,6 +181,11 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V>, StoreAwareCache
     }
 
     @Override
+    public CacheStats stats() {
+        return null;
+    }
+
+    @Override
     public void onMiss(K key, CacheStoreType cacheStoreType) {
         // Misses for tiered cache are tracked here itself.
     }
@@ -232,6 +239,11 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V>, StoreAwareCache
             }
             return null;
         };
+    }
+
+    @Override
+    public void close() throws IOException {
+
     }
 
     /**
