@@ -12,6 +12,7 @@ import org.opensearch.action.search.SearchResponse;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.cluster.routing.IndexRoutingTable;
 import org.opensearch.cluster.routing.IndexShardRoutingTable;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.common.Nullable;
@@ -21,7 +22,10 @@ import org.opensearch.core.index.Index;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.SegmentReplicationShardStats;
+import org.opensearch.index.engine.Engine;
 import org.opensearch.index.shard.IndexShard;
+import org.opensearch.index.store.Store;
+import org.opensearch.index.store.StoreFileMetadata;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.plugins.Plugin;
@@ -32,6 +36,7 @@ import org.opensearch.transport.TransportService;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
@@ -118,6 +123,55 @@ public class SegmentReplicationBaseIT extends OpenSearchIntegTestCase {
 
     protected void waitForSearchableDocs(long docCount, String... nodes) throws Exception {
         waitForSearchableDocs(docCount, Arrays.stream(nodes).collect(Collectors.toList()));
+    }
+
+    protected void verifyStoreContent() throws Exception {
+        assertBusy(() -> {
+            final ClusterState clusterState = getClusterState();
+            for (IndexRoutingTable indexRoutingTable : clusterState.routingTable()) {
+                for (IndexShardRoutingTable shardRoutingTable : indexRoutingTable) {
+                    final ShardRouting primaryRouting = shardRoutingTable.primaryShard();
+                    final String indexName = primaryRouting.getIndexName();
+                    final List<ShardRouting> replicaRouting = shardRoutingTable.replicaShards();
+                    final IndexShard primaryShard = getIndexShard(clusterState, primaryRouting, indexName);
+                    final int primaryDocCount = getDocCountFromShard(primaryShard);
+                    final Map<String, StoreFileMetadata> primarySegmentMetadata = primaryShard.getSegmentMetadataMap();
+                    for (ShardRouting replica : replicaRouting) {
+                        IndexShard replicaShard = getIndexShard(clusterState, replica, indexName);
+                        final Store.RecoveryDiff recoveryDiff = Store.segmentReplicationDiff(
+                            primarySegmentMetadata,
+                            replicaShard.getSegmentMetadataMap()
+                        );
+                        final int replicaDocCount = getDocCountFromShard(replicaShard);
+                        assertEquals("Doc counts should match", primaryDocCount, replicaDocCount);
+                        if (recoveryDiff.missing.isEmpty() == false || recoveryDiff.different.isEmpty() == false) {
+                            fail(
+                                "Expected no missing or different segments between primary and replica but diff was missing: "
+                                    + recoveryDiff.missing
+                                    + " Different: "
+                                    + recoveryDiff.different
+                                    + " Primary Replication Checkpoint : "
+                                    + primaryShard.getLatestReplicationCheckpoint()
+                                    + " Replica Replication Checkpoint: "
+                                    + replicaShard.getLatestReplicationCheckpoint()
+                            );
+                        }
+                        // calls to readCommit will fail if a valid commit point and all its segments are not in the store.
+                        replicaShard.store().readLastCommittedSegmentsInfo();
+                    }
+                }
+            }
+        }, 1, TimeUnit.MINUTES);
+    }
+
+    private int getDocCountFromShard(IndexShard shard) {
+        try (final Engine.Searcher searcher = shard.acquireSearcher("test")) {
+            return searcher.getDirectoryReader().numDocs();
+        }
+    }
+
+    private IndexShard getIndexShard(ClusterState state, ShardRouting routing, String indexName) {
+        return getIndexShard(state.nodes().get(routing.currentNodeId()).getName(), routing.shardId(), indexName);
     }
 
     /**

@@ -126,7 +126,7 @@ public class SegmentReplicationRelocationIT extends SegmentReplicationBaseIT {
         flushAndRefresh(INDEX_NAME);
         logger.info("--> verify count again {}", 2 * initialDocCount);
         waitForSearchableDocs(2 * initialDocCount, newPrimary, replica);
-        waitForReplication(false);
+        verifyStoreContent();
     }
 
     /**
@@ -212,14 +212,13 @@ public class SegmentReplicationRelocationIT extends SegmentReplicationBaseIT {
         }, 1, TimeUnit.MINUTES);
         flushAndRefresh(INDEX_NAME);
         waitForSearchableDocs(2 * initialDocCount, oldPrimary, replica);
-        waitForReplication(false);
+        verifyStoreContent();
     }
 
     /**
      * This test verifies primary recovery behavior with continuous ingestion
      *
      */
-    @TestLogging(reason = "Enable trace logs from replication and recovery package", value = "org.opensearch.indices.recovery:TRACE,org.opensearch.indices.replication:TRACE")
     public void testRelocateWhileContinuouslyIndexingAndWaitingForRefresh() throws Exception {
         final String primary = internalCluster().startNode();
         createIndex(1);
@@ -287,7 +286,7 @@ public class SegmentReplicationRelocationIT extends SegmentReplicationBaseIT {
         }, 1, TimeUnit.MINUTES);
         flushAndRefresh(INDEX_NAME);
         waitForSearchableDocs(totalDocCount, newPrimary, replica);
-        waitForReplication(false);
+        verifyStoreContent();
     }
 
     /**
@@ -398,7 +397,7 @@ public class SegmentReplicationRelocationIT extends SegmentReplicationBaseIT {
         }, 2, TimeUnit.MINUTES);
         flushAndRefresh(INDEX_NAME);
         waitForSearchableDocs(totalDocCount, replica, newPrimary);
-        waitForReplication(false);
+        verifyStoreContent();
     }
 
     /**
@@ -431,7 +430,7 @@ public class SegmentReplicationRelocationIT extends SegmentReplicationBaseIT {
         ensureGreen(INDEX_NAME);
         flushAndRefresh(INDEX_NAME);
         waitForSearchableDocs(20, primary, replica);
-        waitForReplication(false);
+        verifyStoreContent();
     }
 
     /**

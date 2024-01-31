@@ -37,6 +37,7 @@ import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 
 import org.apache.lucene.codecs.Codec;
+import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.tests.util.LuceneTestCase;
@@ -92,6 +93,7 @@ import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.Priority;
 import org.opensearch.common.collect.Tuple;
+import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.network.NetworkModule;
 import org.opensearch.common.regex.Regex;
 import org.opensearch.common.settings.FeatureFlagSettings;
@@ -135,7 +137,6 @@ import org.opensearch.index.mapper.CompletionFieldMapper;
 import org.opensearch.index.mapper.MockFieldFilterPlugin;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.store.Store;
-import org.opensearch.index.store.StoreFileMetadata;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.indices.IndicesQueryCache;
 import org.opensearch.indices.IndicesRequestCache;
@@ -480,8 +481,8 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
         }
         if (random.nextBoolean()) {
             builder.put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), new ByteSizeValue(1, ByteSizeUnit.PB)); // just
-                                                                                                                                    // don't
-                                                                                                                                    // flush
+            // don't
+            // flush
         }
         if (random.nextBoolean()) {
             builder.put(
@@ -1544,25 +1545,20 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
                 );
             }
         }
-        if (forceRefresh) {
-            assertNoFailures(
-                client().admin().indices().prepareRefresh(indicesArray).setIndicesOptions(IndicesOptions.lenientExpandOpen()).get()
-            );
-        }
         if (dummyDocuments) {
             indexRandomForMultipleSlices(indicesArray);
         }
         if (forceRefresh) {
-            waitForReplication(false);
+            waitForReplication();
         }
     }
 
     /*
-    * This method ingests bogus documents for the given indices such that multiple slices
-    * are formed. This is useful for testing with the concurrent search use-case as it creates
-    * multiple slices based on segment count.
-    * @param indices         the indices in which bogus documents should be ingested
-    * */
+     * This method ingests bogus documents for the given indices such that multiple slices
+     * are formed. This is useful for testing with the concurrent search use-case as it creates
+     * multiple slices based on segment count.
+     * @param indices         the indices in which bogus documents should be ingested
+     * */
     protected void indexRandomForMultipleSlices(String... indices) throws InterruptedException {
         Set<List<String>> bogusIds = new HashSet<>();
         int refreshCount = randomIntBetween(2, 3);
@@ -2359,53 +2355,35 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
     }
 
     /**
-     * Refreshes all indices in the cluster when forceRefresh set to true and
-     * checks if replica shards caught up with primary shard when Segment Replication is enabled.
+     * Refreshes the indices in the cluster and checks if active/started replica shards
+     * caught up with primary shard when Segment Replication is enabled.
+     * This doesn't wait for inactive/non-started replica shards to become active/started.
      */
-    protected void waitForReplication(boolean forceRefresh, String... indices) {
-        if (forceRefresh) {
-            refresh(indices);
+    protected void waitForReplication(String... indices) {
+        refresh(indices);
+        if (indices.length == 0) {
+            indices = getClusterState().routingTable().indicesRouting().keySet().toArray(String[]::new);
         }
-        if (isInternalCluster()) {
-            if (indices.length == 0) {
-                indices = getClusterState().routingTable().indicesRouting().keySet().toArray(String[]::new);
-            }
-            try {
-                for (String index : indices) {
+        try {
+            for (String index : indices) {
+                if (isInternalCluster() && isSegmentReplicationEnabledForIndex(index)) {
                     IndexRoutingTable indexRoutingTable = getClusterState().routingTable().index(index);
                     if (indexRoutingTable != null) {
                         assertBusy(() -> {
                             for (IndexShardRoutingTable shardRoutingTable : indexRoutingTable) {
                                 final ShardRouting primaryRouting = shardRoutingTable.primaryShard();
                                 if (primaryRouting.state().toString().equals("STARTED")) {
-                                    final String indexName = primaryRouting.getIndexName();
-                                    if (isSegmentReplicationEnabledForIndex(indexName)) {
+                                    if (isSegmentReplicationEnabledForIndex(index)) {
                                         final List<ShardRouting> replicaRouting = shardRoutingTable.replicaShards();
-                                        final IndexShard primaryShard = getIndexShard(primaryRouting, indexName);
-                                        final Map<String, StoreFileMetadata> primarySegmentMetadata = primaryShard.getSegmentMetadataMap();
+                                        final IndexShard primaryShard = getIndexShard(primaryRouting, index);
                                         for (ShardRouting replica : replicaRouting) {
                                             if (replica.state().toString().equals("STARTED")) {
-                                                IndexShard replicaShard = getIndexShard(replica, indexName);
-                                                final Store.RecoveryDiff recoveryDiff = Store.segmentReplicationDiff(
-                                                    primarySegmentMetadata,
-                                                    replicaShard.getSegmentMetadataMap()
+                                                IndexShard replicaShard = getIndexShard(replica, index);
+                                                assertEquals(
+                                                    "replica shards haven't caught up with primary",
+                                                    getLatestSegmentInfoVersion(primaryShard),
+                                                    getLatestSegmentInfoVersion(replicaShard)
                                                 );
-                                                if (recoveryDiff.missing.isEmpty() == false || recoveryDiff.different.isEmpty() == false) {
-                                                    fail(
-                                                        "Expected no missing or different segments between primary and replica but diff was missing: "
-                                                            + recoveryDiff.missing
-                                                            + " Different: "
-                                                            + recoveryDiff.different
-                                                            + " Primary Replication Checkpoint : "
-                                                            + primaryShard.getLatestReplicationCheckpoint()
-                                                            + " Replica Replication Checkpoint: "
-                                                            + replicaShard.getLatestReplicationCheckpoint()
-                                                    );
-                                                }
-
-                                                // calls to readCommit will fail if a valid commit point and all its segments are not in the
-                                                // store.
-                                                replicaShard.store().readLastCommittedSegmentsInfo();
                                             }
                                         }
                                     }
@@ -2413,10 +2391,12 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
                             }
                         }, 30, TimeUnit.SECONDS);
                     }
+                } else if (isInternalCluster() == false && isSegmentReplicationEnabledForIndex(index)) {
+                    throw new IllegalStateException("Segment Replication is not supported for testing tests using External Test Cluster");
                 }
-            } catch (Exception e) {
-                throw new RuntimeException(e);
             }
+        } catch (Exception e) {
+            throw new RuntimeException(e);
         }
     }
 
@@ -2440,6 +2420,14 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
         IndexService indexService = indicesService.indexServiceSafe(index);
         final Optional<Integer> id = indexService.shardIds().stream().filter(sid -> sid.equals(shardId.id())).findFirst();
         return indexService.getShard(id.get());
+    }
+
+    protected long getLatestSegmentInfoVersion(IndexShard shard) {
+        try (final GatedCloseable<SegmentInfos> snapshot = shard.getSegmentInfosSnapshot()) {
+            return snapshot.get().version;
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
     }
 
 }

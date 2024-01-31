@@ -44,8 +44,9 @@ public class SegmentReplicationSuiteIT extends SegmentReplicationBaseIT {
         for (int i = 0; i < docCount; i++) {
             client().prepareIndex(INDEX_NAME).setId(Integer.toString(i)).setSource("field", "value" + i).execute().get();
         }
+        refresh();
         ensureGreen(INDEX_NAME);
-        waitForReplication(true);
+        verifyStoreContent();
     }
 
     public void testDropRandomNodeDuringReplication() throws Exception {

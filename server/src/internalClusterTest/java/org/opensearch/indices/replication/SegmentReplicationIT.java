@@ -164,8 +164,9 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
         String nodeC = internalCluster().startDataOnlyNode();
         ensureGreen(INDEX_NAME);
         client().prepareIndex(INDEX_NAME).setId("4").setSource("baz", "baz").get();
-        waitForReplication(true);
+        refresh(INDEX_NAME);
         waitForSearchableDocs(4, nodeC, replica);
+        verifyStoreContent();
     }
 
     public void testRestartPrimary() throws Exception {
@@ -189,8 +190,8 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
         assertEquals(getNodeContainingPrimaryShard().getName(), replica);
 
         flushAndRefresh(INDEX_NAME);
-        waitForReplication(false);
         waitForSearchableDocs(initialDocCount, replica, primary);
+        verifyStoreContent();
     }
 
     public void testCancelPrimaryAllocation() throws Exception {
@@ -220,8 +221,8 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
         assertEquals(getNodeContainingPrimaryShard().getName(), replica);
 
         flushAndRefresh(INDEX_NAME);
-        waitForReplication(false);
         waitForSearchableDocs(initialDocCount, replica, primary);
+        verifyStoreContent();
     }
 
     public void testReplicationAfterPrimaryRefreshAndFlush() throws Exception {
@@ -261,9 +262,10 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
             waitForDocs(expectedHitCount, indexer);
 
             flushAndRefresh(INDEX_NAME);
-            waitForReplication(false);
             waitForSearchableDocs(expectedHitCount, nodeA, nodeB);
+
             ensureGreen(INDEX_NAME);
+            verifyStoreContent();
         }
     }
 
@@ -298,7 +300,7 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
 
         ensureGreen(INDEX_NAME);
         waitForSearchableDocs(initialDocCount, primary, replica);
-        waitForReplication(false);
+        verifyStoreContent();
     }
 
     public void testScrollWithConcurrentIndexAndSearch() throws Exception {
@@ -349,7 +351,7 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
             assertTrue(pendingIndexResponses.stream().allMatch(ActionFuture::isDone));
             assertTrue(pendingSearchResponse.stream().allMatch(ActionFuture::isDone));
         }, 1, TimeUnit.MINUTES);
-        waitForReplication(false);
+        verifyStoreContent();
         waitForSearchableDocs(INDEX_NAME, 2 * searchCount, List.of(primary, replica));
     }
 
@@ -393,7 +395,7 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
             waitForSearchableDocs(expectedHitCount, nodeA, nodeB);
 
             ensureGreen(INDEX_NAME);
-            waitForReplication(false);
+            verifyStoreContent();
         }
     }
 
@@ -430,7 +432,8 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
 
             // Force a merge here so that the in memory SegmentInfos does not reference old segments on disk.
             client().admin().indices().prepareForceMerge(INDEX_NAME).setMaxNumSegments(1).setFlush(false).get();
-            waitForReplication(true);
+            refresh(INDEX_NAME);
+            verifyStoreContent();
         }
     }
 
@@ -591,67 +594,6 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
         assertDocCounts(docCount, primaryNode);
     }
 
-    public void testCancellationDuringGetCheckpointInfo() throws Exception {
-        cancelDuringReplicaAction(SegmentReplicationSourceService.Actions.GET_CHECKPOINT_INFO);
-    }
-
-    public void testCancellationDuringGetSegments() throws Exception {
-        cancelDuringReplicaAction(SegmentReplicationSourceService.Actions.GET_SEGMENT_FILES);
-    }
-
-    private void cancelDuringReplicaAction(String actionToblock) throws Exception {
-        // this test stubs transport calls specific to node-node replication.
-        assumeFalse(
-            "Skipping the test as its not compatible with segment replication with remote store.",
-            segmentReplicationWithRemoteEnabled()
-        );
-        final String primaryNode = internalCluster().startDataOnlyNode();
-        createIndex(INDEX_NAME, Settings.builder().put(indexSettings()).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1).build());
-        ensureYellow(INDEX_NAME);
-
-        final String replicaNode = internalCluster().startDataOnlyNode();
-        ensureGreen(INDEX_NAME);
-        final SegmentReplicationTargetService targetService = internalCluster().getInstance(
-            SegmentReplicationTargetService.class,
-            replicaNode
-        );
-        final IndexShard replicaShard = getIndexShard(replicaNode, INDEX_NAME);
-        CountDownLatch startCancellationLatch = new CountDownLatch(1);
-        CountDownLatch latch = new CountDownLatch(1);
-
-        MockTransportService primaryTransportService = (MockTransportService) internalCluster().getInstance(
-            TransportService.class,
-            primaryNode
-        );
-        primaryTransportService.addRequestHandlingBehavior(actionToblock, (handler, request, channel, task) -> {
-            logger.info("action {}", actionToblock);
-            try {
-                startCancellationLatch.countDown();
-                latch.await();
-            } catch (InterruptedException e) {
-                throw new RuntimeException(e);
-            }
-        });
-
-        // index a doc and trigger replication
-        client().prepareIndex(INDEX_NAME).setId("1").setSource("foo", "bar").setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
-
-        // remove the replica and ensure it is cleaned up.
-        startCancellationLatch.await();
-        SegmentReplicationTarget target = targetService.get(replicaShard.shardId());
-        assertAcked(
-            client().admin()
-                .indices()
-                .prepareUpdateSettings(INDEX_NAME)
-                .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0))
-        );
-        assertEquals("Replication not closed: " + target.getId(), 0, target.refCount());
-        assertEquals("Store has a positive refCount", 0, replicaShard.store().refCount());
-        // stop the replica, this will do additional checks on shutDown to ensure the replica and its store are closed properly
-        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(replicaNode));
-        latch.countDown();
-    }
-
     public void testStartReplicaAfterPrimaryIndexesDocs() throws Exception {
         final String primaryNode = internalCluster().startDataOnlyNode();
         createIndex(INDEX_NAME, Settings.builder().put(indexSettings()).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build());
@@ -683,10 +625,11 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
         assertHitCount(client(replicaNode).prepareSearch(INDEX_NAME).setSize(0).setPreference("_only_local").get(), 2);
 
         client().prepareIndex(INDEX_NAME).setId("3").setSource("foo", "bar").get();
-        waitForReplication(true);
+        refresh(INDEX_NAME);
         waitForSearchableDocs(3, primaryNode, replicaNode);
         assertHitCount(client(primaryNode).prepareSearch(INDEX_NAME).setSize(0).setPreference("_only_local").get(), 3);
         assertHitCount(client(replicaNode).prepareSearch(INDEX_NAME).setSize(0).setPreference("_only_local").get(), 3);
+        verifyStoreContent();
     }
 
     @TestLogging(reason = "Getting trace logs from replication package", value = "org.opensearch.indices.replication:TRACE")
@@ -726,8 +669,9 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
             String id = ids.toArray()[0].toString();
             client(nodeA).prepareDelete(INDEX_NAME, id).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
 
-            waitForReplication(true, INDEX_NAME);
+            refresh(INDEX_NAME);
             waitForSearchableDocs(expectedHitCount - 1, nodeA, nodeB);
+            verifyStoreContent();
         }
     }
 
@@ -831,7 +775,10 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
                 .get();
             assertFalse("request shouldn't have forced a refresh", updateResponse.forcedRefresh());
             assertEquals(2, updateResponse.getVersion());
-            waitForReplication(true, INDEX_NAME);
+
+            refresh(INDEX_NAME);
+
+            verifyStoreContent();
             assertSearchHits(client(primary).prepareSearch(INDEX_NAME).setQuery(matchQuery("foo", "baz")).get(), id);
             assertSearchHits(client(replica).prepareSearch(INDEX_NAME).setQuery(matchQuery("foo", "baz")).get(), id);
         }
@@ -878,8 +825,8 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
             client().prepareIndex(INDEX_NAME).setId(docId).setSource("foo", "bar").get();
 
             flushAndRefresh(INDEX_NAME);
-            waitForReplication(false);
             waitForSearchableDocs(initialDocCount + 1, dataNodes);
+            verifyStoreContent();
         }
     }
 
@@ -931,8 +878,8 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
             refresh(INDEX_NAME);
         }
         ensureGreen(INDEX_NAME);
-        waitForReplication(false);
         waitForSearchableDocs(docCount, primaryNode, replicaNode);
+        verifyStoreContent();
         final IndexShard replicaAfterFailure = getIndexShard(replicaNode, INDEX_NAME);
         assertNotEquals(replicaAfterFailure.routingEntry().allocationId().getId(), replicaShard.routingEntry().allocationId().getId());
     }
@@ -1265,7 +1212,7 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
                 getIndexShard(replica, INDEX_NAME).getLatestReplicationCheckpoint().getSegmentInfosVersion()
             );
         });
-        waitForReplication(false);
+        verifyStoreContent();
         waitForSearchableDocs(finalDocCount, primary, replica);
     }
 
@@ -1471,7 +1418,7 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
             .setRouting(randomAlphaOfLength(2))
             .setSource("online", true, "ts", System.currentTimeMillis() - 123123, "type", "bs")
             .get();
-        refresh(INDEX_NAME);
+        refresh();
         ensureGreen(INDEX_NAME);
         waitForSearchableDocs(4, primaryNode, replicaNode);
 

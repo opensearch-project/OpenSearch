@@ -129,8 +129,9 @@ public class SegmentReplicationPressureIT extends SegmentReplicationBaseIT {
         assertReplicaCheckpointUpdated(primaryShard);
         // index another doc showing there is no pressure enforced.
         indexDoc();
-        waitForReplication(true, INDEX_NAME);
+        refresh(INDEX_NAME);
         waitForSearchableDocs(totalDocs.incrementAndGet(), replicaNodes.toArray(new String[] {}));
+        verifyStoreContent();
     }
 
     /**
@@ -183,8 +184,9 @@ public class SegmentReplicationPressureIT extends SegmentReplicationBaseIT {
 
         // index another doc showing there is no pressure enforced.
         indexDoc();
-        waitForReplication(true, INDEX_NAME);
+        refresh(INDEX_NAME);
         waitForSearchableDocs(totalDocs.incrementAndGet(), replicaNodes.toArray(new String[] {}));
+        verifyStoreContent();
     }
 
     public void testBelowReplicaLimit() throws Exception {
@@ -215,8 +217,9 @@ public class SegmentReplicationPressureIT extends SegmentReplicationBaseIT {
         }
         // index another doc showing there is no pressure enforced.
         indexDoc();
-        waitForReplication(true, INDEX_NAME);
+        refresh(INDEX_NAME);
         waitForSearchableDocs(totalDocs.incrementAndGet(), replicaNodes.toArray(new String[] {}));
+        verifyStoreContent();
     }
 
     public void testFailStaleReplica() throws Exception {
@@ -324,8 +327,8 @@ public class SegmentReplicationPressureIT extends SegmentReplicationBaseIT {
 
         // index another doc showing there is no pressure enforced.
         executeBulkRequest(nodes, totalDocs);
-        waitForReplication(false);
         waitForSearchableDocs(totalDocs * 2L, replicaNodes.toArray(new String[] {}));
+        verifyStoreContent();
     }
 
     private BulkResponse executeBulkRequest(List<String> nodes, int docsPerBatch) {
