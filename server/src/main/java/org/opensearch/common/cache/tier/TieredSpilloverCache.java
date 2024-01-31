@@ -97,7 +97,7 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V>, StoreAwareCache
     public V computeIfAbsent(K key, LoadAwareCacheLoader<K, V> loader) throws Exception {
         // We are skipping calling event listeners at this step as we do another get inside below computeIfAbsent.
         // Where we might end up calling onMiss twice for a key not present in onHeap cache.
-        // Similary we might end up calling both onMiss and onHit for a key, in case we are receiving concurrent
+        // Similarly, we might end up calling both onMiss and onHit for a key, in case we are receiving concurrent
         // requests for the same key which requires loading only once.
         StoreAwareCacheValue<V> cacheValue = getValueFromTieredCache(false).apply(key);
         if (cacheValue == null) {

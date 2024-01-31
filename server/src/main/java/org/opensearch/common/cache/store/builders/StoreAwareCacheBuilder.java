@@ -27,7 +27,7 @@ public abstract class StoreAwareCacheBuilder<K, V> {
 
     private ToLongBiFunction<K, V> weigher;
 
-    private TimeValue expireAfterAcess;
+    private TimeValue expireAfterAccess;
 
     private StoreAwareCacheEventListener<K, V> eventListener;
 
@@ -43,8 +43,8 @@ public abstract class StoreAwareCacheBuilder<K, V> {
         return this;
     }
 
-    public StoreAwareCacheBuilder<K, V> setExpireAfterAccess(TimeValue expireAfterAcess) {
-        this.expireAfterAcess = expireAfterAcess;
+    public StoreAwareCacheBuilder<K, V> setExpireAfterAccess(TimeValue expireAfterAccess) {
+        this.expireAfterAccess = expireAfterAccess;
         return this;
     }
 
@@ -57,8 +57,8 @@ public abstract class StoreAwareCacheBuilder<K, V> {
         return maxWeightInBytes;
     }
 
-    public TimeValue getExpireAfterAcess() {
-        return expireAfterAcess;
+    public TimeValue getExpireAfterAccess() {
+        return expireAfterAccess;
     }
 
     public ToLongBiFunction<K, V> getWeigher() {

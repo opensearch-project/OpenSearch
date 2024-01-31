@@ -35,8 +35,8 @@ public class OpenSearchOnHeapCache<K, V> implements StoreAwareCache<K, V>, Remov
             .setMaximumWeight(builder.getMaxWeightInBytes())
             .weigher(builder.getWeigher())
             .removalListener(this);
-        if (builder.getExpireAfterAcess() != null) {
-            cacheBuilder.setExpireAfterAccess(builder.getExpireAfterAcess());
+        if (builder.getExpireAfterAccess() != null) {
+            cacheBuilder.setExpireAfterAccess(builder.getExpireAfterAccess());
         }
         cache = cacheBuilder.build();
         this.eventListener = builder.getEventListener();
@@ -115,6 +115,7 @@ public class OpenSearchOnHeapCache<K, V> implements StoreAwareCache<K, V>, Remov
 
     /**
      * Builder object
+     *
      * @param <K> Type of key
      * @param <V> Type of value
      */
