@@ -40,9 +40,10 @@ import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.opensearch.common.CheckedSupplier;
 import org.opensearch.common.cache.CacheType;
-import org.opensearch.common.cache.ICache;
 import org.opensearch.common.cache.LoadAwareCacheLoader;
+import org.opensearch.common.cache.cleaner.CacheCleaner;
 import org.opensearch.common.cache.store.OpenSearchOnHeapCache;
+import org.opensearch.common.cache.store.StoreAwareCache;
 import org.opensearch.common.cache.store.StoreAwareCacheRemovalNotification;
 import org.opensearch.common.cache.store.builders.StoreAwareCacheBuilder;
 import org.opensearch.common.cache.store.enums.CacheStoreType;
@@ -61,18 +62,19 @@ import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.shard.IndexShard;
+import org.opensearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
 import java.util.function.Function;
+import java.util.function.Predicate;
 
 /**
  * The indices request cache allows to cache a shard level request stage responses, helping with improving
@@ -117,17 +119,24 @@ public final class IndicesRequestCache implements StoreAwareCacheEventListener<I
     private final static long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(Key.class);
 
     private final ConcurrentMap<CleanupKey, Boolean> registeredClosedListeners = ConcurrentCollections.newConcurrentMap();
-    private final Set<CleanupKey> keysToClean = ConcurrentCollections.newConcurrentSet();
     private final ByteSizeValue size;
     private final TimeValue expire;
     private final Function<ShardId, Optional<CacheEntity>> cacheEntityLookup;
-    private final ICache<Key, BytesReference> cache;
+    private final StoreAwareCache<Key, BytesReference> cache;
+    private final ThreadPool threadpool;
+    private final IndicesRequestCacheCleanupManager cacheCleanupManager;
 
-    IndicesRequestCache(Settings settings, Function<ShardId, Optional<CacheEntity>> cacheEntityFunction) {
+    IndicesRequestCache(
+        Settings settings,
+        ThreadPool threadpool,
+        Function<ShardId, Optional<CacheEntity>> cacheEntityFunction
+    ) {
         this.size = INDICES_CACHE_QUERY_SIZE.get(settings);
         this.expire = INDICES_CACHE_QUERY_EXPIRE.exists(settings) ? INDICES_CACHE_QUERY_EXPIRE.get(settings) : null;
         long sizeInBytes = size.getBytes();
         this.cacheEntityLookup = cacheEntityFunction;
+        this.threadpool = threadpool;
+        this.cacheCleanupManager = new IndicesRequestCacheCleanupManager();
         String cacheTypeInString = FeatureFlags.INDICES_REQUEST_CACHE_TYPE.get(settings);
         StoreAwareCacheBuilder<Key, BytesReference> openSearchOnHeapCacheBuilder = new OpenSearchOnHeapCache.Builder<Key, BytesReference>()
             .setMaximumWeightInBytes(sizeInBytes)
@@ -143,8 +152,10 @@ public final class IndicesRequestCache implements StoreAwareCacheEventListener<I
         }
         switch (cacheType) {
             case ON_HEAP:
-                openSearchOnHeapCacheBuilder.setEventListener(this);
-                cache = openSearchOnHeapCacheBuilder.build();
+                cache = openSearchOnHeapCacheBuilder
+                    .setEventListener(this)
+                    .setCacheCleanerBuilder(getCacheCleanerBuilder())
+                    .build();
                 break;
             default:
                 throw new IllegalArgumentException("Unknown cache type");
@@ -157,8 +168,31 @@ public final class IndicesRequestCache implements StoreAwareCacheEventListener<I
     }
 
     void clear(CacheEntity entity) {
-        keysToClean.add(new CleanupKey(entity, null));
+//        closedShardKeys.add(new CleanupKey(entity, null));
+        this.cacheCleanupManager.enqueueCleanupKey(new CleanupKey(entity, null));
         cleanCache();
+    }
+
+    private CacheCleaner.Builder<Key, BytesReference> getCacheCleanerBuilder() {
+        return new CacheCleaner.Builder<Key, BytesReference>()
+            .setThreadPool(threadpool)
+            .setCleanInterval(new TimeValue(1000))
+            .setThreshold(0.50) // TODO extract this from settings
+            .setKeyCleanupCondition(predicateForOnHeap());
+    }
+
+    private Predicate<Key> predicateForOnHeap() {
+        return key -> {
+            //start of predicate
+            if (cacheCleanupManager.cleanupKeysFromClosedShards.contains(key.shardId)) {
+                return true;
+            } else {
+                // If the flow comes here, then we should have an open shard available on node.
+                return cacheCleanupManager.cleanupKeysFromOutdatedReaders.contains(
+                    new CleanupKey(cacheEntityLookup.apply(key.shardId).orElse(null), key.readerCacheKeyId)
+                );
+            }
+        };
     }
 
     BytesReference getOrCompute(
@@ -178,7 +212,7 @@ public final class IndicesRequestCache implements StoreAwareCacheEventListener<I
         Loader cacheLoader = new Loader(cacheEntity, loader);
         BytesReference value = cache.computeIfAbsent(key, cacheLoader);
         if (cacheLoader.isLoaded()) {
-            // see if its the first time we see this reader, and make sure to register a cleanup key
+            // register a cleanup key if it's the first time we see this reader
             CleanupKey cleanupKey = new CleanupKey(cacheEntity, readerCacheKeyId);
             if (!registeredClosedListeners.containsKey(cleanupKey)) {
                 Boolean previous = registeredClosedListeners.putIfAbsent(cleanupKey, Boolean.TRUE);
@@ -192,9 +226,10 @@ public final class IndicesRequestCache implements StoreAwareCacheEventListener<I
 
     /**
      * Invalidates the given the cache entry for the given key and it's context
+     *
      * @param cacheEntity the cache entity to invalidate for
-     * @param reader the reader to invalidate the cache entry for
-     * @param cacheKey the cache key to invalidate
+     * @param reader      the reader to invalidate the cache entry for
+     * @param cacheKey    the cache key to invalidate
      */
     void invalidate(IndicesService.IndexShardCacheEntity cacheEntity, DirectoryReader reader, BytesReference cacheKey) {
         assert reader.getReaderCacheHelper() != null;
@@ -219,6 +254,11 @@ public final class IndicesRequestCache implements StoreAwareCacheEventListener<I
     @Override
     public void onHit(Key key, BytesReference value, CacheStoreType cacheStoreType) {
         cacheEntityLookup.apply(key.shardId).ifPresent(entity -> entity.onHit(cacheStoreType));
+        cacheCleanupManager.updateCleanupKeyToCountMap(
+            new CleanupKey(
+                cacheEntityLookup.apply(key.shardId).orElse(null),
+                key.readerCacheKeyId
+            ));
     }
 
     @Override
@@ -367,7 +407,8 @@ public final class IndicesRequestCache implements StoreAwareCacheEventListener<I
         public void onClose(IndexReader.CacheKey cacheKey) {
             Boolean remove = registeredClosedListeners.remove(this);
             if (remove != null) {
-                keysToClean.add(this);
+//                outdatedReaderCacheKeys.add(this);
+                addToCacheCleanupManager(this);
             }
         }
 
@@ -391,14 +432,40 @@ public final class IndicesRequestCache implements StoreAwareCacheEventListener<I
         }
     }
 
+    void addToCacheCleanupManager(CleanupKey key) {
+        cacheCleanupManager.enqueueCleanupKey(key);
+    }
+
+    private class IndicesRequestCacheCleanupManager {
+        // Contains CleanupKey objects with open shard but invalidated readerCacheKeyId.
+        private final Set<CleanupKey> cleanupKeysFromOutdatedReaders;
+        // Contains CleanupKey objects of a closed shard.
+        private final Set<Object> cleanupKeysFromClosedShards;
+        private final ConcurrentMap<ShardId, ConcurrentMap<String , Integer>> cleanupKeyToCountMap;
+        private final AtomicInteger staleKeysCount;
+        IndicesRequestCacheCleanupManager() {
+            this.cleanupKeysFromOutdatedReaders = new HashSet<>();
+            this.cleanupKeysFromClosedShards = new HashSet<>();
+            this.cleanupKeyToCountMap = ConcurrentCollections.newConcurrentMap();
+            this.staleKeysCount = new AtomicInteger(0);
+        }
+        synchronized void enqueueCleanupKey(CleanupKey cleanupKey) {
+            if (cleanupKey.readerCacheKeyId == null || !cleanupKey.entity.isOpen()) {
+                // null indicates full cleanup, as does a closed shard
+                cleanupKeysFromClosedShards.add(((IndexShard) cleanupKey.entity.getCacheIdentity()).shardId());
+                updateStaleKeysCount(cleanupKey);
+            } else {
+                cleanupKeysFromOutdatedReaders.add(cleanupKey);
+                updateStaleKeysCount(cleanupKey);
+            }
+        }
+    }
+
     /**
      * Logic to clean up in-memory cache.
      */
     synchronized void cleanCache() {
-        final Set<CleanupKey> currentKeysToClean = new HashSet<>();
-        final Set<Object> currentFullClean = new HashSet<>();
-        currentKeysToClean.clear();
-        currentFullClean.clear();
+        /*
         for (Iterator<CleanupKey> iterator = keysToClean.iterator(); iterator.hasNext();) {
             CleanupKey cleanupKey = iterator.next();
             iterator.remove();
@@ -409,21 +476,8 @@ public final class IndicesRequestCache implements StoreAwareCacheEventListener<I
                 currentKeysToClean.add(cleanupKey);
             }
         }
-        if (!currentKeysToClean.isEmpty() || !currentFullClean.isEmpty()) {
-            for (Iterator<Key> iterator = cache.keys().iterator(); iterator.hasNext();) {
-                Key key = iterator.next();
-                if (currentFullClean.contains(key.shardId)) {
-                    iterator.remove();
-                } else {
-                    // If the flow comes here, then we should have a open shard available on node.
-                    if (currentKeysToClean.contains(
-                        new CleanupKey(cacheEntityLookup.apply(key.shardId).orElse(null), key.readerCacheKeyId)
-                    )) {
-                        iterator.remove();
-                    }
-                }
-            }
-        }
+        */
+        ((OpenSearchOnHeapCache<Key, BytesReference>) cache).clean();
         cache.refresh();
     }
 

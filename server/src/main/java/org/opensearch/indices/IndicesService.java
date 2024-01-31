@@ -409,7 +409,10 @@ public class IndicesService extends AbstractLifecycleComponent
         this.shardsClosedTimeout = settings.getAsTime(INDICES_SHARDS_CLOSED_TIMEOUT, new TimeValue(1, TimeUnit.DAYS));
         this.analysisRegistry = analysisRegistry;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
-        this.indicesRequestCache = new IndicesRequestCache(settings, (shardId -> {
+        this.indicesRequestCache = new IndicesRequestCache(
+            settings,
+            threadPool,
+            (shardId -> {
             IndexService indexService = this.indices.get(shardId.getIndex().getUUID());
             if (indexService == null) {
                 return Optional.empty();
