@@ -68,7 +68,6 @@ import org.opensearch.search.SearchHit;
 import org.opensearch.search.SearchHits;
 import org.opensearch.search.SearchShardTarget;
 import org.opensearch.search.fetch.FetchSubPhase.HitContext;
-import org.opensearch.search.fetch.subphase.FetchScorePhase;
 import org.opensearch.search.fetch.subphase.FetchSourceContext;
 import org.opensearch.search.fetch.subphase.InnerHitsContext;
 import org.opensearch.search.fetch.subphase.InnerHitsPhase;
