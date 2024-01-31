@@ -8,10 +8,12 @@
 
 package org.opensearch.cache.store.disk;
 
+import org.opensearch.cache.EhcacheSettings;
 import org.opensearch.common.cache.CacheType;
 import org.opensearch.common.cache.LoadAwareCacheLoader;
 import org.opensearch.common.cache.store.StoreAwareCache;
 import org.opensearch.common.cache.store.StoreAwareCacheRemovalNotification;
+import org.opensearch.common.cache.store.config.StoreAwareCacheConfig;
 import org.opensearch.common.cache.store.enums.CacheStoreType;
 import org.opensearch.common.cache.store.listeners.StoreAwareCacheEventListener;
 import org.opensearch.common.settings.Settings;
@@ -31,6 +33,8 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Phaser;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static org.opensearch.cache.EhcacheSettings.DISK_MAX_SIZE_IN_BYTES_KEY;
+import static org.opensearch.cache.EhcacheSettings.DISK_STORAGE_PATH_KEY;
 import static org.hamcrest.CoreMatchers.instanceOf;
 
 public class EhCacheDiskCacheTests extends OpenSearchSingleNodeTestCase {
@@ -41,8 +45,7 @@ public class EhCacheDiskCacheTests extends OpenSearchSingleNodeTestCase {
         Settings settings = Settings.builder().build();
         MockEventListener<String, String> mockEventListener = new MockEventListener<>();
         try (NodeEnvironment env = newNodeEnvironment(settings)) {
-            StoreAwareCache<String, String> ehcacheTest = new EhcacheDiskCache.Builder<String, String>().setDiskCacheAlias("test1")
-                .setThreadPoolAlias("ehcacheTest")
+            StoreAwareCache<String, String> ehcacheTest = new EhcacheDiskCache.Builder<String, String>().setThreadPoolAlias("ehcacheTest")
                 .setStoragePath(env.nodePaths()[0].indicesPath.toString() + "/request_cache")
                 .setKeyType(String.class)
                 .setValueType(String.class)
@@ -52,6 +55,59 @@ public class EhCacheDiskCacheTests extends OpenSearchSingleNodeTestCase {
                 .setMaximumWeightInBytes(CACHE_SIZE_IN_BYTES)
                 .setEventListener(mockEventListener)
                 .build();
+            int randomKeys = randomIntBetween(10, 100);
+            Map<String, String> keyValueMap = new HashMap<>();
+            for (int i = 0; i < randomKeys; i++) {
+                keyValueMap.put(UUID.randomUUID().toString(), UUID.randomUUID().toString());
+            }
+            for (Map.Entry<String, String> entry : keyValueMap.entrySet()) {
+                ehcacheTest.put(entry.getKey(), entry.getValue());
+            }
+            for (Map.Entry<String, String> entry : keyValueMap.entrySet()) {
+                String value = ehcacheTest.get(entry.getKey());
+                assertEquals(entry.getValue(), value);
+            }
+            assertEquals(randomKeys, mockEventListener.onCachedCount.get());
+            assertEquals(randomKeys, mockEventListener.onHitCount.get());
+
+            // Validate misses
+            int expectedNumberOfMisses = randomIntBetween(10, 200);
+            for (int i = 0; i < expectedNumberOfMisses; i++) {
+                ehcacheTest.get(UUID.randomUUID().toString());
+            }
+
+            assertEquals(expectedNumberOfMisses, mockEventListener.onMissCount.get());
+            ehcacheTest.close();
+        }
+    }
+
+    public void testBasicGetAndPutUsingFactory() throws IOException {
+        MockEventListener<String, String> mockEventListener = new MockEventListener<>();
+        try (NodeEnvironment env = newNodeEnvironment(Settings.EMPTY)) {
+            StoreAwareCache.Factory ehcacheFactory = new EhcacheDiskCache.EhcacheDiskCacheFactory();
+            StoreAwareCache<String, String> ehcacheTest = ehcacheFactory.create(
+                new StoreAwareCacheConfig.Builder<String, String>().setValueType(String.class)
+                    .setKeyType(String.class)
+                    .setEventListener(mockEventListener)
+                    .setSettings(
+                        Settings.builder()
+                            .put(
+                                EhcacheSettings.getSettingListForCacheTypeAndStore(CacheType.INDICES_REQUEST_CACHE, CacheStoreType.DISK)
+                                    .get(DISK_MAX_SIZE_IN_BYTES_KEY)
+                                    .getKey(),
+                                CACHE_SIZE_IN_BYTES
+                            )
+                            .put(
+                                EhcacheSettings.getSettingListForCacheTypeAndStore(CacheType.INDICES_REQUEST_CACHE, CacheStoreType.DISK)
+                                    .get(DISK_STORAGE_PATH_KEY)
+                                    .getKey(),
+                                env.nodePaths()[0].indicesPath.toString() + "/request_cache"
+                            )
+                            .build()
+                    )
+                    .build(),
+                CacheType.INDICES_REQUEST_CACHE
+            );
             int randomKeys = randomIntBetween(10, 100);
             Map<String, String> keyValueMap = new HashMap<>();
             for (int i = 0; i < randomKeys; i++) {

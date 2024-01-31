@@ -92,7 +92,7 @@ public class EhcacheSettings {
      */
     public static final Setting.AffixSetting<TimeValue> DISK_CACHE_EXPIRE_AFTER_ACCESS_SETTING = Setting.suffixKeySetting(
         DISK_CACHE_SETTING_SUFFIX + ".expire_after_access",
-        (key) -> Setting.positiveTimeSetting(key, new TimeValue(0), NodeScope)
+        (key) -> Setting.positiveTimeSetting(key, TimeValue.MAX_VALUE, NodeScope)
     );
 
     /**
@@ -167,7 +167,6 @@ public class EhcacheSettings {
                 DISK_MAX_SIZE_IN_BYTES_KEY,
                 DISK_CACHE_MAX_SIZE_IN_BYTES_SETTING.getConcreteSettingForNamespace(CacheType.INDICES_REQUEST_CACHE.getSettingPrefix())
             )
-
         )
     );
 
