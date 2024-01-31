@@ -8,6 +8,7 @@
 
 package org.opensearch.common.cache.store.builders;
 
+import org.opensearch.common.cache.cleaner.CacheCleaner;
 import org.opensearch.common.cache.store.StoreAwareCache;
 import org.opensearch.common.cache.store.listeners.StoreAwareCacheEventListener;
 import org.opensearch.common.unit.TimeValue;
@@ -30,6 +31,7 @@ public abstract class StoreAwareCacheBuilder<K, V> {
     private TimeValue expireAfterAccess;
 
     private StoreAwareCacheEventListener<K, V> eventListener;
+    private CacheCleaner.Builder<K, V> cacheCleanerBuilder;
 
     public StoreAwareCacheBuilder() {}
 
@@ -53,6 +55,11 @@ public abstract class StoreAwareCacheBuilder<K, V> {
         return this;
     }
 
+    public StoreAwareCacheBuilder<K, V> setCacheCleanerBuilder(CacheCleaner.Builder<K, V> cacheCleaner) {
+        this.cacheCleanerBuilder = cacheCleaner;
+        return this;
+    }
+
     public long getMaxWeightInBytes() {
         return maxWeightInBytes;
     }
@@ -67,6 +74,10 @@ public abstract class StoreAwareCacheBuilder<K, V> {
 
     public StoreAwareCacheEventListener<K, V> getEventListener() {
         return eventListener;
+    }
+
+    public CacheCleaner.Builder<K, V> getCacheCleanerBuilder() {
+        return cacheCleanerBuilder;
     }
 
     public abstract StoreAwareCache<K, V> build();
