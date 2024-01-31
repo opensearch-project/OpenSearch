@@ -18,13 +18,18 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 
 public final class MatchedQueriesPhase implements FetchSubPhase {
 
     @Override
     public FetchSubPhaseProcessor getProcessor(FetchContext context) throws IOException {
-        Map<String, Query> namedQueries = collectNamedQueries(context);
+        Map<String, Query> namedQueries = new HashMap<>();
+        if (context.parsedQuery() != null) {
+            namedQueries.putAll(context.parsedQuery().namedFilters());
+        }
+        if (context.parsedPostFilter() != null) {
+            namedQueries.putAll(context.parsedPostFilter().namedFilters());
+        }
         if (namedQueries.isEmpty()) {
             return null;
         }
@@ -34,17 +39,10 @@ public final class MatchedQueriesPhase implements FetchSubPhase {
         return context.includeNamedQueriesScore() ? createScoringProcessor(weights) : createNonScoringProcessor(weights);
     }
 
-    private Map<String, Query> collectNamedQueries(FetchContext context) {
-        Map<String, Query> namedQueries = new HashMap<>();
-        Optional.ofNullable(context.parsedQuery()).ifPresent(parsedQuery -> namedQueries.putAll(parsedQuery.namedFilters()));
-        Optional.ofNullable(context.parsedPostFilter()).ifPresent(parsedPostFilter -> namedQueries.putAll(parsedPostFilter.namedFilters()));
-        return namedQueries;
-    }
-
     private Map<String, Weight> prepareWeights(FetchContext context, Map<String, Query> namedQueries) throws IOException {
         Map<String, Weight> weights = new HashMap<>();
+        ScoreMode scoreMode = context.includeNamedQueriesScore() ? ScoreMode.COMPLETE : ScoreMode.COMPLETE_NO_SCORES;
         for (Map.Entry<String, Query> entry : namedQueries.entrySet()) {
-            ScoreMode scoreMode = context.includeNamedQueriesScore() ? ScoreMode.COMPLETE : ScoreMode.COMPLETE_NO_SCORES;
             weights.put(entry.getKey(), context.searcher().createWeight(context.searcher().rewrite(entry.getValue()), scoreMode, 1));
         }
         return weights;
@@ -56,7 +54,16 @@ public final class MatchedQueriesPhase implements FetchSubPhase {
 
             @Override
             public void setNextReader(LeafReaderContext readerContext) throws IOException {
-                setupScorers(readerContext, weights, matchingScorers);
+                matchingScorers.clear();
+                for (Map.Entry<String, Weight> entry : weights.entrySet()) {
+                    ScorerSupplier scorerSupplier = entry.getValue().scorerSupplier(readerContext);
+                    if (scorerSupplier != null) {
+                        Scorer scorer = scorerSupplier.get(0L);
+                        if (scorer != null) {
+                            matchingScorers.put(entry.getKey(), scorer);
+                        }
+                    }
+                }
             }
 
             @Override
@@ -83,7 +90,14 @@ public final class MatchedQueriesPhase implements FetchSubPhase {
 
             @Override
             public void setNextReader(LeafReaderContext readerContext) throws IOException {
-                setupMatchingBits(readerContext, weights, matchingBits);
+                matchingBits.clear();
+                for (Map.Entry<String, Weight> entry : weights.entrySet()) {
+                    ScorerSupplier scorerSupplier = entry.getValue().scorerSupplier(readerContext);
+                    if (scorerSupplier != null) {
+                        Bits bits = Lucene.asSequentialAccessBits(readerContext.reader().maxDoc(), scorerSupplier);
+                        matchingBits.put(entry.getKey(), bits);
+                    }
+                }
             }
 
             @Override
@@ -98,31 +112,5 @@ public final class MatchedQueriesPhase implements FetchSubPhase {
                 hitContext.hit().matchedQueries(matches.toArray(new String[0]));
             }
         };
-    }
-
-    private void setupScorers(LeafReaderContext readerContext, Map<String, Weight> weights, Map<String, Scorer> scorers)
-        throws IOException {
-        scorers.clear();
-        for (Map.Entry<String, Weight> entry : weights.entrySet()) {
-            ScorerSupplier scorerSupplier = entry.getValue().scorerSupplier(readerContext);
-            if (scorerSupplier != null) {
-                Scorer scorer = scorerSupplier.get(0L);
-                if (scorer != null) {
-                    scorers.put(entry.getKey(), scorer);
-                }
-            }
-        }
-    }
-
-    private void setupMatchingBits(LeafReaderContext readerContext, Map<String, Weight> weights, Map<String, Bits> bitsMap)
-        throws IOException {
-        bitsMap.clear();
-        for (Map.Entry<String, Weight> entry : weights.entrySet()) {
-            ScorerSupplier scorerSupplier = entry.getValue().scorerSupplier(readerContext);
-            if (scorerSupplier != null) {
-                Bits bits = Lucene.asSequentialAccessBits(readerContext.reader().maxDoc(), scorerSupplier);
-                bitsMap.put(entry.getKey(), bits);
-            }
-        }
     }
 }
