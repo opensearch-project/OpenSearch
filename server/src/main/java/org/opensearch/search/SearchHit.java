@@ -122,7 +122,7 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
 
     private SearchSortValues sortValues = SearchSortValues.EMPTY;
 
-    private Map<String, Float> matchedQueries = Collections.emptyMap();
+    private Map<String, Float> matchedQueries = new HashMap<>();
 
     private Explanation explanation;
 
