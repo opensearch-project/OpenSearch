@@ -9,6 +9,7 @@
 package org.opensearch.cache;
 
 import org.opensearch.common.settings.Setting;
+import org.opensearch.core.common.unit.ByteSizeValue;
 
 /**
  * Settings related to ehcache.
@@ -44,6 +45,20 @@ public class EhcacheSettings {
      * Default value is 16 within Ehcache.
      */
     public static final Setting<Integer> DISK_SEGMENTS = Setting.intSetting(SETTING_PREFIX + ".segments", 16, 1, 32);
+
+    /**
+     * Defines whether to use an in-memory keystore to check for probable presence of keys before having to go to disk.
+     */
+    public static final Setting<Boolean> USE_RBM_KEYSTORE = Setting.boolSetting(SETTING_PREFIX + ".use_keystore", true);
+
+    /**
+     * Defines the max size of the RBM keystore if used (as a percentage of heap memory)
+     */
+    public static final Setting<ByteSizeValue> RBM_KEYSTORE_SIZE = Setting.memorySizeSetting(
+        SETTING_PREFIX + ".keystore_size",
+        "0.05%",
+        Setting.Property.Dynamic
+    );
 
     /**
      * Default constructor. Added to fix javadocs.

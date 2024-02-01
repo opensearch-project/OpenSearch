@@ -11,6 +11,7 @@ package org.opensearch.cache;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.OpenSearchException;
+import org.opensearch.cache.keystore.RBMIntKeyLookupStore;
 import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.cache.LoadAwareCacheLoader;
@@ -23,6 +24,7 @@ import org.opensearch.common.cache.store.builders.StoreAwareCacheBuilder;
 import org.opensearch.common.cache.store.config.StoreAwareCacheConfig;
 import org.opensearch.common.cache.store.enums.CacheStoreType;
 import org.opensearch.common.cache.store.listeners.StoreAwareCacheEventListener;
+import org.opensearch.common.cache.tier.keystore.KeyLookupStore;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.metrics.CounterMetric;
 import org.opensearch.common.settings.Settings;
@@ -61,6 +63,8 @@ import static org.opensearch.cache.EhcacheSettings.DISK_SEGMENTS;
 import static org.opensearch.cache.EhcacheSettings.DISK_WRITE_CONCURRENCY;
 import static org.opensearch.cache.EhcacheSettings.DISK_WRITE_MAXIMUM_THREADS;
 import static org.opensearch.cache.EhcacheSettings.DISK_WRITE_MINIMUM_THREADS;
+import static org.opensearch.cache.EhcacheSettings.RBM_KEYSTORE_SIZE;
+import static org.opensearch.cache.EhcacheSettings.USE_RBM_KEYSTORE;
 
 /**
  * This variant of disk cache uses Ehcache underneath.
@@ -111,6 +115,8 @@ public class EhcacheDiskCache<K, V> implements StoreAwareCache<K, V> {
      */
     Map<K, CompletableFuture<Tuple<K, V>>> completableFutureMap = new ConcurrentHashMap<>();
 
+    KeyLookupStore<Integer> keystore = null;
+
     private EhcacheDiskCache(Builder<K, V> builder) {
         this.keyType = Objects.requireNonNull(builder.keyType, "Key type shouldn't be null");
         this.valueType = Objects.requireNonNull(builder.valueType, "Value type shouldn't be null");
@@ -131,6 +137,10 @@ public class EhcacheDiskCache<K, V> implements StoreAwareCache<K, V> {
         this.eventListener = builder.getEventListener();
         this.ehCacheEventListener = new EhCacheEventListener<K, V>(builder.getEventListener());
         this.cache = buildCache(Duration.ofMillis(expireAfterAccess.getMillis()), builder);
+        if (USE_RBM_KEYSTORE.get(settings)) {
+            long keystoreSize = RBM_KEYSTORE_SIZE.get(settings).getBytes();
+            this.keystore = new RBMIntKeyLookupStore(keystoreSize);
+        }
     }
 
     private Cache<K, V> buildCache(Duration expireAfterAccess, Builder<K, V> builder) {
@@ -216,11 +226,13 @@ public class EhcacheDiskCache<K, V> implements StoreAwareCache<K, V> {
         if (key == null) {
             throw new IllegalArgumentException("Key passed to ehcache disk cache was null.");
         }
-        V value;
-        try {
-            value = cache.get(key);
-        } catch (CacheLoadingException ex) {
-            throw new OpenSearchException("Exception occurred while trying to fetch item from ehcache disk cache");
+        V value = null;
+        if (keystore == null || keystore.contains(key.hashCode()) || keystore.isFull()) {
+            try {
+                value = cache.get(key);
+            } catch (CacheLoadingException ex) {
+                throw new OpenSearchException("Exception occurred while trying to fetch item from ehcache disk cache");
+            }
         }
         if (value != null) {
             eventListener.onHit(key, value, CacheStoreType.DISK);
@@ -239,6 +251,9 @@ public class EhcacheDiskCache<K, V> implements StoreAwareCache<K, V> {
     public void put(K key, V value) {
         try {
             cache.put(key, value);
+            if (keystore != null) {
+                keystore.add(key.hashCode());
+            }
         } catch (CacheWritingException ex) {
             throw new OpenSearchException("Exception occurred while put item to ehcache disk cache");
         }

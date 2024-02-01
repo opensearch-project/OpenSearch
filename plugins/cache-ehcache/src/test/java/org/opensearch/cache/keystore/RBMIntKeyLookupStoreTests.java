@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.cache;
+package org.opensearch.cache.keystore;
 
 import org.opensearch.common.Randomness;
 import org.opensearch.common.metrics.CounterMetric;
