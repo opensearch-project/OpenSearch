@@ -138,13 +138,11 @@ public class CommunityIDProcessor extends AbstractProcessor {
     @Override
     public IngestDocument execute(IngestDocument document) {
         // resolve protocol firstly
-        Byte protocol = resolveProtocol(document);
+        Protocol protocol = resolveProtocol(document);
         // exit quietly if protocol cannot be resolved and ignore_missing is true
         if (protocol == null) {
             return document;
         }
-        // protocol occupies only 1 byte
-        final byte protocolCode = protocol;
 
         // resolve ip secondly, exit quietly if either source ip or destination ip cannot be resolved and ignore_missing is true
         byte[] sourceIPByteArray = resolveIP(document, sourceIPField);
@@ -164,7 +162,7 @@ public class CommunityIDProcessor extends AbstractProcessor {
         // exit quietly if either source port or destination port is null nor empty
         Integer sourcePort = null;
         Integer destinationPort = null;
-        final boolean isTransportProtocol = Protocol.isTransportProtocol(protocolCode);
+        final boolean isTransportProtocol = Protocol.isTransportProtocol(protocol.getProtocolCode());
         if (isTransportProtocol) {
             sourcePort = resolvePort(document, sourcePortField);
             if (sourcePort == null) {
@@ -181,8 +179,8 @@ public class CommunityIDProcessor extends AbstractProcessor {
         // set source port to icmp type, and set dest port to icmp code, so that we can have a generic way to handle
         // all protocols
         boolean isOneway = true;
-        final boolean isICMPProtocol = Protocol.ICMP.getProtocolCode() == protocolCode
-            || Protocol.ICMP_V6.getProtocolCode() == protocolCode;
+        final boolean isICMPProtocol = Protocol.ICMP.getProtocolCode() == protocol.getProtocolCode()
+            || Protocol.ICMP_V6.getProtocolCode() == protocol.getProtocolCode();
         if (isICMPProtocol) {
             Integer icmpType = resolveICMP(document, icmpTypeField, ICMP_MESSAGE_TYPE);
             if (icmpType == null) {
@@ -193,14 +191,14 @@ public class CommunityIDProcessor extends AbstractProcessor {
 
             // for the message types which don't have code, fetch the equivalent code from the pre-defined mapper,
             // and they can be considered to two-way flow
-            Byte equivalentCode = Protocol.ICMP.getProtocolCode() == protocolCode
+            Byte equivalentCode = Protocol.ICMP.getProtocolCode() == protocol.getProtocolCode()
                 ? ICMPType.getEquivalentCode(icmpType.byteValue())
                 : ICMPv6Type.getEquivalentCode(icmpType.byteValue());
             if (equivalentCode != null) {
                 isOneway = false;
                 // for IPv6-ICMP, the pre-defined code is negative byte,
                 // we need to convert it to positive integer for later comparison
-                destinationPort = Protocol.ICMP.getProtocolCode() == protocolCode
+                destinationPort = Protocol.ICMP.getProtocolCode() == protocol.getProtocolCode()
                     ? Integer.valueOf(equivalentCode)
                     : Byte.toUnsignedInt(equivalentCode);
             } else {
@@ -229,7 +227,14 @@ public class CommunityIDProcessor extends AbstractProcessor {
         }
 
         // generate flow hash
-        String digest = generateCommunityIDHash(protocolCode, sourceIPByteArray, destIPByteArray, sourcePort, destinationPort, seed);
+        String digest = generateCommunityIDHash(
+            protocol.getProtocolCode(),
+            sourceIPByteArray,
+            destIPByteArray,
+            sourcePort,
+            destinationPort,
+            seed
+        );
         document.setFieldValue(targetField, digest);
         return document;
     }
@@ -242,12 +247,12 @@ public class CommunityIDProcessor extends AbstractProcessor {
     /**
      * Resolve network protocol
      * @param document the ingesting document
-     * @return the byte code of the protocol, null if the resolved protocol is null and ignore_missing is true
+     * @return the resolved protocol, null if the resolved protocol is null and ignore_missing is true
      * @throws IllegalArgumentException only if ignoreMissing is false and the field is null, empty, invalid,
      * or if the field that is found at the provided path is not of the expected type.
      */
-    private Byte resolveProtocol(IngestDocument document) {
-        Byte protocol = null;
+    private Protocol resolveProtocol(IngestDocument document) {
+        Protocol protocol = null;
         Integer ianaProtocolNumber = null;
         String protocolName = null;
         if (!Strings.isNullOrEmpty(ianaProtocolNumberField)) {
@@ -260,15 +265,15 @@ public class CommunityIDProcessor extends AbstractProcessor {
         if (ianaProtocolNumber != null) {
             if (ianaProtocolNumber >= IANA_COMMON_MIN_NUMBER
                 && ianaProtocolNumber <= IANA_COMMON_MAX_NUMBER
-                && Protocol.protocolCodes.contains(ianaProtocolNumber.byteValue())) {
-                protocol = ianaProtocolNumber.byteValue();
+                && Protocol.protocolCodeMap.containsKey(ianaProtocolNumber.byteValue())) {
+                protocol = Protocol.protocolCodeMap.get(ianaProtocolNumber.byteValue());
             } else {
                 throw new IllegalArgumentException("unsupported iana protocol number [" + ianaProtocolNumber + "]");
             }
         } else if (protocolName != null) {
             Protocol protocolFromName = Protocol.fromProtocolName(protocolName);
             if (protocolFromName != null) {
-                protocol = protocolFromName.getProtocolCode();
+                protocol = protocolFromName;
             } else {
                 throw new IllegalArgumentException("unsupported protocol [" + protocolName + "]");
             }
@@ -571,7 +576,8 @@ public class CommunityIDProcessor extends AbstractProcessor {
             SCTP.getProtocolCode()
         );
 
-        public static final Set<Byte> protocolCodes = Arrays.stream(values()).map(Protocol::getProtocolCode).collect(Collectors.toSet());
+        public static final Map<Byte, Protocol> protocolCodeMap = Arrays.stream(values())
+            .collect(Collectors.toMap(Protocol::getProtocolCode, p -> p));
 
         public static boolean isTransportProtocol(byte ianaProtocolNumber) {
             return transportProtocolNumbers.contains(ianaProtocolNumber);
