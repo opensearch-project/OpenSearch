@@ -32,7 +32,7 @@ class LongArrayBackedBitSet implements Accountable, Closeable {
      */
     LongArrayBackedBitSet(long capacity) {
         // Since the bitset is backed by a long array, we only need 1 element for every 64 bits in the underlying array.
-        underlyingArrayLength = ((capacity - 1L) >> 6) + 1;
+        underlyingArrayLength = (capacity >> 6) + 1L;
         this.longArray = BigArrays.NON_RECYCLING_INSTANCE.withCircuitBreaking().newLongArray(underlyingArrayLength);
     }
 

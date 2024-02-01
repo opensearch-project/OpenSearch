@@ -653,6 +653,9 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
         }
         // Enabling Telemetry setting by default
         featureSettings.put(FeatureFlags.TELEMETRY_SETTING.getKey(), true);
+
+        // Enabling fuzzy set for tests by default
+        featureSettings.put(FeatureFlags.DOC_ID_FUZZY_SET_SETTING.getKey(), true);
         return featureSettings.build();
     }
 
