@@ -568,7 +568,7 @@ public class SearchAsYouTypeFieldMapperTests extends MapperTestCase {
             .add(new NormsFieldExistsQuery("field.nested_field._2gram"), BooleanClause.Occur.SHOULD)
             .add(new TermQuery(new Term("_field_names", "field.nested_field._index_prefix")), BooleanClause.Occur.SHOULD)
             .build());
-        assertEquals(actual, expected);
+        assertEquals(expected, actual);
     }
 
     private static BooleanQuery buildBoolPrefixQuery(String shingleFieldName, String prefixFieldName, List<String> terms) {
