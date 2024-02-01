@@ -2389,4 +2389,185 @@ public class FieldSortIT extends ParameterizedDynamicSettingsOpenSearchIntegTest
         }
     }
 
+    public void testSimpleSortsPoints() throws Exception {
+        final int docs = 100;
+
+        Random random = random();
+        assertAcked(
+            prepareCreate("test").setMapping(
+                XContentFactory.jsonBuilder()
+                    .startObject()
+                    .startObject("properties")
+                    .startObject("str_value")
+                    .field("type", "keyword")
+                    .endObject()
+                    .startObject("boolean_value")
+                    .field("type", "boolean")
+                    .endObject()
+                    .startObject("byte_value")
+                    .field("type", "byte")
+                    .endObject()
+                    .startObject("short_value")
+                    .field("type", "short")
+                    .endObject()
+                    .startObject("integer_value")
+                    .field("type", "integer")
+                    .endObject()
+                    .startObject("long_value")
+                    .field("type", "long")
+                    .endObject()
+                    .startObject("unsigned_long_value")
+                    .field("type", "unsigned_long")
+                    .endObject()
+                    .startObject("float_value")
+                    .field("type", "float")
+                    .endObject()
+                    .startObject("half_float_value")
+                    .field("type", "half_float")
+                    .endObject()
+                    .startObject("double_value")
+                    .field("type", "double")
+                    .endObject()
+                    .endObject()
+                    .endObject()
+            )
+        );
+        ensureGreen();
+        BigInteger UNSIGNED_LONG_BASE = Numbers.MAX_UNSIGNED_LONG_VALUE.subtract(BigInteger.valueOf(10000 * docs));
+        List<IndexRequestBuilder> builders = new ArrayList<>();
+        for (int i = 0; i < docs / 2; i++) {
+            IndexRequestBuilder builder = client().prepareIndex("test")
+                .setId(Integer.toString(i))
+                .setSource(
+                    jsonBuilder().startObject()
+                        .field("str_value", new String(new char[] { (char) (97 + i), (char) (97 + i) }))
+                        .field("boolean_value", true)
+                        .field("byte_value", i)
+                        .field("short_value", i)
+                        .field("integer_value", i)
+                        .field("long_value", i)
+                        .field("unsigned_long_value", UNSIGNED_LONG_BASE.add(BigInteger.valueOf(10000 * i)))
+                        .field("float_value", 32 * i)
+                        .field("half_float_value", 16 * i)
+                        .field("double_value", 64 * i)
+                        .endObject()
+                );
+            builders.add(builder);
+        }
+
+        // We keep half of the docs with numeric values and other half without
+        for (int i = docs / 2; i < docs; i++) {
+            IndexRequestBuilder builder = client().prepareIndex("test")
+                .setId(Integer.toString(i))
+                .setSource(
+                    jsonBuilder().startObject().field("str_value", new String(new char[] { (char) (97 + i), (char) (97 + i) })).endObject()
+                );
+            builders.add(builder);
+        }
+
+        int j = 0;
+        Collections.shuffle(builders, random);
+        for (IndexRequestBuilder builder : builders) {
+            builder.get();
+            if ((++j % 25) == 0) {
+                refresh();
+            }
+
+        }
+        refresh();
+        indexRandomForConcurrentSearch("test");
+
+        final int size = 2;
+        // HALF_FLOAT
+        SearchResponse searchResponse = client().prepareSearch()
+            .setQuery(matchAllQuery())
+            .setSize(size)
+            .addSort("half_float_value", SortOrder.ASC)
+            .get();
+
+        assertHitCount(searchResponse, docs);
+        assertThat(searchResponse.getHits().getHits().length, equalTo(size));
+        for (int i = 0; i < size; i++) {
+            assertThat(searchResponse.getHits().getAt(i).getId(), equalTo(Integer.toString(i)));
+        }
+
+        assertThat(searchResponse.toString(), not(containsString("error")));
+        searchResponse = client().prepareSearch().setQuery(matchAllQuery()).setSize(size).addSort("half_float_value", SortOrder.DESC).get();
+
+        assertHitCount(searchResponse, docs);
+        assertThat(searchResponse.getHits().getHits().length, equalTo(size));
+        for (int i = 0; i < size; i++) {
+            assertThat(searchResponse.getHits().getAt(i).getId(), equalTo(Integer.toString(docs / 2 - 1 - i)));
+        }
+
+        assertThat(searchResponse.toString(), not(containsString("error")));
+
+        // FLOAT
+        searchResponse = client().prepareSearch().setQuery(matchAllQuery()).setSize(size).addSort("float_value", SortOrder.ASC).get();
+
+        assertHitCount(searchResponse, docs);
+        assertThat(searchResponse.getHits().getHits().length, equalTo(size));
+        for (int i = 0; i < size; i++) {
+            assertThat(searchResponse.getHits().getAt(i).getId(), equalTo(Integer.toString(i)));
+        }
+
+        assertThat(searchResponse.toString(), not(containsString("error")));
+        searchResponse = client().prepareSearch().setQuery(matchAllQuery()).setSize(size).addSort("float_value", SortOrder.DESC).get();
+
+        assertHitCount(searchResponse, docs);
+        assertThat(searchResponse.getHits().getHits().length, equalTo(size));
+        for (int i = 0; i < size; i++) {
+            assertThat(searchResponse.getHits().getAt(i).getId(), equalTo(Integer.toString(docs / 2 - 1 - i)));
+        }
+
+        assertThat(searchResponse.toString(), not(containsString("error")));
+
+        // DOUBLE
+        searchResponse = client().prepareSearch().setQuery(matchAllQuery()).setSize(size).addSort("double_value", SortOrder.ASC).get();
+
+        assertHitCount(searchResponse, docs);
+        assertThat(searchResponse.getHits().getHits().length, equalTo(size));
+        for (int i = 0; i < size; i++) {
+            assertThat(searchResponse.getHits().getAt(i).getId(), equalTo(Integer.toString(i)));
+        }
+
+        assertThat(searchResponse.toString(), not(containsString("error")));
+        searchResponse = client().prepareSearch().setQuery(matchAllQuery()).setSize(size).addSort("double_value", SortOrder.DESC).get();
+
+        assertHitCount(searchResponse, docs);
+        assertThat(searchResponse.getHits().getHits().length, equalTo(size));
+        for (int i = 0; i < size; i++) {
+            assertThat(searchResponse.getHits().getAt(i).getId(), equalTo(Integer.toString(docs / 2 - 1 - i)));
+        }
+
+        assertThat(searchResponse.toString(), not(containsString("error")));
+
+        // UNSIGNED_LONG
+        searchResponse = client().prepareSearch()
+            .setQuery(matchAllQuery())
+            .setSize(size)
+            .addSort("unsigned_long_value", SortOrder.ASC)
+            .get();
+
+        assertHitCount(searchResponse, docs);
+        assertThat(searchResponse.getHits().getHits().length, equalTo(size));
+        for (int i = 0; i < size; i++) {
+            assertThat(searchResponse.getHits().getAt(i).getId(), equalTo(Integer.toString(i)));
+        }
+
+        assertThat(searchResponse.toString(), not(containsString("error")));
+        searchResponse = client().prepareSearch()
+            .setQuery(matchAllQuery())
+            .setSize(size)
+            .addSort("unsigned_long_value", SortOrder.DESC)
+            .get();
+
+        assertHitCount(searchResponse, docs);
+        assertThat(searchResponse.getHits().getHits().length, equalTo(size));
+        for (int i = 0; i < size; i++) {
+            assertThat(searchResponse.getHits().getAt(i).getId(), equalTo(Integer.toString(docs / 2 - 1 - i)));
+        }
+
+        assertThat(searchResponse.toString(), not(containsString("error")));
+    }
 }
