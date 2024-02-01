@@ -170,7 +170,7 @@ public final class CompositeAggregator extends BucketsAggregator {
         if (fastFilterContext.isRewriteable(parent, subAggregators.length)) {
             // bucketOrds is used for saving date histogram results
             bucketOrds = LongKeyedBucketOrds.build(context.bigArrays(), CardinalityUpperBound.ONE);
-            preparedRounding = ((CompositeAggregationType) fastFilterContext.aggregationType).getRoundingPrepared();
+            preparedRounding = ((CompositeAggregationType) fastFilterContext.getAggregationType()).getRoundingPrepared();
             fastFilterContext.buildFastFilter();
         }
     }

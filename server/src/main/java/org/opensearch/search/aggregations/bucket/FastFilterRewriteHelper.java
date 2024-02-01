@@ -97,12 +97,10 @@ public final class FastFilterRewriteHelper {
         long min = Long.MAX_VALUE, max = Long.MIN_VALUE;
         for (LeafReaderContext leaf : leaves) {
             final PointValues values = leaf.reader().getPointValues(fieldName);
+            // "values" is null here means this segment doesn't have any values for this field
             if (values != null) {
                 min = Math.min(min, NumericUtils.sortableBytesToLong(values.getMinPackedValue(), 0));
                 max = Math.max(max, NumericUtils.sortableBytesToLong(values.getMaxPackedValue(), 0));
-            } else {
-                // "values" is null if the field is not indexed
-                return null;
             }
         }
 
@@ -124,6 +122,7 @@ public final class FastFilterRewriteHelper {
             // Ensure that the query and aggregation are on the same field
             if (prq.getField().equals(fieldName)) {
                 final long[] indexBounds = getIndexBounds(context, fieldName);
+                if (indexBounds == null) return null;
                 return new long[] {
                     // Minimum bound for aggregation is the max between query and global
                     Math.max(NumericUtils.sortableBytesToLong(prq.getLowerPoint(), 0), indexBounds[0]),
@@ -212,11 +211,15 @@ public final class FastFilterRewriteHelper {
         private Weight[] filters = null;
         private boolean filtersBuiltAtShardLevel = false;
 
-        public AggregationType aggregationType;
+        private AggregationType aggregationType;
         private final SearchContext context;
 
         public FastFilterContext(SearchContext context) {
             this.context = context;
+        }
+
+        public AggregationType getAggregationType() {
+            return aggregationType;
         }
 
         public void setAggregationType(AggregationType aggregationType) {
@@ -252,7 +255,7 @@ public final class FastFilterRewriteHelper {
     /**
      * Different types have different pre-conditions, filter building logic, etc.
      */
-    public interface AggregationType {
+    interface AggregationType {
 
         boolean isRewriteable(Object parent, int subAggLength);
 
@@ -263,7 +266,7 @@ public final class FastFilterRewriteHelper {
      * Functional interface for getting bounds for date histogram aggregation
      */
     @FunctionalInterface
-    public interface GetBounds<T, U, R> {
+    interface GetBounds<T, U, R> {
         R apply(T t, U u) throws IOException;
     }
 
@@ -290,7 +293,9 @@ public final class FastFilterRewriteHelper {
         @Override
         public boolean isRewriteable(Object parent, int subAggLength) {
             if (parent == null && subAggLength == 0 && !missing && !hasScript) {
-                return fieldType != null && fieldType instanceof DateFieldMapper.DateFieldType;
+                if (fieldType != null && fieldType instanceof DateFieldMapper.DateFieldType) {
+                    return fieldType.isSearchable();
+                }
             }
             return false;
         }
