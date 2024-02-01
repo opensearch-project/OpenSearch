@@ -22,6 +22,7 @@ import org.opensearch.core.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Objects;
 
 /** TODO */
 @ExperimentalApi
@@ -34,11 +35,11 @@ public class View extends AbstractDiffable<View> implements ToXContentObject {
     public final List<Target> targets;
 
     public View(final String name, final String description, final Long createdAt, final Long modifiedAt, final List<Target> targets) {
-        this.name = name;
+        this.name = Objects.requireNonNull(name, "Name must be provided");
         this.description = description;
         this.createdAt = createdAt != null ? createdAt : -1;
         this.modifiedAt = modifiedAt != null ? modifiedAt : -1;
-        this.targets = targets;
+        this.targets = Objects.requireNonNull(targets, "Targets are required on a view");
     }
 
     public View(final StreamInput in) throws IOException {
@@ -55,11 +56,11 @@ public class View extends AbstractDiffable<View> implements ToXContentObject {
 
         public final String indexPattern;
 
-        Target(final String indexPattern) {
-            this.indexPattern = indexPattern;
+        public Target(final String indexPattern) {
+            this.indexPattern = Objects.requireNonNull(indexPattern, "IndexPattern is required");
         }
 
-        private Target(final StreamInput in) throws IOException {
+        public Target(final StreamInput in) throws IOException {
             this(in.readString());
         }
 

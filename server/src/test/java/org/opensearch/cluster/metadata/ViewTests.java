@@ -82,7 +82,6 @@ public class ViewTests extends AbstractSerializingTestCase<View> {
         assertThat(npe.getMessage(), equalTo("IndexPattern is required"));
     }
 
-
     public void testDefaultValues() {
         final View view = new View("myName", null, null, null, List.of());
 
@@ -92,6 +91,4 @@ public class ViewTests extends AbstractSerializingTestCase<View> {
         assertThat(view.modifiedAt, equalTo(-1L));
         assertThat(view.targets, empty());
     }
-
-
 }
