@@ -41,8 +41,16 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.spans.FieldMaskingSpanQuery;
 import org.apache.lucene.queries.spans.SpanNearQuery;
 import org.apache.lucene.queries.spans.SpanTermQuery;
-import org.apache.lucene.queryparser.classic.ParseException;
-import org.apache.lucene.search.*;
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.ConstantScoreQuery;
+import org.apache.lucene.search.DisjunctionMaxQuery;
+import org.apache.lucene.search.MatchNoDocsQuery;
+import org.apache.lucene.search.MultiPhraseQuery;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.SynonymQuery;
+import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.search.NormsFieldExistsQuery;
 import org.opensearch.common.lucene.search.MultiPhrasePrefixQuery;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
@@ -57,8 +65,11 @@ import org.opensearch.index.mapper.SearchAsYouTypeFieldMapper.SearchAsYouTypeAna
 import org.opensearch.index.mapper.SearchAsYouTypeFieldMapper.SearchAsYouTypeFieldType;
 import org.opensearch.index.mapper.SearchAsYouTypeFieldMapper.ShingleFieldMapper;
 import org.opensearch.index.mapper.SearchAsYouTypeFieldMapper.ShingleFieldType;
-import org.opensearch.index.query.*;
-import org.opensearch.index.search.QueryStringQueryParser;
+import org.opensearch.index.query.MatchPhrasePrefixQueryBuilder;
+import org.opensearch.index.query.MatchPhraseQueryBuilder;
+import org.opensearch.index.query.MultiMatchQueryBuilder;
+import org.opensearch.index.query.QueryShardContext;
+import org.opensearch.index.query.QueryStringQueryBuilder;
 import org.opensearch.plugins.Plugin;
 
 import java.io.IOException;
@@ -557,7 +568,7 @@ public class SearchAsYouTypeFieldMapperTests extends MapperTestCase {
             .add(new NormsFieldExistsQuery("field.nested_field._2gram"), BooleanClause.Occur.SHOULD)
             .add(new TermQuery(new Term("_field_names", "field.nested_field._index_prefix")), BooleanClause.Occur.SHOULD)
             .build());
-        assertThat(actual, equalTo(expected));
+        assertEquals(actual, expected);
     }
 
     private static BooleanQuery buildBoolPrefixQuery(String shingleFieldName, String prefixFieldName, List<String> terms) {
