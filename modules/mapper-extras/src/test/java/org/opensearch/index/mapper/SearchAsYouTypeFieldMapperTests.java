@@ -47,10 +47,10 @@ import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.DisjunctionMaxQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.MultiPhraseQuery;
+import org.apache.lucene.search.NormsFieldExistsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SynonymQuery;
 import org.apache.lucene.search.TermQuery;
-import org.apache.lucene.search.NormsFieldExistsQuery;
 import org.opensearch.common.lucene.search.MultiPhrasePrefixQuery;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
@@ -562,12 +562,13 @@ public class SearchAsYouTypeFieldMapperTests extends MapperTestCase {
         }));
         QueryShardContext queryShardContext = createQueryShardContext(mapperService);
         Query actual = new QueryStringQueryBuilder("field:*").toQuery(queryShardContext);
-        Query expected = new ConstantScoreQuery(new BooleanQuery.Builder()
-            .add(new NormsFieldExistsQuery("field.nested_field"), BooleanClause.Occur.SHOULD)
-            .add(new NormsFieldExistsQuery("field.nested_field._3gram"), BooleanClause.Occur.SHOULD)
-            .add(new NormsFieldExistsQuery("field.nested_field._2gram"), BooleanClause.Occur.SHOULD)
-            .add(new TermQuery(new Term("_field_names", "field.nested_field._index_prefix")), BooleanClause.Occur.SHOULD)
-            .build());
+        Query expected = new ConstantScoreQuery(
+            new BooleanQuery.Builder().add(new NormsFieldExistsQuery("field.nested_field"), BooleanClause.Occur.SHOULD)
+                .add(new NormsFieldExistsQuery("field.nested_field._3gram"), BooleanClause.Occur.SHOULD)
+                .add(new NormsFieldExistsQuery("field.nested_field._2gram"), BooleanClause.Occur.SHOULD)
+                .add(new TermQuery(new Term("_field_names", "field.nested_field._index_prefix")), BooleanClause.Occur.SHOULD)
+                .build()
+        );
         assertEquals(expected, actual);
     }
 
