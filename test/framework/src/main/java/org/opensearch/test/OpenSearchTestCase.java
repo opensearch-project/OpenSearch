@@ -83,6 +83,7 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.time.DateUtils;
 import org.opensearch.common.time.FormatNames;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.MockBigArrays;
 import org.opensearch.common.util.MockPageCacheRecycler;
 import org.opensearch.common.util.concurrent.ThreadContext;
@@ -1085,6 +1086,38 @@ public abstract class OpenSearchTestCase extends LuceneTestCase {
         }
         timeInMillis = maxTimeInMillis - sum;
         Thread.sleep(Math.max(timeInMillis, 0));
+        try {
+            codeBlock.run();
+        } catch (AssertionError e) {
+            for (AssertionError failure : failures) {
+                e.addSuppressed(failure);
+            }
+            throw e;
+        }
+    }
+
+    /**
+     * Runs the code block for the provided max wait time and sleeping for fixed sleep time, waiting for no assertions to trip.
+     */
+    public static void assertBusyWithFixedSleepTime(CheckedRunnable<Exception> codeBlock, TimeValue maxWaitTime, TimeValue sleepTime)
+        throws Exception {
+        long maxTimeInMillis = maxWaitTime.millis();
+        long sleepTimeInMillis = sleepTime.millis();
+        if (sleepTimeInMillis > maxTimeInMillis) {
+            throw new IllegalArgumentException("sleepTime is more than the maxWaitTime");
+        }
+        long sum = 0;
+        List<AssertionError> failures = new ArrayList<>();
+        while (sum <= maxTimeInMillis) {
+            try {
+                codeBlock.run();
+                return;
+            } catch (AssertionError e) {
+                failures.add(e);
+            }
+            sum += sleepTimeInMillis;
+            Thread.sleep(sleepTimeInMillis);
+        }
         try {
             codeBlock.run();
         } catch (AssertionError e) {

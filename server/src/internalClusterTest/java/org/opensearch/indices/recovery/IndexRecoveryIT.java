@@ -523,12 +523,12 @@ public class IndexRecoveryIT extends OpenSearchIntegTestCase {
 
         logger.info("--> waiting for recovery to start both on source and target");
         final Index index = resolveIndex(INDEX_NAME);
-        assertBusy(() -> {
+        assertBusyWithFixedSleepTime(() -> {
             IndicesService indicesService = internalCluster().getInstance(IndicesService.class, nodeA);
             assertThat(indicesService.indexServiceSafe(index).getShard(0).recoveryStats().currentAsSource(), equalTo(1));
             indicesService = internalCluster().getInstance(IndicesService.class, nodeB);
             assertThat(indicesService.indexServiceSafe(index).getShard(0).recoveryStats().currentAsTarget(), equalTo(1));
-        });
+        }, TimeValue.timeValueSeconds(10), TimeValue.timeValueMillis(500));
 
         logger.info("--> request recoveries");
         RecoveryResponse response = client().admin().indices().prepareRecoveries(INDEX_NAME).execute().actionGet();
