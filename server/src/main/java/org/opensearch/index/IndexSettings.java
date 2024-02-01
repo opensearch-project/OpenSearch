@@ -1856,15 +1856,21 @@ public final class IndexSettings {
 
     public void setDocIdFuzzySetFalsePositiveProbability(double docIdFuzzySetFalsePositiveProbability) {
         verifyFeatureToSetDocIdFuzzySetSetting(
-            fpp -> this.docIdFuzzySetFalsePositiveProbability = fpp, docIdFuzzySetFalsePositiveProbability);
+            fpp -> this.docIdFuzzySetFalsePositiveProbability = fpp,
+            docIdFuzzySetFalsePositiveProbability
+        );
     }
 
     private static <T> void verifyFeatureToSetDocIdFuzzySetSetting(Consumer<T> settingUpdater, T val) {
         if (FeatureFlags.isEnabled(DOC_ID_FUZZY_SET_SETTING)) {
             settingUpdater.accept(val);
         } else {
-            throw new IllegalArgumentException("Fuzzy set for optimizing doc id lookup " +
-                "cannot be enabled with feature flag [" +  FeatureFlags.DOC_ID_FUZZY_SET + "] set to false");
+            throw new IllegalArgumentException(
+                "Fuzzy set for optimizing doc id lookup "
+                    + "cannot be enabled with feature flag ["
+                    + FeatureFlags.DOC_ID_FUZZY_SET
+                    + "] set to false"
+            );
         }
     }
 }
