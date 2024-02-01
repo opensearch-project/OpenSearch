@@ -6,97 +6,97 @@
  * compatible open source license.
  */
 
-package org.opensearch.ratelimitting.admissioncontrol.controllers;
+// package org.opensearch.ratelimitting.admissioncontrol.controllers;
+//
+// import org.opensearch.test.OpenSearchTestCase;
+//
+// public class CPUBasedAdmissionControllerTests extends OpenSearchTestCase {
+// private ClusterService clusterService;
+// private ThreadPool threadPool;
+//
+// String action = "TEST_ACTION";
 
-import org.opensearch.test.OpenSearchTestCase;
+// @Override
+// public void setUp() throws Exception {
+// super.setUp();
+// threadPool = new TestThreadPool("admission_controller_settings_test");
+// clusterService = new ClusterService(
+// Settings.EMPTY,
+// new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+// threadPool
+// );
+// }
+//
+// @Override
+// public void tearDown() throws Exception {
+// super.tearDown();
+// threadPool.shutdownNow();
+// }
 
-public class CPUBasedAdmissionControllerTests extends OpenSearchTestCase {
-    // private ClusterService clusterService;
-    // private ThreadPool threadPool;
-    //
-    // String action = "TEST_ACTION";
+// public void testCheckDefaultParameters() {
+// CPUBasedAdmissionController admissionController = new CPUBasedAdmissionController(
+// CPUBasedAdmissionControllerSettings.CPU_BASED_ADMISSION_CONTROLLER,
+// Settings.EMPTY,
+// clusterService.getClusterSettings()
+// );
+// assertEquals(admissionController.getName(), CPUBasedAdmissionControllerSettings.CPU_BASED_ADMISSION_CONTROLLER);
+// assert true;
+// assertEquals(admissionController.getRejectionCount(), 0);
+// assertEquals(admissionController.settings.getTransportLayerAdmissionControllerMode(), AdmissionControlMode.DISABLED);
+// assertFalse(
+// admissionController.isEnabledForTransportLayer(admissionController.settings.getTransportLayerAdmissionControllerMode())
+// );
+// }
 
-    // @Override
-    // public void setUp() throws Exception {
-    // super.setUp();
-    // threadPool = new TestThreadPool("admission_controller_settings_test");
-    // clusterService = new ClusterService(
-    // Settings.EMPTY,
-    // new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-    // threadPool
-    // );
-    // }
-    //
-    // @Override
-    // public void tearDown() throws Exception {
-    // super.tearDown();
-    // threadPool.shutdownNow();
-    // }
+// public void testCheckUpdateSettings() {
+// admissionController = new CPUBasedAdmissionController(
+// CPUBasedAdmissionControllerSettings.CPU_BASED_ADMISSION_CONTROLLER,
+// Settings.EMPTY,
+// clusterService.getClusterSettings()
+// );
+// Settings settings = Settings.builder()
+// .put(
+// CPUBasedAdmissionControllerSettings.CPU_BASED_ADMISSION_CONTROLLER_TRANSPORT_LAYER_MODE.getKey(),
+// AdmissionControlMode.ENFORCED.getMode()
+// )
+// .build();
+// clusterService.getClusterSettings().applySettings(settings);
+//
+// assertEquals(admissionController.getName(), CPUBasedAdmissionControllerSettings.CPU_BASED_ADMISSION_CONTROLLER);
+// assertEquals(admissionController.getRejectionCount(), 0);
+// assertEquals(admissionController.settings.getTransportLayerAdmissionControllerMode(), AdmissionControlMode.ENFORCED);
+// assertTrue(admissionController.isEnabledForTransportLayer(admissionController.settings.getTransportLayerAdmissionControllerMode()));
+// }
 
-    public void testCheckDefaultParameters() {
-        // CPUBasedAdmissionController admissionController = new CPUBasedAdmissionController(
-        // CPUBasedAdmissionControllerSettings.CPU_BASED_ADMISSION_CONTROLLER,
-        // Settings.EMPTY,
-        // clusterService.getClusterSettings()
-        // );
-        // assertEquals(admissionController.getName(), CPUBasedAdmissionControllerSettings.CPU_BASED_ADMISSION_CONTROLLER);
-        assert true;
-        // assertEquals(admissionController.getRejectionCount(), 0);
-        // assertEquals(admissionController.settings.getTransportLayerAdmissionControllerMode(), AdmissionControlMode.DISABLED);
-        // assertFalse(
-        // admissionController.isEnabledForTransportLayer(admissionController.settings.getTransportLayerAdmissionControllerMode())
-        // );
-    }
-
-    // public void testCheckUpdateSettings() {
-    // admissionController = new CPUBasedAdmissionController(
-    // CPUBasedAdmissionControllerSettings.CPU_BASED_ADMISSION_CONTROLLER,
-    // Settings.EMPTY,
-    // clusterService.getClusterSettings()
-    // );
-    // Settings settings = Settings.builder()
-    // .put(
-    // CPUBasedAdmissionControllerSettings.CPU_BASED_ADMISSION_CONTROLLER_TRANSPORT_LAYER_MODE.getKey(),
-    // AdmissionControlMode.ENFORCED.getMode()
-    // )
-    // .build();
-    // clusterService.getClusterSettings().applySettings(settings);
-    //
-    // assertEquals(admissionController.getName(), CPUBasedAdmissionControllerSettings.CPU_BASED_ADMISSION_CONTROLLER);
-    // assertEquals(admissionController.getRejectionCount(), 0);
-    // assertEquals(admissionController.settings.getTransportLayerAdmissionControllerMode(), AdmissionControlMode.ENFORCED);
-    // assertTrue(admissionController.isEnabledForTransportLayer(admissionController.settings.getTransportLayerAdmissionControllerMode()));
-    // }
-
-    // public void testApplyControllerWithDefaultSettings() {
-    // admissionController = new CPUBasedAdmissionController(
-    // CPUBasedAdmissionControllerSettings.CPU_BASED_ADMISSION_CONTROLLER,
-    // Settings.EMPTY,
-    // clusterService.getClusterSettings()
-    // );
-    // assertEquals(admissionController.getRejectionCount(), 0);
-    // assertEquals(admissionController.settings.getTransportLayerAdmissionControllerMode(), AdmissionControlMode.DISABLED);
-    // action = "indices:data/write/bulk[s][p]";
-    // admissionController.apply(action);
-    // assertEquals(admissionController.getRejectionCount(), 0);
-    // }
-    //
-    // public void testApplyControllerWhenSettingsEnabled() {
-    // Settings settings = Settings.builder()
-    // .put(
-    // CPUBasedAdmissionControllerSettings.CPU_BASED_ADMISSION_CONTROLLER_TRANSPORT_LAYER_MODE.getKey(),
-    // AdmissionControlMode.ENFORCED.getMode()
-    // )
-    // .build();
-    // admissionController = new CPUBasedAdmissionController(
-    // CPUBasedAdmissionControllerSettings.CPU_BASED_ADMISSION_CONTROLLER,
-    // settings,
-    // clusterService.getClusterSettings()
-    // );
-    // assertTrue(admissionController.isEnabledForTransportLayer(admissionController.settings.getTransportLayerAdmissionControllerMode()));
-    // assertEquals(admissionController.getRejectionCount(), 0);
-    // action = "indices:data/write/bulk[s][p]";
-    // admissionController.apply(action);
-    // assertEquals(admissionController.getRejectionCount(), 1);
-    // }
-}
+// public void testApplyControllerWithDefaultSettings() {
+// admissionController = new CPUBasedAdmissionController(
+// CPUBasedAdmissionControllerSettings.CPU_BASED_ADMISSION_CONTROLLER,
+// Settings.EMPTY,
+// clusterService.getClusterSettings()
+// );
+// assertEquals(admissionController.getRejectionCount(), 0);
+// assertEquals(admissionController.settings.getTransportLayerAdmissionControllerMode(), AdmissionControlMode.DISABLED);
+// action = "indices:data/write/bulk[s][p]";
+// admissionController.apply(action);
+// assertEquals(admissionController.getRejectionCount(), 0);
+// }
+//
+// public void testApplyControllerWhenSettingsEnabled() {
+// Settings settings = Settings.builder()
+// .put(
+// CPUBasedAdmissionControllerSettings.CPU_BASED_ADMISSION_CONTROLLER_TRANSPORT_LAYER_MODE.getKey(),
+// AdmissionControlMode.ENFORCED.getMode()
+// )
+// .build();
+// admissionController = new CPUBasedAdmissionController(
+// CPUBasedAdmissionControllerSettings.CPU_BASED_ADMISSION_CONTROLLER,
+// settings,
+// clusterService.getClusterSettings()
+// );
+// assertTrue(admissionController.isEnabledForTransportLayer(admissionController.settings.getTransportLayerAdmissionControllerMode()));
+// assertEquals(admissionController.getRejectionCount(), 0);
+// action = "indices:data/write/bulk[s][p]";
+// admissionController.apply(action);
+// assertEquals(admissionController.getRejectionCount(), 1);
+// }
+// }
