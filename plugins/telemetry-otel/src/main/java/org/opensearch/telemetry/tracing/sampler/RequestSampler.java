@@ -8,8 +8,12 @@
 
 package org.opensearch.telemetry.tracing.sampler;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.opensearch.telemetry.TelemetrySettings;
 
+import java.lang.reflect.Constructor;
+import java.util.HashMap;
 import java.util.List;
 
 import io.opentelemetry.api.common.AttributeKey;
@@ -21,23 +25,40 @@ import io.opentelemetry.sdk.trace.samplers.Sampler;
 import io.opentelemetry.sdk.trace.samplers.SamplingResult;
 
 import static org.opensearch.telemetry.tracing.AttributeNames.TRACE;
-import static org.opensearch.telemetry.tracing.AttributeNames.TRANSPORT_ACTION;
 
 /**
- * HeadBased sampler
+ * RequestSampler based on HeadBased sampler
  */
 public class RequestSampler implements Sampler {
-    private final Sampler defaultSampler;
-
-    private final Sampler actionSampler;
+    private final HashMap<String, Sampler> samplers;
+    private final TelemetrySettings telemetrySettings;
+    protected Logger logger;
 
     /**
-     * Creates action sampler which samples request for all actions based on defined probability
+     * Creates request sampler which applies based on all applicable sampler
      * @param telemetrySettings TelemetrySettings
      */
     public RequestSampler(TelemetrySettings telemetrySettings) {
-        this.defaultSampler = new ProbabilisticSampler(telemetrySettings);
-        this.actionSampler = new TransportActionSampler(telemetrySettings);
+        this.telemetrySettings = telemetrySettings;
+        this.samplers = new HashMap<>();
+        this.logger = LogManager.getLogger(getClass());
+        this.SamplerInit();
+    }
+
+    /**
+     * Initialises all samplers based on telemetry setting
+     */
+    private void SamplerInit() {
+        for (String samplerName : this.telemetrySettings.getSamplingOrder()) {
+            try {
+                Class<?> samplerClass = Class.forName(samplerName);
+                Constructor<?> constructor = samplerClass.getConstructor(TelemetrySettings.class);
+                Sampler sampler = (Sampler) constructor.newInstance(telemetrySettings);
+                this.samplers.put(samplerName, sampler);
+            } catch (Exception e) {
+                logger.error("error while creatin class object: ", e);
+            }
+        }
     }
 
     @Override
@@ -50,17 +71,20 @@ public class RequestSampler implements Sampler {
         List<LinkData> parentLinks
     ) {
         final String trace = attributes.get(AttributeKey.stringKey(TRACE));
-        final String action = attributes.get(AttributeKey.stringKey(TRANSPORT_ACTION));
 
-        // Determine the sampling decision based on the availability of trace information and action,
-        // either recording and sampling, delegating to action sampler, or falling back to default sampler.
+        List<String> samplers = telemetrySettings.getSamplingOrder();
         if (trace != null) {
             return (Boolean.parseBoolean(trace) == true) ? SamplingResult.recordAndSample() : SamplingResult.drop();
-        } else if (action != null) {
-            return actionSampler.shouldSample(parentContext, traceId, name, spanKind, attributes, parentLinks);
-        } else {
-            return defaultSampler.shouldSample(parentContext, traceId, name, spanKind, attributes, parentLinks);
         }
+
+        for (String samplerName : samplers) {
+            SamplingResult result = this.samplers.get(samplerName)
+                .shouldSample(parentContext, traceId, name, spanKind, attributes, parentLinks);
+            if (result == SamplingResult.recordAndSample()) {
+                return result;
+            }
+        }
+        return SamplingResult.drop();
     }
 
     @Override
@@ -71,5 +95,9 @@ public class RequestSampler implements Sampler {
     @Override
     public String toString() {
         return getDescription();
+    }
+
+    public HashMap<String, Sampler> getSamplers() {
+        return samplers;
     }
 }

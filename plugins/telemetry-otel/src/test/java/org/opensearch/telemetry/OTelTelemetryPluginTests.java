@@ -36,6 +36,7 @@ import static org.opensearch.telemetry.OTelTelemetrySettings.TRACER_EXPORTER_MAX
 import static org.opensearch.telemetry.TelemetrySettings.TRACER_ENABLED_SETTING;
 import static org.opensearch.telemetry.TelemetrySettings.TRACER_SAMPLER_ACTION_PROBABILITY;
 import static org.opensearch.telemetry.TelemetrySettings.TRACER_SAMPLER_PROBABILITY;
+import static org.opensearch.telemetry.TelemetrySettings.TRACER_SPAN_SAMPLER_CLASSES;
 
 public class OTelTelemetryPluginTests extends OpenSearchTestCase {
 
@@ -54,7 +55,15 @@ public class OTelTelemetryPluginTests extends OpenSearchTestCase {
         telemetry = oTelTelemetryPlugin.getTelemetry(
             new TelemetrySettings(
                 Settings.EMPTY,
-                new ClusterSettings(settings, Set.of(TRACER_ENABLED_SETTING, TRACER_SAMPLER_PROBABILITY, TRACER_SAMPLER_ACTION_PROBABILITY))
+                new ClusterSettings(
+                    settings,
+                    Set.of(
+                        TRACER_ENABLED_SETTING,
+                        TRACER_SAMPLER_PROBABILITY,
+                        TRACER_SAMPLER_ACTION_PROBABILITY,
+                        TRACER_SPAN_SAMPLER_CLASSES
+                    )
+                )
             )
         );
         tracingTelemetry = telemetry.get().getTracingTelemetry();

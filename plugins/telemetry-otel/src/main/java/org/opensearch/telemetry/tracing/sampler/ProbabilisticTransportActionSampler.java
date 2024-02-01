@@ -24,18 +24,18 @@ import io.opentelemetry.sdk.trace.samplers.SamplingResult;
 import static org.opensearch.telemetry.tracing.AttributeNames.TRANSPORT_ACTION;
 
 /**
- * TransportActionSampler sampler samples request with action based on defined probability
+ * ProbabilisticTransportActionSampler sampler samples request with action based on defined probability
  */
-public class TransportActionSampler implements Sampler {
+public class ProbabilisticTransportActionSampler implements Sampler {
     private Sampler actionSampler;
     private final TelemetrySettings telemetrySettings;
     private double actionSamplingRatio;
 
     /**
-     * Creates TransportActionSampler sampler
+     * Creates ProbabilisticTransportActionSampler sampler
      * @param telemetrySettings TelemetrySettings
      */
-    public TransportActionSampler(TelemetrySettings telemetrySettings) {
+    public ProbabilisticTransportActionSampler(TelemetrySettings telemetrySettings) {
         this.telemetrySettings = Objects.requireNonNull(telemetrySettings);
         this.actionSamplingRatio = telemetrySettings.getActionSamplingProbability();
         this.actionSampler = Sampler.traceIdRatioBased(actionSamplingRatio);
@@ -53,7 +53,7 @@ public class TransportActionSampler implements Sampler {
         final String action = attributes.get(AttributeKey.stringKey(TRANSPORT_ACTION));
         if (action != null) {
             double newActionSamplingRatio = telemetrySettings.getActionSamplingProbability();
-            if (isSamplingRatioChanged(newActionSamplingRatio)) {
+            if (isActionSamplingRatioChanged(newActionSamplingRatio)) {
                 synchronized (this) {
                     this.actionSamplingRatio = newActionSamplingRatio;
                     actionSampler = Sampler.traceIdRatioBased(actionSamplingRatio);
@@ -64,7 +64,7 @@ public class TransportActionSampler implements Sampler {
         return SamplingResult.drop();
     }
 
-    private boolean isSamplingRatioChanged(double newSamplingRatio) {
+    private boolean isActionSamplingRatioChanged(double newSamplingRatio) {
         return Double.compare(this.actionSamplingRatio, newSamplingRatio) != 0;
     }
 

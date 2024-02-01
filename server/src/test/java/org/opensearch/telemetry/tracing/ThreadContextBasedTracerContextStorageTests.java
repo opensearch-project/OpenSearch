@@ -33,6 +33,7 @@ import static org.opensearch.telemetry.TelemetrySettings.TRACER_ENABLED_SETTING;
 import static org.opensearch.telemetry.TelemetrySettings.TRACER_FEATURE_ENABLED_SETTING;
 import static org.opensearch.telemetry.TelemetrySettings.TRACER_SAMPLER_ACTION_PROBABILITY;
 import static org.opensearch.telemetry.TelemetrySettings.TRACER_SAMPLER_PROBABILITY;
+import static org.opensearch.telemetry.TelemetrySettings.TRACER_SPAN_SAMPLER_CLASSES;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.CoreMatchers.not;
@@ -53,13 +54,14 @@ public class ThreadContextBasedTracerContextStorageTests extends OpenSearchTestC
             .put(TRACER_ENABLED_SETTING.getKey(), true)
             .put(TRACER_SAMPLER_PROBABILITY.getKey(), 1d)
             .put(TRACER_FEATURE_ENABLED_SETTING.getKey(), true)
+            .put(TRACER_SPAN_SAMPLER_CLASSES.getKey(), "")
             .build();
 
         final TelemetrySettings telemetrySettings = new TelemetrySettings(
             settings,
             new ClusterSettings(
                 Settings.EMPTY,
-                Set.of(TRACER_ENABLED_SETTING, TRACER_SAMPLER_PROBABILITY, TRACER_SAMPLER_ACTION_PROBABILITY)
+                Set.of(TRACER_ENABLED_SETTING, TRACER_SAMPLER_PROBABILITY, TRACER_SAMPLER_ACTION_PROBABILITY, TRACER_SPAN_SAMPLER_CLASSES)
             )
         );
 

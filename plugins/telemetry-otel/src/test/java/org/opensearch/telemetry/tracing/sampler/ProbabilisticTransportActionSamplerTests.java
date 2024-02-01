@@ -21,43 +21,31 @@ import io.opentelemetry.api.trace.SpanKind;
 import io.opentelemetry.context.Context;
 import io.opentelemetry.sdk.trace.samplers.SamplingResult;
 
-import static org.opensearch.telemetry.OTelTelemetrySettings.TRACER_EXPORTER_DELAY_SETTING;
 import static org.opensearch.telemetry.TelemetrySettings.TRACER_ENABLED_SETTING;
 import static org.opensearch.telemetry.TelemetrySettings.TRACER_SAMPLER_ACTION_PROBABILITY;
 import static org.opensearch.telemetry.TelemetrySettings.TRACER_SAMPLER_PROBABILITY;
+import static org.opensearch.telemetry.TelemetrySettings.TRACER_SPAN_SAMPLER_CLASSES;
 import static org.opensearch.telemetry.tracing.AttributeNames.TRANSPORT_ACTION;
 import static org.mockito.Mockito.mock;
 
-public class TransportActionSamplerTests extends OpenSearchTestCase {
+public class ProbabilisticTransportActionSamplerTests extends OpenSearchTestCase {
 
-    public void testGetSamplerWithDefaultActionSamplingRatio() {
-        Settings settings = Settings.builder().put(TRACER_EXPORTER_DELAY_SETTING.getKey(), "1s").build();
-        TelemetrySettings telemetrySettings = new TelemetrySettings(
-            Settings.EMPTY,
-            new ClusterSettings(settings, Set.of(TRACER_SAMPLER_PROBABILITY, TRACER_ENABLED_SETTING, TRACER_SAMPLER_ACTION_PROBABILITY))
-        );
-
-        // TransportActionSampler
-        TransportActionSampler transportActionSampler = new TransportActionSampler(telemetrySettings);
-
-        // Validates if default sampling of 1%
-        assertEquals(0.001d, transportActionSampler.getSamplingRatio(), 0.0d);
-    }
-
-    public void testGetSamplerWithUpdatedActionSamplingRatio() {
+    public void testGetSamplerWithUpdatingActionSamplingRatio() {
         ClusterSettings clusterSettings = new ClusterSettings(
             Settings.EMPTY,
-            Set.of(TRACER_SAMPLER_PROBABILITY, TRACER_ENABLED_SETTING, TRACER_SAMPLER_ACTION_PROBABILITY)
+            Set.of(TRACER_SAMPLER_PROBABILITY, TRACER_ENABLED_SETTING, TRACER_SAMPLER_ACTION_PROBABILITY, TRACER_SPAN_SAMPLER_CLASSES)
         );
 
         TelemetrySettings telemetrySettings = new TelemetrySettings(Settings.EMPTY, clusterSettings);
 
         // TransportActionSampler
-        TransportActionSampler transportActionSampler = new TransportActionSampler(telemetrySettings);
+        ProbabilisticTransportActionSampler probabilisticTransportActionSampler = new ProbabilisticTransportActionSampler(
+            telemetrySettings
+        );
         clusterSettings.applySettings(Settings.builder().put("telemetry.tracer.action.sampler.probability", "1.0").build());
 
         // Need to call shouldSample() to update the value of samplingRatio
-        SamplingResult result = transportActionSampler.shouldSample(
+        SamplingResult result = probabilisticTransportActionSampler.shouldSample(
             mock(Context.class),
             "00000000000000000000000000000000",
             "spanName",
@@ -67,10 +55,11 @@ public class TransportActionSamplerTests extends OpenSearchTestCase {
         );
         // Verify that TransportActionSampler returned SamplingResult.recordAndSample() as all actions will be sampled
         assertEquals(SamplingResult.recordAndSample(), result);
-        assertEquals(1.0, transportActionSampler.getSamplingRatio(), 0.000d);
+        assertEquals(1.0, probabilisticTransportActionSampler.getSamplingRatio(), 0.000d);
+        assertEquals(SamplingResult.recordAndSample(), result);
 
-        clusterSettings.applySettings(Settings.builder().put("telemetry.tracer.action.sampler.probability", "0.5").build());
-        result = transportActionSampler.shouldSample(
+        clusterSettings.applySettings(Settings.builder().put("telemetry.tracer.action.sampler.probability", "0.0").build());
+        result = probabilisticTransportActionSampler.shouldSample(
             mock(Context.class),
             "00000000000000000000000000000000",
             "spanName",
@@ -78,7 +67,7 @@ public class TransportActionSamplerTests extends OpenSearchTestCase {
             Attributes.builder().put(TRANSPORT_ACTION, "dummy_action").build(),
             Collections.emptyList()
         );
-        assertEquals(0.5, transportActionSampler.getSamplingRatio(), 0.000d);
+        assertEquals(0.0, probabilisticTransportActionSampler.getSamplingRatio(), 0.000d);
+        assertEquals(SamplingResult.drop(), result);
     }
-
 }
