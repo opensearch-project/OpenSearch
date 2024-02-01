@@ -66,8 +66,8 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
 public class StatsIT extends AbstractNumericTestCase {
-    public StatsIT(Settings dynamicSettings) {
-        super(dynamicSettings);
+    public StatsIT(Settings staticSettings) {
+        super(staticSettings);
     }
 
     @Override

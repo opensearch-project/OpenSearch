@@ -48,7 +48,7 @@ import org.opensearch.search.aggregations.bucket.terms.Terms.Bucket;
 import org.opensearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.opensearch.search.aggregations.metrics.Max;
 import org.opensearch.test.OpenSearchIntegTestCase;
-import org.opensearch.test.ParameterizedOpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -71,12 +71,12 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
  * Tests the Sampler aggregation
  */
 @OpenSearchIntegTestCase.SuiteScopeTestCase
-public class DiversifiedSamplerIT extends ParameterizedOpenSearchIntegTestCase {
+public class DiversifiedSamplerIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
 
     public static final int NUM_SHARDS = 2;
 
-    public DiversifiedSamplerIT(Settings dynamicSettings) {
-        super(dynamicSettings);
+    public DiversifiedSamplerIT(Settings staticSettings) {
+        super(staticSettings);
     }
 
     @ParametersFactory

@@ -8,11 +8,14 @@
 
 package org.opensearch.common.cache.store.enums;
 
+import org.opensearch.common.annotation.ExperimentalApi;
+
 /**
  * Cache store types in tiered cache.
  *
  * @opensearch.internal
  */
+@ExperimentalApi
 public enum CacheStoreType {
 
     ON_HEAP,

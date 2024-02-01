@@ -48,7 +48,7 @@ import org.opensearch.search.aggregations.InternalAggregation;
 import org.opensearch.search.aggregations.bucket.global.Global;
 import org.opensearch.search.aggregations.bucket.terms.Terms;
 import org.opensearch.test.OpenSearchIntegTestCase;
-import org.opensearch.test.ParameterizedOpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -71,10 +71,10 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.notNullValue;
 
 @OpenSearchIntegTestCase.SuiteScopeTestCase
-public class CardinalityIT extends ParameterizedOpenSearchIntegTestCase {
+public class CardinalityIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
 
-    public CardinalityIT(Settings dynamicSettings) {
-        super(dynamicSettings);
+    public CardinalityIT(Settings staticSettings) {
+        super(staticSettings);
     }
 
     @ParametersFactory

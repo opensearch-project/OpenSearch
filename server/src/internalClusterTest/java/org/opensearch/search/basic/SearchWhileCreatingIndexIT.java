@@ -41,7 +41,7 @@ import org.opensearch.cluster.health.ClusterHealthStatus;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.index.query.QueryBuilders;
-import org.opensearch.test.ParameterizedOpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -54,10 +54,10 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
  * This test basically verifies that search with a single shard active (cause we indexed to it) and other
  * shards possibly not active at all (cause they haven't allocated) will still work.
  */
-public class SearchWhileCreatingIndexIT extends ParameterizedOpenSearchIntegTestCase {
+public class SearchWhileCreatingIndexIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
 
-    public SearchWhileCreatingIndexIT(Settings dynamicSettings) {
-        super(dynamicSettings);
+    public SearchWhileCreatingIndexIT(Settings staticSettings) {
+        super(staticSettings);
     }
 
     @ParametersFactory

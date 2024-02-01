@@ -50,7 +50,7 @@ import org.opensearch.core.rest.RestStatus;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.node.Node;
 import org.opensearch.test.OpenSearchIntegTestCase;
-import org.opensearch.test.ParameterizedOpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -70,10 +70,10 @@ import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.not;
 
 @OpenSearchIntegTestCase.ClusterScope(minNumDataNodes = 2)
-public class SearchPreferenceIT extends ParameterizedOpenSearchIntegTestCase {
+public class SearchPreferenceIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
 
-    public SearchPreferenceIT(Settings dynamicSettings) {
-        super(dynamicSettings);
+    public SearchPreferenceIT(Settings staticSettings) {
+        super(staticSettings);
     }
 
     @ParametersFactory

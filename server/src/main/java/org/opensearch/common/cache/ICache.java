@@ -8,6 +8,10 @@
 
 package org.opensearch.common.cache;
 
+import org.opensearch.common.cache.stats.CacheStats;
+
+import java.io.Closeable;
+
 /**
  * Represents a cache interface.
  * @param <K> Type of key.
@@ -15,7 +19,7 @@ package org.opensearch.common.cache;
  *
  * @opensearch.experimental
  */
-public interface ICache<K, V> {
+public interface ICache<K, V> extends Closeable {
     V get(K key);
 
     void put(K key, V value);
@@ -31,4 +35,6 @@ public interface ICache<K, V> {
     long count();
 
     void refresh();
+
+    CacheStats stats();
 }

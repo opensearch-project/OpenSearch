@@ -46,7 +46,7 @@ import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.search.fetch.subphase.FetchSourceContext;
-import org.opensearch.test.ParameterizedOpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -63,10 +63,10 @@ import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
-public class SimpleMgetIT extends ParameterizedOpenSearchIntegTestCase {
+public class SimpleMgetIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
 
-    public SimpleMgetIT(Settings dynamicSettings) {
-        super(dynamicSettings);
+    public SimpleMgetIT(Settings staticSettings) {
+        super(staticSettings);
     }
 
     @ParametersFactory

@@ -112,6 +112,7 @@ final class TikaImpl {
     /**
      * parses with tika, throwing any exception hit while parsing the document
      */
+    @SuppressWarnings("removal")
     static String parse(final byte content[], final Metadata metadata, final int limit) throws TikaException, IOException {
         // check that its not unprivileged code like a script
         SpecialPermission.check();
@@ -136,6 +137,7 @@ final class TikaImpl {
 
     // apply additional containment for parsers, this is intersected with the current permissions
     // its hairy, but worth it so we don't have some XML flaw reading random crap from the FS
+    @SuppressWarnings("removal")
     private static final AccessControlContext RESTRICTED_CONTEXT = new AccessControlContext(
         new ProtectionDomain[] { new ProtectionDomain(null, getRestrictedPermissions()) }
     );

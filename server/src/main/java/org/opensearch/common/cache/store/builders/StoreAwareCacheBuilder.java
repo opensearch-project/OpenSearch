@@ -10,6 +10,7 @@ package org.opensearch.common.cache.store.builders;
 
 import org.opensearch.common.cache.store.StoreAwareCache;
 import org.opensearch.common.cache.store.listeners.StoreAwareCacheEventListener;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 
 import java.util.function.ToLongBiFunction;
@@ -30,6 +31,8 @@ public abstract class StoreAwareCacheBuilder<K, V> {
     private TimeValue expireAfterAcess;
 
     private StoreAwareCacheEventListener<K, V> eventListener;
+
+    private Settings settings;
 
     public StoreAwareCacheBuilder() {}
 
@@ -53,6 +56,11 @@ public abstract class StoreAwareCacheBuilder<K, V> {
         return this;
     }
 
+    public StoreAwareCacheBuilder<K, V> setSettings(Settings settings) {
+        this.settings = settings;
+        return this;
+    }
+
     public long getMaxWeightInBytes() {
         return maxWeightInBytes;
     }
@@ -66,7 +74,11 @@ public abstract class StoreAwareCacheBuilder<K, V> {
     }
 
     public StoreAwareCacheEventListener<K, V> getEventListener() {
-        return eventListener;
+        return this.eventListener;
+    }
+
+    public Settings getSettings() {
+        return settings;
     }
 
     public abstract StoreAwareCache<K, V> build();

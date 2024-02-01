@@ -45,7 +45,7 @@ import org.opensearch.script.ScriptType;
 import org.opensearch.search.aggregations.AggregationBuilders;
 import org.opensearch.search.aggregations.bucket.range.Range;
 import org.opensearch.test.OpenSearchIntegTestCase;
-import org.opensearch.test.ParameterizedOpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -60,10 +60,10 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
 
 @OpenSearchIntegTestCase.SuiteScopeTestCase
-public class IpRangeIT extends ParameterizedOpenSearchIntegTestCase {
+public class IpRangeIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
 
-    public IpRangeIT(Settings dynamicSettings) {
-        super(dynamicSettings);
+    public IpRangeIT(Settings staticSettings) {
+        super(staticSettings);
     }
 
     @ParametersFactory

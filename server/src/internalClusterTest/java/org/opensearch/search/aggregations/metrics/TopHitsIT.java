@@ -70,7 +70,7 @@ import org.opensearch.search.sort.ScriptSortBuilder.ScriptSortType;
 import org.opensearch.search.sort.SortBuilders;
 import org.opensearch.search.sort.SortOrder;
 import org.opensearch.test.OpenSearchIntegTestCase;
-import org.opensearch.test.ParameterizedOpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -111,13 +111,13 @@ import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
 @OpenSearchIntegTestCase.SuiteScopeTestCase()
-public class TopHitsIT extends ParameterizedOpenSearchIntegTestCase {
+public class TopHitsIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
 
     private static final String TERMS_AGGS_FIELD = "terms";
     private static final String SORT_FIELD = "sort";
 
-    public TopHitsIT(Settings dynamicSettings) {
-        super(dynamicSettings);
+    public TopHitsIT(Settings staticSettings) {
+        super(staticSettings);
     }
 
     @ParametersFactory
