@@ -29,16 +29,6 @@ import java.util.Objects;
 
 import static org.opensearch.cluster.metadata.ComposableIndexTemplateMetadata.MINIMMAL_SUPPORTED_VERSION;
 
-/**
- * TODO: Tests with failures? `./gradlew :server:test`
-
- - org.opensearch.index.store.RemoteSegmentStoreDirectoryTests.testDeleteStaleCommitsActualDeleteIOException
- - org.opensearch.index.store.RemoteSegmentStoreDirectoryTests.testDeleteStaleCommitsDeleteDedup
- - org.opensearch.index.store.RemoteSegmentStoreDirectoryTests.testDeleteStaleCommitsActualDeleteNoSuchFileException
- - org.opensearch.index.store.RemoteSegmentStoreDirectoryTests.testDeleteStaleCommitsActualDelete
- *
- */
-
 public class ViewMetadata implements Metadata.Custom {
 
     public static final String TYPE = "view";

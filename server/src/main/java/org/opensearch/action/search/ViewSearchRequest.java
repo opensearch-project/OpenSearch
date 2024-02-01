@@ -58,7 +58,6 @@ public class ViewSearchRequest extends SearchRequest {
 
     @Override
     public boolean equals(final Object o) {
-        // TODO: Maybe this isn't standard practice
         return this.hashCode() == o.hashCode();
     }
 
