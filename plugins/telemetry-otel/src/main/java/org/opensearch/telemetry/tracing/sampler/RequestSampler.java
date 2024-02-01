@@ -32,6 +32,9 @@ import static org.opensearch.telemetry.tracing.AttributeNames.TRACE;
 public class RequestSampler implements Sampler {
     private final HashMap<String, Sampler> samplers;
     private final TelemetrySettings telemetrySettings;
+    /**
+     * Logger instance for logging messages related to the request sampler.
+     */
     protected Logger logger;
 
     /**
@@ -95,9 +98,5 @@ public class RequestSampler implements Sampler {
     @Override
     public String toString() {
         return getDescription();
-    }
-
-    public HashMap<String, Sampler> getSamplers() {
-        return samplers;
     }
 }
