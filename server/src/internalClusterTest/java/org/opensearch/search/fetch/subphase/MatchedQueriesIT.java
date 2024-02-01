@@ -103,6 +103,7 @@ public class MatchedQueriesIT extends ParameterizedStaticSettingsOpenSearchInteg
                             .should(rangeQuery("number").gte(2).queryName("test2"))
                     )
             )
+            .setIncludeNamedQueriesScore(true)
             .get();
         assertHitCount(searchResponse, 3L);
         for (SearchHit hit : searchResponse.getHits()) {
@@ -123,6 +124,7 @@ public class MatchedQueriesIT extends ParameterizedStaticSettingsOpenSearchInteg
             .setQuery(
                 boolQuery().should(rangeQuery("number").lte(2).queryName("test1")).should(rangeQuery("number").gt(2).queryName("test2"))
             )
+            .setIncludeNamedQueriesScore(true)
             .get();
         assertHitCount(searchResponse, 3L);
         for (SearchHit hit : searchResponse.getHits()) {
@@ -251,6 +253,7 @@ public class MatchedQueriesIT extends ParameterizedStaticSettingsOpenSearchInteg
 
         SearchResponse searchResponse = client().prepareSearch()
             .setQuery(QueryBuilders.regexpQuery("title", "title1").queryName("regex"))
+            .setIncludeNamedQueriesScore(true)
             .get();
         assertHitCount(searchResponse, 1L);
 
@@ -273,9 +276,10 @@ public class MatchedQueriesIT extends ParameterizedStaticSettingsOpenSearchInteg
         refresh();
         indexRandomForConcurrentSearch("test1");
 
-        SearchResponse searchResponse = client().prepareSearch()
+        var query = client().prepareSearch()
             .setQuery(QueryBuilders.prefixQuery("title", "title").queryName("prefix"))
-            .get();
+            .setIncludeNamedQueriesScore(true);
+        var searchResponse = query.get();
         assertHitCount(searchResponse, 1L);
 
         for (SearchHit hit : searchResponse.getHits()) {
@@ -323,6 +327,7 @@ public class MatchedQueriesIT extends ParameterizedStaticSettingsOpenSearchInteg
 
         SearchResponse searchResponse = client().prepareSearch()
             .setQuery(QueryBuilders.wildcardQuery("title", "titl*").queryName("wildcard"))
+            .setIncludeNamedQueriesScore(true)
             .get();
         assertHitCount(searchResponse, 1L);
 

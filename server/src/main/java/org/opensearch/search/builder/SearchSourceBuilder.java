@@ -262,6 +262,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         terminateAfter = in.readVInt();
         timeout = in.readOptionalTimeValue();
         trackScores = in.readBoolean();
+        includeNamedQueriesScore = in.readBoolean();
         version = in.readOptionalBoolean();
         seqNoAndPrimaryTerm = in.readOptionalBoolean();
         extBuilders = in.readNamedWriteableList(SearchExtBuilder.class);
@@ -325,6 +326,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         out.writeVInt(terminateAfter);
         out.writeOptionalTimeValue(timeout);
         out.writeBoolean(trackScores);
+        out.writeBoolean(includeNamedQueriesScore);
         out.writeOptionalBoolean(version);
         out.writeOptionalBoolean(seqNoAndPrimaryTerm);
         out.writeNamedWriteableList(extBuilders);
@@ -1122,6 +1124,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         rewrittenBuilder.terminateAfter = terminateAfter;
         rewrittenBuilder.timeout = timeout;
         rewrittenBuilder.trackScores = trackScores;
+        rewrittenBuilder.includeNamedQueriesScore = includeNamedQueriesScore;
         rewrittenBuilder.trackTotalHitsUpTo = trackTotalHitsUpTo;
         rewrittenBuilder.version = version;
         rewrittenBuilder.seqNoAndPrimaryTerm = seqNoAndPrimaryTerm;
@@ -1774,6 +1777,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
             terminateAfter,
             timeout,
             trackScores,
+            includeNamedQueriesScore,
             version,
             seqNoAndPrimaryTerm,
             profile,
@@ -1816,6 +1820,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
             && Objects.equals(terminateAfter, other.terminateAfter)
             && Objects.equals(timeout, other.timeout)
             && Objects.equals(trackScores, other.trackScores)
+            && Objects.equals(includeNamedQueriesScore, other.includeNamedQueriesScore)
             && Objects.equals(version, other.version)
             && Objects.equals(seqNoAndPrimaryTerm, other.seqNoAndPrimaryTerm)
             && Objects.equals(profile, other.profile)
