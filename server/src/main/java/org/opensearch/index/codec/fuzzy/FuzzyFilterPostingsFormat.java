@@ -63,7 +63,7 @@ public final class FuzzyFilterPostingsFormat extends PostingsFormat {
      * This name is stored in headers. If changing the implementation for the format, this name/version should be updated
      * so that reads can work as expected.
      */
-    public static final String FUZZY_SET_CODEC_NAME = "FuzzySetCodec99";
+    public static final String FUZZY_FILTER_CODEC_NAME = "FuzzyFilterCodec99";
 
     public static final int VERSION_START = 0;
     public static final int VERSION_CURRENT = VERSION_START;
@@ -75,7 +75,7 @@ public final class FuzzyFilterPostingsFormat extends PostingsFormat {
     private final FuzzySetFactory fuzzySetFactory;
 
     public FuzzyFilterPostingsFormat(PostingsFormat delegatePostingsFormat, FuzzySetFactory fuzzySetFactory) {
-        super(FUZZY_SET_CODEC_NAME);
+        super(FUZZY_FILTER_CODEC_NAME);
         this.delegatePostingsFormat = delegatePostingsFormat;
         this.fuzzySetFactory = fuzzySetFactory;
     }
@@ -98,16 +98,16 @@ public final class FuzzyFilterPostingsFormat extends PostingsFormat {
 
     @Override
     public FieldsProducer fieldsProducer(SegmentReadState state) throws IOException {
-        return new FuzzySetFieldsProducer(state);
+        return new FuzzyFilteredFieldsProducer(state);
     }
 
-    static class FuzzySetFieldsProducer extends FieldsProducer {
+    static class FuzzyFilteredFieldsProducer extends FieldsProducer {
         private FieldsProducer delegateFieldsProducer;
         HashMap<String, FuzzySet> fuzzySetsByFieldName = new HashMap<>();
         private List<Closeable> closeables = new ArrayList<>();
 
-        public FuzzySetFieldsProducer(SegmentReadState state) throws IOException {
-            String fuzzySetFileName = IndexFileNames.segmentFileName(
+        public FuzzyFilteredFieldsProducer(SegmentReadState state) throws IOException {
+            String fuzzyFilterFileName = IndexFileNames.segmentFileName(
                 state.segmentInfo.name,
                 state.segmentSuffix,
                 FUZZY_FILTER_FILE_EXTENSION
@@ -115,11 +115,12 @@ public final class FuzzyFilterPostingsFormat extends PostingsFormat {
             IndexInput filterIn = null;
             boolean success = false;
             try {
-                filterIn = state.directory.openInput(fuzzySetFileName, state.context);
+                // Using IndexInput directly instead of ChecksumIndexInput since we want to support RandomAccessInput
+                filterIn = state.directory.openInput(fuzzyFilterFileName, state.context);
 
                 CodecUtil.checkIndexHeader(
                     filterIn,
-                    FUZZY_SET_CODEC_NAME,
+                    FUZZY_FILTER_CODEC_NAME,
                     VERSION_START,
                     VERSION_CURRENT,
                     state.segmentInfo.getId(),
@@ -137,6 +138,8 @@ public final class FuzzyFilterPostingsFormat extends PostingsFormat {
                     fuzzySetsByFieldName.put(fieldInfo.name, set);
                 }
                 CodecUtil.retrieveChecksum(filterIn);
+
+                // Can we disable it if we foresee performance issues?
                 CodecUtil.checksumEntireFile(filterIn);
                 success = true;
                 closeables.add(filterIn);
@@ -154,6 +157,7 @@ public final class FuzzyFilterPostingsFormat extends PostingsFormat {
 
         @Override
         public void close() throws IOException {
+            // Why closing here?
             IOUtils.closeWhileHandlingException(closeables);
             delegateFieldsProducer.close();
         }
@@ -451,7 +455,7 @@ public final class FuzzyFilterPostingsFormat extends PostingsFormat {
                 );
                 CodecUtil.writeIndexHeader(
                     fuzzyFilterFileOutput,
-                    FUZZY_SET_CODEC_NAME,
+                    FUZZY_FILTER_CODEC_NAME,
                     VERSION_CURRENT,
                     state.segmentInfo.getId(),
                     state.segmentSuffix

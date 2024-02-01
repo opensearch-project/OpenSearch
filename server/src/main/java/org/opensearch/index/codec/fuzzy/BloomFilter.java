@@ -59,7 +59,7 @@ public class BloomFilter extends AbstractFuzzySet {
 
     BloomFilter(long maxDocs, double maxFpp, CheckedSupplier<Iterator<BytesRef>, IOException> fieldIteratorProvider) throws IOException {
         int setSize = (int) Math.ceil((maxDocs * Math.log(maxFpp)) / Math.log(1 / Math.pow(2, Math.log(2))));
-        setSize = getNearestSetSize(2 * setSize);
+        setSize = getNearestSetSize(setSize < Integer.MAX_VALUE / 2 ? 2 * setSize : Integer.MAX_VALUE);
         int optimalK = (int) Math.round(((double) setSize / maxDocs) * Math.log(2));
         this.bitset = new LongArrayBackedBitSet(setSize + 1);
         this.setSize = setSize;
@@ -85,6 +85,7 @@ public class BloomFilter extends AbstractFuzzySet {
     }
 
     private static int getNearestSetSize(int maxNumberOfBits) {
+        assert maxNumberOfBits > 0 : "Provided size estimate for bloom filter is illegal (<=0) : " + maxNumberOfBits;
         int result = usableBitSetSizes[0];
         for (int i = 0; i < usableBitSetSizes.length; i++) {
             if (usableBitSetSizes[i] <= maxNumberOfBits) {

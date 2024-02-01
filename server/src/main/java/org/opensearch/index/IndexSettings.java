@@ -65,6 +65,7 @@ import java.util.function.Function;
 import java.util.function.UnaryOperator;
 
 import static org.opensearch.Version.V_2_7_0;
+import static org.opensearch.common.util.FeatureFlags.DOC_ID_FUZZY_SET_SETTING;
 import static org.opensearch.common.util.FeatureFlags.SEARCHABLE_SNAPSHOT_EXTENDED_COMPATIBILITY;
 import static org.opensearch.index.codec.fuzzy.FuzzySetParameters.DEFAULT_FALSE_POSITIVE_PROBABILITY;
 import static org.opensearch.index.mapper.MapperService.INDEX_MAPPING_DEPTH_LIMIT_SETTING;
@@ -954,8 +955,11 @@ public final class IndexSettings {
          */
         widenIndexSortType = IndexMetadata.SETTING_INDEX_VERSION_CREATED.get(settings).before(V_2_7_0);
 
-        enableFuzzySetForDocId = scopedSettings.get(INDEX_DOC_ID_FUZZY_SET_ENABLED_SETTING);
-        docIdFuzzySetFalsePositiveProbability = scopedSettings.get(INDEX_DOC_ID_FUZZY_SET_FALSE_POSITIVE_PROBABILITY_SETTING);
+        boolean isOptimizeDocIdLookupUsingFuzzySetFeatureEnabled = FeatureFlags.isEnabled(DOC_ID_FUZZY_SET_SETTING);
+        if (isOptimizeDocIdLookupUsingFuzzySetFeatureEnabled) {
+            enableFuzzySetForDocId = scopedSettings.get(INDEX_DOC_ID_FUZZY_SET_ENABLED_SETTING);
+            docIdFuzzySetFalsePositiveProbability = scopedSettings.get(INDEX_DOC_ID_FUZZY_SET_FALSE_POSITIVE_PROBABILITY_SETTING);
+        }
 
         scopedSettings.addSettingsUpdateConsumer(
             TieredMergePolicyProvider.INDEX_COMPOUND_FORMAT_SETTING,
@@ -1843,7 +1847,7 @@ public final class IndexSettings {
     }
 
     public void setEnableFuzzySetForDocId(boolean enableFuzzySetForDocId) {
-        this.enableFuzzySetForDocId = enableFuzzySetForDocId;
+        verifyFeatureToSetDocIdFuzzySetSetting(enabled -> this.enableFuzzySetForDocId = enabled, enableFuzzySetForDocId);
     }
 
     public double getDocIdFuzzySetFalsePositiveProbability() {
@@ -1851,6 +1855,16 @@ public final class IndexSettings {
     }
 
     public void setDocIdFuzzySetFalsePositiveProbability(double docIdFuzzySetFalsePositiveProbability) {
-        this.docIdFuzzySetFalsePositiveProbability = docIdFuzzySetFalsePositiveProbability;
+        verifyFeatureToSetDocIdFuzzySetSetting(
+            fpp -> this.docIdFuzzySetFalsePositiveProbability = fpp, docIdFuzzySetFalsePositiveProbability);
+    }
+
+    private static <T> void verifyFeatureToSetDocIdFuzzySetSetting(Consumer<T> settingUpdater, T val) {
+        if (FeatureFlags.isEnabled(DOC_ID_FUZZY_SET_SETTING)) {
+            settingUpdater.accept(val);
+        } else {
+            throw new IllegalArgumentException(String.format("Fuzzy set for optimizing doc id lookup " +
+                "cannot be enabled with feature flag %s set to false", FeatureFlags.DOC_ID_FUZZY_SET));
+        }
     }
 }
