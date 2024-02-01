@@ -31,11 +31,16 @@
 
 package org.opensearch.search.aggregations.metrics;
 
+import java.util.concurrent.atomic.AtomicInteger;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.search.ScoreMode;
 import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.util.DoubleArray;
+import org.opensearch.index.codec.freshstartree.codec.StarTreeAggregatedValues;
 import org.opensearch.index.fielddata.SortedNumericDoubleValues;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.aggregations.Aggregator;
@@ -48,6 +53,8 @@ import org.opensearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.Map;
+import org.opensearch.transport.TransportService;
+
 
 /**
  * Aggregate all docs into a single sum value
@@ -61,6 +68,11 @@ public class SumAggregator extends NumericMetricsAggregator.SingleValue {
 
     private DoubleArray sums;
     private DoubleArray compensations;
+
+    private AtomicInteger bucket2;
+
+    private static final Logger logger = LogManager.getLogger(SumAggregator.class);
+
 
     SumAggregator(
         String name,
@@ -77,6 +89,7 @@ public class SumAggregator extends NumericMetricsAggregator.SingleValue {
             sums = context.bigArrays().newDoubleArray(1, true);
             compensations = context.bigArrays().newDoubleArray(1, true);
         }
+        bucket2 = new AtomicInteger(0);
     }
 
     @Override
@@ -91,14 +104,57 @@ public class SumAggregator extends NumericMetricsAggregator.SingleValue {
         }
         final BigArrays bigArrays = context.bigArrays();
         final SortedNumericDoubleValues values = valuesSource.doubleValues(ctx);
+        StarTreeAggregatedValues aggrVals = (StarTreeAggregatedValues) ctx.reader().getAggregatedDocValues();
         final CompensatedSum kahanSummation = new CompensatedSum(0, 0);
+        //int bucket = 0;
         return new LeafBucketCollectorBase(sub, values) {
             @Override
             public void collect(int doc, long bucket) throws IOException {
+                //long bucket = bucket2.get();
                 sums = bigArrays.grow(sums, bucket + 1);
                 compensations = bigArrays.grow(compensations, bucket + 1);
+                NumericDocValues dv = aggrVals.metricValues.get("status_sum");
+                NumericDocValues hourValueDim = aggrVals.dimensionValues.get("hour");
+                NumericDocValues dayValueDim = aggrVals.dimensionValues.get("day");
+                NumericDocValues statusValueDim = aggrVals.dimensionValues.get("status");
+                NumericDocValues minuteValueDim = aggrVals.dimensionValues.get("minute");
+                NumericDocValues monthValueDim = aggrVals.dimensionValues.get("month");
 
-                if (values.advanceExact(doc)) {
+                if (dv.advanceExact(doc)) {
+                    final int valuesCount = values.docValueCount();
+                    // Compute the sum of double values with Kahan summation algorithm which is more
+                    // accurate than naive summation.
+                    double sum = sums.get(bucket);
+                    double compensation = compensations.get(bucket);
+                    kahanSummation.reset(sum, compensation);
+                    double value = dv.longValue();
+                    hourValueDim.advanceExact(doc);
+                    long hour = hourValueDim.longValue();
+
+                    dayValueDim.advanceExact(doc);
+                    long day = dayValueDim.longValue();
+
+                    statusValueDim.advanceExact(doc);
+                    long status = statusValueDim.longValue();
+
+                    minuteValueDim.advanceExact(doc);
+                    long minute = minuteValueDim.longValue();
+
+
+                    monthValueDim.advanceExact(doc);
+                    long month = monthValueDim.longValue();
+
+                    logger.info("Day : {} , hour : {} , status : {}, month : {} , minute: {}", day, hour, status, month, minute);
+
+                    kahanSummation.add(value);
+
+                    compensations.set(bucket, kahanSummation.delta());
+                    sums.set(bucket, kahanSummation.value());
+                    //bucket2.set((int) (bucket + 1l));
+                    //bucket++;
+                }
+                else
+                    if (values.advanceExact(doc)) {
                     final int valuesCount = values.docValueCount();
                     // Compute the sum of double values with Kahan summation algorithm which is more
                     // accurate than naive summation.

@@ -99,11 +99,11 @@ public class StarTreeDocValuesWriter extends DocValuesConsumer {
         }
         if (field.name.equalsIgnoreCase("@timestamp")) {
             //logger.info("Adding timestamp fields");
-            //dimensionReaders.put("minute_dim", valuesProducer.getSortedNumeric(field));
+            dimensionReaders.put("minute_dim", valuesProducer.getSortedNumeric(field));
             dimensionReaders.put("hour_dim", valuesProducer.getSortedNumeric(field));
             dimensionReaders.put("day_dim", valuesProducer.getSortedNumeric(field));
             dimensionReaders.put("month_dim", valuesProducer.getSortedNumeric(field));
-            dimensionReaders.put("year_dim", valuesProducer.getSortedNumeric(field));
+            //dimensionReaders.put("year_dim", valuesProducer.getSortedNumeric(field));
             //dimensionsSplitOrder.add("minute");
 
         } else {

@@ -59,11 +59,11 @@ import org.opensearch.index.codec.freshstartree.util.BufferedAggregatedDocValues
 /** Base class for star tree builder */
 public abstract class BaseSingleTreeBuilder {
     public static final int STAR_IN_DOC_VALUES_INDEX = -1;
-    final static int SECOND = 1000;
-    final static int MINUTE = 60 * SECOND;
-    final static int HOUR = 60 * 60 * SECOND;
-    final static int DAY = 24 * HOUR;
-    final static int YEAR = 365 * DAY;
+    public final static int SECOND = 1000;
+    public final static int MINUTE = 60 * SECOND;
+    public final static int HOUR = 60 * 60 * SECOND;
+    public final static int DAY = 24 * HOUR;
+    public final static int YEAR = 365 * DAY;
     private static final Logger logger = LogManager.getLogger(BaseSingleTreeBuilder.class);
     final int _numDimensions;
     final String[] _dimensionsSplitOrder;
@@ -91,10 +91,11 @@ public abstract class BaseSingleTreeBuilder {
         indexOutput = state.directory.createOutput(docFileName, state.context);
         CodecUtil.writeIndexHeader(indexOutput, "STARTreeCodec", 0, state.segmentInfo.getId(), state.segmentSuffix);
         dimensionsSplitOrder = new ArrayList<>();
-        // dimensionsSplitOrder.add("hour");
+        dimensionsSplitOrder.add("minute");
+         dimensionsSplitOrder.add("hour");
         dimensionsSplitOrder.add("day");
         dimensionsSplitOrder.add("month");
-        dimensionsSplitOrder.add("year");
+        //dimensionsSplitOrder.add("year");
         dimensionsSplitOrder.add("status");
         _numDimensions = dimensionsSplitOrder.size();
         _dimensionsSplitOrder = new String[_numDimensions];
@@ -560,6 +561,8 @@ public abstract class BaseSingleTreeBuilder {
                 return val / HOUR;
             case "day":
                 return val / DAY;
+            case "month":
+                return val/DAY * 30; // TODO
             case "year":
                 return val / YEAR;
             default:

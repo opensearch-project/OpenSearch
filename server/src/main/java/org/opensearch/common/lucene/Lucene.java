@@ -1077,6 +1077,12 @@ public class Lucene {
                 return null;
             }
 
+            @Override
+            public Object getAggregatedDocValues()
+                throws IOException {
+                return null;
+            }
+
             public SortedNumericDocValues getSortedNumericDocValues(String field) {
                 return null;
             }

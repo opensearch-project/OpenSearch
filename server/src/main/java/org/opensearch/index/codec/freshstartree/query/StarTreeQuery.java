@@ -38,10 +38,10 @@ import org.opensearch.index.codec.freshstartree.codec.StarTreeAggregatedValues;
 /** Query class for querying star tree data structure */
 public class StarTreeQuery extends Query implements Accountable {
 
-    Map<String, List<Predicate<Integer>>> compositePredicateMap;
+    Map<String, List<Predicate<Long>>> compositePredicateMap;
     Set<String> groupByColumns;
 
-    public StarTreeQuery(Map<String, List<Predicate<Integer>>> compositePredicateMap, Set<String> groupByColumns) {
+    public StarTreeQuery(Map<String, List<Predicate<Long>>> compositePredicateMap, Set<String> groupByColumns) {
         this.compositePredicateMap = compositePredicateMap;
         this.groupByColumns = groupByColumns;
     }
@@ -78,14 +78,13 @@ public class StarTreeQuery extends Query implements Accountable {
             @Override
             public Scorer scorer(LeafReaderContext context)
                 throws IOException {
-                StarTreeAggregatedValues val = null;
+                Object obj = context.reader().getAggregatedDocValues();
                 DocIdSetIterator result = null;
-//        Object obj = context.reader().getAggregatedDocValues();
-//        if (obj != null) {
-//          val = (StarTreeAggregatedValues) obj;
-//          StarTreeFilter filter = new StarTreeFilter(val, compositePredicateMap, groupByColumns);
-//          result = filter.getStarTreeResult();
-//        }
+                if (obj != null) {
+                StarTreeAggregatedValues val = (StarTreeAggregatedValues) obj;
+                  StarTreeFilter filter = new StarTreeFilter(val, compositePredicateMap, groupByColumns);
+                  result = filter.getStarTreeResult();
+                }
                 return new ConstantScoreScorer(this, score(), scoreMode, result);
             }
 

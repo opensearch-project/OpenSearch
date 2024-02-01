@@ -32,6 +32,11 @@
 
 package org.opensearch.search.query;
 
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Set;
+import java.util.function.Predicate;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.IndexReader;
@@ -52,6 +57,7 @@ import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.lucene.search.TopDocsAndMaxScore;
 import org.opensearch.common.util.concurrent.QueueResizingOpenSearchThreadPoolExecutor;
 import org.opensearch.core.tasks.TaskCancelledException;
+import org.opensearch.index.codec.freshstartree.query.StarTreeQuery;
 import org.opensearch.lucene.queries.SearchAfterSortedDocQuery;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.SearchContextSourcePrinter;
@@ -190,6 +196,14 @@ public class QueryPhase {
         final ContextIndexSearcher searcher = searchContext.searcher();
         final IndexReader reader = searcher.getIndexReader();
         QuerySearchResult queryResult = searchContext.queryResult();
+        Set<String> groupByCols = new HashSet<>();
+        //groupByCols.add("day");
+        groupByCols.add("status");
+        Map<String, List<Predicate<Integer>>> predicateMap = new HashMap<>();
+        List<Predicate<Integer>> predicates = new ArrayList<>();
+        predicates.add(status -> status == 200);
+        predicateMap.put("status", predicates);
+        Query q = new StarTreeQuery(new HashMap<>(), groupByCols);
         queryResult.searchTimedOut(false);
         try {
             queryResult.from(searchContext.from());
@@ -280,10 +294,12 @@ public class QueryPhase {
                 boolean shouldRescore = queryPhaseSearcher.searchWith(
                     searchContext,
                     searcher,
-                    query,
+                    q,
+                    //query,
                     collectors,
                     hasFilterCollector,
                     timeoutSet
+
                 );
 
                 ExecutorService executor = searchContext.indexShard().getThreadPool().executor(ThreadPool.Names.SEARCH);
