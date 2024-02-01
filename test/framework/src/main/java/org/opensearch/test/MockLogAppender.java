@@ -34,7 +34,6 @@ package org.opensearch.test;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.LogEvent;
-import org.apache.logging.log4j.core.appender.AbstractAppender;
 import org.apache.logging.log4j.core.config.Property;
 import org.apache.logging.log4j.core.filter.RegexFilter;
 import org.opensearch.common.logging.Loggers;
@@ -52,7 +51,7 @@ import static org.hamcrest.MatcherAssert.assertThat;
 /**
  * Test appender that can be used to verify that certain events were logged correctly
  */
-public class MockLogAppender extends AbstractAppender implements AutoCloseable {
+public class MockLogAppender extends AbstractTestAppender implements AutoCloseable {
 
     private static final String COMMON_PREFIX = System.getProperty("opensearch.logger.prefix", "org.opensearch.");
 
@@ -125,14 +124,7 @@ public class MockLogAppender extends AbstractAppender implements AutoCloseable {
         for (Logger logger : loggers) {
             Loggers.removeAppender(logger, this);
         }
-        super.stop();
-    }
-
-    @Override
-    public void stop() {
-        // MockLogAppender should be used with try-with-resources to ensure
-        // proper clean up ordering and should never be stopped directly.
-        throw new UnsupportedOperationException("Use close() to ensure proper clean up ordering");
+        stop();
     }
 
     public interface LoggingExpectation {

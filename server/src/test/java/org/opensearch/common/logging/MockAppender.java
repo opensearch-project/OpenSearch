@@ -33,15 +33,16 @@
 package org.opensearch.common.logging;
 
 import org.apache.logging.log4j.core.LogEvent;
-import org.apache.logging.log4j.core.appender.AbstractAppender;
+import org.apache.logging.log4j.core.config.Property;
 import org.apache.logging.log4j.core.filter.RegexFilter;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.opensearch.test.AbstractTestAppender;
 
-public class MockAppender extends AbstractAppender {
+public class MockAppender extends AbstractTestAppender {
     public LogEvent lastEvent;
 
     public MockAppender(final String name) throws IllegalAccessException {
-        super(name, RegexFilter.createFilter(".*(\n.*)*", new String[0], false, null, null), null);
+        super(name, RegexFilter.createFilter(".*(\n.*)*", new String[0], false, null, null), null, true, Property.EMPTY_ARRAY);
     }
 
     @Override

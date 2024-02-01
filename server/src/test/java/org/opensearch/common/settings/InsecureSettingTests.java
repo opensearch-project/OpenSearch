@@ -13,6 +13,7 @@ import org.apache.logging.log4j.core.LogEvent;
 import org.apache.logging.log4j.core.appender.AbstractAppender;
 import org.apache.logging.log4j.core.config.Property;
 import org.opensearch.common.logging.Loggers;
+import org.opensearch.test.AbstractTestAppender;
 import org.opensearch.test.OpenSearchTestCase;
 import org.junit.After;
 import org.junit.Assert;
@@ -43,7 +44,7 @@ public class InsecureSettingTests extends OpenSearchTestCase {
     @Before
     public void addInsecureSettingsAppender() {
         this.rootLogMsgs.clear();
-        rootAppender = new AbstractAppender("root", null, null, true, Property.EMPTY_ARRAY) {
+        rootAppender = new AbstractTestAppender("root", null, null, true, Property.EMPTY_ARRAY) {
             @Override
             public void append(LogEvent event) {
                 String message = event.getMessage().getFormattedMessage();
