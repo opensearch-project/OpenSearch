@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.ratelimitting.admissioncontrol.controllers;
+package org.opensearch.index.remote;
 
 import org.opensearch.test.OpenSearchTestCase;
 
