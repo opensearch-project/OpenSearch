@@ -68,7 +68,7 @@ public class BloomFilter extends AbstractFuzzySet {
         if (Assertions.ENABLED) {
             assertAllElementsExist(fieldIteratorProvider);
         }
-        logger.trace("Bloom filter created with fpp: {}, setSize: {}, hashCount: {}", maxFpp, setSize, hashCount);
+        logger.debug("Bloom filter created with fpp: {}, setSize: {}, hashCount: {}", maxFpp, setSize, hashCount);
     }
 
     BloomFilter(IndexInput in) throws IOException {
@@ -126,6 +126,8 @@ public class BloomFilter extends AbstractFuzzySet {
     @Override
     public boolean isSaturated() {
         long numBitsSet = bitset.cardinality();
+        // Don't bother saving bitsets if >90% of bits are set - we don't want to
+        // throw any more memory at this problem.
         return (float) numBitsSet / (float) setSize > 0.9f;
     }
 
@@ -137,7 +139,7 @@ public class BloomFilter extends AbstractFuzzySet {
     private boolean mayContainValue(int aHash) {
         // Bloom sizes are always base 2 and so can be ANDed for a fast modulo
         int pos = aHash & setSize;
-        return bitset.isSet(pos);
+        return bitset.get(pos);
     }
 
     @Override

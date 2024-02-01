@@ -26,12 +26,21 @@ class LongArrayBackedBitSet implements Accountable, Closeable {
     private long underlyingArrayLength = 0L;
     private LongArray longArray;
 
+    /**
+     * Constructor which uses an on heap array. This should be using during construction of the bitset.
+     * @param capacity The maximum capacity to provision for the bitset.
+     */
     LongArrayBackedBitSet(long capacity) {
         // Since the bitset is backed by a long array, we only need 1 element for every 64 bits in the underlying array.
         underlyingArrayLength = ((capacity - 1L) >> 6) + 1;
         this.longArray = BigArrays.NON_RECYCLING_INSTANCE.withCircuitBreaking().newLongArray(underlyingArrayLength);
     }
 
+    /**
+     * Constructor which uses Lucene's IndexInput to read the bitset into a read-only buffer.
+     * @param in IndexInput containing the serialized bitset.
+     * @throws IOException
+     */
     LongArrayBackedBitSet(IndexInput in) throws IOException {
         underlyingArrayLength = in.readLong();
         long streamLength = underlyingArrayLength << 3;
@@ -46,6 +55,11 @@ class LongArrayBackedBitSet implements Accountable, Closeable {
         }
     }
 
+    /**
+     * This is an O(n) operation, and will iterate over all the elements in the underlying long array
+     * to determine cardinality of the set.
+     * @return number of set bits in the bitset.
+     */
     public long cardinality() {
         long tot = 0;
         for (int i = 0; i < underlyingArrayLength; ++i) {
@@ -54,13 +68,22 @@ class LongArrayBackedBitSet implements Accountable, Closeable {
         return tot;
     }
 
-    public boolean isSet(long index) {
+    /**
+     * Retrieves whether the bit is set or not at the given index.
+     * @param index the index to look up for the bit
+     * @return true if bit is set, false otherwise
+     */
+    public boolean get(long index) {
         long i = index >> 6; // div 64
         long val = longArray.get(i);
         long bitmask = 1L << index;
         return (val & bitmask) != 0;
     }
 
+    /**
+     * Sets the bit at the given index.
+     * @param index the index to set the bit at.
+     */
     public void set(long index) {
         long wordNum = index >> 6; // div 64
         long bitmask = 1L << index;

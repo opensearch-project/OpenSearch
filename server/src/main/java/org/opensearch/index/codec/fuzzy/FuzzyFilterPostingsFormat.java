@@ -93,7 +93,7 @@ public final class FuzzyFilterPostingsFormat extends PostingsFormat {
             );
         }
         FieldsConsumer fieldsConsumer = delegatePostingsFormat.fieldsConsumer(state);
-        return new FuzzySetFieldsConsumer(fieldsConsumer, state);
+        return new FuzzyFilteredFieldsConsumer(fieldsConsumer, state);
     }
 
     @Override
@@ -168,7 +168,7 @@ public final class FuzzyFilterPostingsFormat extends PostingsFormat {
                 if (result == null) {
                     return null;
                 }
-                return new FuzzySetFieldsProducer.FuzzyFilterFrontedTerms(result, filter);
+                return new FuzzyFilteredTerms(result, filter);
             }
         }
 
@@ -177,11 +177,11 @@ public final class FuzzyFilterPostingsFormat extends PostingsFormat {
             return delegateFieldsProducer.size();
         }
 
-        static class FuzzyFilterFrontedTerms extends Terms {
+        static class FuzzyFilteredTerms extends Terms {
             private Terms delegateTerms;
             private FuzzySet filter;
 
-            public FuzzyFilterFrontedTerms(Terms terms, FuzzySet filter) {
+            public FuzzyFilteredTerms(Terms terms, FuzzySet filter) {
                 this.delegateTerms = terms;
                 this.filter = filter;
             }
@@ -349,13 +349,13 @@ public final class FuzzyFilterPostingsFormat extends PostingsFormat {
         }
     }
 
-    class FuzzySetFieldsConsumer extends FieldsConsumer {
+    class FuzzyFilteredFieldsConsumer extends FieldsConsumer {
         private FieldsConsumer delegateFieldsConsumer;
         private Map<FieldInfo, FuzzySet> fuzzySets = new HashMap<>();
         private SegmentWriteState state;
         private List<Closeable> closeables = new ArrayList<>();
 
-        public FuzzySetFieldsConsumer(FieldsConsumer fieldsConsumer, SegmentWriteState state) {
+        public FuzzyFilteredFieldsConsumer(FieldsConsumer fieldsConsumer, SegmentWriteState state) {
             this.delegateFieldsConsumer = fieldsConsumer;
             this.state = state;
         }

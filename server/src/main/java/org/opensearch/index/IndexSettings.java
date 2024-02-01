@@ -660,14 +660,14 @@ public final class IndexSettings {
     );
 
     public static final Setting<Boolean> INDEX_DOC_ID_FUZZY_SET_ENABLED_SETTING = Setting.boolSetting(
-        "index.doc_id_fuzzy_set.enabled",
+        "index.optimize_doc_id_lookup.fuzzy_set.enabled",
         false,
         Property.IndexScope,
         Property.Dynamic
     );
 
     public static final Setting<Double> INDEX_DOC_ID_FUZZY_SET_FALSE_POSITIVE_PROBABILITY_SETTING = Setting.doubleSetting(
-        "index.doc_id_fuzzy_set.false_positive_probability",
+        "index.optimize_doc_id_lookup.fuzzy_set.false_positive_probability",
         DEFAULT_FALSE_POSITIVE_PROBABILITY,
         0.01,
         0.50,
