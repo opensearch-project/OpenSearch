@@ -43,7 +43,8 @@ class LongArrayBackedBitSet implements Accountable, Closeable {
      */
     LongArrayBackedBitSet(IndexInput in) throws IOException {
         underlyingArrayLength = in.readLong();
-        // Multiplying by 8 since this
+        // Multiplying by 8 since the length above is of the long array, so we will have
+        // 8 times the number of bytes in our stream.
         long streamLength = underlyingArrayLength << 3;
         this.longArray = new IndexInputImmutableLongArray(underlyingArrayLength, in.randomAccessSlice(in.getFilePointer(), streamLength));
         in.skipBytes(streamLength);
