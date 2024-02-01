@@ -764,7 +764,7 @@ public class RecoveryFromGatewayIT extends OpenSearchIntegTestCase {
     }
 
     public void testShardFetchMultiNodeMultiIndexesUsingBatchAction() {
-        // start second node
+        // start node
         internalCluster().startNode();
         String indexName1 = "test1";
         String indexName2 = "test2";
