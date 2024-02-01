@@ -128,9 +128,5 @@ public class FeatureFlags {
         Property.NodeScope
     );
 
-    public static final Setting<Boolean> DOC_ID_FUZZY_SET_SETTING = Setting.boolSetting(
-        DOC_ID_FUZZY_SET,
-        false,
-        Property.NodeScope
-    );
+    public static final Setting<Boolean> DOC_ID_FUZZY_SET_SETTING = Setting.boolSetting(DOC_ID_FUZZY_SET, false, Property.NodeScope);
 }

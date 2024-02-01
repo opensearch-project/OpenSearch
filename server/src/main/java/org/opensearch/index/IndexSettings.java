@@ -1863,8 +1863,8 @@ public final class IndexSettings {
         if (FeatureFlags.isEnabled(DOC_ID_FUZZY_SET_SETTING)) {
             settingUpdater.accept(val);
         } else {
-            throw new IllegalArgumentException(String.format("Fuzzy set for optimizing doc id lookup " +
-                "cannot be enabled with feature flag %s set to false", FeatureFlags.DOC_ID_FUZZY_SET));
+            throw new IllegalArgumentException("Fuzzy set for optimizing doc id lookup " +
+                "cannot be enabled with feature flag [" +  FeatureFlags.DOC_ID_FUZZY_SET + "] set to false");
         }
     }
 }
