@@ -1238,7 +1238,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         clusters,
                         searchRequestContext
                     );
-                    return new SearchPhase(action.getName()) {
+                    return new SearchPhase("none") {
                         @Override
                         public void run() {
                             action.start();
