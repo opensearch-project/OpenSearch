@@ -8,13 +8,13 @@
 
 package org.opensearch.snapshots;
 
-import org.junit.Before;
 import org.opensearch.client.Client;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.repositories.RepositoryException;
 import org.opensearch.repositories.fs.ReloadableFsRepository;
 import org.opensearch.test.OpenSearchIntegTestCase;
+import org.junit.Before;
 
 import java.nio.file.Path;
 
@@ -65,7 +65,12 @@ public class SystemRepositoryIT extends AbstractSnapshotIntegTestCase {
         final Settings.Builder repoSettings = Settings.builder().put("location", absolutePath).put("chunk_size", new ByteSizeValue(20));
 
         assertAcked(
-            client.admin().cluster().preparePutRepository(systemRepoName).setType(ReloadableFsRepository.TYPE).setSettings(repoSettings).get()
+            client.admin()
+                .cluster()
+                .preparePutRepository(systemRepoName)
+                .setType(ReloadableFsRepository.TYPE)
+                .setSettings(repoSettings)
+                .get()
         );
     }
 }
