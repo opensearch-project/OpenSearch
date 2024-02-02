@@ -537,6 +537,7 @@ subprojects {
         includeClasses.add("org.opensearch.snapshots.SnapshotStatusApisIT")
         includeClasses.add("org.opensearch.test.rest.ClientYamlTestSuiteIT")
         includeClasses.add("org.opensearch.upgrade.DetectEsInstallationTaskTests")
+        includeClasses.add("org.opensearch.cluster.MinimumClusterManagerNodesIT")
       }
     }
   }
