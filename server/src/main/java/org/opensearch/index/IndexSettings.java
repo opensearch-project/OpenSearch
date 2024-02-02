@@ -271,12 +271,12 @@ public final class IndexSettings {
 
     /**
      * Index setting describing the maximum number of nested scopes in queries.
-     * The default maximum of 20. 0 means no nesting allowed.
+     * The default maximum of 20. 1 means once nesting.
      */
     public static final Setting<Integer> MAX_NESTED_QUERY_DEPTH_SETTING = Setting.intSetting(
         "index.query.max_nested_depth",
         20,
-        0,
+        1,
         Property.Dynamic,
         Property.IndexScope
     );
