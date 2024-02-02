@@ -34,6 +34,8 @@ package org.opensearch.indices;
 
 import org.opensearch.action.admin.indices.stats.CommonStats;
 import org.opensearch.action.search.SearchRequestStats;
+import org.opensearch.common.settings.ClusterSettings;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.test.OpenSearchTestCase;
 
@@ -46,7 +48,8 @@ public class NodeIndicesStatsTests extends OpenSearchTestCase {
 
     public void testInvalidLevel() {
         CommonStats oldStats = new CommonStats();
-        SearchRequestStats requestStats = new SearchRequestStats();
+        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        SearchRequestStats requestStats = new SearchRequestStats(clusterSettings);
         final NodeIndicesStats stats = new NodeIndicesStats(oldStats, Collections.emptyMap(), requestStats);
         final String level = randomAlphaOfLength(16);
         final ToXContent.Params params = new ToXContent.MapParams(Collections.singletonMap("level", level));

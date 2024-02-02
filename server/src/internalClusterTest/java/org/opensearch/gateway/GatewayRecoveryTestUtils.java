@@ -45,19 +45,19 @@ public class GatewayRecoveryTestUtils {
         return disNodesArr;
     }
 
-    public static Map<ShardId, ShardAttributes> prepareRequestMap(String[] indices, int shardCount) {
-        Map<ShardId, ShardAttributes> shardIdCustomDataPathMap = new HashMap<>();
+    public static Map<ShardId, ShardAttributes> prepareRequestMap(String[] indices, int primaryShardCount) {
+        Map<ShardId, ShardAttributes> shardIdShardAttributesMap = new HashMap<>();
         for (String indexName : indices) {
             final Index index = resolveIndex(indexName);
             final String customDataPath = IndexMetadata.INDEX_DATA_PATH_SETTING.get(
                 client().admin().indices().prepareGetSettings(indexName).get().getIndexToSettings().get(indexName)
             );
-            for (int shardIdNum = 0; shardIdNum < shardCount; shardIdNum++) {
+            for (int shardIdNum = 0; shardIdNum < primaryShardCount; shardIdNum++) {
                 final ShardId shardId = new ShardId(index, shardIdNum);
-                shardIdCustomDataPathMap.put(shardId, new ShardAttributes(shardId, customDataPath));
+                shardIdShardAttributesMap.put(shardId, new ShardAttributes(shardId, customDataPath));
             }
         }
-        return shardIdCustomDataPathMap;
+        return shardIdShardAttributesMap;
     }
 
     public static void corruptShard(String nodeName, ShardId shardId) throws IOException, InterruptedException {

@@ -45,7 +45,7 @@ import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.geometry.utils.Geohash;
 import org.opensearch.index.query.QueryBuilders;
-import org.opensearch.test.ParameterizedOpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 import org.opensearch.test.VersionUtils;
 
 import java.io.IOException;
@@ -66,10 +66,10 @@ import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
-public class GeoDistanceIT extends ParameterizedOpenSearchIntegTestCase {
+public class GeoDistanceIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
 
-    public GeoDistanceIT(Settings dynamicSettings) {
-        super(dynamicSettings);
+    public GeoDistanceIT(Settings staticSettings) {
+        super(staticSettings);
     }
 
     @ParametersFactory

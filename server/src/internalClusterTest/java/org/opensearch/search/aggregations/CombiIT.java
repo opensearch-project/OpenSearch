@@ -42,7 +42,7 @@ import org.opensearch.search.aggregations.Aggregator.SubAggCollectionMode;
 import org.opensearch.search.aggregations.bucket.histogram.Histogram;
 import org.opensearch.search.aggregations.bucket.missing.Missing;
 import org.opensearch.search.aggregations.bucket.terms.Terms;
-import org.opensearch.test.ParameterizedOpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 import org.hamcrest.Matchers;
 
 import java.util.Arrays;
@@ -61,10 +61,10 @@ import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.core.IsNull.notNullValue;
 
-public class CombiIT extends ParameterizedOpenSearchIntegTestCase {
+public class CombiIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
 
-    public CombiIT(Settings dynamicSettings) {
-        super(dynamicSettings);
+    public CombiIT(Settings staticSettings) {
+        super(staticSettings);
     }
 
     @ParametersFactory
