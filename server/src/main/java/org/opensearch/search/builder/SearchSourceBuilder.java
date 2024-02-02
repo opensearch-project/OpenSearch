@@ -176,7 +176,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
 
     private boolean trackScores = false;
 
-    private boolean includeNamedQueriesScore = false;
+    private Boolean includeNamedQueriesScore = false;
 
     private Integer trackTotalHitsUpTo;
 
@@ -262,7 +262,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         terminateAfter = in.readVInt();
         timeout = in.readOptionalTimeValue();
         trackScores = in.readBoolean();
-        includeNamedQueriesScore = in.readBoolean();
+        includeNamedQueriesScore = in.readOptionalBoolean();
         version = in.readOptionalBoolean();
         seqNoAndPrimaryTerm = in.readOptionalBoolean();
         extBuilders = in.readNamedWriteableList(SearchExtBuilder.class);
@@ -326,7 +326,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         out.writeVInt(terminateAfter);
         out.writeOptionalTimeValue(timeout);
         out.writeBoolean(trackScores);
-        out.writeBoolean(includeNamedQueriesScore);
+        out.writeOptionalBoolean(includeNamedQueriesScore);
         out.writeOptionalBoolean(version);
         out.writeOptionalBoolean(seqNoAndPrimaryTerm);
         out.writeNamedWriteableList(extBuilders);
@@ -586,7 +586,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
      * Indicates whether scores will be returned as part of every search matched query.s
      */
     public boolean includeNamedQueriesScore() {
-        return includeNamedQueriesScore;
+        return includeNamedQueriesScore != null && includeNamedQueriesScore;
     }
 
     /**
