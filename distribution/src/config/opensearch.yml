@@ -117,12 +117,6 @@ ${path.logs}
 #opensearch.experimental.feature.extensions.enabled: false
 #
 #
-# Gates the concurrent segment search feature. This feature enables concurrent segment search in a separate
-# index searcher threadpool.
-#
-#opensearch.experimental.feature.concurrent_segment_search.enabled: false
-#
-#
 # Gates the optimization of datetime formatters caching along with change in default datetime formatter
 # Once there is no observed impact on performance, this feature flag can be removed.
 #
