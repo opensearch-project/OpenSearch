@@ -703,7 +703,11 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 CpuBasedAdmissionControllerSettings.CPU_BASED_ADMISSION_CONTROLLER_TRANSPORT_LAYER_MODE,
                 CpuBasedAdmissionControllerSettings.INDEXING_CPU_USAGE_LIMIT,
                 CpuBasedAdmissionControllerSettings.SEARCH_CPU_USAGE_LIMIT,
-                IndicesService.CLUSTER_INDEX_RESTRICT_REPLICATION_TYPE_SETTING
+                IndicesService.CLUSTER_INDEX_RESTRICT_REPLICATION_TYPE_SETTING,
+
+                // Concurrent segment search settings
+                SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING,
+                SearchService.CONCURRENT_SEGMENT_SEARCH_TARGET_MAX_SLICE_COUNT_SETTING
             )
         )
     );
@@ -716,11 +720,6 @@ public final class ClusterSettings extends AbstractScopedSettings {
      * setting should be moved to {@link #BUILT_IN_CLUSTER_SETTINGS}.
      */
     public static final Map<List<String>, List<Setting>> FEATURE_FLAGGED_CLUSTER_SETTINGS = Map.of(
-        List.of(FeatureFlags.CONCURRENT_SEGMENT_SEARCH),
-        List.of(
-            SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING,
-            SearchService.CONCURRENT_SEGMENT_SEARCH_TARGET_MAX_SLICE_COUNT_SETTING
-        ),
         List.of(FeatureFlags.TELEMETRY),
         List.of(
             TelemetrySettings.TRACER_ENABLED_SETTING,
