@@ -1446,8 +1446,8 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
             builder.field(TRACK_SCORES_FIELD.getPreferredName(), true);
         }
 
-        if (includeNamedQueriesScore) {
-            builder.field(INCLUDE_NAMED_QUERIES_SCORE.getPreferredName(), true);
+        if (includeNamedQueriesScore != null) {
+            builder.field(INCLUDE_NAMED_QUERIES_SCORE.getPreferredName(), includeNamedQueriesScore);
         }
 
         if (trackTotalHitsUpTo != null) {
