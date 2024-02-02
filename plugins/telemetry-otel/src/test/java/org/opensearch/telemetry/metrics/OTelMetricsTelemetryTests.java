@@ -153,6 +153,7 @@ public class OTelMetricsTelemetryTests extends OpenSearchTestCase {
         verify(mockOTelDoubleHistogram).record(2.0, OTelAttributesConverter.convert(tags));
     }
 
+    @SuppressWarnings({ "rawtypes", "unchecked" })
     public void testHistogramWithExplicitBuckets() {
         String histogramName = "test-histogram";
         String description = "test";
