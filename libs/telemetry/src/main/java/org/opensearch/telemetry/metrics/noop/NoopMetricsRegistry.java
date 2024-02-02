@@ -8,6 +8,7 @@
 
 package org.opensearch.telemetry.metrics.noop;
 
+import java.util.List;
 import org.opensearch.common.annotation.InternalApi;
 import org.opensearch.telemetry.metrics.Counter;
 import org.opensearch.telemetry.metrics.Histogram;
@@ -41,6 +42,11 @@ public class NoopMetricsRegistry implements MetricsRegistry {
 
     @Override
     public Histogram createHistogram(String name, String description, String unit) {
+        return NoopHistogram.INSTANCE;
+    }
+
+    @Override
+    public Histogram createHistogram(String name, String description, String unit, List<Double> buckets) {
         return NoopHistogram.INSTANCE;
     }
 

@@ -8,6 +8,7 @@
 
 package org.opensearch.test.telemetry;
 
+import java.util.List;
 import org.opensearch.telemetry.Telemetry;
 import org.opensearch.telemetry.TelemetrySettings;
 import org.opensearch.telemetry.metrics.Counter;
@@ -50,6 +51,11 @@ public class MockTelemetry implements Telemetry {
 
             @Override
             public Histogram createHistogram(String name, String description, String unit) {
+                return NoopHistogram.INSTANCE;
+            }
+
+            @Override
+            public Histogram createHistogram(String name, String description, String unit, List<Double> buckets) {
                 return NoopHistogram.INSTANCE;
             }
 

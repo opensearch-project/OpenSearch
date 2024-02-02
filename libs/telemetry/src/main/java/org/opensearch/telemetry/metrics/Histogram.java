@@ -8,6 +8,8 @@
 
 package org.opensearch.telemetry.metrics;
 
+import java.util.Arrays;
+import java.util.List;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.telemetry.metrics.tags.Tags;
 

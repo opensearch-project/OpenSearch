@@ -9,9 +9,7 @@
 package org.opensearch.telemetry.tracing;
 
 import org.opensearch.common.settings.Settings;
-import org.opensearch.telemetry.OTelTelemetrySettings;
 import org.opensearch.telemetry.TelemetrySettings;
-import org.opensearch.telemetry.metrics.HistogramType;
 import org.opensearch.telemetry.metrics.exporter.OTelMetricsExporterFactory;
 import org.opensearch.telemetry.tracing.exporter.OTelSpanExporterFactory;
 import org.opensearch.telemetry.tracing.sampler.ProbabilisticSampler;
@@ -47,6 +45,8 @@ import static org.opensearch.telemetry.OTelTelemetrySettings.TRACER_EXPORTER_MAX
  * This class encapsulates all OpenTelemetry related resources
  */
 public final class OTelResourceProvider {
+    public static final String DYNAMIC_HISTOGRAM_METRIC_NAME_SUFFIX = "-dynamic";
+
     private OTelResourceProvider() {}
 
     /**
@@ -99,27 +99,9 @@ public final class OTelResourceProvider {
                     .setInterval(TelemetrySettings.METRICS_PUBLISH_INTERVAL_SETTING.get(settings).getSeconds(), TimeUnit.SECONDS)
                     .build()
             )
-            .registerView(InstrumentSelector.builder().setType(InstrumentType.HISTOGRAM).build(), createHistogramTypeView(settings))
+            .registerView(InstrumentSelector.builder().setName("*"+ DYNAMIC_HISTOGRAM_METRIC_NAME_SUFFIX).setType(InstrumentType.HISTOGRAM).build(), View.builder()
+                .setAggregation(Base2ExponentialHistogramAggregation.getDefault()).build())
             .build();
-    }
-
-    private static View createHistogramTypeView(Settings settings) {
-        if (HistogramType.DYNAMIC == TelemetrySettings.METRICS_HISTOGRAM_TYPE.get(settings)) {
-            return View.builder()
-                .setAggregation(
-                    Base2ExponentialHistogramAggregation.create(
-                        OTelTelemetrySettings.OTEL_METRICS_HISTOGRAM_EXPONENTIAL_MAX_BUCKETS.get(settings),
-                        OTelTelemetrySettings.OTEL_METRICS_HISTOGRAM_EXPONENTIAL_MAX_SCALE.get(settings)
-                    )
-                )
-                .build();
-        } else {
-            return View.builder()
-                .setAggregation(
-                    ExplicitBucketHistogramAggregation.create(OTelTelemetrySettings.OTEL_METRICS_HISTOGRAM_FIXED_BUCKETS.get(settings))
-                )
-                .build();
-        }
     }
 
     private static SdkTracerProvider createSdkTracerProvider(

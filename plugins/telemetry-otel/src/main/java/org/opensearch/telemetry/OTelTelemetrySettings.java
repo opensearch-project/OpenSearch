@@ -112,37 +112,4 @@ public final class OTelTelemetrySettings {
         Setting.Property.NodeScope,
         Setting.Property.Final
     );
-
-    /**
-     * Max scale setting for the {@link io.opentelemetry.sdk.metrics.internal.view.Base2ExponentialHistogramAggregation}
-     */
-    public static final Setting<Integer> OTEL_METRICS_HISTOGRAM_EXPONENTIAL_MAX_SCALE = Setting.intSetting(
-        "telemetry.otel.metrics.histogram.exponential.max.scale",
-        20,
-        -10,
-        Setting.Property.NodeScope,
-        Setting.Property.Final
-    );
-
-    /**
-     * Max buckets setting for the {@link io.opentelemetry.sdk.metrics.internal.view.Base2ExponentialHistogramAggregation}
-     */
-    public static final Setting<Integer> OTEL_METRICS_HISTOGRAM_EXPONENTIAL_MAX_BUCKETS = Setting.intSetting(
-        "telemetry.otel.metrics.histogram.exponential.max.buckets",
-        160,
-        1,
-        Setting.Property.NodeScope,
-        Setting.Property.Final
-    );
-
-    /**
-     * Explicit bucket list setting for the {@link io.opentelemetry.sdk.metrics.internal.view.ExplicitBucketHistogramAggregation}
-     */
-    public static final Setting<List<Double>> OTEL_METRICS_HISTOGRAM_FIXED_BUCKETS = Setting.listSetting(
-        "telemetry.otel.metrics.histogram.fixed.buckets",
-        Arrays.asList("0", "5", "10", "25", "50", "75", "100", "250", "500", "750", "1000", "2500", "5000", "7500", "10000"),
-        Double::parseDouble,
-        Setting.Property.NodeScope,
-        Setting.Property.Final
-    );
 }

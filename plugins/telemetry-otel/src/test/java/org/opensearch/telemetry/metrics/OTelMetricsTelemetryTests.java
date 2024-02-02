@@ -8,6 +8,9 @@
 
 package org.opensearch.telemetry.metrics;
 
+import java.util.Arrays;
+import java.util.List;
+import org.mockito.Mockito;
 import org.opensearch.common.concurrent.RefCountedReleasable;
 import org.opensearch.telemetry.OTelAttributesConverter;
 import org.opensearch.telemetry.OTelTelemetryPlugin;
@@ -136,12 +139,41 @@ public class OTelMetricsTelemetryTests extends OpenSearchTestCase {
             new RefCountedReleasable("telemetry", mockOpenTelemetry, () -> {}),
             meterProvider
         );
-        when(mockMeter.histogramBuilder(histogramName)).thenReturn(mockOTelDoubleHistogramBuilder);
+        when(mockMeter.histogramBuilder(Mockito.contains(histogramName))).thenReturn(mockOTelDoubleHistogramBuilder);
         when(mockOTelDoubleHistogramBuilder.setDescription(description)).thenReturn(mockOTelDoubleHistogramBuilder);
         when(mockOTelDoubleHistogramBuilder.setUnit(unit)).thenReturn(mockOTelDoubleHistogramBuilder);
         when(mockOTelDoubleHistogramBuilder.build()).thenReturn(mockOTelDoubleHistogram);
 
         Histogram histogram = metricsTelemetry.createHistogram(histogramName, description, unit);
+        histogram.record(1.0);
+        verify(mockOTelDoubleHistogram).record(1.0);
+        Tags tags = Tags.create().addTag("test", "test");
+        histogram.record(2.0, tags);
+        verify(mockOTelDoubleHistogram).record(2.0, OTelAttributesConverter.convert(tags));
+    }
+
+    public void testHistogramWithExplicitBuckets() {
+        String histogramName = "test-histogram";
+        String description = "test";
+        String unit = "1";
+        List<Double> buckets = Arrays.asList(1.0, 5.0);
+        Meter mockMeter = mock(Meter.class);
+        OpenTelemetry mockOpenTelemetry = mock(OpenTelemetry.class);
+        DoubleHistogram mockOTelDoubleHistogram = mock(DoubleHistogram.class);
+        DoubleHistogramBuilder mockOTelDoubleHistogramBuilder = mock(DoubleHistogramBuilder.class);
+        MeterProvider meterProvider = mock(MeterProvider.class);
+        when(meterProvider.get(OTelTelemetryPlugin.INSTRUMENTATION_SCOPE_NAME)).thenReturn(mockMeter);
+        MetricsTelemetry metricsTelemetry = new OTelMetricsTelemetry(
+            new RefCountedReleasable("telemetry", mockOpenTelemetry, () -> {}),
+            meterProvider
+        );
+        when(mockMeter.histogramBuilder(histogramName)).thenReturn(mockOTelDoubleHistogramBuilder);
+        when(mockOTelDoubleHistogramBuilder.setDescription(description)).thenReturn(mockOTelDoubleHistogramBuilder);
+        when(mockOTelDoubleHistogramBuilder.setUnit(unit)).thenReturn(mockOTelDoubleHistogramBuilder);
+        when(mockOTelDoubleHistogramBuilder.setExplicitBucketBoundariesAdvice(buckets)).thenReturn(mockOTelDoubleHistogramBuilder);
+        when(mockOTelDoubleHistogramBuilder.build()).thenReturn(mockOTelDoubleHistogram);
+
+        Histogram histogram = metricsTelemetry.createHistogram(histogramName, description, unit, buckets);
         histogram.record(1.0);
         verify(mockOTelDoubleHistogram).record(1.0);
         Tags tags = Tags.create().addTag("test", "test");

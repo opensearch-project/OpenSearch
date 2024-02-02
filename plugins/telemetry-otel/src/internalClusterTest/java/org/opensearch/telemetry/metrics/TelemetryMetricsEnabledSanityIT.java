@@ -8,6 +8,9 @@
 
 package org.opensearch.telemetry.metrics;
 
+import io.opentelemetry.sdk.metrics.data.MetricData;
+import io.opentelemetry.sdk.metrics.internal.data.ImmutableExponentialHistogramPointData;
+import java.util.List;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.plugins.Plugin;
@@ -105,6 +108,31 @@ public class TelemetryMetricsEnabledSanityIT extends OpenSearchIntegTestCase {
         Thread.sleep(2000);
 
         InMemorySingletonMetricsExporter exporter = InMemorySingletonMetricsExporter.INSTANCE;
+        ImmutableExponentialHistogramPointData histogramPointData = ((ImmutableExponentialHistogramPointData) ((ArrayList) exporter.getFinishedMetricItems()
+            .stream()
+            .filter(a -> a.getName().contains("test-histogram"))
+            .collect(Collectors.toList())
+            .get(0)
+            .getExponentialHistogramData()
+            .getPoints()).get(0));
+        assertEquals(1.0, histogramPointData.getSum(), 6.0);
+        assertEquals(1.0, histogramPointData.getMax(), 3.0);
+        assertEquals(1.0, histogramPointData.getMin(), 1.0);
+    }
+
+    public void testHistogramWithExplicitBuckets() throws Exception {
+        MetricsRegistry metricsRegistry = internalCluster().getInstance(MetricsRegistry.class);
+        InMemorySingletonMetricsExporter.INSTANCE.reset();
+
+        List<Double> buckets = Arrays.asList(1.0, 5.0, 10.0);
+        Histogram histogram = metricsRegistry.createHistogram("test-histogram", "test", "ms", buckets);
+        histogram.record(2.0);
+        histogram.record(1.0);
+        histogram.record(3.0);
+        // Sleep for about 2s to wait for metrics to be published.
+        Thread.sleep(2000);
+
+        InMemorySingletonMetricsExporter exporter = InMemorySingletonMetricsExporter.INSTANCE;
         ImmutableHistogramPointData histogramPointData = ((ImmutableHistogramPointData) ((ArrayList) exporter.getFinishedMetricItems()
             .stream()
             .filter(a -> a.getName().equals("test-histogram"))
@@ -115,6 +143,7 @@ public class TelemetryMetricsEnabledSanityIT extends OpenSearchIntegTestCase {
         assertEquals(1.0, histogramPointData.getSum(), 6.0);
         assertEquals(1.0, histogramPointData.getMax(), 3.0);
         assertEquals(1.0, histogramPointData.getMin(), 1.0);
+        assertEquals(buckets, histogramPointData.getBoundaries());
     }
 
     @After

@@ -56,11 +56,14 @@ public class TelemetryMetricsDisabledSanityIT extends OpenSearchIntegTestCase {
 
         Histogram histogram = metricsRegistry.createHistogram("test-histogram", "test", "1");
 
+        Histogram histogramWithBuckets = metricsRegistry.createHistogram("test-histogram", "test", "1", Arrays.asList(1.0));
+
         Thread.sleep(2000);
 
         assertTrue(metricsRegistry instanceof NoopMetricsRegistry);
         assertTrue(counter instanceof NoopCounter);
         assertTrue(histogram instanceof NoopHistogram);
+        assertTrue(histogramWithBuckets instanceof NoopHistogram);
     }
 
 }

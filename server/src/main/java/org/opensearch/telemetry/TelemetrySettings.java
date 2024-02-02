@@ -13,8 +13,6 @@ import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.telemetry.metrics.HistogramType;
-
 /**
  * Wrapper class to encapsulate tracing related settings
  *
@@ -61,17 +59,6 @@ public class TelemetrySettings {
     public static final Setting<TimeValue> METRICS_PUBLISH_INTERVAL_SETTING = Setting.timeSetting(
         "telemetry.otel.metrics.publish.interval",
         TimeValue.timeValueSeconds(60),
-        Setting.Property.NodeScope,
-        Setting.Property.Final
-    );
-
-    /**
-     * Histogram type to be used for {@link org.opensearch.telemetry.metrics.Histogram} metric.
-     */
-    public static final Setting<HistogramType> METRICS_HISTOGRAM_TYPE = new Setting<>(
-        "telemetry.histogram.type",
-        HistogramType.FIXED_BUCKET.toString(),
-        HistogramType::valueOf,
         Setting.Property.NodeScope,
         Setting.Property.Final
     );
