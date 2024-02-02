@@ -156,7 +156,7 @@ public final class FastFilterRewriteHelper {
             if (lower > upper) {
                 return null;
             }
-            return new long[]{lower, upper};
+            return new long[] { lower, upper };
         }
         return null;
     }

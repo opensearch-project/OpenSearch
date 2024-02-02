@@ -183,6 +183,8 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
             // since we cannot exceed targetBuckets, bestDuration should go up,
             // so the right innerInterval should be an upper bound
             long bestDuration = (high - low) / targetBuckets;
+            // reset so this function is idempotent
+            roundingIdx = 0;
             while (roundingIdx < roundingInfos.length - 1) {
                 final RoundingInfo curRoundingInfo = roundingInfos[roundingIdx];
                 final int temp = curRoundingInfo.innerIntervals[curRoundingInfo.innerIntervals.length - 1];

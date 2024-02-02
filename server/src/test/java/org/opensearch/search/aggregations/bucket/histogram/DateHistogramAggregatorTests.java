@@ -1258,8 +1258,7 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
         testSearchCase(
             LongPoint.newRangeQuery(SEARCHABLE_DATE, asLong("2018-01-01"), asLong("2020-01-01")),
             Arrays.asList("2017-02-01", "2017-02-02", "2017-02-02", "2017-02-03", "2017-02-03", "2017-02-03", "2017-02-05"),
-            aggregation -> aggregation.calendarInterval(DateHistogramInterval.DAY)
-                .field(AGGREGABLE_DATE),
+            aggregation -> aggregation.calendarInterval(DateHistogramInterval.DAY).field(AGGREGABLE_DATE),
             histogram -> {
                 List<? extends Histogram.Bucket> buckets = histogram.getBuckets();
                 assertEquals(0, buckets.size());
@@ -1270,8 +1269,7 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
         testSearchCase(
             LongPoint.newRangeQuery(SEARCHABLE_DATE, asLong("2016-01-01"), asLong("2017-01-01")),
             Arrays.asList("2017-02-01", "2017-02-02", "2017-02-02", "2017-02-03", "2017-02-03", "2017-02-03", "2017-02-05"),
-            aggregation -> aggregation.calendarInterval(DateHistogramInterval.DAY)
-                .field(AGGREGABLE_DATE),
+            aggregation -> aggregation.calendarInterval(DateHistogramInterval.DAY).field(AGGREGABLE_DATE),
             histogram -> {
                 List<? extends Histogram.Bucket> buckets = histogram.getBuckets();
                 assertEquals(0, buckets.size());
@@ -1282,8 +1280,7 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
         testSearchCase(
             LongPoint.newRangeQuery(SEARCHABLE_DATE, asLong("2016-01-01"), asLong("2017-02-02")),
             Arrays.asList("2017-02-01", "2017-02-02", "2017-02-02", "2017-02-03", "2017-02-03", "2017-02-03", "2017-02-05"),
-            aggregation -> aggregation.calendarInterval(DateHistogramInterval.DAY)
-                .field(AGGREGABLE_DATE),
+            aggregation -> aggregation.calendarInterval(DateHistogramInterval.DAY).field(AGGREGABLE_DATE),
             histogram -> {
                 List<? extends Histogram.Bucket> buckets = histogram.getBuckets();
                 assertEquals(2, buckets.size());
@@ -1302,8 +1299,7 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
         testSearchCase(
             LongPoint.newRangeQuery(SEARCHABLE_DATE, asLong("2017-02-03"), asLong("2020-01-01")),
             Arrays.asList("2017-02-01", "2017-02-02", "2017-02-02", "2017-02-03", "2017-02-03", "2017-02-03", "2017-02-05"),
-            aggregation -> aggregation.calendarInterval(DateHistogramInterval.DAY)
-                .field(AGGREGABLE_DATE),
+            aggregation -> aggregation.calendarInterval(DateHistogramInterval.DAY).field(AGGREGABLE_DATE),
             histogram -> {
                 List<? extends Histogram.Bucket> buckets = histogram.getBuckets();
                 assertEquals(3, buckets.size());
