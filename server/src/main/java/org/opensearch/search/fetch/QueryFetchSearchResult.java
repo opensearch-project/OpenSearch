@@ -136,4 +136,5 @@ public final class QueryFetchSearchResult extends SearchPhaseResult {
         this.queryResult = new QuerySearchResult(queryFetchSearchResult.getQueryResult());
         this.fetchResult = new FetchSearchResult(queryFetchSearchResult.getFetchResult());
     }
+
 }

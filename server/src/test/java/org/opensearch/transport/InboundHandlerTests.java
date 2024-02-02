@@ -37,18 +37,23 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
+import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.bytes.ReleasableBytesReference;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.BigArrays;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.io.stream.InputStreamStreamInput;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.search.fetch.FetchSearchResult;
+import org.opensearch.search.fetch.QueryFetchSearchResult;
+import org.opensearch.search.query.QuerySearchResult;
 import org.opensearch.tasks.TaskManager;
 import org.opensearch.telemetry.tracing.noop.NoopTracer;
 import org.opensearch.test.MockLogAppender;
@@ -246,6 +251,92 @@ public class InboundHandlerTests extends OpenSearchTestCase {
         } else {
             assertEquals(responseValue, responseCaptor.get().value);
         }
+    }
+
+    @SuppressForbidden(reason = "manipulates system properties for testing")
+    public void testProtobufResponse() throws Exception {
+        String action = "test-request";
+        int headerSize = TcpHeader.headerSize(version);
+        AtomicReference<TestRequest> requestCaptor = new AtomicReference<>();
+        AtomicReference<Exception> exceptionCaptor = new AtomicReference<>();
+        AtomicReference<QueryFetchSearchResult> responseCaptor = new AtomicReference<>();
+        AtomicReference<TransportChannel> channelCaptor = new AtomicReference<>();
+
+        long requestId = responseHandlers.add(new Transport.ResponseContext<>(new TransportResponseHandler<QueryFetchSearchResult>() {
+            @Override
+            public void handleResponse(QueryFetchSearchResult response) {
+                responseCaptor.set(response);
+            }
+
+            @Override
+            public void handleException(TransportException exp) {
+                exceptionCaptor.set(exp);
+            }
+
+            @Override
+            public String executor() {
+                return ThreadPool.Names.SAME;
+            }
+
+            @Override
+            public QueryFetchSearchResult read(StreamInput in) throws IOException {
+                throw new UnsupportedOperationException("Unimplemented method 'read'");
+            }
+
+            @Override
+            public QueryFetchSearchResult read(byte[] in) throws IOException {
+                return new QueryFetchSearchResult(in);
+            }
+        }, null, action));
+        RequestHandlerRegistry<TestRequest> registry = new RequestHandlerRegistry<>(
+            action,
+            TestRequest::new,
+            taskManager,
+            (request, channel, task) -> {
+                channelCaptor.set(channel);
+                requestCaptor.set(request);
+            },
+            ThreadPool.Names.SAME,
+            false,
+            true
+        );
+        requestHandlers.registerHandler(registry);
+        String requestValue = randomAlphaOfLength(10);
+        OutboundMessage.Request request = new OutboundMessage.Request(
+            threadPool.getThreadContext(),
+            new String[0],
+            new TestRequest(requestValue),
+            version,
+            action,
+            requestId,
+            false,
+            false
+        );
+
+        BytesReference fullRequestBytes = request.serialize(new BytesStreamOutput());
+        BytesReference requestContent = fullRequestBytes.slice(headerSize, fullRequestBytes.length() - headerSize);
+        Header requestHeader = new Header(fullRequestBytes.length() - 6, requestId, TransportStatus.setRequest((byte) 0), version);
+        InboundMessage requestMessage = new InboundMessage(requestHeader, ReleasableBytesReference.wrap(requestContent), () -> {});
+        requestHeader.finishParsingHeader(requestMessage.openOrGetStreamInput());
+        handler.inboundMessage(channel, requestMessage);
+
+        TransportChannel transportChannel = channelCaptor.get();
+        assertEquals(Version.CURRENT, transportChannel.getVersion());
+        assertEquals("transport", transportChannel.getChannelType());
+        assertEquals(requestValue, requestCaptor.get().value);
+
+        QuerySearchResult queryResult = OutboundHandlerTests.createQuerySearchResult();
+        FetchSearchResult fetchResult = OutboundHandlerTests.createFetchSearchResult();
+        QueryFetchSearchResult response = new QueryFetchSearchResult(queryResult, fetchResult);
+        System.setProperty(FeatureFlags.PROTOBUF, "true");
+        transportChannel.sendResponse(response);
+
+        BytesReference fullResponseBytes = channel.getMessageCaptor().get();
+        NodeToNodeMessage nodeToNodeMessage = new NodeToNodeMessage(fullResponseBytes.toBytesRef().bytes);
+        handler.inboundMessage(channel, nodeToNodeMessage);
+        QueryFetchSearchResult result = responseCaptor.get();
+        assertNotNull(result);
+        assertEquals(queryResult.getMaxScore(), result.queryResult().getMaxScore(), 0.0);
     }
 
     public void testSendsErrorResponseToHandshakeFromCompatibleVersion() throws Exception {

@@ -57,6 +57,7 @@ import org.opensearch.search.suggest.Suggest;
 import org.opensearch.server.proto.QuerySearchResultProto;
 
 import java.io.IOException;
+import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -485,6 +486,11 @@ public final class QuerySearchResult extends SearchPhaseResult {
             contextId.writeTo(out);
             writeToNoId(out);
         }
+    }
+
+    @Override
+    public void writeTo(OutputStream out) throws IOException {
+        out.write(this.querySearchResultProto.toByteArray());
     }
 
     public void writeToNoId(StreamOutput out) throws IOException {

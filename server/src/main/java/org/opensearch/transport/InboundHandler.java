@@ -234,9 +234,7 @@ public class InboundHandler {
             long requestId = header.getRequestId();
             TransportResponseHandler<? extends TransportResponse> handler = responseHandlers.onResponseReceived(requestId, messageListener);
             if (handler != null) {
-                // if (handler.toString().contains("Protobuf")) {
                 handleProtobufResponse(requestId, remoteAddress, message, handler);
-                // }
             }
         } finally {
             final long took = threadPool.relativeTimeInMillis() - startTime;
