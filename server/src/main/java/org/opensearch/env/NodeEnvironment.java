@@ -44,7 +44,6 @@ import org.apache.lucene.store.Lock;
 import org.apache.lucene.store.LockObtainFailedException;
 import org.apache.lucene.store.NIOFSDirectory;
 import org.apache.lucene.store.NativeFSLockFactory;
-import org.apache.lucene.util.SetOnce;
 import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
@@ -72,7 +71,6 @@ import org.opensearch.gateway.PersistedClusterStateService;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.shard.ShardPath;
 import org.opensearch.index.store.FsDirectoryFactory;
-import org.opensearch.index.store.remote.filecache.FileCache;
 import org.opensearch.monitor.fs.FsInfo;
 import org.opensearch.monitor.fs.FsProbe;
 import org.opensearch.monitor.jvm.JvmInfo;
@@ -107,7 +105,6 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static java.util.Collections.unmodifiableSet;
-import static org.opensearch.index.store.remote.directory.RemoteSnapshotDirectoryFactory.LOCAL_STORE_LOCATION;
 
 /**
  * A component that holds all data paths for a single node.
@@ -202,7 +199,7 @@ public final class NodeEnvironment implements Closeable {
 
     private final NodeMetadata nodeMetadata;
 
-    private final SetOnce<FileCache> fileCache = new SetOnce<>();
+    private final IndexStoreListener indexStoreListener;
 
     /**
      * Maximum number of data nodes that should run in an environment.
@@ -300,18 +297,23 @@ public final class NodeEnvironment implements Closeable {
         }
     }
 
+    public NodeEnvironment(Settings settings, Environment environment) throws IOException {
+        this(settings, environment, IndexStoreListener.EMPTY);
+    }
+
     /**
      * Setup the environment.
      * @param settings settings from opensearch.yml
      */
-    public NodeEnvironment(Settings settings, Environment environment) throws IOException {
-        if (!DiscoveryNode.nodeRequiresLocalStorage(settings)) {
+    public NodeEnvironment(Settings settings, Environment environment, IndexStoreListener indexStoreListener) throws IOException {
+        if (DiscoveryNode.nodeRequiresLocalStorage(settings) == false) {
             nodePaths = null;
             fileCacheNodePath = null;
             sharedDataPath = null;
             locks = null;
             nodeLockId = -1;
             nodeMetadata = new NodeMetadata(generateNodeId(settings), Version.CURRENT);
+            this.indexStoreListener = IndexStoreListener.EMPTY;
             return;
         }
         boolean success = false;
@@ -390,16 +392,13 @@ public final class NodeEnvironment implements Closeable {
             }
 
             this.nodeMetadata = loadNodeMetadata(settings, logger, nodePaths);
+            this.indexStoreListener = indexStoreListener;
             success = true;
         } finally {
             if (success == false) {
                 close();
             }
         }
-    }
-
-    public void setFileCache(final FileCache fileCache) {
-        this.fileCache.set(fileCache);
     }
 
     /**
@@ -587,12 +586,7 @@ public final class NodeEnvironment implements Closeable {
         final ShardId shardId = lock.getShardId();
         assert isShardLocked(shardId) : "shard " + shardId + " is not locked";
 
-        if (indexSettings.isRemoteSnapshot()) {
-            final ShardPath shardPath = ShardPath.loadFileCachePath(this, shardId);
-            cleanupShardFileCache(shardPath);
-            deleteShardFileCacheDirectory(shardPath);
-            logger.trace("deleted shard {} file cache directory, path: [{}]", shardId, shardPath.getDataPath());
-        }
+        indexStoreListener.beforeShardPathDeleted(shardId, indexSettings, this);
 
         final Path[] paths = availableShardPaths(shardId);
         logger.trace("acquiring locks for {}, paths: [{}]", shardId, paths);
@@ -607,40 +601,6 @@ public final class NodeEnvironment implements Closeable {
         }
         logger.trace("deleted shard {} directory, paths: [{}]", shardId, paths);
         assert assertPathsDoNotExist(paths);
-    }
-
-    /**
-     * Cleans up the corresponding index file path entries from FileCache
-     *
-     * @param shardPath the shard path
-     */
-    private void cleanupShardFileCache(ShardPath shardPath) {
-        try {
-            final FileCache fc = fileCache.get();
-            assert fc != null;
-            final Path localStorePath = shardPath.getDataPath().resolve(LOCAL_STORE_LOCATION);
-            try (DirectoryStream<Path> ds = Files.newDirectoryStream(localStorePath)) {
-                for (Path subPath : ds) {
-                    fc.remove(subPath.toRealPath());
-                }
-            }
-        } catch (IOException ioe) {
-            logger.error(
-                () -> new ParameterizedMessage("Error removing items from cache during shard deletion {}", shardPath.getShardId()),
-                ioe
-            );
-        }
-    }
-
-    private void deleteShardFileCacheDirectory(ShardPath shardPath) {
-        final Path path = shardPath.getDataPath();
-        try {
-            if (Files.exists(path)) {
-                IOUtils.rm(path);
-            }
-        } catch (IOException e) {
-            logger.error(() -> new ParameterizedMessage("Failed to delete cache path for shard {}", shardPath.getShardId()), e);
-        }
     }
 
     private static boolean assertPathsDoNotExist(final Path[] paths) {
@@ -704,9 +664,7 @@ public final class NodeEnvironment implements Closeable {
      * @param indexSettings settings for the index being deleted
      */
     public void deleteIndexDirectoryUnderLock(Index index, IndexSettings indexSettings) throws IOException {
-        if (indexSettings.isRemoteSnapshot()) {
-            deleteIndexFileCacheDirectory(index);
-        }
+        indexStoreListener.beforeIndexPathDeleted(index, indexSettings, this);
 
         final Path[] indexPaths = indexPaths(index);
         logger.trace("deleting index {} directory, paths({}): [{}]", index, indexPaths.length, indexPaths);
@@ -1453,5 +1411,19 @@ public final class NodeEnvironment implements Closeable {
                 throw new IOException("failed to test writes in data directory [" + path + "] write permission is required", ex);
             }
         }
+    }
+
+    /**
+     * A listener that is executed on per-index and per-shard store events, like deleting shard path
+     *
+     * @opensearch.internal
+     */
+    public interface IndexStoreListener {
+        default void beforeShardPathDeleted(ShardId shardId, IndexSettings indexSettings, NodeEnvironment env) {}
+
+        default void beforeIndexPathDeleted(Index index, IndexSettings indexSettings, NodeEnvironment env) {}
+
+        IndexStoreListener EMPTY = new IndexStoreListener() {
+        };
     }
 }

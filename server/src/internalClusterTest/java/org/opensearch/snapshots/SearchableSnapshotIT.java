@@ -877,12 +877,12 @@ public final class SearchableSnapshotIT extends AbstractSnapshotIntegTestCase {
         takeSnapshot(client, snapshotName, repoName, indexName);
         deleteIndicesAndEnsureGreen(client, indexName);
 
-        String searchNode1 = internalCluster().startSearchNode();
+        String searchNode1 = internalCluster().startSearchOnlyNodes(1).get(0);
         internalCluster().validateClusterFormed();
         restoreSnapshotAndEnsureGreen(client, snapshotName, repoName);
         assertRemoteSnapshotIndexSettings(client, restoredIndexName);
 
-        String searchNode2 = internalCluster().startSearchNode();
+        String searchNode2 = internalCluster().startSearchOnlyNodes(1).get(0);
         internalCluster().validateClusterFormed();
 
         final Index index = resolveIndex(restoredIndexName);
