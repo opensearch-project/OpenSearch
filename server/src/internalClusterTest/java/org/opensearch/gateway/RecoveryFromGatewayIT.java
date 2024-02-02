@@ -825,7 +825,6 @@ public class RecoveryFromGatewayIT extends OpenSearchIntegTestCase {
         assertTrue(nodeGatewayStartedShards.primary());
     }
 
-
     public void testSingleShardStoreFetchUsingBatchAction() throws ExecutionException, InterruptedException {
         String indexName = "test";
         DiscoveryNode[] nodes = getDiscoveryNodes();
