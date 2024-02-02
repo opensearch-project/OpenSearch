@@ -54,7 +54,10 @@ import org.opensearch.search.internal.AliasFilter;
 import org.opensearch.search.internal.ShardSearchContextId;
 import org.opensearch.search.internal.ShardSearchRequest;
 import org.opensearch.search.suggest.SuggestTests;
+import org.opensearch.server.proto.QuerySearchResultProto;
 import org.opensearch.test.OpenSearchTestCase;
+
+import java.io.ByteArrayOutputStream;
 
 import static java.util.Collections.emptyList;
 
@@ -124,5 +127,26 @@ public class QuerySearchResultTests extends OpenSearchTestCase {
         QuerySearchResult querySearchResult = QuerySearchResult.nullInstance();
         QuerySearchResult deserialized = copyWriteable(querySearchResult, namedWriteableRegistry, QuerySearchResult::new, Version.CURRENT);
         assertEquals(querySearchResult.isNull(), deserialized.isNull());
+    }
+
+    public void testProtobufSerialization() throws Exception {
+        QuerySearchResult querySearchResult = createTestInstance();
+        ByteArrayOutputStream stream = new ByteArrayOutputStream();
+        querySearchResult.writeTo(stream);
+        QuerySearchResult deserialized = new QuerySearchResult(stream.toByteArray());
+        QuerySearchResultProto.QuerySearchResult querySearchResultProto = deserialized.response();
+        assertNotNull(querySearchResultProto);
+        assertEquals(querySearchResult.getContextId().getId(), querySearchResultProto.getContextId().getId());
+        assertEquals(
+            querySearchResult.getSearchShardTarget().getShardId().getIndex().getUUID(),
+            querySearchResultProto.getSearchShardTarget().getShardId().getIndexUUID()
+        );
+        assertEquals(querySearchResult.topDocs().maxScore, querySearchResultProto.getTopDocsAndMaxScore().getMaxScore(), 0f);
+        assertEquals(
+            querySearchResult.topDocs().topDocs.totalHits.value,
+            querySearchResultProto.getTopDocsAndMaxScore().getTopDocs().getTotalHits().getValue()
+        );
+        assertEquals(querySearchResult.from(), querySearchResultProto.getFrom());
+        assertEquals(querySearchResult.size(), querySearchResultProto.getSize());
     }
 }

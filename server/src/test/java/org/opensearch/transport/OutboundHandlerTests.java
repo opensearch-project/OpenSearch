@@ -34,22 +34,37 @@ package org.opensearch.transport;
 
 import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
+import org.opensearch.action.OriginalIndices;
+import org.opensearch.action.OriginalIndicesTests;
+import org.opensearch.action.search.SearchRequest;
 import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.common.SuppressForbidden;
+import org.opensearch.common.UUIDs;
 import org.opensearch.common.bytes.ReleasableBytesReference;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.BigArrays;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.util.PageCacheRecycler;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.common.util.io.Streams;
 import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.breaker.CircuitBreaker;
 import org.opensearch.core.common.breaker.NoopCircuitBreaker;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.transport.TransportAddress;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.transport.TransportResponse;
+import org.opensearch.search.SearchShardTarget;
+import org.opensearch.search.fetch.FetchSearchResult;
+import org.opensearch.search.fetch.QueryFetchSearchResult;
+import org.opensearch.search.internal.AliasFilter;
+import org.opensearch.search.internal.ShardSearchContextId;
+import org.opensearch.search.internal.ShardSearchRequest;
+import org.opensearch.search.query.QuerySearchResult;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
@@ -57,6 +72,7 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.concurrent.TimeUnit;
@@ -76,7 +92,7 @@ public class OutboundHandlerTests extends OpenSearchTestCase {
     private final TestThreadPool threadPool = new TestThreadPool(getClass().getName());
     private final TransportRequestOptions options = TransportRequestOptions.EMPTY;
     private final AtomicReference<Tuple<Header, BytesReference>> message = new AtomicReference<>();
-    // private final AtomicReference<BytesReference> protobufMessage = new AtomicReference<>();
+    private final AtomicReference<BytesReference> protobufMessage = new AtomicReference<>();
     private InboundPipeline pipeline;
     private OutboundHandler handler;
     private FakeTcpChannel channel;
@@ -104,9 +120,7 @@ public class OutboundHandlerTests extends OpenSearchTestCase {
             } catch (IOException e) {
                 throw new AssertionError(e);
             }
-        }
-        // , (c, m) -> { protobufMessage.set(m); }
-        );
+        });
     }
 
     @After
@@ -266,6 +280,65 @@ public class OutboundHandlerTests extends OpenSearchTestCase {
         assertEquals("header_value", header.getHeaders().v1().get("header"));
     }
 
+    @SuppressForbidden(reason = "manipulates system properties for testing")
+    public void testSendProtobufResponse() throws IOException {
+        ThreadContext threadContext = threadPool.getThreadContext();
+        Version version = Version.CURRENT;
+        String action = "handshake";
+        long requestId = randomLongBetween(0, 300);
+        boolean isHandshake = randomBoolean();
+        boolean compress = randomBoolean();
+        threadContext.putHeader("header", "header_value");
+        QuerySearchResult queryResult = createQuerySearchResult();
+        FetchSearchResult fetchResult = createFetchSearchResult();
+        QueryFetchSearchResult response = new QueryFetchSearchResult(queryResult, fetchResult);
+        System.setProperty(FeatureFlags.PROTOBUF, "true");
+        assertTrue(response.isMessageProtobuf());
+
+        AtomicLong requestIdRef = new AtomicLong();
+        AtomicReference<String> actionRef = new AtomicReference<>();
+        AtomicReference<TransportResponse> responseRef = new AtomicReference<>();
+        handler.setMessageListener(new TransportMessageListener() {
+            @Override
+            public void onResponseSent(long requestId, String action, TransportResponse response) {
+                requestIdRef.set(requestId);
+                actionRef.set(action);
+                responseRef.set(response);
+            }
+        });
+        handler.sendResponse(version, Collections.emptySet(), channel, requestId, action, response, compress, isHandshake);
+
+        StatsTracker statsTracker = new StatsTracker();
+        final LongSupplier millisSupplier = () -> TimeValue.nsecToMSec(System.nanoTime());
+        final InboundDecoder decoder = new InboundDecoder(Version.CURRENT, PageCacheRecycler.NON_RECYCLING_INSTANCE);
+        final Supplier<CircuitBreaker> breaker = () -> new NoopCircuitBreaker("test");
+        final InboundAggregator aggregator = new InboundAggregator(breaker, (Predicate<String>) requestCanTripBreaker -> true);
+        InboundPipeline inboundPipeline = new InboundPipeline(statsTracker, millisSupplier, decoder, aggregator, (c, m) -> {
+            NodeToNodeMessage m1 = (NodeToNodeMessage) m;
+            protobufMessage.set(BytesReference.fromByteBuffer(ByteBuffer.wrap(m1.getMessage().toByteArray())));
+        });
+        BytesReference reference = channel.getMessageCaptor().get();
+        ActionListener<Void> sendListener = channel.getListenerCaptor().get();
+        if (randomBoolean()) {
+            sendListener.onResponse(null);
+        } else {
+            sendListener.onFailure(new IOException("failed"));
+        }
+        assertEquals(requestId, requestIdRef.get());
+        assertEquals(action, actionRef.get());
+        assertEquals(response, responseRef.get());
+
+        inboundPipeline.handleBytes(channel, new ReleasableBytesReference(reference, () -> {}));
+        final BytesReference responseBytes = protobufMessage.get();
+        final NodeToNodeMessage message = new NodeToNodeMessage(responseBytes.toBytesRef().bytes);
+        assertEquals(version.toString(), message.getMessage().getVersion());
+        assertEquals(requestId, message.getHeader().getRequestId());
+        assertNotNull(message.getRequestHeaders());
+        assertNotNull(message.getResponseHandlers());
+        assertNotNull(message.getMessage());
+        assertTrue(message.getMessage().hasQueryFetchSearchResult());
+    }
+
     public void testErrorResponse() throws IOException {
         ThreadContext threadContext = threadPool.getThreadContext();
         Version version = randomFrom(Version.CURRENT, Version.CURRENT.minimumCompatibilityVersion());
@@ -316,5 +389,36 @@ public class OutboundHandlerTests extends OpenSearchTestCase {
         assertEquals(channel.getLocalAddress(), remoteException.address().address());
 
         assertEquals("header_value", header.getHeaders().v1().get("header"));
+    }
+
+    public static QuerySearchResult createQuerySearchResult() {
+        ShardId shardId = new ShardId("index", "uuid", randomInt());
+        SearchRequest searchRequest = new SearchRequest().allowPartialSearchResults(randomBoolean());
+        ShardSearchRequest shardSearchRequest = new ShardSearchRequest(
+            OriginalIndicesTests.randomOriginalIndices(),
+            searchRequest,
+            shardId,
+            1,
+            new AliasFilter(null, Strings.EMPTY_ARRAY),
+            1.0f,
+            randomNonNegativeLong(),
+            null,
+            new String[0]
+        );
+        QuerySearchResult result = new QuerySearchResult(
+            new ShardSearchContextId(UUIDs.base64UUID(), randomLong()),
+            new SearchShardTarget("node", shardId, null, OriginalIndices.NONE),
+            shardSearchRequest
+        );
+        return result;
+    }
+
+    public static FetchSearchResult createFetchSearchResult() {
+        ShardId shardId = new ShardId("index", "uuid", randomInt());
+        FetchSearchResult result = new FetchSearchResult(
+            new ShardSearchContextId(UUIDs.base64UUID(), randomLong()),
+            new SearchShardTarget("node", shardId, null, OriginalIndices.NONE)
+        );
+        return result;
     }
 }
