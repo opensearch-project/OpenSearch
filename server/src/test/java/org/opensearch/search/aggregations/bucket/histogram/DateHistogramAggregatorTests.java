@@ -1254,6 +1254,76 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
         );
     }
 
+    public void testRangeQuery() throws IOException {
+        testSearchCase(
+            LongPoint.newRangeQuery(SEARCHABLE_DATE, asLong("2018-01-01"), asLong("2020-01-01")),
+            Arrays.asList("2017-02-01", "2017-02-02", "2017-02-02", "2017-02-03", "2017-02-03", "2017-02-03", "2017-02-05"),
+            aggregation -> aggregation.calendarInterval(DateHistogramInterval.DAY)
+                .field(AGGREGABLE_DATE),
+            histogram -> {
+                List<? extends Histogram.Bucket> buckets = histogram.getBuckets();
+                assertEquals(0, buckets.size());
+            },
+            false
+        );
+
+        testSearchCase(
+            LongPoint.newRangeQuery(SEARCHABLE_DATE, asLong("2016-01-01"), asLong("2017-01-01")),
+            Arrays.asList("2017-02-01", "2017-02-02", "2017-02-02", "2017-02-03", "2017-02-03", "2017-02-03", "2017-02-05"),
+            aggregation -> aggregation.calendarInterval(DateHistogramInterval.DAY)
+                .field(AGGREGABLE_DATE),
+            histogram -> {
+                List<? extends Histogram.Bucket> buckets = histogram.getBuckets();
+                assertEquals(0, buckets.size());
+            },
+            false
+        );
+
+        testSearchCase(
+            LongPoint.newRangeQuery(SEARCHABLE_DATE, asLong("2016-01-01"), asLong("2017-02-02")),
+            Arrays.asList("2017-02-01", "2017-02-02", "2017-02-02", "2017-02-03", "2017-02-03", "2017-02-03", "2017-02-05"),
+            aggregation -> aggregation.calendarInterval(DateHistogramInterval.DAY)
+                .field(AGGREGABLE_DATE),
+            histogram -> {
+                List<? extends Histogram.Bucket> buckets = histogram.getBuckets();
+                assertEquals(2, buckets.size());
+
+                Histogram.Bucket bucket = buckets.get(0);
+                assertEquals("2017-02-01T00:00:00.000Z", bucket.getKeyAsString());
+                assertEquals(1, bucket.getDocCount());
+
+                bucket = buckets.get(1);
+                assertEquals("2017-02-02T00:00:00.000Z", bucket.getKeyAsString());
+                assertEquals(2, bucket.getDocCount());
+            },
+            false
+        );
+
+        testSearchCase(
+            LongPoint.newRangeQuery(SEARCHABLE_DATE, asLong("2017-02-03"), asLong("2020-01-01")),
+            Arrays.asList("2017-02-01", "2017-02-02", "2017-02-02", "2017-02-03", "2017-02-03", "2017-02-03", "2017-02-05"),
+            aggregation -> aggregation.calendarInterval(DateHistogramInterval.DAY)
+                .field(AGGREGABLE_DATE),
+            histogram -> {
+                List<? extends Histogram.Bucket> buckets = histogram.getBuckets();
+                assertEquals(3, buckets.size());
+
+                Histogram.Bucket bucket = buckets.get(0);
+                assertEquals("2017-02-03T00:00:00.000Z", bucket.getKeyAsString());
+                assertEquals(3, bucket.getDocCount());
+
+                bucket = buckets.get(1);
+                assertEquals("2017-02-04T00:00:00.000Z", bucket.getKeyAsString());
+                assertEquals(0, bucket.getDocCount());
+
+                bucket = buckets.get(2);
+                assertEquals("2017-02-05T00:00:00.000Z", bucket.getKeyAsString());
+                assertEquals(1, bucket.getDocCount());
+            },
+            false
+        );
+    }
+
     public void testDocCountField() throws IOException {
         testSearchCase(
             new MatchAllDocsQuery(),
@@ -1323,6 +1393,7 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
         boolean useDocCountField
     ) throws IOException {
         boolean aggregableDateIsSearchable = randomBoolean();
+        logger.debug("Aggregable date is searchable {}", aggregableDateIsSearchable);
         DateFieldMapper.DateFieldType fieldType = aggregableDateFieldType(useNanosecondResolution, aggregableDateIsSearchable);
 
         try (Directory directory = newDirectory()) {

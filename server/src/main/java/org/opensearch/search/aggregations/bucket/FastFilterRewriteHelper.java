@@ -10,6 +10,7 @@ package org.opensearch.search.aggregations.bucket;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
@@ -23,6 +24,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.NumericUtils;
+import org.opensearch.common.CheckedBiFunction;
 import org.opensearch.common.Rounding;
 import org.opensearch.common.lucene.search.function.FunctionScoreQuery;
 import org.opensearch.index.mapper.DateFieldMapper;
@@ -97,7 +99,6 @@ public final class FastFilterRewriteHelper {
         long min = Long.MAX_VALUE, max = Long.MIN_VALUE;
         for (LeafReaderContext leaf : leaves) {
             final PointValues values = leaf.reader().getPointValues(fieldName);
-            // "values" is null here means this segment doesn't have any values for this field
             if (values != null) {
                 min = Math.min(min, NumericUtils.sortableBytesToLong(values.getMinPackedValue(), 0));
                 max = Math.max(max, NumericUtils.sortableBytesToLong(values.getMaxPackedValue(), 0));
@@ -119,16 +120,9 @@ public final class FastFilterRewriteHelper {
         final Query cq = unwrapIntoConcreteQuery(context.query());
         if (cq instanceof PointRangeQuery) {
             final PointRangeQuery prq = (PointRangeQuery) cq;
-            // Ensure that the query and aggregation are on the same field
-            if (prq.getField().equals(fieldName)) {
-                final long[] indexBounds = getIndexBounds(context, fieldName);
-                if (indexBounds == null) return null;
-                return new long[] {
-                    // Minimum bound for aggregation is the max between query and global
-                    Math.max(NumericUtils.sortableBytesToLong(prq.getLowerPoint(), 0), indexBounds[0]),
-                    // Maximum bound for aggregation is the min between query and global
-                    Math.min(NumericUtils.sortableBytesToLong(prq.getUpperPoint(), 0), indexBounds[1]) };
-            }
+            final long[] indexBounds = getIndexBounds(context, fieldName);
+            if (indexBounds == null) return null;
+            return getBoundsWithRangeQuery(prq, fieldName, indexBounds);
         } else if (cq instanceof MatchAllDocsQuery) {
             return getIndexBounds(context, fieldName);
         } else if (cq instanceof FieldExistsQuery) {
@@ -138,6 +132,32 @@ public final class FastFilterRewriteHelper {
             }
         }
 
+        return null;
+    }
+
+    private static long[] getDateHistoAggBoundsSegLevel(final SearchContext context, final String fieldName) throws IOException {
+        final long[] indexBounds = getIndexBounds(context, fieldName);
+        if (indexBounds == null) return null;
+        final Query cq = unwrapIntoConcreteQuery(context.query());
+        if (cq instanceof PointRangeQuery) {
+            final PointRangeQuery prq = (PointRangeQuery) cq;
+            return getBoundsWithRangeQuery(prq, fieldName, indexBounds);
+        }
+        return indexBounds;
+    }
+
+    private static long[] getBoundsWithRangeQuery(PointRangeQuery prq, String fieldName, long[] indexBounds) {
+        // Ensure that the query and aggregation are on the same field
+        if (prq.getField().equals(fieldName)) {
+            // Minimum bound for aggregation is the max between query and global
+            long lower = Math.max(NumericUtils.sortableBytesToLong(prq.getLowerPoint(), 0), indexBounds[0]);
+            // Maximum bound for aggregation is the min between query and global
+            long upper = Math.min(NumericUtils.sortableBytesToLong(prq.getUpperPoint(), 0), indexBounds[1]);
+            if (lower > upper) {
+                return null;
+            }
+            return new long[]{lower, upper};
+        }
         return null;
     }
 
@@ -192,7 +212,7 @@ public final class FastFilterRewriteHelper {
                 filters[i++] = context.searcher().createWeight(new PointRangeQuery(fieldType.name(), lower, upper, 1) {
                     @Override
                     protected String toString(int dimension, byte[] value) {
-                        return null;
+                        return Long.toString(LongPoint.decodeDimension(value, 0));
                     }
                 }, ScoreMode.COMPLETE_NO_SCORES, 1);
             }
@@ -210,6 +230,7 @@ public final class FastFilterRewriteHelper {
         private boolean rewriteable = false;
         private Weight[] filters = null;
         private boolean filtersBuiltAtShardLevel = false;
+        private boolean shouldBuildFiltersAtSegmentLevel = true;
 
         private AggregationType aggregationType;
         private final SearchContext context;
@@ -234,21 +255,17 @@ public final class FastFilterRewriteHelper {
         }
 
         public void buildFastFilter() throws IOException {
-            this.buildFastFilter(FastFilterRewriteHelper::getDateHistoAggBounds);
-        }
-
-        private void buildFastFilter(GetBounds<SearchContext, String, long[]> getBounds) throws IOException {
-            assert filters == null : "Filters should only be built once, but they are already built";
-            Weight[] filters = this.aggregationType.buildFastFilter(context, getBounds);
+            this.filters = this.buildFastFilter(FastFilterRewriteHelper::getDateHistoAggBounds);
             if (filters != null) {
                 logger.debug("Fast filter built for shard {}", context.indexShard().shardId());
                 filtersBuiltAtShardLevel = true;
-                this.filters = filters;
             }
         }
 
-        private boolean filterBuilt() {
-            return filters != null;
+        // This method can also be used at segment level
+        private Weight[] buildFastFilter(CheckedBiFunction<SearchContext, String, long[], IOException> getBounds) throws IOException {
+            assert filters == null : "Filters should only be built once, but they are already built";
+            return this.aggregationType.buildFastFilter(context, getBounds);
         }
     }
 
@@ -259,15 +276,8 @@ public final class FastFilterRewriteHelper {
 
         boolean isRewriteable(Object parent, int subAggLength);
 
-        Weight[] buildFastFilter(SearchContext ctx, GetBounds<SearchContext, String, long[]> getBounds) throws IOException;
-    }
-
-    /**
-     * Functional interface for getting bounds for date histogram aggregation
-     */
-    @FunctionalInterface
-    interface GetBounds<T, U, R> {
-        R apply(T t, U u) throws IOException;
+        Weight[] buildFastFilter(SearchContext ctx, CheckedBiFunction<SearchContext, String, long[], IOException> getBounds)
+            throws IOException;
     }
 
     /**
@@ -301,7 +311,8 @@ public final class FastFilterRewriteHelper {
         }
 
         @Override
-        public Weight[] buildFastFilter(SearchContext context, GetBounds<SearchContext, String, long[]> getBounds) throws IOException {
+        public Weight[] buildFastFilter(SearchContext context, CheckedBiFunction<SearchContext, String, long[], IOException> getBounds)
+            throws IOException {
             long[] bounds = getBounds.apply(context, fieldType.name());
             bounds = processHardBounds(bounds);
             logger.debug("Bounds are {} for shard {}", bounds, context.indexShard().shardId());
@@ -383,7 +394,9 @@ public final class FastFilterRewriteHelper {
         final BiConsumer<Long, Integer> incrementDocCount
     ) throws IOException {
         if (fastFilterContext == null) return false;
-        if (!fastFilterContext.rewriteable) return false;
+        if (!fastFilterContext.rewriteable || !fastFilterContext.shouldBuildFiltersAtSegmentLevel) {
+            return false;
+        }
 
         NumericDocValues docCountValues = DocValues.getNumeric(ctx.reader(), DocCountFieldMapper.NAME);
         if (docCountValues.nextDoc() != NO_MORE_DOCS) {
@@ -397,18 +410,25 @@ public final class FastFilterRewriteHelper {
 
         // if no filters built at shard level (see getDateHistoAggBounds method for possible reasons)
         // check if the query is functionally match-all at segment level
-        if (!fastFilterContext.filtersBuiltAtShardLevel && !segmentMatchAll(fastFilterContext.context, ctx)) return false;
-        if (!fastFilterContext.filterBuilt()) {
+        if (!fastFilterContext.filtersBuiltAtShardLevel && !segmentMatchAll(fastFilterContext.context, ctx)) {
+            return false;
+        }
+        Weight[] filters = fastFilterContext.filters;
+        if (filters == null) {
             logger.debug(
                 "Shard {} segment {} functionally match all documents. Build the fast filter",
                 fastFilterContext.context.indexShard().shardId(),
                 ctx.ord
             );
-            fastFilterContext.buildFastFilter(FastFilterRewriteHelper::getIndexBounds);
+            filters = fastFilterContext.buildFastFilter(FastFilterRewriteHelper::getDateHistoAggBoundsSegLevel);
+            if (filters == null) {
+                // At segment level, build filter should only be called once
+                // since the conditions for build filter won't change for other segments
+                fastFilterContext.shouldBuildFiltersAtSegmentLevel = false;
+                return false;
+            }
         }
-        if (!fastFilterContext.filterBuilt()) return false;
 
-        final Weight[] filters = fastFilterContext.filters;
         final int[] counts = new int[filters.length];
         int i;
         for (i = 0; i < filters.length; i++) {
