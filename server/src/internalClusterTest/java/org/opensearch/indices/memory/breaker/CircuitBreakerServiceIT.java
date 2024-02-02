@@ -50,7 +50,6 @@ import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.common.breaker.CircuitBreaker;
 import org.opensearch.core.common.breaker.CircuitBreakingException;
 import org.opensearch.core.common.breaker.NoopCircuitBreaker;
@@ -63,7 +62,7 @@ import org.opensearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.opensearch.search.SearchService;
 import org.opensearch.search.sort.SortOrder;
 import org.opensearch.test.OpenSearchIntegTestCase.ClusterScope;
-import org.opensearch.test.ParameterizedOpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 import org.junit.After;
 import org.junit.Before;
 
@@ -94,9 +93,9 @@ import static org.hamcrest.Matchers.nullValue;
  * Integration tests for InternalCircuitBreakerService
  */
 @ClusterScope(scope = TEST, numClientNodes = 0, maxNumDataNodes = 1)
-public class CircuitBreakerServiceIT extends ParameterizedOpenSearchIntegTestCase {
-    public CircuitBreakerServiceIT(Settings dynamicSettings) {
-        super(dynamicSettings);
+public class CircuitBreakerServiceIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
+    public CircuitBreakerServiceIT(Settings staticSettings) {
+        super(staticSettings);
     }
 
     @ParametersFactory
@@ -105,11 +104,6 @@ public class CircuitBreakerServiceIT extends ParameterizedOpenSearchIntegTestCas
             new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), false).build() },
             new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), true).build() }
         );
-    }
-
-    @Override
-    protected Settings featureFlagSettings() {
-        return Settings.builder().put(super.featureFlagSettings()).put(FeatureFlags.CONCURRENT_SEGMENT_SEARCH, "true").build();
     }
 
     @Override

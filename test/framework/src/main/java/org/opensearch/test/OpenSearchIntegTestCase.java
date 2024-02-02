@@ -32,12 +32,10 @@
 
 package org.opensearch.test;
 
-import com.carrotsearch.randomizedtesting.RandomizedContext;
 import com.carrotsearch.randomizedtesting.annotations.TestGroup;
 import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 
-import org.apache.hc.core5.http.HttpHost;
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.TotalHits;
@@ -48,7 +46,6 @@ import org.opensearch.action.DocWriteResponse;
 import org.opensearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.opensearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.opensearch.action.admin.cluster.node.hotthreads.NodeHotThreads;
-import org.opensearch.action.admin.cluster.node.info.NodeInfo;
 import org.opensearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.opensearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.opensearch.action.admin.cluster.state.ClusterStateResponse;
@@ -77,7 +74,6 @@ import org.opensearch.client.Client;
 import org.opensearch.client.ClusterAdminClient;
 import org.opensearch.client.Requests;
 import org.opensearch.client.RestClient;
-import org.opensearch.client.RestClientBuilder;
 import org.opensearch.cluster.ClusterModule;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.coordination.OpenSearchNodeCommand;
@@ -96,7 +92,6 @@ import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.Priority;
 import org.opensearch.common.collect.Tuple;
-import org.opensearch.common.network.NetworkAddress;
 import org.opensearch.common.network.NetworkModule;
 import org.opensearch.common.regex.Regex;
 import org.opensearch.common.settings.FeatureFlagSettings;
@@ -106,7 +101,6 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.util.concurrent.ThreadContext;
-import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.xcontent.smile.SmileXContent;
@@ -128,7 +122,6 @@ import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.env.Environment;
 import org.opensearch.env.TestEnvironment;
-import org.opensearch.http.HttpInfo;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.MergeSchedulerConfig;
@@ -147,7 +140,6 @@ import org.opensearch.monitor.os.OsInfo;
 import org.opensearch.node.NodeMocksPlugin;
 import org.opensearch.plugins.NetworkPlugin;
 import org.opensearch.plugins.Plugin;
-import org.opensearch.rest.action.RestCancellableNodeClient;
 import org.opensearch.script.MockScriptService;
 import org.opensearch.search.MockSearchService;
 import org.opensearch.search.SearchHit;
@@ -158,17 +150,15 @@ import org.opensearch.test.disruption.NetworkDisruption;
 import org.opensearch.test.disruption.ServiceDisruptionScheme;
 import org.opensearch.test.store.MockFSIndexStore;
 import org.opensearch.test.telemetry.MockTelemetryPlugin;
-import org.opensearch.test.telemetry.tracing.StrictCheckSpanProcessor;
 import org.opensearch.test.transport.MockTransportService;
 import org.opensearch.transport.TransportInterceptor;
 import org.opensearch.transport.TransportRequest;
 import org.opensearch.transport.TransportRequestHandler;
 import org.opensearch.transport.TransportService;
 import org.hamcrest.Matchers;
-import org.junit.After;
 import org.junit.AfterClass;
-import org.junit.Before;
 import org.junit.BeforeClass;
+import org.junit.Rule;
 
 import java.io.IOException;
 import java.lang.Runtime.Version;
@@ -189,13 +179,11 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Random;
 import java.util.Set;
-import java.util.concurrent.Callable;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -216,7 +204,6 @@ import static org.opensearch.test.XContentTestUtils.differenceBetweenMapsIgnorin
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertNoFailures;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertNoTimeout;
-import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.emptyIterable;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -334,6 +321,10 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
     public static final String TESTS_ENABLE_MOCK_MODULES = "tests.enable_mock_modules";
 
     private static final boolean MOCK_MODULES_ENABLED = "true".equals(System.getProperty(TESTS_ENABLE_MOCK_MODULES, "true"));
+
+    @Rule
+    public static OpenSearchTestClusterRule testClusterRule = new OpenSearchTestClusterRule();
+
     /**
      * Threshold at which indexing switches from frequently async to frequently bulk.
      */
@@ -369,22 +360,9 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
      */
     public static final String TESTS_CLUSTER_NAME = "tests.clustername";
 
-    /**
-     * The current cluster depending on the configured {@link Scope}.
-     * By default if no {@link ClusterScope} is configured this will hold a reference to the suite cluster.
-     */
-    private static TestCluster currentCluster;
-    private static RestClient restClient = null;
-
-    private static final Map<Class<?>, TestCluster> clusters = new IdentityHashMap<>();
-
-    private static OpenSearchIntegTestCase INSTANCE = null; // see @SuiteScope
-    private static Long SUITE_SEED = null;
-
     @BeforeClass
     public static void beforeClass() throws Exception {
-        SUITE_SEED = randomLong();
-        initializeSuiteScope();
+        testClusterRule.beforeClass();
     }
 
     @Override
@@ -392,36 +370,6 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
         // In an integ test it doesn't make sense to keep track of warnings: if the cluster is external the warnings are in another jvm,
         // if the cluster is internal the deprecation logger is shared across all nodes
         return false;
-    }
-
-    protected final void beforeInternal() throws Exception {
-        final Scope currentClusterScope = getCurrentClusterScope();
-        Callable<Void> setup = () -> {
-            cluster().beforeTest(random());
-            cluster().wipe(excludeTemplates());
-            randomIndexTemplate();
-            return null;
-        };
-        switch (currentClusterScope) {
-            case SUITE:
-                assert SUITE_SEED != null : "Suite seed was not initialized";
-                currentCluster = buildAndPutCluster(currentClusterScope, SUITE_SEED);
-                RandomizedContext.current().runWithPrivateRandomness(SUITE_SEED, setup);
-                break;
-            case TEST:
-                currentCluster = buildAndPutCluster(currentClusterScope, randomLong());
-                setup.call();
-                break;
-        }
-
-    }
-
-    private void printTestMessage(String message) {
-        if (isSuiteScopedTest(getClass()) && (getTestName().equals("<unknown>"))) {
-            logger.info("[{}]: {} suite", getTestClass().getSimpleName(), message);
-        } else {
-            logger.info("[{}#{}]: {} test", getTestClass().getSimpleName(), getTestName(), message);
-        }
     }
 
     /**
@@ -547,85 +495,6 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
         return builder;
     }
 
-    private TestCluster buildWithPrivateContext(final Scope scope, final long seed) throws Exception {
-        return RandomizedContext.current().runWithPrivateRandomness(seed, () -> buildTestCluster(scope, seed));
-    }
-
-    private TestCluster buildAndPutCluster(Scope currentClusterScope, long seed) throws Exception {
-        final Class<?> clazz = this.getClass();
-        TestCluster testCluster = clusters.remove(clazz); // remove this cluster first
-        clearClusters(); // all leftovers are gone by now... this is really just a double safety if we miss something somewhere
-        switch (currentClusterScope) {
-            case SUITE:
-                if (testCluster == null) { // only build if it's not there yet
-                    testCluster = buildWithPrivateContext(currentClusterScope, seed);
-                }
-                break;
-            case TEST:
-                // close the previous one and create a new one
-                IOUtils.closeWhileHandlingException(testCluster);
-                testCluster = buildTestCluster(currentClusterScope, seed);
-                break;
-        }
-        clusters.put(clazz, testCluster);
-        return testCluster;
-    }
-
-    private static void clearClusters() throws Exception {
-        if (!clusters.isEmpty()) {
-            IOUtils.close(clusters.values());
-            clusters.clear();
-        }
-        if (restClient != null) {
-            restClient.close();
-            restClient = null;
-        }
-        assertBusy(() -> {
-            int numChannels = RestCancellableNodeClient.getNumChannels();
-            assertEquals(
-                numChannels
-                    + " channels still being tracked in "
-                    + RestCancellableNodeClient.class.getSimpleName()
-                    + " while there should be none",
-                0,
-                numChannels
-            );
-        });
-    }
-
-    private void afterInternal(boolean afterClass) throws Exception {
-        final Scope currentClusterScope = getCurrentClusterScope();
-        if (isInternalCluster()) {
-            internalCluster().clearDisruptionScheme();
-        }
-        try {
-            if (cluster() != null) {
-                if (currentClusterScope != Scope.TEST) {
-                    Metadata metadata = client().admin().cluster().prepareState().execute().actionGet().getState().getMetadata();
-
-                    final Set<String> persistentKeys = new HashSet<>(metadata.persistentSettings().keySet());
-                    assertThat("test leaves persistent cluster metadata behind", persistentKeys, empty());
-
-                    final Set<String> transientKeys = new HashSet<>(metadata.transientSettings().keySet());
-                    assertThat("test leaves transient cluster metadata behind", transientKeys, empty());
-                }
-                ensureClusterSizeConsistency();
-                ensureClusterStateConsistency();
-                ensureClusterStateCanBeReadByNodeTool();
-                beforeIndexDeletion();
-                cluster().wipe(excludeTemplates()); // wipe after to make sure we fail in the test that didn't ack the delete
-                if (afterClass || currentClusterScope == Scope.TEST) {
-                    cluster().close();
-                }
-                cluster().assertAfterTest();
-            }
-        } finally {
-            if (currentClusterScope == Scope.TEST) {
-                clearClusters(); // it is ok to leave persistent / transient cluster state behind if scope is TEST
-            }
-        }
-    }
-
     /**
      * @return An exclude set of index templates that will not be removed in between tests.
      */
@@ -638,18 +507,15 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
     }
 
     public static TestCluster cluster() {
-        return currentCluster;
+        return testClusterRule.cluster();
     }
 
     public static boolean isInternalCluster() {
-        return (currentCluster instanceof InternalTestCluster);
+        return testClusterRule.isInternalCluster();
     }
 
     public static InternalTestCluster internalCluster() {
-        if (!isInternalCluster()) {
-            throw new UnsupportedOperationException("current test cluster is immutable");
-        }
-        return (InternalTestCluster) currentCluster;
+        return testClusterRule.internalCluster().orElseThrow(() -> new UnsupportedOperationException("current test cluster is immutable"));
     }
 
     public ClusterService clusterService() {
@@ -661,14 +527,7 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
     }
 
     public static Client client(@Nullable String node) {
-        if (node != null) {
-            return internalCluster().client(node);
-        }
-        Client client = cluster().client();
-        if (frequently()) {
-            client = new RandomizingClient(client, random());
-        }
-        return client;
+        return testClusterRule.clientForNode(node);
     }
 
     public static Client dataNodeClient() {
@@ -1928,7 +1787,7 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
         assertThat(clearResponse.isSucceeded(), equalTo(true));
     }
 
-    private static <A extends Annotation> A getAnnotation(Class<?> clazz, Class<A> annotationClass) {
+    static <A extends Annotation> A getAnnotation(Class<?> clazz, Class<A> annotationClass) {
         if (clazz == Object.class || clazz == OpenSearchIntegTestCase.class) {
             return null;
         }
@@ -1937,16 +1796,6 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
             return annotation;
         }
         return getAnnotation(clazz.getSuperclass(), annotationClass);
-    }
-
-    private Scope getCurrentClusterScope() {
-        return getCurrentClusterScope(this.getClass());
-    }
-
-    private static Scope getCurrentClusterScope(Class<?> clazz) {
-        ClusterScope annotation = getAnnotation(clazz, ClusterScope.class);
-        // if we are not annotated assume suite!
-        return annotation == null ? Scope.SUITE : annotation.scope();
     }
 
     private boolean getSupportsDedicatedClusterManagers() {
@@ -2008,17 +1857,15 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
             .put(SearchService.LOW_LEVEL_CANCELLATION_SETTING.getKey(), randomBoolean())
             .putList(DISCOVERY_SEED_HOSTS_SETTING.getKey()) // empty list disables a port scan for other nodes
             .putList(DISCOVERY_SEED_PROVIDERS_SETTING.getKey(), "file")
+            // By default, for tests we will put the target slice count of 2. This will increase the probability of having multiple slices
+            // when tests are run with concurrent segment search enabled
+            .put(SearchService.CONCURRENT_SEGMENT_SEARCH_TARGET_MAX_SLICE_COUNT_KEY, 2)
             .put(featureFlagSettings());
 
         // Enable tracer only when Telemetry Setting is enabled
         if (featureFlagSettings().getAsBoolean(FeatureFlags.TELEMETRY_SETTING.getKey(), false)) {
             builder.put(TelemetrySettings.TRACER_FEATURE_ENABLED_SETTING.getKey(), true);
             builder.put(TelemetrySettings.TRACER_ENABLED_SETTING.getKey(), true);
-        }
-        if (FeatureFlags.CONCURRENT_SEGMENT_SEARCH_SETTING.get(featureFlagSettings)) {
-            // By default, for tests we will put the target slice count of 2. This will increase the probability of having multiple slices
-            // when tests are run with concurrent segment search enabled
-            builder.put(SearchService.CONCURRENT_SEGMENT_SEARCH_TARGET_MAX_SLICE_COUNT_KEY, 2);
         }
         return builder.build();
     }
@@ -2270,10 +2117,9 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
      * Returns path to a random directory that can be used to create a temporary file system repo
      */
     public Path randomRepoPath() {
-        if (currentCluster instanceof InternalTestCluster) {
-            return randomRepoPath(((InternalTestCluster) currentCluster).getDefaultSettings());
-        }
-        throw new UnsupportedOperationException("unsupported cluster type");
+        return testClusterRule.internalCluster()
+            .map(c -> randomRepoPath(c.getDefaultSettings()))
+            .orElseThrow(() -> new UnsupportedOperationException("unsupported cluster type"));
     }
 
     /**
@@ -2347,83 +2193,9 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
         }
     }
 
-    private static boolean runTestScopeLifecycle() {
-        return INSTANCE == null;
-    }
-
-    @Before
-    public final void setupTestCluster() throws Exception {
-        if (runTestScopeLifecycle()) {
-            printTestMessage("setting up");
-            beforeInternal();
-            printTestMessage("all set up");
-        }
-    }
-
-    @After
-    public final void cleanUpCluster() throws Exception {
-        // Deleting indices is going to clear search contexts implicitly so we
-        // need to check that there are no more in-flight search contexts before
-        // we remove indices
-        if (isInternalCluster()) {
-            internalCluster().setBootstrapClusterManagerNodeIndex(-1);
-        }
-        super.ensureAllSearchContextsReleased();
-        if (runTestScopeLifecycle()) {
-            printTestMessage("cleaning up after");
-            afterInternal(false);
-            printTestMessage("cleaned up after");
-        }
-    }
-
     @AfterClass
     public static void afterClass() throws Exception {
-        try {
-            if (runTestScopeLifecycle()) {
-                clearClusters();
-            } else {
-                INSTANCE.printTestMessage("cleaning up after");
-                INSTANCE.afterInternal(true);
-                checkStaticState(true);
-            }
-            StrictCheckSpanProcessor.validateTracingStateOnShutdown();
-        } finally {
-            SUITE_SEED = null;
-            currentCluster = null;
-            INSTANCE = null;
-        }
-    }
-
-    private static void initializeSuiteScope() throws Exception {
-        Class<?> targetClass = getTestClass();
-        /*
-          Note we create these test class instance via reflection
-          since JUnit creates a new instance per test and that is also
-          the reason why INSTANCE is static since this entire method
-          must be executed in a static context.
-         */
-        assert INSTANCE == null;
-        if (isSuiteScopedTest(targetClass)) {
-            // note we need to do this way to make sure this is reproducible
-            if (isSuiteScopedTestParameterized(targetClass)) {
-                INSTANCE = (OpenSearchIntegTestCase) targetClass.getConstructor(Settings.class).newInstance(Settings.EMPTY);
-            } else {
-                INSTANCE = (OpenSearchIntegTestCase) targetClass.getConstructor().newInstance();
-            }
-            boolean success = false;
-            try {
-                INSTANCE.printTestMessage("setup");
-                INSTANCE.beforeInternal();
-                INSTANCE.setupSuiteScopeCluster();
-                success = true;
-            } finally {
-                if (!success) {
-                    afterClass();
-                }
-            }
-        } else {
-            INSTANCE = null;
-        }
+        testClusterRule.afterClass();
     }
 
     /**
@@ -2455,41 +2227,8 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
      * The returned client gets automatically closed when needed, it shouldn't be closed as part of tests otherwise
      * it cannot be reused by other tests anymore.
      */
-    protected static synchronized RestClient getRestClient() {
-        if (restClient == null) {
-            restClient = createRestClient();
-        }
-        return restClient;
-    }
-
-    protected static RestClient createRestClient() {
-        return createRestClient(null, "http");
-    }
-
-    protected static RestClient createRestClient(RestClientBuilder.HttpClientConfigCallback httpClientConfigCallback, String protocol) {
-        NodesInfoResponse nodesInfoResponse = client().admin().cluster().prepareNodesInfo().get();
-        assertFalse(nodesInfoResponse.hasFailures());
-        return createRestClient(nodesInfoResponse.getNodes(), httpClientConfigCallback, protocol);
-    }
-
-    protected static RestClient createRestClient(
-        final List<NodeInfo> nodes,
-        RestClientBuilder.HttpClientConfigCallback httpClientConfigCallback,
-        String protocol
-    ) {
-        List<HttpHost> hosts = new ArrayList<>();
-        for (NodeInfo node : nodes) {
-            if (node.getInfo(HttpInfo.class) != null) {
-                TransportAddress publishAddress = node.getInfo(HttpInfo.class).address().publishAddress();
-                InetSocketAddress address = publishAddress.address();
-                hosts.add(new HttpHost(protocol, NetworkAddress.format(address.getAddress()), address.getPort()));
-            }
-        }
-        RestClientBuilder builder = RestClient.builder(hosts.toArray(new HttpHost[0]));
-        if (httpClientConfigCallback != null) {
-            builder.setHttpClientConfigCallback(httpClientConfigCallback);
-        }
-        return builder.build();
+    protected static RestClient getRestClient() {
+        return testClusterRule.getRestClient();
     }
 
     /**
@@ -2499,20 +2238,6 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
      * @see SuiteScopeTestCase
      */
     protected void setupSuiteScopeCluster() throws Exception {}
-
-    private static boolean isSuiteScopedTest(Class<?> clazz) {
-        return clazz.getAnnotation(SuiteScopeTestCase.class) != null;
-    }
-
-    /*
-    * For tests defined with, SuiteScopeTestCase return true if the
-    * class has a constructor that takes a single Settings parameter
-    * */
-    private static boolean isSuiteScopedTestParameterized(Class<?> clazz) {
-        return Arrays.stream(clazz.getConstructors())
-            .filter(x -> x.getParameterTypes().length == 1)
-            .anyMatch(x -> x.getParameterTypes()[0].equals(Settings.class));
-    }
 
     /**
      * If a test is annotated with {@link SuiteScopeTestCase}

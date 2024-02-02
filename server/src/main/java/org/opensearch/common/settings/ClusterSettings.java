@@ -36,6 +36,7 @@ import org.opensearch.action.admin.cluster.configuration.TransportAddVotingConfi
 import org.opensearch.action.admin.indices.close.TransportCloseIndexAction;
 import org.opensearch.action.search.CreatePitController;
 import org.opensearch.action.search.SearchRequestSlowLog;
+import org.opensearch.action.search.SearchRequestStats;
 import org.opensearch.action.search.TransportSearchAction;
 import org.opensearch.action.support.AutoCreateIndex;
 import org.opensearch.action.support.DestructiveOperations;
@@ -380,9 +381,9 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 SearchService.DEFAULT_ALLOW_PARTIAL_SEARCH_RESULTS,
                 TransportSearchAction.SHARD_COUNT_LIMIT_SETTING,
                 TransportSearchAction.SEARCH_CANCEL_AFTER_TIME_INTERVAL_SETTING,
-                TransportSearchAction.SEARCH_REQUEST_STATS_ENABLED,
-                TransportSearchAction.SEARCH_PHASE_TOOK_ENABLED,
                 TransportSearchAction.SEARCH_QUERY_METRICS_ENABLED_SETTING,
+                TransportSearchAction.SEARCH_PHASE_TOOK_ENABLED,
+                SearchRequestStats.SEARCH_REQUEST_STATS_ENABLED,
                 RemoteClusterService.REMOTE_CLUSTER_SKIP_UNAVAILABLE,
                 SniffConnectionStrategy.REMOTE_CONNECTIONS_PER_CLUSTER,
                 RemoteClusterService.REMOTE_INITIAL_CONNECTION_TIMEOUT_SETTING,
@@ -701,7 +702,12 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 AdmissionControlSettings.ADMISSION_CONTROL_TRANSPORT_LAYER_MODE,
                 CpuBasedAdmissionControllerSettings.CPU_BASED_ADMISSION_CONTROLLER_TRANSPORT_LAYER_MODE,
                 CpuBasedAdmissionControllerSettings.INDEXING_CPU_USAGE_LIMIT,
-                CpuBasedAdmissionControllerSettings.SEARCH_CPU_USAGE_LIMIT
+                CpuBasedAdmissionControllerSettings.SEARCH_CPU_USAGE_LIMIT,
+                IndicesService.CLUSTER_INDEX_RESTRICT_REPLICATION_TYPE_SETTING,
+
+                // Concurrent segment search settings
+                SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING,
+                SearchService.CONCURRENT_SEGMENT_SEARCH_TARGET_MAX_SLICE_COUNT_SETTING
             )
         )
     );
@@ -714,11 +720,6 @@ public final class ClusterSettings extends AbstractScopedSettings {
      * setting should be moved to {@link #BUILT_IN_CLUSTER_SETTINGS}.
      */
     public static final Map<List<String>, List<Setting>> FEATURE_FLAGGED_CLUSTER_SETTINGS = Map.of(
-        List.of(FeatureFlags.CONCURRENT_SEGMENT_SEARCH),
-        List.of(
-            SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING,
-            SearchService.CONCURRENT_SEGMENT_SEARCH_TARGET_MAX_SLICE_COUNT_SETTING
-        ),
         List.of(FeatureFlags.TELEMETRY),
         List.of(
             TelemetrySettings.TRACER_ENABLED_SETTING,

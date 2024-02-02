@@ -36,45 +36,6 @@ base {
   archivesName = 'opensearch-core'
 }
 
-// we want to keep the JDKs in our IDEs set to JDK 8 until minimum JDK is bumped to 11 so we do not include this source set in our IDEs
-if (!isEclipse) {
-  sourceSets {
-    java11 {
-      java {
-        srcDirs = ['src/main/java11']
-      }
-    }
-  }
-
-  configurations {
-    java11Compile.extendsFrom(compile)
-  }
-
-  dependencies {
-    java11Implementation sourceSets.main.output
-  }
-
-  compileJava11Java {
-    sourceCompatibility = JavaVersion.VERSION_11
-    targetCompatibility = JavaVersion.VERSION_11
-  }
-
-  forbiddenApisJava11 {
-    if (BuildParams.runtimeJavaVersion < JavaVersion.VERSION_11) {
-      targetCompatibility = JavaVersion.VERSION_11
-    }
-    replaceSignatureFiles 'jdk-signatures'
-  }
-
-  jar {
-    metaInf {
-      into 'versions/11'
-      from sourceSets.java11.output
-    }
-    manifest.attributes('Multi-Release': 'true')
-  }
-}
-
 dependencies {
   api project(':libs:opensearch-common')
 

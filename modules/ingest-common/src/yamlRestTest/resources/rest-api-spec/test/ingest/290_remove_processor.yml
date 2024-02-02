@@ -6,6 +6,69 @@ teardown:
         ignore: 404
 
 ---
+"Test simulate API works well with remove processor":
+  - do:
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        body:  >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "remove" : {
+                  "field" : "{{foo}}"
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  # test simulating existing pipeline works well
+  - do:
+      ingest.simulate:
+        id: "my_pipeline"
+        body: >
+          {
+            "docs": [
+              {
+                "_source": {
+                  "foo": "bar",
+                  "bar": "zoo"
+                }
+              }
+            ]
+          }
+  - length: { docs: 1 }
+  - match: { docs.0.doc._source: { "foo": "bar" } }
+
+  # test simulating inflight pipeline works well
+  - do:
+      ingest.simulate:
+        body: >
+          {
+            "pipeline": {
+              "description": "_description",
+              "processors": [
+                {
+                  "remove" : {
+                    "field" : "{{foo}}"
+                  }
+                }
+              ]
+            },
+            "docs": [
+              {
+                "_source": {
+                  "foo": "bar",
+                  "bar": "zoo"
+                }
+              }
+            ]
+          }
+  - length: { docs: 1 }
+  - match: { docs.0.doc._source: { "foo": "bar" } }
+
+---
 "Test remove processor with non-existing field and without ignore_missing":
   - do:
       ingest.put_pipeline:
@@ -227,3 +290,72 @@ teardown:
         version: 1
         version_type: "external"
         body: { message: "foo bar baz" }
+
+  # test simulating pipeline with removing _id
+  - do:
+      ingest.simulate:
+        body: >
+          {
+            "pipeline": {
+              "description": "_description",
+              "processors": [
+                {
+                  "remove" : {
+                    "field" : "_id"
+                  }
+                }
+              ]
+            },
+            "docs": [
+              {
+                "_version_type": "external_gte",
+                "_version": 1,
+                "_source": {
+                  "foo": "bar",
+                  "bar": "zoo"
+                }
+              }
+            ]
+          }
+  - match: { docs.0.error.type: "illegal_argument_exception" }
+  - match: { docs.0.error.reason: "cannot remove metadata field [_id] when specifying external version for the document, version: 1, version_type: external_gte" }
+
+# Related issue: https://github.com/opensearch-project/OpenSearch/issues/1578
+---
+"Test remove processor with exclude_field":
+  - skip:
+      version: " - 2.11.99"
+      reason: "exclude_field is introduced in 2.12"
+  - do:
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        body:  >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "remove" : {
+                  "exclude_field": "bar"
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      index:
+        index: test
+        id: 1
+        pipeline: "my_pipeline"
+        body: {
+          foo1: "bar",
+          foo2: "bar",
+          bar: "zoo",
+          zoo: "bar"
+        }
+
+  - do:
+      get:
+        index: test
+        id: 1
+  - match: { _source:  { bar: "zoo"}}
