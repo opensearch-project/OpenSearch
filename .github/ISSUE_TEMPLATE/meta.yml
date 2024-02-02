@@ -1,5 +1,5 @@
 name: ✨ Meta Issue
-description: An issue that collects other issues together to describe a larger project.
+description: An issue that collects other issues together to describe a larger project or activity.
 title: '[META] <title>'
 labels: ['Meta, untriaged']
 body:
@@ -19,8 +19,8 @@ body:
   - type: textarea
     attributes:
       label: Issues
-      description: Please create a list of issues that should be tracked by this meta issue, including a short description.  The purpose is to provide everyone on the project with an "at a glance" update of the state us the work being tracked.
-      placeholder: Ex.  [] https://github.com/opensearch-project/security/issues/3888 Add views to the cluster metadata schema
+      description: Please create a list of issues that should be tracked by this meta issue, including a short description.  The purpose is to provide everyone on the project with an "at a glance" update of the state us the work being tracked.  If you use the format "- [ ]" it will put your list into a checklist.
+      placeholder: Ex. - [ ] https://github.com/opensearch-project/security/issues/3888 Add views to the cluster metadata schema
     validations:
       required: true
 
