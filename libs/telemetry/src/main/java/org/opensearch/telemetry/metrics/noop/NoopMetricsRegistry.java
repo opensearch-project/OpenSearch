@@ -8,13 +8,13 @@
 
 package org.opensearch.telemetry.metrics.noop;
 
-import java.util.List;
 import org.opensearch.common.annotation.InternalApi;
 import org.opensearch.telemetry.metrics.Counter;
 import org.opensearch.telemetry.metrics.Histogram;
 import org.opensearch.telemetry.metrics.MetricsRegistry;
 
 import java.io.IOException;
+import java.util.List;
 
 /**
  *No-op {@link MetricsRegistry}

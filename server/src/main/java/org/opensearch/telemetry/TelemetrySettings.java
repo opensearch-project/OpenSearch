@@ -13,6 +13,7 @@ import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
+
 /**
  * Wrapper class to encapsulate tracing related settings
  *

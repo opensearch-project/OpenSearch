@@ -8,14 +8,15 @@
 
 package org.opensearch.telemetry.metrics;
 
-import java.util.List;
 import org.opensearch.common.concurrent.RefCountedReleasable;
 import org.opensearch.telemetry.OTelTelemetryPlugin;
+import org.opensearch.telemetry.tracing.OTelResourceProvider;
 
 import java.io.Closeable;
 import java.io.IOException;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
+import java.util.List;
 
 import io.opentelemetry.api.metrics.DoubleCounter;
 import io.opentelemetry.api.metrics.DoubleHistogram;
@@ -23,7 +24,6 @@ import io.opentelemetry.api.metrics.DoubleUpDownCounter;
 import io.opentelemetry.api.metrics.Meter;
 import io.opentelemetry.api.metrics.MeterProvider;
 import io.opentelemetry.sdk.OpenTelemetrySdk;
-import org.opensearch.telemetry.tracing.OTelResourceProvider;
 
 /**
  * OTel implementation for {@link MetricsTelemetry}
@@ -85,7 +85,9 @@ public class OTelMetricsTelemetry<T extends MeterProvider & Closeable> implement
     public Histogram createHistogram(String name, String description, String unit) {
         String internalMetricName = name + OTelResourceProvider.DYNAMIC_HISTOGRAM_METRIC_NAME_SUFFIX;
         DoubleHistogram doubleHistogram = AccessController.doPrivileged(
-            (PrivilegedAction<DoubleHistogram>) () -> otelMeter.histogramBuilder(internalMetricName).setUnit(unit).setDescription(description)
+            (PrivilegedAction<DoubleHistogram>) () -> otelMeter.histogramBuilder(internalMetricName)
+                .setUnit(unit)
+                .setDescription(description)
                 .build()
         );
         return new OTelHistogram(doubleHistogram);
@@ -94,8 +96,11 @@ public class OTelMetricsTelemetry<T extends MeterProvider & Closeable> implement
     @Override
     public Histogram createHistogram(String name, String description, String unit, List<Double> buckets) {
         DoubleHistogram doubleHistogram = AccessController.doPrivileged(
-            (PrivilegedAction<DoubleHistogram>) () -> otelMeter.histogramBuilder(name).setUnit(unit).setDescription(description)
-                .setExplicitBucketBoundariesAdvice(buckets).build()
+            (PrivilegedAction<DoubleHistogram>) () -> otelMeter.histogramBuilder(name)
+                .setUnit(unit)
+                .setDescription(description)
+                .setExplicitBucketBoundariesAdvice(buckets)
+                .build()
         );
         return new OTelHistogram(doubleHistogram);
     }

@@ -8,7 +8,6 @@
 
 package org.opensearch.test.telemetry;
 
-import java.util.List;
 import org.opensearch.telemetry.Telemetry;
 import org.opensearch.telemetry.TelemetrySettings;
 import org.opensearch.telemetry.metrics.Counter;
@@ -18,6 +17,8 @@ import org.opensearch.telemetry.metrics.noop.NoopCounter;
 import org.opensearch.telemetry.metrics.noop.NoopHistogram;
 import org.opensearch.telemetry.tracing.TracingTelemetry;
 import org.opensearch.test.telemetry.tracing.MockTracingTelemetry;
+
+import java.util.List;
 
 /**
  * Mock {@link Telemetry} implementation for testing.

@@ -29,7 +29,6 @@ import io.opentelemetry.sdk.metrics.SdkMeterProvider;
 import io.opentelemetry.sdk.metrics.View;
 import io.opentelemetry.sdk.metrics.export.PeriodicMetricReader;
 import io.opentelemetry.sdk.metrics.internal.view.Base2ExponentialHistogramAggregation;
-import io.opentelemetry.sdk.metrics.internal.view.ExplicitBucketHistogramAggregation;
 import io.opentelemetry.sdk.resources.Resource;
 import io.opentelemetry.sdk.trace.SdkTracerProvider;
 import io.opentelemetry.sdk.trace.export.BatchSpanProcessor;
@@ -99,8 +98,10 @@ public final class OTelResourceProvider {
                     .setInterval(TelemetrySettings.METRICS_PUBLISH_INTERVAL_SETTING.get(settings).getSeconds(), TimeUnit.SECONDS)
                     .build()
             )
-            .registerView(InstrumentSelector.builder().setName("*"+ DYNAMIC_HISTOGRAM_METRIC_NAME_SUFFIX).setType(InstrumentType.HISTOGRAM).build(), View.builder()
-                .setAggregation(Base2ExponentialHistogramAggregation.getDefault()).build())
+            .registerView(
+                InstrumentSelector.builder().setName("*" + DYNAMIC_HISTOGRAM_METRIC_NAME_SUFFIX).setType(InstrumentType.HISTOGRAM).build(),
+                View.builder().setAggregation(Base2ExponentialHistogramAggregation.getDefault()).build()
+            )
             .build();
     }
 

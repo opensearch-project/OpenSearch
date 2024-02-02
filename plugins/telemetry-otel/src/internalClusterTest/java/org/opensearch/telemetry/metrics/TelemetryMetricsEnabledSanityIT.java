@@ -8,9 +8,6 @@
 
 package org.opensearch.telemetry.metrics;
 
-import io.opentelemetry.sdk.metrics.data.MetricData;
-import io.opentelemetry.sdk.metrics.internal.data.ImmutableExponentialHistogramPointData;
-import java.util.List;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.plugins.Plugin;
@@ -23,9 +20,11 @@ import org.junit.After;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.List;
 import java.util.stream.Collectors;
 
 import io.opentelemetry.sdk.metrics.data.DoublePointData;
+import io.opentelemetry.sdk.metrics.internal.data.ImmutableExponentialHistogramPointData;
 import io.opentelemetry.sdk.metrics.internal.data.ImmutableHistogramPointData;
 
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.SUITE, minNumDataNodes = 1)
@@ -108,7 +107,8 @@ public class TelemetryMetricsEnabledSanityIT extends OpenSearchIntegTestCase {
         Thread.sleep(2000);
 
         InMemorySingletonMetricsExporter exporter = InMemorySingletonMetricsExporter.INSTANCE;
-        ImmutableExponentialHistogramPointData histogramPointData = ((ImmutableExponentialHistogramPointData) ((ArrayList) exporter.getFinishedMetricItems()
+        ImmutableExponentialHistogramPointData histogramPointData = ((ImmutableExponentialHistogramPointData) ((ArrayList) exporter
+            .getFinishedMetricItems()
             .stream()
             .filter(a -> a.getName().contains("test-histogram"))
             .collect(Collectors.toList())
