@@ -176,7 +176,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
 
     private boolean trackScores = false;
 
-    private Boolean includeNamedQueriesScore = false;
+    private Boolean includeNamedQueriesScore;
 
     private Integer trackTotalHitsUpTo;
 
@@ -262,7 +262,6 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         terminateAfter = in.readVInt();
         timeout = in.readOptionalTimeValue();
         trackScores = in.readBoolean();
-        includeNamedQueriesScore = in.readOptionalBoolean();
         version = in.readOptionalBoolean();
         seqNoAndPrimaryTerm = in.readOptionalBoolean();
         extBuilders = in.readNamedWriteableList(SearchExtBuilder.class);
@@ -279,6 +278,9 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
             if (in.readBoolean()) {
                 searchPipelineSource = in.readMap();
             }
+        }
+        if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
+            includeNamedQueriesScore = in.readOptionalBoolean();
         }
     }
 
@@ -326,7 +328,6 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         out.writeVInt(terminateAfter);
         out.writeOptionalTimeValue(timeout);
         out.writeBoolean(trackScores);
-        out.writeOptionalBoolean(includeNamedQueriesScore);
         out.writeOptionalBoolean(version);
         out.writeOptionalBoolean(seqNoAndPrimaryTerm);
         out.writeNamedWriteableList(extBuilders);
@@ -345,6 +346,9 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
             if (searchPipelineSource != null) {
                 out.writeMap(searchPipelineSource);
             }
+        }
+        if (out.getVersion().onOrAfter(Version.V_3_0_0)) {
+            out.writeOptionalBoolean(includeNamedQueriesScore);
         }
     }
 
