@@ -27,7 +27,7 @@
 ---
 "Test cat thread_pool total_wait_time output with concurrent search thread_pool":
   - skip:
-      version: " - 2.99.99"
+      version: " - 2.11.99"
       reason: index_search thread_pool was introduced in V_2.12.0
 
   - do:
