@@ -188,7 +188,6 @@ import org.opensearch.index.seqno.RetentionLeaseSyncer;
 import org.opensearch.index.shard.PrimaryReplicaSyncer;
 import org.opensearch.index.store.RemoteSegmentStoreDirectoryFactory;
 import org.opensearch.index.store.remote.filecache.FileCache;
-import org.opensearch.index.store.remote.filecache.FileCacheCleaner;
 import org.opensearch.index.store.remote.filecache.FileCacheStats;
 import org.opensearch.indices.IndicesModule;
 import org.opensearch.indices.IndicesService;
@@ -2037,7 +2036,6 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                 final MapperRegistry mapperRegistry = new IndicesModule(Collections.emptyList()).getMapperRegistry();
                 final SetOnce<RepositoriesService> repositoriesServiceReference = new SetOnce<>();
                 repositoriesServiceReference.set(repositoriesService);
-                FileCacheCleaner fileCacheCleaner = new FileCacheCleaner(nodeEnv, null);
                 indicesService = new IndicesService(
                     settings,
                     mock(PluginsService.class),
@@ -2072,7 +2070,6 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                     emptyMap(),
                     new RemoteSegmentStoreDirectoryFactory(() -> repositoriesService, threadPool),
                     repositoriesServiceReference::get,
-                    fileCacheCleaner,
                     null,
                     new RemoteStoreStatsTrackerFactory(clusterService, settings),
                     DefaultRecoverySettings.INSTANCE
