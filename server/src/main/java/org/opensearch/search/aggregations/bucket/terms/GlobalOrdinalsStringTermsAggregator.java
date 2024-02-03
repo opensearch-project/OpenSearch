@@ -170,19 +170,14 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         SortedSetDocValues globalOrds,
         BiConsumer<Long, Integer> ordCountConsumer
     ) throws IOException {
-        if (weight == null) {
-            // Calculate weight if not assigned previously
-            this.weight = context.searcher().createWeight(context.query(), ScoreMode.COMPLETE_NO_SCORES, 1f);
+        if (weight == null || weight.count(ctx) != ctx.reader().maxDoc()) {
+            // Weight not assigned or top-level query does not match all docs in the segment.
+            return null;
         }
 
         if (weight.count(ctx) == 0) {
-            // No documents matches top level query on this segment, we can skip it
+            // No documents matches top level query on this segment, we can skip the segment
             return LeafBucketCollector.NO_OP_COLLECTOR;
-        }
-
-        if (weight.count(ctx) != ctx.reader().maxDoc()) {
-            // Top-level query does not match all docs in this segment.
-            return null;
         }
 
         Terms segmentTerms = ctx.reader().terms(this.fieldName);
