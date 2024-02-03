@@ -46,7 +46,9 @@ import org.opensearch.index.mapper.KeywordFieldMapper;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.NumberFieldMapper;
+import org.opensearch.search.aggregations.AggregationBuilder;
 import org.opensearch.search.aggregations.AggregatorTestCase;
+import org.opensearch.search.aggregations.InternalAggregation;
 import org.opensearch.search.aggregations.bucket.composite.CompositeAggregationBuilder;
 import org.opensearch.search.aggregations.bucket.composite.CompositeValuesSourceBuilder;
 import org.opensearch.search.aggregations.bucket.composite.InternalComposite;
@@ -139,12 +141,16 @@ public class BaseCompositeAggregatorTestCase extends AggregatorTestCase {
         boolean useIndexSort,
         Query query,
         List<Map<String, List<Object>>> dataset,
-        Supplier<CompositeAggregationBuilder> create,
+        Supplier<? extends AggregationBuilder> create,
         Consumer<InternalComposite> verify
     ) throws IOException {
         Map<String, MappedFieldType> types = FIELD_TYPES.stream().collect(Collectors.toMap(MappedFieldType::name, Function.identity()));
-        CompositeAggregationBuilder aggregationBuilder = create.get();
-        Sort indexSort = useIndexSort ? buildIndexSort(aggregationBuilder.sources(), types) : null;
+        AggregationBuilder aggregationBuilder = create.get();
+        Sort indexSort = null;
+        if (aggregationBuilder instanceof CompositeAggregationBuilder && useIndexSort) {
+            CompositeAggregationBuilder cab = (CompositeAggregationBuilder) aggregationBuilder;
+            indexSort = buildIndexSort(cab.sources(), types);
+        }
         IndexSettings indexSettings = createIndexSettings(indexSort);
         try (Directory directory = newDirectory()) {
             IndexWriterConfig config = newIndexWriterConfig(random(), new MockAnalyzer(random()));
@@ -180,14 +186,16 @@ public class BaseCompositeAggregatorTestCase extends AggregatorTestCase {
             }
             try (IndexReader indexReader = DirectoryReader.open(directory)) {
                 IndexSearcher indexSearcher = new IndexSearcher(indexReader);
-                InternalComposite composite = searchAndReduce(
+                InternalAggregation aggregation = searchAndReduce(
                     indexSettings,
                     indexSearcher,
                     query,
                     aggregationBuilder,
                     FIELD_TYPES.toArray(new MappedFieldType[0])
                 );
-                verify.accept(composite);
+                if (aggregation instanceof InternalComposite) {
+                    verify.accept((InternalComposite) aggregation);
+                }
             }
         }
     }
