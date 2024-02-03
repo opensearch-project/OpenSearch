@@ -44,6 +44,7 @@ import org.opensearch.action.ActionModule;
 import org.opensearch.action.ActionModule.DynamicActionRegistry;
 import org.opensearch.action.ActionType;
 import org.opensearch.action.admin.cluster.snapshots.status.TransportNodesSnapshotsStatus;
+import org.opensearch.action.admin.indices.view.ViewService;
 import org.opensearch.action.search.SearchExecutionStatsCollector;
 import org.opensearch.action.search.SearchPhaseController;
 import org.opensearch.action.search.SearchRequestSlowLog;
@@ -72,7 +73,6 @@ import org.opensearch.cluster.metadata.MetadataCreateIndexService;
 import org.opensearch.cluster.metadata.MetadataIndexUpgradeService;
 import org.opensearch.cluster.metadata.SystemIndexMetadataUpgradeService;
 import org.opensearch.cluster.metadata.TemplateUpgradeService;
-import org.opensearch.cluster.metadata.ViewService;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodeRole;
 import org.opensearch.cluster.routing.BatchedRerouteService;
@@ -204,8 +204,6 @@ import org.opensearch.ratelimitting.admissioncontrol.transport.AdmissionControlT
 import org.opensearch.repositories.RepositoriesModule;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.rest.RestController;
-import org.opensearch.rest.action.admin.indices.RestViewAction;
-import org.opensearch.rest.action.admin.indices.RestViewSearchAction;
 import org.opensearch.script.ScriptContext;
 import org.opensearch.script.ScriptEngine;
 import org.opensearch.script.ScriptModule;
@@ -864,7 +862,8 @@ public class Node implements Closeable {
             );
 
             final ViewService viewService = new ViewService(
-                clusterService
+                clusterService,
+                client
             );
 
             Collection<Object> pluginComponents = pluginsService.filterPlugins(Plugin.class)

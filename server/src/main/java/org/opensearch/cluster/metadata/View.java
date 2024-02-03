@@ -24,15 +24,15 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
-/** TODO */
+/** View of data in OpenSearch indices */
 @ExperimentalApi
 public class View extends AbstractDiffable<View> implements ToXContentObject {
 
-    public final String name;
-    public final String description;
-    public final long createdAt;
-    public final long modifiedAt;
-    public final List<Target> targets;
+    private final String name;
+    private final String description;
+    private final long createdAt;
+    private final long modifiedAt;
+    private final List<Target> targets;
 
     public View(final String name, final String description, final Long createdAt, final Long modifiedAt, final List<Target> targets) {
         this.name = Objects.requireNonNull(name, "Name must be provided");
@@ -46,15 +46,53 @@ public class View extends AbstractDiffable<View> implements ToXContentObject {
         this(in.readString(), in.readOptionalString(), in.readVLong(), in.readVLong(), in.readList(Target::new));
     }
 
+
+    public String getName() {
+        return name;
+    }
+
+    public String getDescription() {
+        return description;
+    }
+
+    public long getCreatedAt() {
+        return createdAt;
+    }
+
+    public long getModifiedAt() {
+        return modifiedAt;
+    }
+
+    public List<Target> getTargets() {
+        return targets;
+    }
+
     public static Diff<View> readDiffFrom(final StreamInput in) throws IOException {
         return readDiffFrom(View::new, in);
     }
 
-    /** TODO */
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        View that = (View) o;
+        return name.equals(that.name)
+            && description.equals(that.description)
+            && createdAt == that.createdAt
+            && modifiedAt == that.modifiedAt
+            && targets.equals(that.targets);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(name, description, createdAt, modifiedAt, targets);
+    }
+
+    /** The source of data used to project the view */
     @ExperimentalApi
     public static class Target implements Writeable, ToXContentObject {
 
-        public final String indexPattern;
+        private final String indexPattern;
 
         public Target(final String indexPattern) {
             this.indexPattern = Objects.requireNonNull(indexPattern, "IndexPattern is required");
@@ -64,7 +102,24 @@ public class View extends AbstractDiffable<View> implements ToXContentObject {
             this(in.readString());
         }
 
-        private static final ParseField INDEX_PATTERN_FIELD = new ParseField("indexPattern");
+        public String getIndexPattern() {
+            return indexPattern;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            Target that = (Target) o;
+            return indexPattern.equals(that.indexPattern);
+        }
+    
+        @Override
+        public int hashCode() {
+            return Objects.hash(indexPattern);
+        }
+
+        public static final ParseField INDEX_PATTERN_FIELD = new ParseField("indexPattern");
 
         @Override
         public XContentBuilder toXContent(final XContentBuilder builder, final Params params) throws IOException {
@@ -74,16 +129,16 @@ public class View extends AbstractDiffable<View> implements ToXContentObject {
             return builder;
         }
 
-        private static final ConstructingObjectParser<Target, Void> T_PARSER = new ConstructingObjectParser<>(
+        private static final ConstructingObjectParser<Target, Void> PARSER = new ConstructingObjectParser<>(
             "target",
             args -> new Target((String) args[0])
         );
         static {
-            T_PARSER.declareString(ConstructingObjectParser.constructorArg(), INDEX_PATTERN_FIELD);
+            PARSER.declareString(ConstructingObjectParser.constructorArg(), INDEX_PATTERN_FIELD);
         }
 
         public static Target fromXContent(final XContentParser parser) throws IOException {
-            return T_PARSER.parse(parser, null);
+            return PARSER.parse(parser, null);
         }
 
         @Override
@@ -92,14 +147,14 @@ public class View extends AbstractDiffable<View> implements ToXContentObject {
         }
     }
 
-    private static final ParseField NAME_FIELD = new ParseField("name");
-    private static final ParseField DESCRIPTION_FIELD = new ParseField("description");
-    private static final ParseField CREATED_AT_FIELD = new ParseField("createdAt");
-    private static final ParseField MODIFIED_AT_FIELD = new ParseField("modifiedAt");
-    private static final ParseField TARGETS_FIELD = new ParseField("targets");
+    public static final ParseField NAME_FIELD = new ParseField("name");
+    public static final ParseField DESCRIPTION_FIELD = new ParseField("description");
+    public static final ParseField CREATED_AT_FIELD = new ParseField("createdAt");
+    public static final ParseField MODIFIED_AT_FIELD = new ParseField("modifiedAt");
+    public static final ParseField TARGETS_FIELD = new ParseField("targets");
 
     @SuppressWarnings("unchecked")
-    private static final ConstructingObjectParser<View, Void> PARSER = new ConstructingObjectParser<>(
+    public static final ConstructingObjectParser<View, Void> PARSER = new ConstructingObjectParser<>(
         "view",
         args -> new View((String) args[0], (String) args[1], (Long) args[2], (Long) args[3], (List<Target>) args[4])
     );

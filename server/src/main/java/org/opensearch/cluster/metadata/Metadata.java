@@ -1348,7 +1348,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
         public Builder put(final View view) {
             Objects.requireNonNull(view, "view cannot be null");
             final var replacementViews = new HashMap<>(getViews());
-            replacementViews.put(view.name, view);
+            replacementViews.put(view.getName(), view);
             return views(replacementViews);
         }
 

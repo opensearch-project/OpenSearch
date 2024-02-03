@@ -312,6 +312,8 @@ import org.opensearch.action.admin.indices.validate.query.ValidateQueryAction;
 import org.opensearch.action.admin.indices.validate.query.ValidateQueryRequest;
 import org.opensearch.action.admin.indices.validate.query.ValidateQueryRequestBuilder;
 import org.opensearch.action.admin.indices.validate.query.ValidateQueryResponse;
+import org.opensearch.action.admin.indices.view.CreateViewAction;
+import org.opensearch.action.admin.indices.view.SearchViewAction;
 import org.opensearch.action.bulk.BulkAction;
 import org.opensearch.action.bulk.BulkRequest;
 import org.opensearch.action.bulk.BulkRequestBuilder;
@@ -2069,6 +2071,26 @@ public abstract class AbstractClient implements Client {
         @Override
         public ActionFuture<ResolveIndexAction.Response> resolveIndex(ResolveIndexAction.Request request) {
             return execute(ResolveIndexAction.INSTANCE, request);
+        }
+
+        @Override
+        public void createView(CreateViewAction.Request request, ActionListener<CreateViewAction.Response> listener) {
+            execute(CreateViewAction.INSTANCE, request);
+        }
+
+        @Override
+        public ActionFuture<CreateViewAction.Response> createView(CreateViewAction.Request request) {
+            return execute(CreateViewAction.INSTANCE, request);
+        }
+
+        @Override
+        public void searchView(SearchViewAction.Request request, ActionListener<SearchResponse> listener) {
+            execute(SearchViewAction.INSTANCE, request);
+        }
+
+        @Override
+        public ActionFuture<SearchResponse> searchView(SearchViewAction.Request request) {
+            return execute(SearchViewAction.INSTANCE, request);
         }
     }
 

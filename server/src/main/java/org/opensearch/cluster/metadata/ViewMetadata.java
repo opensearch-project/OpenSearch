@@ -29,6 +29,7 @@ import java.util.Objects;
 
 import static org.opensearch.cluster.metadata.ComposableIndexTemplateMetadata.MINIMMAL_SUPPORTED_VERSION;
 
+/** View metadata */
 public class ViewMetadata implements Metadata.Custom {
 
     public static final String TYPE = "view";
@@ -141,7 +142,7 @@ public class ViewMetadata implements Metadata.Custom {
         private final Map<String, View> views = new HashMap<>();
 
         public Builder putDataStream(final View view) {
-            views.put(view.name, view);
+            views.put(view.getName(), view);
             return this;
         }
 
