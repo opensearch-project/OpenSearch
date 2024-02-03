@@ -20,14 +20,13 @@ import java.io.IOException;
 import java.util.List;
 
 /**
- * Top Queries by resource usage / latency on a node
- * <p>
+ * Holds all top queries records by resource usage or latency on a node
  * Mainly used in the top N queries node response workflow.
  *
  * @opensearch.internal
  */
 public class TopQueries extends BaseNodeResponse implements ToXContentObject {
-    /** The store to keep the top N queries records */
+    /** The store to keep the top queries records */
     private final List<SearchQueryRecord> topQueriesRecords;
 
     /**
@@ -35,7 +34,7 @@ public class TopQueries extends BaseNodeResponse implements ToXContentObject {
      * @param in A {@link StreamInput} object.
      * @throws IOException IOException
      */
-    public TopQueries(StreamInput in) throws IOException {
+    public TopQueries(final StreamInput in) throws IOException {
         super(in);
         topQueriesRecords = in.readList(SearchQueryRecord::new);
     }
@@ -45,13 +44,13 @@ public class TopQueries extends BaseNodeResponse implements ToXContentObject {
      * @param node A node that is part of the cluster.
      * @param searchQueryRecords A list of SearchQueryRecord associated in this TopQueries.
      */
-    public TopQueries(DiscoveryNode node, List<SearchQueryRecord> searchQueryRecords) {
+    public TopQueries(final DiscoveryNode node, final List<SearchQueryRecord> searchQueryRecords) {
         super(node);
         topQueriesRecords = searchQueryRecords;
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+    public XContentBuilder toXContent(final XContentBuilder builder, final Params params) throws IOException {
         if (topQueriesRecords != null) {
             for (SearchQueryRecord record : topQueriesRecords) {
                 record.toXContent(builder, params);
@@ -61,7 +60,7 @@ public class TopQueries extends BaseNodeResponse implements ToXContentObject {
     }
 
     @Override
-    public void writeTo(StreamOutput out) throws IOException {
+    public void writeTo(final StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeList(topQueriesRecords);
 

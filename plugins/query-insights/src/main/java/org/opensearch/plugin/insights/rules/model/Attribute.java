@@ -16,6 +16,8 @@ import java.util.Locale;
 
 /**
  * Valid attributes for a search query record
+ *
+ * @opensearch.internal
  */
 public enum Attribute {
     /**
@@ -45,21 +47,23 @@ public enum Attribute {
 
     /**
      * Read an Attribute from a StreamInput
+     *
      * @param in the StreamInput to read from
      * @return Attribute
      * @throws IOException IOException
      */
-    public static Attribute readFromStream(StreamInput in) throws IOException {
+    static Attribute readFromStream(final StreamInput in) throws IOException {
         return Attribute.valueOf(in.readString().toUpperCase(Locale.ROOT));
     }
 
     /**
      * Write Attribute to a StreamOutput
+     *
      * @param out the StreamOutput to write
      * @param attribute the Attribute to write
      * @throws IOException IOException
      */
-    public static void writeTo(StreamOutput out, Attribute attribute) throws IOException {
+    static void writeTo(final StreamOutput out, final Attribute attribute) throws IOException {
         out.writeString(attribute.toString());
     }
 

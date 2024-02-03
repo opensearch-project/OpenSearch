@@ -16,6 +16,7 @@ import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.plugin.insights.core.service.QueryInsightsService;
+import org.opensearch.plugin.insights.core.service.TopQueriesService;
 import org.opensearch.plugin.insights.rules.model.MetricType;
 import org.opensearch.plugin.insights.settings.QueryInsightsSettings;
 import org.opensearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
@@ -45,6 +46,7 @@ public class QueryInsightsListenerTests extends OpenSearchTestCase {
     private final SearchPhaseContext searchPhaseContext = mock(SearchPhaseContext.class);
     private final SearchRequest searchRequest = mock(SearchRequest.class);
     private final QueryInsightsService queryInsightsService = mock(QueryInsightsService.class);
+    private final TopQueriesService topQueriesService = mock(TopQueriesService.class);
     private ClusterService clusterService;
 
     @Before
@@ -57,9 +59,10 @@ public class QueryInsightsListenerTests extends OpenSearchTestCase {
         clusterSettings.registerSetting(QueryInsightsSettings.TOP_N_LATENCY_QUERIES_WINDOW_SIZE);
         clusterService = new ClusterService(settings, clusterSettings, null);
         when(queryInsightsService.isCollectionEnabled(MetricType.LATENCY)).thenReturn(true);
+        when(queryInsightsService.getTopQueriesService(MetricType.LATENCY)).thenReturn(topQueriesService);
     }
 
-    public void testOnRequestEnd() {
+    public void testOnRequestEnd() throws InterruptedException {
         Long timestamp = System.currentTimeMillis() - 100L;
         SearchType searchType = SearchType.QUERY_THEN_FETCH;
 
@@ -146,13 +149,13 @@ public class QueryInsightsListenerTests extends OpenSearchTestCase {
     public void testSetEnabled() {
         when(queryInsightsService.isCollectionEnabled(MetricType.LATENCY)).thenReturn(true);
         QueryInsightsListener queryInsightsListener = new QueryInsightsListener(clusterService, queryInsightsService);
-        queryInsightsListener.setEnabled(MetricType.LATENCY, true);
+        queryInsightsListener.setEnableTopQueries(MetricType.LATENCY, true);
         assertTrue(queryInsightsListener.isEnabled());
 
         when(queryInsightsService.isCollectionEnabled(MetricType.LATENCY)).thenReturn(false);
         when(queryInsightsService.isCollectionEnabled(MetricType.CPU)).thenReturn(false);
         when(queryInsightsService.isCollectionEnabled(MetricType.JVM)).thenReturn(false);
-        queryInsightsListener.setEnabled(MetricType.LATENCY, false);
+        queryInsightsListener.setEnableTopQueries(MetricType.LATENCY, false);
         assertFalse(queryInsightsListener.isEnabled());
     }
 }

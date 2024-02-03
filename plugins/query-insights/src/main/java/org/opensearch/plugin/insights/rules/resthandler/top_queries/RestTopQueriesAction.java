@@ -33,7 +33,7 @@ import static org.opensearch.plugin.insights.settings.QueryInsightsSettings.TOP_
 import static org.opensearch.rest.RestRequest.Method.GET;
 
 /**
- * Transport action to get Top N queries by certain metric type
+ * Rest action to get Top N queries by certain metric type
  *
  * @opensearch.api
  */
@@ -64,17 +64,12 @@ public class RestTopQueriesAction extends BaseRestHandler {
         final TopQueriesRequest topQueriesRequest = prepareRequest(request);
         topQueriesRequest.timeout(request.param("timeout"));
 
-        return channel -> client.execute(
-            TopQueriesAction.INSTANCE,
-            topQueriesRequest,
-            topQueriesResponse(channel)
-
-        );
+        return channel -> client.execute(TopQueriesAction.INSTANCE, topQueriesRequest, topQueriesResponse(channel));
     }
 
     static TopQueriesRequest prepareRequest(final RestRequest request) {
-        String[] nodesIds = Strings.splitStringByCommaToArray(request.param("nodeId"));
-        String metricType = request.param("type", MetricType.LATENCY.toString());
+        final String[] nodesIds = Strings.splitStringByCommaToArray(request.param("nodeId"));
+        final String metricType = request.param("type", MetricType.LATENCY.toString());
         if (!ALLOWED_METRICS.contains(metricType)) {
             throw new IllegalArgumentException(
                 String.format(Locale.ROOT, "request [%s] contains invalid metric type [%s]", request.path(), metricType)
@@ -93,10 +88,10 @@ public class RestTopQueriesAction extends BaseRestHandler {
         return false;
     }
 
-    private RestResponseListener<TopQueriesResponse> topQueriesResponse(RestChannel channel) {
+    private RestResponseListener<TopQueriesResponse> topQueriesResponse(final RestChannel channel) {
         return new RestResponseListener<>(channel) {
             @Override
-            public RestResponse buildResponse(TopQueriesResponse response) throws Exception {
+            public RestResponse buildResponse(final TopQueriesResponse response) throws Exception {
                 return new BytesRestResponse(RestStatus.OK, response.toXContent(channel.newBuilder(), ToXContent.EMPTY_PARAMS));
             }
         };

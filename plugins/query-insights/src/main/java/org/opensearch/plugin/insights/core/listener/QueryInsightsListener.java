@@ -19,7 +19,6 @@ import org.opensearch.common.inject.Inject;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.plugin.insights.core.service.QueryInsightsService;
 import org.opensearch.plugin.insights.rules.model.Attribute;
-import org.opensearch.plugin.insights.rules.model.Measurement;
 import org.opensearch.plugin.insights.rules.model.MetricType;
 import org.opensearch.plugin.insights.rules.model.SearchQueryRecord;
 
@@ -34,7 +33,9 @@ import static org.opensearch.plugin.insights.settings.QueryInsightsSettings.TOP_
 import static org.opensearch.plugin.insights.settings.QueryInsightsSettings.TOP_N_LATENCY_QUERIES_WINDOW_SIZE;
 
 /**
- * The listener for top N queries by latency
+ * The listener for query insights services.
+ * It forwards query-related data to the appropriate query insights stores,
+ * either for each request or for each phase.
  *
  * @opensearch.internal
  */
@@ -52,47 +53,55 @@ public final class QueryInsightsListener extends SearchRequestOperationsListener
      * @param queryInsightsService The topQueriesByLatencyService associated with this listener
      */
     @Inject
-    public QueryInsightsListener(ClusterService clusterService, QueryInsightsService queryInsightsService) {
+    public QueryInsightsListener(final ClusterService clusterService, final QueryInsightsService queryInsightsService) {
         this.queryInsightsService = queryInsightsService;
         clusterService.getClusterSettings()
-            .addSettingsUpdateConsumer(TOP_N_LATENCY_QUERIES_ENABLED, v -> this.setEnabled(MetricType.LATENCY, v));
+            .addSettingsUpdateConsumer(TOP_N_LATENCY_QUERIES_ENABLED, v -> this.setEnableTopQueries(MetricType.LATENCY, v));
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(
                 TOP_N_LATENCY_QUERIES_SIZE,
-                this.queryInsightsService::setTopNSize,
-                this.queryInsightsService::validateTopNSize
+                v -> this.queryInsightsService.getTopQueriesService(MetricType.LATENCY).setTopNSize(v),
+                v -> this.queryInsightsService.getTopQueriesService(MetricType.LATENCY).validateTopNSize(v)
             );
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(
                 TOP_N_LATENCY_QUERIES_WINDOW_SIZE,
-                this.queryInsightsService::setWindowSize,
-                this.queryInsightsService::validateWindowSize
+                v -> this.queryInsightsService.getTopQueriesService(MetricType.LATENCY).setWindowSize(v),
+                v -> this.queryInsightsService.getTopQueriesService(MetricType.LATENCY).validateWindowSize(v)
             );
-        this.setEnabled(MetricType.LATENCY, clusterService.getClusterSettings().get(TOP_N_LATENCY_QUERIES_ENABLED));
-        this.queryInsightsService.setTopNSize(clusterService.getClusterSettings().get(TOP_N_LATENCY_QUERIES_SIZE));
-        this.queryInsightsService.setWindowSize(clusterService.getClusterSettings().get(TOP_N_LATENCY_QUERIES_WINDOW_SIZE));
+        this.setEnableTopQueries(MetricType.LATENCY, clusterService.getClusterSettings().get(TOP_N_LATENCY_QUERIES_ENABLED));
+        this.queryInsightsService.getTopQueriesService(MetricType.LATENCY)
+            .setTopNSize(clusterService.getClusterSettings().get(TOP_N_LATENCY_QUERIES_SIZE));
+        this.queryInsightsService.getTopQueriesService(MetricType.LATENCY)
+            .setWindowSize(clusterService.getClusterSettings().get(TOP_N_LATENCY_QUERIES_WINDOW_SIZE));
     }
 
     /**
-     * Enable or disable metric collection for {@link MetricType}
+     * Enable or disable top queries insights collection for {@link MetricType}
+     * This function will enable or disable the corresponding listeners
+     * and query insights services.
      *
      * @param metricType {@link MetricType}
      * @param enabled boolean
      */
-    public void setEnabled(MetricType metricType, boolean enabled) {
+    public void setEnableTopQueries(final MetricType metricType, final boolean enabled) {
+        boolean isAllMetricsDisabled = !queryInsightsService.isEnabled();
         this.queryInsightsService.enableCollection(metricType, enabled);
-
-        // disable QueryInsightsListener only if collection for all metrics are disabled.
         if (!enabled) {
-            for (MetricType t : MetricType.allMetricTypes()) {
-                if (this.queryInsightsService.isCollectionEnabled(t)) {
-                    return;
-                }
+            // disable QueryInsightsListener only if all metrics collections are disabled now.
+            if (!queryInsightsService.isEnabled()) {
+                super.setEnabled(false);
+                this.queryInsightsService.stop();
             }
-            super.setEnabled(false);
         } else {
             super.setEnabled(true);
+            // restart QueryInsightsListener only if none of metrics collections is enabled before.
+            if (isAllMetricsDisabled) {
+                this.queryInsightsService.stop();
+                this.queryInsightsService.start();
+            }
         }
+
     }
 
     @Override
@@ -113,17 +122,14 @@ public final class QueryInsightsListener extends SearchRequestOperationsListener
     public void onRequestStart(SearchRequestContext searchRequestContext) {}
 
     @Override
-    public void onRequestEnd(SearchPhaseContext context, SearchRequestContext searchRequestContext) {
-        SearchRequest request = context.getRequest();
+    public void onRequestEnd(final SearchPhaseContext context, final SearchRequestContext searchRequestContext) {
+        final SearchRequest request = context.getRequest();
         try {
-            Map<MetricType, Measurement<? extends Number>> measurements = new HashMap<>();
+            Map<MetricType, Number> measurements = new HashMap<>();
             if (queryInsightsService.isCollectionEnabled(MetricType.LATENCY)) {
                 measurements.put(
                     MetricType.LATENCY,
-                    new Measurement<>(
-                        MetricType.LATENCY.name(),
-                        TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - searchRequestContext.getAbsoluteStartNanos())
-                    )
+                    TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - searchRequestContext.getAbsoluteStartNanos())
                 );
             }
             Map<Attribute, Object> attributes = new HashMap<>();

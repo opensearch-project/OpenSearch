@@ -11,7 +11,6 @@ package org.opensearch.plugin.insights.rules.action.top_queries;
 import org.opensearch.action.FailedNodeException;
 import org.opensearch.action.support.nodes.BaseNodesResponse;
 import org.opensearch.cluster.ClusterName;
-import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
@@ -31,7 +30,6 @@ import java.util.stream.Collectors;
  *
  * @opensearch.internal
  */
-@PublicApi(since = "1.0.0")
 public class TopQueriesResponse extends BaseNodesResponse<TopQueries> implements ToXContentFragment {
 
     private static final String CLUSTER_LEVEL_RESULTS_KEY = "top_queries";
@@ -44,7 +42,7 @@ public class TopQueriesResponse extends BaseNodesResponse<TopQueries> implements
      * @param in A {@link StreamInput} object.
      * @throws IOException if the stream cannot be deserialized.
      */
-    public TopQueriesResponse(StreamInput in) throws IOException {
+    public TopQueriesResponse(final StreamInput in) throws IOException {
         super(in);
         top_n_size = in.readInt();
         metricType = in.readEnum(MetricType.class);
@@ -60,11 +58,11 @@ public class TopQueriesResponse extends BaseNodesResponse<TopQueries> implements
      * @param metricType the {@link MetricType} to be returned in this response
      */
     public TopQueriesResponse(
-        ClusterName clusterName,
-        List<TopQueries> nodes,
-        List<FailedNodeException> failures,
-        int top_n_size,
-        MetricType metricType
+        final ClusterName clusterName,
+        final List<TopQueries> nodes,
+        final List<FailedNodeException> failures,
+        final int top_n_size,
+        final MetricType metricType
     ) {
         super(clusterName, nodes, failures);
         this.top_n_size = top_n_size;
@@ -72,20 +70,20 @@ public class TopQueriesResponse extends BaseNodesResponse<TopQueries> implements
     }
 
     @Override
-    protected List<TopQueries> readNodesFrom(StreamInput in) throws IOException {
+    protected List<TopQueries> readNodesFrom(final StreamInput in) throws IOException {
         return in.readList(TopQueries::new);
     }
 
     @Override
-    protected void writeNodesTo(StreamOutput out, List<TopQueries> nodes) throws IOException {
+    protected void writeNodesTo(final StreamOutput out, final List<TopQueries> nodes) throws IOException {
         out.writeList(nodes);
         out.writeLong(top_n_size);
         out.writeEnum(metricType);
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        List<TopQueries> results = getNodes();
+    public XContentBuilder toXContent(final XContentBuilder builder, final Params params) throws IOException {
+        final List<TopQueries> results = getNodes();
         postProcess(results);
         builder.startObject();
         toClusterLevelResult(builder, params, results);
@@ -95,7 +93,7 @@ public class TopQueriesResponse extends BaseNodesResponse<TopQueries> implements
     @Override
     public String toString() {
         try {
-            XContentBuilder builder = XContentFactory.jsonBuilder().prettyPrint();
+            final XContentBuilder builder = XContentFactory.jsonBuilder().prettyPrint();
             builder.startObject();
             this.toXContent(builder, EMPTY_PARAMS);
             builder.endObject();
@@ -110,9 +108,9 @@ public class TopQueriesResponse extends BaseNodesResponse<TopQueries> implements
      *
      * @param results the top queries results
      */
-    private void postProcess(List<TopQueries> results) {
+    private void postProcess(final List<TopQueries> results) {
         for (TopQueries topQueries : results) {
-            String nodeId = topQueries.getNode().getId();
+            final String nodeId = topQueries.getNode().getId();
             for (SearchQueryRecord record : topQueries.getTopQueriesRecord()) {
                 record.addAttribute(Attribute.NODE_ID, nodeId);
             }
@@ -127,8 +125,9 @@ public class TopQueriesResponse extends BaseNodesResponse<TopQueries> implements
      * @param results top queries results from all nodes
      * @throws IOException if an error occurs
      */
-    private void toClusterLevelResult(XContentBuilder builder, Params params, List<TopQueries> results) throws IOException {
-        List<SearchQueryRecord> all_records = results.stream()
+    private void toClusterLevelResult(final XContentBuilder builder, final Params params, final List<TopQueries> results)
+        throws IOException {
+        final List<SearchQueryRecord> all_records = results.stream()
             .map(TopQueries::getTopQueriesRecord)
             .flatMap(Collection::stream)
             .sorted((a, b) -> SearchQueryRecord.compare(a, b, metricType) * -1)

@@ -81,7 +81,7 @@ public class QueryInsightsPluginTransportIT extends OpenSearchIntegTestCase {
         TopQueriesResponse response = OpenSearchIntegTestCase.client().execute(TopQueriesAction.INSTANCE, request).actionGet();
         Assert.assertNotEquals(0, response.failures().size());
         Assert.assertEquals(
-            "Cannot get query data when query insight feature is not enabled for MetricType [latency].",
+            "Cannot get top n queries for [latency] when it is not enabled.",
             response.failures().get(0).getCause().getCause().getMessage()
         );
     }
@@ -89,7 +89,7 @@ public class QueryInsightsPluginTransportIT extends OpenSearchIntegTestCase {
     /**
      * Test update top query record when feature enabled
      */
-    public void testUpdateRecordWhenFeatureEnabled() throws ExecutionException, InterruptedException {
+    public void testUpdateRecordWhenFeatureDisabledThenEnabled() throws ExecutionException, InterruptedException {
         Settings commonSettings = Settings.builder().put(TOP_N_LATENCY_QUERIES_ENABLED.getKey(), "false").build();
 
         logger.info("--> starting nodes for query insight testing");
@@ -121,7 +121,7 @@ public class QueryInsightsPluginTransportIT extends OpenSearchIntegTestCase {
         TopQueriesResponse response = OpenSearchIntegTestCase.client().execute(TopQueriesAction.INSTANCE, request).actionGet();
         Assert.assertNotEquals(0, response.failures().size());
         Assert.assertEquals(
-            "Cannot get query data when query insight feature is not enabled for MetricType [latency].",
+            "Cannot get top n queries for [latency] when it is not enabled.",
             response.failures().get(0).getCause().getCause().getMessage()
         );
 
@@ -143,7 +143,7 @@ public class QueryInsightsPluginTransportIT extends OpenSearchIntegTestCase {
     /**
      * Test get top queries when feature enabled
      */
-    public void testGetTopQueriesWhenFeatureEnabled() {
+    public void testGetTopQueriesWhenFeatureEnabled() throws InterruptedException {
         Settings commonSettings = Settings.builder()
             .put(TOP_N_LATENCY_QUERIES_ENABLED.getKey(), "true")
             .put(TOP_N_LATENCY_QUERIES_SIZE.getKey(), "100")
@@ -174,7 +174,8 @@ public class QueryInsightsPluginTransportIT extends OpenSearchIntegTestCase {
                 .get();
             assertEquals(searchResponse.getFailedShards(), 0);
         }
-
+        // Sleep to wait for queue drained to top queries store
+        Thread.sleep(6000);
         TopQueriesRequest request = new TopQueriesRequest(MetricType.LATENCY);
         TopQueriesResponse response = OpenSearchIntegTestCase.client().execute(TopQueriesAction.INSTANCE, request).actionGet();
         Assert.assertEquals(0, response.failures().size());
@@ -187,7 +188,7 @@ public class QueryInsightsPluginTransportIT extends OpenSearchIntegTestCase {
     /**
      * Test get top queries with small top n size
      */
-    public void testGetTopQueriesWithSmallTopN() {
+    public void testGetTopQueriesWithSmallTopN() throws InterruptedException {
         Settings commonSettings = Settings.builder()
             .put(TOP_N_LATENCY_QUERIES_ENABLED.getKey(), "true")
             .put(TOP_N_LATENCY_QUERIES_SIZE.getKey(), "1")
@@ -218,7 +219,7 @@ public class QueryInsightsPluginTransportIT extends OpenSearchIntegTestCase {
                 .get();
             assertEquals(searchResponse.getFailedShards(), 0);
         }
-
+        Thread.sleep(6000);
         TopQueriesRequest request = new TopQueriesRequest(MetricType.LATENCY);
         TopQueriesResponse response = OpenSearchIntegTestCase.client().execute(TopQueriesAction.INSTANCE, request).actionGet();
         Assert.assertEquals(0, response.failures().size());
@@ -231,7 +232,7 @@ public class QueryInsightsPluginTransportIT extends OpenSearchIntegTestCase {
     /**
      * Test get top queries with small window size
      */
-    public void testGetTopQueriesWithSmallWindowSize() {
+    public void testGetTopQueriesWithSmallWindowSize() throws InterruptedException {
         Settings commonSettings = Settings.builder()
             .put(TOP_N_LATENCY_QUERIES_ENABLED.getKey(), "true")
             .put(TOP_N_LATENCY_QUERIES_SIZE.getKey(), "100")
@@ -267,7 +268,7 @@ public class QueryInsightsPluginTransportIT extends OpenSearchIntegTestCase {
         TopQueriesResponse response = OpenSearchIntegTestCase.client().execute(TopQueriesAction.INSTANCE, request).actionGet();
         Assert.assertEquals(0, response.failures().size());
         Assert.assertEquals(TOTAL_NUMBER_OF_NODES, response.getNodes().size());
-
+        Thread.sleep(6000);
         internalCluster().stopAllNodes();
     }
 }
