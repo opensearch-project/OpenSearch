@@ -40,6 +40,7 @@ import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
+import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
@@ -92,7 +93,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
     private final LongPredicate acceptedGlobalOrdinals;
     private final long valueCount;
 
-    private final String fieldName;
+    private String fieldName;
 
     private Weight weight;
     private final GlobalOrdLookupFunction lookupGlobalOrd;
@@ -146,7 +147,8 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
                 return new DenseGlobalOrds();
             });
         }
-        this.fieldName = ((ValuesSource.Bytes.WithOrdinals.FieldData) valuesSource).getIndexFieldName();
+            this.fieldName = (valuesSource instanceof ValuesSource.Bytes.WithOrdinals.FieldData) ?
+                ((ValuesSource.Bytes.WithOrdinals.FieldData) valuesSource).getIndexFieldName() : null;
     }
 
     String descriptCollectionStrategy() {
@@ -170,6 +172,10 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         SortedSetDocValues globalOrds,
         BiConsumer<Long, Integer> ordCountConsumer
     ) throws IOException {
+        if (weight == null) {
+            // Calculate weight if not assigned previously
+            this.weight = context.searcher().createWeight(context.query(), ScoreMode.COMPLETE_NO_SCORES, 1f);
+        }
         if (weight.count(ctx) != ctx.reader().maxDoc()) {
             // Top-level query does not match all docs in this segment.
             return null;
@@ -221,7 +227,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
                 (ord, docCount) -> incrementBucketDocCount(collectionStrategy.globalOrdToBucketOrd(0, ord), docCount)
             );
             if (termDocFreqCollector != null) {
-                return null;
+                return termDocFreqCollector;
             }
         }
 
