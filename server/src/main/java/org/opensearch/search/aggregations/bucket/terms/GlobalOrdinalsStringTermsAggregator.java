@@ -176,6 +176,12 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
             // Calculate weight if not assigned previously
             this.weight = context.searcher().createWeight(context.query(), ScoreMode.COMPLETE_NO_SCORES, 1f);
         }
+
+        if (weight.count(ctx) == 0) {
+            // No documents matches top level query on this segment, we can skip it
+            return LeafBucketCollector.NO_OP_COLLECTOR;
+        }
+
         if (weight.count(ctx) != ctx.reader().maxDoc()) {
             // Top-level query does not match all docs in this segment.
             return null;
