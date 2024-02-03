@@ -13,7 +13,6 @@ import org.opensearch.common.util.Maps;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.plugin.insights.rules.model.Attribute;
-import org.opensearch.plugin.insights.rules.model.Measurement;
 import org.opensearch.plugin.insights.rules.model.MetricType;
 import org.opensearch.plugin.insights.rules.model.SearchQueryRecord;
 
@@ -53,13 +52,13 @@ final public class QueryInsightsTestUtils {
         int countOfRecords = randomIntBetween(lower, upper);
         long timestamp = startTimeStamp;
         for (int i = 0; i < countOfRecords; ++i) {
-            Map<MetricType, Measurement<? extends Number>> measurements = Map.of(
+            Map<MetricType, Number> measurements = Map.of(
                 MetricType.LATENCY,
-                new Measurement<>(MetricType.LATENCY.name(), randomLongBetween(1000, 10000)),
+                randomLongBetween(1000, 10000),
                 MetricType.CPU,
-                new Measurement<>(MetricType.CPU.name(), randomDouble()),
+                randomDouble(),
                 MetricType.JVM,
-                new Measurement<>(MetricType.JVM.name(), randomDouble())
+                randomDouble()
             );
 
             Map<String, Long> phaseLatencyMap = new HashMap<>();
@@ -82,10 +81,7 @@ final public class QueryInsightsTestUtils {
 
     public static SearchQueryRecord createFixedSearchQueryRecord() {
         long timestamp = 1706574180000L;
-        Map<MetricType, Measurement<? extends Number>> measurements = Map.of(
-            MetricType.LATENCY,
-            new Measurement<>(MetricType.LATENCY.name(), 1L)
-        );
+        Map<MetricType, Number> measurements = Map.of(MetricType.LATENCY, 1L);
 
         Map<String, Long> phaseLatencyMap = new HashMap<>();
         Map<Attribute, Object> attributes = new HashMap<>();

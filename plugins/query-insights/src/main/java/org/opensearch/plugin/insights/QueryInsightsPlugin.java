@@ -53,25 +53,25 @@ public class QueryInsightsPlugin extends Plugin implements ActionPlugin {
 
     @Override
     public Collection<Object> createComponents(
-        Client client,
-        ClusterService clusterService,
-        ThreadPool threadPool,
-        ResourceWatcherService resourceWatcherService,
-        ScriptService scriptService,
-        NamedXContentRegistry xContentRegistry,
-        Environment environment,
-        NodeEnvironment nodeEnvironment,
-        NamedWriteableRegistry namedWriteableRegistry,
-        IndexNameExpressionResolver indexNameExpressionResolver,
-        Supplier<RepositoriesService> repositoriesServiceSupplier
+        final Client client,
+        final ClusterService clusterService,
+        final ThreadPool threadPool,
+        final ResourceWatcherService resourceWatcherService,
+        final ScriptService scriptService,
+        final NamedXContentRegistry xContentRegistry,
+        final Environment environment,
+        final NodeEnvironment nodeEnvironment,
+        final NamedWriteableRegistry namedWriteableRegistry,
+        final IndexNameExpressionResolver indexNameExpressionResolver,
+        final Supplier<RepositoriesService> repositoriesServiceSupplier
     ) {
         // create top n queries service
-        QueryInsightsService queryInsightsService = new QueryInsightsService(threadPool);
+        final QueryInsightsService queryInsightsService = new QueryInsightsService(threadPool);
         return List.of(queryInsightsService);
     }
 
     @Override
-    public List<ExecutorBuilder<?>> getExecutorBuilders(Settings settings) {
+    public List<ExecutorBuilder<?>> getExecutorBuilders(final Settings settings) {
         return List.of(
             new ScalingExecutorBuilder(
                 QueryInsightsSettings.QUERY_INSIGHTS_EXECUTOR,
@@ -84,13 +84,13 @@ public class QueryInsightsPlugin extends Plugin implements ActionPlugin {
 
     @Override
     public List<RestHandler> getRestHandlers(
-        Settings settings,
-        RestController restController,
-        ClusterSettings clusterSettings,
-        IndexScopedSettings indexScopedSettings,
-        SettingsFilter settingsFilter,
-        IndexNameExpressionResolver indexNameExpressionResolver,
-        Supplier<DiscoveryNodes> nodesInCluster
+        final Settings settings,
+        final RestController restController,
+        final ClusterSettings clusterSettings,
+        final IndexScopedSettings indexScopedSettings,
+        final SettingsFilter settingsFilter,
+        final IndexNameExpressionResolver indexNameExpressionResolver,
+        final Supplier<DiscoveryNodes> nodesInCluster
     ) {
         return List.of();
     }

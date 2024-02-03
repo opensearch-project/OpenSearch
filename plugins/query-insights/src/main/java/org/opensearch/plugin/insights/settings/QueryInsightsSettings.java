@@ -32,6 +32,14 @@ public class QueryInsightsSettings {
      */
     public static final int MAX_THREAD_COUNT = 5;
     /**
+     * Max number of requests for the consumer to collect at one time
+     */
+    public static final int QUERY_RECORD_QUEUE_CAPACITY = 1000;
+    /**
+     * Time interval for record queue consumer to run
+     */
+    public static final TimeValue QUERY_RECORD_QUEUE_DRAIN_INTERVAL = new TimeValue(5, TimeUnit.SECONDS);
+    /**
      * Default Values and Settings
      */
     public static final TimeValue MAX_WINDOW_SIZE = new TimeValue(1, TimeUnit.DAYS);
@@ -54,7 +62,7 @@ public class QueryInsightsSettings {
     /** Default N size for top N queries */
     public static final int MAX_N_SIZE = 100;
     /** Default window size in seconds to keep the top N queries with latency data in query insight store */
-    public static final int DEFAULT_WINDOW_SIZE = 60;
+    public static final TimeValue DEFAULT_WINDOW_SIZE = new TimeValue(60, TimeUnit.SECONDS);
     /** Default top N size to keep the data in query insight store */
     public static final int DEFAULT_TOP_N_SIZE = 3;
     /**
@@ -68,7 +76,7 @@ public class QueryInsightsSettings {
      */
     public static final String TOP_QUERIES_BASE_URI = PLUGINS_BASE_URI + "/top_queries";
     /** Default prefix for top N queries feature */
-    public static final String TOP_N_QUERIES_SETTING_PREFIX = "search.top_n_queries";
+    public static final String TOP_N_QUERIES_SETTING_PREFIX = "search.insights.top_queries";
     /** Default prefix for top N queries by latency feature */
     public static final String TOP_N_LATENCY_QUERIES_PREFIX = TOP_N_QUERIES_SETTING_PREFIX + ".latency";
     /**
@@ -96,7 +104,7 @@ public class QueryInsightsSettings {
      */
     public static final Setting<TimeValue> TOP_N_LATENCY_QUERIES_WINDOW_SIZE = Setting.positiveTimeSetting(
         TOP_N_LATENCY_QUERIES_PREFIX + ".window_size",
-        new TimeValue(DEFAULT_WINDOW_SIZE, TimeUnit.SECONDS),
+        DEFAULT_WINDOW_SIZE,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
