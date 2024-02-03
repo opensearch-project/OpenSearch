@@ -309,9 +309,6 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
             // See please https://github.com/apache/lucene/pull/964
             collector.setWeight(weight);
             leafCollector = collector.getLeafCollector(ctx);
-            if (leafCollector == null) {
-                return;
-            }
         } catch (CollectionTerminatedException e) {
             // there is no doc of interest in this reader context
             // continue with the following leaf
