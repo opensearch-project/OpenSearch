@@ -1,13 +1,13 @@
 "Help":
   - skip:
-      version: " - 2.99.99"
+      version: " - 2.11.99"
       reason:  deleted docs and concurrent search are added in 2.12.0
       features: node_selector
   - do:
       cat.shards:
         help: true
       node_selector:
-        version: "3.0.0 - "
+        version: "2.12.0 - "
 
   - match:
       $body: |
