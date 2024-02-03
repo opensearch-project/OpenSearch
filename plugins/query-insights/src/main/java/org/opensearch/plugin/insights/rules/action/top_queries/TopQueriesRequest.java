@@ -9,7 +9,6 @@
 package org.opensearch.plugin.insights.rules.action.top_queries;
 
 import org.opensearch.action.support.nodes.BaseNodesRequest;
-import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.plugin.insights.rules.model.MetricType;
@@ -21,10 +20,9 @@ import java.io.IOException;
  *
  * @opensearch.internal
  */
-@PublicApi(since = "1.0.0")
 public class TopQueriesRequest extends BaseNodesRequest<TopQueriesRequest> {
 
-    MetricType metricType;
+    final MetricType metricType;
 
     /**
      * Constructor for TopQueriesRequest
@@ -32,13 +30,9 @@ public class TopQueriesRequest extends BaseNodesRequest<TopQueriesRequest> {
      * @param in A {@link StreamInput} object.
      * @throws IOException if the stream cannot be deserialized.
      */
-    public TopQueriesRequest(StreamInput in) throws IOException {
+    public TopQueriesRequest(final StreamInput in) throws IOException {
         super(in);
-        MetricType metricType = MetricType.readFromStream(in);
-        if (false == MetricType.allMetricTypes().contains(metricType)) {
-            throw new IllegalStateException("Invalid metric used in top queries request: " + metricType);
-        }
-        this.metricType = metricType;
+        this.metricType = MetricType.readFromStream(in);
     }
 
     /**
@@ -48,7 +42,7 @@ public class TopQueriesRequest extends BaseNodesRequest<TopQueriesRequest> {
      * @param metricType {@link MetricType}
      * @param nodesIds the nodeIds specified in the request
      */
-    public TopQueriesRequest(MetricType metricType, String... nodesIds) {
+    public TopQueriesRequest(final MetricType metricType, final String... nodesIds) {
         super(nodesIds);
         this.metricType = metricType;
     }
@@ -61,7 +55,7 @@ public class TopQueriesRequest extends BaseNodesRequest<TopQueriesRequest> {
     }
 
     @Override
-    public void writeTo(StreamOutput out) throws IOException {
+    public void writeTo(final StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeString(metricType.toString());
     }

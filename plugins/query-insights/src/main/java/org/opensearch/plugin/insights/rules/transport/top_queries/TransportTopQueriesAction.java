@@ -55,11 +55,11 @@ public class TransportTopQueriesAction extends TransportNodesAction<
      */
     @Inject
     public TransportTopQueriesAction(
-        ThreadPool threadPool,
-        ClusterService clusterService,
-        TransportService transportService,
-        QueryInsightsService queryInsightsService,
-        ActionFilters actionFilters
+        final ThreadPool threadPool,
+        final ClusterService clusterService,
+        final TransportService transportService,
+        final QueryInsightsService queryInsightsService,
+        final ActionFilters actionFilters
     ) {
         super(
             TopQueriesAction.NAME,
@@ -77,9 +77,9 @@ public class TransportTopQueriesAction extends TransportNodesAction<
 
     @Override
     protected TopQueriesResponse newResponse(
-        TopQueriesRequest topQueriesRequest,
-        List<TopQueries> responses,
-        List<FailedNodeException> failures
+        final TopQueriesRequest topQueriesRequest,
+        final List<TopQueries> responses,
+        final List<FailedNodeException> failures
     ) {
         if (topQueriesRequest.getMetricType() == MetricType.LATENCY) {
             return new TopQueriesResponse(
@@ -95,20 +95,23 @@ public class TransportTopQueriesAction extends TransportNodesAction<
     }
 
     @Override
-    protected NodeRequest newNodeRequest(TopQueriesRequest request) {
+    protected NodeRequest newNodeRequest(final TopQueriesRequest request) {
         return new NodeRequest(request);
     }
 
     @Override
-    protected TopQueries newNodeResponse(StreamInput in) throws IOException {
+    protected TopQueries newNodeResponse(final StreamInput in) throws IOException {
         return new TopQueries(in);
     }
 
     @Override
-    protected TopQueries nodeOperation(NodeRequest nodeRequest) {
-        TopQueriesRequest request = nodeRequest.request;
+    protected TopQueries nodeOperation(final NodeRequest nodeRequest) {
+        final TopQueriesRequest request = nodeRequest.request;
         if (request.getMetricType() == MetricType.LATENCY) {
-            return new TopQueries(clusterService.localNode(), queryInsightsService.getTopNRecords(MetricType.LATENCY, true));
+            return new TopQueries(
+                clusterService.localNode(),
+                queryInsightsService.getTopQueriesService(MetricType.LATENCY).getTopQueriesRecords(true)
+            );
         } else {
             throw new OpenSearchException(String.format(Locale.ROOT, "invalid metric type %s", request.getMetricType()));
         }
@@ -122,10 +125,11 @@ public class TransportTopQueriesAction extends TransportNodesAction<
      */
     public static class NodeRequest extends TransportRequest {
 
-        TopQueriesRequest request;
+        final TopQueriesRequest request;
 
         /**
          * Create the NodeResponse object from StreamInput
+         *
          * @param in the StreamInput to read the object
          * @throws IOException IOException
          */
@@ -138,12 +142,12 @@ public class TransportTopQueriesAction extends TransportNodesAction<
          * Create the NodeResponse object from a TopQueriesRequest
          * @param request the TopQueriesRequest object
          */
-        public NodeRequest(TopQueriesRequest request) {
+        public NodeRequest(final TopQueriesRequest request) {
             this.request = request;
         }
 
         @Override
-        public void writeTo(StreamOutput out) throws IOException {
+        public void writeTo(final StreamOutput out) throws IOException {
             super.writeTo(out);
             request.writeTo(out);
         }
