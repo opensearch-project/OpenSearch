@@ -286,6 +286,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
             Runnable r = () -> {
                 final Thread thread = Thread.currentThread();
                 try {
+                    final SearchPhase phase = this;
                     executePhaseOnShard(shardIt, shard, new SearchActionListener<Result>(shard, shardIndex) {
                         @Override
                         public void innerOnResponse(Result result) {
@@ -299,7 +300,13 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                         @Override
                         public void onFailure(Exception t) {
                             try {
-                                onShardFailure(shardIndex, shard, shardIt, t);
+                                // It only happens when onPhaseDone() is called and executePhaseOnShard() fails hard with an exception.
+                                if (totalOps.get() == expectedTotalOps) {
+                                    onPhaseFailure(phase, "The phase has failed", t);
+                                } else {
+                                    onShardFailure(shardIndex, shard, shardIt, t);
+                                }
+
                             } finally {
                                 executeNext(pendingExecutions, thread);
                             }
