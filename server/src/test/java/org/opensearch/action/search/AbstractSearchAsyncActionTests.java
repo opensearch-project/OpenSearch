@@ -221,7 +221,11 @@ public class AbstractSearchAsyncActionTests extends OpenSearchTestCase {
                 if (failExecutePhaseOnShard) {
                     listener.onFailure(new ShardNotFoundException(shardIt.shardId()));
                 } else {
-                    listener.onResponse(new QuerySearchResult());
+                    try {
+                        listener.onResponse(new QuerySearchResult());
+                    } catch (Exception e) {
+                        listener.onFailure(e);
+                    }
                 }
             }
 
