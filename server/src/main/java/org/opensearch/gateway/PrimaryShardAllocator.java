@@ -125,7 +125,7 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
             return decision;
         }
         final FetchResult<NodeGatewayStartedShards> shardState = fetchData(unassignedShard, allocation);
-        List<NodeGatewayStartedShards> nodeShardStates = adaptToNodeShardStates(shardState);
+        List<NodeGatewayStartedShards> nodeShardStates = adaptToNodeStartedShardList(shardState);
         return getAllocationDecision(unassignedShard, allocation, nodeShardStates, logger);
     }
 
@@ -135,7 +135,7 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
     *
     * @param shardsState {@link FetchResult<NodeGatewayStartedShards>}
     * */
-    private static List<NodeGatewayStartedShards> adaptToNodeShardStates(FetchResult<NodeGatewayStartedShards> shardsState) {
+    private static List<NodeGatewayStartedShards> adaptToNodeStartedShardList(FetchResult<NodeGatewayStartedShards> shardsState) {
         if (!shardsState.hasData()) {
             return null;
         }
@@ -150,15 +150,15 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
         List<NodeGatewayStartedShards> shardState,
         Logger logger
     ) {
+        final boolean explain = allocation.debugDecision();
         if (shardState == null) {
             allocation.setHasPendingAsyncFetch();
             List<NodeAllocationResult> nodeDecisions = null;
-            if (allocation.debugDecision()) {
+            if (explain) {
                 nodeDecisions = buildDecisionsForAllNodes(unassignedShard, allocation);
             }
             return AllocateUnassignedDecision.no(AllocationStatus.FETCHING_SHARD_DATA, nodeDecisions);
         }
-        final boolean explain = allocation.debugDecision();
         // don't create a new IndexSetting object for every shard as this could cause a lot of garbage
         // on cluster restart if we allocate a boat load of shards
         final IndexMetadata indexMetadata = allocation.metadata().getIndexSafe(unassignedShard.index());
