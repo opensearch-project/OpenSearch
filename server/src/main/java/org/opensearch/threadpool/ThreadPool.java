@@ -41,7 +41,6 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.SizeValue;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.util.concurrent.OpenSearchExecutors;
 import org.opensearch.common.util.concurrent.OpenSearchThreadPoolExecutor;
 import org.opensearch.common.util.concurrent.ThreadContext;
@@ -186,9 +185,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         map.put(Names.REMOTE_PURGE, ThreadPoolType.SCALING);
         map.put(Names.REMOTE_REFRESH_RETRY, ThreadPoolType.SCALING);
         map.put(Names.REMOTE_RECOVERY, ThreadPoolType.SCALING);
-        if (FeatureFlags.isEnabled(FeatureFlags.CONCURRENT_SEGMENT_SEARCH)) {
-            map.put(Names.INDEX_SEARCHER, ThreadPoolType.FIXED_AUTO_QUEUE_SIZE);
-        }
+        map.put(Names.INDEX_SEARCHER, ThreadPoolType.FIXED_AUTO_QUEUE_SIZE);
         THREAD_POOL_TYPES = Collections.unmodifiableMap(map);
     }
 
@@ -293,21 +290,19 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
                 TimeValue.timeValueMinutes(5)
             )
         );
-        if (FeatureFlags.isEnabled(FeatureFlags.CONCURRENT_SEGMENT_SEARCH)) {
-            builders.put(
+        builders.put(
+            Names.INDEX_SEARCHER,
+            new AutoQueueAdjustingExecutorBuilder(
+                settings,
                 Names.INDEX_SEARCHER,
-                new AutoQueueAdjustingExecutorBuilder(
-                    settings,
-                    Names.INDEX_SEARCHER,
-                    allocatedProcessors,
-                    1000,
-                    1000,
-                    1000,
-                    2000,
-                    runnableTaskListener
-                )
-            );
-        }
+                allocatedProcessors,
+                1000,
+                1000,
+                1000,
+                2000,
+                runnableTaskListener
+            )
+        );
 
         for (final ExecutorBuilder<?> builder : customBuilders) {
             if (builders.containsKey(builder.name())) {

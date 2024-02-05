@@ -364,6 +364,9 @@ public final class IndicesRequestCache implements RemovalListener<IndicesRequest
         }
     }
 
+    /**
+     * Logic to clean up in-memory cache.
+     */
     synchronized void cleanCache() {
         final Set<CleanupKey> currentKeysToClean = new HashSet<>();
         final Set<Object> currentFullClean = new HashSet<>();
@@ -394,7 +397,6 @@ public final class IndicesRequestCache implements RemovalListener<IndicesRequest
                 }
             }
         }
-
         cache.refresh();
     }
 

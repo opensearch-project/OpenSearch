@@ -219,6 +219,7 @@ public class SegmentReplicationRelocationIT extends SegmentReplicationBaseIT {
      * This test verifies primary recovery behavior with continuous ingestion
      *
      */
+    @TestLogging(reason = "Enable trace logs from replication and recovery package", value = "org.opensearch.indices.recovery:TRACE,org.opensearch.indices.replication:TRACE")
     public void testRelocateWhileContinuouslyIndexingAndWaitingForRefresh() throws Exception {
         final String primary = internalCluster().startNode();
         createIndex(1);
