@@ -59,7 +59,7 @@ public final class OTelResourceProvider {
                 settings,
                 OTelSpanExporterFactory.create(settings),
                 ContextPropagators.create(W3CTraceContextPropagator.getInstance()),
-                Sampler.parentBased(new RequestSampler(telemetrySettings))
+                Sampler.parentBased(new RequestSampler(telemetrySettings, settings))
             )
         );
     }

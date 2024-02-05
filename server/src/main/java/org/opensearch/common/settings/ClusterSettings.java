@@ -728,8 +728,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
             TelemetrySettings.METRICS_PUBLISH_INTERVAL_SETTING,
             TelemetrySettings.TRACER_FEATURE_ENABLED_SETTING,
             TelemetrySettings.METRICS_FEATURE_ENABLED_SETTING,
-            TelemetrySettings.TRACER_SAMPLER_ACTION_PROBABILITY,
-            TelemetrySettings.TRACER_SPAN_SAMPLER_CLASSES
+            TelemetrySettings.TRACER_SAMPLER_ACTION_PROBABILITY
         )
     );
 }

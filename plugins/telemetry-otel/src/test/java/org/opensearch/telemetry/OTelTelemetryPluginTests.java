@@ -30,13 +30,13 @@ import java.util.Set;
 import static org.opensearch.telemetry.OTelTelemetryPlugin.OTEL_TRACER_NAME;
 import static org.opensearch.telemetry.OTelTelemetrySettings.OTEL_METRICS_EXPORTER_CLASS_SETTING;
 import static org.opensearch.telemetry.OTelTelemetrySettings.OTEL_TRACER_SPAN_EXPORTER_CLASS_SETTING;
+import static org.opensearch.telemetry.OTelTelemetrySettings.OTEL_TRACER_SPAN_SAMPLER_CLASS_SETTINGS;
 import static org.opensearch.telemetry.OTelTelemetrySettings.TRACER_EXPORTER_BATCH_SIZE_SETTING;
 import static org.opensearch.telemetry.OTelTelemetrySettings.TRACER_EXPORTER_DELAY_SETTING;
 import static org.opensearch.telemetry.OTelTelemetrySettings.TRACER_EXPORTER_MAX_QUEUE_SIZE_SETTING;
 import static org.opensearch.telemetry.TelemetrySettings.TRACER_ENABLED_SETTING;
 import static org.opensearch.telemetry.TelemetrySettings.TRACER_SAMPLER_ACTION_PROBABILITY;
 import static org.opensearch.telemetry.TelemetrySettings.TRACER_SAMPLER_PROBABILITY;
-import static org.opensearch.telemetry.TelemetrySettings.TRACER_SPAN_SAMPLER_CLASSES;
 
 public class OTelTelemetryPluginTests extends OpenSearchTestCase {
 
@@ -55,15 +55,7 @@ public class OTelTelemetryPluginTests extends OpenSearchTestCase {
         telemetry = oTelTelemetryPlugin.getTelemetry(
             new TelemetrySettings(
                 Settings.EMPTY,
-                new ClusterSettings(
-                    settings,
-                    Set.of(
-                        TRACER_ENABLED_SETTING,
-                        TRACER_SAMPLER_PROBABILITY,
-                        TRACER_SAMPLER_ACTION_PROBABILITY,
-                        TRACER_SPAN_SAMPLER_CLASSES
-                    )
-                )
+                new ClusterSettings(settings, Set.of(TRACER_ENABLED_SETTING, TRACER_SAMPLER_PROBABILITY, TRACER_SAMPLER_ACTION_PROBABILITY))
             )
         );
         tracingTelemetry = telemetry.get().getTracingTelemetry();
@@ -82,7 +74,8 @@ public class OTelTelemetryPluginTests extends OpenSearchTestCase {
                 TRACER_EXPORTER_DELAY_SETTING,
                 TRACER_EXPORTER_MAX_QUEUE_SIZE_SETTING,
                 OTEL_TRACER_SPAN_EXPORTER_CLASS_SETTING,
-                OTEL_METRICS_EXPORTER_CLASS_SETTING
+                OTEL_METRICS_EXPORTER_CLASS_SETTING,
+                OTEL_TRACER_SPAN_SAMPLER_CLASS_SETTINGS
             ),
             oTelTelemetryPlugin.getSettings()
         );

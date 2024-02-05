@@ -228,6 +228,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - [Query Insights] Query Insights Framework which currently supports retrieving the most time-consuming queries within the last configured time window ([#11903](https://github.com/opensearch-project/OpenSearch/pull/11903))
 - [Query Insights] Implement Top N Queries feature to collect and gather information about high latency queries in a window ([#11904](https://github.com/opensearch-project/OpenSearch/pull/11904))
 - Add override support for sampling based on action ([#9621](https://github.com/opensearch-project/OpenSearch/issues/9621))
+- Added custom sampler support based on transport action in request ([#9621](https://github.com/opensearch-project/OpenSearch/issues/9621))
 
 ### Deprecated
 

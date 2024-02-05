@@ -8,11 +8,9 @@
 
 package org.opensearch.telemetry.tracing.sampler;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.telemetry.TelemetrySettings;
 
-import java.lang.reflect.Constructor;
 import java.util.HashMap;
 import java.util.List;
 
@@ -24,6 +22,7 @@ import io.opentelemetry.sdk.trace.data.LinkData;
 import io.opentelemetry.sdk.trace.samplers.Sampler;
 import io.opentelemetry.sdk.trace.samplers.SamplingResult;
 
+import static org.opensearch.telemetry.OTelTelemetrySettings.OTEL_TRACER_SPAN_SAMPLER_CLASS_SETTINGS;
 import static org.opensearch.telemetry.tracing.AttributeNames.TRACE;
 
 /**
@@ -31,37 +30,16 @@ import static org.opensearch.telemetry.tracing.AttributeNames.TRACE;
  */
 public class RequestSampler implements Sampler {
     private final HashMap<String, Sampler> samplers;
-    private final TelemetrySettings telemetrySettings;
-    /**
-     * Logger instance for logging messages related to the request sampler.
-     */
-    protected Logger logger;
+    private final List<String> samplerList;
 
     /**
      * Creates request sampler which applies based on all applicable sampler
      * @param telemetrySettings TelemetrySettings
+     * @param setting Settings
      */
-    public RequestSampler(TelemetrySettings telemetrySettings) {
-        this.telemetrySettings = telemetrySettings;
-        this.samplers = new HashMap<>();
-        this.logger = LogManager.getLogger(getClass());
-        this.SamplerInit();
-    }
-
-    /**
-     * Initialises all samplers based on telemetry setting
-     */
-    private void SamplerInit() {
-        for (String samplerName : this.telemetrySettings.getSamplingOrder()) {
-            try {
-                Class<?> samplerClass = Class.forName(samplerName);
-                Constructor<?> constructor = samplerClass.getConstructor(TelemetrySettings.class);
-                Sampler sampler = (Sampler) constructor.newInstance(telemetrySettings);
-                this.samplers.put(samplerName, sampler);
-            } catch (Exception e) {
-                logger.error("error while creatin class object: ", e);
-            }
-        }
+    public RequestSampler(TelemetrySettings telemetrySettings, Settings setting) {
+        this.samplers = OTelSamplerFactory.create(telemetrySettings, setting);
+        this.samplerList = OTEL_TRACER_SPAN_SAMPLER_CLASS_SETTINGS.get(setting);
     }
 
     @Override
@@ -75,15 +53,14 @@ public class RequestSampler implements Sampler {
     ) {
         final String trace = attributes.get(AttributeKey.stringKey(TRACE));
 
-        List<String> samplers = telemetrySettings.getSamplingOrder();
         if (trace != null) {
             return (Boolean.parseBoolean(trace) == true) ? SamplingResult.recordAndSample() : SamplingResult.drop();
         }
 
-        for (String samplerName : samplers) {
+        for (String samplerName : this.samplerList) {
             SamplingResult result = this.samplers.get(samplerName)
                 .shouldSample(parentContext, traceId, name, spanKind, attributes, parentLinks);
-            if (result == SamplingResult.recordAndSample()) {
+            if (result == SamplingResult.recordAndSample() || result == SamplingResult.drop()) {
                 return result;
             }
         }

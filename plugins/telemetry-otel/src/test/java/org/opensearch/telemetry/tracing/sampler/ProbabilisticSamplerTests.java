@@ -22,7 +22,6 @@ import static org.opensearch.telemetry.OTelTelemetrySettings.TRACER_EXPORTER_DEL
 import static org.opensearch.telemetry.TelemetrySettings.TRACER_ENABLED_SETTING;
 import static org.opensearch.telemetry.TelemetrySettings.TRACER_SAMPLER_ACTION_PROBABILITY;
 import static org.opensearch.telemetry.TelemetrySettings.TRACER_SAMPLER_PROBABILITY;
-import static org.opensearch.telemetry.TelemetrySettings.TRACER_SPAN_SAMPLER_CLASSES;
 import static org.mockito.Mockito.mock;
 
 public class ProbabilisticSamplerTests extends OpenSearchTestCase {
@@ -37,10 +36,7 @@ public class ProbabilisticSamplerTests extends OpenSearchTestCase {
         Settings settings = Settings.builder().put(TRACER_EXPORTER_DELAY_SETTING.getKey(), "1s").build();
         TelemetrySettings telemetrySettings = new TelemetrySettings(
             Settings.EMPTY,
-            new ClusterSettings(
-                settings,
-                Set.of(TRACER_SAMPLER_PROBABILITY, TRACER_ENABLED_SETTING, TRACER_SAMPLER_ACTION_PROBABILITY, TRACER_SPAN_SAMPLER_CLASSES)
-            )
+            new ClusterSettings(settings, Set.of(TRACER_SAMPLER_PROBABILITY, TRACER_ENABLED_SETTING, TRACER_SAMPLER_ACTION_PROBABILITY))
         );
 
         // Probabilistic Sampler
@@ -53,10 +49,7 @@ public class ProbabilisticSamplerTests extends OpenSearchTestCase {
         Settings settings = Settings.builder().put(TRACER_EXPORTER_DELAY_SETTING.getKey(), "1s").build();
         TelemetrySettings telemetrySettings = new TelemetrySettings(
             Settings.EMPTY,
-            new ClusterSettings(
-                settings,
-                Set.of(TRACER_SAMPLER_PROBABILITY, TRACER_ENABLED_SETTING, TRACER_SAMPLER_ACTION_PROBABILITY, TRACER_SPAN_SAMPLER_CLASSES)
-            )
+            new ClusterSettings(settings, Set.of(TRACER_SAMPLER_PROBABILITY, TRACER_ENABLED_SETTING, TRACER_SAMPLER_ACTION_PROBABILITY))
         );
 
         // Probabilistic Sampler

@@ -13,10 +13,14 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.telemetry.metrics.exporter.OTelMetricsExporterFactory;
 import org.opensearch.telemetry.tracing.exporter.OTelSpanExporterFactory;
+import org.opensearch.telemetry.tracing.sampler.ProbabilisticSampler;
+import org.opensearch.telemetry.tracing.sampler.ProbabilisticTransportActionSampler;
 
 import java.security.AccessController;
 import java.security.PrivilegedActionException;
 import java.security.PrivilegedExceptionAction;
+import java.util.List;
+import java.util.function.Function;
 
 import io.opentelemetry.exporter.logging.LoggingMetricExporter;
 import io.opentelemetry.exporter.logging.LoggingSpanExporter;
@@ -110,4 +114,17 @@ public final class OTelTelemetrySettings {
         Setting.Property.NodeScope,
         Setting.Property.Final
     );
+
+    /**
+     * Samplers orders setting.
+     */
+    @SuppressWarnings("unchecked")
+    public static final Setting<List<String>> OTEL_TRACER_SPAN_SAMPLER_CLASS_SETTINGS = Setting.listSetting(
+        "telemetry.otel.tracer.span.sampler.classes",
+        List.of(ProbabilisticTransportActionSampler.class.getName(), ProbabilisticSampler.class.getName()),
+        Function.identity(),
+        Setting.Property.NodeScope,
+        Setting.Property.Final
+    );
+
 }

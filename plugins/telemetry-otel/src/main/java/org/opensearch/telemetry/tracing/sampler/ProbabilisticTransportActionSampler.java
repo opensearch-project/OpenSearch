@@ -61,7 +61,7 @@ public class ProbabilisticTransportActionSampler implements Sampler {
             }
             return actionSampler.shouldSample(parentContext, traceId, name, spanKind, attributes, parentLinks);
         }
-        return SamplingResult.drop();
+        return SamplingResult.recordOnly();
     }
 
     private boolean isActionSamplingRatioChanged(double newSamplingRatio) {
