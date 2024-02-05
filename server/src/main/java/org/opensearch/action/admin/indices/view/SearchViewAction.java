@@ -1,9 +1,5 @@
 package org.opensearch.action.admin.indices.view;
 
-import java.io.IOException;
-import java.util.Objects;
-import java.util.function.Function;
-
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.ActionType;
 import org.opensearch.action.search.SearchRequest;
@@ -21,6 +17,10 @@ import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.tasks.Task;
 import org.opensearch.transport.TransportService;
 
+import java.io.IOException;
+import java.util.Objects;
+import java.util.function.Function;
+
 import static org.opensearch.action.ValidateActions.addValidationError;
 
 /** Action to create a view */
@@ -34,8 +34,7 @@ public class SearchViewAction extends ActionType<SearchResponse> {
     }
 
     /** Given a search request, creates a ViewSearchRequest */
-    public static Request createRequestWith(final String view, final SearchRequest searchRequest)
-            throws IOException {
+    public static Request createRequestWith(final String view, final SearchRequest searchRequest) throws IOException {
         final BytesStreamOutput savedSearchRequest = new BytesStreamOutput();
         searchRequest.writeTo(savedSearchRequest);
         savedSearchRequest.writeString(view);
@@ -43,6 +42,7 @@ public class SearchViewAction extends ActionType<SearchResponse> {
         final BytesStreamInput input = new BytesStreamInput(savedSearchRequest.bytes().toBytesRef().bytes);
         return new Request(input);
     }
+
     /**
      * Wraps the functionality of search requests and tailors for what is available
      * when searching through views
@@ -71,10 +71,9 @@ public class SearchViewAction extends ActionType<SearchResponse> {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Request that = (Request) o;
-            return view.equals(that.view)
-                && super.equals(that);
+            return view.equals(that.view) && super.equals(that);
         }
-    
+
         @Override
         public int hashCode() {
             return Objects.hash(view, super.hashCode());
@@ -118,10 +117,7 @@ public class SearchViewAction extends ActionType<SearchResponse> {
         private final ViewService viewService;
 
         @Inject
-        public TransportAction(
-                final TransportService transportService,
-                final ActionFilters actionFilters,
-                final ViewService viewService) {
+        public TransportAction(final TransportService transportService, final ActionFilters actionFilters, final ViewService viewService) {
             super(NAME, transportService, actionFilters, Request::new);
             this.viewService = viewService;
         }

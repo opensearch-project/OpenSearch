@@ -1,10 +1,5 @@
 package org.opensearch.action.admin.indices.view;
 
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Objects;
-
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.ActionType;
 import org.opensearch.action.ValidateActions;
@@ -33,6 +28,11 @@ import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
+
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Objects;
 
 /** Action to create a view */
 public class CreateViewAction extends ActionType<CreateViewAction.Response> {
@@ -83,11 +83,9 @@ public class CreateViewAction extends ActionType<CreateViewAction.Response> {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Request that = (Request) o;
-            return name.equals(that.name)
-                && description.equals(that.description)
-                && targets.equals(that.targets);
+            return name.equals(that.name) && description.equals(that.description) && targets.equals(that.targets);
         }
-    
+
         @Override
         public int hashCode() {
             return Objects.hash(name, description, targets);
@@ -142,7 +140,7 @@ public class CreateViewAction extends ActionType<CreateViewAction.Response> {
                 Target that = (Target) o;
                 return indexPattern.equals(that.indexPattern);
             }
-        
+
             @Override
             public int hashCode() {
                 return Objects.hash(indexPattern);
@@ -170,7 +168,7 @@ public class CreateViewAction extends ActionType<CreateViewAction.Response> {
             static {
                 PARSER.declareString(ConstructingObjectParser.constructorArg(), View.Target.INDEX_PATTERN_FIELD);
             }
-    
+
             public static Target fromXContent(final XContentParser parser) throws IOException {
                 return PARSER.parse(parser, null);
             }
@@ -187,7 +185,7 @@ public class CreateViewAction extends ActionType<CreateViewAction.Response> {
             PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), View.DESCRIPTION_FIELD);
             PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(), (p, c) -> Target.fromXContent(p), View.TARGETS_FIELD);
         }
-    
+
         public static Request fromXContent(final XContentParser parser) throws IOException {
             return PARSER.parse(parser, null);
         }
@@ -197,7 +195,7 @@ public class CreateViewAction extends ActionType<CreateViewAction.Response> {
     @ExperimentalApi
     public static class Response extends ActionResponse implements ToXContentObject {
 
-        private final View createdView; 
+        private final View createdView;
 
         public Response(final View createdView) {
             this.createdView = createdView;
@@ -220,7 +218,7 @@ public class CreateViewAction extends ActionType<CreateViewAction.Response> {
             builder.endObject();
             return builder;
         }
- 
+
         private static final ConstructingObjectParser<Response, Void> PARSER = new ConstructingObjectParser<>(
             "create_view_response",
             args -> new Response((View) args[0])

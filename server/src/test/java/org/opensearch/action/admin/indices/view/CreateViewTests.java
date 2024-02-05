@@ -16,10 +16,10 @@ import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.test.AbstractWireSerializingTestCase;
 
+import java.util.List;
+
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-
-import java.util.List;
 
 public class CreateViewTests extends AbstractWireSerializingTestCase<CreateViewAction.Request> {
 
@@ -30,13 +30,19 @@ public class CreateViewTests extends AbstractWireSerializingTestCase<CreateViewA
 
     @Override
     protected CreateViewAction.Request createTestInstance() {
-        return new CreateViewAction.Request(randomAlphaOfLength(8), randomAlphaOfLength(8),
-                randomList(5, () -> new CreateViewAction.Request.Target(randomAlphaOfLength(8))));
+        return new CreateViewAction.Request(
+            randomAlphaOfLength(8),
+            randomAlphaOfLength(8),
+            randomList(5, () -> new CreateViewAction.Request.Target(randomAlphaOfLength(8)))
+        );
     }
 
     public void testValidateRequest() {
-        final CreateViewAction.Request request = new CreateViewAction.Request("my-view", "this is a description",
-                List.of(new CreateViewAction.Request.Target("my-indices-*")));
+        final CreateViewAction.Request request = new CreateViewAction.Request(
+            "my-view",
+            "this is a description",
+            List.of(new CreateViewAction.Request.Target("my-indices-*"))
+        );
         assertNull(request.validate());
     }
 

@@ -46,7 +46,6 @@ public class View extends AbstractDiffable<View> implements ToXContentObject {
         this(in.readString(), in.readOptionalString(), in.readVLong(), in.readVLong(), in.readList(Target::new));
     }
 
-
     public String getName() {
         return name;
     }
@@ -113,7 +112,7 @@ public class View extends AbstractDiffable<View> implements ToXContentObject {
             Target that = (Target) o;
             return indexPattern.equals(that.indexPattern);
         }
-    
+
         @Override
         public int hashCode() {
             return Objects.hash(indexPattern);

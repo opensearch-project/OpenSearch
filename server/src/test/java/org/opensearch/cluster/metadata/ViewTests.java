@@ -67,7 +67,7 @@ public class ViewTests extends AbstractSerializingTestCase<View> {
     }
 
     public void testNullTargetIndexPattern() {
-        final NullPointerException npe = assertThrows(NullPointerException.class, () -> new View.Target((String)null));
+        final NullPointerException npe = assertThrows(NullPointerException.class, () -> new View.Target((String) null));
 
         assertThat(npe.getMessage(), equalTo("IndexPattern is required"));
     }

@@ -1,9 +1,5 @@
 package org.opensearch.action.admin.indices.view;
 
-import java.util.List;
-import java.util.Optional;
-import java.util.stream.Collectors;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.ResourceNotFoundException;
@@ -16,6 +12,10 @@ import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.metadata.View;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.core.action.ActionListener;
+
+import java.util.List;
+import java.util.Optional;
+import java.util.stream.Collectors;
 
 /** Service to interact with views, create, retrieve, update, and delete */
 public class ViewService {
@@ -72,7 +72,8 @@ public class ViewService {
         }
         final View view = optView.get();
 
-        final String[] indices = view.getTargets().stream()
+        final String[] indices = view.getTargets()
+            .stream()
             .map(View.Target::getIndexPattern)
             .collect(Collectors.toList())
             .toArray(new String[0]);

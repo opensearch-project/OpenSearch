@@ -17,11 +17,10 @@ import org.opensearch.action.search.SearchRequest;
 import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.test.AbstractWireSerializingTestCase;
 
+import java.io.IOException;
+
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-
-import java.io.IOException;
-import java.util.List;
 
 public class SearchViewTests extends AbstractWireSerializingTestCase<SearchViewAction.Request> {
 
@@ -45,7 +44,7 @@ public class SearchViewTests extends AbstractWireSerializingTestCase<SearchViewA
     }
 
     public void testValidateRequestWithoutName() {
-        final SearchViewAction.Request request = new SearchViewAction.Request((String)null);
+        final SearchViewAction.Request request = new SearchViewAction.Request((String) null);
         ActionRequestValidationException e = request.validate();
         assertNotNull(e);
         assertThat(e.validationErrors().size(), equalTo(1));

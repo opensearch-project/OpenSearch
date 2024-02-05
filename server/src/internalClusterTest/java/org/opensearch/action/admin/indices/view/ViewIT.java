@@ -8,11 +8,6 @@
 
 package org.opensearch.action.admin.indices.view;
 
-import static org.hamcrest.Matchers.is;
-import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
-
-import java.util.List;
-
 import org.opensearch.action.search.SearchRequest;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.index.IndexNotFoundException;
@@ -20,7 +15,11 @@ import org.opensearch.test.BackgroundIndexer;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.OpenSearchIntegTestCase.ClusterScope;
 import org.opensearch.test.OpenSearchIntegTestCase.Scope;
-import org.opensearch.test.junit.annotations.TestLogging;
+
+import java.util.List;
+
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
+import static org.hamcrest.Matchers.is;
 
 @ClusterScope(scope = Scope.TEST, numDataNodes = 2)
 public class ViewIT extends OpenSearchIntegTestCase {
@@ -40,7 +39,11 @@ public class ViewIT extends OpenSearchIntegTestCase {
     }
 
     private CreateViewAction.Response createView(final String name, final String indexPattern) throws Exception {
-        final CreateViewAction.Request request = new CreateViewAction.Request(name, null, List.of(new CreateViewAction.Request.Target(indexPattern)));
+        final CreateViewAction.Request request = new CreateViewAction.Request(
+            name,
+            null,
+            List.of(new CreateViewAction.Request.Target(indexPattern))
+        );
         final CreateViewAction.Response response = client().admin().indices().createView(request).actionGet();
         performRemoteStoreTestAction();
         return response;
@@ -48,7 +51,7 @@ public class ViewIT extends OpenSearchIntegTestCase {
 
     private SearchResponse searchView(final String viewName) throws Exception {
         final SearchViewAction.Request request = SearchViewAction.createRequestWith(viewName, new SearchRequest());
-        final SearchResponse response = client().searchView(request).actionGet();
+        final SearchResponse response = client().admin().indices().searchView(request).actionGet();
         return response;
     }
 
