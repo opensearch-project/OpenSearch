@@ -249,10 +249,19 @@ public class DateFormattersTests extends OpenSearchTestCase {
     }
 
     public void testEpochMilliParsersWithDifferentFormatters() {
-        DateFormatter formatter = DateFormatter.forPattern("strict_date_optional_time||epoch_millis");
-        TemporalAccessor accessor = formatter.parse("123");
-        assertThat(DateFormatters.from(accessor).toInstant().toEpochMilli(), is(123L));
-        assertThat(formatter.pattern(), is("strict_date_optional_time||epoch_millis"));
+        {
+            DateFormatter formatter = DateFormatter.forPattern("strict_date_optional_time||epoch_millis");
+            TemporalAccessor accessor = formatter.parse("123");
+            assertThat(DateFormatters.from(accessor).toInstant().toEpochMilli(), is(123L));
+            assertThat(formatter.pattern(), is("strict_date_optional_time||epoch_millis"));
+        }
+
+        {
+            DateFormatter formatter = DateFormatter.forPattern("rfc3339_lenient||epoch_millis");
+            TemporalAccessor accessor = formatter.parse("123");
+            assertThat(DateFormatters.from(accessor).toInstant().toEpochMilli(), is(123L));
+            assertThat(formatter.pattern(), is("rfc3339_lenient||epoch_millis"));
+        }
     }
 
     public void testParsersWithMultipleInternalFormats() throws Exception {
@@ -317,6 +326,11 @@ public class DateFormattersTests extends OpenSearchTestCase {
         assertThat(epochMillisFormatter.hashCode(), is(DateFormatters.forPattern("epoch_millis").hashCode()));
         assertThat(epochMillisFormatter, sameInstance(DateFormatters.forPattern("epoch_millis")));
         assertThat(epochMillisFormatter, equalTo(DateFormatters.forPattern("epoch_millis")));
+
+        DateFormatter rfc339Formatter = DateFormatters.forPattern("rfc3339_lenient");
+        assertThat(rfc339Formatter.hashCode(), is(DateFormatters.forPattern("rfc3339_lenient").hashCode()));
+        assertThat(rfc339Formatter, sameInstance(DateFormatters.forPattern("rfc3339_lenient")));
+        assertThat(rfc339Formatter, equalTo(DateFormatters.forPattern("rfc3339_lenient")));
     }
 
     public void testSupportBackwardsJava8Format() {
@@ -459,6 +473,132 @@ public class DateFormattersTests extends OpenSearchTestCase {
         formatter.format(formatter.parse("2018-05-15T17:14:56,123456789Z"));
         formatter.format(formatter.parse("2018-05-15T17:14:56,123456789+0100"));
         formatter.format(formatter.parse("2018-05-15T17:14:56,123456789+01:00"));
+    }
+
+    public void testRFC3339Parsing() {
+        DateFormatter formatter = DateFormatters.forPattern("rfc3339_lenient");
+
+        // timezone not allowed with just date
+        formatter.format(formatter.parse("2018"));
+        formatter.format(formatter.parse("2018-05"));
+        formatter.format(formatter.parse("2018-05-15"));
+
+        formatter.format(formatter.parse("2018-05-15T17:14Z"));
+        formatter.format(formatter.parse("2018-05-15T17:14z"));
+        formatter.format(formatter.parse("2018-05-15T17:14+01:00"));
+        formatter.format(formatter.parse("2018-05-15T17:14-01:00"));
+
+        formatter.format(formatter.parse("2018-05-15T17:14:56Z"));
+        formatter.format(formatter.parse("2018-05-15T17:14:56z"));
+        formatter.format(formatter.parse("2018-05-15T17:14:56+01:00"));
+        formatter.format(formatter.parse("2018-05-15T17:14:56-01:00"));
+
+        // milliseconds can be separated using comma or decimal point
+        formatter.format(formatter.parse("2018-05-15T17:14:56.123Z"));
+        formatter.format(formatter.parse("2018-05-15T17:14:56.123z"));
+        formatter.format(formatter.parse("2018-05-15T17:14:56.123-01:00"));
+        formatter.format(formatter.parse("2018-05-15T17:14:56,123Z"));
+        formatter.format(formatter.parse("2018-05-15T17:14:56,123z"));
+        formatter.format(formatter.parse("2018-05-15T17:14:56,123+01:00"));
+
+        // microseconds can be separated using comma or decimal point
+        formatter.format(formatter.parse("2018-05-15T17:14:56.123456Z"));
+        formatter.format(formatter.parse("2018-05-15T17:14:56.123456z"));
+        formatter.format(formatter.parse("2018-05-15T17:14:56.123456+01:00"));
+        formatter.format(formatter.parse("2018-05-15T17:14:56,123456Z"));
+        formatter.format(formatter.parse("2018-05-15T17:14:56,123456z"));
+        formatter.format(formatter.parse("2018-05-15T17:14:56,123456-01:00"));
+
+        // nanoseconds can be separated using comma or decimal point
+        formatter.format(formatter.parse("2018-05-15T17:14:56.123456789Z"));
+        formatter.format(formatter.parse("2018-05-15T17:14:56.123456789-01:00"));
+        formatter.format(formatter.parse("2018-05-15T17:14:56,123456789Z"));
+        formatter.format(formatter.parse("2018-05-15T17:14:56,123456789z"));
+        formatter.format(formatter.parse("2018-05-15T17:14:56,123456789+01:00"));
+
+        // 1994-11-05T08:15:30-05:00 corresponds to November 5, 1994, 8:15:30 am, US Eastern Standard Time/
+        // 1994-11-05T13:15:30Z corresponds to the same instant.
+        final Instant instantA = DateFormatters.from(formatter.parse("1994-11-05T08:15:30-05:00")).toInstant();
+        final Instant instantB = DateFormatters.from(formatter.parse("1994-11-05T13:15:30Z")).toInstant();
+        assertThat(instantA, is(instantB));
+
+        // Invalid dates should throw an exception
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> formatter.parse("abc"));
+        assertThat(e.getMessage(), is("failed to parse date field [abc] with format [rfc3339_lenient]"));
+        // Invalid offset
+        e = expectThrows(IllegalArgumentException.class, () -> formatter.parse("2018-05-15T17:14:56-00:00"));
+        assertThat(e.getMessage(), is("failed to parse date field [2018-05-15T17:14:56-00:00] with format [rfc3339_lenient]"));
+        e = expectThrows(IllegalArgumentException.class, () -> formatter.parse("2018-05-15T17:14:56.+00:00"));
+        assertThat(e.getMessage(), is("failed to parse date field [2018-05-15T17:14:56.+00:00] with format [rfc3339_lenient]"));
+        e = expectThrows(IllegalArgumentException.class, () -> formatter.parse("2018-05-15T17:14:56_00:00"));
+        assertThat(e.getMessage(), is("failed to parse date field [2018-05-15T17:14:56_00:00] with format [rfc3339_lenient]"));
+        // No offset
+        e = expectThrows(IllegalArgumentException.class, () -> formatter.parse("2018-05-15T17:14:56"));
+        assertThat(e.getMessage(), is("failed to parse date field [2018-05-15T17:14:56] with format [rfc3339_lenient]"));
+        e = expectThrows(IllegalArgumentException.class, () -> formatter.parse("2018-05-15T17:14:56.123"));
+        assertThat(e.getMessage(), is("failed to parse date field [2018-05-15T17:14:56.123] with format [rfc3339_lenient]"));
+        // No end of fraction
+        e = expectThrows(IllegalArgumentException.class, () -> formatter.parse("2018-05-15T17:14:56.123"));
+        assertThat(e.getMessage(), is("failed to parse date field [2018-05-15T17:14:56.123] with format [rfc3339_lenient]"));
+        // Invalid fraction
+        e = expectThrows(IllegalArgumentException.class, () -> formatter.parse("2018-05-15T17:14:56.abcZ"));
+        assertThat(e.getMessage(), is("failed to parse date field [2018-05-15T17:14:56.abcZ] with format [rfc3339_lenient]"));
+        // Invalid date
+        e = expectThrows(IllegalArgumentException.class, () -> formatter.parse("201805-15T17:14:56.123456+0000"));
+        assertThat(e.getMessage(), is("failed to parse date field [201805-15T17:14:56.123456+0000] with format [rfc3339_lenient]"));
+        // More than 9 digits of nanosecond resolution
+        e = expectThrows(IllegalArgumentException.class, () -> formatter.parse("2018-05-15T17:14:56.1234567891Z"));
+        assertThat(e.getMessage(), is("failed to parse date field [2018-05-15T17:14:56.1234567891Z] with format [rfc3339_lenient]"));
+    }
+
+    public void testRFC3339ParserWithDifferentFormatters() {
+        {
+            DateFormatter formatter = DateFormatter.forPattern("strict_date_optional_time||rfc3339_lenient");
+            TemporalAccessor accessor = formatter.parse("2018-05-15T17:14:56+0100");
+            assertThat(DateFormatters.from(accessor).toInstant().toEpochMilli(), is(1526400896000L));
+            assertThat(formatter.pattern(), is("strict_date_optional_time||rfc3339_lenient"));
+        }
+
+        {
+            DateFormatter formatter = DateFormatter.forPattern("rfc3339_lenient||strict_date_optional_time");
+            TemporalAccessor accessor = formatter.parse("2018-05-15T17:14:56.123+0100");
+            assertThat(DateFormatters.from(accessor).toInstant().toEpochMilli(), is(1526400896123L));
+            assertThat(formatter.pattern(), is("rfc3339_lenient||strict_date_optional_time"));
+        }
+
+        {
+            DateFormatter formatter = DateFormatter.forPattern("rfc3339_lenient||strict_date_optional_time");
+            TemporalAccessor accessor = formatter.parse("2018-05-15T17:14:56.123456789+0100");
+            assertThat(DateFormatters.from(accessor).toInstant().getNano(), is(123456789));
+            assertThat(formatter.pattern(), is("rfc3339_lenient||strict_date_optional_time"));
+        }
+    }
+
+    public void testRFC3339ParserAgainstDifferentFormatters() {
+        DateFormatter rfc3339Formatter = DateFormatter.forPattern("rfc3339_lenient");
+        {
+            DateFormatter isoFormatter = DateFormatter.forPattern("strict_date_optional_time");
+
+            assertDateTimeEquals("2018-05-15T17:14Z", rfc3339Formatter, isoFormatter);
+            assertDateTimeEquals("2018-05-15T17:14+01:00", rfc3339Formatter, isoFormatter);
+            assertDateTimeEquals("2018-05-15T17:14-01:00", rfc3339Formatter, isoFormatter);
+
+            assertDateTimeEquals("2018-05-15T17:14:56Z", rfc3339Formatter, isoFormatter);
+            assertDateTimeEquals("2018-05-15T17:14:56+01:00", rfc3339Formatter, isoFormatter);
+            assertDateTimeEquals("2018-05-15T17:14:56-01:00", rfc3339Formatter, isoFormatter);
+
+            assertDateTimeEquals("2018-05-15T17:14:56.123Z", rfc3339Formatter, isoFormatter);
+            assertDateTimeEquals("2018-05-15T17:14:56.123+01:00", rfc3339Formatter, isoFormatter);
+            assertDateTimeEquals("2018-05-15T17:14:56.123-01:00", rfc3339Formatter, isoFormatter);
+            assertDateTimeEquals("2018-05-15T17:14:56,123+01:00", rfc3339Formatter, isoFormatter);
+            assertDateTimeEquals("2018-05-15T17:14:56,123-01:00", rfc3339Formatter, isoFormatter);
+
+            assertDateTimeEquals("2018-05-15T17:14:56.123456Z", rfc3339Formatter, isoFormatter);
+            assertDateTimeEquals("2018-05-15T17:14:56.123456789+01:00", rfc3339Formatter, isoFormatter);
+            assertDateTimeEquals("2018-05-15T17:14:56.123456789-01:00", rfc3339Formatter, isoFormatter);
+            assertDateTimeEquals("2018-05-15T17:14:56,123456789+01:00", rfc3339Formatter, isoFormatter);
+            assertDateTimeEquals("2018-05-15T17:14:56,123456789-01:00", rfc3339Formatter, isoFormatter);
+        }
     }
 
     public void testRoundupFormatterWithEpochDates() {
@@ -682,5 +822,11 @@ public class DateFormattersTests extends OpenSearchTestCase {
                 assertThat(dateFormatter.pattern(), equalTo(snakeCaseName));
             }
         }
+    }
+
+    void assertDateTimeEquals(String toTest, DateFormatter candidateParser, DateFormatter baselineParser) {
+        Instant gotInstant = DateFormatters.from(candidateParser.parse(toTest)).toInstant();
+        Instant expectedInstant = DateFormatters.from(baselineParser.parse(toTest)).toInstant();
+        assertThat(gotInstant, is(expectedInstant));
     }
 }
