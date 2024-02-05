@@ -44,10 +44,6 @@ import static org.opensearch.telemetry.OTelTelemetrySettings.TRACER_EXPORTER_MAX
  * This class encapsulates all OpenTelemetry related resources
  */
 public final class OTelResourceProvider {
-    /**
-     * SUFFIX to differentiate dynamic and explicit bucket histograms.
-     */
-    public static final String DYNAMIC_HISTOGRAM_METRIC_NAME_SUFFIX = "-dynamic";
 
     private OTelResourceProvider() {}
 
@@ -102,7 +98,7 @@ public final class OTelResourceProvider {
                     .build()
             )
             .registerView(
-                InstrumentSelector.builder().setName("*" + DYNAMIC_HISTOGRAM_METRIC_NAME_SUFFIX).setType(InstrumentType.HISTOGRAM).build(),
+                InstrumentSelector.builder().setType(InstrumentType.HISTOGRAM).build(),
                 View.builder().setAggregation(Base2ExponentialHistogramAggregation.getDefault()).build()
             )
             .build();

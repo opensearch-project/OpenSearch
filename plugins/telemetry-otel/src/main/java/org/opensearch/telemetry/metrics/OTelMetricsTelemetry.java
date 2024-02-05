@@ -10,7 +10,6 @@ package org.opensearch.telemetry.metrics;
 
 import org.opensearch.common.concurrent.RefCountedReleasable;
 import org.opensearch.telemetry.OTelTelemetryPlugin;
-import org.opensearch.telemetry.tracing.OTelResourceProvider;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -82,12 +81,8 @@ public class OTelMetricsTelemetry<T extends MeterProvider & Closeable> implement
      */
     @Override
     public Histogram createHistogram(String name, String description, String unit) {
-        String internalMetricName = name + OTelResourceProvider.DYNAMIC_HISTOGRAM_METRIC_NAME_SUFFIX;
         DoubleHistogram doubleHistogram = AccessController.doPrivileged(
-            (PrivilegedAction<DoubleHistogram>) () -> otelMeter.histogramBuilder(internalMetricName)
-                .setUnit(unit)
-                .setDescription(description)
-                .build()
+            (PrivilegedAction<DoubleHistogram>) () -> otelMeter.histogramBuilder(name).setUnit(unit).setDescription(description).build()
         );
         return new OTelHistogram(doubleHistogram);
     }
