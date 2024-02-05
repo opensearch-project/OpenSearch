@@ -88,7 +88,7 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
         return false;
     }
 
-    protected Runnable getShardCancellationAction(
+    protected Runnable cancelExistingRecoveryForBetterMatch(
         ShardRouting shard,
         RoutingAllocation allocation,
         Map<DiscoveryNode, StoreFilesMetadata> nodeShardStores
@@ -174,7 +174,7 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
                 AsyncShardFetch.FetchResult<NodeStoreFilesMetadata> shardStores = fetchData(shard, allocation);
                 Map<DiscoveryNode, StoreFilesMetadata> nodeShardStores = convertToNodeStoreFilesMetadataMap(shardStores);
 
-                Runnable cancellationAction = getShardCancellationAction(shard, allocation, nodeShardStores);
+                Runnable cancellationAction = cancelExistingRecoveryForBetterMatch(shard, allocation, nodeShardStores);
                 if (cancellationAction != null) {
                     shardCancellationActions.add(cancellationAction);
                 }
