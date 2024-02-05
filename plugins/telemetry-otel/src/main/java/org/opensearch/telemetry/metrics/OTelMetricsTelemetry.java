@@ -70,10 +70,9 @@ public class OTelMetricsTelemetry<T extends MeterProvider & Closeable> implement
     }
 
     /**
-     * Creates the Otel Histogram. It created the default version. In {@link org.opensearch.telemetry.tracing.OTelResourceProvider}
-     * we can configure the bucketing strategy through view. It appends the OTelResourceProvider.DYNAMIC_HISTOGRAM_METRIC_NAME_SUFFIX
-     * to the metric name. It's needed to differentiate the {@link Histogram} metrics with explictt bucket or dynamic
-     * buckets. This suffix can be removed from the metric name in the collector.
+     * Creates the Otel Histogram. In {@link org.opensearch.telemetry.tracing.OTelResourceProvider}
+     * we can configure the bucketing/aggregation strategy through view. Default startegy configured
+     * is the {@link io.opentelemetry.sdk.metrics.internal.view.Base2ExponentialHistogramAggregation}.
      * @param name        name of the histogram.
      * @param description any description about the metric.
      * @param unit        unit of the metric.
