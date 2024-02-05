@@ -10,6 +10,7 @@ package org.opensearch.index.shard;
 
 import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.SegmentInfos;
+import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.tests.store.BaseDirectoryWrapper;
@@ -102,6 +103,16 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
     public void tearDown() throws Exception {
         Directory storeDirectory = ((FilterDirectory) ((FilterDirectory) indexShard.store().directory()).getDelegate()).getDelegate();
         ((BaseDirectoryWrapper) storeDirectory).setCheckIndexOnClose(false);
+
+        for (ReferenceManager.RefreshListener refreshListener : indexShard.getEngine().config().getInternalRefreshListener()) {
+            if (refreshListener instanceof ReleasableRetryableRefreshListener) {
+                ((ReleasableRetryableRefreshListener) refreshListener).drainRefreshes();
+            }
+        }
+        if (remoteStoreRefreshListener != null) {
+            remoteStoreRefreshListener.drainRefreshes();
+        }
+
         closeShards(indexShard);
         super.tearDown();
     }
