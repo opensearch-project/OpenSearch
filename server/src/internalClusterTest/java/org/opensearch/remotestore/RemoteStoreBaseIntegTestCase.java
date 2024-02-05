@@ -9,6 +9,8 @@
 package org.opensearch.remotestore;
 
 import org.opensearch.action.admin.cluster.remotestore.restore.RestoreRemoteStoreRequest;
+import org.opensearch.action.admin.cluster.repositories.get.GetRepositoriesRequest;
+import org.opensearch.action.admin.cluster.repositories.get.GetRepositoriesResponse;
 import org.opensearch.action.admin.indices.get.GetIndexRequest;
 import org.opensearch.action.admin.indices.get.GetIndexResponse;
 import org.opensearch.action.bulk.BulkItemResponse;
@@ -37,7 +39,7 @@ import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.blobstore.BlobStoreRepository;
-import org.opensearch.repositories.fs.FsRepository;
+import org.opensearch.repositories.fs.ReloadableFsRepository;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.junit.After;
 
@@ -60,6 +62,7 @@ import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_ST
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_REPOSITORY_TYPE_ATTRIBUTE_KEY_FORMAT;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEY;
+import static org.opensearch.repositories.fs.ReloadableFsRepository.REPOSITORIES_FAILRATE_SETTING;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 
 public class RemoteStoreBaseIntegTestCase extends OpenSearchIntegTestCase {
@@ -146,6 +149,18 @@ public class RemoteStoreBaseIntegTestCase extends OpenSearchIntegTestCase {
         }
     }
 
+    protected void setFailRate(String repoName, int value) throws ExecutionException, InterruptedException {
+        GetRepositoriesRequest gr = new GetRepositoriesRequest(new String[] { repoName });
+        GetRepositoriesResponse res = client().admin().cluster().getRepositories(gr).get();
+        RepositoryMetadata rmd = res.repositories().get(0);
+        Settings.Builder settings = Settings.builder()
+            .put("location", rmd.settings().get("location"))
+            .put(REPOSITORIES_FAILRATE_SETTING.getKey(), value);
+        assertAcked(
+            client().admin().cluster().preparePutRepository(repoName).setType(ReloadableFsRepository.TYPE).setSettings(settings).get()
+        );
+    }
+
     public Settings indexSettings() {
         return defaultIndexSettings();
     }
@@ -224,10 +239,10 @@ public class RemoteStoreBaseIntegTestCase extends OpenSearchIntegTestCase {
         return buildRemoteStoreNodeAttributes(
             segmentRepoName,
             segmentRepoPath,
-            FsRepository.TYPE,
+            ReloadableFsRepository.TYPE,
             translogRepoName,
             translogRepoPath,
-            FsRepository.TYPE,
+            ReloadableFsRepository.TYPE,
             withRateLimiterAttributes
         );
     }
