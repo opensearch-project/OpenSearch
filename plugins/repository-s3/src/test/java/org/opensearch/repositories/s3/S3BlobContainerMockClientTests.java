@@ -47,7 +47,9 @@ import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.repositories.s3.async.AsyncExecutorContainer;
 import org.opensearch.repositories.s3.async.AsyncTransferEventLoopGroup;
 import org.opensearch.repositories.s3.async.AsyncTransferManager;
+import org.opensearch.repositories.s3.async.PermitBackedRetryableFutureUtils;
 import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.threadpool.Scheduler;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
@@ -65,6 +67,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
@@ -91,6 +94,8 @@ public class S3BlobContainerMockClientTests extends OpenSearchTestCase implement
     private MockS3AsyncService asyncService;
     private ExecutorService futureCompletionService;
     private ExecutorService streamReaderService;
+    private ExecutorService remoteTransferRetry;
+    private ScheduledExecutorService scheduler;
     private AsyncTransferEventLoopGroup transferNIOGroup;
     private S3BlobContainer blobContainer;
 
@@ -364,6 +369,8 @@ public class S3BlobContainerMockClientTests extends OpenSearchTestCase implement
         asyncService = new MockS3AsyncService(configPath(), 1000);
         futureCompletionService = Executors.newSingleThreadExecutor();
         streamReaderService = Executors.newSingleThreadExecutor();
+        remoteTransferRetry = Executors.newFixedThreadPool(20);
+        scheduler = new Scheduler.SafeScheduledThreadPoolExecutor(1);
         transferNIOGroup = new AsyncTransferEventLoopGroup(1);
         blobContainer = createBlobContainer();
         super.setUp();
@@ -373,6 +380,11 @@ public class S3BlobContainerMockClientTests extends OpenSearchTestCase implement
     @After
     public void tearDown() throws Exception {
         IOUtils.close(asyncService);
+        futureCompletionService.shutdown();
+        streamReaderService.shutdown();
+        remoteTransferRetry.shutdown();
+        scheduler.shutdown();
+        transferNIOGroup.close();
         super.tearDown();
     }
 
@@ -410,7 +422,14 @@ public class S3BlobContainerMockClientTests extends OpenSearchTestCase implement
                 S3Repository.PARALLEL_MULTIPART_UPLOAD_MINIMUM_PART_SIZE_SETTING.getDefault(Settings.EMPTY).getBytes(),
                 asyncExecutorContainer.getStreamReader(),
                 asyncExecutorContainer.getStreamReader(),
-                asyncExecutorContainer.getStreamReader()
+                asyncExecutorContainer.getStreamReader(),
+                new PermitBackedRetryableFutureUtils<>(
+                    3,
+                    Math.max(Runtime.getRuntime().availableProcessors() * 5, 10),
+                    0.7,
+                    remoteTransferRetry,
+                    scheduler
+                )
             ),
             asyncExecutorContainer,
             asyncExecutorContainer,

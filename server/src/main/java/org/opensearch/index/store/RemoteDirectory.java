@@ -323,11 +323,12 @@ public class RemoteDirectory extends Directory {
         String remoteFileName,
         IOContext context,
         Runnable postUploadRunner,
-        ActionListener<Void> listener
+        ActionListener<Void> listener,
+        boolean lowPriorityUpload
     ) {
         if (blobContainer instanceof AsyncMultiStreamBlobContainer) {
             try {
-                uploadBlob(from, src, remoteFileName, context, postUploadRunner, listener);
+                uploadBlob(from, src, remoteFileName, context, postUploadRunner, listener, lowPriorityUpload);
             } catch (Exception e) {
                 listener.onFailure(e);
             }
@@ -342,7 +343,8 @@ public class RemoteDirectory extends Directory {
         String remoteFileName,
         IOContext ioContext,
         Runnable postUploadRunner,
-        ActionListener<Void> listener
+        ActionListener<Void> listener,
+        boolean lowPriorityUpload
     ) throws Exception {
         long expectedChecksum = calculateChecksumOfChecksum(from, src);
         long contentLength;
@@ -358,7 +360,7 @@ public class RemoteDirectory extends Directory {
             remoteFileName,
             contentLength,
             true,
-            WritePriority.NORMAL,
+            lowPriorityUpload ? WritePriority.LOW : WritePriority.NORMAL,
             (size, position) -> uploadRateLimiter.apply(new OffsetRangeIndexInputStream(from.openInput(src, ioContext), size, position)),
             expectedChecksum,
             remoteIntegrityEnabled

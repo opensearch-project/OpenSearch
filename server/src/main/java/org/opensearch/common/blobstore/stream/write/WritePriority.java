@@ -16,5 +16,6 @@ package org.opensearch.common.blobstore.stream.write;
 public enum WritePriority {
     NORMAL,
     HIGH,
-    URGENT
+    URGENT,
+    LOW
 }

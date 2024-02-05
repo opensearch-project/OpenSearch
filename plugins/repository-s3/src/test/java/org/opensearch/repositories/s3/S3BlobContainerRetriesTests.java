@@ -67,6 +67,7 @@ import org.opensearch.repositories.blobstore.ZeroInputStream;
 import org.opensearch.repositories.s3.async.AsyncExecutorContainer;
 import org.opensearch.repositories.s3.async.AsyncTransferEventLoopGroup;
 import org.opensearch.repositories.s3.async.AsyncTransferManager;
+import org.opensearch.repositories.s3.async.PermitBackedRetryableFutureUtils;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
@@ -87,6 +88,8 @@ import java.util.Objects;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -114,6 +117,8 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
     private S3AsyncService asyncService;
     private ExecutorService futureCompletionService;
     private ExecutorService streamReaderService;
+    private ExecutorService remoteTransferRetry;
+    private ScheduledExecutorService scheduler;
     private AsyncTransferEventLoopGroup transferNIOGroup;
 
     @Before
@@ -125,6 +130,8 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
         futureCompletionService = Executors.newSingleThreadExecutor();
         streamReaderService = Executors.newSingleThreadExecutor();
         transferNIOGroup = new AsyncTransferEventLoopGroup(1);
+        remoteTransferRetry = Executors.newFixedThreadPool(20);
+        scheduler = new ScheduledThreadPoolExecutor(1);
 
         // needed by S3AsyncService
         SocketAccess.doPrivileged(() -> System.setProperty("opensearch.path.conf", configPath().toString()));
@@ -137,6 +144,8 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
 
         streamReaderService.shutdown();
         futureCompletionService.shutdown();
+        remoteTransferRetry.shutdown();
+        scheduler.shutdown();
         IOUtils.close(transferNIOGroup);
 
         if (previousOpenSearchPathConf != null) {
@@ -223,7 +232,14 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
                     S3Repository.PARALLEL_MULTIPART_UPLOAD_MINIMUM_PART_SIZE_SETTING.getDefault(Settings.EMPTY).getBytes(),
                     asyncExecutorContainer.getStreamReader(),
                     asyncExecutorContainer.getStreamReader(),
-                    asyncExecutorContainer.getStreamReader()
+                    asyncExecutorContainer.getStreamReader(),
+                    new PermitBackedRetryableFutureUtils<>(
+                        3,
+                        Math.max(Runtime.getRuntime().availableProcessors() * 5, 10),
+                        0.7,
+                        remoteTransferRetry,
+                        scheduler
+                    )
                 ),
                 asyncExecutorContainer,
                 asyncExecutorContainer,

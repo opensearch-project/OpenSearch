@@ -53,6 +53,7 @@ import org.opensearch.repositories.Repository;
 import org.opensearch.repositories.s3.async.AsyncExecutorContainer;
 import org.opensearch.repositories.s3.async.AsyncTransferEventLoopGroup;
 import org.opensearch.repositories.s3.async.AsyncTransferManager;
+import org.opensearch.repositories.s3.async.PermitBackedRetryableFutureUtils;
 import org.opensearch.script.ScriptService;
 import org.opensearch.threadpool.ExecutorBuilder;
 import org.opensearch.threadpool.FixedExecutorBuilder;
@@ -69,6 +70,8 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.function.Supplier;
 
 /**
@@ -81,6 +84,7 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
     private static final String PRIORITY_FUTURE_COMPLETION = "priority_future_completion";
     private static final String PRIORITY_STREAM_READER = "priority_stream_reader";
     private static final String FUTURE_COMPLETION = "future_completion";
+    private static final String REMOTE_TRANSFER_RETRY = "remote_transfer_retry";
     private static final String STREAM_READER = "stream_reader";
 
     protected final S3Service service;
@@ -91,6 +95,8 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
     private AsyncExecutorContainer urgentExecutorBuilder;
     private AsyncExecutorContainer priorityExecutorBuilder;
     private AsyncExecutorContainer normalExecutorBuilder;
+    private ExecutorService remoteTransferRetryPool;
+    private ScheduledExecutorService scheduler;
 
     public S3RepositoryPlugin(final Settings settings, final Path configPath) {
         this(settings, configPath, new S3Service(configPath), new S3AsyncService(configPath));
@@ -117,6 +123,14 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
                 STREAM_READER,
                 allocatedProcessors(settings),
                 4 * allocatedProcessors(settings),
+                TimeValue.timeValueMinutes(5)
+            )
+        );
+        executorBuilders.add(
+            new ScalingExecutorBuilder(
+                REMOTE_TRANSFER_RETRY,
+                allocatedProcessors(settings),
+                allocatedProcessors(settings) * 2,
                 TimeValue.timeValueMinutes(5)
             )
         );
@@ -189,6 +203,8 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
             threadPool.executor(STREAM_READER),
             new AsyncTransferEventLoopGroup(normalEventLoopThreads)
         );
+        this.remoteTransferRetryPool = threadPool.executor(REMOTE_TRANSFER_RETRY);
+        this.scheduler = threadPool.scheduler();
         return Collections.emptyList();
     }
 
@@ -204,7 +220,16 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
             S3Repository.PARALLEL_MULTIPART_UPLOAD_MINIMUM_PART_SIZE_SETTING.get(clusterService.getSettings()).getBytes(),
             normalExecutorBuilder.getStreamReader(),
             priorityExecutorBuilder.getStreamReader(),
-            urgentExecutorBuilder.getStreamReader()
+            urgentExecutorBuilder.getStreamReader(),
+            new PermitBackedRetryableFutureUtils<>(
+                S3Repository.S3_MAX_TRANSFER_RETRIES.get(clusterService.getSettings()),
+                // High permit allocation because each op acquiring permit performs disk IO, computation and network IO.
+                Math.max(allocatedProcessors(clusterService.getSettings()) * 5, 10),
+                ((double) S3Repository.S3_PRIORITY_PERMIT_ALLOCATION_PERCENT.get(clusterService.getSettings())) / 100,
+                remoteTransferRetryPool,
+                scheduler
+            )
+
         );
         return new S3Repository(
             metadata,
@@ -263,7 +288,9 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
             S3Repository.PARALLEL_MULTIPART_UPLOAD_MINIMUM_PART_SIZE_SETTING,
             S3Repository.PARALLEL_MULTIPART_UPLOAD_ENABLED_SETTING,
             S3Repository.REDIRECT_LARGE_S3_UPLOAD,
-            S3Repository.UPLOAD_RETRY_ENABLED
+            S3Repository.UPLOAD_RETRY_ENABLED,
+            S3Repository.S3_MAX_TRANSFER_RETRIES,
+            S3Repository.S3_PRIORITY_PERMIT_ALLOCATION_PERCENT
         );
     }
 
