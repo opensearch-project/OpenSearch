@@ -433,7 +433,7 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
         RemoteStoreRefreshListener listener = tuple.v1();
         RemoteStoreStatsTrackerFactory trackerFactory = tuple.v2();
         RemoteSegmentTransferTracker tracker = trackerFactory.getRemoteSegmentTransferTracker(indexShard.shardId());
-        assertNoLag(tracker);
+        assertBusy(() -> assertNoLag(tracker));
         indexDocs(100, randomIntBetween(100, 200));
         indexShard.refresh("test");
         listener.afterRefresh(true);
@@ -533,6 +533,14 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
             new InternalEngineFactory()
         );
 
+        RemoteSegmentTransferTracker tracker = indexShard.getRemoteStoreStatsTrackerFactory()
+            .getRemoteSegmentTransferTracker(indexShard.shardId());
+        try {
+            assertBusy(() -> assertTrue(tracker.getTotalUploadsSucceeded() > 0));
+        } catch (Exception e) {
+            assert false;
+        }
+
         indexDocs(1, randomIntBetween(1, 100));
 
         // Mock indexShard.store().directory()
@@ -619,7 +627,6 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
         RecoverySettings recoverySettings = mock(RecoverySettings.class);
         when(recoverySettings.getMinRemoteSegmentMetadataFiles()).thenReturn(10);
         when(shard.getRecoverySettings()).thenReturn(recoverySettings);
-        RemoteSegmentTransferTracker tracker = remoteStoreStatsTrackerFactory.getRemoteSegmentTransferTracker(indexShard.shardId());
         RemoteStoreRefreshListener refreshListener = new RemoteStoreRefreshListener(shard, emptyCheckpointPublisher, tracker);
         refreshListener.afterRefresh(true);
         return Tuple.tuple(refreshListener, remoteStoreStatsTrackerFactory);
