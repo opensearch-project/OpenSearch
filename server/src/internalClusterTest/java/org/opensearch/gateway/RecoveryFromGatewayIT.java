@@ -842,7 +842,7 @@ public class RecoveryFromGatewayIT extends OpenSearchIntegTestCase {
     }
 
     public void testShardStoreFetchMultiNodeMultiIndexesUsingBatchAction() throws Exception {
-        internalCluster().startNode();
+        internalCluster().startNodes(2);
         String indexName1 = "test1";
         String indexName2 = "test2";
         DiscoveryNode[] nodes = getDiscoveryNodes();
@@ -878,7 +878,7 @@ public class RecoveryFromGatewayIT extends OpenSearchIntegTestCase {
     }
 
     public void testShardStoreFetchCorruptedIndexUsingBatchAction() throws Exception {
-        internalCluster().startNode();
+        internalCluster().startNodes(2);
         String indexName = "test";
         prepareIndices(new String[] { indexName }, 1, 1);
         Map<ShardId, ShardAttributes> shardAttributesMap = prepareRequestMap(new String[] { indexName }, 1);
