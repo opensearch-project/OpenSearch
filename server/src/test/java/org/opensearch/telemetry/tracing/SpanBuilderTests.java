@@ -32,26 +32,65 @@ import java.util.Map;
 
 public class SpanBuilderTests extends OpenSearchTestCase {
 
-    public void testHttpRequestContext() {
-        HttpRequest httpRequest = createHttpRequest();
+    public void testHttpRequestContextWithUriHavingQueryParams() {
+        testHttpRequestContext(
+            "/_test/resource?name=John&age=25",
+            "GET /_test/resource",
+            "name=John&age=25");
+    }
+
+    public void testHttpRequestContextWithUriNotHavingQueryParams() {
+        testHttpRequestContext(
+            "/_test/",
+            "GET /_test/",
+            "");
+    }
+
+    private void testHttpRequestContext(String uri, String expectedSpanName, String expectedQueryParams) {
+        HttpRequest httpRequest = createHttpRequest(uri);
         SpanCreationContext context = SpanBuilder.from(httpRequest);
         Attributes attributes = context.getAttributes();
-        assertEquals("GET /_test/resource", context.getSpanName());
+        assertEquals(expectedSpanName, context.getSpanName());
         assertEquals("true", attributes.getAttributesMap().get(AttributeNames.TRACE));
         assertEquals("GET", attributes.getAttributesMap().get(AttributeNames.HTTP_METHOD));
         assertEquals("HTTP_1_0", attributes.getAttributesMap().get(AttributeNames.HTTP_PROTOCOL_VERSION));
-        assertEquals("/_test/resource?name=John&age=25", attributes.getAttributesMap().get(AttributeNames.HTTP_URI));
-        assertEquals("name=John&age=25", attributes.getAttributesMap().get(AttributeNames.HTTP_REQ_QUERY_PARAMS));
+        assertEquals(uri, attributes.getAttributesMap().get(AttributeNames.HTTP_URI));
+        if(expectedQueryParams.isBlank()){
+            assertNull(attributes.getAttributesMap().get(AttributeNames.HTTP_REQ_QUERY_PARAMS));
+        } else {
+            assertEquals(expectedQueryParams, attributes.getAttributesMap().get(AttributeNames.HTTP_REQ_QUERY_PARAMS));
+        }
+
     }
 
-    public void testRestRequestContext() {
-        RestRequest restRequest = RestRequest.request(null, createHttpRequest(), null);
+    public void testRestRequestContextWithUriHavingQueryParams() {
+        testRestRequestContext(
+            "/_test/resource?name=John&age=25",
+            "/_test/resource",
+            "GET /_test/resource",
+            "name=John&age=25");
+    }
+
+    public void testRestRequestContextWithUriNotHavingQueryParams() {
+        testRestRequestContext(
+            "/_test/",
+            "/_test/",
+            "GET /_test/",
+            "");
+    }
+
+    private void testRestRequestContext(String uri, String expectedReqRawPath, String expectedSpanName, String expectedQueryParams) {
+        RestRequest restRequest = RestRequest.request(null, createHttpRequest(uri), null);
         SpanCreationContext context = SpanBuilder.from(restRequest);
         Attributes attributes = context.getAttributes();
-        assertEquals("GET /_test/resource", context.getSpanName());
-        assertEquals("/_test/resource", attributes.getAttributesMap().get(AttributeNames.REST_REQ_RAW_PATH));
+        assertEquals(expectedSpanName, context.getSpanName());
+        assertEquals(expectedReqRawPath, attributes.getAttributesMap().get(AttributeNames.REST_REQ_RAW_PATH));
         assertNotNull(attributes.getAttributesMap().get(AttributeNames.REST_REQ_ID));
-        assertEquals("name=John&age=25", attributes.getAttributesMap().get(AttributeNames.HTTP_REQ_QUERY_PARAMS));
+        if(expectedQueryParams.isBlank()){
+            assertNull(attributes.getAttributesMap().get(AttributeNames.HTTP_REQ_QUERY_PARAMS));
+        } else {
+            assertEquals(expectedQueryParams, attributes.getAttributesMap().get(AttributeNames.HTTP_REQ_QUERY_PARAMS));
+        }
     }
 
     public void testRestRequestContextForNull() {
@@ -99,7 +138,7 @@ public class SpanBuilderTests extends OpenSearchTestCase {
         };
     }
 
-    private static HttpRequest createHttpRequest() {
+    private static HttpRequest createHttpRequest(String uri) {
         return new HttpRequest() {
             @Override
             public RestRequest.Method method() {
@@ -108,7 +147,7 @@ public class SpanBuilderTests extends OpenSearchTestCase {
 
             @Override
             public String uri() {
-                return "/_test/resource?name=John&age=25";
+                return uri;
             }
 
             @Override
