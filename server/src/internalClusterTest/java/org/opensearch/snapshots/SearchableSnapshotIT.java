@@ -30,14 +30,17 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.routing.GroupShardsIterator;
 import org.opensearch.cluster.routing.ShardIterator;
 import org.opensearch.cluster.routing.ShardRouting;
+import org.opensearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.opensearch.common.Priority;
 import org.opensearch.common.io.PathUtils;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.core.index.Index;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexNotFoundException;
+import org.opensearch.index.shard.ShardPath;
 import org.opensearch.index.store.remote.file.CleanerDaemonThreadLeakFilter;
 import org.opensearch.index.store.remote.filecache.FileCacheStats;
 import org.opensearch.monitor.fs.FsInfo;
@@ -858,5 +861,76 @@ public final class SearchableSnapshotIT extends AbstractSnapshotIntegTestCase {
         }
         // Verifies if all the shards (primary and replica) have been deleted
         assertEquals(numCacheFolderCount, searchNodeFileCachePaths.size());
+    }
+
+    public void testRelocateSearchableSnapshotIndex() throws Exception {
+        final String snapshotName = "test-snap";
+        final String repoName = "test-repo";
+        final String indexName = "test-idx-1";
+        final String restoredIndexName = indexName + "-copy";
+        final Client client = client();
+
+        internalCluster().ensureAtLeastNumDataNodes(1);
+        createIndexWithDocsAndEnsureGreen(0, 100, indexName);
+
+        createRepositoryWithSettings(null, repoName);
+        takeSnapshot(client, snapshotName, repoName, indexName);
+        deleteIndicesAndEnsureGreen(client, indexName);
+
+        String searchNode1 = internalCluster().startSearchOnlyNodes(1).get(0);
+        internalCluster().validateClusterFormed();
+        restoreSnapshotAndEnsureGreen(client, snapshotName, repoName);
+        assertRemoteSnapshotIndexSettings(client, restoredIndexName);
+
+        String searchNode2 = internalCluster().startSearchOnlyNodes(1).get(0);
+        internalCluster().validateClusterFormed();
+
+        final Index index = resolveIndex(restoredIndexName);
+        assertSearchableSnapshotIndexDirectoryExistence(searchNode1, index, true);
+        assertSearchableSnapshotIndexDirectoryExistence(searchNode2, index, false);
+
+        // relocate the shard from node1 to node2
+        client.admin()
+            .cluster()
+            .prepareReroute()
+            .add(new MoveAllocationCommand(restoredIndexName, 0, searchNode1, searchNode2))
+            .execute()
+            .actionGet();
+        ClusterHealthResponse clusterHealthResponse = client.admin()
+            .cluster()
+            .prepareHealth()
+            .setWaitForEvents(Priority.LANGUID)
+            .setWaitForNoRelocatingShards(true)
+            .setTimeout(new TimeValue(5, TimeUnit.MINUTES))
+            .execute()
+            .actionGet();
+        assertThat(clusterHealthResponse.isTimedOut(), equalTo(false));
+        assertDocCount(restoredIndexName, 100L);
+
+        assertSearchableSnapshotIndexDirectoryExistence(searchNode1, index, false);
+        assertSearchableSnapshotIndexDirectoryExistence(searchNode2, index, true);
+        deleteIndicesAndEnsureGreen(client, restoredIndexName);
+        assertSearchableSnapshotIndexDirectoryExistence(searchNode2, index, false);
+    }
+
+    private void assertSearchableSnapshotIndexDirectoryExistence(String nodeName, Index index, boolean exists) throws Exception {
+        final Node node = internalCluster().getInstance(Node.class, nodeName);
+        final ShardId shardId = new ShardId(index, 0);
+        final ShardPath shardPath = ShardPath.loadFileCachePath(node.getNodeEnvironment(), shardId);
+
+        assertBusy(() -> {
+            assertTrue(
+                "shard state path should " + (exists ? "exist" : "not exist"),
+                Files.exists(shardPath.getShardStatePath()) == exists
+            );
+            assertTrue("shard cache path should " + (exists ? "exist" : "not exist"), Files.exists(shardPath.getDataPath()) == exists);
+        }, 30, TimeUnit.SECONDS);
+
+        final Path indexDataPath = node.getNodeEnvironment().fileCacheNodePath().fileCachePath.resolve(index.getUUID());
+        final Path indexPath = node.getNodeEnvironment().fileCacheNodePath().indicesPath.resolve(index.getUUID());
+        assertBusy(() -> {
+            assertTrue("index path should " + (exists ? "exist" : "not exist"), Files.exists(indexDataPath) == exists);
+            assertTrue("index cache path should " + (exists ? "exist" : "not exist"), Files.exists(indexPath) == exists);
+        }, 30, TimeUnit.SECONDS);
     }
 }
