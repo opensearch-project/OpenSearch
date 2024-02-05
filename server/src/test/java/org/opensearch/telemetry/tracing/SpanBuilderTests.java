@@ -8,6 +8,8 @@
 
 package org.opensearch.telemetry.tracing;
 
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+import org.junit.runners.Parameterized;
 import org.opensearch.Version;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.network.NetworkAddress;
@@ -27,26 +29,40 @@ import org.opensearch.transport.TransportRequestOptions;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 
 public class SpanBuilderTests extends OpenSearchTestCase {
 
-    public void testHttpRequestContextWithUriHavingQueryParams() {
-        testHttpRequestContext(
-            "/_test/resource?name=John&age=25",
-            "GET /_test/resource",
-            "name=John&age=25");
+    @Parameterized.Parameter(0)
+    public String uri;
+
+    @Parameterized.Parameter(1)
+    public String expectedSpanName;
+
+    @Parameterized.Parameter(2)
+    public String expectedQueryParams;
+
+    @Parameterized.Parameter(3)
+    public String expectedReqRawPath;
+
+    @ParametersFactory
+    public static Collection<Object[]> data() {
+        return Arrays.asList(new Object[][]{
+            {"/_test/resource?name=John&age=25", "GET /_test/resource", "name=John&age=25", "/_test/resource"},
+            {"/_test/", "GET /_test/", "", "/_test/"},
+        });
     }
 
-    public void testHttpRequestContextWithUriNotHavingQueryParams() {
-        testHttpRequestContext(
-            "/_test/",
-            "GET /_test/",
-            "");
+    public SpanBuilderTests(String uri, String expectedSpanName, String expectedQueryParams, String expectedReqRawPath) {
+        this.uri = uri;
+        this.expectedSpanName = expectedSpanName;
+        this.expectedQueryParams = expectedQueryParams;
+        this.expectedReqRawPath = expectedReqRawPath;
     }
 
-    private void testHttpRequestContext(String uri, String expectedSpanName, String expectedQueryParams) {
+    public void testHttpRequestContext() {
         HttpRequest httpRequest = createHttpRequest(uri);
         SpanCreationContext context = SpanBuilder.from(httpRequest);
         Attributes attributes = context.getAttributes();
@@ -55,38 +71,21 @@ public class SpanBuilderTests extends OpenSearchTestCase {
         assertEquals("GET", attributes.getAttributesMap().get(AttributeNames.HTTP_METHOD));
         assertEquals("HTTP_1_0", attributes.getAttributesMap().get(AttributeNames.HTTP_PROTOCOL_VERSION));
         assertEquals(uri, attributes.getAttributesMap().get(AttributeNames.HTTP_URI));
-        if(expectedQueryParams.isBlank()){
+        if (expectedQueryParams.isBlank()) {
             assertNull(attributes.getAttributesMap().get(AttributeNames.HTTP_REQ_QUERY_PARAMS));
         } else {
             assertEquals(expectedQueryParams, attributes.getAttributesMap().get(AttributeNames.HTTP_REQ_QUERY_PARAMS));
         }
-
     }
 
-    public void testRestRequestContextWithUriHavingQueryParams() {
-        testRestRequestContext(
-            "/_test/resource?name=John&age=25",
-            "/_test/resource",
-            "GET /_test/resource",
-            "name=John&age=25");
-    }
-
-    public void testRestRequestContextWithUriNotHavingQueryParams() {
-        testRestRequestContext(
-            "/_test/",
-            "/_test/",
-            "GET /_test/",
-            "");
-    }
-
-    private void testRestRequestContext(String uri, String expectedReqRawPath, String expectedSpanName, String expectedQueryParams) {
+    public void testRestRequestContext() {
         RestRequest restRequest = RestRequest.request(null, createHttpRequest(uri), null);
         SpanCreationContext context = SpanBuilder.from(restRequest);
         Attributes attributes = context.getAttributes();
         assertEquals(expectedSpanName, context.getSpanName());
         assertEquals(expectedReqRawPath, attributes.getAttributesMap().get(AttributeNames.REST_REQ_RAW_PATH));
         assertNotNull(attributes.getAttributesMap().get(AttributeNames.REST_REQ_ID));
-        if(expectedQueryParams.isBlank()){
+        if (expectedQueryParams.isBlank()){
             assertNull(attributes.getAttributesMap().get(AttributeNames.HTTP_REQ_QUERY_PARAMS));
         } else {
             assertEquals(expectedQueryParams, attributes.getAttributesMap().get(AttributeNames.HTTP_REQ_QUERY_PARAMS));
