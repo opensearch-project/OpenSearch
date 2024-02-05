@@ -55,7 +55,7 @@ public class ViewService {
 
             @Override
             public void onFailure(final String source, final Exception e) {
-                LOG.error("Unable to create view, due to {}", source, e);
+                LOG.error("Unable to create view, in source " + source, e);
                 listener.onFailure(e);
             }
 
