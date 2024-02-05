@@ -42,11 +42,10 @@ import org.opensearch.action.get.MultiGetRequestBuilder;
 import org.opensearch.action.get.MultiGetResponse;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.search.fetch.subphase.FetchSourceContext;
-import org.opensearch.test.ParameterizedOpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -63,10 +62,10 @@ import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
-public class SimpleMgetIT extends ParameterizedOpenSearchIntegTestCase {
+public class SimpleMgetIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
 
-    public SimpleMgetIT(Settings dynamicSettings) {
-        super(dynamicSettings);
+    public SimpleMgetIT(Settings staticSettings) {
+        super(staticSettings);
     }
 
     @ParametersFactory
@@ -75,11 +74,6 @@ public class SimpleMgetIT extends ParameterizedOpenSearchIntegTestCase {
             new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), false).build() },
             new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), true).build() }
         );
-    }
-
-    @Override
-    protected Settings featureFlagSettings() {
-        return Settings.builder().put(super.featureFlagSettings()).put(FeatureFlags.CONCURRENT_SEGMENT_SEARCH, "true").build();
     }
 
     public void testThatMgetShouldWorkWithOneIndexMissing() throws IOException {

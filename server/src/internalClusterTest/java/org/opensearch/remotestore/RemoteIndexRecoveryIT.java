@@ -157,10 +157,4 @@ public class RemoteIndexRecoveryIT extends IndexRecoveryIT {
     public void testReplicaRecovery() {
 
     }
-
-    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/9580")
-    public void testRerouteRecovery() {
-
-    }
-
 }

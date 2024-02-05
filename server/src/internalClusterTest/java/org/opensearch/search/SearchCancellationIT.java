@@ -50,7 +50,6 @@ import org.opensearch.action.support.WriteRequest;
 import org.opensearch.common.action.ActionFuture;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.tasks.TaskCancelledException;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
@@ -62,7 +61,7 @@ import org.opensearch.script.ScriptType;
 import org.opensearch.search.lookup.LeafFieldsLookup;
 import org.opensearch.tasks.TaskInfo;
 import org.opensearch.test.OpenSearchIntegTestCase;
-import org.opensearch.test.ParameterizedOpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 import org.opensearch.transport.TransportException;
 import org.junit.After;
 
@@ -91,7 +90,7 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.notNullValue;
 
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.SUITE)
-public class SearchCancellationIT extends ParameterizedOpenSearchIntegTestCase {
+public class SearchCancellationIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
 
     private TimeValue requestCancellationTimeout = TimeValue.timeValueSeconds(1);
     private TimeValue clusterCancellationTimeout = TimeValue.timeValueMillis(1500);
@@ -107,11 +106,6 @@ public class SearchCancellationIT extends ParameterizedOpenSearchIntegTestCase {
             new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), false).build() },
             new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), true).build() }
         );
-    }
-
-    @Override
-    protected Settings featureFlagSettings() {
-        return Settings.builder().put(super.featureFlagSettings()).put(FeatureFlags.CONCURRENT_SEGMENT_SEARCH, "true").build();
     }
 
     @Override

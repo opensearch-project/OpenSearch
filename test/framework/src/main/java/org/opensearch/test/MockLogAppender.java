@@ -35,6 +35,7 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.LogEvent;
 import org.apache.logging.log4j.core.appender.AbstractAppender;
+import org.apache.logging.log4j.core.config.Property;
 import org.apache.logging.log4j.core.filter.RegexFilter;
 import org.opensearch.common.logging.Loggers;
 import org.opensearch.common.regex.Regex;
@@ -68,11 +69,19 @@ public class MockLogAppender extends AbstractAppender implements AutoCloseable {
      * write to a closed MockLogAppender instance.
      */
     public static MockLogAppender createForLoggers(Logger... loggers) throws IllegalAccessException {
-        return createForLoggers(".*(\n.*)*", loggers);
+        final String callingClass = Thread.currentThread().getStackTrace()[2].getClassName();
+        return createForLoggersInternal(callingClass, ".*(\n.*)*", loggers);
     }
 
     public static MockLogAppender createForLoggers(String filter, Logger... loggers) throws IllegalAccessException {
+        final String callingClass = Thread.currentThread().getStackTrace()[2].getClassName();
+        return createForLoggersInternal(callingClass, filter, loggers);
+    }
+
+    private static MockLogAppender createForLoggersInternal(String callingClass, String filter, Logger... loggers)
+        throws IllegalAccessException {
         final MockLogAppender appender = new MockLogAppender(
+            callingClass + "-mock-log-appender",
             RegexFilter.createFilter(filter, new String[0], false, null, null),
             Collections.unmodifiableList(Arrays.asList(loggers))
         );
@@ -83,8 +92,8 @@ public class MockLogAppender extends AbstractAppender implements AutoCloseable {
         return appender;
     }
 
-    private MockLogAppender(RegexFilter filter, List<Logger> loggers) {
-        super("mock", filter, null);
+    private MockLogAppender(String name, RegexFilter filter, List<Logger> loggers) {
+        super(name, filter, null, true, Property.EMPTY_ARRAY);
         /*
          * We use a copy-on-write array list since log messages could be appended while we are setting up expectations. When that occurs,
          * we would run into a concurrent modification exception from the iteration over the expectations in #append, concurrent with a
@@ -116,7 +125,14 @@ public class MockLogAppender extends AbstractAppender implements AutoCloseable {
         for (Logger logger : loggers) {
             Loggers.removeAppender(logger, this);
         }
-        this.stop();
+        super.stop();
+    }
+
+    @Override
+    public void stop() {
+        // MockLogAppender should be used with try-with-resources to ensure
+        // proper clean up ordering and should never be stopped directly.
+        throw new UnsupportedOperationException("Use close() to ensure proper clean up ordering");
     }
 
     public interface LoggingExpectation {

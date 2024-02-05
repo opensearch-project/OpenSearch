@@ -39,6 +39,12 @@ testClusters {
     testDistribution = 'archive'
     if (numZones > 1) numberOfZones = numZones
     if (numNodes > 1) numberOfNodes = numNodes
+    if (findProperty("installedPlugins")) {
+      installedPlugins = Eval.me(installedPlugins)
+      for (String p : installedPlugins) {
+        plugin('plugins:'.concat(p))
+      }
+    }
   }
 }
 

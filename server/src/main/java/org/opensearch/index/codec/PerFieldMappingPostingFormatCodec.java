@@ -37,7 +37,7 @@ import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.DocValuesFormat;
 import org.apache.lucene.codecs.PostingsFormat;
 import org.apache.lucene.codecs.lucene90.Lucene90DocValuesFormat;
-import org.apache.lucene.codecs.lucene95.Lucene95Codec;
+import org.apache.lucene.codecs.lucene99.Lucene99Codec;
 import org.opensearch.common.lucene.Lucene;
 import org.opensearch.index.mapper.CompletionFieldMapper;
 import org.opensearch.index.mapper.MappedFieldType;
@@ -53,7 +53,7 @@ import org.opensearch.index.mapper.MapperService;
  *
  * @opensearch.internal
  */
-public class PerFieldMappingPostingFormatCodec extends Lucene95Codec {
+public class PerFieldMappingPostingFormatCodec extends Lucene99Codec {
     private final Logger logger;
     private final MapperService mapperService;
     private final DocValuesFormat dvFormat = new Lucene90DocValuesFormat();

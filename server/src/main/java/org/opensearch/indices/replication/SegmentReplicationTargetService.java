@@ -15,10 +15,13 @@ import org.apache.lucene.index.CorruptIndexException;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.OpenSearchCorruptionException;
 import org.opensearch.action.support.ChannelActionListener;
+import org.opensearch.cluster.ClusterChangedEvent;
+import org.opensearch.cluster.ClusterStateListener;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.lifecycle.AbstractLifecycleComponent;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.CancellableThreads;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
@@ -26,6 +29,7 @@ import org.opensearch.common.util.concurrent.ConcurrentCollections;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.transport.TransportResponse;
+import org.opensearch.index.IndexService;
 import org.opensearch.index.shard.IndexEventListener;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexShardState;
@@ -61,7 +65,7 @@ import static org.opensearch.indices.replication.SegmentReplicationSourceService
  *
  * @opensearch.internal
  */
-public class SegmentReplicationTargetService implements IndexEventListener {
+public class SegmentReplicationTargetService extends AbstractLifecycleComponent implements ClusterStateListener, IndexEventListener {
 
     private static final Logger logger = LogManager.getLogger(SegmentReplicationTargetService.class);
 
@@ -79,10 +83,6 @@ public class SegmentReplicationTargetService implements IndexEventListener {
     private final IndicesService indicesService;
     private final ClusterService clusterService;
     private final TransportService transportService;
-
-    public ReplicationRef<SegmentReplicationTarget> get(long replicationId) {
-        return onGoingReplications.get(replicationId);
-    }
 
     /**
      * The internal actions
@@ -144,13 +144,61 @@ public class SegmentReplicationTargetService implements IndexEventListener {
         );
     }
 
+    @Override
+    protected void doStart() {
+        if (DiscoveryNode.isDataNode(clusterService.getSettings())) {
+            clusterService.addListener(this);
+        }
+    }
+
+    @Override
+    protected void doStop() {
+        if (DiscoveryNode.isDataNode(clusterService.getSettings())) {
+            assert onGoingReplications.size() == 0 : "Replication collection should be empty on shutdown";
+            clusterService.removeListener(this);
+        }
+    }
+
+    @Override
+    protected void doClose() throws IOException {
+
+    }
+
+    @Override
+    public void clusterChanged(ClusterChangedEvent event) {
+        if (event.routingTableChanged()) {
+            for (IndexService indexService : indicesService) {
+                if (indexService.getIndexSettings().isSegRepEnabled() && event.indexRoutingTableChanged(indexService.index().getName())) {
+                    for (IndexShard shard : indexService) {
+                        if (shard.routingEntry().primary() == false) {
+                            // for this shard look up its primary routing, if it has completed a relocation trigger replication
+                            final String previousNode = event.previousState()
+                                .routingTable()
+                                .shardRoutingTable(shard.shardId())
+                                .primaryShard()
+                                .currentNodeId();
+                            final String currentNode = event.state()
+                                .routingTable()
+                                .shardRoutingTable(shard.shardId())
+                                .primaryShard()
+                                .currentNodeId();
+                            if (previousNode.equals(currentNode) == false) {
+                                processLatestReceivedCheckpoint(shard, Thread.currentThread());
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     /**
      * Cancel any replications on this node for a replica that is about to be closed.
      */
     @Override
     public void beforeIndexShardClosed(ShardId shardId, @Nullable IndexShard indexShard, Settings indexSettings) {
         if (indexShard != null && indexShard.indexSettings().isSegRepEnabled()) {
-            onGoingReplications.requestCancel(indexShard.shardId(), "Shard closing");
+            onGoingReplications.cancelForShard(indexShard.shardId(), "Shard closing");
             latestReceivedCheckpoint.remove(shardId);
         }
     }
@@ -172,7 +220,7 @@ public class SegmentReplicationTargetService implements IndexEventListener {
     @Override
     public void shardRoutingChanged(IndexShard indexShard, @Nullable ShardRouting oldRouting, ShardRouting newRouting) {
         if (oldRouting != null && indexShard.indexSettings().isSegRepEnabled() && oldRouting.primary() == false && newRouting.primary()) {
-            onGoingReplications.requestCancel(indexShard.shardId(), "Shard has been promoted to primary");
+            onGoingReplications.cancelForShard(indexShard.shardId(), "Shard has been promoted to primary");
             latestReceivedCheckpoint.remove(indexShard.shardId());
         }
     }
@@ -202,6 +250,14 @@ public class SegmentReplicationTargetService implements IndexEventListener {
     public SegmentReplicationState getSegmentReplicationState(ShardId shardId) {
         return Optional.ofNullable(getOngoingEventSegmentReplicationState(shardId))
             .orElseGet(() -> getlatestCompletedEventSegmentReplicationState(shardId));
+    }
+
+    public ReplicationRef<SegmentReplicationTarget> get(long replicationId) {
+        return onGoingReplications.get(replicationId);
+    }
+
+    public SegmentReplicationTarget get(ShardId shardId) {
+        return onGoingReplications.getOngoingReplicationTarget(shardId);
     }
 
     /**
@@ -395,7 +451,7 @@ public class SegmentReplicationTargetService implements IndexEventListener {
     // visible to tests
     protected boolean processLatestReceivedCheckpoint(IndexShard replicaShard, Thread thread) {
         final ReplicationCheckpoint latestPublishedCheckpoint = latestReceivedCheckpoint.get(replicaShard.shardId());
-        if (latestPublishedCheckpoint != null && latestPublishedCheckpoint.isAheadOf(replicaShard.getLatestReplicationCheckpoint())) {
+        if (latestPublishedCheckpoint != null) {
             logger.trace(
                 () -> new ParameterizedMessage(
                     "Processing latest received checkpoint for shard {} {}",
@@ -403,7 +459,13 @@ public class SegmentReplicationTargetService implements IndexEventListener {
                     latestPublishedCheckpoint
                 )
             );
-            Runnable runnable = () -> onNewCheckpoint(latestReceivedCheckpoint.get(replicaShard.shardId()), replicaShard);
+            Runnable runnable = () -> {
+                // if we retry ensure the shard is not in the process of being closed.
+                // it will be removed from indexService's collection before the shard is actually marked as closed.
+                if (indicesService.getShardOrNull(replicaShard.shardId()) != null) {
+                    onNewCheckpoint(latestReceivedCheckpoint.get(replicaShard.shardId()), replicaShard);
+                }
+            };
             // Checks if we are using same thread and forks if necessary.
             if (thread == Thread.currentThread()) {
                 threadPool.generic().execute(runnable);
@@ -497,9 +559,6 @@ public class SegmentReplicationTargetService implements IndexEventListener {
 
         @Override
         public void onFailure(Exception e) {
-            try (final ReplicationRef<SegmentReplicationTarget> ref = onGoingReplications.get(replicationId)) {
-                logger.error(() -> new ParameterizedMessage("Error during segment replication, {}", ref.get().description()), e);
-            }
             onGoingReplications.fail(replicationId, new ReplicationFailedException("Unexpected Error during replication", e), false);
         }
 

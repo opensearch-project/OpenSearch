@@ -44,11 +44,10 @@ import org.opensearch.client.Requests;
 import org.opensearch.cluster.health.ClusterHealthStatus;
 import org.opensearch.common.Priority;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.query.MatchQueryBuilder;
 import org.opensearch.search.builder.SearchSourceBuilder;
-import org.opensearch.test.ParameterizedOpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -64,10 +63,10 @@ import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
-public class TransportSearchFailuresIT extends ParameterizedOpenSearchIntegTestCase {
+public class TransportSearchFailuresIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
 
-    public TransportSearchFailuresIT(Settings dynamicSettings) {
-        super(dynamicSettings);
+    public TransportSearchFailuresIT(Settings staticSettings) {
+        super(staticSettings);
     }
 
     @ParametersFactory
@@ -76,11 +75,6 @@ public class TransportSearchFailuresIT extends ParameterizedOpenSearchIntegTestC
             new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), false).build() },
             new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), true).build() }
         );
-    }
-
-    @Override
-    protected Settings featureFlagSettings() {
-        return Settings.builder().put(super.featureFlagSettings()).put(FeatureFlags.CONCURRENT_SEGMENT_SEARCH, "true").build();
     }
 
     @Override

@@ -35,7 +35,6 @@ import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.CollectorManager;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.util.ArrayUtil;
 import org.opensearch.action.search.SearchShardTask;
 import org.opensearch.action.search.SearchType;
 import org.opensearch.common.Nullable;
@@ -409,11 +408,10 @@ public abstract class SearchContext implements Releasable {
      * Returns local bucket count thresholds based on concurrent segment search status
      */
     public LocalBucketCountThresholds asLocalBucketCountThresholds(TermsAggregator.BucketCountThresholds bucketCountThresholds) {
-        if (shouldUseConcurrentSearch()) {
-            return new LocalBucketCountThresholds(0, ArrayUtil.MAX_ARRAY_LENGTH - 1);
-        } else {
-            return new LocalBucketCountThresholds(bucketCountThresholds.getShardMinDocCount(), bucketCountThresholds.getShardSize());
-        }
+        return new LocalBucketCountThresholds(
+            shouldUseConcurrentSearch() ? 0 : bucketCountThresholds.getShardMinDocCount(),
+            bucketCountThresholds.getShardSize()
+        );
     }
 
     /**

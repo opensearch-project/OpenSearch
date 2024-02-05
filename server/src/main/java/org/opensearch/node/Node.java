@@ -46,6 +46,8 @@ import org.opensearch.action.ActionType;
 import org.opensearch.action.admin.cluster.snapshots.status.TransportNodesSnapshotsStatus;
 import org.opensearch.action.search.SearchExecutionStatsCollector;
 import org.opensearch.action.search.SearchPhaseController;
+import org.opensearch.action.search.SearchRequestOperationsCompositeListenerFactory;
+import org.opensearch.action.search.SearchRequestOperationsListener;
 import org.opensearch.action.search.SearchRequestSlowLog;
 import org.opensearch.action.search.SearchRequestStats;
 import org.opensearch.action.search.SearchTransportService;
@@ -525,7 +527,11 @@ public class Node implements Closeable {
              */
             this.environment = new Environment(settings, initialEnvironment.configDir(), Node.NODE_LOCAL_STORAGE_SETTING.get(settings));
             Environment.assertEquivalent(initialEnvironment, this.environment);
-            nodeEnvironment = new NodeEnvironment(tmpSettings, environment);
+            if (DiscoveryNode.isSearchNode(settings) == false) {
+                nodeEnvironment = new NodeEnvironment(tmpSettings, environment);
+            } else {
+                nodeEnvironment = new NodeEnvironment(settings, environment, new FileCacheCleaner(this::fileCache));
+            }
             logger.info(
                 "node name [{}], node ID [{}], cluster name [{}], roles {}",
                 NODE_NAME_SETTING.get(tmpSettings),
@@ -676,7 +682,6 @@ public class Node implements Closeable {
             );
             // File cache will be initialized by the node once circuit breakers are in place.
             initializeFileCache(settings, circuitBreakerService.getBreaker(CircuitBreaker.REQUEST));
-            final FileCacheCleaner fileCacheCleaner = new FileCacheCleaner(nodeEnvironment, fileCache);
             final MonitorService monitorService = new MonitorService(settings, nodeEnvironment, threadPool, fileCache);
 
             pluginsService.filterPlugins(CircuitBreakerPlugin.class).forEach(plugin -> {
@@ -783,7 +788,7 @@ public class Node implements Closeable {
                 threadPool
             );
 
-            final SearchRequestStats searchRequestStats = new SearchRequestStats();
+            final SearchRequestStats searchRequestStats = new SearchRequestStats(clusterService.getClusterSettings());
             final SearchRequestSlowLog searchRequestSlowLog = new SearchRequestSlowLog(clusterService);
 
             remoteStoreStatsTrackerFactory = new RemoteStoreStatsTrackerFactory(clusterService, settings);
@@ -810,7 +815,6 @@ public class Node implements Closeable {
                 recoveryStateFactories,
                 remoteDirectoryFactory,
                 repositoriesServiceReference::get,
-                fileCacheCleaner,
                 searchRequestStats,
                 remoteStoreStatsTrackerFactory,
                 recoverySettings
@@ -878,6 +882,17 @@ public class Node implements Closeable {
                     ).stream()
                 )
                 .collect(Collectors.toList());
+
+            // register all standard SearchRequestOperationsCompositeListenerFactory to the SearchRequestOperationsCompositeListenerFactory
+            final SearchRequestOperationsCompositeListenerFactory searchRequestOperationsCompositeListenerFactory =
+                new SearchRequestOperationsCompositeListenerFactory(
+                    Stream.concat(
+                        Stream.of(searchRequestStats, searchRequestSlowLog),
+                        pluginComponents.stream()
+                            .filter(p -> p instanceof SearchRequestOperationsListener)
+                            .map(p -> (SearchRequestOperationsListener) p)
+                    ).toArray(SearchRequestOperationsListener[]::new)
+                );
 
             ActionModule actionModule = new ActionModule(
                 settings,
@@ -1275,6 +1290,7 @@ public class Node implements Closeable {
                 b.bind(RemoteClusterStateService.class).toProvider(() -> remoteClusterStateService);
                 b.bind(PersistedStateRegistry.class).toInstance(persistedStateRegistry);
                 b.bind(SegmentReplicationStatsTracker.class).toInstance(segmentReplicationStatsTracker);
+                b.bind(SearchRequestOperationsCompositeListenerFactory.class).toInstance(searchRequestOperationsCompositeListenerFactory);
             });
             injector = modules.createInjector();
 
@@ -1414,6 +1430,7 @@ public class Node implements Closeable {
         assert transportService.getLocalNode().equals(localNodeFactory.getNode())
             : "transportService has a different local node than the factory provided";
         injector.getInstance(PeerRecoverySourceService.class).start();
+        injector.getInstance(SegmentReplicationTargetService.class).start();
         injector.getInstance(SegmentReplicationSourceService.class).start();
 
         final RemoteClusterStateService remoteClusterStateService = injector.getInstance(RemoteClusterStateService.class);
@@ -1602,6 +1619,7 @@ public class Node implements Closeable {
         toClose.add(injector.getInstance(IndicesStore.class));
         toClose.add(injector.getInstance(PeerRecoverySourceService.class));
         toClose.add(injector.getInstance(SegmentReplicationSourceService.class));
+        toClose.add(injector.getInstance(SegmentReplicationTargetService.class));
         toClose.add(() -> stopWatch.stop().start("cluster"));
         toClose.add(injector.getInstance(ClusterService.class));
         toClose.add(() -> stopWatch.stop().start("node_connections_service"));

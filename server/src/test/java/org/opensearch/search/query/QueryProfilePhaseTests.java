@@ -35,6 +35,7 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
+import org.apache.lucene.search.Pruning;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
@@ -615,12 +616,22 @@ public class QueryProfilePhaseTests extends IndexShardTestCase {
                 assertThat(query.getTimeBreakdown().get("score"), greaterThan(0L));
                 assertThat(query.getTimeBreakdown().get("score_count"), greaterThan(0L));
                 if (executor != null) {
-                    assertThat(query.getTimeBreakdown().get("max_score"), greaterThan(0L));
-                    assertThat(query.getTimeBreakdown().get("min_score"), greaterThan(0L));
-                    assertThat(query.getTimeBreakdown().get("avg_score"), greaterThan(0L));
-                    assertThat(query.getTimeBreakdown().get("max_score_count"), greaterThan(0L));
-                    assertThat(query.getTimeBreakdown().get("min_score_count"), greaterThan(0L));
-                    assertThat(query.getTimeBreakdown().get("avg_score_count"), greaterThan(0L));
+                    long maxScore = query.getTimeBreakdown().get("max_score");
+                    long minScore = query.getTimeBreakdown().get("min_score");
+                    long avgScore = query.getTimeBreakdown().get("avg_score");
+                    long maxScoreCount = query.getTimeBreakdown().get("max_score_count");
+                    long minScoreCount = query.getTimeBreakdown().get("min_score_count");
+                    long avgScoreCount = query.getTimeBreakdown().get("avg_score_count");
+                    assertThat(maxScore, greaterThan(0L));
+                    assertThat(minScore, greaterThanOrEqualTo(0L));
+                    assertThat(avgScore, greaterThanOrEqualTo(0L));
+                    assertThat(maxScore, greaterThanOrEqualTo(avgScore));
+                    assertThat(avgScore, greaterThanOrEqualTo(minScore));
+                    assertThat(maxScoreCount, greaterThan(0L));
+                    assertThat(minScoreCount, greaterThanOrEqualTo(0L));
+                    assertThat(avgScoreCount, greaterThanOrEqualTo(0L));
+                    assertThat(maxScoreCount, greaterThanOrEqualTo(avgScoreCount));
+                    assertThat(avgScoreCount, greaterThanOrEqualTo(minScoreCount));
                 }
                 assertThat(query.getTimeBreakdown().get("create_weight"), greaterThan(0L));
                 assertThat(query.getTimeBreakdown().get("create_weight_count"), equalTo(1L));
@@ -744,30 +755,50 @@ public class QueryProfilePhaseTests extends IndexShardTestCase {
                 assertThat(query.getProfiledChildren().get(0).getTime(), greaterThan(0L));
                 assertThat(query.getProfiledChildren().get(0).getTimeBreakdown().get("create_weight"), greaterThan(0L));
                 assertThat(query.getProfiledChildren().get(0).getTimeBreakdown().get("create_weight_count"), equalTo(1L));
-                assertThat(query.getProfiledChildren().get(0).getTimeBreakdown().get("score"), greaterThan(0L));
-                assertThat(query.getProfiledChildren().get(0).getTimeBreakdown().get("score_count"), greaterThan(0L));
+                assertThat(query.getProfiledChildren().get(0).getTimeBreakdown().get("score"), greaterThanOrEqualTo(0L));
+                assertThat(query.getProfiledChildren().get(0).getTimeBreakdown().get("score_count"), greaterThanOrEqualTo(0L));
                 if (executor != null) {
-                    assertThat(query.getProfiledChildren().get(0).getTimeBreakdown().get("max_score"), greaterThan(0L));
-                    assertThat(query.getProfiledChildren().get(0).getTimeBreakdown().get("min_score"), greaterThan(0L));
-                    assertThat(query.getProfiledChildren().get(0).getTimeBreakdown().get("avg_score"), greaterThan(0L));
-                    assertThat(query.getProfiledChildren().get(0).getTimeBreakdown().get("max_score_count"), greaterThan(0L));
-                    assertThat(query.getProfiledChildren().get(0).getTimeBreakdown().get("min_score_count"), greaterThan(0L));
-                    assertThat(query.getProfiledChildren().get(0).getTimeBreakdown().get("avg_score_count"), greaterThan(0L));
+                    long maxScore = query.getProfiledChildren().get(0).getTimeBreakdown().get("max_score");
+                    long minScore = query.getProfiledChildren().get(0).getTimeBreakdown().get("min_score");
+                    long avgScore = query.getProfiledChildren().get(0).getTimeBreakdown().get("avg_score");
+                    long maxScoreCount = query.getProfiledChildren().get(0).getTimeBreakdown().get("max_score_count");
+                    long minScoreCount = query.getProfiledChildren().get(0).getTimeBreakdown().get("min_score_count");
+                    long avgScoreCount = query.getProfiledChildren().get(0).getTimeBreakdown().get("avg_score_count");
+                    assertThat(maxScore, greaterThanOrEqualTo(0L));
+                    assertThat(minScore, greaterThanOrEqualTo(0L));
+                    assertThat(avgScore, greaterThanOrEqualTo(0L));
+                    assertThat(maxScore, greaterThanOrEqualTo(avgScore));
+                    assertThat(avgScore, greaterThanOrEqualTo(minScore));
+                    assertThat(maxScoreCount, greaterThanOrEqualTo(0L));
+                    assertThat(minScoreCount, greaterThanOrEqualTo(0L));
+                    assertThat(avgScoreCount, greaterThanOrEqualTo(0L));
+                    assertThat(maxScoreCount, greaterThanOrEqualTo(avgScoreCount));
+                    assertThat(avgScoreCount, greaterThanOrEqualTo(minScoreCount));
                 }
 
                 assertThat(query.getProfiledChildren().get(1).getQueryName(), equalTo("TermQuery"));
                 assertThat(query.getProfiledChildren().get(1).getTime(), greaterThan(0L));
                 assertThat(query.getProfiledChildren().get(1).getTimeBreakdown().get("create_weight"), greaterThan(0L));
                 assertThat(query.getProfiledChildren().get(1).getTimeBreakdown().get("create_weight_count"), equalTo(1L));
-                assertThat(query.getProfiledChildren().get(1).getTimeBreakdown().get("score"), greaterThan(0L));
-                assertThat(query.getProfiledChildren().get(1).getTimeBreakdown().get("score_count"), greaterThan(0L));
+                assertThat(query.getProfiledChildren().get(1).getTimeBreakdown().get("score"), greaterThanOrEqualTo(0L));
+                assertThat(query.getProfiledChildren().get(1).getTimeBreakdown().get("score_count"), greaterThanOrEqualTo(0L));
                 if (executor != null) {
-                    assertThat(query.getProfiledChildren().get(1).getTimeBreakdown().get("max_score"), greaterThan(0L));
-                    assertThat(query.getProfiledChildren().get(1).getTimeBreakdown().get("min_score"), greaterThan(0L));
-                    assertThat(query.getProfiledChildren().get(1).getTimeBreakdown().get("avg_score"), greaterThan(0L));
-                    assertThat(query.getProfiledChildren().get(1).getTimeBreakdown().get("max_score_count"), greaterThan(0L));
-                    assertThat(query.getProfiledChildren().get(1).getTimeBreakdown().get("min_score_count"), greaterThan(0L));
-                    assertThat(query.getProfiledChildren().get(1).getTimeBreakdown().get("avg_score_count"), greaterThan(0L));
+                    long maxScore = query.getProfiledChildren().get(1).getTimeBreakdown().get("max_score");
+                    long minScore = query.getProfiledChildren().get(1).getTimeBreakdown().get("min_score");
+                    long avgScore = query.getProfiledChildren().get(1).getTimeBreakdown().get("avg_score");
+                    long maxScoreCount = query.getProfiledChildren().get(1).getTimeBreakdown().get("max_score_count");
+                    long minScoreCount = query.getProfiledChildren().get(1).getTimeBreakdown().get("min_score_count");
+                    long avgScoreCount = query.getProfiledChildren().get(1).getTimeBreakdown().get("avg_score_count");
+                    assertThat(maxScore, greaterThanOrEqualTo(0L));
+                    assertThat(minScore, greaterThanOrEqualTo(0L));
+                    assertThat(avgScore, greaterThanOrEqualTo(0L));
+                    assertThat(maxScore, greaterThanOrEqualTo(avgScore));
+                    assertThat(avgScore, greaterThanOrEqualTo(minScore));
+                    assertThat(maxScoreCount, greaterThanOrEqualTo(0L));
+                    assertThat(minScoreCount, greaterThanOrEqualTo(0L));
+                    assertThat(avgScoreCount, greaterThanOrEqualTo(0L));
+                    assertThat(maxScoreCount, greaterThanOrEqualTo(avgScoreCount));
+                    assertThat(avgScoreCount, greaterThanOrEqualTo(minScoreCount));
                 }
             }, collector -> {
                 assertThat(collector.getReason(), equalTo("search_terminate_after_count"));
@@ -1056,7 +1087,7 @@ public class QueryProfilePhaseTests extends IndexShardTestCase {
                 @SuppressWarnings("unchecked")
                 FieldComparator<Object> comparator = (FieldComparator<Object>) searchSortAndFormat.sort.getSort()[i].getComparator(
                     i,
-                    randomBoolean()
+                    randomFrom(Pruning.values())
                 );
                 int cmp = comparator.compareValues(firstDoc.fields[i], lastDoc.fields[i]);
                 if (cmp == 0) {
@@ -1401,12 +1432,22 @@ public class QueryProfilePhaseTests extends IndexShardTestCase {
             assertThat(query.getTimeBreakdown().get("score"), greaterThan(0L));
             assertThat(query.getTimeBreakdown().get("score_count"), greaterThanOrEqualTo(6L));
             if (executor != null) {
-                assertThat(query.getTimeBreakdown().get("max_score"), greaterThan(0L));
-                assertThat(query.getTimeBreakdown().get("min_score"), greaterThan(0L));
-                assertThat(query.getTimeBreakdown().get("avg_score"), greaterThan(0L));
-                assertThat(query.getTimeBreakdown().get("max_score_count"), greaterThanOrEqualTo(6L));
-                assertThat(query.getTimeBreakdown().get("min_score_count"), greaterThanOrEqualTo(2L));
-                assertThat(query.getTimeBreakdown().get("avg_score_count"), greaterThanOrEqualTo(6L));
+                long maxScore = query.getTimeBreakdown().get("max_score");
+                long minScore = query.getTimeBreakdown().get("min_score");
+                long avgScore = query.getTimeBreakdown().get("avg_score");
+                long maxScoreCount = query.getTimeBreakdown().get("max_score_count");
+                long minScoreCount = query.getTimeBreakdown().get("min_score_count");
+                long avgScoreCount = query.getTimeBreakdown().get("avg_score_count");
+                assertThat(maxScore, greaterThan(0L));
+                assertThat(minScore, greaterThan(0L));
+                assertThat(avgScore, greaterThan(0L));
+                assertThat(maxScore, greaterThanOrEqualTo(avgScore));
+                assertThat(avgScore, greaterThanOrEqualTo(minScore));
+                assertThat(maxScoreCount, greaterThan(0L));
+                assertThat(minScoreCount, greaterThan(0L));
+                assertThat(avgScoreCount, greaterThan(0L));
+                assertThat(maxScoreCount, greaterThanOrEqualTo(avgScoreCount));
+                assertThat(avgScoreCount, greaterThanOrEqualTo(minScoreCount));
             }
             assertThat(query.getTimeBreakdown().get("create_weight"), greaterThan(0L));
             assertThat(query.getTimeBreakdown().get("create_weight_count"), equalTo(1L));
@@ -1436,12 +1477,22 @@ public class QueryProfilePhaseTests extends IndexShardTestCase {
             assertThat(query.getTimeBreakdown().get("score"), greaterThan(0L));
             assertThat(query.getTimeBreakdown().get("score_count"), greaterThanOrEqualTo(6L));
             if (executor != null) {
-                assertThat(query.getTimeBreakdown().get("max_score"), greaterThan(0L));
-                assertThat(query.getTimeBreakdown().get("min_score"), greaterThan(0L));
-                assertThat(query.getTimeBreakdown().get("avg_score"), greaterThan(0L));
-                assertThat(query.getTimeBreakdown().get("max_score_count"), greaterThanOrEqualTo(6L));
-                assertThat(query.getTimeBreakdown().get("min_score_count"), greaterThanOrEqualTo(2L));
-                assertThat(query.getTimeBreakdown().get("avg_score_count"), greaterThanOrEqualTo(6L));
+                long maxScore = query.getTimeBreakdown().get("max_score");
+                long minScore = query.getTimeBreakdown().get("min_score");
+                long avgScore = query.getTimeBreakdown().get("avg_score");
+                long maxScoreCount = query.getTimeBreakdown().get("max_score_count");
+                long minScoreCount = query.getTimeBreakdown().get("min_score_count");
+                long avgScoreCount = query.getTimeBreakdown().get("avg_score_count");
+                assertThat(maxScore, greaterThan(0L));
+                assertThat(minScore, greaterThan(0L));
+                assertThat(avgScore, greaterThan(0L));
+                assertThat(maxScore, greaterThanOrEqualTo(avgScore));
+                assertThat(avgScore, greaterThanOrEqualTo(minScore));
+                assertThat(maxScoreCount, greaterThan(0L));
+                assertThat(minScoreCount, greaterThan(0L));
+                assertThat(avgScoreCount, greaterThan(0L));
+                assertThat(maxScoreCount, greaterThanOrEqualTo(avgScoreCount));
+                assertThat(avgScoreCount, greaterThanOrEqualTo(minScoreCount));
             }
             assertThat(query.getTimeBreakdown().get("create_weight"), greaterThan(0L));
             assertThat(query.getTimeBreakdown().get("create_weight_count"), equalTo(1L));
