@@ -57,7 +57,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump Lucene from 9.7.0 to 9.8.0 ([10276](https://github.com/opensearch-project/OpenSearch/pull/10276))
 - Bump `commons-io:commons-io` from 2.13.0 to 2.15.1 ([#10294](https://github.com/opensearch-project/OpenSearch/pull/10294), [#11001](https://github.com/opensearch-project/OpenSearch/pull/11001), [#11002](https://github.com/opensearch-project/OpenSearch/pull/11002), [#11446](https://github.com/opensearch-project/OpenSearch/pull/11446), [#11554](https://github.com/opensearch-project/OpenSearch/pull/11554), [#11560](https://github.com/opensearch-project/OpenSearch/pull/11560), [#11796](https://github.com/opensearch-project/OpenSearch/pull/11796))
 - Bump `com.google.api.grpc:proto-google-common-protos` from 2.25.0 to 2.25.1 ([#10298](https://github.com/opensearch-project/OpenSearch/pull/10298))
-- Bump `com.netflix.nebula.ospackage-base` from 11.4.0 to 11.6.0 ([#10295](https://github.com/opensearch-project/OpenSearch/pull/10295), [#11630](https://github.com/opensearch-project/OpenSearch/pull/11630))
+- Bump `com.netflix.nebula.ospackage-base` from 11.4.0 to 11.8.0 ([#10295](https://github.com/opensearch-project/OpenSearch/pull/10295), [#11630](https://github.com/opensearch-project/OpenSearch/pull/11630), [#12167](https://github.com/opensearch-project/OpenSearch/pull/12167))
 - Bump `de.thetaphi:forbiddenapis` from 3.5.1 to 3.6 ([#10508](https://github.com/opensearch-project/OpenSearch/pull/10508))
 - Bump OpenTelemetry from 1.30.1 to 1.31.0 ([#10617](https://github.com/opensearch-project/OpenSearch/pull/10617))
 - Bump `org.codehaus.woodstox:stax2-api` from 4.2.1 to 4.2.2 ([#10639](https://github.com/opensearch-project/OpenSearch/pull/10639))
