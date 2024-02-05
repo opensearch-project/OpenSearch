@@ -132,9 +132,7 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
     /**
     * Transforms {@link FetchResult} of {@link NodeGatewayStartedShards} to {@link List} of {@link NodeGatewayStartedShards}
     * Returns null if {@link FetchResult} does not have any data.
-    *
-    * @param shardsState {@link FetchResult<NodeGatewayStartedShards>}
-    * */
+    */
     private static List<NodeGatewayStartedShards> adaptToNodeStartedShardList(FetchResult<NodeGatewayStartedShards> shardsState) {
         if (!shardsState.hasData()) {
             return null;
