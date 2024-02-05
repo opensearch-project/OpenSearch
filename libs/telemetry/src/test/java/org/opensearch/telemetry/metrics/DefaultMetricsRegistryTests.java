@@ -10,10 +10,6 @@ package org.opensearch.telemetry.metrics;
 
 import org.opensearch.test.OpenSearchTestCase;
 
-import java.util.Arrays;
-
-import org.mockito.ArgumentMatchers;
-
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -59,25 +55,6 @@ public class DefaultMetricsRegistryTests extends OpenSearchTestCase {
             "org.opensearch.telemetry.metrics.DefaultMeterRegistryTests.testHistogram",
             "test up-down counter",
             "ms"
-        );
-        assertSame(mockHistogram, histogram);
-    }
-
-    public void testHistogramWithExplicitBuckets() {
-        Histogram mockHistogram = mock(Histogram.class);
-        when(
-            defaultMeterRegistry.createHistogram(
-                any(String.class),
-                any(String.class),
-                any(String.class),
-                ArgumentMatchers.<Double>anyList()
-            )
-        ).thenReturn(mockHistogram);
-        Histogram histogram = defaultMeterRegistry.createHistogram(
-            "org.opensearch.telemetry.metrics.DefaultMeterRegistryTests.testHistogram",
-            "test up-down counter",
-            "ms",
-            Arrays.asList(1.0, 2.0)
         );
         assertSame(mockHistogram, histogram);
     }

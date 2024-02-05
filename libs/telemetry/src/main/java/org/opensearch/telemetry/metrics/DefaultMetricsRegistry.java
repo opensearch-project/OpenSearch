@@ -9,7 +9,6 @@
 package org.opensearch.telemetry.metrics;
 
 import java.io.IOException;
-import java.util.List;
 
 /**
  * Default implementation for {@link MetricsRegistry}
@@ -38,11 +37,6 @@ class DefaultMetricsRegistry implements MetricsRegistry {
     @Override
     public Histogram createHistogram(String name, String description, String unit) {
         return metricsTelemetry.createHistogram(name, description, unit);
-    }
-
-    @Override
-    public Histogram createHistogram(String name, String description, String unit, List<Double> buckets) {
-        return metricsTelemetry.createHistogram(name, description, unit, buckets);
     }
 
     @Override

@@ -16,7 +16,6 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
-import java.util.List;
 
 import io.opentelemetry.api.metrics.DoubleCounter;
 import io.opentelemetry.api.metrics.DoubleHistogram;
@@ -88,18 +87,6 @@ public class OTelMetricsTelemetry<T extends MeterProvider & Closeable> implement
             (PrivilegedAction<DoubleHistogram>) () -> otelMeter.histogramBuilder(internalMetricName)
                 .setUnit(unit)
                 .setDescription(description)
-                .build()
-        );
-        return new OTelHistogram(doubleHistogram);
-    }
-
-    @Override
-    public Histogram createHistogram(String name, String description, String unit, List<Double> buckets) {
-        DoubleHistogram doubleHistogram = AccessController.doPrivileged(
-            (PrivilegedAction<DoubleHistogram>) () -> otelMeter.histogramBuilder(name)
-                .setUnit(unit)
-                .setDescription(description)
-                .setExplicitBucketBoundariesAdvice(buckets)
                 .build()
         );
         return new OTelHistogram(doubleHistogram);

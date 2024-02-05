@@ -20,12 +20,10 @@ import org.junit.After;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.List;
 import java.util.stream.Collectors;
 
 import io.opentelemetry.sdk.metrics.data.DoublePointData;
 import io.opentelemetry.sdk.metrics.internal.data.ImmutableExponentialHistogramPointData;
-import io.opentelemetry.sdk.metrics.internal.data.ImmutableHistogramPointData;
 
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.SUITE, minNumDataNodes = 1)
 public class TelemetryMetricsEnabledSanityIT extends OpenSearchIntegTestCase {
@@ -118,32 +116,6 @@ public class TelemetryMetricsEnabledSanityIT extends OpenSearchIntegTestCase {
         assertEquals(1.0, histogramPointData.getSum(), 6.0);
         assertEquals(1.0, histogramPointData.getMax(), 3.0);
         assertEquals(1.0, histogramPointData.getMin(), 1.0);
-    }
-
-    public void testHistogramWithExplicitBuckets() throws Exception {
-        MetricsRegistry metricsRegistry = internalCluster().getInstance(MetricsRegistry.class);
-        InMemorySingletonMetricsExporter.INSTANCE.reset();
-
-        List<Double> buckets = Arrays.asList(1.0, 5.0, 10.0);
-        Histogram histogram = metricsRegistry.createHistogram("test-histogram", "test", "ms", buckets);
-        histogram.record(2.0);
-        histogram.record(1.0);
-        histogram.record(3.0);
-        // Sleep for about 2s to wait for metrics to be published.
-        Thread.sleep(2000);
-
-        InMemorySingletonMetricsExporter exporter = InMemorySingletonMetricsExporter.INSTANCE;
-        ImmutableHistogramPointData histogramPointData = ((ImmutableHistogramPointData) ((ArrayList) exporter.getFinishedMetricItems()
-            .stream()
-            .filter(a -> a.getName().equals("test-histogram"))
-            .collect(Collectors.toList())
-            .get(0)
-            .getHistogramData()
-            .getPoints()).get(0));
-        assertEquals(1.0, histogramPointData.getSum(), 6.0);
-        assertEquals(1.0, histogramPointData.getMax(), 3.0);
-        assertEquals(1.0, histogramPointData.getMin(), 1.0);
-        assertEquals(buckets, histogramPointData.getBoundaries());
     }
 
     @After

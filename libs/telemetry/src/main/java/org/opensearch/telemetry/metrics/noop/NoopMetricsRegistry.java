@@ -14,7 +14,6 @@ import org.opensearch.telemetry.metrics.Histogram;
 import org.opensearch.telemetry.metrics.MetricsRegistry;
 
 import java.io.IOException;
-import java.util.List;
 
 /**
  *No-op {@link MetricsRegistry}
@@ -42,11 +41,6 @@ public class NoopMetricsRegistry implements MetricsRegistry {
 
     @Override
     public Histogram createHistogram(String name, String description, String unit) {
-        return NoopHistogram.INSTANCE;
-    }
-
-    @Override
-    public Histogram createHistogram(String name, String description, String unit, List<Double> buckets) {
         return NoopHistogram.INSTANCE;
     }
 

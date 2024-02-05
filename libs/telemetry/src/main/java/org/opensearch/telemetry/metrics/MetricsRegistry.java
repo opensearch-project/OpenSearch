@@ -11,7 +11,6 @@ package org.opensearch.telemetry.metrics;
 import org.opensearch.common.annotation.ExperimentalApi;
 
 import java.io.Closeable;
-import java.util.List;
 
 /**
  * MetricsRegistry helps in creating the metric instruments.
@@ -48,16 +47,4 @@ public interface MetricsRegistry extends Closeable {
      * @return histogram.
      */
     Histogram createHistogram(String name, String description, String unit);
-
-    /**
-     * Creates the histogram type of Metric with the explicit buckets defined. This should be used only
-     * in the scenario where user is very much aware of the buckets otherwise it's advised to use the
-     * default api.
-     * @param name        name of the histogram.
-     * @param description any description about the metric.
-     * @param unit        unit of the metric.
-     * @param buckets     list of explicit histogram buckets.
-     * @return histogram.
-     */
-    Histogram createHistogram(String name, String description, String unit, List<Double> buckets);
 }

@@ -18,8 +18,6 @@ import org.opensearch.telemetry.metrics.noop.NoopHistogram;
 import org.opensearch.telemetry.tracing.TracingTelemetry;
 import org.opensearch.test.telemetry.tracing.MockTracingTelemetry;
 
-import java.util.List;
-
 /**
  * Mock {@link Telemetry} implementation for testing.
  */
@@ -52,11 +50,6 @@ public class MockTelemetry implements Telemetry {
 
             @Override
             public Histogram createHistogram(String name, String description, String unit) {
-                return NoopHistogram.INSTANCE;
-            }
-
-            @Override
-            public Histogram createHistogram(String name, String description, String unit, List<Double> buckets) {
                 return NoopHistogram.INSTANCE;
             }
 
