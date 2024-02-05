@@ -206,7 +206,10 @@ thirdPartyAudit {
     // commons-logging provided dependencies
     'javax.jms.Message',
     'javax.servlet.ServletContextEvent',
-    'javax.servlet.ServletContextListener'
+    'javax.servlet.ServletContextListener',
+    // Bump for gax 2.42.0
+    'com.google.api.gax.rpc.EndpointContext',
+    'com.google.api.gax.rpc.RequestMutator'
   )
 }
 
