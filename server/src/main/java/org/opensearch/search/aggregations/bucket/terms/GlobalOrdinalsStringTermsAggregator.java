@@ -40,7 +40,6 @@ import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
-import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
@@ -145,8 +144,9 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
                 return new DenseGlobalOrds();
             });
         }
-            this.fieldName = (valuesSource instanceof ValuesSource.Bytes.WithOrdinals.FieldData) ?
-                ((ValuesSource.Bytes.WithOrdinals.FieldData) valuesSource).getIndexFieldName() : null;
+        this.fieldName = (valuesSource instanceof ValuesSource.Bytes.WithOrdinals.FieldData)
+            ? ((ValuesSource.Bytes.WithOrdinals.FieldData) valuesSource).getIndexFieldName()
+            : null;
     }
 
     String descriptCollectionStrategy() {
