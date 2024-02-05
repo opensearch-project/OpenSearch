@@ -12,6 +12,7 @@ import org.opensearch.Version;
 import org.opensearch.cluster.Diff;
 import org.opensearch.cluster.DiffableUtils;
 import org.opensearch.cluster.NamedDiff;
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.core.ParseField;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.StreamInput;
@@ -30,6 +31,7 @@ import java.util.Objects;
 import static org.opensearch.cluster.metadata.ComposableIndexTemplateMetadata.MINIMMAL_SUPPORTED_VERSION;
 
 /** View metadata */
+@ExperimentalApi
 public class ViewMetadata implements Metadata.Custom {
 
     public static final String TYPE = "view";

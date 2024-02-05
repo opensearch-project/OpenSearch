@@ -14,8 +14,7 @@ import org.opensearch.test.AbstractWireSerializingTestCase;
 
 import java.util.List;
 
-import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.contains;
 
 public class CreateViewTests extends AbstractWireSerializingTestCase<CreateViewAction.Request> {
 
@@ -39,15 +38,15 @@ public class CreateViewTests extends AbstractWireSerializingTestCase<CreateViewA
             "this is a description",
             List.of(new CreateViewAction.Request.Target("my-indices-*"))
         );
+
         assertNull(request.validate());
     }
 
     public void testValidateRequestWithoutName() {
         final CreateViewAction.Request request = new CreateViewAction.Request("", null, null);
         ActionRequestValidationException e = request.validate();
-        assertNotNull(e);
-        assertThat(e.validationErrors().size(), equalTo(1));
-        assertThat(e.validationErrors().get(0), containsString("name is missing"));
+
+        assertThat(e.validationErrors(), contains("name cannot be empty or null", "targets cannot be empty"));
     }
 
 }

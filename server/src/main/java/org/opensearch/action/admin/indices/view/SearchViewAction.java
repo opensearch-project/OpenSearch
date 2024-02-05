@@ -32,10 +32,11 @@ import java.util.function.Function;
 import static org.opensearch.action.ValidateActions.addValidationError;
 
 /** Action to create a view */
+@ExperimentalApi
 public class SearchViewAction extends ActionType<SearchResponse> {
 
     public static final SearchViewAction INSTANCE = new SearchViewAction();
-    public static final String NAME = "cluster:admin:views:search";
+    public static final String NAME = "views:data/read/search";
 
     private SearchViewAction() {
         super(NAME, SearchResponse::new);
@@ -96,7 +97,8 @@ public class SearchViewAction extends ActionType<SearchResponse> {
                 validationException = addValidationError(unsupported.apply("Scroll"), validationException);
             }
 
-            // TODO: Filter out anything additional search features that are not supported
+            // TODO: Filter out any additional search features that are not supported.
+            // Required before removing @ExperimentalApi annotations.
 
             if (Strings.isNullOrEmpty(view)) {
                 validationException = addValidationError("View is required", validationException);

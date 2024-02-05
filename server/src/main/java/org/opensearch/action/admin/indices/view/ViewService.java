@@ -19,6 +19,7 @@ import org.opensearch.cluster.ClusterStateUpdateTask;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.metadata.View;
 import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.core.action.ActionListener;
 
 import java.util.List;
@@ -26,6 +27,7 @@ import java.util.Optional;
 import java.util.stream.Collectors;
 
 /** Service to interact with views, create, retrieve, update, and delete */
+@ExperimentalApi
 public class ViewService {
 
     private final static Logger LOG = LogManager.getLogger(ViewService.class);

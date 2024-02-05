@@ -12,9 +12,9 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.action.admin.indices.view.CreateViewAction;
 import org.opensearch.action.admin.indices.view.SearchViewAction;
-import org.opensearch.action.search.SearchAction;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.ValidationException;
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.NamedRoute;
@@ -32,6 +32,7 @@ import static org.opensearch.rest.RestRequest.Method.GET;
 import static org.opensearch.rest.RestRequest.Method.POST;
 
 /** All rest handlers for view actions */
+@ExperimentalApi
 public class RestViewAction {
 
     private final static Logger LOG = LogManager.getLogger(RestViewAction.class);
@@ -67,18 +68,18 @@ public class RestViewAction {
             return List.of(
                 new NamedRoute.Builder().path("/views/" + VIEW_ID_PARAMETER + "/_search")
                     .method(GET)
-                    .uniqueName("cluster:views:search")
+                    .uniqueName(SearchViewAction.NAME)
                     .build(),
                 new NamedRoute.Builder().path("/views/" + VIEW_ID_PARAMETER + "/_search")
                     .method(POST)
-                    .uniqueName("cluster:views:search")
+                    .uniqueName(SearchViewAction.NAME)
                     .build()
             );
         }
 
         @Override
         public String getName() {
-            return "view_search_action";
+            return SearchViewAction.NAME;
         }
 
         @Override
@@ -105,7 +106,7 @@ public class RestViewAction {
 
             return channel -> {
                 final RestCancellableNodeClient cancelClient = new RestCancellableNodeClient(client, request.getHttpChannel());
-                cancelClient.execute(SearchAction.INSTANCE, viewSearchRequest, new RestStatusToXContentListener<>(channel));
+                cancelClient.execute(SearchViewAction.INSTANCE, viewSearchRequest, new RestStatusToXContentListener<>(channel));
             };
         }
     }

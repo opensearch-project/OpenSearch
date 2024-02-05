@@ -126,8 +126,6 @@ import org.opensearch.action.admin.indices.validate.query.ValidateQueryRequest;
 import org.opensearch.action.admin.indices.validate.query.ValidateQueryRequestBuilder;
 import org.opensearch.action.admin.indices.validate.query.ValidateQueryResponse;
 import org.opensearch.action.admin.indices.view.CreateViewAction;
-import org.opensearch.action.admin.indices.view.SearchViewAction;
-import org.opensearch.action.search.SearchResponse;
 import org.opensearch.action.support.master.AcknowledgedResponse;
 import org.opensearch.cluster.metadata.IndexMetadata.APIBlock;
 import org.opensearch.common.Nullable;
@@ -847,10 +845,4 @@ public interface IndicesAdminClient extends OpenSearchClient {
 
     /** Create a view */
     ActionFuture<CreateViewAction.Response> createView(CreateViewAction.Request request);
-
-    /** Search a view */
-    void searchView(final SearchViewAction.Request request, final ActionListener<SearchResponse> listener);
-
-    /** Search a view */
-    ActionFuture<SearchResponse> searchView(final SearchViewAction.Request request);
 }

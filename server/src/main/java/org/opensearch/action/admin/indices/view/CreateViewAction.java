@@ -43,10 +43,11 @@ import java.util.List;
 import java.util.Objects;
 
 /** Action to create a view */
+@ExperimentalApi
 public class CreateViewAction extends ActionType<CreateViewAction.Response> {
 
     public static final CreateViewAction INSTANCE = new CreateViewAction();
-    public static final String NAME = "cluster:admin:views:create";
+    public static final String NAME = "cluster:admin/views/create";
 
     private CreateViewAction() {
         super(NAME, CreateViewAction.Response::new);
@@ -103,7 +104,7 @@ public class CreateViewAction extends ActionType<CreateViewAction.Response> {
         public ActionRequestValidationException validate() {
             ActionRequestValidationException validationException = null;
             if (Strings.isNullOrEmpty(name)) {
-                validationException = ValidateActions.addValidationError("Name is cannot be empty or null", validationException);
+                validationException = ValidateActions.addValidationError("name cannot be empty or null", validationException);
             }
             if (CollectionUtils.isEmpty(targets)) {
                 validationException = ValidateActions.addValidationError("targets cannot be empty", validationException);
