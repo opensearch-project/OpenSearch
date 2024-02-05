@@ -2442,9 +2442,10 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
      * Randomly picks replication strategy either as DOCUMENT or SEGMENT.
      */
     protected static ReplicationType getRandomReplicationStrategy() {
-        List<ReplicationType> replicationTypes = new ArrayList<>(Arrays.asList(ReplicationType.values()));
-        Collections.shuffle(replicationTypes);
-        return replicationTypes.get(0);
+//        List<ReplicationType> replicationTypes = new ArrayList<>(Arrays.asList(ReplicationType.values()));
+//        Collections.shuffle(replicationTypes);
+//        return replicationTypes.get(0);
+        return randomBoolean() ? ReplicationType.DOCUMENT : ReplicationType.SEGMENT;
     }
 
 }
