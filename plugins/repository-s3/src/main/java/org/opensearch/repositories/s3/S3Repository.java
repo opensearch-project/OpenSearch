@@ -195,6 +195,22 @@ class S3Repository extends MeteredBlobStoreRepository {
     );
 
     /**
+     * Number of retries in case of a transfer failure.
+     */
+    public static Setting<Integer> S3_MAX_TRANSFER_RETRIES = Setting.intSetting("s3_max_transfer_retries", 3, Setting.Property.NodeScope);
+
+    /**
+     * Percentage of total available permits to be available for priority transfers.
+     */
+    public static Setting<Integer> S3_PRIORITY_PERMIT_ALLOCATION_PERCENT = Setting.intSetting(
+        "s3_priority_permit_alloc_perc",
+        70,
+        21,
+        80,
+        Setting.Property.NodeScope
+    );
+
+    /**
      * Big files can be broken down into chunks during snapshotting if needed. Defaults to 1g.
      */
     static final Setting<ByteSizeValue> CHUNK_SIZE_SETTING = Setting.byteSizeSetting(

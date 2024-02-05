@@ -64,6 +64,9 @@ public final class AsyncTransferManager {
     private final ExecutorService urgentExecutorService;
     private final long minimumPartSize;
 
+    @SuppressWarnings("rawtypes")
+    private final PermitBackedRetryableFutureUtils permitBackedRetryableFutureUtils;
+
     /**
      * The max number of parts on S3 side is 10,000
      */
@@ -73,19 +76,20 @@ public final class AsyncTransferManager {
      * Construct a new object of AsyncTransferManager
      *
      * @param minimumPartSize         The minimum part size for parallel multipart uploads
-     * @param executorService         The stream reader {@link ExecutorService} for normal priority uploads
-     * @param priorityExecutorService The stream read {@link ExecutorService} for high priority uploads
      */
+    @SuppressWarnings("rawtypes")
     public AsyncTransferManager(
         long minimumPartSize,
         ExecutorService executorService,
         ExecutorService priorityExecutorService,
-        ExecutorService urgentExecutorService
+        ExecutorService urgentExecutorService,
+        PermitBackedRetryableFutureUtils permitBackedRetryableFutureUtils
     ) {
         this.executorService = executorService;
         this.priorityExecutorService = priorityExecutorService;
         this.minimumPartSize = minimumPartSize;
         this.urgentExecutorService = urgentExecutorService;
+        this.permitBackedRetryableFutureUtils = permitBackedRetryableFutureUtils;
     }
 
     /**
@@ -107,7 +111,7 @@ public final class AsyncTransferManager {
         try {
             if (streamContext.getNumberOfParts() == 1) {
                 log.debug(() -> "Starting the upload as a single upload part request");
-                uploadInOneChunk(s3AsyncClient, uploadRequest, streamContext.provideStream(0), returnFuture, statsMetricPublisher);
+                uploadInOneChunk(s3AsyncClient, uploadRequest, streamContext, returnFuture, statsMetricPublisher);
             } else {
                 log.debug(() -> "Starting the upload as multipart upload request");
                 uploadInParts(s3AsyncClient, uploadRequest, streamContext, returnFuture, statsMetricPublisher);
@@ -141,21 +145,19 @@ public final class AsyncTransferManager {
         // Ensure cancellations are forwarded to the createMultipartUploadFuture future
         CompletableFutureUtils.forwardExceptionTo(returnFuture, createMultipartUploadFuture);
 
-        createMultipartUploadFuture.whenComplete((createMultipartUploadResponse, throwable) -> {
-            if (throwable != null) {
-                handleException(returnFuture, () -> "Failed to initiate multipart upload", throwable);
-            } else {
-                log.debug(() -> "Initiated new multipart upload, uploadId: " + createMultipartUploadResponse.uploadId());
-                doUploadInParts(
-                    s3AsyncClient,
-                    uploadRequest,
-                    streamContext,
-                    returnFuture,
-                    createMultipartUploadResponse.uploadId(),
-                    statsMetricPublisher
-                );
-            }
-        });
+        String uploadId;
+        try {
+            // Block main thread here so that upload of parts doesn't get executed in future completion thread.
+            // We should never execute latent operation like acquisition of permit in future completion pool.
+            CreateMultipartUploadResponse createMultipartUploadResponse = createMultipartUploadFuture.get();
+            uploadId = createMultipartUploadResponse.uploadId();
+            log.debug(() -> "Initiated new multipart upload, uploadId: " + createMultipartUploadResponse.uploadId());
+        } catch (Exception ex) {
+            handleException(returnFuture, () -> "Failed to initiate multipart upload", ex);
+            return;
+        }
+
+        doUploadInParts(s3AsyncClient, uploadRequest, streamContext, returnFuture, uploadId, statsMetricPublisher);
     }
 
     private void doUploadInParts(
@@ -184,7 +186,8 @@ public final class AsyncTransferManager {
                 completedParts,
                 inputStreamContainers,
                 statsMetricPublisher,
-                uploadRequest.isUploadRetryEnabled()
+                uploadRequest.isUploadRetryEnabled(),
+                permitBackedRetryableFutureUtils
             );
         } catch (Exception ex) {
             try {
@@ -315,13 +318,14 @@ public final class AsyncTransferManager {
         return (long) Math.max(optimalPartSize, minimumPartSize);
     }
 
+    @SuppressWarnings("unchecked")
     private void uploadInOneChunk(
         S3AsyncClient s3AsyncClient,
         UploadRequest uploadRequest,
-        InputStreamContainer inputStreamContainer,
+        StreamContext streamContext,
         CompletableFuture<Void> returnFuture,
         StatsMetricPublisher statsMetricPublisher
-    ) {
+    ) throws InterruptedException {
         PutObjectRequest.Builder putObjectRequestBuilder = PutObjectRequest.builder()
             .bucket(uploadRequest.getBucket())
             .key(uploadRequest.getKey())
@@ -340,14 +344,20 @@ public final class AsyncTransferManager {
             streamReadExecutor = executorService;
         }
 
-        InputStream inputStream = AsyncPartsHandler.maybeRetryInputStream(
-            inputStreamContainer.getInputStream(),
-            uploadRequest.getWritePriority(),
-            uploadRequest.isUploadRetryEnabled(),
-            uploadRequest.getContentLength()
-        );
-        CompletableFuture<Void> putObjectFuture = SocketAccess.doPrivileged(
-            () -> s3AsyncClient.putObject(
+        Supplier<CompletableFuture<Void>> putObjectFutureSupplier = () -> SocketAccess.doPrivileged(() -> {
+            InputStreamContainer inputStreamContainer;
+            try {
+                inputStreamContainer = streamContext.provideStream(0);
+            } catch (IOException e) {
+                return CompletableFuture.failedFuture(e);
+            }
+            InputStream inputStream = AsyncPartsHandler.maybeRetryInputStream(
+                inputStreamContainer.getInputStream(),
+                uploadRequest.getWritePriority(),
+                uploadRequest.isUploadRetryEnabled(),
+                uploadRequest.getContentLength()
+            );
+            return s3AsyncClient.putObject(
                 putObjectRequestBuilder.build(),
                 AsyncRequestBody.fromInputStream(inputStream, inputStreamContainer.getContentLength(), streamReadExecutor)
             ).handle((resp, throwable) -> {
@@ -386,7 +396,14 @@ public final class AsyncTransferManager {
                 }
 
                 return null;
-            })
+            });
+        });
+
+        PermitBackedRetryableFutureUtils.RequestContext requestContext = permitBackedRetryableFutureUtils.createRequestContext();
+        CompletableFuture<Void> putObjectFuture = permitBackedRetryableFutureUtils.createPermitBackedRetryableFuture(
+            putObjectFutureSupplier,
+            uploadRequest.getWritePriority(),
+            requestContext
         );
 
         CompletableFutureUtils.forwardExceptionTo(returnFuture, putObjectFuture);
