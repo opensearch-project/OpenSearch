@@ -744,6 +744,16 @@ public abstract class AbstractClient implements Client {
         return new FieldCapabilitiesRequestBuilder(this, FieldCapabilitiesAction.INSTANCE, indices);
     }
 
+    @Override
+    public void searchView(SearchViewAction.Request request, ActionListener<SearchResponse> listener) {
+        execute(SearchViewAction.INSTANCE, request);
+    }
+
+    @Override
+    public ActionFuture<SearchResponse> searchView(SearchViewAction.Request request) {
+        return execute(SearchViewAction.INSTANCE, request);
+    }
+
     static class Admin implements AdminClient {
 
         private final ClusterAdmin clusterAdmin;
@@ -2081,16 +2091,6 @@ public abstract class AbstractClient implements Client {
         @Override
         public ActionFuture<CreateViewAction.Response> createView(CreateViewAction.Request request) {
             return execute(CreateViewAction.INSTANCE, request);
-        }
-
-        @Override
-        public void searchView(SearchViewAction.Request request, ActionListener<SearchResponse> listener) {
-            execute(SearchViewAction.INSTANCE, request);
-        }
-
-        @Override
-        public ActionFuture<SearchResponse> searchView(SearchViewAction.Request request) {
-            return execute(SearchViewAction.INSTANCE, request);
         }
     }
 

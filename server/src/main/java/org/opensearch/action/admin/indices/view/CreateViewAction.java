@@ -44,13 +44,13 @@ import java.util.Objects;
 
 /** Action to create a view */
 @ExperimentalApi
-public class CreateViewAction extends ActionType<CreateViewAction.Response> {
+public class CreateViewAction extends ActionType<GetViewAction.Response> {
 
     public static final CreateViewAction INSTANCE = new CreateViewAction();
     public static final String NAME = "cluster:admin/views/create";
 
     private CreateViewAction() {
-        super(NAME, CreateViewAction.Response::new);
+        super(NAME, GetViewAction.Response::new);
     }
 
     /**
@@ -200,51 +200,10 @@ public class CreateViewAction extends ActionType<CreateViewAction.Response> {
         }
     }
 
-    /** Response for view creation */
-    @ExperimentalApi
-    public static class Response extends ActionResponse implements ToXContentObject {
-
-        private final View createdView;
-
-        public Response(final View createdView) {
-            this.createdView = createdView;
-        }
-
-        public Response(final StreamInput in) throws IOException {
-            super(in);
-            this.createdView = new View(in);
-        }
-
-        @Override
-        public void writeTo(final StreamOutput out) throws IOException {
-            this.createdView.writeTo(out);
-        }
-
-        @Override
-        public XContentBuilder toXContent(final XContentBuilder builder, final Params params) throws IOException {
-            builder.startObject();
-            builder.field("view", createdView);
-            builder.endObject();
-            return builder;
-        }
-
-        private static final ConstructingObjectParser<Response, Void> PARSER = new ConstructingObjectParser<>(
-            "create_view_response",
-            args -> new Response((View) args[0])
-        );
-        static {
-            PARSER.declareObject(ConstructingObjectParser.constructorArg(), View.PARSER, new ParseField("view"));
-        }
-
-        public static Response fromXContent(final XContentParser parser) throws IOException {
-            return PARSER.parse(parser, null);
-        }
-    }
-
     /**
      * Transport Action for creating a View
      */
-    public static class TransportAction extends TransportClusterManagerNodeAction<Request, Response> {
+    public static class TransportAction extends TransportClusterManagerNodeAction<Request, GetViewAction.Response> {
 
         private final ViewService viewService;
 
@@ -267,12 +226,12 @@ public class CreateViewAction extends ActionType<CreateViewAction.Response> {
         }
 
         @Override
-        protected Response read(final StreamInput in) throws IOException {
-            return new Response(in);
+        protected GetViewAction.Response read(final StreamInput in) throws IOException {
+            return new GetViewAction.Response(in);
         }
 
         @Override
-        protected void clusterManagerOperation(final Request request, final ClusterState state, final ActionListener<Response> listener)
+        protected void clusterManagerOperation(final Request request, final ClusterState state, final ActionListener<GetViewAction.Response> listener)
             throws Exception {
             viewService.createView(request, listener);
         }

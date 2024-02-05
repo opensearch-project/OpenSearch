@@ -11,6 +11,7 @@ package org.opensearch.rest.action.admin.indices;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.action.admin.indices.view.CreateViewAction;
+import org.opensearch.action.admin.indices.view.DeleteViewAction;
 import org.opensearch.action.admin.indices.view.SearchViewAction;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.ValidationException;
@@ -28,6 +29,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.function.IntConsumer;
 
+import static org.opensearch.rest.RestRequest.Method.DELETE;
 import static org.opensearch.rest.RestRequest.Method.GET;
 import static org.opensearch.rest.RestRequest.Method.POST;
 
@@ -62,6 +64,31 @@ public class RestViewAction {
         }
     }
 
+    /** Handler for create view */
+    public static class DeleteViewHandler extends BaseRestHandler {
+
+        @Override
+        public List<Route> routes() {
+            return List.of(new NamedRoute.Builder().path("/views/" + VIEW_ID_PARAMETER).method(DELETE).uniqueName(DeleteViewAction.NAME).build());
+        }
+
+        @Override
+        public String getName() {
+            return DeleteViewAction.NAME;
+        }
+
+        @Override
+        protected RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
+            final String viewId = request.param(VIEW_ID);
+
+            try (final XContentParser parser = request.contentParser()) {
+                final CreateViewAction.Request createViewAction = CreateViewAction.Request.fromXContent(parser);
+                return channel -> client.admin().indices().createView(createViewAction, new RestToXContentListener<>(channel));
+            }
+        }
+    }
+
+    /** Handler for search view */
     public static class SearchViewHandler extends BaseRestHandler {
         @Override
         public List<Route> routes() {

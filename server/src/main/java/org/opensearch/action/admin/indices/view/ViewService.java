@@ -11,8 +11,11 @@ package org.opensearch.action.admin.indices.view;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.ResourceNotFoundException;
+import org.opensearch.action.admin.indices.view.DeleteViewAction.Request;
+import org.opensearch.action.admin.indices.view.GetViewAction.Response;
 import org.opensearch.action.search.SearchAction;
 import org.opensearch.action.search.SearchResponse;
+import org.opensearch.action.support.master.AcknowledgedResponse;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateUpdateTask;
@@ -23,7 +26,10 @@ import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.core.action.ActionListener;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.function.LongSupplier;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 /** Service to interact with views, create, retrieve, update, and delete */
@@ -33,14 +39,16 @@ public class ViewService {
     private final static Logger LOG = LogManager.getLogger(ViewService.class);
     private final ClusterService clusterService;
     private final NodeClient client;
+    private LongSupplier timeProvider;
 
-    public ViewService(final ClusterService clusterService, NodeClient client) {
+    public ViewService(final ClusterService clusterService, final NodeClient client, final LongSupplier timeProvider) {
         this.clusterService = clusterService;
         this.client = client;
+        this.timeProvider = Optional.ofNullable(timeProvider).orElse(System::currentTimeMillis);
     }
 
-    public void createView(final CreateViewAction.Request request, final ActionListener<CreateViewAction.Response> listener) {
-        final long currentTime = System.currentTimeMillis();
+    public void createView(final CreateViewAction.Request request, final ActionListener<GetViewAction.Response> listener) {
+        final long currentTime = timeProvider.getAsLong();
 
         final List<View.Target> targets = request.getTargets()
             .stream()
@@ -48,39 +56,66 @@ public class ViewService {
             .collect(Collectors.toList());
         final View view = new View(request.getName(), request.getDescription(), currentTime, currentTime, targets);
 
-        clusterService.submitStateUpdateTask("create_view_task", new ClusterStateUpdateTask() {
+        createOrUpdateView(Operation.CreateView, view, listener);
+    }
+
+    public void updateView(final CreateViewAction.Request request, final ActionListener<GetViewAction.Response> listener) {
+        final View originalView = getViewOrThrowException(request.getName());
+
+        final long currentTime = timeProvider.getAsLong();
+        final List<View.Target> targets = request.getTargets()
+            .stream()
+            .map(target -> new View.Target(target.getIndexPattern()))
+            .collect(Collectors.toList());
+        final View updatedView = new View(request.getName(), request.getDescription(), originalView.getCreatedAt(), currentTime, targets);
+
+        createOrUpdateView(Operation.UpdateView, updatedView, listener);
+    }
+
+    public void deleteView(final DeleteViewAction.Request request, final ActionListener<AcknowledgedResponse> listener) {
+        getViewOrThrowException(request.getName());
+
+        clusterService.submitStateUpdateTask("delete_view_task", new ClusterStateUpdateTask() {
             @Override
             public ClusterState execute(final ClusterState currentState) throws Exception {
-                return new ClusterState.Builder(clusterService.state()).metadata(Metadata.builder(currentState.metadata()).put(view))
+                return new ClusterState.Builder(clusterService.state()).metadata(Metadata.builder(currentState.metadata()).removeView(request.getName()))
                     .build();
             }
 
             @Override
             public void onFailure(final String source, final Exception e) {
-                LOG.error("Unable to create view, in source " + source, e);
+                LOG.error("Unable to delete view, from " + source, e);
                 listener.onFailure(e);
             }
 
             @Override
             public void clusterStateProcessed(final String source, final ClusterState oldState, final ClusterState newState) {
-                final View createdView = newState.getMetadata().views().get(request.getName());
-                final CreateViewAction.Response response = new CreateViewAction.Response(createdView);
-                listener.onResponse(response);
+                listener.onResponse(new AcknowledgedResponse(true));
             }
         });
     }
 
-    public void searchView(final SearchViewAction.Request request, final ActionListener<SearchResponse> listener) {
-        final Optional<View> optView = Optional.ofNullable(clusterService)
+    public void getView(final GetViewAction.Request request, final ActionListener<GetViewAction.Response> listener) {
+        final View view = getViewOrThrowException(request.getName());
+
+        listener.onResponse(new GetViewAction.Response(view));
+    }
+
+    public void listViewNames(final ActionListener<List<String>> listener) {
+        final List<String> viewNames = Optional.ofNullable(clusterService)
             .map(ClusterService::state)
             .map(ClusterState::metadata)
-            .map(m -> m.views())
-            .map(views -> views.get(request.getView()));
+            .map(Metadata::views)
+            .map(Map::keySet)
+            .orElseThrow()
+            .stream()
+            .collect(Collectors.toList());
 
-        if (optView.isEmpty()) {
-            throw new ResourceNotFoundException("no such view [" + request.getView() + "]");
-        }
-        final View view = optView.get();
+        listener.onResponse(viewNames);
+    }
+
+    public void searchView(final SearchViewAction.Request request, final ActionListener<SearchResponse> listener) {
+        final View view = getViewOrThrowException(request.getView());
 
         final String[] indices = view.getTargets()
             .stream()
@@ -90,5 +125,47 @@ public class ViewService {
         request.indices(indices);
 
         client.executeLocally(SearchAction.INSTANCE, request, listener);
+    }
+
+    private View getViewOrThrowException(final String viewName) {
+        return Optional.ofNullable(clusterService)
+            .map(ClusterService::state)
+            .map(ClusterState::metadata)
+            .map(m -> m.views())
+            .map(views -> views.get(viewName))
+            .orElseThrow(() -> new ResourceNotFoundException("no such view [" + viewName + "]"));
+    }
+
+    private static enum Operation {
+        CreateView("create"),
+        UpdateView("update");
+
+        private final String name;
+        private Operation(final String name) {
+            this.name = name;
+        }
+    }
+
+    private void createOrUpdateView(final Operation operation, final View view, final ActionListener<GetViewAction.Response> listener) {
+        clusterService.submitStateUpdateTask(operation.name + "_view_task", new ClusterStateUpdateTask() {
+            @Override
+            public ClusterState execute(final ClusterState currentState) throws Exception {
+                return new ClusterState.Builder(clusterService.state()).metadata(Metadata.builder(currentState.metadata()).put(view))
+                    .build();
+            }
+
+            @Override
+            public void onFailure(final String source, final Exception e) {
+                LOG.error("Unable to " + operation.name + " view, from " + source, e);
+                listener.onFailure(e);
+            }
+
+            @Override
+            public void clusterStateProcessed(final String source, final ClusterState oldState, final ClusterState newState) {
+                final View createdView = newState.getMetadata().views().get(view.getName());
+                final GetViewAction.Response response = new GetViewAction.Response(createdView);
+                listener.onResponse(response);
+            }
+        });
     }
 }
