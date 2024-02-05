@@ -42,7 +42,7 @@ public class RequestSamplerTests extends OpenSearchTestCase {
             Set.of(TRACER_SAMPLER_PROBABILITY, TRACER_ENABLED_SETTING, TRACER_SAMPLER_ACTION_PROBABILITY)
         );
         telemetrySettings = new TelemetrySettings(Settings.EMPTY, clusterSettings);
-        requestSampler = new RequestSampler(telemetrySettings, Settings.EMPTY);
+        requestSampler = new RequestSampler(OTelSamplerFactory.create(telemetrySettings, Settings.EMPTY));
         parentContext = mock(Context.class);
     }
 

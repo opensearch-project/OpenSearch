@@ -10,12 +10,16 @@ package org.opensearch.telemetry.tracing.sampler;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.opensearch.SpecialPermission;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.telemetry.OTelTelemetrySettings;
 import org.opensearch.telemetry.TelemetrySettings;
 
 import java.lang.reflect.Constructor;
-import java.util.HashMap;
+import java.security.AccessController;
+import java.security.PrivilegedExceptionAction;
+import java.util.ArrayList;
+import java.util.List;
 
 import io.opentelemetry.sdk.trace.samplers.Sampler;
 
@@ -40,21 +44,31 @@ public class OTelSamplerFactory {
      * Creates the {@link Sampler} instances based on the TRACER_SPAN_SAMPLER_CLASSES value.
      * @param telemetrySettings TelemetrySettings.
      * @param setting Settings
-     * @return map of samplers.
+     * @return list of samplers.
      */
-    public static HashMap<String, Sampler> create(TelemetrySettings telemetrySettings, Settings setting) {
-        HashMap<String, Sampler> samplersMap = new HashMap<>();
-
+    public static List<Sampler> create(TelemetrySettings telemetrySettings, Settings setting) {
+        List<Sampler> samplersList = new ArrayList<>();
         for (String samplerName : OTelTelemetrySettings.OTEL_TRACER_SPAN_SAMPLER_CLASS_SETTINGS.get(setting)) {
-            try {
+            Sampler sampler = instantiateSampler(samplerName, telemetrySettings);
+            samplersList.add(sampler);
+        }
+        logger.info("Successfully instantiated the Sampler classes list {}", samplersList);
+        return samplersList;
+    }
+
+    private static Sampler instantiateSampler(String samplerName, TelemetrySettings telemetrySettings) {
+        try {
+            // Check we ourselves are not being called by unprivileged code.
+            SpecialPermission.check();
+
+            return AccessController.doPrivileged((PrivilegedExceptionAction<Sampler>) () -> {
                 Class<?> samplerClass = Class.forName(samplerName);
                 Constructor<?> constructor = samplerClass.getConstructor(TelemetrySettings.class);
-                Sampler sampler = (Sampler) constructor.newInstance(telemetrySettings);
-                samplersMap.put(samplerName, sampler);
-            } catch (Exception e) {
-                logger.error("error while creating sampler class object: ", e);
-            }
+
+                return (Sampler) constructor.newInstance(telemetrySettings);
+            });
+        } catch (Exception e) {
+            throw new IllegalStateException("Sampler instantiation failed for class [" + samplerName + "]", e.getCause());
         }
-        return samplersMap;
     }
 }

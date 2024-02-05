@@ -20,7 +20,6 @@ import java.security.AccessController;
 import java.security.PrivilegedActionException;
 import java.security.PrivilegedExceptionAction;
 import java.util.List;
-import java.util.function.Function;
 
 import io.opentelemetry.exporter.logging.LoggingMetricExporter;
 import io.opentelemetry.exporter.logging.LoggingSpanExporter;
@@ -122,7 +121,15 @@ public final class OTelTelemetrySettings {
     public static final Setting<List<String>> OTEL_TRACER_SPAN_SAMPLER_CLASS_SETTINGS = Setting.listSetting(
         "telemetry.otel.tracer.span.sampler.classes",
         List.of(ProbabilisticTransportActionSampler.class.getName(), ProbabilisticSampler.class.getName()),
-        Function.identity(),
+        samplers -> {
+            // Check we ourselves are not being called by unprivileged code.
+            SpecialPermission.check();
+            try {
+                return AccessController.doPrivileged((PrivilegedExceptionAction<String>) () -> samplers);
+            } catch (PrivilegedActionException ex) {
+                throw new IllegalStateException("Unable to load sampler class:", ex.getCause());
+            }
+        },
         Setting.Property.NodeScope,
         Setting.Property.Final
     );

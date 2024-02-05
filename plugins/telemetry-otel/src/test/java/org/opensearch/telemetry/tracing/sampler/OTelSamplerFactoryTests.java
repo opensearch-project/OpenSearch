@@ -12,7 +12,6 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.telemetry.TelemetrySettings;
 import org.opensearch.test.OpenSearchTestCase;
 
-import java.util.HashMap;
 import java.util.List;
 import java.util.Set;
 
@@ -32,12 +31,12 @@ public class OTelSamplerFactoryTests extends OpenSearchTestCase {
         );
         TelemetrySettings telemetrySettings = new TelemetrySettings(Settings.EMPTY, clusterSettings);
 
-        HashMap<String, Sampler> samplersMap = OTelSamplerFactory.create(telemetrySettings, Settings.EMPTY);
+        List<Sampler> samplersList = OTelSamplerFactory.create(telemetrySettings, Settings.EMPTY);
 
-        List<String> samplersList = OTEL_TRACER_SPAN_SAMPLER_CLASS_SETTINGS.get(Settings.EMPTY);
+        List<String> samplersNameList = OTEL_TRACER_SPAN_SAMPLER_CLASS_SETTINGS.get(Settings.EMPTY);
 
-        for (String samplers : samplersList) {
-            assertTrue(samplersMap.containsKey(samplers));
+        for (Sampler sampler : samplersList) {
+            assertTrue(samplersNameList.contains(sampler.getClass().getName()));
         }
     }
 }
