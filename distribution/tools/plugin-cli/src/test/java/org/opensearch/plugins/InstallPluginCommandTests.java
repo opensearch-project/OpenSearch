@@ -296,7 +296,7 @@ public class InstallPluginCommandTests extends OpenSearchTestCase {
                 "version",
                 "1.0",
                 "dependencies",
-                "{opensearch:" + opensearchVersionRange + "}",
+                "{opensearch:\"" + opensearchVersionRange + "\"}",
                 "java.version",
                 System.getProperty("java.specification.version"),
                 "classname",

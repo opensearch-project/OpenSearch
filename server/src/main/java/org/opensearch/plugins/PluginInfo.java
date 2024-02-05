@@ -32,7 +32,9 @@
 
 package org.opensearch.plugins;
 
-import com.google.gson.Gson;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
+
 import org.opensearch.Version;
 import org.opensearch.bootstrap.JarHell;
 import org.opensearch.common.annotation.PublicApi;
@@ -276,7 +278,12 @@ public class PluginInfo implements Writeable, ToXContentObject {
         if (opensearchVersionString != null) {
             opensearchVersionRanges.add(SemverRange.fromString(opensearchVersionString));
         } else {
-            Map<String, String> dependenciesMap = new Gson().fromJson(dependenciesValue, Map.class);
+            ObjectMapper mapper = new ObjectMapper().configure(
+                com.fasterxml.jackson.core.JsonParser.Feature.ALLOW_UNQUOTED_FIELD_NAMES,
+                true
+            );
+            Map<String, String> dependenciesMap = mapper.readValue(dependenciesValue, new TypeReference<>() {
+            });
             if (dependenciesMap.size() != 1) {
                 throw new IllegalArgumentException(
                     "Exactly one dependency is allowed to be specified in plugin descriptor properties: " + dependenciesMap

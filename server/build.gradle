@@ -109,8 +109,9 @@ dependencies {
   annotationProcessor "org.apache.logging.log4j:log4j-core:${versions.log4j}"
   annotationProcessor project(':libs:opensearch-common')
 
-  // gson
-  api 'com.google.code.gson:gson:2.10.1'
+  // jackson
+  api "com.fasterxml.jackson.core:jackson-databind:${versions.jackson_databind}"
+  api "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}"
 
   // jna
   api "net.java.dev.jna:jna:${versions.jna}"

@@ -32,7 +32,8 @@
 
 package org.opensearch.plugins;
 
-import com.google.gson.JsonSyntaxException;
+import com.fasterxml.jackson.core.JsonParseException;
+
 import org.opensearch.Version;
 import org.opensearch.action.admin.cluster.node.info.PluginsAndModules;
 import org.opensearch.common.io.stream.BytesStreamOutput;
@@ -91,7 +92,7 @@ public class PluginInfoTests extends OpenSearchTestCase {
             "version",
             "1.0",
             "dependencies",
-            "{opensearch:~" + Version.CURRENT.toString() + "}",
+            "{opensearch:\"~" + Version.CURRENT.toString() + "\"}",
             "java.version",
             System.getProperty("java.specification.version"),
             "classname",
@@ -416,7 +417,7 @@ public class PluginInfoTests extends OpenSearchTestCase {
             "version",
             "1.0",
             "dependencies",
-            "{opensearch:~" + Version.CURRENT.toString() + ", dependency2=1.0.0}",
+            "{opensearch:\"~" + Version.CURRENT.toString() + "\", dependency2:\"1.0.0\"}",
             "java.version",
             System.getProperty("java.specification.version"),
             "classname",
@@ -437,7 +438,7 @@ public class PluginInfoTests extends OpenSearchTestCase {
             "version",
             "1.0",
             "dependencies",
-            "{some_dependency:~" + Version.CURRENT.toString() + "}",
+            "{some_dependency:\"~" + Version.CURRENT.toString() + "\"}",
             "java.version",
             System.getProperty("java.specification.version"),
             "classname",
@@ -485,7 +486,7 @@ public class PluginInfoTests extends OpenSearchTestCase {
             "classname",
             "FakePlugin"
         );
-        expectThrows(JsonSyntaxException.class, () -> PluginInfo.readFromProperties(pluginDir));
+        expectThrows(JsonParseException.class, () -> PluginInfo.readFromProperties(pluginDir));
     }
 
     public void testEmptyOpenSearchVersionInDependencies() throws Exception {
@@ -533,7 +534,7 @@ public class PluginInfoTests extends OpenSearchTestCase {
         );
     }
 
-    public void testInvalidRangesInDependencies() throws Exception {
+    public void testInvalidRangeInDependencies() throws Exception {
         Path pluginDir = createTempDir().resolve("fake-plugin");
         PluginTestUtil.writePluginProperties(
             pluginDir,
