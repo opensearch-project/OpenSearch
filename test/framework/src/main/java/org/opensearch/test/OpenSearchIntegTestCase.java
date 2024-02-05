@@ -141,6 +141,7 @@ import org.opensearch.index.translog.Translog;
 import org.opensearch.indices.IndicesQueryCache;
 import org.opensearch.indices.IndicesRequestCache;
 import org.opensearch.indices.IndicesService;
+import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.indices.store.IndicesStore;
 import org.opensearch.monitor.os.OsInfo;
 import org.opensearch.node.NodeMocksPlugin;
@@ -1549,7 +1550,7 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
             indexRandomForMultipleSlices(indicesArray);
         }
         if (forceRefresh) {
-            waitForReplication();
+            refreshAndWaitForReplication();
         }
     }
 
@@ -2356,43 +2357,47 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
 
     /**
      * Refreshes the indices in the cluster and checks if active/started replica shards
-     * caught up with primary shard when Segment Replication is enabled.
+     * caught up with primary shard only when Segment Replication is enabled.
      * This doesn't wait for inactive/non-started replica shards to become active/started.
      */
-    protected void waitForReplication(String... indices) {
+    protected void refreshAndWaitForReplication(String... indices) {
         refresh(indices);
         if (indices.length == 0) {
             indices = getClusterState().routingTable().indicesRouting().keySet().toArray(String[]::new);
         }
         try {
             for (String index : indices) {
-                if (isInternalCluster() && isSegmentReplicationEnabledForIndex(index)) {
-                    IndexRoutingTable indexRoutingTable = getClusterState().routingTable().index(index);
-                    if (indexRoutingTable != null) {
-                        assertBusy(() -> {
-                            for (IndexShardRoutingTable shardRoutingTable : indexRoutingTable) {
-                                final ShardRouting primaryRouting = shardRoutingTable.primaryShard();
-                                if (primaryRouting.state().toString().equals("STARTED")) {
-                                    if (isSegmentReplicationEnabledForIndex(index)) {
-                                        final List<ShardRouting> replicaRouting = shardRoutingTable.replicaShards();
-                                        final IndexShard primaryShard = getIndexShard(primaryRouting, index);
-                                        for (ShardRouting replica : replicaRouting) {
-                                            if (replica.state().toString().equals("STARTED")) {
-                                                IndexShard replicaShard = getIndexShard(replica, index);
-                                                assertEquals(
-                                                    "replica shards haven't caught up with primary",
-                                                    getLatestSegmentInfoVersion(primaryShard),
-                                                    getLatestSegmentInfoVersion(replicaShard)
-                                                );
+                if (isSegmentReplicationEnabledForIndex(index)) {
+                    if (isInternalCluster()) {
+                        IndexRoutingTable indexRoutingTable = getClusterState().routingTable().index(index);
+                        if (indexRoutingTable != null) {
+                            assertBusy(() -> {
+                                for (IndexShardRoutingTable shardRoutingTable : indexRoutingTable) {
+                                    final ShardRouting primaryRouting = shardRoutingTable.primaryShard();
+                                    if (primaryRouting.state().toString().equals("STARTED")) {
+                                        if (isSegmentReplicationEnabledForIndex(index)) {
+                                            final List<ShardRouting> replicaRouting = shardRoutingTable.replicaShards();
+                                            final IndexShard primaryShard = getIndexShard(primaryRouting, index);
+                                            for (ShardRouting replica : replicaRouting) {
+                                                if (replica.state().toString().equals("STARTED")) {
+                                                    IndexShard replicaShard = getIndexShard(replica, index);
+                                                    assertEquals(
+                                                        "replica shards haven't caught up with primary",
+                                                        getLatestSegmentInfoVersion(primaryShard),
+                                                        getLatestSegmentInfoVersion(replicaShard)
+                                                    );
+                                                }
                                             }
                                         }
                                     }
                                 }
-                            }
-                        }, 30, TimeUnit.SECONDS);
+                            }, 30, TimeUnit.SECONDS);
+                        }
+                    } else {
+                        throw new IllegalStateException(
+                            "Segment Replication is not supported for testing tests using External Test Cluster"
+                        );
                     }
-                } else if (isInternalCluster() == false && isSegmentReplicationEnabledForIndex(index)) {
-                    throw new IllegalStateException("Segment Replication is not supported for testing tests using External Test Cluster");
                 }
             }
         } catch (Exception e) {
@@ -2431,6 +2436,13 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
+    }
+
+    /**
+     * Randomly picks replication strategy either as DOCUMENT or SEGMENT.
+     */
+    protected static ReplicationType getRandomReplicationStrategy() {
+        return new Random().nextBoolean() ? ReplicationType.DOCUMENT : ReplicationType.SEGMENT;
     }
 
 }

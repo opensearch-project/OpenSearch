@@ -61,7 +61,6 @@ import org.opensearch.env.Environment;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.index.mapper.MapperService;
-import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.plugins.ClusterPlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.repositories.RepositoriesService;
@@ -104,8 +103,8 @@ public class SimpleClusterStateIT extends ParameterizedStaticSettingsOpenSearchI
     @ParametersFactory
     public static Collection<Object[]> parameters() {
         return Arrays.asList(
-            new Object[] { Settings.builder().put(CLUSTER_REPLICATION_TYPE_SETTING.getKey(), ReplicationType.DOCUMENT).build() },
-            new Object[] { Settings.builder().put(CLUSTER_REPLICATION_TYPE_SETTING.getKey(), ReplicationType.SEGMENT).build() }
+            new Object[][] {
+                new Object[] { Settings.builder().put(CLUSTER_REPLICATION_TYPE_SETTING.getKey(), getRandomReplicationStrategy()).build() } }
         );
     }
 
@@ -119,7 +118,7 @@ public class SimpleClusterStateIT extends ParameterizedStaticSettingsOpenSearchI
         index("foo", "bar", "1", XContentFactory.jsonBuilder().startObject().field("foo", "foo").endObject());
         index("fuu", "buu", "1", XContentFactory.jsonBuilder().startObject().field("fuu", "fuu").endObject());
         index("baz", "baz", "1", XContentFactory.jsonBuilder().startObject().field("baz", "baz").endObject());
-        waitForReplication();
+        refreshAndWaitForReplication();
     }
 
     public void testRoutingTable() throws Exception {
