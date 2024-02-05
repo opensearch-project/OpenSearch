@@ -32,10 +32,10 @@
 
 package org.opensearch.core.xcontent.filtering;
 
-import java.util.HashSet;
 import org.opensearch.common.util.set.Sets;
 import org.opensearch.test.OpenSearchTestCase;
 
+import java.util.HashSet;
 import java.util.Set;
 
 import static java.util.Collections.singleton;
