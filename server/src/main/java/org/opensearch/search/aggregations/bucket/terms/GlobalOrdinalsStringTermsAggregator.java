@@ -428,11 +428,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
             segmentDocCounts = context.bigArrays().grow(segmentDocCounts, 1 + segmentOrds.getValueCount());
             assert sub == LeafBucketCollector.NO_OP_COLLECTOR;
 
-            LeafBucketCollector termDocFreqCollector = this.termDocFreqCollector(
-                ctx,
-                segmentOrds,
-                (ord, docCount) -> segmentDocCounts.increment(ord + 1, docCount)
-            );
+            LeafBucketCollector termDocFreqCollector = this.termDocFreqCollector(ctx, segmentOrds, this::incrementBucketDocCount);
             if (termDocFreqCollector != null) {
                 return termDocFreqCollector;
             }
