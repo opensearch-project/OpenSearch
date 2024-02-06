@@ -9,6 +9,7 @@ package org.opensearch.telemetry.tracing.sampler;
 
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.telemetry.OTelTelemetrySettings;
 import org.opensearch.telemetry.TelemetrySettings;
 import org.opensearch.test.OpenSearchTestCase;
 
@@ -26,5 +27,16 @@ public class OTelSamplerFactoryTests extends OpenSearchTestCase {
         TelemetrySettings telemetrySettings = new TelemetrySettings(Settings.EMPTY, clusterSettings);
         Sampler sampler = OTelSamplerFactory.create(telemetrySettings, Settings.EMPTY);
         assertEquals(sampler.getClass(), ProbabilisticTransportActionSampler.class);
+    }
+
+    public void testCreateWithSingleSampler() {
+
+        Settings settings = Settings.builder()
+            .put(OTelTelemetrySettings.OTEL_TRACER_SPAN_SAMPLER_CLASS_SETTINGS.getKey(), ProbabilisticSampler.class.getName())
+            .build();
+        ClusterSettings clusterSettings = new ClusterSettings(settings, Set.of(TRACER_SAMPLER_PROBABILITY, TRACER_ENABLED_SETTING));
+        TelemetrySettings telemetrySettings = new TelemetrySettings(settings, clusterSettings);
+        Sampler sampler = OTelSamplerFactory.create(telemetrySettings, settings);
+        assertEquals(sampler.getClass(), ProbabilisticSampler.class);
     }
 }
