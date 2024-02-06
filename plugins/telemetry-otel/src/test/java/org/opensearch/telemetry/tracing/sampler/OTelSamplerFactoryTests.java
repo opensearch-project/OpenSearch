@@ -17,16 +17,12 @@ import java.util.Set;
 import io.opentelemetry.sdk.trace.samplers.Sampler;
 
 import static org.opensearch.telemetry.TelemetrySettings.TRACER_ENABLED_SETTING;
-import static org.opensearch.telemetry.TelemetrySettings.TRACER_SAMPLER_ACTION_PROBABILITY;
 import static org.opensearch.telemetry.TelemetrySettings.TRACER_SAMPLER_PROBABILITY;
 
 public class OTelSamplerFactoryTests extends OpenSearchTestCase {
 
-    public void testCreate() {
-        ClusterSettings clusterSettings = new ClusterSettings(
-            Settings.EMPTY,
-            Set.of(TRACER_SAMPLER_PROBABILITY, TRACER_ENABLED_SETTING, TRACER_SAMPLER_ACTION_PROBABILITY)
-        );
+    public void testDefaultCreate() {
+        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, Set.of(TRACER_SAMPLER_PROBABILITY, TRACER_ENABLED_SETTING));
         TelemetrySettings telemetrySettings = new TelemetrySettings(Settings.EMPTY, clusterSettings);
         Sampler sampler = OTelSamplerFactory.create(telemetrySettings, Settings.EMPTY);
         assertEquals(sampler.getClass(), ProbabilisticTransportActionSampler.class);

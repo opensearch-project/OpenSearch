@@ -140,4 +140,16 @@ public final class OTelTelemetrySettings {
         Setting.Property.Final
     );
 
+    /**
+     * Probability of action based sampler
+     */
+    public static final Setting<Double> TRACER_SAMPLER_ACTION_PROBABILITY = Setting.doubleSetting(
+        "telemetry.tracer.action.sampler.probability",
+        0.001d,
+        0.000d,
+        1.00d,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
 }

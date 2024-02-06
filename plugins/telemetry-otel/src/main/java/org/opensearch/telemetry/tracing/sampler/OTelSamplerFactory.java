@@ -45,11 +45,11 @@ public class OTelSamplerFactory {
      * Creates the {@link Sampler} instances based on the TRACER_SPAN_SAMPLER_CLASSES value.
      *
      * @param telemetrySettings TelemetrySettings.
-     * @param setting           Settings
+     * @param settings          the settings
      * @return list of samplers.
      */
-    public static Sampler create(TelemetrySettings telemetrySettings, Settings setting) {
-        List<Class<Sampler>> samplersNameList = OTelTelemetrySettings.OTEL_TRACER_SPAN_SAMPLER_CLASS_SETTINGS.get(setting);
+    public static Sampler create(TelemetrySettings telemetrySettings, Settings settings) {
+        List<Class<Sampler>> samplersNameList = OTelTelemetrySettings.OTEL_TRACER_SPAN_SAMPLER_CLASS_SETTINGS.get(settings);
         ListIterator<Class<Sampler>> li = samplersNameList.listIterator(samplersNameList.size());
 
         Sampler fallbackSampler = null;
@@ -57,7 +57,7 @@ public class OTelSamplerFactory {
         // Iterating samplers list in reverse order to create chain of sampler
         while (li.hasPrevious()) {
             Class<Sampler> samplerName = li.previous();
-            fallbackSampler = instantiateSampler(samplerName, telemetrySettings, fallbackSampler);
+            fallbackSampler = instantiateSampler(samplerName, telemetrySettings, settings, fallbackSampler);
         }
 
         return fallbackSampler;
@@ -66,6 +66,7 @@ public class OTelSamplerFactory {
     private static Sampler instantiateSampler(
         Class<Sampler> samplerClassName,
         TelemetrySettings telemetrySettings,
+        Settings settings,
         Sampler fallbackSampler
     ) {
         try {
@@ -75,11 +76,11 @@ public class OTelSamplerFactory {
             return AccessController.doPrivileged((PrivilegedExceptionAction<Sampler>) () -> {
                 try {
                     // Define the method type which receives TelemetrySettings & Sampler as arguments
-                    MethodType methodType = MethodType.methodType(Sampler.class, TelemetrySettings.class, Sampler.class);
+                    MethodType methodType = MethodType.methodType(Sampler.class, TelemetrySettings.class, Settings.class, Sampler.class);
 
                     return (Sampler) MethodHandles.publicLookup()
                         .findStatic(samplerClassName, "create", methodType)
-                        .invokeExact(telemetrySettings, fallbackSampler);
+                        .invokeExact(telemetrySettings, settings, fallbackSampler);
                 } catch (Throwable e) {
                     if (e.getCause() instanceof NoSuchMethodException) {
                         throw new IllegalStateException("No create method exist in [" + samplerClassName + "]");

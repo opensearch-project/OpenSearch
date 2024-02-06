@@ -21,7 +21,6 @@ import io.opentelemetry.sdk.trace.samplers.Sampler;
 
 import static org.opensearch.telemetry.OTelTelemetrySettings.TRACER_EXPORTER_DELAY_SETTING;
 import static org.opensearch.telemetry.TelemetrySettings.TRACER_ENABLED_SETTING;
-import static org.opensearch.telemetry.TelemetrySettings.TRACER_SAMPLER_ACTION_PROBABILITY;
 import static org.opensearch.telemetry.TelemetrySettings.TRACER_SAMPLER_PROBABILITY;
 import static org.mockito.Mockito.mock;
 
@@ -30,18 +29,18 @@ public class ProbabilisticSamplerTests extends OpenSearchTestCase {
     // When ProbabilisticSampler is created with OTelTelemetrySettings as null
     public void testProbabilisticSamplerWithNullSettings() {
         // Verify that the constructor throws IllegalArgumentException when given null settings
-        assertThrows(NullPointerException.class, () -> { ProbabilisticSampler.create(null, null); });
+        assertThrows(NullPointerException.class, () -> { ProbabilisticSampler.create(null, null, null); });
     }
 
     public void testDefaultGetSampler() {
         Settings settings = Settings.builder().put(TRACER_EXPORTER_DELAY_SETTING.getKey(), "1s").build();
         TelemetrySettings telemetrySettings = new TelemetrySettings(
             Settings.EMPTY,
-            new ClusterSettings(settings, Set.of(TRACER_SAMPLER_PROBABILITY, TRACER_ENABLED_SETTING, TRACER_SAMPLER_ACTION_PROBABILITY))
+            new ClusterSettings(settings, Set.of(TRACER_SAMPLER_PROBABILITY, TRACER_ENABLED_SETTING))
         );
 
         // Probabilistic Sampler
-        Sampler probabilisticSampler = ProbabilisticSampler.create(telemetrySettings, null);
+        Sampler probabilisticSampler = ProbabilisticSampler.create(telemetrySettings, Settings.EMPTY, null);
 
         assertEquals(0.01, ((ProbabilisticSampler) probabilisticSampler).getSamplingRatio(), 0.0d);
     }
@@ -50,11 +49,11 @@ public class ProbabilisticSamplerTests extends OpenSearchTestCase {
         Settings settings = Settings.builder().put(TRACER_EXPORTER_DELAY_SETTING.getKey(), "1s").build();
         TelemetrySettings telemetrySettings = new TelemetrySettings(
             Settings.EMPTY,
-            new ClusterSettings(settings, Set.of(TRACER_SAMPLER_PROBABILITY, TRACER_ENABLED_SETTING, TRACER_SAMPLER_ACTION_PROBABILITY))
+            new ClusterSettings(settings, Set.of(TRACER_SAMPLER_PROBABILITY, TRACER_ENABLED_SETTING))
         );
 
         // Probabilistic Sampler
-        Sampler probabilisticSampler = ProbabilisticSampler.create(telemetrySettings, null);
+        Sampler probabilisticSampler = ProbabilisticSampler.create(telemetrySettings, Settings.EMPTY, null);
 
         assertEquals(0.01d, ((ProbabilisticSampler) probabilisticSampler).getSamplingRatio(), 0.0d);
 

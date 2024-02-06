@@ -8,6 +8,7 @@
 
 package org.opensearch.telemetry.tracing.sampler;
 
+import org.opensearch.common.settings.Settings;
 import org.opensearch.telemetry.TelemetrySettings;
 
 import java.util.List;
@@ -26,7 +27,9 @@ import io.opentelemetry.sdk.trace.samplers.SamplingResult;
 public class ProbabilisticSampler implements Sampler {
     private Sampler defaultSampler;
     private final TelemetrySettings telemetrySettings;
+    private final Settings settings;
     private final Sampler fallbackSampler;
+
     private double samplingRatio;
 
     /**
@@ -34,8 +37,9 @@ public class ProbabilisticSampler implements Sampler {
      *
      * @param telemetrySettings Telemetry settings.
      */
-    private ProbabilisticSampler(TelemetrySettings telemetrySettings, Sampler fallbackSampler) {
+    private ProbabilisticSampler(TelemetrySettings telemetrySettings, Settings settings, Sampler fallbackSampler) {
         this.telemetrySettings = Objects.requireNonNull(telemetrySettings);
+        this.settings = Objects.requireNonNull(settings);
         this.samplingRatio = telemetrySettings.getSamplingProbability();
         this.defaultSampler = Sampler.traceIdRatioBased(samplingRatio);
         this.fallbackSampler = fallbackSampler;
@@ -48,8 +52,8 @@ public class ProbabilisticSampler implements Sampler {
      * @param fallbackSampler   the fallback sampler
      * @return the probabilistic sampler
      */
-    public static Sampler create(TelemetrySettings telemetrySettings, Sampler fallbackSampler) {
-        return new ProbabilisticSampler(telemetrySettings, fallbackSampler);
+    public static Sampler create(TelemetrySettings telemetrySettings, Settings settings, Sampler fallbackSampler) {
+        return new ProbabilisticSampler(telemetrySettings, settings, fallbackSampler);
     }
 
     private boolean isSamplingRatioChanged(double newSamplingRatio) {

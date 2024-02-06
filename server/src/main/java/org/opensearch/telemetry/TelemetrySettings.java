@@ -64,21 +64,9 @@ public class TelemetrySettings {
         Setting.Property.Final
     );
 
-    /**
-     * Probability of action based sampler
-     */
-    public static final Setting<Double> TRACER_SAMPLER_ACTION_PROBABILITY = Setting.doubleSetting(
-        "telemetry.tracer.action.sampler.probability",
-        0.001d,
-        0.000d,
-        1.00d,
-        Setting.Property.NodeScope,
-        Setting.Property.Dynamic
-    );
 
     private volatile boolean tracingEnabled;
     private volatile double samplingProbability;
-    private volatile double actionSamplingProbability;
     private final boolean tracingFeatureEnabled;
     private final boolean metricsFeatureEnabled;
 
@@ -87,11 +75,9 @@ public class TelemetrySettings {
         this.samplingProbability = TRACER_SAMPLER_PROBABILITY.get(settings);
         this.tracingFeatureEnabled = TRACER_FEATURE_ENABLED_SETTING.get(settings);
         this.metricsFeatureEnabled = METRICS_FEATURE_ENABLED_SETTING.get(settings);
-        this.actionSamplingProbability = TRACER_SAMPLER_ACTION_PROBABILITY.get(settings);
 
         clusterSettings.addSettingsUpdateConsumer(TRACER_ENABLED_SETTING, this::setTracingEnabled);
         clusterSettings.addSettingsUpdateConsumer(TRACER_SAMPLER_PROBABILITY, this::setSamplingProbability);
-        clusterSettings.addSettingsUpdateConsumer(TRACER_SAMPLER_ACTION_PROBABILITY, this::setActionSamplingProbability);
     }
 
     public void setTracingEnabled(boolean tracingEnabled) {
@@ -111,14 +97,6 @@ public class TelemetrySettings {
     }
 
     /**
-     * Set sampling ratio for all action
-     * @param actionSamplingProbability double
-     */
-    public void setActionSamplingProbability(double actionSamplingProbability) {
-        this.actionSamplingProbability = actionSamplingProbability;
-    }
-
-    /**
      * Get sampling ratio
      * @return double
      */
@@ -134,11 +112,4 @@ public class TelemetrySettings {
         return metricsFeatureEnabled;
     }
 
-    /**
-     * Get action sampling ratio
-     * @return double value of sampling probability for actions
-     */
-    public double getActionSamplingProbability() {
-        return this.actionSamplingProbability;
-    }
 }

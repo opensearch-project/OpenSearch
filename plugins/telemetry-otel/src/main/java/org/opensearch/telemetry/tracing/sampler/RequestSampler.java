@@ -51,7 +51,7 @@ public class RequestSampler implements Sampler {
         if (fallbackSampler != null) {
             return fallbackSampler.shouldSample(parentContext, traceId, name, spanKind, attributes, parentLinks);
         }
-        return SamplingResult.drop();
+        return SamplingResult.recordAndSample();
     }
 
     @Override

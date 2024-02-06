@@ -8,6 +8,8 @@
 
 package org.opensearch.telemetry.tracing.sampler;
 
+import org.opensearch.common.settings.Settings;
+import org.opensearch.telemetry.OTelTelemetrySettings;
 import org.opensearch.telemetry.TelemetrySettings;
 
 import java.util.List;
@@ -31,15 +33,17 @@ public class ProbabilisticTransportActionSampler implements Sampler {
     private final Sampler fallbackSampler;
     private Sampler actionSampler;
     private final TelemetrySettings telemetrySettings;
+    private final Settings settings;
     private double actionSamplingRatio;
 
     /**
      * Creates ProbabilisticTransportActionSampler sampler
      * @param telemetrySettings TelemetrySettings
      */
-    private ProbabilisticTransportActionSampler(TelemetrySettings telemetrySettings, Sampler fallbackSampler) {
+    private ProbabilisticTransportActionSampler(TelemetrySettings telemetrySettings, Settings settings, Sampler fallbackSampler) {
         this.telemetrySettings = Objects.requireNonNull(telemetrySettings);
-        this.actionSamplingRatio = telemetrySettings.getActionSamplingProbability();
+        this.settings = Objects.requireNonNull(settings);
+        this.actionSamplingRatio = OTelTelemetrySettings.TRACER_SAMPLER_ACTION_PROBABILITY.get(settings);
         this.actionSampler = Sampler.traceIdRatioBased(actionSamplingRatio);
         this.fallbackSampler = fallbackSampler;
     }
@@ -51,8 +55,8 @@ public class ProbabilisticTransportActionSampler implements Sampler {
      * @param fallbackSampler   the fallback sampler
      * @return the probabilistic transport action sampler
      */
-    public static Sampler create(TelemetrySettings telemetrySettings, Sampler fallbackSampler) {
-        return new ProbabilisticTransportActionSampler(telemetrySettings, fallbackSampler);
+    public static Sampler create(TelemetrySettings telemetrySettings, Settings settings, Sampler fallbackSampler) {
+        return new ProbabilisticTransportActionSampler(telemetrySettings, settings, fallbackSampler);
     }
 
     @Override
@@ -66,22 +70,11 @@ public class ProbabilisticTransportActionSampler implements Sampler {
     ) {
         final String action = attributes.get(AttributeKey.stringKey(TRANSPORT_ACTION));
         if (action != null) {
-            double newActionSamplingRatio = telemetrySettings.getActionSamplingProbability();
-            if (isActionSamplingRatioChanged(newActionSamplingRatio)) {
-                synchronized (this) {
-                    actionSamplingRatio = newActionSamplingRatio;
-                    actionSampler = Sampler.traceIdRatioBased(actionSamplingRatio);
-                }
-            }
             return actionSampler.shouldSample(parentContext, traceId, name, spanKind, attributes, parentLinks);
         }
         if (fallbackSampler != null) return fallbackSampler.shouldSample(parentContext, traceId, name, spanKind, attributes, parentLinks);
 
         return SamplingResult.drop();
-    }
-
-    private boolean isActionSamplingRatioChanged(double newSamplingRatio) {
-        return Double.compare(this.actionSamplingRatio, newSamplingRatio) != 0;
     }
 
     double getSamplingRatio() {
