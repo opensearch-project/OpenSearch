@@ -8,6 +8,7 @@
 
 package org.opensearch.action.admin.indices.view;
 
+import org.hamcrest.MatcherAssert;
 import org.opensearch.action.search.SearchRequest;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.index.IndexNotFoundException;
@@ -77,7 +78,7 @@ public class ViewIT extends OpenSearchIntegTestCase {
         logger.info("Testing view with no matches");
         createView("no-matches", "this-pattern-will-match-nothing");
         final IndexNotFoundException ex = assertThrows(IndexNotFoundException.class, () -> searchView("no-matches"));
-        assertThat(ex.getMessage(), is("no such index [this-pattern-will-match-nothing]"));
+        MatcherAssert.assertThat(ex.getMessage(), is("no such index [this-pattern-will-match-nothing]"));
 
         logger.info("Testing view with exact index match");
         createView("only-index-1", "index-1");
@@ -93,24 +94,24 @@ public class ViewIT extends OpenSearchIntegTestCase {
         createView("view1", "*");
         final List<String> viewNames1 = listViews();
 
-        assertThat(viewNames1, contains("view1"));
+        MatcherAssert.assertThat(viewNames1, contains("view1"));
 
         logger.info("Create a second view");
         createView("view2", "*");
         final List<String> viewNames2 = listViews();
 
-        assertThat(viewNames2, contains("view1", "view2"));
+        MatcherAssert.assertThat(viewNames2, contains("view1", "view2"));
 
         logger.info("Delete a view");
         deleteView("view1");
         final List<String> viewNamesAfterDelete = listViews();
 
-        assertThat(viewNamesAfterDelete, contains("view2"));
+        MatcherAssert.assertThat(viewNamesAfterDelete, contains("view2"));
 
         logger.info("Update a view");
         client().admin().indices().updateView(new CreateViewAction.Request("view2", "newDescription", List.of()));
         final List<String> viewNamesAfterUpdate = listViews();
 
-        assertThat(viewNamesAfterUpdate, contains("view2"));
+        MatcherAssert.assertThat(viewNamesAfterUpdate, contains("view2"));
     }
 }

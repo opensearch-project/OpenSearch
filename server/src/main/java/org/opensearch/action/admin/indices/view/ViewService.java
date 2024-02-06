@@ -126,7 +126,7 @@ public class ViewService {
         client.executeLocally(SearchAction.INSTANCE, request, listener);
     }
 
-    private View getViewOrThrowException(final String viewName) {
+    View getViewOrThrowException(final String viewName) {
         return Optional.ofNullable(clusterService)
             .map(ClusterService::state)
             .map(ClusterState::metadata)
@@ -135,7 +135,7 @@ public class ViewService {
             .orElseThrow(() -> new ResourceNotFoundException("no such view [" + viewName + "]"));
     }
 
-    private static enum Operation {
+    private enum Operation {
         CreateView("create"),
         UpdateView("update");
 
