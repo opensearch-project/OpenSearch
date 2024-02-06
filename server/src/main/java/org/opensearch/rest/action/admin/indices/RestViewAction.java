@@ -80,7 +80,7 @@ public class RestViewAction {
 
         @Override
         public String getName() {
-            return CreateViewAction.NAME;
+            return DeleteViewAction.NAME;
         }
 
         @Override

@@ -57,7 +57,7 @@ public class ViewIT extends OpenSearchIntegTestCase {
 
     private SearchResponse searchView(final String viewName) throws Exception {
         final SearchViewAction.Request request = SearchViewAction.createRequestWith(viewName, new SearchRequest());
-        final SearchResponse response = client().admin().indices().searchView(request).actionGet();
+        final SearchResponse response = client().searchView(request).actionGet();
         return response;
     }
 
@@ -95,19 +95,19 @@ public class ViewIT extends OpenSearchIntegTestCase {
         createView("view2", "*");
         final List<String> viewNames2 = client().listViewNames(new ListViewNamesAction.Request()).actionGet().getViewNames();
 
-        assertThat(viewNames1, contains("view1", "view2"));
+        assertThat(viewNames2, contains("view1", "view2"));
 
         logger.info("Delete a view");
         deleteView("view1");
         final List<String> viewNamesAfterDelete = client().listViewNames(new ListViewNamesAction.Request()).actionGet().getViewNames();
 
-        assertThat(viewNames1, contains("view2"));
+        assertThat(viewNamesAfterDelete, contains("view2"));
 
-        logger.info("Delete a view");
-        deleteView("view1");
-        final List<String> viewNamesAfterDelete = client().listViewNames(new ListViewNamesAction.Request()).actionGet().getViewNames();
+        logger.info("Update a view");
+        client().admin().indices().updateView(new CreateViewAction.Request("view2", "newDescription", List.of()));
+        final List<String> viewNamesAfterUpdate = client().listViewNames(new ListViewNamesAction.Request()).actionGet().getViewNames();
 
-        assertThat(viewNames1, contains("view2"));
+        assertThat(viewNamesAfterUpdate, contains("view2"));
 
     }
 }

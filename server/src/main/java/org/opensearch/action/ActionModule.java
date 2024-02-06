@@ -225,7 +225,11 @@ import org.opensearch.action.admin.indices.upgrade.post.UpgradeSettingsAction;
 import org.opensearch.action.admin.indices.validate.query.TransportValidateQueryAction;
 import org.opensearch.action.admin.indices.validate.query.ValidateQueryAction;
 import org.opensearch.action.admin.indices.view.CreateViewAction;
+import org.opensearch.action.admin.indices.view.DeleteViewAction;
+import org.opensearch.action.admin.indices.view.GetViewAction;
+import org.opensearch.action.admin.indices.view.ListViewNamesAction;
 import org.opensearch.action.admin.indices.view.SearchViewAction;
+import org.opensearch.action.admin.indices.view.UpdateViewAction;
 import org.opensearch.action.bulk.BulkAction;
 import org.opensearch.action.bulk.TransportBulkAction;
 import org.opensearch.action.bulk.TransportShardBulkAction;
@@ -726,6 +730,10 @@ public class ActionModule extends AbstractModule {
 
         // Views:
         actions.register(CreateViewAction.INSTANCE, CreateViewAction.TransportAction.class);
+        actions.register(DeleteViewAction.INSTANCE, DeleteViewAction.TransportAction.class);
+        actions.register(GetViewAction.INSTANCE, GetViewAction.TransportAction.class);
+        actions.register(UpdateViewAction.INSTANCE, UpdateViewAction.TransportAction.class);
+        actions.register(ListViewNamesAction.INSTANCE, ListViewNamesAction.TransportAction.class);
         actions.register(SearchViewAction.INSTANCE, SearchViewAction.TransportAction.class);
 
         // Persistent tasks:
@@ -924,7 +932,11 @@ public class ActionModule extends AbstractModule {
 
         // View API
         registerHandler.accept(new RestViewAction.CreateViewHandler());
+        registerHandler.accept(new RestViewAction.DeleteViewHandler());
+        registerHandler.accept(new RestViewAction.GetViewHandler());
+        registerHandler.accept(new RestViewAction.UpdateViewHandler());
         registerHandler.accept(new RestViewAction.SearchViewHandler());
+        registerHandler.accept(new RestViewAction.ListViewNamesHandler());
 
         // CAT API
         registerHandler.accept(new RestAllocationAction());
