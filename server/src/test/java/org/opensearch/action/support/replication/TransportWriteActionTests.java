@@ -440,8 +440,10 @@ public class TransportWriteActionTests extends OpenSearchTestCase {
                 new PrimaryShardClosedException(shardId),
                 ActionListener.wrap(callbackCount::incrementAndGet)
             );
+        // emptyArray ensures no failure call is invoked
         MatcherAssert.assertThat(transport.getCapturedRequestsAndClear(), emptyArray());
-        MatcherAssert.assertThat(callbackCount.get(), equalTo(0));
+        // listener should get invoked
+        MatcherAssert.assertThat(callbackCount.get(), equalTo(1));
     }
 
     private class TestAction extends TransportWriteAction<TestRequest, TestRequest, TestResponse> {
