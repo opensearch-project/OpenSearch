@@ -11,6 +11,7 @@ package org.opensearch.plugin.insights.rules.transport.top_queries;
 import org.opensearch.OpenSearchException;
 import org.opensearch.action.FailedNodeException;
 import org.opensearch.action.support.ActionFilters;
+import org.opensearch.action.support.nodes.BaseNodeRequest;
 import org.opensearch.action.support.nodes.TransportNodesAction;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
@@ -24,7 +25,6 @@ import org.opensearch.plugin.insights.rules.action.top_queries.TopQueriesRespons
 import org.opensearch.plugin.insights.rules.model.MetricType;
 import org.opensearch.plugin.insights.settings.QueryInsightsSettings;
 import org.opensearch.threadpool.ThreadPool;
-import org.opensearch.transport.TransportRequest;
 import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
@@ -123,7 +123,7 @@ public class TransportTopQueriesAction extends TransportNodesAction<
      *
      * @opensearch.internal
      */
-    public static class NodeRequest extends TransportRequest {
+    public static class NodeRequest extends BaseNodeRequest {
 
         final TopQueriesRequest request;
 
