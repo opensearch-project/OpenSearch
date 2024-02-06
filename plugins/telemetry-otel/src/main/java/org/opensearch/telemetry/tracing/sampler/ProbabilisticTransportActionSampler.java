@@ -52,6 +52,7 @@ public class ProbabilisticTransportActionSampler implements Sampler {
      * Create probabilistic transport action sampler.
      *
      * @param telemetrySettings the telemetry settings
+     * @param settings          the settings
      * @param fallbackSampler   the fallback sampler
      * @return the probabilistic transport action sampler
      */

@@ -48,6 +48,5 @@ public class ProbabilisticTransportActionSamplerTests extends OpenSearchTestCase
         // Verify that ProbabilisticTransportActionSampler returned SamplingResult.recordAndSample() as all actions will be sampled
         assertEquals(SamplingResult.recordAndSample(), result);
         assertEquals(0.001, ((ProbabilisticTransportActionSampler) probabilisticTransportActionSampler).getSamplingRatio(), 0.000d);
-        assertEquals(SamplingResult.recordAndSample(), result);
     }
 }

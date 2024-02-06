@@ -49,6 +49,7 @@ public class ProbabilisticSampler implements Sampler {
      * Create probabilistic sampler.
      *
      * @param telemetrySettings the telemetry settings
+     * @param settings          the settings
      * @param fallbackSampler   the fallback sampler
      * @return the probabilistic sampler
      */
