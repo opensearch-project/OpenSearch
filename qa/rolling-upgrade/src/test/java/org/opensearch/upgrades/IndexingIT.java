@@ -366,7 +366,6 @@ public class IndexingIT extends AbstractRollingTestCase {
                 Settings.Builder settings = Settings.builder()
                     .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), shardCount)
                     .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), replicaCount)
-                    .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
                     .put(
                         EngineConfig.INDEX_CODEC_SETTING.getKey(),
                         randomFrom(new ArrayList<>(CODECS) {
@@ -412,7 +411,6 @@ public class IndexingIT extends AbstractRollingTestCase {
                 throw new UnsupportedOperationException("Unknown cluster type [" + CLUSTER_TYPE + "]");
         }
 
-        waitForSearchableDocs(indexName, shardCount, replicaCount);
         assertCount(indexName, expectedCount);
 
         if (CLUSTER_TYPE != ClusterType.OLD) {
@@ -422,14 +420,12 @@ public class IndexingIT extends AbstractRollingTestCase {
             toBeDeleted.addParameter("refresh", "true");
             toBeDeleted.setJsonEntity("{\"f1\": \"delete-me\"}");
             client().performRequest(toBeDeleted);
-            waitForSearchableDocs(indexName, shardCount, replicaCount);
             assertCount(indexName, expectedCount + 6);
 
             logger.info("--> Delete previously added doc and verify doc count");
             Request delete = new Request("DELETE", "/" + indexName + "/_doc/to_be_deleted");
             delete.addParameter("refresh", "true");
             client().performRequest(delete);
-            waitForSearchableDocs(indexName, shardCount, replicaCount);
             assertCount(indexName, expectedCount + 5);
 
             //forceMergeAndVerify(indexName, shardCount * (1 + replicaCount));

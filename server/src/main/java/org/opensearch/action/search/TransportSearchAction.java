@@ -98,7 +98,6 @@ import org.opensearch.transport.TransportService;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -154,20 +153,12 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         Setting.Property.NodeScope
     );
 
-    public static final String SEARCH_REQUEST_STATS_ENABLED_KEY = "search.request_stats_enabled";
-    public static final Setting<Boolean> SEARCH_REQUEST_STATS_ENABLED = Setting.boolSetting(
-        SEARCH_REQUEST_STATS_ENABLED_KEY,
-        false,
-        Property.Dynamic,
-        Property.NodeScope
-    );
-
     public static final String SEARCH_PHASE_TOOK_ENABLED_KEY = "search.phase_took_enabled";
     public static final Setting<Boolean> SEARCH_PHASE_TOOK_ENABLED = Setting.boolSetting(
         SEARCH_PHASE_TOOK_ENABLED_KEY,
         false,
-        Property.Dynamic,
-        Property.NodeScope
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
     );
 
     private final NodeClient client;
@@ -181,13 +172,9 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
     private final NamedWriteableRegistry namedWriteableRegistry;
     private final CircuitBreaker circuitBreaker;
     private final SearchPipelineService searchPipelineService;
-
-    private volatile boolean isRequestStatsEnabled;
+    private final SearchRequestOperationsCompositeListenerFactory searchRequestOperationsCompositeListenerFactory;
 
     private volatile boolean searchQueryMetricsEnabled;
-
-    private final SearchRequestStats searchRequestStats;
-    private final SearchRequestSlowLog searchRequestSlowLog;
 
     private final MetricsRegistry metricsRegistry;
 
@@ -207,9 +194,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         IndexNameExpressionResolver indexNameExpressionResolver,
         NamedWriteableRegistry namedWriteableRegistry,
         SearchPipelineService searchPipelineService,
-        SearchRequestStats searchRequestStats,
-        SearchRequestSlowLog searchRequestSlowLog,
-        MetricsRegistry metricsRegistry
+        MetricsRegistry metricsRegistry,
+        SearchRequestOperationsCompositeListenerFactory searchRequestOperationsCompositeListenerFactory
     ) {
         super(SearchAction.NAME, transportService, actionFilters, (Writeable.Reader<SearchRequest>) SearchRequest::new);
         this.client = client;
@@ -224,12 +210,9 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.namedWriteableRegistry = namedWriteableRegistry;
         this.searchPipelineService = searchPipelineService;
-        this.isRequestStatsEnabled = clusterService.getClusterSettings().get(SEARCH_REQUEST_STATS_ENABLED);
-        clusterService.getClusterSettings().addSettingsUpdateConsumer(SEARCH_REQUEST_STATS_ENABLED, this::setIsRequestStatsEnabled);
-        this.searchRequestStats = searchRequestStats;
-        this.searchRequestSlowLog = searchRequestSlowLog;
         this.metricsRegistry = metricsRegistry;
         this.searchQueryMetricsEnabled = clusterService.getClusterSettings().get(SEARCH_QUERY_METRICS_ENABLED_SETTING);
+        this.searchRequestOperationsCompositeListenerFactory = searchRequestOperationsCompositeListenerFactory;
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(SEARCH_QUERY_METRICS_ENABLED_SETTING, this::setSearchQueryMetricsEnabled);
     }
@@ -239,10 +222,6 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         if ((this.searchQueryMetricsEnabled == true) && this.searchQueryCategorizer == null) {
             this.searchQueryCategorizer = new SearchQueryCategorizer(metricsRegistry);
         }
-    }
-
-    private void setIsRequestStatsEnabled(boolean isRequestStatsEnabled) {
-        this.isRequestStatsEnabled = isRequestStatsEnabled;
     }
 
     private Map<String, AliasFilter> buildPerIndexAliasFilter(
@@ -289,8 +268,6 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
     }
 
     /**
-     * Listener to track request-level tookTime and phase tookTimes from the coordinator.
-     *
      * Search operations need two clocks. One clock is to fulfill real clock needs (e.g., resolving
      * "now" to an index name). Another clock is needed for measuring how long a search operation
      * took. These two uses are at odds with each other. There are many issues with using a real
@@ -300,12 +277,10 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
      *
      * @opensearch.internal
      */
-    static final class SearchTimeProvider extends SearchRequestOperationsListener {
-
+    static final class SearchTimeProvider {
         private final long absoluteStartMillis;
         private final long relativeStartNanos;
         private final LongSupplier relativeCurrentNanosProvider;
-        private boolean phaseTook = false;
 
         /**
          * Instantiates a new search time provider. The absolute start time is the real clock time
@@ -330,43 +305,6 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
 
         long buildTookInMillis() {
             return TimeUnit.NANOSECONDS.toMillis(relativeCurrentNanosProvider.getAsLong() - relativeStartNanos);
-        }
-
-        public void setPhaseTook(boolean phaseTook) {
-            this.phaseTook = phaseTook;
-        }
-
-        SearchResponse.PhaseTook getPhaseTook() {
-            if (phaseTook) {
-                Map<String, Long> phaseTookMap = new HashMap<>();
-                // Convert Map<SearchPhaseName, Long> to Map<String, Long> for SearchResponse()
-                for (SearchPhaseName searchPhaseName : phaseStatsMap.keySet()) {
-                    phaseTookMap.put(searchPhaseName.getName(), phaseStatsMap.get(searchPhaseName));
-                }
-                return new SearchResponse.PhaseTook(phaseTookMap);
-            } else {
-                return null;
-            }
-        }
-
-        Map<SearchPhaseName, Long> phaseStatsMap = new EnumMap<>(SearchPhaseName.class);
-
-        @Override
-        void onPhaseStart(SearchPhaseContext context) {}
-
-        @Override
-        void onPhaseEnd(SearchPhaseContext context, SearchRequestContext searchRequestContext) {
-            phaseStatsMap.put(
-                context.getCurrentPhase().getSearchPhaseName(),
-                TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - context.getCurrentPhase().getStartTimeInNanos())
-            );
-        }
-
-        @Override
-        void onPhaseFailure(SearchPhaseContext context) {}
-
-        public Long getPhaseTookTime(SearchPhaseName searchPhaseName) {
-            return phaseStatsMap.get(searchPhaseName);
         }
     }
 
@@ -490,11 +428,12 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             relativeStartNanos,
             System::nanoTime
         );
-
-        final List<SearchRequestOperationsListener> searchListenersList = createSearchListenerList(originalSearchRequest, timeProvider);
-        SearchRequestContext searchRequestContext = new SearchRequestContext(
-            new SearchRequestOperationsListener.CompositeListener(searchListenersList, logger)
-        );
+        if (originalSearchRequest.isPhaseTook() == null) {
+            originalSearchRequest.setPhaseTook(clusterService.getClusterSettings().get(SEARCH_PHASE_TOOK_ENABLED));
+        }
+        SearchRequestOperationsListener.CompositeListener requestOperationsListeners = searchRequestOperationsCompositeListenerFactory
+            .buildCompositeListener(originalSearchRequest, logger);
+        SearchRequestContext searchRequestContext = new SearchRequestContext(requestOperationsListeners, originalSearchRequest);
         searchRequestContext.getSearchRequestOperationsListener().onRequestStart(searchRequestContext);
 
         PipelinedRequest searchRequest;
@@ -599,7 +538,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                             searchContext,
                             searchAsyncActionProvider,
                             searchRequestContext
-                        )
+                        ),
+                        searchRequestContext
                     );
                 } else {
                     AtomicInteger skippedClusters = new AtomicInteger(0);
@@ -687,7 +627,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         RemoteClusterService remoteClusterService,
         ThreadPool threadPool,
         ActionListener<SearchResponse> listener,
-        BiConsumer<SearchRequest, ActionListener<SearchResponse>> localSearchConsumer
+        BiConsumer<SearchRequest, ActionListener<SearchResponse>> localSearchConsumer,
+        SearchRequestContext searchRequestContext
     ) {
 
         if (localIndices == null && remoteIndices.size() == 1) {
@@ -729,7 +670,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                             searchResponse.getSuccessfulShards(),
                             searchResponse.getSkippedShards(),
                             timeProvider.buildTookInMillis(),
-                            timeProvider.getPhaseTook(),
+                            searchRequestContext.getPhaseTook(),
                             searchResponse.getShardFailures(),
                             new SearchResponse.Clusters(1, 1, 0),
                             searchResponse.pointInTimeId()
@@ -775,7 +716,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     exceptions,
                     searchResponseMerger,
                     totalClusters,
-                    listener
+                    listener,
+                    searchRequestContext
                 );
                 Client remoteClusterClient = remoteClusterService.getRemoteClusterClient(threadPool, clusterAlias);
                 remoteClusterClient.search(ccsSearchRequest, ccsListener);
@@ -789,7 +731,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     exceptions,
                     searchResponseMerger,
                     totalClusters,
-                    listener
+                    listener,
+                    searchRequestContext
                 );
                 SearchRequest ccsLocalSearchRequest = SearchRequest.subSearchRequest(
                     searchRequest,
@@ -884,7 +827,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         AtomicReference<Exception> exceptions,
         SearchResponseMerger searchResponseMerger,
         int totalClusters,
-        ActionListener<SearchResponse> originalListener
+        ActionListener<SearchResponse> originalListener,
+        SearchRequestContext searchRequestContext
     ) {
         return new CCSActionListener<SearchResponse, SearchResponse>(
             clusterAlias,
@@ -906,7 +850,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     searchResponseMerger.numResponses(),
                     skippedClusters.get()
                 );
-                return searchResponseMerger.getMergedResponse(clusters);
+                return searchResponseMerger.getMergedResponse(clusters, searchRequestContext);
             }
         };
     }
@@ -1242,35 +1186,6 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             SearchResponse.Clusters clusters,
             SearchRequestContext searchRequestContext
         );
-    }
-
-    private List<SearchRequestOperationsListener> createSearchListenerList(SearchRequest searchRequest, SearchTimeProvider timeProvider) {
-        final List<SearchRequestOperationsListener> searchListenersList = new ArrayList<>();
-
-        if (isRequestStatsEnabled) {
-            searchListenersList.add(searchRequestStats);
-        }
-
-        // phase_took is enabled with request param and/or cluster setting
-        Boolean phaseTookRequestParam = searchRequest.isPhaseTook();
-        if (phaseTookRequestParam == null) {    // check cluster setting only when request param is undefined
-            if (clusterService.getClusterSettings().get(TransportSearchAction.SEARCH_PHASE_TOOK_ENABLED)) {
-                timeProvider.setPhaseTook(true);
-                searchListenersList.add(timeProvider);
-            }
-        } else if (phaseTookRequestParam == true) {
-            timeProvider.setPhaseTook(true);
-            searchListenersList.add(timeProvider);
-        }
-
-        if (searchRequestSlowLog.getWarnThreshold() >= 0
-            || searchRequestSlowLog.getInfoThreshold() >= 0
-            || searchRequestSlowLog.getDebugThreshold() >= 0
-            || searchRequestSlowLog.getTraceThreshold() >= 0) {
-            searchListenersList.add(searchRequestSlowLog);
-        }
-
-        return searchListenersList;
     }
 
     private AbstractSearchAsyncAction<? extends SearchPhaseResult> searchAsyncAction(
