@@ -19,6 +19,7 @@ import io.opentelemetry.api.trace.SpanKind;
 import io.opentelemetry.context.Context;
 import io.opentelemetry.sdk.trace.data.LinkData;
 import io.opentelemetry.sdk.trace.samplers.Sampler;
+import io.opentelemetry.sdk.trace.samplers.SamplingDecision;
 import io.opentelemetry.sdk.trace.samplers.SamplingResult;
 
 /**
@@ -81,7 +82,12 @@ public class ProbabilisticSampler implements Sampler {
                 defaultSampler = Sampler.traceIdRatioBased(samplingRatio);
             }
         }
-        return defaultSampler.shouldSample(parentContext, traceId, name, spanKind, attributes, parentLinks);
+        final SamplingResult result = defaultSampler.shouldSample(parentContext, traceId, name, spanKind, attributes, parentLinks);
+        if (result.getDecision() != SamplingDecision.DROP && fallbackSampler != null) {
+            return fallbackSampler.shouldSample(parentContext, traceId, name, spanKind, attributes, parentLinks);
+        } else {
+            return result;
+        }
     }
 
     @Override
