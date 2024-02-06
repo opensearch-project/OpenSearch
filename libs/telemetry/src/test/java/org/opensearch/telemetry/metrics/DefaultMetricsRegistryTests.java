@@ -48,4 +48,15 @@ public class DefaultMetricsRegistryTests extends OpenSearchTestCase {
         assertSame(mockCounter, counter);
     }
 
+    public void testHistogram() {
+        Histogram mockHistogram = mock(Histogram.class);
+        when(defaultMeterRegistry.createHistogram(any(String.class), any(String.class), any(String.class))).thenReturn(mockHistogram);
+        Histogram histogram = defaultMeterRegistry.createHistogram(
+            "org.opensearch.telemetry.metrics.DefaultMeterRegistryTests.testHistogram",
+            "test up-down counter",
+            "ms"
+        );
+        assertSame(mockHistogram, histogram);
+    }
+
 }

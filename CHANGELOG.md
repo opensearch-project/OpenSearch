@@ -138,6 +138,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Add support for Google Application Default Credentials in repository-gcs ([#8394](https://github.com/opensearch-project/OpenSearch/pull/8394))
 - Remove concurrent segment search feature flag for GA launch ([#12074](https://github.com/opensearch-project/OpenSearch/pull/12074))
 - Enable Fuzzy codec for doc id fields using a bloom filter ([#11022](https://github.com/opensearch-project/OpenSearch/pull/11022))
+- [Metrics Framework] Adds support for Histogram metric ([#12062](https://github.com/opensearch-project/OpenSearch/pull/12062))
 - Support for returning scores in matched queries ([#11626](https://github.com/opensearch-project/OpenSearch/pull/11626))
 
 ### Dependencies
@@ -181,7 +182,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `lycheeverse/lychee-action` from 1.8.0 to 1.9.1 ([#11795](https://github.com/opensearch-project/OpenSearch/pull/11795), [#11887](https://github.com/opensearch-project/OpenSearch/pull/11887))
 - Bump `Lucene` from 9.8.0 to 9.9.2 ([#11421](https://github.com/opensearch-project/OpenSearch/pull/11421)), ([#12063](https://github.com/opensearch-project/OpenSearch/pull/12063))
 - Bump `com.networknt:json-schema-validator` from 1.0.86 to 1.2.0 ([#11886](https://github.com/opensearch-project/OpenSearch/pull/11886), [#11963](https://github.com/opensearch-project/OpenSearch/pull/11963))
-- Bump `com.google.api:gax-httpjson` from 0.103.1 to 2.39.0 ([#11794](https://github.com/opensearch-project/OpenSearch/pull/11794))
+- Bump `com.google.api:gax-httpjson` from 0.103.1 to 2.42.0 ([#11794](https://github.com/opensearch-project/OpenSearch/pull/11794), [#12165](https://github.com/opensearch-project/OpenSearch/pull/12165))
 - Bump `com.google.oauth-client:google-oauth-client` from 1.34.1 to 1.35.0 ([#11960](https://github.com/opensearch-project/OpenSearch/pull/11960))
 - Bump `com.diffplug.spotless` from 6.23.2 to 6.25.0 ([#11962](https://github.com/opensearch-project/OpenSearch/pull/11962), [#12055](https://github.com/opensearch-project/OpenSearch/pull/12055))
 - Bump `com.google.cloud:google-cloud-core` from 2.5.10 to 2.30.0 ([#11961](https://github.com/opensearch-project/OpenSearch/pull/11961))
@@ -223,6 +224,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Extract cluster management for integration tests into JUnit test rule out of OpenSearchIntegTestCase ([#11877](https://github.com/opensearch-project/OpenSearch/pull/11877)), ([#12000](https://github.com/opensearch-project/OpenSearch/pull/12000))
 - Workaround for https://bugs.openjdk.org/browse/JDK-8323659 regression, introduced in JDK-21.0.2 ([#11968](https://github.com/opensearch-project/OpenSearch/pull/11968))
 - Updates IpField to be searchable when only `doc_values` are enabled ([#11508](https://github.com/opensearch-project/OpenSearch/pull/11508))
+- [Query Insights] Query Insights Framework which currently supports retrieving the most time-consuming queries within the last configured time window ([#11903](https://github.com/opensearch-project/OpenSearch/pull/11903))
 
 ### Deprecated
 
