@@ -8,9 +8,6 @@
 
 package org.opensearch.action.admin.indices.view;
 
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
 import org.opensearch.ResourceNotFoundException;
 import org.opensearch.action.search.SearchAction;
 import org.opensearch.client.node.NodeClient;
@@ -20,6 +17,10 @@ import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.metadata.View;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.core.action.ActionListener;
+import org.hamcrest.MatcherAssert;
+import org.junit.After;
+import org.junit.Before;
+import org.junit.Test;
 
 import java.util.List;
 import java.util.Map;
@@ -27,10 +28,19 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.LongSupplier;
 
 import static org.hamcrest.Matchers.equalTo;
-import static org.junit.Assert.*;
-import static org.mockito.Mockito.*;
+import static org.junit.Assert.assertThrows;
+import static org.mockito.Mockito.any;
+import static org.mockito.Mockito.anyString;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.eq;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
+import static org.mockito.Mockito.when;
 
-
+@SuppressWarnings("unchecked")
 public class ViewServiceTest {
 
     private final View.Target typicalTarget = new View.Target("my-index-*");
@@ -38,7 +48,7 @@ public class ViewServiceTest {
 
     private ClusterService clusterService;
     private NodeClient nodeClient;
-    private AtomicLong currentTime = new AtomicLong(0);
+    private final AtomicLong currentTime = new AtomicLong(0);
     private LongSupplier timeProvider = currentTime::longValue;
     private ViewService viewService;
 
@@ -87,7 +97,7 @@ public class ViewServiceTest {
         doThrow(new ResourceNotFoundException("abc")).when(viewService).getViewOrThrowException(anyString());
 
         final Exception ex = assertThrows(ResourceNotFoundException.class, () -> viewService.updateView(request, listener));
-        assertThat(ex.getMessage(), equalTo("abc"));
+        MatcherAssert.assertThat(ex.getMessage(), equalTo("abc"));
     }
 
     @Test
@@ -109,7 +119,7 @@ public class ViewServiceTest {
 
         final ResourceNotFoundException ex = assertThrows(ResourceNotFoundException.class, () -> viewService.deleteView(request, listener));
 
-        assertThat(ex.getMessage(), equalTo("abc"));
+        MatcherAssert.assertThat(ex.getMessage(), equalTo("abc"));
     }
 
     @Test
@@ -131,14 +141,14 @@ public class ViewServiceTest {
 
         final ResourceNotFoundException ex = assertThrows(ResourceNotFoundException.class, () -> viewService.getView(request, listener));
 
-        assertThat(ex.getMessage(), equalTo("abc"));
+        MatcherAssert.assertThat(ex.getMessage(), equalTo("abc"));
     }
 
     @Test
     public void listViewNames() {
-        final var clusterState = new ClusterState.Builder(new ClusterName("MyCluster"))
-            .metadata(new Metadata.Builder().views(Map.of(typicalView.getName(), typicalView)).build())
-            .build();
+        final var clusterState = new ClusterState.Builder(new ClusterName("MyCluster")).metadata(
+            new Metadata.Builder().views(Map.of(typicalView.getName(), typicalView)).build()
+        ).build();
         final var listener = mock(ActionListener.class);
         when(clusterService.state()).thenReturn(clusterState);
 

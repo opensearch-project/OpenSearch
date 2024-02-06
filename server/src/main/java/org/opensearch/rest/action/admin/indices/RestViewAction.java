@@ -8,8 +8,6 @@
 
 package org.opensearch.rest.action.admin.indices;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.opensearch.action.admin.indices.view.CreateViewAction;
 import org.opensearch.action.admin.indices.view.DeleteViewAction;
 import org.opensearch.action.admin.indices.view.GetViewAction;
@@ -41,12 +39,11 @@ import static org.opensearch.rest.RestRequest.Method.PUT;
 @ExperimentalApi
 public class RestViewAction {
 
-    private final static Logger LOG = LogManager.getLogger(RestViewAction.class);
-
-    public static final String VIEW_ID = "view_id";
-    public static final String VIEW_ID_PARAMETER = "{" + VIEW_ID + "}";
+    public static final String VIEW_NAME = "view_name";
+    public static final String VIEW_NAME_PARAMETER = "{" + VIEW_NAME + "}";
 
     /** Handler for create view */
+    @ExperimentalApi
     public static class CreateViewHandler extends BaseRestHandler {
 
         @Override
@@ -63,18 +60,25 @@ public class RestViewAction {
         protected RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
             try (final XContentParser parser = request.contentParser()) {
                 final CreateViewAction.Request createViewAction = CreateViewAction.Request.fromXContent(parser);
+
+                final ValidationException validationResult = createViewAction.validate();
+                if (validationResult != null) {
+                    throw validationResult;
+                }
+
                 return channel -> client.admin().indices().createView(createViewAction, new RestToXContentListener<>(channel));
             }
         }
     }
 
     /** Handler for delete view */
+    @ExperimentalApi
     public static class DeleteViewHandler extends BaseRestHandler {
 
         @Override
         public List<Route> routes() {
             return List.of(
-                new NamedRoute.Builder().path("/views/" + VIEW_ID_PARAMETER).method(DELETE).uniqueName(DeleteViewAction.NAME).build()
+                new NamedRoute.Builder().path("/views/" + VIEW_NAME_PARAMETER).method(DELETE).uniqueName(DeleteViewAction.NAME).build()
             );
         }
 
@@ -85,20 +89,27 @@ public class RestViewAction {
 
         @Override
         protected RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-            final String viewId = request.param(VIEW_ID);
+            final String viewId = request.param(VIEW_NAME);
 
             final DeleteViewAction.Request deleteRequest = new DeleteViewAction.Request(viewId);
+
+            final ValidationException validationResult = deleteRequest.validate();
+            if (validationResult != null) {
+                throw validationResult;
+            }
+
             return channel -> client.admin().indices().deleteView(deleteRequest, new RestToXContentListener<>(channel));
         }
     }
 
     /** Handler for update view */
+    @ExperimentalApi
     public static class UpdateViewHandler extends BaseRestHandler {
 
         @Override
         public List<Route> routes() {
             return List.of(
-                new NamedRoute.Builder().path("/views/" + VIEW_ID_PARAMETER).method(PUT).uniqueName(UpdateViewAction.NAME).build()
+                new NamedRoute.Builder().path("/views/" + VIEW_NAME_PARAMETER).method(PUT).uniqueName(UpdateViewAction.NAME).build()
             );
         }
 
@@ -109,21 +120,30 @@ public class RestViewAction {
 
         @Override
         protected RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-            final String viewId = request.param(VIEW_ID);
+            final String viewId = request.param(VIEW_NAME);
 
             try (final XContentParser parser = request.contentParser()) {
                 final CreateViewAction.Request updateRequest = UpdateViewAction.Request.fromXContent(parser, viewId);
+
+                final ValidationException validationResult = updateRequest.validate();
+                if (validationResult != null) {
+                    throw validationResult;
+                }
+
                 return channel -> client.admin().indices().updateView(updateRequest, new RestToXContentListener<>(channel));
             }
         }
     }
 
     /** Handler for get view */
+    @ExperimentalApi
     public static class GetViewHandler extends BaseRestHandler {
 
         @Override
         public List<Route> routes() {
-            return List.of(new NamedRoute.Builder().path("/views/" + VIEW_ID_PARAMETER).method(GET).uniqueName(GetViewAction.NAME).build());
+            return List.of(
+                new NamedRoute.Builder().path("/views/" + VIEW_NAME_PARAMETER).method(GET).uniqueName(GetViewAction.NAME).build()
+            );
         }
 
         @Override
@@ -133,14 +153,21 @@ public class RestViewAction {
 
         @Override
         protected RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-            final String viewId = request.param(VIEW_ID);
+            final String viewId = request.param(VIEW_NAME);
 
             final GetViewAction.Request getRequest = new GetViewAction.Request(viewId);
+
+            final ValidationException validationResult = getRequest.validate();
+            if (validationResult != null) {
+                throw validationResult;
+            }
+
             return channel -> client.admin().indices().getView(getRequest, new RestToXContentListener<>(channel));
         }
     }
 
     /** Handler for get view */
+    @ExperimentalApi
     public static class ListViewNamesHandler extends BaseRestHandler {
 
         @Override
@@ -160,15 +187,16 @@ public class RestViewAction {
     }
 
     /** Handler for search view */
+    @ExperimentalApi
     public static class SearchViewHandler extends BaseRestHandler {
         @Override
         public List<Route> routes() {
             return List.of(
-                new NamedRoute.Builder().path("/views/" + VIEW_ID_PARAMETER + "/_search")
+                new NamedRoute.Builder().path("/views/" + VIEW_NAME_PARAMETER + "/_search")
                     .method(GET)
                     .uniqueName(SearchViewAction.NAME)
                     .build(),
-                new NamedRoute.Builder().path("/views/" + VIEW_ID_PARAMETER + "/_search")
+                new NamedRoute.Builder().path("/views/" + VIEW_NAME_PARAMETER + "/_search")
                     .method(POST)
                     .uniqueName(SearchViewAction.NAME)
                     .build()
@@ -182,7 +210,7 @@ public class RestViewAction {
 
         @Override
         public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-            final String viewId = request.param(VIEW_ID);
+            final String viewId = request.param(VIEW_NAME);
 
             final SearchViewAction.Request viewSearchRequest = new SearchViewAction.Request(viewId);
             final IntConsumer setSize = size -> viewSearchRequest.source().size(size);
@@ -208,83 +236,4 @@ public class RestViewAction {
             };
         }
     }
-
-    // TODO: Replace and reorganize this layout
-
-    // public List<Route> routes() {
-
-    // return List.of(
-    // new NamedRoute.Builder().path("/views").method(GET).uniqueName("cluster:views:list").build(),
-    // new NamedRoute.Builder().path("/views/" + viewIdParameter).method(GET).uniqueName("cluster:views:get").build(),
-    // new NamedRoute.Builder().path("/views/" + viewIdParameter).method(DELETE).uniqueName("cluster:views:delete").build(),
-    // new NamedRoute.Builder().path("/views/" + viewIdParameter).method(PUT).uniqueName("cluster:views:update").build()
-    // );
-    // }
-
-    // public RestResponse handlePost(final RestRequest r, final RestChannel channel) throws IOException {
-    // final View inputView;
-    // try (final XContentParser parser = r.contentParser()) {
-    // inputView = View.fromXContent(parser);
-    // }
-
-    // final long currentTime = System.currentTimeMillis();
-    // final View view = new View(inputView.name, inputView.description, currentTime, currentTime, inputView.targets);
-
-    // clusterService.submitStateUpdateTask("create_view_task", new ClusterStateUpdateTask() {
-    // @Override
-    // public ClusterState execute(final ClusterState currentState) throws Exception {
-    // return new ClusterState.Builder(clusterService.state()).metadata(Metadata.builder(currentState.metadata()).put(view))
-    // .build();
-    // }
-
-    // @Override
-    // public void onFailure(final String source, final Exception e) {
-    // LOG.error("Unable to create view, due to {}", source, e);
-    // channel.sendResponse(
-    // new BytesRestResponse(RestStatus.INTERNAL_SERVER_ERROR, "Unknown error occurred, see the log for details.")
-    // );
-    // }
-
-    // @Override
-    // public void clusterStateProcessed(final String source, final ClusterState oldState, final ClusterState newState) {
-    // try {
-    // channel.sendResponse(
-    // new BytesRestResponse(RestStatus.CREATED, channel.newBuilder().startObject().field(view.name, view).endObject())
-    // );
-    // } catch (final IOException e) {
-    // // TODO?
-    // LOG.error(e);
-    // }
-    // }
-    // });
-    // // TODO: Handle CREATED vs UPDATED
-    // return null;
-    // }
-
-    // public RestResponse handleSingleGet(final RestRequest r, final XContentBuilder builder) throws IOException {
-    // final String viewId = r.param(VIEW_ID);
-
-    // if (Strings.isNullOrEmpty(viewId)) {
-    // return new BytesRestResponse(RestStatus.NOT_FOUND, "");
-    // }
-
-    // final Optional<View> view = Optional.ofNullable(clusterService.state().getMetadata())
-    // .map(m -> m.views())
-    // .map(views -> views.get(viewId));
-
-    // if (view.isEmpty()) {
-    // return new BytesRestResponse(RestStatus.NOT_FOUND, "");
-    // }
-
-    // return new BytesRestResponse(RestStatus.OK, builder.startObject().value(view).endObject());
-    // }
-
-    // public RestResponse handleSinglePut(final RestRequest r) {
-    // return new BytesRestResponse(RestStatus.NOT_IMPLEMENTED, "");
-    // }
-
-    // public RestResponse handleSingleDelete(final RestRequest r) {
-    // return new BytesRestResponse(RestStatus.NOT_IMPLEMENTED, "");
-    // }
-
 }

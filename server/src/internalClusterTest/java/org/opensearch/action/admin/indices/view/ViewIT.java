@@ -8,7 +8,6 @@
 
 package org.opensearch.action.admin.indices.view;
 
-import org.hamcrest.MatcherAssert;
 import org.opensearch.action.search.SearchRequest;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.index.IndexNotFoundException;
@@ -16,6 +15,7 @@ import org.opensearch.test.BackgroundIndexer;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.OpenSearchIntegTestCase.ClusterScope;
 import org.opensearch.test.OpenSearchIntegTestCase.Scope;
+import org.hamcrest.MatcherAssert;
 
 import java.util.List;
 
