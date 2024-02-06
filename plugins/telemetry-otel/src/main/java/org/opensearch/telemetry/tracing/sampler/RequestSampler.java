@@ -24,14 +24,14 @@ import static org.opensearch.telemetry.tracing.AttributeNames.TRACE;
  * RequestSampler based on HeadBased sampler
  */
 public class RequestSampler implements Sampler {
-    private final List<Sampler> samplersList;
+    private final Sampler fallbackSampler;
 
     /**
      * Creates request sampler which applies based on all applicable sampler
-     * @param samplersList list of Sampler
+     * @param fallbackSampler Sampler
      */
-    public RequestSampler(List<Sampler> samplersList) {
-        this.samplersList = samplersList;
+    public RequestSampler(Sampler fallbackSampler) {
+        this.fallbackSampler = fallbackSampler;
     }
 
     @Override
@@ -48,12 +48,8 @@ public class RequestSampler implements Sampler {
         if (trace != null) {
             return (Boolean.parseBoolean(trace) == true) ? SamplingResult.recordAndSample() : SamplingResult.drop();
         }
-
-        for (Sampler sampler : this.samplersList) {
-            SamplingResult result = sampler.shouldSample(parentContext, traceId, name, spanKind, attributes, parentLinks);
-            if (result == SamplingResult.recordAndSample() || result == SamplingResult.drop()) {
-                return result;
-            }
+        if (fallbackSampler != null) {
+            return fallbackSampler.shouldSample(parentContext, traceId, name, spanKind, attributes, parentLinks);
         }
         return SamplingResult.drop();
     }

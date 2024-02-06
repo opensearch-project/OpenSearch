@@ -19,6 +19,7 @@ import java.util.Set;
 import io.opentelemetry.api.common.Attributes;
 import io.opentelemetry.api.trace.SpanKind;
 import io.opentelemetry.context.Context;
+import io.opentelemetry.sdk.trace.samplers.Sampler;
 import io.opentelemetry.sdk.trace.samplers.SamplingResult;
 
 import static org.opensearch.telemetry.TelemetrySettings.TRACER_ENABLED_SETTING;
@@ -37,10 +38,8 @@ public class ProbabilisticTransportActionSamplerTests extends OpenSearchTestCase
 
         TelemetrySettings telemetrySettings = new TelemetrySettings(Settings.EMPTY, clusterSettings);
 
-        // TransportActionSampler
-        ProbabilisticTransportActionSampler probabilisticTransportActionSampler = new ProbabilisticTransportActionSampler(
-            telemetrySettings
-        );
+        // ProbabilisticTransportActionSampler
+        Sampler probabilisticTransportActionSampler = ProbabilisticTransportActionSampler.create(telemetrySettings, null);
         clusterSettings.applySettings(Settings.builder().put("telemetry.tracer.action.sampler.probability", "1.0").build());
 
         // Need to call shouldSample() to update the value of samplingRatio
@@ -52,9 +51,9 @@ public class ProbabilisticTransportActionSamplerTests extends OpenSearchTestCase
             Attributes.builder().put(TRANSPORT_ACTION, "dummy_action").build(),
             Collections.emptyList()
         );
-        // Verify that TransportActionSampler returned SamplingResult.recordAndSample() as all actions will be sampled
+        // Verify that ProbabilisticTransportActionSampler returned SamplingResult.recordAndSample() as all actions will be sampled
         assertEquals(SamplingResult.recordAndSample(), result);
-        assertEquals(1.0, probabilisticTransportActionSampler.getSamplingRatio(), 0.000d);
+        assertEquals(1.0, ((ProbabilisticTransportActionSampler) probabilisticTransportActionSampler).getSamplingRatio(), 0.000d);
         assertEquals(SamplingResult.recordAndSample(), result);
 
         clusterSettings.applySettings(Settings.builder().put("telemetry.tracer.action.sampler.probability", "0.0").build());
@@ -66,7 +65,7 @@ public class ProbabilisticTransportActionSamplerTests extends OpenSearchTestCase
             Attributes.builder().put(TRANSPORT_ACTION, "dummy_action").build(),
             Collections.emptyList()
         );
-        assertEquals(0.0, probabilisticTransportActionSampler.getSamplingRatio(), 0.000d);
+        assertEquals(0.0, ((ProbabilisticTransportActionSampler) probabilisticTransportActionSampler).getSamplingRatio(), 0.000d);
         assertEquals(SamplingResult.drop(), result);
     }
 }

@@ -26,6 +26,7 @@ import io.opentelemetry.sdk.trace.samplers.SamplingResult;
 public class ProbabilisticSampler implements Sampler {
     private Sampler defaultSampler;
     private final TelemetrySettings telemetrySettings;
+    private final Sampler fallbackSampler;
     private double samplingRatio;
 
     /**
@@ -33,10 +34,22 @@ public class ProbabilisticSampler implements Sampler {
      *
      * @param telemetrySettings Telemetry settings.
      */
-    public ProbabilisticSampler(TelemetrySettings telemetrySettings) {
+    private ProbabilisticSampler(TelemetrySettings telemetrySettings, Sampler fallbackSampler) {
         this.telemetrySettings = Objects.requireNonNull(telemetrySettings);
         this.samplingRatio = telemetrySettings.getSamplingProbability();
         this.defaultSampler = Sampler.traceIdRatioBased(samplingRatio);
+        this.fallbackSampler = fallbackSampler;
+    }
+
+    /**
+     * Create probabilistic sampler.
+     *
+     * @param telemetrySettings the telemetry settings
+     * @param fallbackSampler   the fallback sampler
+     * @return the probabilistic sampler
+     */
+    public static Sampler create(TelemetrySettings telemetrySettings, Sampler fallbackSampler) {
+        return new ProbabilisticSampler(telemetrySettings, fallbackSampler);
     }
 
     private boolean isSamplingRatioChanged(double newSamplingRatio) {

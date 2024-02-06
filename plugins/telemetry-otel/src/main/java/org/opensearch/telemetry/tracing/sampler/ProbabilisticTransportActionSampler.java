@@ -27,6 +27,8 @@ import static org.opensearch.telemetry.tracing.AttributeNames.TRANSPORT_ACTION;
  * ProbabilisticTransportActionSampler sampler samples request with action based on defined probability
  */
 public class ProbabilisticTransportActionSampler implements Sampler {
+
+    private final Sampler fallbackSampler;
     private Sampler actionSampler;
     private final TelemetrySettings telemetrySettings;
     private double actionSamplingRatio;
@@ -35,10 +37,22 @@ public class ProbabilisticTransportActionSampler implements Sampler {
      * Creates ProbabilisticTransportActionSampler sampler
      * @param telemetrySettings TelemetrySettings
      */
-    public ProbabilisticTransportActionSampler(TelemetrySettings telemetrySettings) {
+    private ProbabilisticTransportActionSampler(TelemetrySettings telemetrySettings, Sampler fallbackSampler) {
         this.telemetrySettings = Objects.requireNonNull(telemetrySettings);
         this.actionSamplingRatio = telemetrySettings.getActionSamplingProbability();
         this.actionSampler = Sampler.traceIdRatioBased(actionSamplingRatio);
+        this.fallbackSampler = fallbackSampler;
+    }
+
+    /**
+     * Create probabilistic transport action sampler.
+     *
+     * @param telemetrySettings the telemetry settings
+     * @param fallbackSampler   the fallback sampler
+     * @return the probabilistic transport action sampler
+     */
+    public static Sampler create(TelemetrySettings telemetrySettings, Sampler fallbackSampler) {
+        return new ProbabilisticTransportActionSampler(telemetrySettings, fallbackSampler);
     }
 
     @Override
@@ -55,13 +69,15 @@ public class ProbabilisticTransportActionSampler implements Sampler {
             double newActionSamplingRatio = telemetrySettings.getActionSamplingProbability();
             if (isActionSamplingRatioChanged(newActionSamplingRatio)) {
                 synchronized (this) {
-                    this.actionSamplingRatio = newActionSamplingRatio;
+                    actionSamplingRatio = newActionSamplingRatio;
                     actionSampler = Sampler.traceIdRatioBased(actionSamplingRatio);
                 }
             }
             return actionSampler.shouldSample(parentContext, traceId, name, spanKind, attributes, parentLinks);
         }
-        return SamplingResult.recordOnly();
+        if (fallbackSampler != null) return fallbackSampler.shouldSample(parentContext, traceId, name, spanKind, attributes, parentLinks);
+
+        return SamplingResult.drop();
     }
 
     private boolean isActionSamplingRatioChanged(double newSamplingRatio) {

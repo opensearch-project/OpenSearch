@@ -21,6 +21,7 @@ import io.opentelemetry.api.common.AttributeKey;
 import io.opentelemetry.api.common.Attributes;
 import io.opentelemetry.api.trace.SpanKind;
 import io.opentelemetry.context.Context;
+import io.opentelemetry.sdk.trace.samplers.Sampler;
 import io.opentelemetry.sdk.trace.samplers.SamplingResult;
 
 import static org.opensearch.telemetry.TelemetrySettings.TRACER_ENABLED_SETTING;
@@ -42,7 +43,8 @@ public class RequestSamplerTests extends OpenSearchTestCase {
             Set.of(TRACER_SAMPLER_PROBABILITY, TRACER_ENABLED_SETTING, TRACER_SAMPLER_ACTION_PROBABILITY)
         );
         telemetrySettings = new TelemetrySettings(Settings.EMPTY, clusterSettings);
-        requestSampler = new RequestSampler(OTelSamplerFactory.create(telemetrySettings, Settings.EMPTY));
+        Sampler fallbackSampler = OTelSamplerFactory.create(telemetrySettings, Settings.EMPTY);
+        requestSampler = new RequestSampler(fallbackSampler);
         parentContext = mock(Context.class);
     }
 
