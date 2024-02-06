@@ -198,6 +198,8 @@ import org.opensearch.plugins.SearchPipelinePlugin;
 import org.opensearch.plugins.SearchPlugin;
 import org.opensearch.plugins.SystemIndexPlugin;
 import org.opensearch.plugins.TelemetryPlugin;
+import org.opensearch.ratelimitting.admissioncontrol.AdmissionControlService;
+import org.opensearch.ratelimitting.admissioncontrol.transport.AdmissionControlTransportInterceptor;
 import org.opensearch.repositories.RepositoriesModule;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.rest.RestController;
@@ -896,6 +898,29 @@ public class Node implements Closeable {
 
             final RestController restController = actionModule.getRestController();
 
+            final NodeResourceUsageTracker nodeResourceUsageTracker = new NodeResourceUsageTracker(
+                threadPool,
+                settings,
+                clusterService.getClusterSettings()
+            );
+            final ResourceUsageCollectorService resourceUsageCollectorService = new ResourceUsageCollectorService(
+                nodeResourceUsageTracker,
+                clusterService,
+                threadPool
+            );
+
+            final AdmissionControlService admissionControlService = new AdmissionControlService(
+                settings,
+                clusterService,
+                threadPool,
+                resourceUsageCollectorService
+            );
+
+            AdmissionControlTransportInterceptor admissionControlTransportInterceptor = new AdmissionControlTransportInterceptor(
+                admissionControlService
+            );
+
+            List<TransportInterceptor> transportInterceptors = List.of(admissionControlTransportInterceptor);
             final NetworkModule networkModule = new NetworkModule(
                 settings,
                 pluginsService.filterPlugins(NetworkPlugin.class),
@@ -908,7 +933,8 @@ public class Node implements Closeable {
                 networkService,
                 restController,
                 clusterService.getClusterSettings(),
-                tracer
+                tracer,
+                transportInterceptors
             );
             Collection<UnaryOperator<Map<String, IndexTemplateMetadata>>> indexTemplateMetadataUpgraders = pluginsService.filterPlugins(
                 Plugin.class
@@ -1090,16 +1116,6 @@ public class Node implements Closeable {
                 transportService.getTaskManager(),
                 taskCancellationMonitoringSettings
             );
-            final NodeResourceUsageTracker nodeResourceUsageTracker = new NodeResourceUsageTracker(
-                threadPool,
-                settings,
-                clusterService.getClusterSettings()
-            );
-            final ResourceUsageCollectorService resourceUsageCollectorService = new ResourceUsageCollectorService(
-                nodeResourceUsageTracker,
-                clusterService,
-                threadPool
-            );
             this.nodeService = new NodeService(
                 settings,
                 threadPool,
@@ -1124,7 +1140,8 @@ public class Node implements Closeable {
                 taskCancellationMonitoringService,
                 resourceUsageCollectorService,
                 segmentReplicationStatsTracker,
-                repositoryService
+                repositoryService,
+                admissionControlService
             );
 
             final SearchService searchService = newSearchService(
@@ -1186,6 +1203,7 @@ public class Node implements Closeable {
                 b.bind(IndexingPressureService.class).toInstance(indexingPressureService);
                 b.bind(TaskResourceTrackingService.class).toInstance(taskResourceTrackingService);
                 b.bind(SearchBackpressureService.class).toInstance(searchBackpressureService);
+                b.bind(AdmissionControlService.class).toInstance(admissionControlService);
                 b.bind(UsageService.class).toInstance(usageService);
                 b.bind(AggregationUsageService.class).toInstance(searchModule.getValuesSourceRegistry().getUsageService());
                 b.bind(NamedWriteableRegistry.class).toInstance(namedWriteableRegistry);
