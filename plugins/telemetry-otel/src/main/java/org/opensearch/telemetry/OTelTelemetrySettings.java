@@ -133,7 +133,7 @@ public final class OTelTelemetrySettings {
                     return (Class<Sampler>) loader.loadClass(sampler);
                 });
             } catch (PrivilegedActionException ex) {
-                throw new IllegalStateException("Unable to load sampler class:", ex.getCause());
+                throw new IllegalStateException("Unable to load sampler class: " + sampler, ex.getCause());
             }
         },
         Setting.Property.NodeScope,
