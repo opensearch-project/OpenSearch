@@ -9,6 +9,7 @@
 package org.opensearch.telemetry.tracing;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.opensearch.Version;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.network.NetworkAddress;
@@ -44,10 +45,11 @@ public class SpanBuilderTests extends OpenSearchTestCase {
 
     @ParametersFactory
     public static Collection<Object[]> data() {
-        return Arrays.asList(new Object[][]{
-            {"/_test/resource?name=John&age=25", "GET /_test/resource", "name=John&age=25", "/_test/resource"},
-            {"/_test/", "GET /_test/", "", "/_test/"},
-        });
+        return Arrays.asList(
+            new Object[][] {
+                { "/_test/resource?name=John&age=25", "GET /_test/resource", "name=John&age=25", "/_test/resource" },
+                { "/_test/", "GET /_test/", "", "/_test/" }, }
+        );
     }
 
     public SpanBuilderTests(String uri, String expectedSpanName, String expectedQueryParams, String expectedReqRawPath) {
@@ -80,7 +82,7 @@ public class SpanBuilderTests extends OpenSearchTestCase {
         assertEquals(expectedSpanName, context.getSpanName());
         assertEquals(expectedReqRawPath, attributes.getAttributesMap().get(AttributeNames.REST_REQ_RAW_PATH));
         assertNotNull(attributes.getAttributesMap().get(AttributeNames.REST_REQ_ID));
-        if (expectedQueryParams.isBlank()){
+        if (expectedQueryParams.isBlank()) {
             assertNull(attributes.getAttributesMap().get(AttributeNames.HTTP_REQ_QUERY_PARAMS));
         } else {
             assertEquals(expectedQueryParams, attributes.getAttributesMap().get(AttributeNames.HTTP_REQ_QUERY_PARAMS));

@@ -76,7 +76,7 @@ public final class SpanBuilder {
     }
 
     private static String createSpanName(HttpRequest httpRequest) {
-        Tuple<String,String> uriParts = splitUri(httpRequest.uri());
+        Tuple<String, String> uriParts = splitUri(httpRequest.uri());
         String path = uriParts.v1();
         return httpRequest.method().name() + SEPARATOR + path;
     }
@@ -88,9 +88,9 @@ public final class SpanBuilder {
             .addAttribute(AttributeNames.HTTP_PROTOCOL_VERSION, httpRequest.protocolVersion().name());
         populateHeader(httpRequest, attributes);
 
-        Tuple<String,String> uriParts = splitUri(httpRequest.uri());
+        Tuple<String, String> uriParts = splitUri(httpRequest.uri());
         String query = uriParts.v2();
-        if(query.isBlank() == false) {
+        if (query.isBlank() == false) {
             attributes.addAttribute(AttributeNames.HTTP_REQ_QUERY_PARAMS, query);
         }
 
@@ -137,9 +137,9 @@ public final class SpanBuilder {
                 .addAttribute(AttributeNames.REST_REQ_ID, restRequest.getRequestId())
                 .addAttribute(AttributeNames.REST_REQ_RAW_PATH, restRequest.rawPath());
 
-            Tuple<String,String> uriParts = splitUri(restRequest.uri());
+            Tuple<String, String> uriParts = splitUri(restRequest.uri());
             String query = uriParts.v2();
-            if(query.isBlank() == false) {
+            if (query.isBlank() == false) {
                 attributes.addAttribute(AttributeNames.HTTP_REQ_QUERY_PARAMS, query);
             }
             return attributes;
