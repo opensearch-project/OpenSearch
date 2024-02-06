@@ -49,34 +49,36 @@ public class OTelSamplerFactory {
      * @return list of samplers.
      */
     public static Sampler create(TelemetrySettings telemetrySettings, Settings setting) {
-        List<String> samplersNameList = OTelTelemetrySettings.OTEL_TRACER_SPAN_SAMPLER_CLASS_SETTINGS.get(setting);
-        ListIterator<String> li = samplersNameList.listIterator(samplersNameList.size());
+        List<Class<Sampler>> samplersNameList = OTelTelemetrySettings.OTEL_TRACER_SPAN_SAMPLER_CLASS_SETTINGS.get(setting);
+        ListIterator<Class<Sampler>> li = samplersNameList.listIterator(samplersNameList.size());
 
         Sampler fallbackSampler = null;
 
         // Iterating samplers list in reverse order to create chain of sampler
         while (li.hasPrevious()) {
-            String samplerName = li.previous();
+            Class<Sampler> samplerName = li.previous();
             fallbackSampler = instantiateSampler(samplerName, telemetrySettings, fallbackSampler);
         }
 
         return fallbackSampler;
     }
 
-    private static Sampler instantiateSampler(String samplerClassName, TelemetrySettings telemetrySettings, Sampler fallbackSampler) {
+    private static Sampler instantiateSampler(
+        Class<Sampler> samplerClassName,
+        TelemetrySettings telemetrySettings,
+        Sampler fallbackSampler
+    ) {
         try {
             // Check we ourselves are not being called by unprivileged code.
             SpecialPermission.check();
 
             return AccessController.doPrivileged((PrivilegedExceptionAction<Sampler>) () -> {
                 try {
-                    Class<?> samplerClass = Class.forName(samplerClassName);
-
                     // Define the method type which receives TelemetrySettings & Sampler as arguments
                     MethodType methodType = MethodType.methodType(Sampler.class, TelemetrySettings.class, Sampler.class);
 
                     return (Sampler) MethodHandles.publicLookup()
-                        .findStatic(samplerClass, "create", methodType)
+                        .findStatic(samplerClassName, "create", methodType)
                         .invokeExact(telemetrySettings, fallbackSampler);
                 } catch (Throwable e) {
                     if (e.getCause() instanceof NoSuchMethodException) {
