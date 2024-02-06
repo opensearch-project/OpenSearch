@@ -32,16 +32,19 @@
 
 package org.opensearch.plugins;
 
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.core.JsonFactory;
+import com.fasterxml.jackson.core.json.JsonReadFeature;
 
 import org.opensearch.Version;
 import org.opensearch.bootstrap.JarHell;
 import org.opensearch.common.annotation.PublicApi;
+import org.opensearch.common.xcontent.json.JsonXContentParser;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
+import org.opensearch.core.xcontent.DeprecationHandler;
+import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.semver.SemverRange;
@@ -70,6 +73,7 @@ public class PluginInfo implements Writeable, ToXContentObject {
 
     public static final String OPENSEARCH_PLUGIN_PROPERTIES = "plugin-descriptor.properties";
     public static final String OPENSEARCH_PLUGIN_POLICY = "plugin-security.policy";
+    private static final JsonFactory jsonFactory = new JsonFactory();
 
     private final String name;
     private final String description;
@@ -80,6 +84,10 @@ public class PluginInfo implements Writeable, ToXContentObject {
     private final String customFolderName;
     private final List<String> extendedPlugins;
     private final boolean hasNativeController;
+
+    static {
+        jsonFactory.configure(JsonReadFeature.ALLOW_UNQUOTED_FIELD_NAMES.mappedFeature(), true);
+    }
 
     /**
      * Construct plugin info.
@@ -278,12 +286,16 @@ public class PluginInfo implements Writeable, ToXContentObject {
         if (opensearchVersionString != null) {
             opensearchVersionRanges.add(SemverRange.fromString(opensearchVersionString));
         } else {
-            ObjectMapper mapper = new ObjectMapper().configure(
-                com.fasterxml.jackson.core.JsonParser.Feature.ALLOW_UNQUOTED_FIELD_NAMES,
-                true
-            );
-            Map<String, String> dependenciesMap = mapper.readValue(dependenciesValue, new TypeReference<>() {
-            });
+            Map<String, String> dependenciesMap;
+            try (
+                final JsonXContentParser parser = new JsonXContentParser(
+                    NamedXContentRegistry.EMPTY,
+                    DeprecationHandler.IGNORE_DEPRECATIONS,
+                    jsonFactory.createParser(dependenciesValue)
+                )
+            ) {
+                dependenciesMap = parser.mapStrings();
+            }
             if (dependenciesMap.size() != 1) {
                 throw new IllegalArgumentException(
                     "Exactly one dependency is allowed to be specified in plugin descriptor properties: " + dependenciesMap
