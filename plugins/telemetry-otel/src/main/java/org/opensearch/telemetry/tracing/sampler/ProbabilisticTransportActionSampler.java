@@ -21,6 +21,7 @@ import io.opentelemetry.api.trace.SpanKind;
 import io.opentelemetry.context.Context;
 import io.opentelemetry.sdk.trace.data.LinkData;
 import io.opentelemetry.sdk.trace.samplers.Sampler;
+import io.opentelemetry.sdk.trace.samplers.SamplingDecision;
 import io.opentelemetry.sdk.trace.samplers.SamplingResult;
 
 import static org.opensearch.telemetry.tracing.AttributeNames.TRANSPORT_ACTION;
@@ -71,7 +72,11 @@ public class ProbabilisticTransportActionSampler implements Sampler {
     ) {
         final String action = attributes.get(AttributeKey.stringKey(TRANSPORT_ACTION));
         if (action != null) {
-            return actionSampler.shouldSample(parentContext, traceId, name, spanKind, attributes, parentLinks);
+            final SamplingResult result = actionSampler.shouldSample(parentContext, traceId, name, spanKind, attributes, parentLinks);
+            if (result.getDecision() != SamplingDecision.DROP && fallbackSampler != null) {
+                return fallbackSampler.shouldSample(parentContext, traceId, name, spanKind, attributes, parentLinks);
+            }
+            return result;
         }
         if (fallbackSampler != null) return fallbackSampler.shouldSample(parentContext, traceId, name, spanKind, attributes, parentLinks);
 
