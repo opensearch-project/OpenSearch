@@ -213,9 +213,9 @@ public class GoogleCloudStorageServiceTests extends OpenSearchTestCase {
      * using service account file.
      * Considered use of JUnit Mocking due to static method GoogleCredentials.getApplicationDefault
      * and avoiding environment variables to set which later use GCE.
-     * @throws Exception
+     * @throws URISyntaxException when URI used for creating GoogleCloudStorageClientSetting cannot be phased
      */
-    public void testApplicationDefaultCredential() throws Exception {
+    public void testApplicationDefaultCredential() throws URISyntaxException {
         GoogleCloudStorageClientSettings settings = getGCSClientSettingsWithoutCredentials();
         GoogleCredentials mockGoogleCredentials = Mockito.mock(GoogleCredentials.class);
         HttpTransportOptions mockHttpTransportOptions = Mockito.mock(HttpTransportOptions.class);
@@ -231,9 +231,9 @@ public class GoogleCloudStorageServiceTests extends OpenSearchTestCase {
     /**
      * The application default credential throws exception when there are
      * no Environment Variables provided or Google Compute Engine is not running
-     * @throws Exception
+     * @throws URISyntaxException when URI used for creating GoogleCloudStorageClientSetting cannot be phased
      */
-    public void testApplicationDefaultCredentialsWhenNoSettingProvided() throws Exception {
+    public void testApplicationDefaultCredentialsWhenNoSettingProvided() throws URISyntaxException {
         GoogleCloudStorageClientSettings settings = getGCSClientSettingsWithoutCredentials();
         HttpTransportOptions mockHttpTransportOptions = Mockito.mock(HttpTransportOptions.class);
         GoogleCloudStorageService service = new GoogleCloudStorageService();
@@ -260,7 +260,7 @@ public class GoogleCloudStorageServiceTests extends OpenSearchTestCase {
     /**
      * This is a helper method to provide GCS Client settings without credentials
      * @return GoogleCloudStorageClientSettings
-     * @throws URISyntaxException
+     * @throws URISyntaxException when URI used for creating GoogleCloudStorageClientSetting cannot be phased
      */
     private GoogleCloudStorageClientSettings getGCSClientSettingsWithoutCredentials() throws URISyntaxException {
         return new GoogleCloudStorageClientSettings(
