@@ -31,21 +31,21 @@ public abstract class SearchRequestOperationsListener {
         this.enabled = enabled;
     }
 
-    abstract void onPhaseStart(SearchPhaseContext context);
+    protected abstract void onPhaseStart(SearchPhaseContext context);
 
-    abstract void onPhaseEnd(SearchPhaseContext context, SearchRequestContext searchRequestContext);
+    protected abstract void onPhaseEnd(SearchPhaseContext context, SearchRequestContext searchRequestContext);
 
-    abstract void onPhaseFailure(SearchPhaseContext context);
+    protected abstract void onPhaseFailure(SearchPhaseContext context);
 
-    void onRequestStart(SearchRequestContext searchRequestContext) {}
+    protected void onRequestStart(SearchRequestContext searchRequestContext) {}
 
-    void onRequestEnd(SearchPhaseContext context, SearchRequestContext searchRequestContext) {}
+    protected void onRequestEnd(SearchPhaseContext context, SearchRequestContext searchRequestContext) {}
 
-    boolean isEnabled(SearchRequest searchRequest) {
+    protected boolean isEnabled(SearchRequest searchRequest) {
         return isEnabled();
     }
 
-    boolean isEnabled() {
+    protected boolean isEnabled() {
         return enabled;
     }
 
@@ -69,7 +69,7 @@ public abstract class SearchRequestOperationsListener {
         }
 
         @Override
-        void onPhaseStart(SearchPhaseContext context) {
+        protected void onPhaseStart(SearchPhaseContext context) {
             for (SearchRequestOperationsListener listener : listeners) {
                 try {
                     listener.onPhaseStart(context);
@@ -80,7 +80,7 @@ public abstract class SearchRequestOperationsListener {
         }
 
         @Override
-        void onPhaseEnd(SearchPhaseContext context, SearchRequestContext searchRequestContext) {
+        protected void onPhaseEnd(SearchPhaseContext context, SearchRequestContext searchRequestContext) {
             for (SearchRequestOperationsListener listener : listeners) {
                 try {
                     listener.onPhaseEnd(context, searchRequestContext);
@@ -91,7 +91,7 @@ public abstract class SearchRequestOperationsListener {
         }
 
         @Override
-        void onPhaseFailure(SearchPhaseContext context) {
+        protected void onPhaseFailure(SearchPhaseContext context) {
             for (SearchRequestOperationsListener listener : listeners) {
                 try {
                     listener.onPhaseFailure(context);
@@ -102,7 +102,7 @@ public abstract class SearchRequestOperationsListener {
         }
 
         @Override
-        void onRequestStart(SearchRequestContext searchRequestContext) {
+        protected void onRequestStart(SearchRequestContext searchRequestContext) {
             for (SearchRequestOperationsListener listener : listeners) {
                 try {
                     listener.onRequestStart(searchRequestContext);
