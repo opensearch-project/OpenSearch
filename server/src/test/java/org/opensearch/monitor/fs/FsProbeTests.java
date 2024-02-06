@@ -45,12 +45,9 @@ import org.opensearch.index.store.remote.filecache.FileCache;
 import org.opensearch.index.store.remote.filecache.FileCacheFactory;
 import org.opensearch.test.OpenSearchTestCase;
 
-import java.io.BufferedWriter;
 import java.io.IOException;
 import java.nio.file.FileStore;
-import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardOpenOption;
 import java.nio.file.attribute.FileAttributeView;
 import java.nio.file.attribute.FileStoreAttributeView;
 import java.util.Arrays;
