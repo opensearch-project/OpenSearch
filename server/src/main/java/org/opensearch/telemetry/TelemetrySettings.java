@@ -64,7 +64,6 @@ public class TelemetrySettings {
         Setting.Property.Final
     );
 
-
     private volatile boolean tracingEnabled;
     private volatile double samplingProbability;
     private final boolean tracingFeatureEnabled;
