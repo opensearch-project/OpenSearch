@@ -84,10 +84,6 @@ public class SegmentReplicationTargetService extends AbstractLifecycleComponent 
     private final ClusterService clusterService;
     private final TransportService transportService;
 
-    public ReplicationRef<SegmentReplicationTarget> get(long replicationId) {
-        return onGoingReplications.get(replicationId);
-    }
-
     /**
      * The internal actions
      *
@@ -158,6 +154,7 @@ public class SegmentReplicationTargetService extends AbstractLifecycleComponent 
     @Override
     protected void doStop() {
         if (DiscoveryNode.isDataNode(clusterService.getSettings())) {
+            assert onGoingReplications.size() == 0 : "Replication collection should be empty on shutdown";
             clusterService.removeListener(this);
         }
     }
@@ -201,7 +198,7 @@ public class SegmentReplicationTargetService extends AbstractLifecycleComponent 
     @Override
     public void beforeIndexShardClosed(ShardId shardId, @Nullable IndexShard indexShard, Settings indexSettings) {
         if (indexShard != null && indexShard.indexSettings().isSegRepEnabled()) {
-            onGoingReplications.requestCancel(indexShard.shardId(), "Shard closing");
+            onGoingReplications.cancelForShard(indexShard.shardId(), "Shard closing");
             latestReceivedCheckpoint.remove(shardId);
         }
     }
@@ -223,7 +220,7 @@ public class SegmentReplicationTargetService extends AbstractLifecycleComponent 
     @Override
     public void shardRoutingChanged(IndexShard indexShard, @Nullable ShardRouting oldRouting, ShardRouting newRouting) {
         if (oldRouting != null && indexShard.indexSettings().isSegRepEnabled() && oldRouting.primary() == false && newRouting.primary()) {
-            onGoingReplications.requestCancel(indexShard.shardId(), "Shard has been promoted to primary");
+            onGoingReplications.cancelForShard(indexShard.shardId(), "Shard has been promoted to primary");
             latestReceivedCheckpoint.remove(indexShard.shardId());
         }
     }
@@ -253,6 +250,14 @@ public class SegmentReplicationTargetService extends AbstractLifecycleComponent 
     public SegmentReplicationState getSegmentReplicationState(ShardId shardId) {
         return Optional.ofNullable(getOngoingEventSegmentReplicationState(shardId))
             .orElseGet(() -> getlatestCompletedEventSegmentReplicationState(shardId));
+    }
+
+    public ReplicationRef<SegmentReplicationTarget> get(long replicationId) {
+        return onGoingReplications.get(replicationId);
+    }
+
+    public SegmentReplicationTarget get(ShardId shardId) {
+        return onGoingReplications.getOngoingReplicationTarget(shardId);
     }
 
     /**
@@ -454,7 +459,13 @@ public class SegmentReplicationTargetService extends AbstractLifecycleComponent 
                     latestPublishedCheckpoint
                 )
             );
-            Runnable runnable = () -> onNewCheckpoint(latestReceivedCheckpoint.get(replicaShard.shardId()), replicaShard);
+            Runnable runnable = () -> {
+                // if we retry ensure the shard is not in the process of being closed.
+                // it will be removed from indexService's collection before the shard is actually marked as closed.
+                if (indicesService.getShardOrNull(replicaShard.shardId()) != null) {
+                    onNewCheckpoint(latestReceivedCheckpoint.get(replicaShard.shardId()), replicaShard);
+                }
+            };
             // Checks if we are using same thread and forks if necessary.
             if (thread == Thread.currentThread()) {
                 threadPool.generic().execute(runnable);
@@ -548,9 +559,6 @@ public class SegmentReplicationTargetService extends AbstractLifecycleComponent 
 
         @Override
         public void onFailure(Exception e) {
-            try (final ReplicationRef<SegmentReplicationTarget> ref = onGoingReplications.get(replicationId)) {
-                logger.error(() -> new ParameterizedMessage("Error during segment replication, {}", ref.get().description()), e);
-            }
             onGoingReplications.fail(replicationId, new ReplicationFailedException("Unexpected Error during replication", e), false);
         }
 
