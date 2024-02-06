@@ -1254,31 +1254,37 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
         );
     }
 
-    public void testRangeQuery() throws IOException {
+    public void testFilterRewriteOptimizationWithRangeQuery() throws IOException {
         testSearchCase(
-            LongPoint.newRangeQuery(SEARCHABLE_DATE, asLong("2018-01-01"), asLong("2020-01-01")),
+            LongPoint.newRangeQuery(AGGREGABLE_DATE, asLong("2018-01-01"), asLong("2020-01-01")),
             Arrays.asList("2017-02-01", "2017-02-02", "2017-02-02", "2017-02-03", "2017-02-03", "2017-02-03", "2017-02-05"),
             aggregation -> aggregation.calendarInterval(DateHistogramInterval.DAY).field(AGGREGABLE_DATE),
             histogram -> {
                 List<? extends Histogram.Bucket> buckets = histogram.getBuckets();
                 assertEquals(0, buckets.size());
             },
-            false
+            10000,
+            false,
+            false,
+            true // force AGGREGABLE_DATE field to be searchable to test the filter rewrite optimization path
         );
 
         testSearchCase(
-            LongPoint.newRangeQuery(SEARCHABLE_DATE, asLong("2016-01-01"), asLong("2017-01-01")),
+            LongPoint.newRangeQuery(AGGREGABLE_DATE, asLong("2016-01-01"), asLong("2017-01-01")),
             Arrays.asList("2017-02-01", "2017-02-02", "2017-02-02", "2017-02-03", "2017-02-03", "2017-02-03", "2017-02-05"),
             aggregation -> aggregation.calendarInterval(DateHistogramInterval.DAY).field(AGGREGABLE_DATE),
             histogram -> {
                 List<? extends Histogram.Bucket> buckets = histogram.getBuckets();
                 assertEquals(0, buckets.size());
             },
-            false
+            10000,
+            false,
+            false,
+            true
         );
 
         testSearchCase(
-            LongPoint.newRangeQuery(SEARCHABLE_DATE, asLong("2016-01-01"), asLong("2017-02-02")),
+            LongPoint.newRangeQuery(AGGREGABLE_DATE, asLong("2016-01-01"), asLong("2017-02-02")),
             Arrays.asList("2017-02-01", "2017-02-02", "2017-02-02", "2017-02-03", "2017-02-03", "2017-02-03", "2017-02-05"),
             aggregation -> aggregation.calendarInterval(DateHistogramInterval.DAY).field(AGGREGABLE_DATE),
             histogram -> {
@@ -1293,11 +1299,14 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
                 assertEquals("2017-02-02T00:00:00.000Z", bucket.getKeyAsString());
                 assertEquals(2, bucket.getDocCount());
             },
-            false
+            10000,
+            false,
+            false,
+            true
         );
 
         testSearchCase(
-            LongPoint.newRangeQuery(SEARCHABLE_DATE, asLong("2017-02-03"), asLong("2020-01-01")),
+            LongPoint.newRangeQuery(AGGREGABLE_DATE, asLong("2017-02-03"), asLong("2020-01-01")),
             Arrays.asList("2017-02-01", "2017-02-02", "2017-02-02", "2017-02-03", "2017-02-03", "2017-02-03", "2017-02-05"),
             aggregation -> aggregation.calendarInterval(DateHistogramInterval.DAY).field(AGGREGABLE_DATE),
             histogram -> {
@@ -1316,7 +1325,10 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
                 assertEquals("2017-02-05T00:00:00.000Z", bucket.getKeyAsString());
                 assertEquals(1, bucket.getDocCount());
             },
-            false
+            10000,
+            false,
+            false,
+            true
         );
     }
 
@@ -1388,7 +1400,19 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
         boolean useNanosecondResolution,
         boolean useDocCountField
     ) throws IOException {
-        boolean aggregableDateIsSearchable = randomBoolean();
+        testSearchCase(query, dataset, configure, verify, maxBucket, useNanosecondResolution, useDocCountField, randomBoolean());
+    }
+
+    private void testSearchCase(
+        Query query,
+        List<String> dataset,
+        Consumer<DateHistogramAggregationBuilder> configure,
+        Consumer<InternalDateHistogram> verify,
+        int maxBucket,
+        boolean useNanosecondResolution,
+        boolean useDocCountField,
+        boolean aggregableDateIsSearchable
+    ) throws IOException {
         logger.debug("Aggregable date is searchable {}", aggregableDateIsSearchable);
         DateFieldMapper.DateFieldType fieldType = aggregableDateFieldType(useNanosecondResolution, aggregableDateIsSearchable);
 

@@ -31,7 +31,6 @@ import org.opensearch.index.mapper.DateFieldMapper;
 import org.opensearch.index.mapper.DocCountFieldMapper;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.query.DateRangeIncludingNowQuery;
-import org.opensearch.search.aggregations.bucket.composite.CompositeAggregator;
 import org.opensearch.search.aggregations.bucket.composite.CompositeValuesSourceConfig;
 import org.opensearch.search.aggregations.bucket.composite.RoundingValuesSource;
 import org.opensearch.search.aggregations.bucket.histogram.LongBounds;
@@ -90,11 +89,11 @@ public final class FastFilterRewriteHelper {
     }
 
     /**
-     * Finds the global min and max bounds of the field for the shard from each segment
+     * Finds the global min and max bounds of the field for the shard across all segments
      *
      * @return null if the field is empty or not indexed
      */
-    private static long[] getIndexBounds(final SearchContext context, final String fieldName) throws IOException {
+    private static long[] getShardBounds(final SearchContext context, final String fieldName) throws IOException {
         final List<LeafReaderContext> leaves = context.searcher().getIndexReader().leaves();
         long min = Long.MAX_VALUE, max = Long.MIN_VALUE;
         for (LeafReaderContext leaf : leaves) {
@@ -112,6 +111,25 @@ public final class FastFilterRewriteHelper {
     }
 
     /**
+     * Finds the min and max bounds of the field for the segment
+     *
+     * @return null if the field is empty or not indexed
+     */
+    private static long[] getSegmentBounds(final LeafReaderContext context, final String fieldName) throws IOException {
+        long min = Long.MAX_VALUE, max = Long.MIN_VALUE;
+        final PointValues values = context.reader().getPointValues(fieldName);
+        if (values != null) {
+            min = Math.min(min, NumericUtils.sortableBytesToLong(values.getMinPackedValue(), 0));
+            max = Math.max(max, NumericUtils.sortableBytesToLong(values.getMaxPackedValue(), 0));
+        }
+
+        if (min == Long.MAX_VALUE || max == Long.MIN_VALUE) {
+            return null;
+        }
+        return new long[] { min, max };
+    }
+
+    /**
      * This method also acts as a pre-condition check for the optimization
      *
      * @return null if the processed query not as expected
@@ -120,30 +138,19 @@ public final class FastFilterRewriteHelper {
         final Query cq = unwrapIntoConcreteQuery(context.query());
         if (cq instanceof PointRangeQuery) {
             final PointRangeQuery prq = (PointRangeQuery) cq;
-            final long[] indexBounds = getIndexBounds(context, fieldName);
+            final long[] indexBounds = getShardBounds(context, fieldName);
             if (indexBounds == null) return null;
             return getBoundsWithRangeQuery(prq, fieldName, indexBounds);
         } else if (cq instanceof MatchAllDocsQuery) {
-            return getIndexBounds(context, fieldName);
+            return getShardBounds(context, fieldName);
         } else if (cq instanceof FieldExistsQuery) {
             // when a range query covers all values of a shard, it will be rewrite field exists query
             if (((FieldExistsQuery) cq).getField().equals(fieldName)) {
-                return getIndexBounds(context, fieldName);
+                return getShardBounds(context, fieldName);
             }
         }
 
         return null;
-    }
-
-    private static long[] getDateHistoAggBoundsSegLevel(final SearchContext context, final String fieldName) throws IOException {
-        final long[] indexBounds = getIndexBounds(context, fieldName);
-        if (indexBounds == null) return null;
-        final Query cq = unwrapIntoConcreteQuery(context.query());
-        if (cq instanceof PointRangeQuery) {
-            final PointRangeQuery prq = (PointRangeQuery) cq;
-            return getBoundsWithRangeQuery(prq, fieldName, indexBounds);
-        }
-        return indexBounds;
     }
 
     private static long[] getBoundsWithRangeQuery(PointRangeQuery prq, String fieldName, long[] indexBounds) {
@@ -158,6 +165,7 @@ public final class FastFilterRewriteHelper {
             }
             return new long[] { lower, upper };
         }
+
         return null;
     }
 
@@ -230,7 +238,6 @@ public final class FastFilterRewriteHelper {
         private boolean rewriteable = false;
         private Weight[] filters = null;
         private boolean filtersBuiltAtShardLevel = false;
-        private boolean shouldBuildFiltersAtSegmentLevel = true;
 
         private AggregationType aggregationType;
         private final SearchContext context;
@@ -278,6 +285,10 @@ public final class FastFilterRewriteHelper {
 
         Weight[] buildFastFilter(SearchContext ctx, CheckedBiFunction<SearchContext, String, long[], IOException> getBounds)
             throws IOException;
+
+        default int getSize() {
+            return Integer.MAX_VALUE;
+        }
     }
 
     /**
@@ -314,8 +325,23 @@ public final class FastFilterRewriteHelper {
         public Weight[] buildFastFilter(SearchContext context, CheckedBiFunction<SearchContext, String, long[], IOException> getBounds)
             throws IOException {
             long[] bounds = getBounds.apply(context, fieldType.name());
-            bounds = processHardBounds(bounds);
             logger.debug("Bounds are {} for shard {}", bounds, context.indexShard().shardId());
+            return buildFastFilter(context, bounds);
+        }
+
+        private Weight[] buildFastFilterWithSegBounds(
+            SearchContext context,
+            CheckedBiFunction<LeafReaderContext, String, long[], IOException> getBounds,
+            LeafReaderContext leaf
+        ) throws IOException {
+            long[] bounds = getBounds.apply(leaf, fieldType.name());
+            logger.debug("Bounds are {} for shard {} segment {}", bounds, context.indexShard().shardId(), leaf.ord);
+            return buildFastFilter(context, bounds);
+        }
+
+        private Weight[] buildFastFilter(SearchContext context, long[] bounds) throws IOException {
+            bounds = processHardBounds(bounds);
+            logger.debug("Bounds are {} for shard {} with hard bound", bounds, context.indexShard().shardId());
             if (bounds == null) {
                 return null;
             }
@@ -394,7 +420,7 @@ public final class FastFilterRewriteHelper {
         final BiConsumer<Long, Integer> incrementDocCount
     ) throws IOException {
         if (fastFilterContext == null) return false;
-        if (!fastFilterContext.rewriteable || !fastFilterContext.shouldBuildFiltersAtSegmentLevel) {
+        if (!fastFilterContext.rewriteable) {
             return false;
         }
 
@@ -420,11 +446,15 @@ public final class FastFilterRewriteHelper {
                 fastFilterContext.context.indexShard().shardId(),
                 ctx.ord
             );
-            filters = fastFilterContext.buildFastFilter(FastFilterRewriteHelper::getDateHistoAggBoundsSegLevel);
+            if (fastFilterContext.aggregationType instanceof AbstractDateHistogramAggregationType) {
+                filters = ((AbstractDateHistogramAggregationType) fastFilterContext.aggregationType).buildFastFilterWithSegBounds(
+                    fastFilterContext.context,
+                    FastFilterRewriteHelper::getSegmentBounds,
+                    ctx
+                );
+            }
             if (filters == null) {
-                // At segment level, build filter should only be called once
-                // since the conditions for build filter won't change for other segments
-                fastFilterContext.shouldBuildFiltersAtSegmentLevel = false;
+
                 return false;
             }
         }
@@ -441,7 +471,7 @@ public final class FastFilterRewriteHelper {
         }
 
         int s = 0;
-        int size = Integer.MAX_VALUE;
+        int size = fastFilterContext.aggregationType.getSize();
         for (i = 0; i < filters.length; i++) {
             if (counts[i] > 0) {
                 long bucketKey = i; // the index of filters is the key for filters aggregation
@@ -451,9 +481,6 @@ public final class FastFilterRewriteHelper {
                     bucketKey = fieldType.convertNanosToMillis(
                         NumericUtils.sortableBytesToLong(((PointRangeQuery) filters[i].getQuery()).getLowerPoint(), 0)
                     );
-                    if (fastFilterContext.aggregationType instanceof CompositeAggregator.CompositeAggregationType) {
-                        size = ((CompositeAggregator.CompositeAggregationType) fastFilterContext.aggregationType).getSize();
-                    }
                 }
                 incrementDocCount.accept(bucketKey, counts[i]);
                 s++;
