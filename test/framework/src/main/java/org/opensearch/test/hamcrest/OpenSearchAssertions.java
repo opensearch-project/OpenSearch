@@ -528,6 +528,10 @@ public class OpenSearchAssertions {
         return new OpenSearchMatchers.SearchHitHasScoreMatcher(score);
     }
 
+    public static Matcher<SearchHit> hasMatchedQueries(final String[] matchedQueries) {
+        return new OpenSearchMatchers.SearchHitMatchedQueriesMatcher(matchedQueries);
+    }
+
     public static <T, V> CombinableMatcher<T> hasProperty(Function<? super T, ? extends V> property, Matcher<V> valueMatcher) {
         return OpenSearchMatchers.HasPropertyLambdaMatcher.hasProperty(property, valueMatcher);
     }
