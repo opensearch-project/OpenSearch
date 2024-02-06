@@ -24,7 +24,6 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.NumericUtils;
-import org.opensearch.common.CheckedBiFunction;
 import org.opensearch.common.Rounding;
 import org.opensearch.common.lucene.search.function.FunctionScoreQuery;
 import org.opensearch.index.mapper.DateFieldMapper;
@@ -262,17 +261,20 @@ public final class FastFilterRewriteHelper {
         }
 
         public void buildFastFilter() throws IOException {
-            this.filters = this.buildFastFilter(FastFilterRewriteHelper::getDateHistoAggBounds);
+            assert filters == null : "Filters should only be built once, but they are already built";
+            this.filters = this.aggregationType.buildFastFilter(context);
             if (filters != null) {
                 logger.debug("Fast filter built for shard {}", context.indexShard().shardId());
                 filtersBuiltAtShardLevel = true;
             }
         }
 
-        // This method can also be used at segment level
-        private Weight[] buildFastFilter(CheckedBiFunction<SearchContext, String, long[], IOException> getBounds) throws IOException {
+        public void buildFastFilter(LeafReaderContext leaf) throws IOException {
             assert filters == null : "Filters should only be built once, but they are already built";
-            return this.aggregationType.buildFastFilter(context, getBounds);
+            this.filters = this.aggregationType.buildFastFilter(leaf, context);
+            if (filters != null) {
+                logger.debug("Fast filter built for shard {} segment {}", context.indexShard().shardId(), leaf.ord);
+            }
         }
     }
 
@@ -283,8 +285,9 @@ public final class FastFilterRewriteHelper {
 
         boolean isRewriteable(Object parent, int subAggLength);
 
-        Weight[] buildFastFilter(SearchContext ctx, CheckedBiFunction<SearchContext, String, long[], IOException> getBounds)
-            throws IOException;
+        Weight[] buildFastFilter(SearchContext ctx) throws IOException;
+
+        Weight[] buildFastFilter(LeafReaderContext leaf, SearchContext ctx) throws IOException;
 
         default int getSize() {
             return Integer.MAX_VALUE;
@@ -322,19 +325,15 @@ public final class FastFilterRewriteHelper {
         }
 
         @Override
-        public Weight[] buildFastFilter(SearchContext context, CheckedBiFunction<SearchContext, String, long[], IOException> getBounds)
-            throws IOException {
-            long[] bounds = getBounds.apply(context, fieldType.name());
+        public Weight[] buildFastFilter(SearchContext context) throws IOException {
+            long[] bounds = getDateHistoAggBounds(context, fieldType.name());
             logger.debug("Bounds are {} for shard {}", bounds, context.indexShard().shardId());
             return buildFastFilter(context, bounds);
         }
 
-        private Weight[] buildFastFilterWithSegBounds(
-            SearchContext context,
-            CheckedBiFunction<LeafReaderContext, String, long[], IOException> getBounds,
-            LeafReaderContext leaf
-        ) throws IOException {
-            long[] bounds = getBounds.apply(leaf, fieldType.name());
+        @Override
+        public Weight[] buildFastFilter(LeafReaderContext leaf, SearchContext context) throws IOException {
+            long[] bounds = getSegmentBounds(leaf, fieldType.name());
             logger.debug("Bounds are {} for shard {} segment {}", bounds, context.indexShard().shardId(), leaf.ord);
             return buildFastFilter(context, bounds);
         }
@@ -411,6 +410,8 @@ public final class FastFilterRewriteHelper {
 
     /**
      * Try to get the bucket doc counts from the fast filters for the aggregation
+     * <p>
+     * Usage: invoked at segment level — in getLeafCollector of aggregator
      *
      * @param incrementDocCount takes in the bucket key value and the bucket count
      */
@@ -446,15 +447,9 @@ public final class FastFilterRewriteHelper {
                 fastFilterContext.context.indexShard().shardId(),
                 ctx.ord
             );
-            if (fastFilterContext.aggregationType instanceof AbstractDateHistogramAggregationType) {
-                filters = ((AbstractDateHistogramAggregationType) fastFilterContext.aggregationType).buildFastFilterWithSegBounds(
-                    fastFilterContext.context,
-                    FastFilterRewriteHelper::getSegmentBounds,
-                    ctx
-                );
-            }
+            fastFilterContext.buildFastFilter(ctx);
+            filters = fastFilterContext.filters;
             if (filters == null) {
-
                 return false;
             }
         }
