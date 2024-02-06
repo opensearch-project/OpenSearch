@@ -60,6 +60,10 @@ import org.opensearch.core.action.NotifyOnceListener;
 import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.tasks.TaskCancelledException;
 import org.opensearch.core.tasks.TaskId;
+import org.opensearch.telemetry.tracing.Span;
+import org.opensearch.telemetry.tracing.SpanBuilder;
+import org.opensearch.telemetry.tracing.SpanScope;
+import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TcpChannel;
 
@@ -132,22 +136,26 @@ public class TaskManager implements ClusterStateApplier {
     private final Set<Consumer<Task>> taskResourceConsumer;
     private final List<TaskEventListeners> taskEventListeners = new ArrayList<>();
 
+    private final Tracer tracer;
+
     public static TaskManager createTaskManagerWithClusterSettings(
         Settings settings,
         ClusterSettings clusterSettings,
         ThreadPool threadPool,
-        Set<String> taskHeaders
+        Set<String> taskHeaders,
+        Tracer tracer
     ) {
-        final TaskManager taskManager = new TaskManager(settings, threadPool, taskHeaders);
+        final TaskManager taskManager = new TaskManager(settings, threadPool, taskHeaders, tracer);
         clusterSettings.addSettingsUpdateConsumer(TASK_RESOURCE_CONSUMERS_ENABLED, taskManager::setTaskResourceConsumersEnabled);
         return taskManager;
     }
 
-    public TaskManager(Settings settings, ThreadPool threadPool, Set<String> taskHeaders) {
+    public TaskManager(Settings settings, ThreadPool threadPool, Set<String> taskHeaders, Tracer tracer) {
         this.threadPool = threadPool;
         this.taskHeaders = new ArrayList<>(taskHeaders);
         this.maxHeaderSize = SETTING_HTTP_MAX_HEADER_SIZE.get(settings);
         this.taskResourceConsumersEnabled = TASK_RESOURCE_CONSUMERS_ENABLED.get(settings);
+        this.tracer = tracer;
         taskResourceConsumer = new HashSet<>();
     }
 
@@ -203,7 +211,11 @@ public class TaskManager implements ClusterStateApplier {
                 headers.put(key, httpHeader);
             }
         }
-        Task task = request.createTask(taskIdGenerator.incrementAndGet(), type, action, request.getParentTask(), headers);
+        Span span = tracer.startSpan(SpanBuilder.from("Task", request.getParentTask().getNodeId(), request));
+        Task task;
+        try (SpanScope spanScope = tracer.withSpanInScope(span)) {
+            task = request.createTask(taskIdGenerator.incrementAndGet(), type, action, request.getParentTask(), headers, span);
+        }
         Objects.requireNonNull(task);
         assert task.getParentTaskId().equals(request.getParentTask()) : "Request [ " + request + "] didn't preserve it parentTaskId";
         if (logger.isTraceEnabled()) {

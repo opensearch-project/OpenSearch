@@ -102,6 +102,7 @@ import org.opensearch.index.translog.Translog;
 import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.indices.recovery.RecoveryTarget;
 import org.opensearch.tasks.TaskManager;
+import org.opensearch.telemetry.tracing.noop.NoopTracer;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.threadpool.ThreadPool.Names;
 
@@ -221,7 +222,7 @@ public abstract class OpenSearchIndexLevelReplicationTestCase extends IndexShard
         private final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
 
         private final PrimaryReplicaSyncer primaryReplicaSyncer = new PrimaryReplicaSyncer(
-            new TaskManager(Settings.EMPTY, threadPool, Collections.emptySet()),
+            new TaskManager(Settings.EMPTY, threadPool, Collections.emptySet(), NoopTracer.INSTANCE),
             (request, parentTask, primaryAllocationId, primaryTerm, listener) -> {
                 try {
                     new ResyncAction(request, listener, ReplicationGroup.this).execute();

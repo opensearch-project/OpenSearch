@@ -60,6 +60,7 @@ import org.opensearch.core.indices.breaker.NoneCircuitBreakerService;
 import org.opensearch.tasks.TaskCancellationService;
 import org.opensearch.tasks.TaskManager;
 import org.opensearch.tasks.TaskResourceTrackingService;
+import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.telemetry.tracing.noop.NoopTracer;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.tasks.MockTaskManager;
@@ -226,12 +227,13 @@ public abstract class TaskManagerTestCase extends OpenSearchTestCase {
                     Settings settings,
                     ClusterSettings clusterSettings,
                     ThreadPool threadPool,
-                    Set<String> taskHeaders
+                    Set<String> taskHeaders,
+                    Tracer tracer
                 ) {
                     if (MockTaskManager.USE_MOCK_TASK_MANAGER_SETTING.get(settings)) {
                         return new MockTaskManager(settings, threadPool, taskHeaders);
                     } else {
-                        return super.createTaskManager(settings, clusterSettings, threadPool, taskHeaders);
+                        return super.createTaskManager(settings, clusterSettings, threadPool, taskHeaders, tracer);
                     }
                 }
             };

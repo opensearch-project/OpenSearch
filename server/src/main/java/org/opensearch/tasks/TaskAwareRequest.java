@@ -33,6 +33,7 @@
 package org.opensearch.tasks;
 
 import org.opensearch.core.tasks.TaskId;
+import org.opensearch.telemetry.tracing.Span;
 
 import java.util.Map;
 
@@ -65,6 +66,13 @@ public interface TaskAwareRequest {
      */
     default Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
         return new Task(id, type, action, getDescription(), parentTaskId, headers);
+    }
+
+    /**
+     * Returns the task object that should be used to keep track of the processing of the request.
+     */
+    default Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers, Span span) {
+        return new Task(id, type, action, getDescription(), parentTaskId, headers, span);
     }
 
     /**

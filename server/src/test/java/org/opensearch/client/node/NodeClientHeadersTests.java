@@ -44,6 +44,7 @@ import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskManager;
+import org.opensearch.telemetry.tracing.noop.NoopTracer;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.util.Collections;
@@ -76,7 +77,7 @@ public class NodeClientHeadersTests extends AbstractClientHeadersTestCase {
     private static class InternalTransportAction extends TransportAction {
 
         private InternalTransportAction(Settings settings, String actionName, ThreadPool threadPool) {
-            super(actionName, EMPTY_FILTERS, new TaskManager(settings, threadPool, Collections.emptySet()));
+            super(actionName, EMPTY_FILTERS, new TaskManager(settings, threadPool, Collections.emptySet(), NoopTracer.INSTANCE));
         }
 
         @Override

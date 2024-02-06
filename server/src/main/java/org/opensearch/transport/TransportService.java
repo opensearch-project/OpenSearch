@@ -232,7 +232,7 @@ public class TransportService extends AbstractLifecycleComponent
         setTracerLogInclude(TransportSettings.TRACE_LOG_INCLUDE_SETTING.get(settings));
         setTracerLogExclude(TransportSettings.TRACE_LOG_EXCLUDE_SETTING.get(settings));
         tracerLog = Loggers.getLogger(logger, ".tracer");
-        taskManager = createTaskManager(settings, clusterSettings, threadPool, taskHeaders);
+        taskManager = createTaskManager(settings, clusterSettings, threadPool, taskHeaders, tracer);
         this.interceptor = transportInterceptor;
         this.asyncSender = interceptor.interceptSender(this::sendRequestInternal);
         this.remoteClusterClient = DiscoveryNode.isRemoteClusterClient(settings);
@@ -273,12 +273,13 @@ public class TransportService extends AbstractLifecycleComponent
         Settings settings,
         ClusterSettings clusterSettings,
         ThreadPool threadPool,
-        Set<String> taskHeaders
+        Set<String> taskHeaders,
+        Tracer tracer
     ) {
         if (clusterSettings != null) {
-            return TaskManager.createTaskManagerWithClusterSettings(settings, clusterSettings, threadPool, taskHeaders);
+            return TaskManager.createTaskManagerWithClusterSettings(settings, clusterSettings, threadPool, taskHeaders, tracer);
         } else {
-            return new TaskManager(settings, threadPool, taskHeaders);
+            return new TaskManager(settings, threadPool, taskHeaders, tracer);
         }
     }
 

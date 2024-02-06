@@ -50,6 +50,7 @@ import org.opensearch.rest.RestRequest;
 import org.opensearch.search.AbstractSearchTestCase;
 import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskManager;
+import org.opensearch.telemetry.tracing.noop.NoopTracer;
 import org.opensearch.test.rest.FakeRestChannel;
 import org.opensearch.test.rest.FakeRestRequest;
 import org.opensearch.threadpool.TestThreadPool;
@@ -93,7 +94,7 @@ public class RestValidateQueryActionTests extends AbstractSearchTestCase {
      */
     @BeforeClass
     public static void stubValidateQueryAction() {
-        final TaskManager taskManager = new TaskManager(Settings.EMPTY, threadPool, Collections.emptySet());
+        final TaskManager taskManager = new TaskManager(Settings.EMPTY, threadPool, Collections.emptySet(), NoopTracer.INSTANCE);
 
         final TransportAction<?, ?> transportAction = new TransportAction<>(
             ValidateQueryAction.NAME,

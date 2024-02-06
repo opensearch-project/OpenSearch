@@ -94,4 +94,8 @@ public final class AttributeNames {
      * Refresh Policy
      */
     public static final String REFRESH_POLICY = "refresh_policy";
+
+    public static final String DESCRIPTION = "description";
+
+    public static final String PARENT_TASK_ID = "parent_task_id";
 }

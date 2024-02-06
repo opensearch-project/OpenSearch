@@ -14,6 +14,7 @@ import org.opensearch.common.annotation.InternalApi;
 import org.opensearch.core.common.Strings;
 import org.opensearch.http.HttpRequest;
 import org.opensearch.rest.RestRequest;
+import org.opensearch.tasks.TaskAwareRequest;
 import org.opensearch.telemetry.tracing.attributes.Attributes;
 import org.opensearch.transport.TcpChannel;
 import org.opensearch.transport.Transport;
@@ -74,6 +75,10 @@ public final class SpanBuilder {
         return SpanCreationContext.server().name(spanName).attributes(buildSpanAttributes(nodeId, request));
     }
 
+    public static SpanCreationContext from(String spanName, String nodeId, TaskAwareRequest request) {
+        return SpanCreationContext.server().name(spanName).attributes(buildSpanAttributes(request));
+    }
+
     private static String createSpanName(HttpRequest httpRequest) {
         return httpRequest.method().name() + SEPARATOR + httpRequest.uri();
     }
@@ -84,6 +89,13 @@ public final class SpanBuilder {
             .addAttribute(AttributeNames.HTTP_METHOD, httpRequest.method().name())
             .addAttribute(AttributeNames.HTTP_PROTOCOL_VERSION, httpRequest.protocolVersion().name());
         populateHeader(httpRequest, attributes);
+        return attributes;
+    }
+
+    private static Attributes buildSpanAttributes(TaskAwareRequest request) {
+        Attributes attributes = Attributes.create()
+            .addAttribute(AttributeNames.DESCRIPTION, request.getDescription())
+            .addAttribute(AttributeNames.PARENT_TASK_ID, request.getParentTask().getId());
         return attributes;
     }
 

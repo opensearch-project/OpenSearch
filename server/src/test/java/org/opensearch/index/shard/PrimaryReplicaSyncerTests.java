@@ -56,6 +56,7 @@ import org.opensearch.index.mapper.SourceToParse;
 import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskManager;
+import org.opensearch.telemetry.tracing.noop.NoopTracer;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -74,7 +75,7 @@ public class PrimaryReplicaSyncerTests extends IndexShardTestCase {
 
     public void testSyncerSendsOffCorrectDocuments() throws Exception {
         IndexShard shard = newStartedShard(true);
-        TaskManager taskManager = new TaskManager(Settings.EMPTY, threadPool, Collections.emptySet());
+        TaskManager taskManager = new TaskManager(Settings.EMPTY, threadPool, Collections.emptySet(), NoopTracer.INSTANCE);
         AtomicBoolean syncActionCalled = new AtomicBoolean();
         List<ResyncReplicationRequest> resyncRequests = new ArrayList<>();
         PrimaryReplicaSyncer.SyncAction syncAction = (request, parentTask, allocationId, primaryTerm, listener) -> {
@@ -164,7 +165,7 @@ public class PrimaryReplicaSyncerTests extends IndexShardTestCase {
             threadPool.generic().execute(() -> listener.onResponse(new ResyncReplicationResponse()));
         };
         PrimaryReplicaSyncer syncer = new PrimaryReplicaSyncer(
-            new TaskManager(Settings.EMPTY, threadPool, Collections.emptySet()),
+            new TaskManager(Settings.EMPTY, threadPool, Collections.emptySet(), NoopTracer.INSTANCE),
             syncAction
         );
         syncer.setChunkSize(new ByteSizeValue(1)); // every document is sent off separately

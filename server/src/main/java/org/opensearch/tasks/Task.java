@@ -48,6 +48,7 @@ import org.opensearch.core.tasks.resourcetracker.TaskThreadUsage;
 import org.opensearch.core.tasks.resourcetracker.ThreadResourceInfo;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.ToXContentObject;
+import org.opensearch.telemetry.tracing.Span;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -111,6 +112,8 @@ public class Task {
      */
     private final long startTimeNanos;
 
+    private final Span span;
+
     public Task(long id, String type, String action, String description, TaskId parentTask, Map<String, String> headers) {
         this(
             id,
@@ -148,6 +151,21 @@ public class Task {
         this.headers = headers;
         this.resourceStats = resourceStats;
         this.resourceTrackingCompletionListeners = resourceTrackingCompletionListeners;
+        this.span = null;
+    }
+
+    public Task(long id, String type, String action, String description, TaskId parentTask, Map<String, String> headers, Span span) {
+        this.id = id;
+        this.type = type;
+        this.action = action;
+        this.description = description;
+        this.parentTask = parentTask;
+        this.startTime = System.currentTimeMillis();
+        this.startTimeNanos = System.nanoTime();
+        this.headers = headers;
+        this.resourceStats = new ConcurrentHashMap<>();
+        this.resourceTrackingCompletionListeners = new ArrayList<>();
+        this.span = span;
     }
 
     /**
@@ -275,6 +293,13 @@ public class Task {
      */
     public TaskId getParentTaskId() {
         return parentTask;
+    }
+
+    /**
+     * Returns span related to Task
+     */
+    public Span getSpan() {
+        return span;
     }
 
     /**

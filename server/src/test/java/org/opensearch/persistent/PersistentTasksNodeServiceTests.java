@@ -54,6 +54,7 @@ import org.opensearch.persistent.TestPersistentTasksPlugin.TestParams;
 import org.opensearch.persistent.TestPersistentTasksPlugin.TestPersistentTasksExecutor;
 import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskManager;
+import org.opensearch.telemetry.tracing.noop.NoopTracer;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
@@ -133,7 +134,7 @@ public class PersistentTasksNodeServiceTests extends OpenSearchTestCase {
         PersistentTasksNodeService coordinator = new PersistentTasksNodeService(
             persistentTasksService,
             registry,
-            new TaskManager(Settings.EMPTY, threadPool, Collections.emptySet()),
+            new TaskManager(Settings.EMPTY, threadPool, Collections.emptySet(), NoopTracer.INSTANCE),
             executor
         );
 
@@ -248,7 +249,7 @@ public class PersistentTasksNodeServiceTests extends OpenSearchTestCase {
         PersistentTasksNodeService coordinator = new PersistentTasksNodeService(
             persistentTasksService,
             registry,
-            new TaskManager(Settings.EMPTY, threadPool, Collections.emptySet()),
+            new TaskManager(Settings.EMPTY, threadPool, Collections.emptySet(), NoopTracer.INSTANCE),
             executor
         );
 
@@ -305,7 +306,7 @@ public class PersistentTasksNodeServiceTests extends OpenSearchTestCase {
 
         int nonLocalNodesCount = randomInt(10);
         MockExecutor executor = new MockExecutor();
-        TaskManager taskManager = new TaskManager(Settings.EMPTY, threadPool, Collections.emptySet());
+        TaskManager taskManager = new TaskManager(Settings.EMPTY, threadPool, Collections.emptySet(), NoopTracer.INSTANCE);
         PersistentTasksNodeService coordinator = new PersistentTasksNodeService(persistentTasksService, registry, taskManager, executor);
 
         ClusterState state = createInitialClusterState(nonLocalNodesCount, Settings.EMPTY);
@@ -394,7 +395,7 @@ public class PersistentTasksNodeServiceTests extends OpenSearchTestCase {
         PersistentTasksNodeService coordinator = new PersistentTasksNodeService(
             persistentTasksService,
             registry,
-            new TaskManager(Settings.EMPTY, threadPool, Collections.emptySet()),
+            new TaskManager(Settings.EMPTY, threadPool, Collections.emptySet(), NoopTracer.INSTANCE),
             executor
         );
 

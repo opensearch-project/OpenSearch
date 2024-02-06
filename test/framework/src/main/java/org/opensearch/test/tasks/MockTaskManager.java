@@ -43,6 +43,7 @@ import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskAwareRequest;
 import org.opensearch.tasks.TaskManager;
+import org.opensearch.telemetry.tracing.noop.NoopTracer;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.util.Collection;
@@ -65,7 +66,7 @@ public class MockTaskManager extends TaskManager {
     private final Collection<MockTaskManagerListener> listeners = new CopyOnWriteArrayList<>();
 
     public MockTaskManager(Settings settings, ThreadPool threadPool, Set<String> taskHeaders) {
-        super(settings, threadPool, taskHeaders);
+        super(settings, threadPool, taskHeaders, NoopTracer.INSTANCE);
     }
 
     @Override

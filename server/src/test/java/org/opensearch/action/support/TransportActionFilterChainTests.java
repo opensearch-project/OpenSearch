@@ -43,6 +43,7 @@ import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.node.Node;
 import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskManager;
+import org.opensearch.telemetry.tracing.noop.NoopTracer;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.ThreadPool;
 import org.junit.After;
@@ -98,7 +99,7 @@ public class TransportActionFilterChainTests extends OpenSearchTestCase {
         TransportAction<TestRequest, TestResponse> transportAction = new TransportAction<TestRequest, TestResponse>(
             actionName,
             actionFilters,
-            new TaskManager(Settings.EMPTY, threadPool, Collections.emptySet())
+            new TaskManager(Settings.EMPTY, threadPool, Collections.emptySet(), NoopTracer.INSTANCE)
         ) {
             @Override
             protected void doExecute(Task task, TestRequest request, ActionListener<TestResponse> listener) {
@@ -183,7 +184,7 @@ public class TransportActionFilterChainTests extends OpenSearchTestCase {
         TransportAction<TestRequest, TestResponse> transportAction = new TransportAction<TestRequest, TestResponse>(
             actionName,
             actionFilters,
-            new TaskManager(Settings.EMPTY, threadPool, Collections.emptySet())
+            new TaskManager(Settings.EMPTY, threadPool, Collections.emptySet(), NoopTracer.INSTANCE)
         ) {
             @Override
             protected void doExecute(Task task, TestRequest request, ActionListener<TestResponse> listener) {

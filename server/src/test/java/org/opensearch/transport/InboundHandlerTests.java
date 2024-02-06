@@ -89,7 +89,7 @@ public class InboundHandlerTests extends OpenSearchTestCase {
     @Before
     public void setUp() throws Exception {
         super.setUp();
-        taskManager = new TaskManager(Settings.EMPTY, threadPool, Collections.emptySet());
+        taskManager = new TaskManager(Settings.EMPTY, threadPool, Collections.emptySet(), NoopTracer.INSTANCE);
         channel = new FakeTcpChannel(randomBoolean(), buildNewFakeTransportAddress().address(), buildNewFakeTransportAddress().address()) {
             public void sendMessage(BytesReference reference, ActionListener<Void> listener) {
                 super.sendMessage(reference, listener);

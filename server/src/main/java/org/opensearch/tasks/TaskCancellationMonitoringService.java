@@ -66,6 +66,8 @@ public class TaskCancellationMonitoringService extends AbstractLifecycleComponen
         cancellationStatsHolder = TASKS_TO_TRACK.stream()
             .collect(Collectors.toConcurrentMap(task -> task, task -> new TaskCancellationStatsHolder()));
         taskManager.addTaskEventListeners(this);
+        TraceableTaskListener traceableTaskListener = new TraceableTaskListener();
+        taskManager.addTaskEventListeners(traceableTaskListener);
     }
 
     void doRun() {

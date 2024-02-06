@@ -89,6 +89,7 @@ import org.opensearch.search.SearchHits;
 import org.opensearch.search.internal.InternalSearchResponse;
 import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskManager;
+import org.opensearch.telemetry.tracing.noop.NoopTracer;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.client.NoOpClient;
 import org.opensearch.threadpool.TestThreadPool;
@@ -162,7 +163,7 @@ public class AsyncBulkByScrollActionTests extends OpenSearchTestCase {
         testRequest = new DummyAbstractBulkByScrollRequest(firstSearchRequest);
         listener = new PlainActionFuture<>();
         scrollId = null;
-        taskManager = new TaskManager(Settings.EMPTY, threadPool, Collections.emptySet());
+        taskManager = new TaskManager(Settings.EMPTY, threadPool, Collections.emptySet(), NoopTracer.INSTANCE);
         testTask = (BulkByScrollTask) taskManager.register("don'tcare", "hereeither", testRequest);
         testTask.setWorker(testRequest.getRequestsPerSecond(), null);
         worker = testTask.getWorkerState();

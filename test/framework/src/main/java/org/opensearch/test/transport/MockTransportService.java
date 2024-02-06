@@ -277,12 +277,13 @@ public final class MockTransportService extends TransportService {
         Settings settings,
         ClusterSettings clusterSettings,
         ThreadPool threadPool,
-        Set<String> taskHeaders
+        Set<String> taskHeaders,
+        Tracer tracer
     ) {
         if (MockTaskManager.USE_MOCK_TASK_MANAGER_SETTING.get(settings)) {
             return new MockTaskManager(settings, threadPool, taskHeaders);
         } else {
-            return super.createTaskManager(settings, clusterSettings, threadPool, taskHeaders);
+            return super.createTaskManager(settings, clusterSettings, threadPool, taskHeaders, tracer);
         }
     }
 

@@ -40,6 +40,7 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.ConcurrentCollections;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.tasks.TaskId;
+import org.opensearch.telemetry.tracing.noop.NoopTracer;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.RunnableTaskExecutionListener;
 import org.opensearch.threadpool.TestThreadPool;
@@ -97,7 +98,7 @@ public class TaskManagerTests extends OpenSearchTestCase {
     }
 
     public void testTrackingChannelTask() throws Exception {
-        final TaskManager taskManager = new TaskManager(Settings.EMPTY, threadPool, Collections.emptySet());
+        final TaskManager taskManager = new TaskManager(Settings.EMPTY, threadPool, Collections.emptySet(), NoopTracer.INSTANCE);
         Set<Task> cancelledTasks = ConcurrentCollections.newConcurrentSet();
         taskManager.setTaskCancellationService(new TaskCancellationService(mock(TransportService.class)) {
             @Override
@@ -145,7 +146,7 @@ public class TaskManagerTests extends OpenSearchTestCase {
     }
 
     public void testTrackingTaskAndCloseChannelConcurrently() throws Exception {
-        final TaskManager taskManager = new TaskManager(Settings.EMPTY, threadPool, Collections.emptySet());
+        final TaskManager taskManager = new TaskManager(Settings.EMPTY, threadPool, Collections.emptySet(), NoopTracer.INSTANCE);
         Set<CancellableTask> cancelledTasks = ConcurrentCollections.newConcurrentSet();
         taskManager.setTaskCancellationService(new TaskCancellationService(mock(TransportService.class)) {
             @Override
