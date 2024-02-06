@@ -55,6 +55,10 @@ public class ViewIT extends OpenSearchIntegTestCase {
         performRemoteStoreTestAction();
     }
 
+    private List<String> listViews() {
+        return client().listViewNames(new ListViewNamesAction.Request()).actionGet().getViewNames();
+    }
+
     private SearchResponse searchView(final String viewName) throws Exception {
         final SearchViewAction.Request request = SearchViewAction.createRequestWith(viewName, new SearchRequest());
         final SearchResponse response = client().searchView(request).actionGet();
@@ -87,27 +91,26 @@ public class ViewIT extends OpenSearchIntegTestCase {
     public void testListViewNames() throws Exception {
         logger.info("Create a single view");
         createView("view1", "*");
-        final List<String> viewNames1 = client().listViewNames(new ListViewNamesAction.Request()).actionGet().getViewNames();
+        final List<String> viewNames1 = listViews();
 
         assertThat(viewNames1, contains("view1"));
 
         logger.info("Create a second view");
         createView("view2", "*");
-        final List<String> viewNames2 = client().listViewNames(new ListViewNamesAction.Request()).actionGet().getViewNames();
+        final List<String> viewNames2 = listViews();
 
         assertThat(viewNames2, contains("view1", "view2"));
 
         logger.info("Delete a view");
         deleteView("view1");
-        final List<String> viewNamesAfterDelete = client().listViewNames(new ListViewNamesAction.Request()).actionGet().getViewNames();
+        final List<String> viewNamesAfterDelete = listViews();
 
         assertThat(viewNamesAfterDelete, contains("view2"));
 
         logger.info("Update a view");
         client().admin().indices().updateView(new CreateViewAction.Request("view2", "newDescription", List.of()));
-        final List<String> viewNamesAfterUpdate = client().listViewNames(new ListViewNamesAction.Request()).actionGet().getViewNames();
+        final List<String> viewNamesAfterUpdate = listViews();
 
         assertThat(viewNamesAfterUpdate, contains("view2"));
-
     }
 }
