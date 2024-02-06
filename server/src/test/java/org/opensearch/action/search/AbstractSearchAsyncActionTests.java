@@ -412,7 +412,7 @@ public class AbstractSearchAsyncActionTests extends OpenSearchTestCase {
 
     public void testOnPhaseStart() {
         ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        SearchRequestStats testListener = new SearchRequestStats();
+        SearchRequestStats testListener = new SearchRequestStats(clusterSettings);
 
         final List<SearchRequestOperationsListener> requestOperationListeners = new ArrayList<>(List.of(testListener));
         SearchQueryThenFetchAsyncAction action = createSearchQueryThenFetchAsyncAction(requestOperationListeners);
