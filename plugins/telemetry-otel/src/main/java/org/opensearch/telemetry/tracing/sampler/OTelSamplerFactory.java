@@ -83,7 +83,7 @@ public class OTelSamplerFactory {
                         .invokeExact(telemetrySettings, settings, fallbackSampler);
                 } catch (Throwable e) {
                     if (e.getCause() instanceof NoSuchMethodException) {
-                        throw new IllegalStateException("No create method exist in [" + samplerClassName + "]");
+                        throw new IllegalStateException("No create method exist in [" + samplerClassName + "]", e.getCause());
                     } else {
                         throw new IllegalStateException("Sampler instantiation failed for class [" + samplerClassName + "]", e.getCause());
                     }
