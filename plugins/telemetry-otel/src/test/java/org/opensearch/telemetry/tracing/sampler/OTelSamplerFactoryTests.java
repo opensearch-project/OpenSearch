@@ -30,13 +30,13 @@ public class OTelSamplerFactoryTests extends OpenSearchTestCase {
     }
 
     public void testCreateWithSingleSampler() {
-
         Settings settings = Settings.builder()
             .put(OTelTelemetrySettings.OTEL_TRACER_SPAN_SAMPLER_CLASS_SETTINGS.getKey(), ProbabilisticSampler.class.getName())
             .build();
+
         ClusterSettings clusterSettings = new ClusterSettings(settings, Set.of(TRACER_SAMPLER_PROBABILITY, TRACER_ENABLED_SETTING));
         TelemetrySettings telemetrySettings = new TelemetrySettings(settings, clusterSettings);
         Sampler sampler = OTelSamplerFactory.create(telemetrySettings, settings);
-        assertEquals(sampler.getClass(), ProbabilisticSampler.class);
+        assertTrue(sampler instanceof ProbabilisticSampler);
     }
 }

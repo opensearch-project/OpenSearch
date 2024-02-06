@@ -37,7 +37,6 @@ public class ProbabilisticTransportActionSamplerTests extends OpenSearchTestCase
         // ProbabilisticTransportActionSampler
         Sampler probabilisticTransportActionSampler = ProbabilisticTransportActionSampler.create(telemetrySettings, Settings.EMPTY, null);
 
-        // Need to call shouldSample() to update the value of samplingRatio
         SamplingResult result = probabilisticTransportActionSampler.shouldSample(
             mock(Context.class),
             "00000000000000000000000000000000",
