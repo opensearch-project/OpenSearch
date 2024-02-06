@@ -19,6 +19,7 @@ import org.opensearch.test.OpenSearchIntegTestCase.Scope;
 import java.util.List;
 
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.is;
 
 @ClusterScope(scope = Scope.TEST, numDataNodes = 2)
@@ -38,15 +39,20 @@ public class ViewIT extends OpenSearchIntegTestCase {
         return numOfDocs;
     }
 
-    private CreateViewAction.Response createView(final String name, final String indexPattern) throws Exception {
+    private GetViewAction.Response createView(final String name, final String indexPattern) throws Exception {
         final CreateViewAction.Request request = new CreateViewAction.Request(
             name,
             null,
             List.of(new CreateViewAction.Request.Target(indexPattern))
         );
-        final CreateViewAction.Response response = client().admin().indices().createView(request).actionGet();
+        final GetViewAction.Response response = client().admin().indices().createView(request).actionGet();
         performRemoteStoreTestAction();
         return response;
+    }
+
+    private void deleteView(final String name) {
+        client().admin().indices().deleteView(new DeleteViewAction.Request(name)).actionGet();
+        performRemoteStoreTestAction();
     }
 
     private SearchResponse searchView(final String viewName) throws Exception {
@@ -76,5 +82,32 @@ public class ViewIT extends OpenSearchIntegTestCase {
         logger.info("Testing view with wildcard matches");
         createView("both-indices", "index-*");
         assertHitCount(searchView("both-indices"), indexInView1DocCount + indexInView2DocCount);
+    }
+
+    public void testListViewNames() throws Exception {
+        logger.info("Create a single view");
+        createView("view1", "*");
+        final List<String> viewNames1 = client().listViewNames(new ListViewNamesAction.Request()).actionGet().getViewNames();
+
+        assertThat(viewNames1, contains("view1"));
+
+        logger.info("Create a second view");
+        createView("view2", "*");
+        final List<String> viewNames2 = client().listViewNames(new ListViewNamesAction.Request()).actionGet().getViewNames();
+
+        assertThat(viewNames1, contains("view1", "view2"));
+
+        logger.info("Delete a view");
+        deleteView("view1");
+        final List<String> viewNamesAfterDelete = client().listViewNames(new ListViewNamesAction.Request()).actionGet().getViewNames();
+
+        assertThat(viewNames1, contains("view2"));
+
+        logger.info("Delete a view");
+        deleteView("view1");
+        final List<String> viewNamesAfterDelete = client().listViewNames(new ListViewNamesAction.Request()).actionGet().getViewNames();
+
+        assertThat(viewNames1, contains("view2"));
+
     }
 }

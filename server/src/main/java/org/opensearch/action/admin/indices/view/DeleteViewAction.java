@@ -8,12 +8,6 @@
 
 package org.opensearch.action.admin.indices.view;
 
-import static org.mockito.Mockito.description;
-
-import java.io.IOException;
-import java.util.List;
-import java.util.Objects;
-
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.ActionType;
 import org.opensearch.action.ValidateActions;
@@ -33,18 +27,19 @@ import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
-import org.opensearch.core.common.io.stream.Writeable.Reader;
-import org.opensearch.core.common.util.CollectionUtils;
 import org.opensearch.core.xcontent.ConstructingObjectParser;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
+import java.io.IOException;
+import java.util.Objects;
+
 /** Action to delete a view */
 @SuppressWarnings("deprecation")
 @ExperimentalApi
-public class DeleteViewAction extends ActionType<AcknowledgedResponse>  {
-    
+public class DeleteViewAction extends ActionType<AcknowledgedResponse> {
+
     public static final DeleteViewAction INSTANCE = new DeleteViewAction();
     public static final String NAME = "cluster:admin/views/delete";
 
@@ -52,6 +47,7 @@ public class DeleteViewAction extends ActionType<AcknowledgedResponse>  {
         super(NAME, AcknowledgedResponse::new);
     }
 
+    /** Request for delete view */
     @ExperimentalApi
     public static class Request extends ClusterManagerNodeRequest<Request> {
         private final String name;
@@ -97,6 +93,7 @@ public class DeleteViewAction extends ActionType<AcknowledgedResponse>  {
             super.writeTo(out);
             out.writeString(name);
         }
+
         @SuppressWarnings("unchecked")
         private static final ConstructingObjectParser<Request, Void> PARSER = new ConstructingObjectParser<>(
             "delete_view_request",
@@ -143,8 +140,11 @@ public class DeleteViewAction extends ActionType<AcknowledgedResponse>  {
         }
 
         @Override
-        protected void clusterManagerOperation(final Request request, final ClusterState state, final ActionListener<AcknowledgedResponse> listener)
-            throws Exception {
+        protected void clusterManagerOperation(
+            final Request request,
+            final ClusterState state,
+            final ActionListener<AcknowledgedResponse> listener
+        ) throws Exception {
             viewService.deleteView(request, listener);
         }
 

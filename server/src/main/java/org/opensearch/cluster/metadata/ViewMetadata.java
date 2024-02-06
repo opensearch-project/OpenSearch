@@ -139,6 +139,7 @@ public class ViewMetadata implements Metadata.Custom {
     /**
      * Builder of view metadata.
      */
+    @ExperimentalApi
     public static class Builder {
 
         private final Map<String, View> views = new HashMap<>();

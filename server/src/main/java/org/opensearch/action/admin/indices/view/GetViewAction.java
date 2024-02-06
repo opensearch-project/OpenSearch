@@ -8,15 +8,12 @@
 
 package org.opensearch.action.admin.indices.view;
 
-import java.io.IOException;
-import java.util.Objects;
-
 import org.opensearch.action.ActionRequestValidationException;
+import org.opensearch.action.ActionType;
 import org.opensearch.action.ValidateActions;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.clustermanager.ClusterManagerNodeRequest;
 import org.opensearch.action.support.clustermanager.TransportClusterManagerNodeAction;
-import org.opensearch.action.support.master.AcknowledgedResponse;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.block.ClusterBlockException;
 import org.opensearch.cluster.block.ClusterBlockLevel;
@@ -39,13 +36,21 @@ import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
+import java.io.IOException;
+import java.util.Objects;
+
 /** Action to get a view */
 @ExperimentalApi
-public class GetViewAction {
+public class GetViewAction extends ActionType<GetViewAction.Response> {
 
     public static final GetViewAction INSTANCE = new GetViewAction();
     public static final String NAME = "views:data/read/get";
 
+    public GetViewAction() {
+        super(NAME, GetViewAction.Response::new);
+    }
+
+    /** Request for get view */
     @ExperimentalApi
     public static class Request extends ClusterManagerNodeRequest<Request> {
         private final String name;
@@ -91,6 +96,7 @@ public class GetViewAction {
             super.writeTo(out);
             out.writeString(name);
         }
+
         @SuppressWarnings("unchecked")
         private static final ConstructingObjectParser<Request, Void> PARSER = new ConstructingObjectParser<>(
             "get_view_request",

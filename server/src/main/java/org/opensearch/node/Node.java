@@ -861,7 +861,7 @@ public class Node implements Closeable {
                 metadataCreateIndexService
             );
 
-            final ViewService viewService = new ViewService(clusterService, client);
+            final ViewService viewService = new ViewService(clusterService, client, null);
 
             Collection<Object> pluginComponents = pluginsService.filterPlugins(Plugin.class)
                 .stream()

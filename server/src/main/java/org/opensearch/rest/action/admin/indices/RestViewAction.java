@@ -12,7 +12,10 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.action.admin.indices.view.CreateViewAction;
 import org.opensearch.action.admin.indices.view.DeleteViewAction;
+import org.opensearch.action.admin.indices.view.GetViewAction;
+import org.opensearch.action.admin.indices.view.ListViewNamesAction;
 import org.opensearch.action.admin.indices.view.SearchViewAction;
+import org.opensearch.action.admin.indices.view.UpdateViewAction;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.ValidationException;
 import org.opensearch.common.annotation.ExperimentalApi;
@@ -32,6 +35,7 @@ import java.util.function.IntConsumer;
 import static org.opensearch.rest.RestRequest.Method.DELETE;
 import static org.opensearch.rest.RestRequest.Method.GET;
 import static org.opensearch.rest.RestRequest.Method.POST;
+import static org.opensearch.rest.RestRequest.Method.PUT;
 
 /** All rest handlers for view actions */
 @ExperimentalApi
@@ -64,17 +68,43 @@ public class RestViewAction {
         }
     }
 
-    /** Handler for create view */
+    /** Handler for delete view */
     public static class DeleteViewHandler extends BaseRestHandler {
 
         @Override
         public List<Route> routes() {
-            return List.of(new NamedRoute.Builder().path("/views/" + VIEW_ID_PARAMETER).method(DELETE).uniqueName(DeleteViewAction.NAME).build());
+            return List.of(
+                new NamedRoute.Builder().path("/views/" + VIEW_ID_PARAMETER).method(DELETE).uniqueName(DeleteViewAction.NAME).build()
+            );
         }
 
         @Override
         public String getName() {
-            return DeleteViewAction.NAME;
+            return CreateViewAction.NAME;
+        }
+
+        @Override
+        protected RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
+            final String viewId = request.param(VIEW_ID);
+
+            final DeleteViewAction.Request deleteRequest = new DeleteViewAction.Request(viewId);
+            return channel -> client.admin().indices().deleteView(deleteRequest, new RestToXContentListener<>(channel));
+        }
+    }
+
+    /** Handler for update view */
+    public static class UpdateViewHandler extends BaseRestHandler {
+
+        @Override
+        public List<Route> routes() {
+            return List.of(
+                new NamedRoute.Builder().path("/views/" + VIEW_ID_PARAMETER).method(PUT).uniqueName(UpdateViewAction.NAME).build()
+            );
+        }
+
+        @Override
+        public String getName() {
+            return UpdateViewAction.NAME;
         }
 
         @Override
@@ -82,9 +112,50 @@ public class RestViewAction {
             final String viewId = request.param(VIEW_ID);
 
             try (final XContentParser parser = request.contentParser()) {
-                final CreateViewAction.Request createViewAction = CreateViewAction.Request.fromXContent(parser);
-                return channel -> client.admin().indices().createView(createViewAction, new RestToXContentListener<>(channel));
+                final CreateViewAction.Request updateRequest = UpdateViewAction.Request.fromXContent(parser, viewId);
+                return channel -> client.admin().indices().updateView(updateRequest, new RestToXContentListener<>(channel));
             }
+        }
+    }
+
+    /** Handler for get view */
+    public static class GetViewHandler extends BaseRestHandler {
+
+        @Override
+        public List<Route> routes() {
+            return List.of(new NamedRoute.Builder().path("/views/" + VIEW_ID_PARAMETER).method(GET).uniqueName(GetViewAction.NAME).build());
+        }
+
+        @Override
+        public String getName() {
+            return GetViewAction.NAME;
+        }
+
+        @Override
+        protected RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
+            final String viewId = request.param(VIEW_ID);
+
+            final GetViewAction.Request getRequest = new GetViewAction.Request(viewId);
+            return channel -> client.admin().indices().getView(getRequest, new RestToXContentListener<>(channel));
+        }
+    }
+
+    /** Handler for get view */
+    public static class ListViewNamesHandler extends BaseRestHandler {
+
+        @Override
+        public List<Route> routes() {
+            return List.of(new NamedRoute.Builder().path("/views/").method(GET).uniqueName(ListViewNamesAction.NAME).build());
+        }
+
+        @Override
+        public String getName() {
+            return ListViewNamesAction.NAME;
+        }
+
+        @Override
+        protected RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
+            return channel -> client.listViewNames(new ListViewNamesAction.Request(), new RestToXContentListener<>(channel));
         }
     }
 

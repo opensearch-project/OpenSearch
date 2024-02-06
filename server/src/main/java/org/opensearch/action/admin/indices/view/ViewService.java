@@ -11,8 +11,6 @@ package org.opensearch.action.admin.indices.view;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.ResourceNotFoundException;
-import org.opensearch.action.admin.indices.view.DeleteViewAction.Request;
-import org.opensearch.action.admin.indices.view.GetViewAction.Response;
 import org.opensearch.action.search.SearchAction;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.action.support.master.AcknowledgedResponse;
@@ -29,7 +27,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.function.LongSupplier;
-import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 /** Service to interact with views, create, retrieve, update, and delete */
@@ -72,14 +69,16 @@ public class ViewService {
         createOrUpdateView(Operation.UpdateView, updatedView, listener);
     }
 
+    @SuppressWarnings("deprecation")
     public void deleteView(final DeleteViewAction.Request request, final ActionListener<AcknowledgedResponse> listener) {
         getViewOrThrowException(request.getName());
 
         clusterService.submitStateUpdateTask("delete_view_task", new ClusterStateUpdateTask() {
             @Override
             public ClusterState execute(final ClusterState currentState) throws Exception {
-                return new ClusterState.Builder(clusterService.state()).metadata(Metadata.builder(currentState.metadata()).removeView(request.getName()))
-                    .build();
+                return new ClusterState.Builder(clusterService.state()).metadata(
+                    Metadata.builder(currentState.metadata()).removeView(request.getName())
+                ).build();
             }
 
             @Override
@@ -101,7 +100,7 @@ public class ViewService {
         listener.onResponse(new GetViewAction.Response(view));
     }
 
-    public void listViewNames(final ActionListener<List<String>> listener) {
+    public void listViewNames(final ActionListener<ListViewNamesAction.Response> listener) {
         final List<String> viewNames = Optional.ofNullable(clusterService)
             .map(ClusterService::state)
             .map(ClusterState::metadata)
@@ -111,7 +110,7 @@ public class ViewService {
             .stream()
             .collect(Collectors.toList());
 
-        listener.onResponse(viewNames);
+        listener.onResponse(new ListViewNamesAction.Response(viewNames));
     }
 
     public void searchView(final SearchViewAction.Request request, final ActionListener<SearchResponse> listener) {
@@ -141,6 +140,7 @@ public class ViewService {
         UpdateView("update");
 
         private final String name;
+
         private Operation(final String name) {
             this.name = name;
         }

@@ -22,17 +22,13 @@ import org.opensearch.cluster.metadata.View;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.inject.Inject;
-import org.opensearch.core.ParseField;
 import org.opensearch.core.action.ActionListener;
-import org.opensearch.core.action.ActionResponse;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.core.common.util.CollectionUtils;
 import org.opensearch.core.xcontent.ConstructingObjectParser;
-import org.opensearch.core.xcontent.ToXContentObject;
-import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
@@ -231,8 +227,11 @@ public class CreateViewAction extends ActionType<GetViewAction.Response> {
         }
 
         @Override
-        protected void clusterManagerOperation(final Request request, final ClusterState state, final ActionListener<GetViewAction.Response> listener)
-            throws Exception {
+        protected void clusterManagerOperation(
+            final Request request,
+            final ClusterState state,
+            final ActionListener<GetViewAction.Response> listener
+        ) throws Exception {
             viewService.createView(request, listener);
         }
 

@@ -126,6 +126,8 @@ import org.opensearch.action.admin.indices.validate.query.ValidateQueryRequest;
 import org.opensearch.action.admin.indices.validate.query.ValidateQueryRequestBuilder;
 import org.opensearch.action.admin.indices.validate.query.ValidateQueryResponse;
 import org.opensearch.action.admin.indices.view.CreateViewAction;
+import org.opensearch.action.admin.indices.view.DeleteViewAction;
+import org.opensearch.action.admin.indices.view.GetViewAction;
 import org.opensearch.action.support.master.AcknowledgedResponse;
 import org.opensearch.cluster.metadata.IndexMetadata.APIBlock;
 import org.opensearch.common.Nullable;
@@ -841,8 +843,26 @@ public interface IndicesAdminClient extends OpenSearchClient {
     ActionFuture<ResolveIndexAction.Response> resolveIndex(ResolveIndexAction.Request request);
 
     /** Create a view */
-    void createView(CreateViewAction.Request request, ActionListener<CreateViewAction.Response> listener);
+    void createView(CreateViewAction.Request request, ActionListener<GetViewAction.Response> listener);
 
     /** Create a view */
-    ActionFuture<CreateViewAction.Response> createView(CreateViewAction.Request request);
+    ActionFuture<GetViewAction.Response> createView(CreateViewAction.Request request);
+
+    /** Gets a view */
+    void getView(GetViewAction.Request request, ActionListener<GetViewAction.Response> listener);
+
+    /** Gets a view */
+    ActionFuture<GetViewAction.Response> getView(GetViewAction.Request request);
+
+    /** Create a view */
+    void deleteView(DeleteViewAction.Request request, ActionListener<AcknowledgedResponse> listener);
+
+    /** Create a view */
+    ActionFuture<AcknowledgedResponse> deleteView(DeleteViewAction.Request request);
+
+    /** Create a view */
+    void updateView(CreateViewAction.Request request, ActionListener<GetViewAction.Response> listener);
+
+    /** Create a view */
+    ActionFuture<GetViewAction.Response> updateView(CreateViewAction.Request request);
 }

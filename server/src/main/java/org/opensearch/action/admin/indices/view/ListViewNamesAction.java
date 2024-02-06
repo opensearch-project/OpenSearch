@@ -8,69 +8,99 @@
 
 package org.opensearch.action.admin.indices.view;
 
-import java.io.IOException;
-
+import org.opensearch.action.ActionRequest;
+import org.opensearch.action.ActionRequestValidationException;
+import org.opensearch.action.ActionType;
 import org.opensearch.action.support.ActionFilters;
-import org.opensearch.action.support.clustermanager.TransportClusterManagerNodeAction;
-import org.opensearch.cluster.ClusterState;
-import org.opensearch.cluster.block.ClusterBlockException;
-import org.opensearch.cluster.block.ClusterBlockLevel;
-import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
-import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.action.support.HandledTransportAction;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.action.ActionResponse;
 import org.opensearch.core.common.io.stream.StreamInput;
-import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.xcontent.ToXContentObject;
+import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.tasks.Task;
 import org.opensearch.transport.TransportService;
+
+import java.io.IOException;
+import java.util.List;
 
 /** Action to list a view names */
 @ExperimentalApi
-public class ListViewNamesAction {
+public class ListViewNamesAction extends ActionType<ListViewNamesAction.Response> {
 
     public static final ListViewNamesAction INSTANCE = new ListViewNamesAction();
     public static final String NAME = "views:data/read/list";
 
+    public ListViewNamesAction() {
+        super(NAME, ListViewNamesAction.Response::new);
+    }
+
+    /** Request for list view names */
+    @ExperimentalApi
+    public static class Request extends ActionRequest {
+        public Request() {}
+
+        public Request(final StreamInput in) {}
+
+        @Override
+        public ActionRequestValidationException validate() {
+            return null;
+        }
+    }
+
+    /** Response for list view names */
+    @ExperimentalApi
+    public static class Response extends ActionResponse implements ToXContentObject {
+
+        private final List<String> views;
+
+        public Response(final List<String> views) {
+            this.views = views;
+        }
+
+        public Response(final StreamInput in) throws IOException {
+            views = in.readStringList();
+        }
+
+        public List<String> getViewNames() {
+            return views;
+        }
+
+        @Override
+        public void writeTo(final StreamOutput out) throws IOException {
+            out.writeStringCollection(views);
+        }
+
+        @Override
+        public XContentBuilder toXContent(final XContentBuilder builder, final Params params) throws IOException {
+            builder.startObject();
+            builder.field("views", views);
+            builder.endObject();
+            return builder;
+        }
+    }
+
     /**
      * Transport Action for getting a View
      */
-    public static class TransportAction extends TransportClusterManagerNodeAction<Request, Response> {
+    public static class TransportAction extends HandledTransportAction<Request, Response> {
 
         private final ViewService viewService;
 
         @Inject
-        public TransportAction(
-            final TransportService transportService,
-            final ClusterService clusterService,
-            final ThreadPool threadPool,
-            final ActionFilters actionFilters,
-            final IndexNameExpressionResolver indexNameExpressionResolver,
-            final ViewService viewService
-        ) {
-            super(NAME, transportService, clusterService, threadPool, actionFilters, Request::new, indexNameExpressionResolver);
+        public TransportAction(final TransportService transportService, final ActionFilters actionFilters, final ViewService viewService) {
+            super(NAME, transportService, actionFilters, Request::new);
             this.viewService = viewService;
         }
 
         @Override
-        protected String executor() {
-            return ThreadPool.Names.MANAGEMENT;
+        protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
+            viewService.listViewNames(listener);
         }
 
-        @Override
-        protected Response read(final StreamInput in) throws IOException {
-            return new Response(in);
-        }
-
-        @Override
-        protected void clusterManagerOperation(final Request request, final ClusterState state, final ActionListener<Response> listener)
-            throws Exception {
-            viewService.getView(request, listener);
-        }
-
-        @Override
-        protected ClusterBlockException checkBlock(final Request request, final ClusterState state) {
-            return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_READ);
-        }
     }
 
 }
