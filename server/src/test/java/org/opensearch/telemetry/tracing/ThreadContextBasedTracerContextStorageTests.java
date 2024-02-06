@@ -31,7 +31,6 @@ import java.util.concurrent.TimeoutException;
 
 import static org.opensearch.telemetry.TelemetrySettings.TRACER_ENABLED_SETTING;
 import static org.opensearch.telemetry.TelemetrySettings.TRACER_FEATURE_ENABLED_SETTING;
-import static org.opensearch.telemetry.TelemetrySettings.TRACER_SAMPLER_ACTION_PROBABILITY;
 import static org.opensearch.telemetry.TelemetrySettings.TRACER_SAMPLER_PROBABILITY;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.is;
@@ -57,10 +56,7 @@ public class ThreadContextBasedTracerContextStorageTests extends OpenSearchTestC
 
         final TelemetrySettings telemetrySettings = new TelemetrySettings(
             settings,
-            new ClusterSettings(
-                Settings.EMPTY,
-                Set.of(TRACER_ENABLED_SETTING, TRACER_SAMPLER_PROBABILITY, TRACER_SAMPLER_ACTION_PROBABILITY)
-            )
+            new ClusterSettings(Settings.EMPTY, Set.of(TRACER_ENABLED_SETTING, TRACER_SAMPLER_PROBABILITY))
         );
 
         final TracingTelemetry tracingTelemetry = new MockTracingTelemetry();

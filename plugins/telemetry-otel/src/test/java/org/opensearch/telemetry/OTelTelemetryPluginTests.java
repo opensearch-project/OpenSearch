@@ -71,7 +71,8 @@ public class OTelTelemetryPluginTests extends OpenSearchTestCase {
                 TRACER_EXPORTER_MAX_QUEUE_SIZE_SETTING,
                 OTEL_TRACER_SPAN_EXPORTER_CLASS_SETTING,
                 OTEL_METRICS_EXPORTER_CLASS_SETTING,
-                OTEL_TRACER_SPAN_SAMPLER_CLASS_SETTINGS
+                OTEL_TRACER_SPAN_SAMPLER_CLASS_SETTINGS,
+                OTEL_METRICS_EXPORTER_CLASS_SETTING
             ),
             oTelTelemetryPlugin.getSettings()
         );

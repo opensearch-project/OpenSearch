@@ -15,16 +15,12 @@ import org.opensearch.test.OpenSearchTestCase;
 import java.util.Set;
 
 import static org.opensearch.telemetry.TelemetrySettings.TRACER_ENABLED_SETTING;
-import static org.opensearch.telemetry.TelemetrySettings.TRACER_SAMPLER_ACTION_PROBABILITY;
 import static org.opensearch.telemetry.TelemetrySettings.TRACER_SAMPLER_PROBABILITY;
 
 public class TelemetrySettingsTests extends OpenSearchTestCase {
 
     public void testSetTracingEnabledOrDisabled() {
-        ClusterSettings clusterSettings = new ClusterSettings(
-            Settings.EMPTY,
-            Set.of(TRACER_SAMPLER_PROBABILITY, TRACER_ENABLED_SETTING, TRACER_SAMPLER_ACTION_PROBABILITY)
-        );
+        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, Set.of(TRACER_SAMPLER_PROBABILITY, TRACER_ENABLED_SETTING));
         TelemetrySettings telemetrySettings = new TelemetrySettings(Settings.EMPTY, clusterSettings);
 
         // Validation for tracingEnabled as true
@@ -36,26 +32,8 @@ public class TelemetrySettingsTests extends OpenSearchTestCase {
         assertFalse(telemetrySettings.isTracingEnabled());
     }
 
-    public void testIsActionSamplingOverrideSet() {
-        ClusterSettings clusterSettings = new ClusterSettings(
-            Settings.EMPTY,
-            Set.of(TRACER_SAMPLER_PROBABILITY, TRACER_ENABLED_SETTING, TRACER_SAMPLER_ACTION_PROBABILITY)
-        );
-        TelemetrySettings telemetrySettings = new TelemetrySettings(Settings.EMPTY, clusterSettings);
-
-        // There should be default value of action initially
-        assertEquals(0.001, telemetrySettings.getActionSamplingProbability(), 0.00d);
-
-        clusterSettings.applySettings(Settings.builder().put("telemetry.tracer.action.sampler.probability", "0.01").build());
-        // Validating if value of override for action 'dummy_action' is correct
-        assertEquals(0.01, telemetrySettings.getActionSamplingProbability(), 0.00d);
-    }
-
     public void testSetSamplingProbability() {
-        ClusterSettings clusterSettings = new ClusterSettings(
-            Settings.EMPTY,
-            Set.of(TRACER_SAMPLER_PROBABILITY, TRACER_ENABLED_SETTING, TRACER_SAMPLER_ACTION_PROBABILITY)
-        );
+        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, Set.of(TRACER_SAMPLER_PROBABILITY, TRACER_ENABLED_SETTING));
         TelemetrySettings telemetrySettings = new TelemetrySettings(Settings.EMPTY, clusterSettings);
 
         // Validating default sample rate i.e 1%
@@ -71,10 +49,7 @@ public class TelemetrySettingsTests extends OpenSearchTestCase {
     }
 
     public void testGetSamplingProbability() {
-        ClusterSettings clusterSettings = new ClusterSettings(
-            Settings.EMPTY,
-            Set.of(TRACER_SAMPLER_PROBABILITY, TRACER_ENABLED_SETTING, TRACER_SAMPLER_ACTION_PROBABILITY)
-        );
+        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, Set.of(TRACER_SAMPLER_PROBABILITY, TRACER_ENABLED_SETTING));
         TelemetrySettings telemetrySettings = new TelemetrySettings(Settings.EMPTY, clusterSettings);
 
         // Validating default value of Sampling is 1%
@@ -84,36 +59,6 @@ public class TelemetrySettingsTests extends OpenSearchTestCase {
 
         // Validating if default sampling is updated to 2%
         assertEquals(0.02, telemetrySettings.getSamplingProbability(), 0.00d);
-    }
-
-    public void testSetActionSamplingProbability() {
-        ClusterSettings clusterSettings = new ClusterSettings(
-            Settings.EMPTY,
-            Set.of(TRACER_SAMPLER_PROBABILITY, TRACER_ENABLED_SETTING, TRACER_SAMPLER_ACTION_PROBABILITY)
-        );
-        TelemetrySettings telemetrySettings = new TelemetrySettings(Settings.EMPTY, clusterSettings);
-
-        clusterSettings.applySettings(Settings.builder().put("telemetry.tracer.action.sampler.probability", "0.5").build());
-
-        // Validating if value of override for action 'dummy_action' is correct
-        assertEquals(0.5, telemetrySettings.getActionSamplingProbability(), 0.00d);
-
-    }
-
-    public void testGetActionSamplingProbability() {
-        ClusterSettings clusterSettings = new ClusterSettings(
-            Settings.EMPTY,
-            Set.of(TRACER_SAMPLER_PROBABILITY, TRACER_ENABLED_SETTING, TRACER_SAMPLER_ACTION_PROBABILITY)
-        );
-        TelemetrySettings telemetrySettings = new TelemetrySettings(Settings.EMPTY, clusterSettings);
-
-        clusterSettings.applySettings(Settings.builder().put("telemetry.tracer.action.sampler.probability", "0.01").build());
-        // Validating if value of override for action 'dummy_action' is correct i.e. 1%
-        assertEquals(0.01, telemetrySettings.getActionSamplingProbability(), 0.00d);
-
-        clusterSettings.applySettings(Settings.builder().put("telemetry.tracer.action.sampler.probability", "0.02").build());
-        // Validating if value of override for action 'dummy_action' is correct i.e. 2%
-        assertEquals(0.02, telemetrySettings.getActionSamplingProbability(), 0.00d);
     }
 
 }
