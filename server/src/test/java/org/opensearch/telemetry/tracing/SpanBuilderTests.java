@@ -9,7 +9,6 @@
 package org.opensearch.telemetry.tracing;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
-import org.junit.runners.Parameterized;
 import org.opensearch.Version;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.network.NetworkAddress;
@@ -35,16 +34,12 @@ import java.util.Map;
 
 public class SpanBuilderTests extends OpenSearchTestCase {
 
-    @Parameterized.Parameter(0)
     public String uri;
 
-    @Parameterized.Parameter(1)
     public String expectedSpanName;
 
-    @Parameterized.Parameter(2)
     public String expectedQueryParams;
 
-    @Parameterized.Parameter(3)
     public String expectedReqRawPath;
 
     @ParametersFactory
