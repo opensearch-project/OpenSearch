@@ -32,7 +32,6 @@
 
 package org.opensearch.gateway;
 
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
 import org.opensearch.action.ActionType;
@@ -43,7 +42,6 @@ import org.opensearch.action.support.nodes.BaseNodesRequest;
 import org.opensearch.action.support.nodes.BaseNodesResponse;
 import org.opensearch.action.support.nodes.TransportNodesAction;
 import org.opensearch.cluster.ClusterName;
-import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Nullable;
@@ -55,11 +53,6 @@ import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.env.NodeEnvironment;
-import org.opensearch.index.IndexSettings;
-import org.opensearch.index.shard.IndexShard;
-import org.opensearch.index.shard.ShardPath;
-import org.opensearch.index.shard.ShardStateMetadata;
-import org.opensearch.index.store.Store;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
 import org.opensearch.indices.store.ShardAttributes;
@@ -71,6 +64,8 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+
+import static org.opensearch.gateway.TransportNodesGatewayStartedShardHelper.getShardInfoOnLocalNode;
 
 /**
  * This transport action is used to fetch the shard version from each node during primary allocation in {@link GatewayAllocator}.
@@ -159,72 +154,23 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesAction
     @Override
     protected NodeGatewayStartedShards nodeOperation(NodeRequest request) {
         try {
-            final ShardId shardId = request.getShardId();
-            logger.trace("{} loading local shard state info", shardId);
-            ShardStateMetadata shardStateMetadata = ShardStateMetadata.FORMAT.loadLatestState(
+            TransportNodesListGatewayStartedShardsBatch.NodeGatewayStartedShard shardInfo = getShardInfoOnLocalNode(
                 logger,
+                request.getShardId(),
                 namedXContentRegistry,
-                nodeEnv.availableShardPaths(request.shardId)
+                nodeEnv,
+                indicesService,
+                request.getCustomDataPath(),
+                settings,
+                clusterService
             );
-            if (shardStateMetadata != null) {
-                if (indicesService.getShardOrNull(shardId) == null
-                    && shardStateMetadata.indexDataLocation == ShardStateMetadata.IndexDataLocation.LOCAL) {
-                    final String customDataPath;
-                    if (request.getCustomDataPath() != null) {
-                        customDataPath = request.getCustomDataPath();
-                    } else {
-                        // TODO: Fallback for BWC with older OpenSearch versions.
-                        // Remove once request.getCustomDataPath() always returns non-null
-                        final IndexMetadata metadata = clusterService.state().metadata().index(shardId.getIndex());
-                        if (metadata != null) {
-                            customDataPath = new IndexSettings(metadata, settings).customDataPath();
-                        } else {
-                            logger.trace("{} node doesn't have meta data for the requests index", shardId);
-                            throw new OpenSearchException("node doesn't have meta data for index " + shardId.getIndex());
-                        }
-                    }
-                    // we don't have an open shard on the store, validate the files on disk are openable
-                    ShardPath shardPath = null;
-                    try {
-                        shardPath = ShardPath.loadShardPath(logger, nodeEnv, shardId, customDataPath);
-                        if (shardPath == null) {
-                            throw new IllegalStateException(shardId + " no shard path found");
-                        }
-                        Store.tryOpenIndex(shardPath.resolveIndex(), shardId, nodeEnv::shardLock, logger);
-                    } catch (Exception exception) {
-                        final ShardPath finalShardPath = shardPath;
-                        logger.trace(
-                            () -> new ParameterizedMessage(
-                                "{} can't open index for shard [{}] in path [{}]",
-                                shardId,
-                                shardStateMetadata,
-                                (finalShardPath != null) ? finalShardPath.resolveIndex() : ""
-                            ),
-                            exception
-                        );
-                        String allocationId = shardStateMetadata.allocationId != null ? shardStateMetadata.allocationId.getId() : null;
-                        return new NodeGatewayStartedShards(
-                            clusterService.localNode(),
-                            allocationId,
-                            shardStateMetadata.primary,
-                            null,
-                            exception
-                        );
-                    }
-                }
-
-                logger.debug("{} shard state info found: [{}]", shardId, shardStateMetadata);
-                String allocationId = shardStateMetadata.allocationId != null ? shardStateMetadata.allocationId.getId() : null;
-                final IndexShard shard = indicesService.getShardOrNull(shardId);
-                return new NodeGatewayStartedShards(
-                    clusterService.localNode(),
-                    allocationId,
-                    shardStateMetadata.primary,
-                    shard != null ? shard.getLatestReplicationCheckpoint() : null
-                );
-            }
-            logger.trace("{} no local shard info found", shardId);
-            return new NodeGatewayStartedShards(clusterService.localNode(), null, false, null);
+            return new NodeGatewayStartedShards(
+                clusterService.localNode(),
+                shardInfo.allocationId(),
+                shardInfo.primary(),
+                shardInfo.replicationCheckpoint(),
+                shardInfo.storeException()
+            );
         } catch (Exception e) {
             throw new OpenSearchException("failed to load started shards", e);
         }
