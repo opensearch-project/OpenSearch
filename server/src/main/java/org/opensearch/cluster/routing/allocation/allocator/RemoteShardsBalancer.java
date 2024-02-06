@@ -43,6 +43,8 @@ public final class RemoteShardsBalancer extends ShardsBalancer {
     private final Logger logger;
     private final RoutingAllocation allocation;
     private final RoutingNodes routingNodes;
+    // indicates if there are any nodes being throttled for allocating any unassigned shards
+    private boolean anyNodesThrottled = false;
 
     public RemoteShardsBalancer(Logger logger, RoutingAllocation allocation) {
         this.logger = logger;
@@ -358,12 +360,16 @@ public final class RemoteShardsBalancer extends ShardsBalancer {
     }
 
     private void ignoreRemainingShards(Map<String, UnassignedIndexShards> unassignedShardMap) {
+        // If any nodes are throttled during allocation, mark all remaining unassigned shards as THROTTLED
+        final UnassignedInfo.AllocationStatus status = anyNodesThrottled
+            ? UnassignedInfo.AllocationStatus.DECIDERS_THROTTLED
+            : UnassignedInfo.AllocationStatus.DECIDERS_NO;
         for (UnassignedIndexShards indexShards : unassignedShardMap.values()) {
             for (ShardRouting shard : indexShards.getPrimaries()) {
-                routingNodes.unassigned().ignoreShard(shard, UnassignedInfo.AllocationStatus.DECIDERS_NO, allocation.changes());
+                routingNodes.unassigned().ignoreShard(shard, status, allocation.changes());
             }
             for (ShardRouting shard : indexShards.getReplicas()) {
-                routingNodes.unassigned().ignoreShard(shard, UnassignedInfo.AllocationStatus.DECIDERS_NO, allocation.changes());
+                routingNodes.unassigned().ignoreShard(shard, status, allocation.changes());
             }
         }
     }
@@ -424,11 +430,11 @@ public final class RemoteShardsBalancer extends ShardsBalancer {
     private void tryAllocateUnassignedShard(Queue<RoutingNode> nodeQueue, ShardRouting shard) {
         boolean allocated = false;
         boolean throttled = false;
-        Set<String> nodesCheckedForShard = new HashSet<>();
+        int numNodesToCheck = nodeQueue.size();
         while (nodeQueue.isEmpty() == false) {
             RoutingNode node = nodeQueue.poll();
+            --numNodesToCheck;
             Decision allocateDecision = allocation.deciders().canAllocate(shard, node, allocation);
-            nodesCheckedForShard.add(node.nodeId());
             if (allocateDecision.type() == Decision.Type.YES) {
                 if (logger.isTraceEnabled()) {
                     logger.trace("Assigned shard [{}] to [{}]", shardShortSummary(shard), node.nodeId());
@@ -467,6 +473,10 @@ public final class RemoteShardsBalancer extends ShardsBalancer {
                     }
                     nodeQueue.offer(node);
                 } else {
+                    if (nodeLevelDecision.type() == Decision.Type.THROTTLE) {
+                        anyNodesThrottled = true;
+                    }
+
                     if (logger.isTraceEnabled()) {
                         logger.trace(
                             "Cannot allocate any shard to node: [{}]. Removing from queue. Node level decisions: [{}],[{}]",
@@ -478,14 +488,14 @@ public final class RemoteShardsBalancer extends ShardsBalancer {
                 }
 
                 // Break out if all nodes in the queue have been checked for this shard
-                if (nodeQueue.stream().allMatch(rn -> nodesCheckedForShard.contains(rn.nodeId()))) {
+                if (numNodesToCheck == 0) {
                     break;
                 }
             }
         }
 
         if (allocated == false) {
-            UnassignedInfo.AllocationStatus status = throttled
+            UnassignedInfo.AllocationStatus status = (throttled || anyNodesThrottled)
                 ? UnassignedInfo.AllocationStatus.DECIDERS_THROTTLED
                 : UnassignedInfo.AllocationStatus.DECIDERS_NO;
             routingNodes.unassigned().ignoreShard(shard, status, allocation.changes());

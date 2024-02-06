@@ -87,7 +87,8 @@ public class SegmentReplicationResizeRequestIT extends SegmentReplicationBaseIT 
                     .get()
             );
             assertEquals(
-                " For index [test] replica shards haven't caught up with primary, please retry after sometime.",
+                "Replication still in progress for index [test]. Please wait for replication to complete and retry. "
+                    + "Use the _cat/segment_replication/test api to check if the index is up to date (e.g. bytes_behind == 0).",
                 exception.getMessage()
             );
 

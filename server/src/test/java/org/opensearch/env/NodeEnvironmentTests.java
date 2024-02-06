@@ -359,6 +359,57 @@ public class NodeEnvironmentTests extends OpenSearchTestCase {
         env.close();
     }
 
+    public void testIndexStoreListener() throws Exception {
+        final AtomicInteger shardCounter = new AtomicInteger(0);
+        final AtomicInteger indexCounter = new AtomicInteger(0);
+        final Index index = new Index("foo", "fooUUID");
+        final ShardId shardId = new ShardId(index, 0);
+        final NodeEnvironment.IndexStoreListener listener = new NodeEnvironment.IndexStoreListener() {
+            @Override
+            public void beforeShardPathDeleted(ShardId inShardId, IndexSettings indexSettings, NodeEnvironment env) {
+                assertEquals(shardId, inShardId);
+                shardCounter.incrementAndGet();
+            }
+
+            @Override
+            public void beforeIndexPathDeleted(Index inIndex, IndexSettings indexSettings, NodeEnvironment env) {
+                assertEquals(index, inIndex);
+                indexCounter.incrementAndGet();
+            }
+        };
+        final NodeEnvironment env = newNodeEnvironment(listener);
+
+        for (Path path : env.indexPaths(index)) {
+            Files.createDirectories(path.resolve("0"));
+        }
+
+        for (Path path : env.indexPaths(index)) {
+            assertTrue(Files.exists(path.resolve("0")));
+        }
+        assertEquals(0, shardCounter.get());
+
+        env.deleteShardDirectorySafe(new ShardId(index, 0), idxSettings);
+
+        for (Path path : env.indexPaths(index)) {
+            assertFalse(Files.exists(path.resolve("0")));
+        }
+        assertEquals(1, shardCounter.get());
+
+        for (Path path : env.indexPaths(index)) {
+            assertTrue(Files.exists(path));
+        }
+        assertEquals(0, indexCounter.get());
+
+        env.deleteIndexDirectorySafe(index, 5000, idxSettings);
+
+        for (Path path : env.indexPaths(index)) {
+            assertFalse(Files.exists(path));
+        }
+        assertEquals(1, indexCounter.get());
+        assertTrue("LockedShards: " + env.lockedShards(), env.lockedShards().isEmpty());
+        env.close();
+    }
+
     public void testStressShardLock() throws IOException, InterruptedException {
         class Int {
             int value = 0;
@@ -627,6 +678,11 @@ public class NodeEnvironmentTests extends OpenSearchTestCase {
     @Override
     public NodeEnvironment newNodeEnvironment() throws IOException {
         return newNodeEnvironment(Settings.EMPTY);
+    }
+
+    public NodeEnvironment newNodeEnvironment(NodeEnvironment.IndexStoreListener listener) throws IOException {
+        Settings build = buildEnvSettings(Settings.EMPTY);
+        return new NodeEnvironment(build, TestEnvironment.newEnvironment(build), listener);
     }
 
     @Override
