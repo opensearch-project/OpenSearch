@@ -510,6 +510,134 @@ setup:
   - match: { aggregations.1.2.buckets.1.doc_count:  1 }
 
 ---
+"Composite aggregation with filtered nested parent":
+  - skip:
+      version: " - 2.99.99"
+      reason:  fixed in 3.0.0
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          aggregations:
+            1:
+              nested:
+                path: nested
+              aggs:
+                2:
+                  filter:
+                    range:
+                      nested.nested_long:
+                        gt: 0
+                        lt: 100
+                  aggs:
+                    3:
+                      composite:
+                        sources: [
+                          "nested": {
+                            "terms": {
+                              "field": "nested.nested_long"
+                            }
+                          }
+                        ]
+
+  - match: {hits.total: 6}
+  - length: { aggregations.1.2.3.buckets: 2 }
+  - match: { aggregations.1.2.3.buckets.0.key.nested: 10 }
+  - match: { aggregations.1.2.3.buckets.0.doc_count:  2 }
+  - match: { aggregations.1.2.3.buckets.1.key.nested: 20 }
+  - match: { aggregations.1.2.3.buckets.1.doc_count:  2 }
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          aggregations:
+            1:
+              nested:
+                path: nested
+              aggs:
+                2:
+                  filter:
+                    range:
+                      nested.nested_long:
+                        gt: 0
+                        lt: 100
+                  aggs:
+                    3:
+                      composite:
+                        after: { "nested": 10 }
+                        sources: [
+                          "nested": {
+                            "terms": {
+                              "field": "nested.nested_long"
+                            }
+                          }
+                        ]
+  - match: {hits.total: 6}
+  - length: { aggregations.1.2.3.buckets: 1 }
+  - match: { aggregations.1.2.3.buckets.0.key.nested: 20 }
+  - match: { aggregations.1.2.3.buckets.0.doc_count:  2 }
+
+---
+"Composite aggregation with filtered reverse nested parent":
+  - skip:
+      version: " - 2.99.99"
+      reason:  fixed in 3.0.0
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          aggregations:
+            1:
+              nested:
+                path: nested
+              aggs:
+                2:
+                  filter:
+                    range:
+                      nested.nested_long:
+                        gt: 0
+                        lt: 20
+                  aggs:
+                    3:
+                      reverse_nested: {}
+                      aggs:
+                        4:
+                          composite:
+                            sources: [
+                              {
+                                "long": {
+                                  "terms": {
+                                    "field": "long"
+                                  }
+                                }
+                              },
+                              {
+                                "kw": {
+                                  "terms": {
+                                    "field": "keyword"
+                                  }
+                                }
+                              }
+                            ]
+  - match: {hits.total: 6}
+  - length: { aggregations.1.2.3.4.buckets: 4 }
+  - match: { aggregations.1.2.3.4.buckets.0.key.long: 0 }
+  - match: { aggregations.1.2.3.4.buckets.0.key.kw: "bar" }
+  - match: { aggregations.1.2.3.4.buckets.0.doc_count: 1 }
+  - match: { aggregations.1.2.3.4.buckets.1.key.long: 10 }
+  - match: { aggregations.1.2.3.4.buckets.1.key.kw: "foo" }
+  - match: { aggregations.1.2.3.4.buckets.1.doc_count: 1 }
+  - match: { aggregations.1.2.3.4.buckets.2.key.long: 20 }
+  - match: { aggregations.1.2.3.4.buckets.2.key.kw: "foo" }
+  - match: { aggregations.1.2.3.4.buckets.2.doc_count: 1 }
+  - match: { aggregations.1.2.3.4.buckets.3.key.long: 100 }
+  - match: { aggregations.1.2.3.4.buckets.3.key.kw: "bar" }
+  - match: { aggregations.1.2.3.4.buckets.3.doc_count: 1 }
+
+---
 "Composite aggregation with unmapped field":
   - skip:
       version: " - 7.1.99"

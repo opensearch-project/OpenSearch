@@ -37,11 +37,10 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.action.search.SearchRequest;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.script.ScriptType;
-import org.opensearch.test.ParameterizedOpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -58,10 +57,10 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.core.Is.is;
 
-public class MultiSearchTemplateIT extends ParameterizedOpenSearchIntegTestCase {
+public class MultiSearchTemplateIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
 
-    public MultiSearchTemplateIT(Settings dynamicSettings) {
-        super(dynamicSettings);
+    public MultiSearchTemplateIT(Settings staticSettings) {
+        super(staticSettings);
     }
 
     @ParametersFactory
@@ -70,11 +69,6 @@ public class MultiSearchTemplateIT extends ParameterizedOpenSearchIntegTestCase 
             new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), false).build() },
             new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), true).build() }
         );
-    }
-
-    @Override
-    protected Settings featureFlagSettings() {
-        return Settings.builder().put(super.featureFlagSettings()).put(FeatureFlags.CONCURRENT_SEGMENT_SEARCH, "true").build();
     }
 
     @Override

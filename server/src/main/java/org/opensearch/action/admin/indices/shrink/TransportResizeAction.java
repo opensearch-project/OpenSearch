@@ -168,9 +168,11 @@ public class TransportResizeAction extends TransportClusterManagerNodeAction<Res
                                 .getSegments()
                                 .getReplicationStats().maxBytesBehind != 0) {
                                 throw new IllegalStateException(
-                                    " For index ["
+                                    "Replication still in progress for index ["
                                         + sourceIndex
-                                        + "] replica shards haven't caught up with primary, please retry after sometime."
+                                        + "]. Please wait for replication to complete and retry. Use the _cat/segment_replication/"
+                                        + sourceIndex
+                                        + " api to check if the index is up to date (e.g. bytes_behind == 0)."
                                 );
                             }
 

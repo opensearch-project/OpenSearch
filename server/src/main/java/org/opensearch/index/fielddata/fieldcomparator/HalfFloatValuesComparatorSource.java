@@ -13,6 +13,7 @@ import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.FieldComparator;
 import org.apache.lucene.search.LeafFieldComparator;
+import org.apache.lucene.search.Pruning;
 import org.apache.lucene.util.BitSet;
 import org.opensearch.index.fielddata.FieldData;
 import org.opensearch.index.fielddata.IndexNumericFieldData;
@@ -42,11 +43,11 @@ public class HalfFloatValuesComparatorSource extends FloatValuesComparatorSource
     }
 
     @Override
-    public FieldComparator<?> newComparator(String fieldname, int numHits, boolean enableSkipping, boolean reversed) {
+    public FieldComparator<?> newComparator(String fieldname, int numHits, Pruning pruning, boolean reversed) {
         assert indexFieldData == null || fieldname.equals(indexFieldData.getFieldName());
 
         final float fMissingValue = (Float) missingObject(missingValue, reversed);
-        return new HalfFloatComparator(numHits, fieldname, fMissingValue, reversed, enableSkipping && this.enableSkipping) {
+        return new HalfFloatComparator(numHits, fieldname, fMissingValue, reversed, filterPruning(pruning)) {
             @Override
             public LeafFieldComparator getLeafComparator(LeafReaderContext context) throws IOException {
                 return new HalfFloatLeafComparator(context) {

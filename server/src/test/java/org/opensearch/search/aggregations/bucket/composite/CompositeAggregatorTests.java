@@ -38,7 +38,10 @@ import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.TermQuery;
 import org.opensearch.OpenSearchParseException;
+import org.opensearch.index.query.MatchAllQueryBuilder;
+import org.opensearch.search.aggregations.AggregationBuilders;
 import org.opensearch.search.aggregations.Aggregator;
+import org.opensearch.search.aggregations.bucket.filter.FilterAggregationBuilder;
 import org.opensearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.opensearch.search.aggregations.bucket.missing.MissingOrder;
 import org.opensearch.search.aggregations.bucket.terms.StringTerms;
@@ -1279,7 +1282,7 @@ public class CompositeAggregatorTests extends BaseCompositeAggregatorTestCase {
             },
             (result) -> {
                 assertEquals(3, result.getBuckets().size());
-                assertEquals("{date=1508457600000}", result.afterKey().toString());
+                assertEquals("{date=1508457600000}", result.afterKey().toString()); // 2017-10-20T00:00:00
                 assertEquals("{date=1474329600000}", result.getBuckets().get(0).getKeyAsString());
                 assertEquals(2L, result.getBuckets().get(0).getDocCount());
                 assertEquals("{date=1508371200000}", result.getBuckets().get(1).getKeyAsString());
@@ -1300,9 +1303,8 @@ public class CompositeAggregatorTests extends BaseCompositeAggregatorTestCase {
                 DateHistogramValuesSourceBuilder histo = new DateHistogramValuesSourceBuilder("date").field("date")
                     .calendarInterval(DateHistogramInterval.days(1));
                 return new CompositeAggregationBuilder("name", Collections.singletonList(histo)).aggregateAfter(
-                    createAfterKey("date", 1474329600000L)
+                    createAfterKey("date", 1474329600000L) // 2016-09-20T00:00:00
                 );
-
             },
             (result) -> {
                 assertEquals(2, result.getBuckets().size());
@@ -2242,21 +2244,20 @@ public class CompositeAggregatorTests extends BaseCompositeAggregatorTestCase {
         Function<Object, V> transformKey
     ) throws IOException {
         int numTerms = randomIntBetween(10, 500);
-        List<T> terms = new ArrayList<>();
+        List<T> terms = new ArrayList<>(); // possible values for the terms
         for (int i = 0; i < numTerms; i++) {
             terms.add(randomSupplier.get());
         }
         int numDocs = randomIntBetween(100, 200);
         List<Map<String, List<Object>>> dataset = new ArrayList<>();
-
-        Set<T> valuesSet = new HashSet<>();
-        Map<Comparable<?>, AtomicLong> expectedDocCounts = new HashMap<>();
+        Set<T> valuesSet = new HashSet<>(); // how many different values
+        Map<Comparable<?>, AtomicLong> expectedDocCounts = new HashMap<>(); // how many docs for each value
         for (int i = 0; i < numDocs; i++) {
             int numValues = randomIntBetween(1, 5);
             Set<Object> values = new HashSet<>();
             for (int j = 0; j < numValues; j++) {
                 int rand = randomIntBetween(0, terms.size() - 1);
-                if (values.add(terms.get(rand))) {
+                if (values.add(terms.get(rand))) { // values are unique for one doc
                     AtomicLong count = expectedDocCounts.computeIfAbsent(terms.get(rand), (k) -> new AtomicLong(0));
                     count.incrementAndGet();
                     valuesSet.add(terms.get(rand));
@@ -2264,9 +2265,8 @@ public class CompositeAggregatorTests extends BaseCompositeAggregatorTestCase {
             }
             dataset.add(Collections.singletonMap(field, new ArrayList<>(values)));
         }
-        List<T> expected = new ArrayList<>(valuesSet);
+        List<T> expected = new ArrayList<>(valuesSet); // how many buckets expected
         Collections.sort(expected);
-
         List<Comparable<T>> seen = new ArrayList<>();
         AtomicBoolean finish = new AtomicBoolean(false);
         int size = randomIntBetween(1, expected.size());
@@ -2460,6 +2460,43 @@ public class CompositeAggregatorTests extends BaseCompositeAggregatorTestCase {
                     assertEquals("{date=1591142400000, keyword=91640}", result.getBuckets().get(2).getKeyAsString());
                     assertEquals(1L, result.getBuckets().get(2).getDocCount());
                 }
+            );
+        }
+    }
+
+    public void testUnderFilterAggregator() throws IOException {
+        executeTestCase(false, false, new MatchAllDocsQuery(), Collections.emptyList(), () -> {
+            FilterAggregationBuilder filterAggregatorBuilder = new FilterAggregationBuilder(
+                "filter_mcmilterface",
+                new MatchAllQueryBuilder()
+            );
+            filterAggregatorBuilder.subAggregation(
+                new CompositeAggregationBuilder(
+                    "compo",
+                    Collections.singletonList(new TermsValuesSourceBuilder("keyword").field("keyword"))
+                )
+            );
+            return filterAggregatorBuilder;
+        }, (ic) -> {});
+    }
+
+    public void testUnderBucketAggregator() throws IOException {
+        try {
+            executeTestCase(false, false, new MatchAllDocsQuery(), Collections.emptyList(), () -> {
+                TermsAggregationBuilder termsAggregationBuilder = AggregationBuilders.terms("terms").field("keyword");
+                termsAggregationBuilder.subAggregation(
+                    new CompositeAggregationBuilder(
+                        "compo",
+                        Collections.singletonList(new TermsValuesSourceBuilder("keyword").field("keyword"))
+                    )
+                );
+                return termsAggregationBuilder;
+            }, (ic) -> {});
+            fail("Should have thrown an IllegalArgumentException");
+        } catch (IllegalArgumentException iae) {
+            assertTrue(
+                iae.getMessage()
+                    .contains("[composite] aggregation cannot be used with a parent aggregation of type: [TermsAggregatorFactory]")
             );
         }
     }

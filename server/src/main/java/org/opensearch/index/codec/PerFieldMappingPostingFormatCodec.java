@@ -37,11 +37,17 @@ import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.DocValuesFormat;
 import org.apache.lucene.codecs.PostingsFormat;
 import org.apache.lucene.codecs.lucene90.Lucene90DocValuesFormat;
-import org.apache.lucene.codecs.lucene95.Lucene95Codec;
+import org.apache.lucene.codecs.lucene99.Lucene99Codec;
 import org.opensearch.common.lucene.Lucene;
+import org.opensearch.index.codec.fuzzy.FuzzyFilterPostingsFormat;
+import org.opensearch.index.codec.fuzzy.FuzzySetFactory;
+import org.opensearch.index.codec.fuzzy.FuzzySetParameters;
 import org.opensearch.index.mapper.CompletionFieldMapper;
+import org.opensearch.index.mapper.IdFieldMapper;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.MapperService;
+
+import java.util.Map;
 
 /**
  * {@link PerFieldMappingPostingFormatCodec This postings format} is the default
@@ -53,10 +59,12 @@ import org.opensearch.index.mapper.MapperService;
  *
  * @opensearch.internal
  */
-public class PerFieldMappingPostingFormatCodec extends Lucene95Codec {
+public class PerFieldMappingPostingFormatCodec extends Lucene99Codec {
     private final Logger logger;
     private final MapperService mapperService;
     private final DocValuesFormat dvFormat = new Lucene90DocValuesFormat();
+    private final FuzzySetFactory fuzzySetFactory;
+    private PostingsFormat docIdPostingsFormat;
 
     static {
         assert Codec.forName(Lucene.LATEST_CODEC).getClass().isAssignableFrom(PerFieldMappingPostingFormatCodec.class)
@@ -67,6 +75,12 @@ public class PerFieldMappingPostingFormatCodec extends Lucene95Codec {
         super(compressionMode);
         this.mapperService = mapperService;
         this.logger = logger;
+        fuzzySetFactory = new FuzzySetFactory(
+            Map.of(
+                IdFieldMapper.NAME,
+                new FuzzySetParameters(() -> mapperService.getIndexSettings().getDocIdFuzzySetFalsePositiveProbability())
+            )
+        );
     }
 
     @Override
@@ -76,6 +90,11 @@ public class PerFieldMappingPostingFormatCodec extends Lucene95Codec {
             logger.warn("no index mapper found for field: [{}] returning default postings format", field);
         } else if (fieldType instanceof CompletionFieldMapper.CompletionFieldType) {
             return CompletionFieldMapper.CompletionFieldType.postingsFormat();
+        } else if (IdFieldMapper.NAME.equals(field) && mapperService.getIndexSettings().isEnableFuzzySetForDocId()) {
+            if (docIdPostingsFormat == null) {
+                docIdPostingsFormat = new FuzzyFilterPostingsFormat(super.getPostingsFormatForField(field), fuzzySetFactory);
+            }
+            return docIdPostingsFormat;
         }
         return super.getPostingsFormatForField(field);
     }

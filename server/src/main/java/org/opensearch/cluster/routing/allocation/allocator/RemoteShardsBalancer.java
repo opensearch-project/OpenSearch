@@ -43,6 +43,8 @@ public final class RemoteShardsBalancer extends ShardsBalancer {
     private final Logger logger;
     private final RoutingAllocation allocation;
     private final RoutingNodes routingNodes;
+    // indicates if there are any nodes being throttled for allocating any unassigned shards
+    private boolean anyNodesThrottled = false;
 
     public RemoteShardsBalancer(Logger logger, RoutingAllocation allocation) {
         this.logger = logger;
@@ -84,29 +86,48 @@ public final class RemoteShardsBalancer extends ShardsBalancer {
         Queue<RoutingNode> excludedNodes = new ArrayDeque<>();
         classifyNodesForShardMovement(eligibleNodes, excludedNodes);
 
-        if (excludedNodes.isEmpty()) {
-            logger.debug("No excluded nodes found. Returning...");
-            return;
-        }
-
-        while (!eligibleNodes.isEmpty() && !excludedNodes.isEmpty()) {
-            RoutingNode sourceNode = excludedNodes.poll();
-            for (ShardRouting ineligibleShard : sourceNode) {
-                if (ineligibleShard.started() == false) {
+        // move shards that cannot remain on eligible nodes
+        final List<ShardRouting> forceMoveShards = new ArrayList<>();
+        eligibleNodes.forEach(sourceNode -> {
+            for (final ShardRouting shardRouting : sourceNode) {
+                if (ineligibleForMove(shardRouting)) {
                     continue;
                 }
 
-                if (!RoutingPool.REMOTE_CAPABLE.equals(RoutingPool.getShardPool(ineligibleShard, allocation))) {
+                if (allocation.deciders().canRemain(shardRouting, sourceNode, allocation) == Decision.NO) {
+                    forceMoveShards.add(shardRouting);
+                }
+            }
+        });
+        for (final ShardRouting shard : forceMoveShards) {
+            if (eligibleNodes.isEmpty()) {
+                logger.trace("there are no eligible nodes available, return");
+                return;
+            }
+
+            tryShardMovementToEligibleNode(eligibleNodes, shard);
+        }
+
+        // move shards that are currently assigned on excluded nodes
+        while (eligibleNodes.isEmpty() == false && excludedNodes.isEmpty() == false) {
+            RoutingNode sourceNode = excludedNodes.poll();
+            for (final ShardRouting ineligibleShard : sourceNode) {
+                if (ineligibleForMove(ineligibleShard)) {
                     continue;
                 }
 
                 if (eligibleNodes.isEmpty()) {
-                    break;
+                    logger.trace("there are no eligible nodes available, return");
+                    return;
                 }
 
                 tryShardMovementToEligibleNode(eligibleNodes, ineligibleShard);
             }
         }
+    }
+
+    private boolean ineligibleForMove(ShardRouting shard) {
+        return shard.started() == false || RoutingPool.REMOTE_CAPABLE.equals(RoutingPool.getShardPool(shard, allocation)) == false;
     }
 
     /**
@@ -145,10 +166,23 @@ public final class RemoteShardsBalancer extends ShardsBalancer {
      * @param shard the ineligible shard to be moved
      */
     private void tryShardMovementToEligibleNode(Queue<RoutingNode> eligibleNodes, ShardRouting shard) {
-        Set<String> nodesCheckedForShard = new HashSet<>();
-        while (!eligibleNodes.isEmpty()) {
-            RoutingNode targetNode = eligibleNodes.poll();
-            Decision currentShardDecision = allocation.deciders().canAllocate(shard, targetNode, allocation);
+        final Set<String> nodesCheckedForShard = new HashSet<>();
+        int numNodesToCheck = eligibleNodes.size();
+        while (eligibleNodes.isEmpty() == false) {
+            assert numNodesToCheck > 0;
+            final RoutingNode targetNode = eligibleNodes.poll();
+            --numNodesToCheck;
+            // skip the node that the target shard is currently allocated on
+            if (targetNode.nodeId().equals(shard.currentNodeId())) {
+                assert nodesCheckedForShard.add(targetNode.nodeId());
+                eligibleNodes.offer(targetNode);
+                if (numNodesToCheck == 0) {
+                    return;
+                }
+                continue;
+            }
+
+            final Decision currentShardDecision = allocation.deciders().canAllocate(shard, targetNode, allocation);
 
             if (currentShardDecision.type() == Decision.Type.YES) {
                 if (logger.isDebugEnabled()) {
@@ -166,7 +200,7 @@ public final class RemoteShardsBalancer extends ShardsBalancer {
                     allocation.changes()
                 );
                 eligibleNodes.offer(targetNode);
-                break;
+                return;
             } else {
                 if (logger.isTraceEnabled()) {
                     logger.trace(
@@ -177,18 +211,19 @@ public final class RemoteShardsBalancer extends ShardsBalancer {
                     );
                 }
 
-                Decision nodeLevelDecision = allocation.deciders().canAllocateAnyShardToNode(targetNode, allocation);
+                final Decision nodeLevelDecision = allocation.deciders().canAllocateAnyShardToNode(targetNode, allocation);
                 if (nodeLevelDecision.type() == Decision.Type.YES) {
                     logger.debug("Node: [{}] can still accept shards. Adding it back to the queue.", targetNode.nodeId());
                     eligibleNodes.offer(targetNode);
-                    nodesCheckedForShard.add(targetNode.nodeId());
+                    assert nodesCheckedForShard.add(targetNode.nodeId());
                 } else {
                     logger.debug("Node: [{}] cannot accept any more shards. Removing it from queue.", targetNode.nodeId());
                 }
 
-                // Break out if all nodes in the queue have been checked for this shard
-                if (eligibleNodes.stream().allMatch(rn -> nodesCheckedForShard.contains(rn.nodeId()))) {
-                    break;
+                // Break out if all eligible nodes have been examined
+                if (numNodesToCheck == 0) {
+                    assert eligibleNodes.stream().allMatch(rn -> nodesCheckedForShard.contains(rn.nodeId()));
+                    return;
                 }
             }
         }
@@ -225,7 +260,7 @@ public final class RemoteShardsBalancer extends ShardsBalancer {
             }
         }
 
-        while (!sourceNodes.isEmpty() && !targetNodes.isEmpty()) {
+        while (sourceNodes.isEmpty() == false && targetNodes.isEmpty() == false) {
             RoutingNode sourceNode = sourceNodes.poll();
             tryRebalanceNode(sourceNode, targetNodes, avgPrimaryPerNode, nodePrimaryShardCount);
         }
@@ -275,11 +310,11 @@ public final class RemoteShardsBalancer extends ShardsBalancer {
         HashMap<String, UnassignedIndexShards> unassignedShardMap = new HashMap<>();
         for (ShardRouting shard : routingNodes.unassigned().drain()) {
             String index = shard.getIndexName();
-            if (!RoutingPool.REMOTE_CAPABLE.equals(RoutingPool.getShardPool(shard, allocation))) {
+            if (RoutingPool.REMOTE_CAPABLE.equals(RoutingPool.getShardPool(shard, allocation)) == false) {
                 routingNodes.unassigned().add(shard);
                 continue;
             }
-            if (!unassignedShardMap.containsKey(index)) {
+            if (unassignedShardMap.containsKey(index) == false) {
                 unassignedShardMap.put(index, new UnassignedIndexShards());
             }
             unassignedShardMap.get(index).addShard(shard);
@@ -296,13 +331,15 @@ public final class RemoteShardsBalancer extends ShardsBalancer {
         RoutingNodes.UnassignedShards unassignedShards = routingAllocation.routingNodes().unassigned();
         for (ShardRouting shard : unassignedShards.drainIgnored()) {
             RoutingPool pool = RoutingPool.getShardPool(shard, routingAllocation);
-            if (pool == RoutingPool.REMOTE_CAPABLE && shard.unassigned() && (shard.primary() || !shard.unassignedInfo().isDelayed())) {
+            if (pool == RoutingPool.REMOTE_CAPABLE
+                && shard.unassigned()
+                && (shard.primary() || shard.unassignedInfo().isDelayed() == false)) {
                 ShardRouting unassignedShard = shard;
                 // Shard when moved to an unassigned state updates the recovery source to be ExistingStoreRecoverySource
                 // Remote shards do not have an existing store to recover from and can be recovered from an empty source
                 // to re-fetch any shard blocks from the repository.
                 if (shard.primary()) {
-                    if (!RecoverySource.Type.SNAPSHOT.equals(shard.recoverySource().getType())) {
+                    if (RecoverySource.Type.SNAPSHOT.equals(shard.recoverySource().getType()) == false) {
                         unassignedShard = shard.updateUnassigned(shard.unassignedInfo(), RecoverySource.EmptyStoreRecoverySource.INSTANCE);
                     }
                 }
@@ -323,12 +360,16 @@ public final class RemoteShardsBalancer extends ShardsBalancer {
     }
 
     private void ignoreRemainingShards(Map<String, UnassignedIndexShards> unassignedShardMap) {
+        // If any nodes are throttled during allocation, mark all remaining unassigned shards as THROTTLED
+        final UnassignedInfo.AllocationStatus status = anyNodesThrottled
+            ? UnassignedInfo.AllocationStatus.DECIDERS_THROTTLED
+            : UnassignedInfo.AllocationStatus.DECIDERS_NO;
         for (UnassignedIndexShards indexShards : unassignedShardMap.values()) {
             for (ShardRouting shard : indexShards.getPrimaries()) {
-                routingNodes.unassigned().ignoreShard(shard, UnassignedInfo.AllocationStatus.DECIDERS_NO, allocation.changes());
+                routingNodes.unassigned().ignoreShard(shard, status, allocation.changes());
             }
             for (ShardRouting shard : indexShards.getReplicas()) {
-                routingNodes.unassigned().ignoreShard(shard, UnassignedInfo.AllocationStatus.DECIDERS_NO, allocation.changes());
+                routingNodes.unassigned().ignoreShard(shard, status, allocation.changes());
             }
         }
     }
@@ -353,7 +394,7 @@ public final class RemoteShardsBalancer extends ShardsBalancer {
             }
             logger.debug("Allocating shards for index: [{}]", index);
 
-            while (!shardsToAllocate.isEmpty() && !nodeQueue.isEmpty()) {
+            while (shardsToAllocate.isEmpty() == false && nodeQueue.isEmpty() == false) {
                 ShardRouting shard = shardsToAllocate.poll();
                 if (shard.assignedToNode()) {
                     if (logger.isDebugEnabled()) {
@@ -389,11 +430,11 @@ public final class RemoteShardsBalancer extends ShardsBalancer {
     private void tryAllocateUnassignedShard(Queue<RoutingNode> nodeQueue, ShardRouting shard) {
         boolean allocated = false;
         boolean throttled = false;
-        Set<String> nodesCheckedForShard = new HashSet<>();
-        while (!nodeQueue.isEmpty()) {
+        int numNodesToCheck = nodeQueue.size();
+        while (nodeQueue.isEmpty() == false) {
             RoutingNode node = nodeQueue.poll();
+            --numNodesToCheck;
             Decision allocateDecision = allocation.deciders().canAllocate(shard, node, allocation);
-            nodesCheckedForShard.add(node.nodeId());
             if (allocateDecision.type() == Decision.Type.YES) {
                 if (logger.isTraceEnabled()) {
                     logger.trace("Assigned shard [{}] to [{}]", shardShortSummary(shard), node.nodeId());
@@ -432,6 +473,10 @@ public final class RemoteShardsBalancer extends ShardsBalancer {
                     }
                     nodeQueue.offer(node);
                 } else {
+                    if (nodeLevelDecision.type() == Decision.Type.THROTTLE) {
+                        anyNodesThrottled = true;
+                    }
+
                     if (logger.isTraceEnabled()) {
                         logger.trace(
                             "Cannot allocate any shard to node: [{}]. Removing from queue. Node level decisions: [{}],[{}]",
@@ -443,14 +488,14 @@ public final class RemoteShardsBalancer extends ShardsBalancer {
                 }
 
                 // Break out if all nodes in the queue have been checked for this shard
-                if (nodeQueue.stream().allMatch(rn -> nodesCheckedForShard.contains(rn.nodeId()))) {
+                if (numNodesToCheck == 0) {
                     break;
                 }
             }
         }
 
-        if (!allocated) {
-            UnassignedInfo.AllocationStatus status = throttled
+        if (allocated == false) {
+            UnassignedInfo.AllocationStatus status = (throttled || anyNodesThrottled)
                 ? UnassignedInfo.AllocationStatus.DECIDERS_THROTTLED
                 : UnassignedInfo.AllocationStatus.DECIDERS_NO;
             routingNodes.unassigned().ignoreShard(shard, status, allocation.changes());
@@ -470,18 +515,24 @@ public final class RemoteShardsBalancer extends ShardsBalancer {
 
         // Try to relocate the valid shards on the sourceNode, one at a time;
         // until either sourceNode is balanced OR no more active primary shard available OR all the target nodes are exhausted
-        while (shardsToBalance > 0 && shardIterator.hasNext() && !targetNodes.isEmpty()) {
+        while (shardsToBalance > 0 && shardIterator.hasNext() && targetNodes.isEmpty() == false) {
             // Find an active primary shard to relocate
             ShardRouting shard = shardIterator.next();
-            if (!shard.started() || !shard.primary() || !RoutingPool.REMOTE_CAPABLE.equals(RoutingPool.getShardPool(shard, allocation))) {
+            if (shard.started() == false
+                || shard.primary() == false
+                || RoutingPool.REMOTE_CAPABLE.equals(RoutingPool.getShardPool(shard, allocation)) == false) {
                 continue;
             }
 
-            while (!targetNodes.isEmpty()) {
+            while (targetNodes.isEmpty() == false) {
                 // Find a valid target node that can accommodate the current shard relocation
                 RoutingNode targetNode = targetNodes.poll();
                 if (primaryCount.get(targetNode.nodeId()) >= avgPrimary) {
                     logger.trace("Avg shard limit reached for node: [{}]. Removing from queue.", targetNode.nodeId());
+                    continue;
+                }
+
+                if (targetNode.getByShardId(shard.shardId()) != null) {
                     continue;
                 }
 
@@ -522,21 +573,10 @@ public final class RemoteShardsBalancer extends ShardsBalancer {
     }
 
     /**
-     * For every primary shard for which this method is invoked,
-     * swap is attempted with the destination node in case replica shard is present.
-     * In case replica is not present, relocation of the shard id performed.
+     * For every primary shard for which this method is invoked, relocation of the shard id performed.
      */
     private Decision tryRelocateShard(ShardRouting shard, RoutingNode destinationNode) {
-        // Check if there is already a replica for the shard on the destination node.
-        // Then we can directly swap the replica with the primary shards.
-        // Invariant: We only allow swap relocation on remote shards.
-        ShardRouting replicaShard = destinationNode.getByShardId(shard.shardId());
-        if (replicaShard != null) {
-            assert !replicaShard.primary() : "Primary Shard found while expected Replica during shard rebalance";
-            return executeSwapShard(shard, replicaShard, allocation);
-        }
-
-        // Since no replica present on the destinationNode; try relocating the shard to the destination node
+        assert destinationNode.getByShardId(shard.shardId()) == null;
         Decision allocationDecision = allocation.deciders().canAllocate(shard, destinationNode, allocation);
         Decision rebalanceDecision = allocation.deciders().canRebalance(shard, allocation);
         logger.trace(
@@ -564,15 +604,6 @@ public final class RemoteShardsBalancer extends ShardsBalancer {
         }
 
         return Decision.NO;
-    }
-
-    private Decision executeSwapShard(ShardRouting primaryShard, ShardRouting replicaShard, RoutingAllocation allocation) {
-        if (!replicaShard.started()) {
-            return new Decision.Single(Decision.Type.NO);
-        }
-
-        allocation.routingNodes().swapPrimaryWithReplica(logger, primaryShard, replicaShard, allocation.changes());
-        return new Decision.Single(Decision.Type.YES);
     }
 
     private void failUnattemptedShards() {

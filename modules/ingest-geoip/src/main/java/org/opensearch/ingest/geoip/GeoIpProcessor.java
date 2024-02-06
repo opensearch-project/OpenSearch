@@ -218,6 +218,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
         return properties;
     }
 
+    @SuppressWarnings("removal")
     private Map<String, Object> retrieveCityGeoData(InetAddress ipAddress) {
         SpecialPermission.check();
         CityResponse response = AccessController.doPrivileged(
@@ -305,6 +306,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
         return geoData;
     }
 
+    @SuppressWarnings("removal")
     private Map<String, Object> retrieveCountryGeoData(InetAddress ipAddress) {
         SpecialPermission.check();
         CountryResponse response = AccessController.doPrivileged(
@@ -351,6 +353,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
         return geoData;
     }
 
+    @SuppressWarnings("removal")
     private Map<String, Object> retrieveAsnGeoData(InetAddress ipAddress) {
         SpecialPermission.check();
         AsnResponse response = AccessController.doPrivileged(

@@ -84,6 +84,7 @@ import static com.carrotsearch.randomizedtesting.RandomizedTest.systemPropertyAs
  * The idea is to mimic as much as possible what happens with ES in production
  * mode (e.g. assign permissions and install security manager the same way)
  */
+@SuppressWarnings("removal")
 public class BootstrapForTesting {
 
     // TODO: can we share more code with the non-test side here
