@@ -9,12 +9,15 @@
 package org.opensearch.plugin.insights;
 
 import org.opensearch.action.search.SearchType;
+import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.util.Maps;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.plugin.insights.rules.action.top_queries.TopQueries;
 import org.opensearch.plugin.insights.rules.model.Attribute;
 import org.opensearch.plugin.insights.rules.model.MetricType;
 import org.opensearch.plugin.insights.rules.model.SearchQueryRecord;
+import org.opensearch.test.VersionUtils;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -26,7 +29,11 @@ import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
 
+import static java.util.Collections.emptyMap;
+import static java.util.Collections.emptySet;
 import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.opensearch.test.OpenSearchTestCase.buildNewFakeTransportAddress;
+import static org.opensearch.test.OpenSearchTestCase.random;
 import static org.opensearch.test.OpenSearchTestCase.randomAlphaOfLengthBetween;
 import static org.opensearch.test.OpenSearchTestCase.randomArray;
 import static org.opensearch.test.OpenSearchTestCase.randomDouble;
@@ -77,6 +84,33 @@ final public class QueryInsightsTestUtils {
             timestamp += interval;
         }
         return records;
+    }
+
+    public static TopQueries createRandomTopQueries() {
+        DiscoveryNode node = new DiscoveryNode(
+            "node_for_top_queries_test",
+            buildNewFakeTransportAddress(),
+            emptyMap(),
+            emptySet(),
+            VersionUtils.randomVersion(random())
+        );
+        List<SearchQueryRecord> records = generateQueryInsightRecords(10);
+
+        return new TopQueries(node, records);
+    }
+
+    public static TopQueries createFixedTopQueries() {
+        DiscoveryNode node = new DiscoveryNode(
+            "node_for_top_queries_test",
+            buildNewFakeTransportAddress(),
+            emptyMap(),
+            emptySet(),
+            VersionUtils.randomVersion(random())
+        );
+        List<SearchQueryRecord> records = new ArrayList<>();
+        records.add(createFixedSearchQueryRecord());
+
+        return new TopQueries(node, records);
     }
 
     public static SearchQueryRecord createFixedSearchQueryRecord() {

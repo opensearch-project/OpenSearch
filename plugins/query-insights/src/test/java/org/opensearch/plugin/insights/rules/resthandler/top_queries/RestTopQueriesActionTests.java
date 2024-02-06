@@ -9,11 +9,13 @@
 package org.opensearch.plugin.insights.rules.resthandler.top_queries;
 
 import org.opensearch.plugin.insights.rules.action.top_queries.TopQueriesRequest;
+import org.opensearch.rest.RestHandler;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.rest.FakeRestRequest;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
@@ -24,7 +26,6 @@ public class RestTopQueriesActionTests extends OpenSearchTestCase {
     public void testEmptyNodeIdsValidType() {
         Map<String, String> params = new HashMap<>();
         params.put("type", randomFrom(ALLOWED_METRICS));
-
         RestRequest restRequest = buildRestRequest(params);
         TopQueriesRequest actual = RestTopQueriesAction.prepareRequest(restRequest);
         assertEquals(0, actual.nodesIds().length);
@@ -51,6 +52,13 @@ public class RestTopQueriesActionTests extends OpenSearchTestCase {
             String.format(Locale.ROOT, "request [/_insights/top_queries] contains invalid metric type [%s]", params.get("type")),
             exception.getMessage()
         );
+    }
+
+    public void testGetRoutes() {
+        RestTopQueriesAction action = new RestTopQueriesAction();
+        List<RestHandler.Route> routes = action.routes();
+        assertEquals(2, routes.size());
+        assertEquals("query_insights_top_queries_action", action.getName());
     }
 
     private FakeRestRequest buildRestRequest(Map<String, String> params) {

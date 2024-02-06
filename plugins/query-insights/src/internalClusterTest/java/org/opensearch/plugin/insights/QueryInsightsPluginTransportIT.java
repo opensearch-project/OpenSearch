@@ -81,7 +81,7 @@ public class QueryInsightsPluginTransportIT extends OpenSearchIntegTestCase {
         TopQueriesResponse response = OpenSearchIntegTestCase.client().execute(TopQueriesAction.INSTANCE, request).actionGet();
         Assert.assertNotEquals(0, response.failures().size());
         Assert.assertEquals(
-            "Cannot get top n queries when [search.top_n_queries.latency.enabled] is not enabled.",
+            "Cannot get top n queries for [latency] when it is not enabled.",
             response.failures().get(0).getCause().getCause().getMessage()
         );
     }
@@ -121,7 +121,7 @@ public class QueryInsightsPluginTransportIT extends OpenSearchIntegTestCase {
         TopQueriesResponse response = OpenSearchIntegTestCase.client().execute(TopQueriesAction.INSTANCE, request).actionGet();
         Assert.assertNotEquals(0, response.failures().size());
         Assert.assertEquals(
-            "Cannot get top n queries when [search.top_n_queries.latency.enabled] is not enabled.",
+            "Cannot get top n queries for [latency] when it is not enabled.",
             response.failures().get(0).getCause().getCause().getMessage()
         );
 

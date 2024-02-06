@@ -25,7 +25,11 @@ import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.env.Environment;
 import org.opensearch.env.NodeEnvironment;
+import org.opensearch.plugin.insights.core.listener.QueryInsightsListener;
 import org.opensearch.plugin.insights.core.service.QueryInsightsService;
+import org.opensearch.plugin.insights.rules.action.top_queries.TopQueriesAction;
+import org.opensearch.plugin.insights.rules.resthandler.top_queries.RestTopQueriesAction;
+import org.opensearch.plugin.insights.rules.transport.top_queries.TransportTopQueriesAction;
 import org.opensearch.plugin.insights.settings.QueryInsightsSettings;
 import org.opensearch.plugins.ActionPlugin;
 import org.opensearch.plugins.Plugin;
@@ -67,7 +71,7 @@ public class QueryInsightsPlugin extends Plugin implements ActionPlugin {
     ) {
         // create top n queries service
         final QueryInsightsService queryInsightsService = new QueryInsightsService(threadPool);
-        return List.of(queryInsightsService);
+        return List.of(queryInsightsService, new QueryInsightsListener(clusterService, queryInsightsService));
     }
 
     @Override
@@ -92,12 +96,12 @@ public class QueryInsightsPlugin extends Plugin implements ActionPlugin {
         final IndexNameExpressionResolver indexNameExpressionResolver,
         final Supplier<DiscoveryNodes> nodesInCluster
     ) {
-        return List.of();
+        return List.of(new RestTopQueriesAction());
     }
 
     @Override
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
-        return List.of();
+        return List.of(new ActionPlugin.ActionHandler<>(TopQueriesAction.INSTANCE, TransportTopQueriesAction.class));
     }
 
     @Override
