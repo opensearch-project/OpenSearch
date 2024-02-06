@@ -49,7 +49,6 @@ import org.hamcrest.MatcherAssert;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
-import java.net.Proxy;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.security.KeyPair;
@@ -271,8 +270,7 @@ public class GoogleCloudStorageServiceTests extends OpenSearchTestCase {
             connectTimeValue,
             readTimeValue,
             applicationName,
-            new URI(""),
-            new ProxySettings(Proxy.Type.DIRECT, null, 0, null, null)
+            new URI("")
         );
     }
 
