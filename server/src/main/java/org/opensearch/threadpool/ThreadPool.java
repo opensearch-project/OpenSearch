@@ -295,7 +295,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
             new AutoQueueAdjustingExecutorBuilder(
                 settings,
                 Names.INDEX_SEARCHER,
-                allocatedProcessors,
+                twiceAllocatedProcessors(allocatedProcessors),
                 1000,
                 1000,
                 1000,
