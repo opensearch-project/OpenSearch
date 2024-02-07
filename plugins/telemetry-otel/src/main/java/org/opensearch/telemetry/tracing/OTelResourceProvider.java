@@ -12,7 +12,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.telemetry.TelemetrySettings;
 import org.opensearch.telemetry.metrics.exporter.OTelMetricsExporterFactory;
 import org.opensearch.telemetry.tracing.exporter.OTelSpanExporterFactory;
-import org.opensearch.telemetry.tracing.sampler.ProbabilisticSampler;
+import org.opensearch.telemetry.tracing.sampler.OTelSamplerFactory;
 import org.opensearch.telemetry.tracing.sampler.RequestSampler;
 
 import java.security.AccessController;
@@ -60,7 +60,7 @@ public final class OTelResourceProvider {
                 settings,
                 OTelSpanExporterFactory.create(settings),
                 ContextPropagators.create(W3CTraceContextPropagator.getInstance()),
-                Sampler.parentBased(new RequestSampler(new ProbabilisticSampler(telemetrySettings)))
+                Sampler.parentBased(new RequestSampler(OTelSamplerFactory.create(telemetrySettings, settings)))
             )
         );
     }
