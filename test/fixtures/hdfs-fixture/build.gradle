@@ -45,6 +45,7 @@ dependencies {
     exclude module: "logback-core"
     exclude module: "logback-classic"
     exclude module: "avro"
+    exclude group: 'org.apache.kerby'
   }
 
   api "org.codehaus.jettison:jettison:${versions.jettison}"
@@ -65,6 +66,7 @@ dependencies {
   api "org.eclipse.jetty.websocket:javax-websocket-server-impl:${versions.jetty}"
   api "ch.qos.logback:logback-core:1.2.13"
   api "ch.qos.logback:logback-classic:1.2.13"
+  api 'org.apache.kerby:kerb-admin:2.0.3'
   runtimeOnly "com.google.guava:guava:${versions.guava}"
   runtimeOnly("com.squareup.okhttp3:okhttp:4.11.0") {
     exclude group: "com.squareup.okio"
