@@ -66,7 +66,6 @@ public class TelemetrySettings {
 
     private volatile boolean tracingEnabled;
     private volatile double samplingProbability;
-
     private final boolean tracingFeatureEnabled;
     private final boolean metricsFeatureEnabled;
 
@@ -98,6 +97,7 @@ public class TelemetrySettings {
 
     /**
      * Get sampling ratio
+     * @return double
      */
     public double getSamplingProbability() {
         return samplingProbability;
@@ -110,4 +110,5 @@ public class TelemetrySettings {
     public boolean isMetricsFeatureEnabled() {
         return metricsFeatureEnabled;
     }
+
 }
