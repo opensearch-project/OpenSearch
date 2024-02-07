@@ -50,6 +50,7 @@ dependencies {
     exclude module: "logback-core"
     exclude module: "logback-classic"
     exclude module: "avro"
+    exclude group: 'org.apache.kerby'
   }
   api "org.codehaus.jettison:jettison:${versions.jettison}"
   api "org.apache.commons:commons-compress:${versions.commonscompress}"
@@ -71,6 +72,7 @@ dependencies {
   api "commons-net:commons-net:3.10.0"
   api "ch.qos.logback:logback-core:1.2.13"
   api "ch.qos.logback:logback-classic:1.2.13"
+  api 'org.apache.kerby:kerb-admin:2.0.3'
   runtimeOnly "com.google.guava:guava:${versions.guava}"
   runtimeOnly("com.squareup.okhttp3:okhttp:4.12.0") {
     exclude group: "com.squareup.okio"
