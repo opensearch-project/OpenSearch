@@ -36,4 +36,15 @@ public interface MetricsRegistry extends Closeable {
      * @return counter.
      */
     Counter createUpDownCounter(String name, String description, String unit);
+
+    /**
+     * Creates the histogram type of Metric. Implementation framework will take care
+     * of the bucketing strategy.
+     *
+     * @param name        name of the histogram.
+     * @param description any description about the metric.
+     * @param unit        unit of the metric.
+     * @return histogram.
+     */
+    Histogram createHistogram(String name, String description, String unit);
 }

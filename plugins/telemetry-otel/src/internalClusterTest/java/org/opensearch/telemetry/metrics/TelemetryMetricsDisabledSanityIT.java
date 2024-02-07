@@ -15,6 +15,7 @@ import org.opensearch.telemetry.IntegrationTestOTelTelemetryPlugin;
 import org.opensearch.telemetry.OTelTelemetrySettings;
 import org.opensearch.telemetry.TelemetrySettings;
 import org.opensearch.telemetry.metrics.noop.NoopCounter;
+import org.opensearch.telemetry.metrics.noop.NoopHistogram;
 import org.opensearch.telemetry.metrics.noop.NoopMetricsRegistry;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
@@ -53,10 +54,13 @@ public class TelemetryMetricsDisabledSanityIT extends OpenSearchIntegTestCase {
         Counter counter = metricsRegistry.createCounter("test-counter", "test", "1");
         counter.add(1.0);
 
+        Histogram histogram = metricsRegistry.createHistogram("test-histogram", "test", "1");
+
         Thread.sleep(2000);
 
         assertTrue(metricsRegistry instanceof NoopMetricsRegistry);
         assertTrue(counter instanceof NoopCounter);
+        assertTrue(histogram instanceof NoopHistogram);
     }
 
 }
