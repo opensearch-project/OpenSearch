@@ -67,6 +67,7 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.index.TieredMergePolicy;
+import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.ReferenceManager;
@@ -77,7 +78,9 @@ import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TotalHitCountCollector;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.FSDirectory;
 import org.apache.lucene.store.Lock;
+import org.apache.lucene.store.NIOFSDirectory;
 import org.apache.lucene.tests.mockfile.ExtrasFS;
 import org.apache.lucene.tests.store.MockDirectoryWrapper;
 import org.apache.lucene.util.Bits;
@@ -94,6 +97,7 @@ import org.opensearch.cluster.routing.ShardRoutingState;
 import org.opensearch.cluster.routing.TestShardRouting;
 import org.opensearch.common.CheckedBiConsumer;
 import org.opensearch.common.CheckedRunnable;
+import org.opensearch.common.Nullable;
 import org.opensearch.common.Randomness;
 import org.opensearch.common.SetOnce;
 import org.opensearch.common.TriFunction;
@@ -164,6 +168,7 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.charset.Charset;
+import java.nio.file.DirectoryIteratorException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -8087,5 +8092,75 @@ public class InternalEngineTests extends EngineTestCase {
 
         store.close();
         engine.close();
+    }
+
+    public void testFailEngineWithNonIOException() throws IOException {
+        FSDirectory directory = new ListFailedDirectory(createTempDir("index-fail-engine"));
+        final ReferenceManager.RefreshListener emptyRefreshListener = new ReferenceManager.RefreshListener() {
+            @Override
+            public void beforeRefresh() {
+
+            }
+
+            @Override
+            public void afterRefresh(boolean didRefresh) {
+
+            }
+        };
+
+        try (Store store = createStore(directory)) {
+            final AtomicBoolean listenerCalled = new AtomicBoolean(false);
+            final Engine.EventListener eventListener = new Engine.EventListener() {
+                public void onFailedEngine(String reason, @Nullable Exception e) {
+                    listenerCalled.set(true);
+                }
+            };
+
+            final EngineConfig config = config(
+                defaultSettings,
+                store,
+                createTempDir(),
+                newMergePolicy(),
+                null,
+                emptyRefreshListener,
+                null,
+                null,
+                null,
+                engine.config().getCircuitBreakerService(),
+                eventListener
+            );
+
+            try (InternalEngine engine = createEngine(config)) {
+                engine.failEngine("Mock failure",
+                    new CorruptIndexException("MockedIndex", "Mocked Device busy"));
+            }
+
+            Assert.assertTrue(listenerCalled.get());
+        }
+    }
+    private static class ListFailedDirectory extends NIOFSDirectory {
+
+        public ListFailedDirectory(Path path) throws IOException {
+            super(path);
+        }
+
+        @Override
+        public String[] listAll() throws IOException {
+            ensureOpen();
+            if (isCalledByFailEngine()) {
+                throw new DirectoryIteratorException(new IOException("Mocked Device busy"));
+            } else {
+                return super.listAll();
+            }
+        }
+
+        private boolean isCalledByFailEngine() {
+            for (StackTraceElement stackTraceElement : Thread.currentThread().getStackTrace()) {
+                if (stackTraceElement.toString().contains("markStoreCorrupted")) {
+                    return true;
+                }
+            }
+            return false;
+        }
     }
 }

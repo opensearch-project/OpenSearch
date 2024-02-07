@@ -1301,7 +1301,7 @@ public abstract class Engine implements LifecycleAware, Closeable {
                                 store.markStoreCorrupted(
                                     new IOException("failed engine (reason: [" + reason + "])", ExceptionsHelper.unwrapCorruption(failure))
                                 );
-                            } catch (IOException e) {
+                            } catch (Exception e) {
                                 logger.warn("Couldn't mark store corrupted", e);
                             } finally {
                                 store.decRef();
