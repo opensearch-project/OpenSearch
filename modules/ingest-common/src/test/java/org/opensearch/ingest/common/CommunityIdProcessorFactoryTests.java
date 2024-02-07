@@ -18,12 +18,12 @@ import java.util.Map;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 
-public class CommunityIDProcessorFactoryTests extends OpenSearchTestCase {
-    private CommunityIDProcessor.Factory factory;
+public class CommunityIdProcessorFactoryTests extends OpenSearchTestCase {
+    private CommunityIdProcessor.Factory factory;
 
     @Before
     public void init() {
-        factory = new CommunityIDProcessor.Factory();
+        factory = new CommunityIdProcessor.Factory();
     }
 
     public void testCreate() throws Exception {
@@ -42,7 +42,7 @@ public class CommunityIDProcessorFactoryTests extends OpenSearchTestCase {
         config.put("target_field", "community_id_hash");
         config.put("ignore_missing", ignoreMissing);
         String processorTag = randomAlphaOfLength(10);
-        CommunityIDProcessor communityIDProcessor = factory.create(null, processorTag, null, config);
+        CommunityIdProcessor communityIDProcessor = factory.create(null, processorTag, null, config);
         assertThat(communityIDProcessor.getTag(), equalTo(processorTag));
         assertThat(communityIDProcessor.getSourceIPField(), equalTo("source_ip"));
         assertThat(communityIDProcessor.getSourcePortField(), equalTo("source_port"));

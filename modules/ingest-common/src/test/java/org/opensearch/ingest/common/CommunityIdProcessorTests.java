@@ -18,7 +18,7 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class CommunityIDProcessorTests extends OpenSearchTestCase {
+public class CommunityIdProcessorTests extends OpenSearchTestCase {
 
     public void testResolveProtocol() throws Exception {
         Map<String, Object> source = new HashMap<>();
@@ -30,7 +30,7 @@ public class CommunityIDProcessorTests extends OpenSearchTestCase {
 
         String targetFieldName = randomAlphaOfLength(100);
         boolean ignore_missing = randomBoolean();
-        Processor processor = createCommunityIDProcessor(
+        Processor processor = createCommunityIdProcessor(
             "source_ip",
             "source_port",
             "destination_ip",
@@ -62,7 +62,7 @@ public class CommunityIDProcessorTests extends OpenSearchTestCase {
         String protocol = randomAlphaOfLength(10);
         source.put("protocol", protocol);
         IngestDocument ingestDocumentWithProtocol = RandomDocumentPicks.randomIngestDocument(random(), source);
-        Processor processorWithProtocol = createCommunityIDProcessor(
+        Processor processorWithProtocol = createCommunityIdProcessor(
             "source_ip",
             "source_port",
             "destination_ip",
@@ -90,7 +90,7 @@ public class CommunityIDProcessorTests extends OpenSearchTestCase {
         source.put("iana_protocol_number", ianaProtocolNumber);
         IngestDocument ingestDocumentWithProtocolNumber = RandomDocumentPicks.randomIngestDocument(random(), source);
 
-        Processor processorWithProtocolNumber = createCommunityIDProcessor(
+        Processor processorWithProtocolNumber = createCommunityIdProcessor(
             "source_ip",
             "source_port",
             "destination_ip",
@@ -121,7 +121,7 @@ public class CommunityIDProcessorTests extends OpenSearchTestCase {
 
         String targetFieldName = randomAlphaOfLength(100);
         boolean ignore_missing = randomBoolean();
-        Processor processor = createCommunityIDProcessor(
+        Processor processor = createCommunityIdProcessor(
             "source_ip",
             "source_port",
             "destination_ip",
@@ -152,7 +152,7 @@ public class CommunityIDProcessorTests extends OpenSearchTestCase {
         source.put("destination_port", 2000);
         source.put("protocol", "tcp");
         IngestDocument ingestDocumentWithInvalidSourceIP = RandomDocumentPicks.randomIngestDocument(random(), source);
-        Processor processorWithInvalidSourceIP = createCommunityIDProcessor(
+        Processor processorWithInvalidSourceIP = createCommunityIdProcessor(
             "source_ip",
             "source_port",
             "destination_ip",
@@ -180,7 +180,7 @@ public class CommunityIDProcessorTests extends OpenSearchTestCase {
         source.put("protocol", "tcp");
         ignore_missing = randomBoolean();
         IngestDocument ingestDocumentWithEmptyDestIP = RandomDocumentPicks.randomIngestDocument(random(), source);
-        Processor processorWithEmptyDestIP = createCommunityIDProcessor(
+        Processor processorWithEmptyDestIP = createCommunityIdProcessor(
             "source_ip",
             "source_port",
             "destination_ip",
@@ -211,7 +211,7 @@ public class CommunityIDProcessorTests extends OpenSearchTestCase {
         source.put("destination_port", 2000);
         source.put("protocol", "tcp");
         IngestDocument ingestDocumentWithInvalidDestIP = RandomDocumentPicks.randomIngestDocument(random(), source);
-        Processor processorWithInvalidDestIP = createCommunityIDProcessor(
+        Processor processorWithInvalidDestIP = createCommunityIdProcessor(
             "source_ip",
             "source_port",
             "destination_ip",
@@ -238,7 +238,7 @@ public class CommunityIDProcessorTests extends OpenSearchTestCase {
         source.put("protocol", "tcp");
         ignore_missing = randomBoolean();
         IngestDocument normalIngestDocument = RandomDocumentPicks.randomIngestDocument(random(), source);
-        Processor processorWithEmptySourceIPFieldPath = createCommunityIDProcessor(
+        Processor processorWithEmptySourceIPFieldPath = createCommunityIdProcessor(
             "",
             "source_port",
             "destination_ip",
@@ -262,7 +262,7 @@ public class CommunityIDProcessorTests extends OpenSearchTestCase {
             );
         }
         ignore_missing = randomBoolean();
-        Processor processorWithEmptyDestIPFieldPath = createCommunityIDProcessor(
+        Processor processorWithEmptyDestIPFieldPath = createCommunityIdProcessor(
             "source_ip",
             "source_port",
             "",
@@ -294,7 +294,7 @@ public class CommunityIDProcessorTests extends OpenSearchTestCase {
         source.put("protocol", "tcp");
         ignore_missing = randomBoolean();
         IngestDocument ingestDocumentWithEmptySourcePort = RandomDocumentPicks.randomIngestDocument(random(), source);
-        Processor processorWithEmptySourcePort = createCommunityIDProcessor(
+        Processor processorWithEmptySourcePort = createCommunityIdProcessor(
             "source_ip",
             "source_port",
             "destination_ip",
@@ -325,7 +325,7 @@ public class CommunityIDProcessorTests extends OpenSearchTestCase {
         source.put("destination_port", 2000);
         source.put("protocol", "tcp");
         IngestDocument ingestDocumentWithInvalidSourcePort = RandomDocumentPicks.randomIngestDocument(random(), source);
-        Processor processorWithInvalidSourcePort = createCommunityIDProcessor(
+        Processor processorWithInvalidSourcePort = createCommunityIdProcessor(
             "source_ip",
             "source_port",
             "destination_ip",
@@ -352,7 +352,7 @@ public class CommunityIDProcessorTests extends OpenSearchTestCase {
         source.put("protocol", "tcp");
         ignore_missing = randomBoolean();
         IngestDocument ingestDocumentWithEmptyDestPort = RandomDocumentPicks.randomIngestDocument(random(), source);
-        Processor processorWithEmptyDestPort = createCommunityIDProcessor(
+        Processor processorWithEmptyDestPort = createCommunityIdProcessor(
             "source_ip",
             "source_port",
             "destination_ip",
@@ -383,7 +383,7 @@ public class CommunityIDProcessorTests extends OpenSearchTestCase {
         source.put("destination_port", -1);
         source.put("protocol", "tcp");
         IngestDocument ingestDocumentWithInvalidDestPort = RandomDocumentPicks.randomIngestDocument(random(), source);
-        Processor processorWithInvalidDestPort = createCommunityIDProcessor(
+        Processor processorWithInvalidDestPort = createCommunityIdProcessor(
             "source_ip",
             "source_port",
             "destination_ip",
@@ -412,7 +412,7 @@ public class CommunityIDProcessorTests extends OpenSearchTestCase {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), source);
         String targetFieldName = randomAlphaOfLength(100);
         boolean ignoreMissing = randomBoolean();
-        Processor processor = createCommunityIDProcessor(
+        Processor processor = createCommunityIdProcessor(
             "source_ip",
             "source_port",
             "destination_ip",
@@ -444,7 +444,7 @@ public class CommunityIDProcessorTests extends OpenSearchTestCase {
         source.put("icmp_type", null);
         IngestDocument ingestDocumentWithNullType = RandomDocumentPicks.randomIngestDocument(random(), source);
         ignoreMissing = randomBoolean();
-        Processor processorWithNullType = createCommunityIDProcessor(
+        Processor processorWithNullType = createCommunityIdProcessor(
             "source_ip",
             "source_port",
             "destination_ip",
@@ -481,7 +481,7 @@ public class CommunityIDProcessorTests extends OpenSearchTestCase {
         }
         source.put("icmp_type", icmpType);
         IngestDocument ingestDocumentWithInvalidICMPType = RandomDocumentPicks.randomIngestDocument(random(), source);
-        Processor processorWithInvalidICMPType = createCommunityIDProcessor(
+        Processor processorWithInvalidICMPType = createCommunityIdProcessor(
             "source_ip",
             "source_port",
             "destination_ip",
@@ -513,7 +513,7 @@ public class CommunityIDProcessorTests extends OpenSearchTestCase {
         source.put("icmp_type", icmpType);
         IngestDocument ingestDocumentWithNoCode = RandomDocumentPicks.randomIngestDocument(random(), source);
         ignoreMissing = randomBoolean();
-        Processor processorWithNoCode = createCommunityIDProcessor(
+        Processor processorWithNoCode = createCommunityIdProcessor(
             "source_ip",
             null,
             "destination_ip",
@@ -551,7 +551,7 @@ public class CommunityIDProcessorTests extends OpenSearchTestCase {
         source.put("icmp_code", null);
         IngestDocument ingestDocumentWithNullCode = RandomDocumentPicks.randomIngestDocument(random(), source);
         ignoreMissing = randomBoolean();
-        Processor processorWithNullCode = createCommunityIDProcessor(
+        Processor processorWithNullCode = createCommunityIdProcessor(
             "source_ip",
             null,
             "destination_ip",
@@ -594,7 +594,7 @@ public class CommunityIDProcessorTests extends OpenSearchTestCase {
         }
         source.put("icmp_code", icmpCode);
         IngestDocument ingestDocumentWithInvalidCode = RandomDocumentPicks.randomIngestDocument(random(), source);
-        Processor processorWithInvalidCode = createCommunityIDProcessor(
+        Processor processorWithInvalidCode = createCommunityIdProcessor(
             "source_ip",
             null,
             "destination_ip",
@@ -632,7 +632,7 @@ public class CommunityIDProcessorTests extends OpenSearchTestCase {
         String targetFieldName = randomAlphaOfLength(100);
         Processor processor;
         if (isProtocolNameSpecified) {
-            processor = createCommunityIDProcessor(
+            processor = createCommunityIdProcessor(
                 "source_ip",
                 "source_port",
                 "destination_ip",
@@ -646,7 +646,7 @@ public class CommunityIDProcessorTests extends OpenSearchTestCase {
                 randomBoolean()
             );
         } else {
-            processor = createCommunityIDProcessor(
+            processor = createCommunityIdProcessor(
                 "source_ip",
                 "source_port",
                 "destination_ip",
@@ -683,7 +683,7 @@ public class CommunityIDProcessorTests extends OpenSearchTestCase {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), source);
 
         String targetFieldName = randomAlphaOfLength(100);
-        Processor processor = createCommunityIDProcessor(
+        Processor processor = createCommunityIdProcessor(
             "source_ip",
             null,
             "destination_ip",
@@ -720,7 +720,7 @@ public class CommunityIDProcessorTests extends OpenSearchTestCase {
         IngestDocument ingestDocumentWithOnewayFlow = RandomDocumentPicks.randomIngestDocument(random(), source);
 
         targetFieldName = randomAlphaOfLength(100);
-        Processor processorWithOnewayFlow = createCommunityIDProcessor(
+        Processor processorWithOnewayFlow = createCommunityIdProcessor(
             "source_ip",
             null,
             "destination_ip",
@@ -741,8 +741,8 @@ public class CommunityIDProcessorTests extends OpenSearchTestCase {
 
     // test that the hash result is consistent with the known value
     public void testHashResult() throws Exception {
-        int index = randomIntBetween(0, CommunityIDHashInstance.values().length - 1);
-        CommunityIDHashInstance instance = CommunityIDHashInstance.values()[index];
+        int index = randomIntBetween(0, CommunityIdHashInstance.values().length - 1);
+        CommunityIdHashInstance instance = CommunityIdHashInstance.values()[index];
         final boolean isTransportProtocol = instance.name().equals("TCP")
             || instance.name().equals("UDP")
             || instance.name().equals("SCTP");
@@ -757,7 +757,7 @@ public class CommunityIDProcessorTests extends OpenSearchTestCase {
 
             String targetFieldName = randomAlphaOfLength(100);
             boolean ignore_missing = randomBoolean();
-            Processor processor = createCommunityIDProcessor(
+            Processor processor = createCommunityIdProcessor(
                 "source_ip",
                 "source_port",
                 "destination_ip",
@@ -785,7 +785,7 @@ public class CommunityIDProcessorTests extends OpenSearchTestCase {
             IngestDocument ingestDocumentWithReversedDirection = RandomDocumentPicks.randomIngestDocument(random(), source);
 
             targetFieldName = randomAlphaOfLength(100);
-            Processor processorWithReversedDirection = createCommunityIDProcessor(
+            Processor processorWithReversedDirection = createCommunityIdProcessor(
                 "source_ip",
                 "source_port",
                 "destination_ip",
@@ -810,7 +810,7 @@ public class CommunityIDProcessorTests extends OpenSearchTestCase {
 
             String targetFieldName = randomAlphaOfLength(100);
             boolean ignore_missing = randomBoolean();
-            Processor processor = createCommunityIDProcessor(
+            Processor processor = createCommunityIdProcessor(
                 "source_ip",
                 null,
                 "destination_ip",
@@ -830,7 +830,7 @@ public class CommunityIDProcessorTests extends OpenSearchTestCase {
         }
     }
 
-    private enum CommunityIDHashInstance {
+    private enum CommunityIdHashInstance {
         TCP("66.35.250.204", "128.232.110.120", 6, 80, 34855, "1:LQU9qZlK+B5F3KDmev6m5PMibrg="),
         UDP("8.8.8.8", "192.168.1.52", 17, 53, 54585, "1:d/FP5EW3wiY1vCndhwleRRKHowQ="),
         SCTP("192.168.170.8", "192.168.170.56", 132, 7, 7, "1:MP2EtRCAUIZvTw6MxJHLV7N7JDs="),
@@ -844,7 +844,7 @@ public class CommunityIDProcessorTests extends OpenSearchTestCase {
         private final int destPort;
         private final String hash;
 
-        CommunityIDHashInstance(String sourceIp, String destIP, int protocolNumber, int sourcePort, int destPort, String hash) {
+        CommunityIdHashInstance(String sourceIp, String destIP, int protocolNumber, int sourcePort, int destPort, String hash) {
             this.sourceIp = sourceIp;
             this.destIP = destIP;
             this.protocolNumber = protocolNumber;
@@ -878,7 +878,7 @@ public class CommunityIDProcessorTests extends OpenSearchTestCase {
         }
     }
 
-    private static Processor createCommunityIDProcessor(
+    private static Processor createCommunityIdProcessor(
         String sourceIPField,
         String sourcePortField,
         String destinationIPField,
@@ -891,7 +891,7 @@ public class CommunityIDProcessorTests extends OpenSearchTestCase {
         String targetField,
         boolean ignoreMissing
     ) {
-        return new CommunityIDProcessor(
+        return new CommunityIdProcessor(
             randomAlphaOfLength(10),
             null,
             sourceIPField,

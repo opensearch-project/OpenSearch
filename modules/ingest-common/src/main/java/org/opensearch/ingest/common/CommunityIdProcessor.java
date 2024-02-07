@@ -21,7 +21,6 @@ import java.util.Arrays;
 import java.util.Base64;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Set;
 import java.util.stream.Collectors;
 
 import static org.opensearch.ingest.ConfigurationUtils.newConfigurationException;
@@ -30,7 +29,7 @@ import static org.opensearch.ingest.ConfigurationUtils.newConfigurationException
  * Processor that generating community id flow hash for the network flow tuples, the algorithm is defined in
  * <a href="https://github.com/corelight/community-id-spec">Community ID Flow Hashing</a>.
  */
-public class CommunityIDProcessor extends AbstractProcessor {
+public class CommunityIdProcessor extends AbstractProcessor {
     public static final String TYPE = "community_id";
     // the version of the community id flow hashing algorithm
     private static final String COMMUNITY_ID_HASH_VERSION = "1";
@@ -62,7 +61,7 @@ public class CommunityIDProcessor extends AbstractProcessor {
     private final String targetField;
     private final boolean ignoreMissing;
 
-    CommunityIDProcessor(
+    CommunityIdProcessor(
         String tag,
         String description,
         String sourceIPField,
@@ -162,8 +161,7 @@ public class CommunityIDProcessor extends AbstractProcessor {
         // exit quietly if either source port or destination port is null nor empty
         Integer sourcePort = null;
         Integer destinationPort = null;
-        final boolean isTransportProtocol = Protocol.isTransportProtocol(protocol.getProtocolCode());
-        if (isTransportProtocol) {
+        if (protocol.isTransportProtocol()) {
             sourcePort = resolvePort(document, sourcePortField);
             if (sourcePort == null) {
                 return document;
@@ -179,8 +177,7 @@ public class CommunityIDProcessor extends AbstractProcessor {
         // set source port to icmp type, and set dest port to icmp code, so that we can have a generic way to handle
         // all protocols
         boolean isOneway = true;
-        final boolean isICMPProtocol = Protocol.ICMP.getProtocolCode() == protocol.getProtocolCode()
-            || Protocol.ICMP_V6.getProtocolCode() == protocol.getProtocolCode();
+        final boolean isICMPProtocol = Protocol.ICMP == protocol || Protocol.ICMP_V6 == protocol;
         if (isICMPProtocol) {
             Integer icmpType = resolveICMP(document, icmpTypeField, ICMP_MESSAGE_TYPE);
             if (icmpType == null) {
@@ -558,30 +555,22 @@ public class CommunityIDProcessor extends AbstractProcessor {
      * An enumeration of the supported network protocols
      */
     enum Protocol {
-        ICMP((byte) 1),
-        TCP((byte) 6),
-        UDP((byte) 17),
-        ICMP_V6((byte) 58),
-        SCTP((byte) 132);
+        ICMP((byte) 1, false),
+        TCP((byte) 6, true),
+        UDP((byte) 17, true),
+        ICMP_V6((byte) 58, false),
+        SCTP((byte) 132, true);
 
         private final byte protocolCode;
+        private final boolean isTransportProtocol;
 
-        Protocol(int ianaNumber) {
+        Protocol(int ianaNumber, boolean isTransportProtocol) {
             this.protocolCode = Integer.valueOf(ianaNumber).byteValue();
+            this.isTransportProtocol = isTransportProtocol;
         }
-
-        private static final Set<Byte> transportProtocolNumbers = Set.of(
-            TCP.getProtocolCode(),
-            UDP.getProtocolCode(),
-            SCTP.getProtocolCode()
-        );
 
         public static final Map<Byte, Protocol> protocolCodeMap = Arrays.stream(values())
             .collect(Collectors.toMap(Protocol::getProtocolCode, p -> p));
-
-        public static boolean isTransportProtocol(byte ianaProtocolNumber) {
-            return transportProtocolNumbers.contains(ianaProtocolNumber);
-        }
 
         public static Protocol fromProtocolName(String protocolName) {
             String name = protocolName.toUpperCase(Locale.ROOT);
@@ -598,11 +587,15 @@ public class CommunityIDProcessor extends AbstractProcessor {
         public byte getProtocolCode() {
             return this.protocolCode;
         }
+
+        public boolean isTransportProtocol() {
+            return this.isTransportProtocol;
+        }
     }
 
     public static class Factory implements Processor.Factory {
         @Override
-        public CommunityIDProcessor create(
+        public CommunityIdProcessor create(
             Map<String, Processor.Factory> registry,
             String processorTag,
             String description,
@@ -634,7 +627,7 @@ public class CommunityIDProcessor extends AbstractProcessor {
             String targetField = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "target_field", "community_id");
             boolean ignoreMissing = ConfigurationUtils.readBooleanProperty(TYPE, processorTag, config, "ignore_missing", false);
 
-            return new CommunityIDProcessor(
+            return new CommunityIdProcessor(
                 processorTag,
                 description,
                 sourceIPField,
