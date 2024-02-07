@@ -11,6 +11,7 @@ package org.opensearch.telemetry.tracing;
 import org.opensearch.action.bulk.BulkShardRequest;
 import org.opensearch.action.support.replication.ReplicatedWriteRequest;
 import org.opensearch.common.annotation.InternalApi;
+import org.opensearch.common.collect.Tuple;
 import org.opensearch.core.common.Strings;
 import org.opensearch.http.HttpRequest;
 import org.opensearch.rest.RestRequest;
@@ -75,7 +76,9 @@ public final class SpanBuilder {
     }
 
     private static String createSpanName(HttpRequest httpRequest) {
-        return httpRequest.method().name() + SEPARATOR + httpRequest.uri();
+        Tuple<String, String> uriParts = splitUri(httpRequest.uri());
+        String path = uriParts.v1();
+        return httpRequest.method().name() + SEPARATOR + path;
     }
 
     private static Attributes buildSpanAttributes(HttpRequest httpRequest) {
@@ -84,7 +87,24 @@ public final class SpanBuilder {
             .addAttribute(AttributeNames.HTTP_METHOD, httpRequest.method().name())
             .addAttribute(AttributeNames.HTTP_PROTOCOL_VERSION, httpRequest.protocolVersion().name());
         populateHeader(httpRequest, attributes);
+
+        Tuple<String, String> uriParts = splitUri(httpRequest.uri());
+        String query = uriParts.v2();
+        if (query.isBlank() == false) {
+            attributes.addAttribute(AttributeNames.HTTP_REQ_QUERY_PARAMS, query);
+        }
+
         return attributes;
+    }
+
+    private static Tuple<String, String> splitUri(String uri) {
+        int index = uri.indexOf('?');
+        if (index >= 0 && index < uri.length() - 1) {
+            String path = uri.substring(0, index);
+            String query = uri.substring(index + 1);
+            return new Tuple<>(path, query);
+        }
+        return new Tuple<>(uri, "");
     }
 
     private static void populateHeader(HttpRequest httpRequest, Attributes attributes) {
@@ -102,9 +122,8 @@ public final class SpanBuilder {
         if (restRequest != null) {
             try {
                 String methodName = restRequest.method().name();
-                // path() does the decoding, which may give error
-                String path = restRequest.path();
-                spanName = methodName + SEPARATOR + path;
+                String rawPath = restRequest.rawPath();
+                spanName = methodName + SEPARATOR + rawPath;
             } catch (Exception e) {
                 // swallow the exception and keep the default name.
             }
@@ -114,9 +133,16 @@ public final class SpanBuilder {
 
     private static Attributes buildSpanAttributes(RestRequest restRequest) {
         if (restRequest != null) {
-            return Attributes.create()
+            Attributes attributes = Attributes.create()
                 .addAttribute(AttributeNames.REST_REQ_ID, restRequest.getRequestId())
                 .addAttribute(AttributeNames.REST_REQ_RAW_PATH, restRequest.rawPath());
+
+            Tuple<String, String> uriParts = splitUri(restRequest.uri());
+            String query = uriParts.v2();
+            if (query.isBlank() == false) {
+                attributes.addAttribute(AttributeNames.HTTP_REQ_QUERY_PARAMS, query);
+            }
+            return attributes;
         } else {
             return Attributes.EMPTY;
         }
