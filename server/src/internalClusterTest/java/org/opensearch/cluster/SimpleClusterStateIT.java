@@ -32,8 +32,6 @@
 
 package org.opensearch.cluster;
 
-import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
-
 import org.opensearch.Version;
 import org.opensearch.action.admin.cluster.state.ClusterStateResponse;
 import org.opensearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
@@ -65,14 +63,13 @@ import org.opensearch.plugins.ClusterPlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.script.ScriptService;
-import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.watcher.ResourceWatcherService;
 import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -81,7 +78,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 
 import static org.opensearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK;
-import static org.opensearch.indices.IndicesService.CLUSTER_REPLICATION_TYPE_SETTING;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertIndexTemplateExists;
 import static org.hamcrest.Matchers.equalTo;
@@ -94,19 +90,7 @@ import static org.hamcrest.Matchers.is;
  * Checking simple filtering capabilities of the cluster state
  *
  */
-public class SimpleClusterStateIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
-
-    public SimpleClusterStateIT(Settings settings) {
-        super(settings);
-    }
-
-    @ParametersFactory
-    public static Collection<Object[]> parameters() {
-        return Arrays.asList(
-            new Object[][] {
-                new Object[] { Settings.builder().put(CLUSTER_REPLICATION_TYPE_SETTING.getKey(), getRandomReplicationStrategy()).build() } }
-        );
-    }
+public class SimpleClusterStateIT extends OpenSearchIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
@@ -118,7 +102,7 @@ public class SimpleClusterStateIT extends ParameterizedStaticSettingsOpenSearchI
         index("foo", "bar", "1", XContentFactory.jsonBuilder().startObject().field("foo", "foo").endObject());
         index("fuu", "buu", "1", XContentFactory.jsonBuilder().startObject().field("fuu", "fuu").endObject());
         index("baz", "baz", "1", XContentFactory.jsonBuilder().startObject().field("baz", "baz").endObject());
-        refreshAndWaitForReplication();
+        refresh();
     }
 
     public void testRoutingTable() throws Exception {

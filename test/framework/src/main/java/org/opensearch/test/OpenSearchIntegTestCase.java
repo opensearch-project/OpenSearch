@@ -141,7 +141,6 @@ import org.opensearch.index.translog.Translog;
 import org.opensearch.indices.IndicesQueryCache;
 import org.opensearch.indices.IndicesRequestCache;
 import org.opensearch.indices.IndicesService;
-import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.indices.store.IndicesStore;
 import org.opensearch.monitor.os.OsInfo;
 import org.opensearch.node.NodeMocksPlugin;
@@ -2360,8 +2359,8 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
      * caught up with primary shard only when Segment Replication is enabled.
      * This doesn't wait for inactive/non-started replica shards to become active/started.
      */
-    protected void refreshAndWaitForReplication(String... indices) {
-        refresh(indices);
+    protected RefreshResponse refreshAndWaitForReplication(String... indices) {
+        RefreshResponse refreshResponse = refresh(indices);
         if (indices.length == 0) {
             indices = getClusterState().routingTable().indicesRouting().keySet().toArray(String[]::new);
         }
@@ -2403,6 +2402,7 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
+        return refreshResponse;
     }
 
     /**
@@ -2436,16 +2436,6 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
-    }
-
-    /**
-     * Randomly picks replication strategy either as DOCUMENT or SEGMENT.
-     */
-    protected static ReplicationType getRandomReplicationStrategy() {
-//        List<ReplicationType> replicationTypes = new ArrayList<>(Arrays.asList(ReplicationType.values()));
-//        Collections.shuffle(replicationTypes);
-//        return replicationTypes.get(0);
-        return randomBoolean() ? ReplicationType.DOCUMENT : ReplicationType.SEGMENT;
     }
 
 }

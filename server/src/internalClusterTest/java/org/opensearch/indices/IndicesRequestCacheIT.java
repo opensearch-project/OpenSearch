@@ -42,7 +42,6 @@ import org.opensearch.client.Client;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.time.DateFormatter;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.index.cache.request.RequestCacheStats;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.search.aggregations.bucket.global.GlobalAggregationBuilder;
@@ -60,7 +59,6 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 
-import static org.opensearch.indices.IndicesService.CLUSTER_REPLICATION_TYPE_SETTING;
 import static org.opensearch.search.SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING;
 import static org.opensearch.search.aggregations.AggregationBuilders.dateHistogram;
 import static org.opensearch.search.aggregations.AggregationBuilders.dateRange;
@@ -71,7 +69,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
 public class IndicesRequestCacheIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
-
     public IndicesRequestCacheIT(Settings settings) {
         super(settings);
     }
@@ -79,22 +76,9 @@ public class IndicesRequestCacheIT extends ParameterizedStaticSettingsOpenSearch
     @ParametersFactory
     public static Collection<Object[]> parameters() {
         return Arrays.asList(
-            new Object[] {
-                Settings.builder()
-                    .put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), false)
-                    .put(CLUSTER_REPLICATION_TYPE_SETTING.getKey(), getRandomReplicationStrategy())
-                    .build() },
-            new Object[] {
-                Settings.builder()
-                    .put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), true)
-                    .put(CLUSTER_REPLICATION_TYPE_SETTING.getKey(), getRandomReplicationStrategy())
-                    .build() }
+            new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), false).build() },
+            new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), true).build() }
         );
-    }
-
-    @Override
-    protected Settings featureFlagSettings() {
-        return Settings.builder().put(super.featureFlagSettings()).put(FeatureFlags.CONCURRENT_SEGMENT_SEARCH, "true").build();
     }
 
     // One of the primary purposes of the query cache is to cache aggs results
@@ -196,7 +180,7 @@ public class IndicesRequestCacheIT extends ParameterizedStaticSettingsOpenSearch
         // Force merge the index to ensure there can be no background merges during the subsequent searches that would invalidate the cache
         ForceMergeResponse forceMergeResponse = client.admin().indices().prepareForceMerge("index").setFlush(true).get();
         OpenSearchAssertions.assertAllSuccessful(forceMergeResponse);
-        refreshAndWaitForReplication();
+        refresh();
         ensureSearchable("index");
 
         assertCacheState(client, "index", 0, 0);
@@ -266,7 +250,7 @@ public class IndicesRequestCacheIT extends ParameterizedStaticSettingsOpenSearch
         // Force merge the index to ensure there can be no background merges during the subsequent searches that would invalidate the cache
         ForceMergeResponse forceMergeResponse = client.admin().indices().prepareForceMerge("index").setFlush(true).get();
         OpenSearchAssertions.assertAllSuccessful(forceMergeResponse);
-        refreshAndWaitForReplication();
+        refresh();
         ensureSearchable("index");
 
         assertCacheState(client, "index", 0, 0);
@@ -332,7 +316,7 @@ public class IndicesRequestCacheIT extends ParameterizedStaticSettingsOpenSearch
         // Force merge the index to ensure there can be no background merges during the subsequent searches that would invalidate the cache
         ForceMergeResponse forceMergeResponse = client.admin().indices().prepareForceMerge("index").setFlush(true).get();
         OpenSearchAssertions.assertAllSuccessful(forceMergeResponse);
-        refreshAndWaitForReplication();
+        refresh();
         ensureSearchable("index");
 
         assertCacheState(client, "index", 0, 0);
@@ -405,7 +389,7 @@ public class IndicesRequestCacheIT extends ParameterizedStaticSettingsOpenSearch
             .setFlush(true)
             .get();
         OpenSearchAssertions.assertAllSuccessful(forceMergeResponse);
-        refreshAndWaitForReplication();
+        refresh();
         ensureSearchable("index-1", "index-2", "index-3");
 
         assertCacheState(client, "index-1", 0, 0);
@@ -476,7 +460,7 @@ public class IndicesRequestCacheIT extends ParameterizedStaticSettingsOpenSearch
         // Force merge the index to ensure there can be no background merges during the subsequent searches that would invalidate the cache
         ForceMergeResponse forceMergeResponse = client.admin().indices().prepareForceMerge("index").setFlush(true).get();
         OpenSearchAssertions.assertAllSuccessful(forceMergeResponse);
-        refreshAndWaitForReplication();
+        refresh();
         ensureSearchable("index");
 
         assertCacheState(client, "index", 0, 0);
@@ -570,7 +554,7 @@ public class IndicesRequestCacheIT extends ParameterizedStaticSettingsOpenSearch
         // Force merge the index to ensure there can be no background merges during the subsequent searches that would invalidate the cache
         ForceMergeResponse forceMergeResponse = client.admin().indices().prepareForceMerge("index").setFlush(true).get();
         OpenSearchAssertions.assertAllSuccessful(forceMergeResponse);
-        refreshAndWaitForReplication();
+        refresh();
 
         indexRandomForConcurrentSearch("index");
 
@@ -677,7 +661,7 @@ public class IndicesRequestCacheIT extends ParameterizedStaticSettingsOpenSearch
         assertCacheState(client, "index", 1, 1);
 
         // Explicit refresh would invalidate cache
-        refreshAndWaitForReplication();
+        refresh();
         // Hit same query again
         resp = client.prepareSearch("index").setRequestCache(true).setQuery(QueryBuilders.termQuery("k", "hello")).get();
         assertSearchResponse(resp);
