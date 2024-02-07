@@ -103,6 +103,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `com.diffplug.spotless` from 6.23.2 to 6.25.0 ([#11962](https://github.com/opensearch-project/OpenSearch/pull/11962), [#12055](https://github.com/opensearch-project/OpenSearch/pull/12055))
 - Bump `com.google.cloud:google-cloud-core` from 2.5.10 to 2.30.0 ([#11961](https://github.com/opensearch-project/OpenSearch/pull/11961))
 - Bump `reactor-core` from 3.5.11 to 3.5.14 ([#12042](https://github.com/opensearch-project/OpenSearch/pull/12042))
+- Bump `org.apache.shiro:shiro-core` from 1.11.0 to 1.13.0 ([#12200](https://github.com/opensearch-project/OpenSearch/pull/12200))
 - Bump `com.google.http-client:google-http-client-jackson2` from 1.43.3 to 1.44.1 ([#12059](https://github.com/opensearch-project/OpenSearch/pull/12059))
 - Bump `peter-evans/create-issue-from-file` from 4 to 5 ([#12057](https://github.com/opensearch-project/OpenSearch/pull/12057))
 - Bump `org.gradle.test-retry` from 1.5.4 to 1.5.8 ([#12168](https://github.com/opensearch-project/OpenSearch/pull/12168))
