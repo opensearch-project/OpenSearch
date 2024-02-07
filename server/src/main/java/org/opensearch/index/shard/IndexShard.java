@@ -2025,23 +2025,35 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     /**
-    Returns true iff it is able to verify that remote segment store
-    is in sync with local
+     * Returns true iff it is able to verify that remote segment store
+     * is in sync with local
      */
     boolean isRemoteSegmentStoreInSync() {
         assert indexSettings.isRemoteStoreEnabled();
         try {
             RemoteSegmentStoreDirectory directory = getRemoteDirectory();
             if (directory.readLatestMetadataFile() != null) {
-                // verifying that all files except EXCLUDE_FILES are uploaded to the remote
                 Collection<String> uploadFiles = directory.getSegmentsUploadedToRemoteStore().keySet();
-                SegmentInfos segmentInfos = store.readLastCommittedSegmentsInfo();
-                Collection<String> localFiles = segmentInfos.files(true);
-                if (uploadFiles.containsAll(localFiles)) {
-                    return true;
+                try (GatedCloseable<SegmentInfos> segmentInfosGatedCloseable = getSegmentInfosSnapshot()) {
+                    Collection<String> localSegmentInfosFiles = segmentInfosGatedCloseable.get().files(true);
+                    Set<String> localFiles = new HashSet<>(localSegmentInfosFiles);
+                    // verifying that all files except EXCLUDE_FILES are uploaded to the remote
+                    localFiles.removeAll(RemoteStoreRefreshListener.EXCLUDE_FILES);
+                    if (uploadFiles.containsAll(localFiles)) {
+                        return true;
+                    }
+                    logger.debug(
+                        () -> new ParameterizedMessage(
+                            "RemoteSegmentStoreSyncStatus localSize={} remoteSize={}",
+                            localFiles.size(),
+                            uploadFiles.size()
+                        )
+                    );
                 }
             }
-        } catch (IOException e) {
+        } catch (AlreadyClosedException e) {
+            throw e;
+        } catch (Throwable e) {
             logger.error("Exception while reading latest metadata", e);
         }
         return false;

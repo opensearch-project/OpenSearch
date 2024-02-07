@@ -41,7 +41,6 @@ import org.opensearch.cluster.routing.IndexShardRoutingTable;
 import org.opensearch.common.geo.builders.PointBuilder;
 import org.opensearch.common.geo.builders.ShapeBuilder;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.index.IndexService;
@@ -73,11 +72,6 @@ public class GeoShapeIntegrationIT extends ParameterizedStaticSettingsOpenSearch
             new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), false).build() },
             new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), true).build() }
         );
-    }
-
-    @Override
-    protected Settings featureFlagSettings() {
-        return Settings.builder().put(super.featureFlagSettings()).put(FeatureFlags.CONCURRENT_SEGMENT_SEARCH, "true").build();
     }
 
     @Override
