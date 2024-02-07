@@ -73,7 +73,10 @@ public class PluginInfo implements Writeable, ToXContentObject {
 
     public static final String OPENSEARCH_PLUGIN_PROPERTIES = "plugin-descriptor.properties";
     public static final String OPENSEARCH_PLUGIN_POLICY = "plugin-security.policy";
-    private static final JsonFactory jsonFactory = new JsonFactory();
+    private static final JsonFactory jsonFactory = new JsonFactory().configure(
+        JsonReadFeature.ALLOW_UNQUOTED_FIELD_NAMES.mappedFeature(),
+        true
+    );
 
     private final String name;
     private final String description;
@@ -84,10 +87,6 @@ public class PluginInfo implements Writeable, ToXContentObject {
     private final String customFolderName;
     private final List<String> extendedPlugins;
     private final boolean hasNativeController;
-
-    static {
-        jsonFactory.configure(JsonReadFeature.ALLOW_UNQUOTED_FIELD_NAMES.mappedFeature(), true);
-    }
 
     /**
      * Construct plugin info.
