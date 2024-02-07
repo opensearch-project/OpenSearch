@@ -10,6 +10,7 @@ package org.opensearch.index.shard;
 
 import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.SegmentInfos;
+import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.tests.store.BaseDirectoryWrapper;
@@ -102,6 +103,16 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
     public void tearDown() throws Exception {
         Directory storeDirectory = ((FilterDirectory) ((FilterDirectory) indexShard.store().directory()).getDelegate()).getDelegate();
         ((BaseDirectoryWrapper) storeDirectory).setCheckIndexOnClose(false);
+
+        for (ReferenceManager.RefreshListener refreshListener : indexShard.getEngine().config().getInternalRefreshListener()) {
+            if (refreshListener instanceof ReleasableRetryableRefreshListener) {
+                ((ReleasableRetryableRefreshListener) refreshListener).drainRefreshes();
+            }
+        }
+        if (remoteStoreRefreshListener != null) {
+            remoteStoreRefreshListener.drainRefreshes();
+        }
+
         closeShards(indexShard);
         super.tearDown();
     }
@@ -335,6 +346,7 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
         RemoteStoreStatsTrackerFactory trackerFactory = tuple.v2();
         RemoteSegmentTransferTracker segmentTracker = trackerFactory.getRemoteSegmentTransferTracker(indexShard.shardId());
         assertNoLagAndTotalUploadsFailed(segmentTracker, 0);
+        assertTrue("remote store in sync", tuple.v1().isRemoteSegmentStoreInSync());
     }
 
     public void testRefreshSuccessOnSecondAttempt() throws Exception {
@@ -402,6 +414,20 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
         RemoteStoreStatsTrackerFactory trackerFactory = tuple.v2();
         RemoteSegmentTransferTracker segmentTracker = trackerFactory.getRemoteSegmentTransferTracker(indexShard.shardId());
         assertNoLagAndTotalUploadsFailed(segmentTracker, 2);
+    }
+
+    public void testRefreshPersistentFailure() throws Exception {
+        int succeedOnAttempt = 10;
+        CountDownLatch refreshCountLatch = new CountDownLatch(1);
+        CountDownLatch successLatch = new CountDownLatch(10);
+        Tuple<RemoteStoreRefreshListener, RemoteStoreStatsTrackerFactory> tuple = mockIndexShardWithRetryAndScheduleRefresh(
+            succeedOnAttempt,
+            refreshCountLatch,
+            successLatch
+        );
+        // Giving 10ms for some iterations of remote refresh upload
+        Thread.sleep(10);
+        assertFalse("remote store should not in sync", tuple.v1().isRemoteSegmentStoreInSync());
     }
 
     private void assertNoLagAndTotalUploadsFailed(RemoteSegmentTransferTracker segmentTracker, long totalUploadsFailed) throws Exception {
@@ -568,6 +594,7 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
         // Mock indexShard.getSegmentInfosSnapshot()
         doAnswer(invocation -> {
             if (counter.incrementAndGet() <= succeedOnAttempt) {
+                logger.error("Failing in get segment info {}", counter.get());
                 throw new RuntimeException("Inducing failure in upload");
             }
             return indexShard.getSegmentInfosSnapshot();
@@ -583,6 +610,7 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
         doAnswer(invocation -> {
             if (Objects.nonNull(successLatch)) {
                 successLatch.countDown();
+                logger.info("Value fo latch {}", successLatch.getCount());
             }
             return indexShard.getEngine();
         }).when(shard).getEngine();
@@ -641,6 +669,31 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
                     segmentsNFilename = file;
                 }
             }
+        }
+        assertTrue(remoteStoreRefreshListener.isRemoteSegmentStoreInSync());
+    }
+
+    public void testRemoteSegmentStoreNotInSync() throws IOException {
+        setup(true, 3);
+        remoteStoreRefreshListener.afterRefresh(true);
+        try (Store remoteStore = indexShard.remoteStore()) {
+            RemoteSegmentStoreDirectory remoteSegmentStoreDirectory =
+                (RemoteSegmentStoreDirectory) ((FilterDirectory) ((FilterDirectory) remoteStore.directory()).getDelegate()).getDelegate();
+            verifyUploadedSegments(remoteSegmentStoreDirectory);
+            remoteStoreRefreshListener.isRemoteSegmentStoreInSync();
+            boolean oneFileDeleted = false;
+            // Delete any one file from remote store
+            try (GatedCloseable<SegmentInfos> segmentInfosGatedCloseable = indexShard.getSegmentInfosSnapshot()) {
+                SegmentInfos segmentInfos = segmentInfosGatedCloseable.get();
+                for (String file : segmentInfos.files(true)) {
+                    if (oneFileDeleted == false && RemoteStoreRefreshListener.EXCLUDE_FILES.contains(file) == false) {
+                        remoteSegmentStoreDirectory.deleteFile(file);
+                        oneFileDeleted = true;
+                        break;
+                    }
+                }
+            }
+            assertFalse(remoteStoreRefreshListener.isRemoteSegmentStoreInSync());
         }
     }
 
