@@ -133,6 +133,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Add copy ingest processor ([#11870](https://github.com/opensearch-project/OpenSearch/pull/11870))
 - Introduce new feature flag "WRITEABLE_REMOTE_INDEX" to gate the writeable remote index functionality ([#11717](https://github.com/opensearch-project/OpenSearch/pull/11170))
 - Bump OpenTelemetry from 1.32.0 to 1.34.1 ([#11891](https://github.com/opensearch-project/OpenSearch/pull/11891))
+- Add remove_by_pattern ingest processor ([#11920](https://github.com/opensearch-project/OpenSearch/pull/11920))
 - Support index level allocation filtering for searchable snapshot index ([#11563](https://github.com/opensearch-project/OpenSearch/pull/11563))
 - Add `org.opensearch.rest.MethodHandlers` and `RestController#getAllHandlers` ([11876](https://github.com/opensearch-project/OpenSearch/pull/11876))
 - New DateTime format for RFC3339 compatible date fields ([#11465](https://github.com/opensearch-project/OpenSearch/pull/11465))
@@ -140,6 +141,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Remove concurrent segment search feature flag for GA launch ([#12074](https://github.com/opensearch-project/OpenSearch/pull/12074))
 - Enable Fuzzy codec for doc id fields using a bloom filter ([#11022](https://github.com/opensearch-project/OpenSearch/pull/11022))
 - [Metrics Framework] Adds support for Histogram metric ([#12062](https://github.com/opensearch-project/OpenSearch/pull/12062))
+- Support for returning scores in matched queries ([#11626](https://github.com/opensearch-project/OpenSearch/pull/11626))
 
 ### Dependencies
 - Bumps jetty version to 9.4.52.v20230823 to fix GMS-2023-1857 ([#9822](https://github.com/opensearch-project/OpenSearch/pull/9822))
@@ -187,9 +189,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `com.diffplug.spotless` from 6.23.2 to 6.25.0 ([#11962](https://github.com/opensearch-project/OpenSearch/pull/11962), [#12055](https://github.com/opensearch-project/OpenSearch/pull/12055))
 - Bump `com.google.cloud:google-cloud-core` from 2.5.10 to 2.30.0 ([#11961](https://github.com/opensearch-project/OpenSearch/pull/11961))
 - Bump `reactor-core` from 3.5.11 to 3.5.14 ([#12042](https://github.com/opensearch-project/OpenSearch/pull/12042))
+- Bump `org.apache.shiro:shiro-core` from 1.11.0 to 1.13.0 ([#12200](https://github.com/opensearch-project/OpenSearch/pull/12200))
 - Bump `com.google.http-client:google-http-client-jackson2` from 1.43.3 to 1.44.1 ([#12059](https://github.com/opensearch-project/OpenSearch/pull/12059))
 - Bump `peter-evans/create-issue-from-file` from 4 to 5 ([#12057](https://github.com/opensearch-project/OpenSearch/pull/12057))
 - Bump `org.gradle.test-retry` from 1.5.4 to 1.5.8 ([#12168](https://github.com/opensearch-project/OpenSearch/pull/12168))
+- Bump `org.apache.kerby:kerb-admin` from 1.0.1 to 2.0.3 ([#12194](https://github.com/opensearch-project/OpenSearch/pull/12194))
 
 ### Changed
 - Mute the query profile IT with concurrent execution ([#9840](https://github.com/opensearch-project/OpenSearch/pull/9840))

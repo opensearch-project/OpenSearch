@@ -66,19 +66,16 @@ public class IndexPrimaryRelocationIT extends OpenSearchIntegTestCase {
         ensureGreen("test");
         AtomicInteger numAutoGenDocs = new AtomicInteger();
         final AtomicBoolean finished = new AtomicBoolean(false);
-        Thread indexingThread = new Thread() {
-            @Override
-            public void run() {
-                while (finished.get() == false && numAutoGenDocs.get() < 10_000) {
-                    IndexResponse indexResponse = client().prepareIndex("test").setId("id").setSource("field", "value").get();
-                    assertEquals(DocWriteResponse.Result.CREATED, indexResponse.getResult());
-                    DeleteResponse deleteResponse = client().prepareDelete("test", "id").get();
-                    assertEquals(DocWriteResponse.Result.DELETED, deleteResponse.getResult());
-                    client().prepareIndex("test").setSource("auto", true).get();
-                    numAutoGenDocs.incrementAndGet();
-                }
+        Thread indexingThread = new Thread(() -> {
+            while (finished.get() == false && numAutoGenDocs.get() < 10_000) {
+                IndexResponse indexResponse = client().prepareIndex("test").setId("id").setSource("field", "value").get();
+                assertEquals(DocWriteResponse.Result.CREATED, indexResponse.getResult());
+                DeleteResponse deleteResponse = client().prepareDelete("test", "id").get();
+                assertEquals(DocWriteResponse.Result.DELETED, deleteResponse.getResult());
+                client().prepareIndex("test").setSource("auto", true).get();
+                numAutoGenDocs.incrementAndGet();
             }
-        };
+        });
         indexingThread.start();
 
         ClusterState initialState = client().admin().cluster().prepareState().get().getState();

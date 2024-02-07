@@ -17,7 +17,7 @@ opensearchplugin {
 }
 
 dependencies {
-  implementation 'org.apache.shiro:shiro-core:1.11.0'
+  implementation 'org.apache.shiro:shiro-core:1.13.0'
 
   // Needed for shiro
   implementation "org.slf4j:slf4j-api:${versions.slf4j}"

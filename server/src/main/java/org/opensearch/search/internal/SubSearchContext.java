@@ -82,6 +82,8 @@ public class SubSearchContext extends FilteredSearchContext {
 
     private boolean explain;
     private boolean trackScores;
+
+    private boolean includeNamedQueriesScore;
     private boolean version;
     private boolean seqNoAndPrimaryTerm;
 
@@ -232,6 +234,17 @@ public class SubSearchContext extends FilteredSearchContext {
     @Override
     public boolean trackScores() {
         return trackScores;
+    }
+
+    @Override
+    public SearchContext includeNamedQueriesScore(boolean includeNamedQueriesScore) {
+        this.includeNamedQueriesScore = includeNamedQueriesScore;
+        return this;
+    }
+
+    @Override
+    public boolean includeNamedQueriesScore() {
+        return includeNamedQueriesScore;
     }
 
     @Override
