@@ -341,9 +341,9 @@ public class SimpleSearchIT extends ParameterizedStaticSettingsOpenSearchIntegTe
      * If track_total_hits != true, but set to a value AND terminate_after is set:
      *   Again, due to the optimization, any count can be returned.
      *   Up to terminate_after, relation == EQUAL_TO.
-     *   But if track_total_hits_up_to >= terminate_after, relation can be EQ _or_ GTE.
+     *   But if track_total_hits_up_to &gte; terminate_after, relation can be EQ _or_ GTE.
      *   This ambiguity is due to the fact that totalHits == track_total_hits_up_to
-     *   or totalHits > track_total_hits_up_to and SearchPhaseController sets totalHits = track_total_hits_up_to when returning results
+     *   or totalHits &gt; track_total_hits_up_to and SearchPhaseController sets totalHits = track_total_hits_up_to when returning results
      *   in which case relation = GTE.
      *
      * @param size
