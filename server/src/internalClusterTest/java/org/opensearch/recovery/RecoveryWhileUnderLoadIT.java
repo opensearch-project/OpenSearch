@@ -167,7 +167,7 @@ public class RecoveryWhileUnderLoadIT extends ParameterizedStaticSettingsOpenSea
             logger.info("--> indexing threads stopped");
 
             logger.info("--> refreshing the index");
-            refreshAndAssert();
+            assertAfterRefreshAndWaitForReplication();
             logger.info("--> verifying indexed content");
             iterateAssertCount(numberOfShards, 10, indexer.getIds());
         }
@@ -228,7 +228,7 @@ public class RecoveryWhileUnderLoadIT extends ParameterizedStaticSettingsOpenSea
             logger.info("--> indexing threads stopped");
 
             logger.info("--> refreshing the index");
-            refreshAndAssert();
+            assertAfterRefreshAndWaitForReplication();
             logger.info("--> verifying indexed content");
             iterateAssertCount(numberOfShards, 10, indexer.getIds());
         }
@@ -342,7 +342,7 @@ public class RecoveryWhileUnderLoadIT extends ParameterizedStaticSettingsOpenSea
             );
 
             logger.info("--> refreshing the index");
-            refreshAndAssert();
+            assertAfterRefreshAndWaitForReplication();
             logger.info("--> verifying indexed content");
             iterateAssertCount(numberOfShards, 10, indexer.getIds());
         }
@@ -392,7 +392,7 @@ public class RecoveryWhileUnderLoadIT extends ParameterizedStaticSettingsOpenSea
             ensureGreen(TimeValue.timeValueMinutes(5));
 
             logger.info("--> refreshing the index");
-            refreshAndAssert();
+            assertAfterRefreshAndWaitForReplication();
             logger.info("--> verifying indexed content");
             iterateAssertCount(numShards, 10, indexer.getIds());
         }
@@ -491,10 +491,11 @@ public class RecoveryWhileUnderLoadIT extends ParameterizedStaticSettingsOpenSea
         );
     }
 
-    private void refreshAndAssert() throws Exception {
+    private void assertAfterRefreshAndWaitForReplication() throws Exception {
         assertBusy(() -> {
-            RefreshResponse actionGet = refreshAndWaitForReplication();
+            RefreshResponse actionGet = client().admin().indices().prepareRefresh().get();
             assertAllSuccessful(actionGet);
         }, 5, TimeUnit.MINUTES);
+        waitForReplication();
     }
 }

@@ -2363,12 +2363,21 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
     }
 
     /**
-     * Refreshes the indices in the cluster and checks if active/started replica shards
-     * caught up with primary shard only when Segment Replication is enabled.
+     * Refreshes the indices in the cluster and waits until active/started replica shards
+     * are caught up with primary shard only when Segment Replication is enabled.
      * This doesn't wait for inactive/non-started replica shards to become active/started.
      */
     protected RefreshResponse refreshAndWaitForReplication(String... indices) {
         RefreshResponse refreshResponse = refresh(indices);
+        waitForReplication();
+        return refreshResponse;
+    }
+
+    /**
+     * Waits until active/started replica shards are caught up with primary shard only when Segment Replication is enabled.
+     * This doesn't wait for inactive/non-started replica shards to become active/started.
+     */
+    protected void waitForReplication(String... indices) {
         if (indices.length == 0) {
             indices = getClusterState().routingTable().indicesRouting().keySet().toArray(String[]::new);
         }
@@ -2410,7 +2419,6 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
-        return refreshResponse;
     }
 
     /**
