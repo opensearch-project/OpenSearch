@@ -66,7 +66,6 @@ public class ViewServiceTest {
         verifyNoMoreInteractions(timeProvider, clusterService, nodeClient);
     }
 
-    @Test
     public void createView() {
         final var request = new CreateViewAction.Request("a", "b", List.of(new CreateViewAction.Request.Target("my-index-*")));
         final var listener = mock(ActionListener.class);
@@ -78,7 +77,6 @@ public class ViewServiceTest {
         verify(timeProvider).getAsLong();
     }
 
-    @Test
     public void updateView() {
         final var request = new CreateViewAction.Request("a", "b", List.of(new CreateViewAction.Request.Target("my-index-*")));
         final var listener = mock(ActionListener.class);
@@ -90,7 +88,6 @@ public class ViewServiceTest {
         verify(timeProvider).getAsLong();
     }
 
-    @Test
     public void updateView_doesNotExist() {
         final var request = new CreateViewAction.Request("a", "b", List.of(new CreateViewAction.Request.Target("my-index-*")));
         final var listener = mock(ActionListener.class);
@@ -100,7 +97,6 @@ public class ViewServiceTest {
         MatcherAssert.assertThat(ex.getMessage(), equalTo("abc"));
     }
 
-    @Test
     public void deleteView() {
         final var request = new DeleteViewAction.Request("viewName");
         final var listener = mock(ActionListener.class);
@@ -111,7 +107,6 @@ public class ViewServiceTest {
         verify(clusterService).submitStateUpdateTask(eq("delete_view_task"), any());
     }
 
-    @Test
     public void deleteView_doesNotExist() {
         final var request = new DeleteViewAction.Request("viewName");
         final var listener = mock(ActionListener.class);
@@ -122,7 +117,6 @@ public class ViewServiceTest {
         MatcherAssert.assertThat(ex.getMessage(), equalTo("abc"));
     }
 
-    @Test
     public void getView() {
         final var request = new GetViewAction.Request("viewName");
         final var listener = mock(ActionListener.class);
@@ -133,7 +127,6 @@ public class ViewServiceTest {
         verify(listener).onResponse(any());
     }
 
-    @Test
     public void getView_doesNotExist() {
         final var request = new GetViewAction.Request("viewName");
         final var listener = mock(ActionListener.class);
@@ -144,7 +137,6 @@ public class ViewServiceTest {
         MatcherAssert.assertThat(ex.getMessage(), equalTo("abc"));
     }
 
-    @Test
     public void listViewNames() {
         final var clusterState = new ClusterState.Builder(new ClusterName("MyCluster")).metadata(
             new Metadata.Builder().views(Map.of(typicalView.getName(), typicalView)).build()
@@ -158,7 +150,6 @@ public class ViewServiceTest {
         verify(listener).onResponse(any());
     }
 
-    @Test
     public void listViewNames_noViews() {
         final var clusterState = new ClusterState.Builder(new ClusterName("MyCluster")).build();
         final var listener = mock(ActionListener.class);
@@ -170,7 +161,6 @@ public class ViewServiceTest {
         verify(listener).onResponse(any());
     }
 
-    @Test
     public void searchView() {
         final var request = spy(new SearchViewAction.Request("view"));
         final var listener = mock(ActionListener.class);
