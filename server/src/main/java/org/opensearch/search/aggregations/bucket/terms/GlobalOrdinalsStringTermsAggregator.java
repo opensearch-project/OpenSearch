@@ -171,7 +171,8 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         BiConsumer<Long, Integer> ordCountConsumer
     ) throws IOException {
         if (weight == null || weight.count(ctx) != ctx.reader().maxDoc()) {
-            // Weight not assigned or top-level query does not match all docs in the segment.
+            // weight.count(ctx) == ctx.reader().maxDoc() implies there are no deleted documents and
+            // top-level query matches all docs in the segment
             return null;
         }
 
