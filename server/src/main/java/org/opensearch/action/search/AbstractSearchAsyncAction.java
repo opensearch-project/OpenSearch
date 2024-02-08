@@ -221,6 +221,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                     null
                 )
             );
+            onRequestEnd(searchRequestContext);
             return;
         }
         executePhase(this);
@@ -727,7 +728,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     @Override
     public final void onPhaseFailure(SearchPhase phase, String msg, Throwable cause) {
         if (currentPhaseHasLifecycle) {
-            this.searchRequestContext.getSearchRequestOperationsListener().onPhaseFailure(this);
+            this.searchRequestContext.getSearchRequestOperationsListener().onPhaseFailure(this, cause);
         }
         raisePhaseFailure(new SearchPhaseExecutionException(phase.getName(), msg, cause, buildShardFailures()));
     }
