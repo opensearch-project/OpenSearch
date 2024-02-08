@@ -284,7 +284,20 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
         });
         this.sortValues = new SearchSortValues(this.searchHitProto.getSortValues().toByteArray());
         if (this.searchHitProto.getMatchedQueriesCount() > 0) {
-            this.matchedQueries = this.searchHitProto.getMatchedQueriesList().toArray(new String[0]);
+            this.matchedQueries = new LinkedHashMap<>(this.searchHitProto.getMatchedQueriesCount());
+            for (String query : this.searchHitProto.getMatchedQueriesList()) {
+                matchedQueries.put(query, Float.NaN);
+            }
+        }
+        if (this.searchHitProto.getMatchedQueriesWithScoresCount() > 0) {
+            Map<String, Float> tempMap = this.searchHitProto.getMatchedQueriesWithScoresMap()
+                .entrySet()
+                .stream()
+                .collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue()));
+            this.matchedQueries = tempMap.entrySet()
+                .stream()
+                .sorted(Map.Entry.comparingByKey())
+                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue, (oldValue, newValue) -> oldValue, LinkedHashMap::new));
         }
         if (this.searchHitProto.hasExplanation()) {
             this.explanation = readExplanation(this.searchHitProto.getExplanation().toByteArray());
