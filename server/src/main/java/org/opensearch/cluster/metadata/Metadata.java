@@ -948,7 +948,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
     }
 
     public static boolean isGlobalStateEquals(Metadata metadata1, Metadata metadata2) {
-        if (!metadata1.coordinationMetadata.equals(metadata2.coordinationMetadata)) {
+        if (!isCoordinationMetadataEqual(metadata1, metadata2)) {
             return false;
         }
         if (!metadata1.hashesOfConsistentSettings.equals(metadata2.hashesOfConsistentSettings)) {
@@ -967,13 +967,29 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
      * Compares Metadata entities persisted in Remote Store.
      */
     public static boolean isGlobalResourcesMetadataEquals(Metadata metadata1, Metadata metadata2) {
-        if (!metadata1.persistentSettings.equals(metadata2.persistentSettings)) {
+        if (!isSettingsMetadataEqual(metadata1, metadata2)) {
             return false;
         }
-        if (!metadata1.templates.equals(metadata2.templates)) {
+        if (!isTemplatesMetadataEqual(metadata1, metadata2)) {
             return false;
         }
         // Check if any persistent metadata needs to be saved
+        return isCustomMetadataEqual(metadata1, metadata2);
+    }
+
+    public static boolean isCoordinationMetadataEqual(Metadata metadata1, Metadata metadata2) {
+        return metadata1.coordinationMetadata.equals(metadata2.coordinationMetadata);
+    }
+
+    public static boolean isSettingsMetadataEqual(Metadata metadata1, Metadata metadata2) {
+        return metadata1.persistentSettings.equals(metadata2.persistentSettings);
+    }
+
+    public static boolean isTemplatesMetadataEqual(Metadata metadata1, Metadata metadata2) {
+        return metadata1.templates.equals(metadata2.templates);
+    }
+
+    public static boolean isCustomMetadataEqual(Metadata metadata1, Metadata metadata2) {
         int customCount1 = 0;
         for (Map.Entry<String, Custom> cursor : metadata1.customs.entrySet()) {
             if (cursor.getValue().context().contains(XContentContext.GATEWAY)) {
@@ -987,8 +1003,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
                 customCount2++;
             }
         }
-        if (customCount1 != customCount2) return false;
-        return true;
+        return customCount1 == customCount2;
     }
 
     @Override
@@ -1037,7 +1052,11 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
             persistentSettings = after.persistentSettings;
             hashesOfConsistentSettings = after.hashesOfConsistentSettings.diff(before.hashesOfConsistentSettings);
             indices = DiffableUtils.diff(before.indices, after.indices, DiffableUtils.getStringKeySerializer());
-            templates = DiffableUtils.diff(before.templates.getTemplates(), after.templates.getTemplates(), DiffableUtils.getStringKeySerializer());
+            templates = DiffableUtils.diff(
+                before.templates.getTemplates(),
+                after.templates.getTemplates(),
+                DiffableUtils.getStringKeySerializer()
+            );
             customs = DiffableUtils.diff(before.customs, after.customs, DiffableUtils.getStringKeySerializer(), CUSTOM_VALUE_SERIALIZER);
         }
 
@@ -1765,7 +1784,9 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
                 builder.endObject();
             }
 
+            builder.startObject("templates");
             metadata.templatesMetadata().toXContent(builder, params);
+            builder.endObject();
 
             if (context == XContentContext.API) {
                 builder.startObject("indices");

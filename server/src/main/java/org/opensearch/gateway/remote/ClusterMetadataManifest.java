@@ -24,6 +24,7 @@ import org.opensearch.core.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -210,10 +211,26 @@ public class ClusterMetadataManifest implements Writeable, ToXContentFragment {
             parser.declareString(ConstructingObjectParser.constructorArg(), GLOBAL_METADATA_FIELD);
         } else if (codec_version == CODEC_V2) {
             parser.declareInt(ConstructingObjectParser.constructorArg(), CODEC_VERSION_FIELD);
-            parser.declareNamedObject(ConstructingObjectParser.constructorArg(), UploadedMetadataAttribute.PARSER, UPLOADED_COORDINATOR_METADATA);
-            parser.declareNamedObject(ConstructingObjectParser.constructorArg(), UploadedMetadataAttribute.PARSER, UPLOADED_SETTINGS_METADATA);
-            parser.declareNamedObject(ConstructingObjectParser.constructorArg(), UploadedMetadataAttribute.PARSER, UPLOADED_TEMPLATES_METADATA);
-            parser.declareNamedObjects(ConstructingObjectParser.constructorArg(), UploadedMetadataAttribute.PARSER, UPLOADED_CUSTOM_METADATA);
+            parser.declareNamedObject(
+                ConstructingObjectParser.optionalConstructorArg(),
+                UploadedMetadataAttribute.PARSER,
+                UPLOADED_COORDINATOR_METADATA
+            );
+            parser.declareNamedObject(
+                ConstructingObjectParser.optionalConstructorArg(),
+                UploadedMetadataAttribute.PARSER,
+                UPLOADED_SETTINGS_METADATA
+            );
+            parser.declareNamedObject(
+                ConstructingObjectParser.optionalConstructorArg(),
+                UploadedMetadataAttribute.PARSER,
+                UPLOADED_TEMPLATES_METADATA
+            );
+            parser.declareNamedObjects(
+                ConstructingObjectParser.constructorArg(),
+                UploadedMetadataAttribute.PARSER,
+                UPLOADED_CUSTOM_METADATA
+            );
         }
     }
 
@@ -299,7 +316,10 @@ public class ClusterMetadataManifest implements Writeable, ToXContentFragment {
     }
 
     public boolean hasMetadataAttributesFiles() {
-        return uploadedCoordinationMetadata != null || uploadedSettingsMetadata != null || uploadedTemplatesMetadata != null || uploadedCustomMetadataMap != null;
+        return uploadedCoordinationMetadata != null
+            || uploadedSettingsMetadata != null
+            || uploadedTemplatesMetadata != null
+            || !uploadedCustomMetadataMap.isEmpty();
     }
 
     public ClusterMetadataManifest(
@@ -369,7 +389,9 @@ public class ClusterMetadataManifest implements Writeable, ToXContentFragment {
         this.uploadedCoordinationMetadata = uploadedCoordinationMetadata;
         this.uploadedSettingsMetadata = uploadedSettingsMetadata;
         this.uploadedTemplatesMetadata = uploadedTemplatesMetadata;
-        this.uploadedCustomMetadataMap = Collections.unmodifiableMap(uploadedCustomMetadataMap);
+        this.uploadedCustomMetadataMap = Collections.unmodifiableMap(
+            uploadedCustomMetadataMap != null ? uploadedCustomMetadataMap : new HashMap<>()
+        );
     }
 
     public ClusterMetadataManifest(StreamInput in) throws IOException {
@@ -388,7 +410,9 @@ public class ClusterMetadataManifest implements Writeable, ToXContentFragment {
             this.uploadedCoordinationMetadata = new UploadedMetadataAttribute(in);
             this.uploadedSettingsMetadata = new UploadedMetadataAttribute(in);
             this.uploadedTemplatesMetadata = new UploadedMetadataAttribute(in);
-            this.uploadedCustomMetadataMap = Collections.unmodifiableMap(in.readMap(StreamInput::readString, UploadedMetadataAttribute::new));
+            this.uploadedCustomMetadataMap = Collections.unmodifiableMap(
+                in.readMap(StreamInput::readString, UploadedMetadataAttribute::new)
+            );
             this.globalMetadataFileName = null;
         } else if (in.getVersion().onOrAfter(Version.V_2_12_0)) {
             this.codecVersion = in.readInt();
@@ -435,17 +459,23 @@ public class ClusterMetadataManifest implements Writeable, ToXContentFragment {
         builder.field(CLUSTER_UUID_COMMITTED.getPreferredName(), isClusterUUIDCommitted());
         if (onOrAfterCodecVersion(CODEC_V2)) {
             builder.field(CODEC_VERSION_FIELD.getPreferredName(), getCodecVersion());
-            builder.startObject(UPLOADED_COORDINATOR_METADATA.getPreferredName());
-            getCoordinationMetadata().toXContent(builder, params);
-            builder.endObject();
-            builder.startObject(UPLOADED_SETTINGS_METADATA.getPreferredName());
-            getSettingsMetadata().toXContent(builder, params);
-            builder.endObject();
-            builder.startObject(UPLOADED_TEMPLATES_METADATA.getPreferredName());
-            getTemplatesMetadata().toXContent(builder, params);
-            builder.endObject();
+            if (getCoordinationMetadata() != null) {
+                builder.startObject(UPLOADED_COORDINATOR_METADATA.getPreferredName());
+                getCoordinationMetadata().toXContent(builder, params);
+                builder.endObject();
+            }
+            if (getSettingsMetadata() != null) {
+                builder.startObject(UPLOADED_SETTINGS_METADATA.getPreferredName());
+                getSettingsMetadata().toXContent(builder, params);
+                builder.endObject();
+            }
+            if (getTemplatesMetadata() != null) {
+                builder.startObject(UPLOADED_TEMPLATES_METADATA.getPreferredName());
+                getTemplatesMetadata().toXContent(builder, params);
+                builder.endObject();
+            }
             builder.startObject(UPLOADED_CUSTOM_METADATA.getPreferredName());
-            for (UploadedMetadataAttribute attribute: getCustomMetadataMap().values()) {
+            for (UploadedMetadataAttribute attribute : getCustomMetadataMap().values()) {
                 attribute.toXContent(builder, params);
             }
             builder.endObject();
@@ -534,6 +564,10 @@ public class ClusterMetadataManifest implements Writeable, ToXContentFragment {
         return PARSER_V0.parse(parser, null);
     }
 
+    public static ClusterMetadataManifest fromXContentV1(XContentParser parser) throws IOException {
+        return PARSER_V1.parse(parser, null);
+    }
+
     public static ClusterMetadataManifest fromXContent(XContentParser parser) throws IOException {
         return CURRENT_PARSER.parse(parser, null);
     }
@@ -546,6 +580,10 @@ public class ClusterMetadataManifest implements Writeable, ToXContentFragment {
     public static class Builder {
 
         private String globalMetadataFileName;
+        private UploadedMetadataAttribute coordinationMetadata;
+        private UploadedMetadataAttribute settingsMetadata;
+        private UploadedMetadataAttribute templatesMetadata;
+        private Map<String, UploadedMetadataAttribute> customMetadataMap;
         private int codecVersion;
         private List<UploadedIndexMetadata> indices;
         private long clusterTerm;
@@ -570,6 +608,31 @@ public class ClusterMetadataManifest implements Writeable, ToXContentFragment {
 
         public Builder globalMetadataFileName(String globalMetadataFileName) {
             this.globalMetadataFileName = globalMetadataFileName;
+            return this;
+        }
+
+        public Builder coordinationMetadata(UploadedMetadataAttribute coordinationMetadata) {
+            this.coordinationMetadata = coordinationMetadata;
+            return this;
+        }
+
+        public Builder settingMetadata(UploadedMetadataAttribute settingsMetadata) {
+            this.settingsMetadata = settingsMetadata;
+            return this;
+        }
+
+        public Builder templatesMetadata(UploadedMetadataAttribute templatesMetadata) {
+            this.templatesMetadata = templatesMetadata;
+            return this;
+        }
+
+        public Builder customMetadataMap(Map<String, UploadedMetadataAttribute> customMetadataMap) {
+            this.customMetadataMap = customMetadataMap;
+            return this;
+        }
+
+        public Builder put(String custom, UploadedMetadataAttribute customMetadata) {
+            this.customMetadataMap.put(custom, customMetadata);
             return this;
         }
 
@@ -624,6 +687,7 @@ public class ClusterMetadataManifest implements Writeable, ToXContentFragment {
 
         public Builder() {
             indices = new ArrayList<>();
+            customMetadataMap = new HashMap<>();
         }
 
         public Builder(ClusterMetadataManifest manifest) {
@@ -635,6 +699,10 @@ public class ClusterMetadataManifest implements Writeable, ToXContentFragment {
             this.nodeId = manifest.nodeId;
             this.committed = manifest.committed;
             this.globalMetadataFileName = manifest.globalMetadataFileName;
+            this.coordinationMetadata = manifest.uploadedCoordinationMetadata;
+            this.settingsMetadata = manifest.uploadedSettingsMetadata;
+            this.templatesMetadata = manifest.uploadedTemplatesMetadata;
+            this.customMetadataMap = manifest.uploadedCustomMetadataMap;
             this.codecVersion = manifest.codecVersion;
             this.indices = new ArrayList<>(manifest.indices);
             this.previousClusterUUID = manifest.previousClusterUUID;
@@ -654,10 +722,20 @@ public class ClusterMetadataManifest implements Writeable, ToXContentFragment {
                 globalMetadataFileName,
                 indices,
                 previousClusterUUID,
-                clusterUUIDCommitted
+                clusterUUIDCommitted,
+                coordinationMetadata,
+                settingsMetadata,
+                templatesMetadata,
+                customMetadataMap
             );
         }
 
+    }
+
+    public static interface UploadedMetadata {
+        String getComponent();
+
+        String getUploadedFilename();
     }
 
     /**
@@ -665,7 +743,7 @@ public class ClusterMetadataManifest implements Writeable, ToXContentFragment {
      *
      * @opensearch.internal
      */
-    public static class UploadedIndexMetadata implements Writeable, ToXContentFragment {
+    public static class UploadedIndexMetadata implements UploadedMetadata, Writeable, ToXContentFragment {
 
         private static final ParseField INDEX_NAME_FIELD = new ParseField("index_name");
         private static final ParseField INDEX_UUID_FIELD = new ParseField("index_uuid");
@@ -712,6 +790,11 @@ public class ClusterMetadataManifest implements Writeable, ToXContentFragment {
 
         public String getUploadedFilePath() {
             return uploadedFilename;
+        }
+
+        @Override
+        public String getComponent() {
+            return getIndexName();
         }
 
         public String getUploadedFilename() {
@@ -772,7 +855,7 @@ public class ClusterMetadataManifest implements Writeable, ToXContentFragment {
         }
     }
 
-    public static class UploadedMetadataAttribute implements Writeable, ToXContentFragment {
+    public static class UploadedMetadataAttribute implements UploadedMetadata, Writeable, ToXContentFragment {
         private static final ParseField UPLOADED_FILENAME_FIELD = new ParseField("uploaded_filename");
 
         private static final ObjectParser.NamedObjectParser<UploadedMetadataAttribute, Void> PARSER;
@@ -807,6 +890,11 @@ public class ClusterMetadataManifest implements Writeable, ToXContentFragment {
             return attributeName;
         }
 
+        @Override
+        public String getComponent() {
+            return getAttributeName();
+        }
+
         public String getUploadedFilename() {
             return uploadedFilename;
         }
@@ -830,10 +918,14 @@ public class ClusterMetadataManifest implements Writeable, ToXContentFragment {
 
         @Override
         public String toString() {
-            return "UploadedMetadataAttribute{" +
-                "attributeName='" + attributeName + '\'' +
-                ", uploadedFilename='" + uploadedFilename + '\'' +
-                '}';
+            return "UploadedMetadataAttribute{"
+                + "attributeName='"
+                + attributeName
+                + '\''
+                + ", uploadedFilename='"
+                + uploadedFilename
+                + '\''
+                + '}';
         }
     }
 }

@@ -15,7 +15,9 @@ import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.coordination.CoordinationMetadata;
 import org.opensearch.cluster.metadata.IndexGraveyard;
 import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.cluster.metadata.IndexTemplateMetadata;
 import org.opensearch.cluster.metadata.Metadata;
+import org.opensearch.cluster.metadata.TemplatesMetadata;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.common.blobstore.AsyncMultiStreamBlobContainer;
 import org.opensearch.common.blobstore.BlobContainer;
@@ -38,6 +40,7 @@ import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.gateway.remote.ClusterMetadataManifest.UploadedIndexMetadata;
+import org.opensearch.gateway.remote.ClusterMetadataManifest.UploadedMetadataAttribute;
 import org.opensearch.index.remote.RemoteStoreUtils;
 import org.opensearch.indices.IndicesModule;
 import org.opensearch.repositories.FilterRepository;
@@ -46,6 +49,7 @@ import org.opensearch.repositories.RepositoryMissingException;
 import org.opensearch.repositories.blobstore.BlobStoreRepository;
 import org.opensearch.repositories.fs.FsRepository;
 import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.test.TestCustomMetadata;
 import org.opensearch.test.VersionUtils;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
@@ -59,6 +63,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -69,14 +74,19 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import org.mockito.ArgumentCaptor;
 import org.mockito.ArgumentMatchers;
 
 import static java.util.stream.Collectors.toList;
+import static org.opensearch.gateway.remote.RemoteClusterStateService.COORDINATION_METADATA;
+import static org.opensearch.gateway.remote.RemoteClusterStateService.CUSTOM_METADATA;
 import static org.opensearch.gateway.remote.RemoteClusterStateService.DELIMITER;
 import static org.opensearch.gateway.remote.RemoteClusterStateService.FORMAT_PARAMS;
 import static org.opensearch.gateway.remote.RemoteClusterStateService.INDEX_METADATA_CURRENT_CODEC_VERSION;
@@ -84,11 +94,14 @@ import static org.opensearch.gateway.remote.RemoteClusterStateService.MANIFEST_C
 import static org.opensearch.gateway.remote.RemoteClusterStateService.MANIFEST_FILE_PREFIX;
 import static org.opensearch.gateway.remote.RemoteClusterStateService.METADATA_FILE_PREFIX;
 import static org.opensearch.gateway.remote.RemoteClusterStateService.RETAINED_MANIFESTS;
+import static org.opensearch.gateway.remote.RemoteClusterStateService.SETTING_METADATA;
+import static org.opensearch.gateway.remote.RemoteClusterStateService.TEMPLATES_METADATA;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEY;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_REPOSITORY_SETTINGS_ATTRIBUTE_KEY_PREFIX;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_REPOSITORY_TYPE_ATTRIBUTE_KEY_FORMAT;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
@@ -223,6 +236,11 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
         assertThat(manifest.getClusterUUID(), is(expectedManifest.getClusterUUID()));
         assertThat(manifest.getStateUUID(), is(expectedManifest.getStateUUID()));
         assertThat(manifest.getPreviousClusterUUID(), is(expectedManifest.getPreviousClusterUUID()));
+        assertThat(manifest.getGlobalMetadataFileName(), nullValue());
+        assertThat(manifest.getCoordinationMetadata(), notNullValue());
+        assertThat(manifest.getSettingsMetadata(), notNullValue());
+        assertThat(manifest.getTemplatesMetadata(), notNullValue());
+        assertFalse(manifest.getCustomMetadataMap().isEmpty());
     }
 
     public void testWriteFullMetadataInParallelSuccess() throws IOException {
@@ -233,6 +251,18 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
         ArgumentCaptor<WriteContext> writeContextArgumentCaptor = ArgumentCaptor.forClass(WriteContext.class);
         AtomicReference<WriteContext> capturedWriteContext = new AtomicReference<>();
         doAnswer((i) -> {
+            actionListenerArgumentCaptor.getValue().onResponse(null);
+            return null;
+        }).doAnswer((i) -> {
+            actionListenerArgumentCaptor.getValue().onResponse(null);
+            return null;
+        }).doAnswer((i) -> {
+            actionListenerArgumentCaptor.getValue().onResponse(null);
+            return null;
+        }).doAnswer((i) -> {
+            actionListenerArgumentCaptor.getValue().onResponse(null);
+            return null;
+        }).doAnswer((i) -> {
             actionListenerArgumentCaptor.getValue().onResponse(null);
             return null;
         }).doAnswer((i) -> {
@@ -263,15 +293,19 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
         assertThat(manifest.getIndices().get(0).getIndexName(), is(uploadedIndexMetadata.getIndexName()));
         assertThat(manifest.getIndices().get(0).getIndexUUID(), is(uploadedIndexMetadata.getIndexUUID()));
         assertThat(manifest.getIndices().get(0).getUploadedFilename(), notNullValue());
-        assertThat(manifest.getGlobalMetadataFileName(), notNullValue());
+        assertThat(manifest.getGlobalMetadataFileName(), nullValue());
+        assertThat(manifest.getCoordinationMetadata(), notNullValue());
+        assertThat(manifest.getSettingsMetadata(), notNullValue());
+        assertThat(manifest.getTemplatesMetadata(), notNullValue());
+        assertThat(manifest.getCustomMetadataMap().size(), not(0));
         assertThat(manifest.getClusterTerm(), is(expectedManifest.getClusterTerm()));
         assertThat(manifest.getStateVersion(), is(expectedManifest.getStateVersion()));
         assertThat(manifest.getClusterUUID(), is(expectedManifest.getClusterUUID()));
         assertThat(manifest.getStateUUID(), is(expectedManifest.getStateUUID()));
         assertThat(manifest.getPreviousClusterUUID(), is(expectedManifest.getPreviousClusterUUID()));
 
-        assertEquals(actionListenerArgumentCaptor.getAllValues().size(), 3);
-        assertEquals(writeContextArgumentCaptor.getAllValues().size(), 3);
+        assertEquals(7, actionListenerArgumentCaptor.getAllValues().size());
+        assertEquals(7, writeContextArgumentCaptor.getAllValues().size());
 
         byte[] writtenBytes = capturedWriteContext.get()
             .getStreamProvider(Integer.MAX_VALUE)
@@ -351,7 +385,7 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
             remoteClusterStateService.writeFullMetadata(clusterState, randomAlphaOfLength(10));
         } catch (Exception e) {
             assertTrue(e instanceof RemoteClusterStateService.RemoteStateTransferException);
-            assertTrue(e.getMessage().contains("Timed out waiting for transfer of manifest file to complete"));
+            assertTrue(e.getMessage().contains("Timed out waiting for transfer of metadata to complete"));
         }
     }
 
@@ -436,13 +470,28 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
     }
 
     /*
-     * Here we will verify the migration of manifest file from codec V0 and V1.
+     * Here we will verify the migration of manifest file from codec V0.
      *
      * Initially codec version is 0 and global metadata is also null, we will perform index metadata update.
-     * In final manifest codec version should be 1 and
-     * global metadata should be updated, even if it was not changed in this cluster state update
+     * In final manifest codec version should be 2 and have metadata files updated,
+     * even if it was not changed in this cluster state update
      */
-    public void testMigrationFromCodecV0ManifestToCodecV1Manifest() throws IOException {
+    public void testMigrationFromCodecV0ManifestToCodecV2Manifest() throws IOException {
+        verifyCodecMigrationManifest(ClusterMetadataManifest.CODEC_V0);
+    }
+
+    /*
+     * Here we will verify the migration of manifest file from codec V1.
+     *
+     * Initially codec version is 1 and a global metadata file is there, we will perform index metadata update.
+     * In final manifest codec version should be 2 and have metadata files updated,
+     * even if it was not changed in this cluster state update
+     */
+    public void testMigrationFromCodecV1ManifestToCodecV2Manifest() throws IOException {
+        verifyCodecMigrationManifest(ClusterMetadataManifest.CODEC_V1);
+    }
+
+    private void verifyCodecMigrationManifest(int previousCodec) throws IOException {
         mockBlobStoreObjects();
         final CoordinationMetadata coordinationMetadata = CoordinationMetadata.builder().term(1L).build();
         final ClusterState previousClusterState = ClusterState.builder(ClusterName.DEFAULT)
@@ -462,7 +511,7 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
 
         // previous manifest with codec 0 and null global metadata
         final ClusterMetadataManifest previousManifest = ClusterMetadataManifest.builder()
-            .codecVersion(ClusterMetadataManifest.CODEC_V0)
+            .codecVersion(previousCodec)
             .globalMetadataFileName(null)
             .indices(Collections.emptyList())
             .build();
@@ -475,23 +524,33 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
         );
 
         // global metadata is updated
-        assertThat(manifestAfterUpdate.getGlobalMetadataFileName(), notNullValue());
+        assertThat(manifestAfterUpdate.hasMetadataAttributesFiles(), is(true));
         // Manifest file with codec version with 1 is updated.
-        assertThat(manifestAfterUpdate.getCodecVersion(), is(ClusterMetadataManifest.CODEC_V1));
+        assertThat(manifestAfterUpdate.getCodecVersion(), is(MANIFEST_CURRENT_CODEC_VERSION));
     }
 
-    public void testWriteIncrementalGlobalMetadataSuccess() throws IOException {
+    public void testWriteIncrementalGlobalMetadataFromCodecV0Success() throws IOException {
+        final ClusterMetadataManifest previousManifest = ClusterMetadataManifest.builder().indices(Collections.emptyList()).build();
+
+        verifyWriteIncrementalGlobalMetadataFromOlderCodecSuccess(previousManifest);
+    }
+
+    public void testWriteIncrementalGlobalMetadataFromCodecV1Success() throws IOException {
+        final ClusterMetadataManifest previousManifest = ClusterMetadataManifest.builder()
+            .codecVersion(1)
+            .globalMetadataFileName("global-metadata-file")
+            .indices(Collections.emptyList())
+            .build();
+
+        verifyWriteIncrementalGlobalMetadataFromOlderCodecSuccess(previousManifest);
+    }
+
+    private void verifyWriteIncrementalGlobalMetadataFromOlderCodecSuccess(ClusterMetadataManifest previousManifest) throws IOException {
         final ClusterState clusterState = generateClusterStateWithGlobalMetadata().nodes(nodesWithLocalNodeClusterManager()).build();
         mockBlobStoreObjects();
         final CoordinationMetadata coordinationMetadata = CoordinationMetadata.builder().term(1L).build();
         final ClusterState previousClusterState = ClusterState.builder(ClusterName.DEFAULT)
             .metadata(Metadata.builder().coordinationMetadata(coordinationMetadata))
-            .build();
-
-        final ClusterMetadataManifest previousManifest = ClusterMetadataManifest.builder()
-            .codecVersion(2)
-            .globalMetadataFileName("global-metadata-file")
-            .indices(Collections.emptyList())
             .build();
 
         remoteClusterStateService.start();
@@ -502,8 +561,8 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
         );
 
         final ClusterMetadataManifest expectedManifest = ClusterMetadataManifest.builder()
+            .codecVersion(2)
             .indices(Collections.emptyList())
-            .globalMetadataFileName("mock-filename")
             .clusterTerm(1L)
             .stateVersion(1L)
             .stateUUID("state-uuid")
@@ -511,130 +570,239 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
             .previousClusterUUID("prev-cluster-uuid")
             .build();
 
-        assertThat(manifest.getGlobalMetadataFileName(), notNullValue());
-        assertThat(manifest.getClusterTerm(), is(expectedManifest.getClusterTerm()));
-        assertThat(manifest.getStateVersion(), is(expectedManifest.getStateVersion()));
-        assertThat(manifest.getClusterUUID(), is(expectedManifest.getClusterUUID()));
-        assertThat(manifest.getStateUUID(), is(expectedManifest.getStateUUID()));
+        assertNull(manifest.getGlobalMetadataFileName());
+        assertNotNull(manifest.getCoordinationMetadata());
+        assertNotNull(manifest.getSettingsMetadata());
+        assertNotNull(manifest.getTemplatesMetadata());
+        assertNotEquals(0, manifest.getCustomMetadataMap().size());
+
+        assertEquals(expectedManifest.getClusterTerm(), manifest.getClusterTerm());
+        assertEquals(expectedManifest.getStateVersion(), manifest.getStateVersion());
+        assertEquals(expectedManifest.getClusterUUID(), manifest.getClusterUUID());
+        assertEquals(expectedManifest.getStateUUID(), manifest.getStateUUID());
+        assertEquals(expectedManifest.getCodecVersion(), manifest.getCodecVersion());
     }
 
-    /*
-     * Here we will verify index metadata is not uploaded again if change is only in global metadata
-     */
-    public void testGlobalMetadataOnlyUpdated() throws IOException {
-        // setup
-        mockBlobStoreObjects();
-        final CoordinationMetadata coordinationMetadata = CoordinationMetadata.builder().term(1L).build();
-        final ClusterState initialClusterState = ClusterState.builder(ClusterName.DEFAULT)
-            .metadata(Metadata.builder().coordinationMetadata(coordinationMetadata).version(randomNonNegativeLong()))
+    public void testCoordinationMetadataOnlyUpdated() throws IOException {
+        // Updating the voting config, as updating the term will upload the full cluster state and other files will also get updated
+        Function<ClusterState, ClusterState> updater = (initialClusterState) -> ClusterState.builder(initialClusterState)
+            .metadata(
+                Metadata.builder(initialClusterState.metadata())
+                    .coordinationMetadata(
+                        CoordinationMetadata.builder(initialClusterState.coordinationMetadata())
+                            .addVotingConfigExclusion(new CoordinationMetadata.VotingConfigExclusion("excludedNodeId", "excludedNodeName"))
+                            .build()
+                    )
+                    .build()
+            )
             .build();
-        final ClusterMetadataManifest initialManifest = ClusterMetadataManifest.builder()
-            .codecVersion(2)
-            .globalMetadataFileName("global-metadata-file")
-            .indices(Collections.emptyList())
+        verifyMetadataAttributeOnlyUpdated(updater, (initialMetadata, metadataAfterUpdate) -> {
+            // Verify that index metadata information is same in manifest files
+            assertEquals(metadataAfterUpdate.getIndices().size(), initialMetadata.getIndices().size());
+            IntStream.range(0, initialMetadata.getIndices().size()).forEach(i -> {
+                assertEquals(metadataAfterUpdate.getIndices().get(i).getIndexName(), initialMetadata.getIndices().get(i).getIndexName());
+                assertEquals(metadataAfterUpdate.getIndices().get(i).getIndexUUID(), initialMetadata.getIndices().get(i).getIndexUUID());
+                // since timestamp is part of file name, if file name is same we can confirm that file is not update in global metadata
+                // update
+                assertEquals(
+                    metadataAfterUpdate.getIndices().get(i).getUploadedFilename(),
+                    initialMetadata.getIndices().get(i).getUploadedFilename()
+                );
+            });
+
+            // coordination metadata file would have changed
+            assertFalse(
+                metadataAfterUpdate.getCoordinationMetadata()
+                    .getUploadedFilename()
+                    .equalsIgnoreCase(initialMetadata.getCoordinationMetadata().getUploadedFilename())
+            );
+            // Other files will be equal
+            assertEquals(
+                metadataAfterUpdate.getSettingsMetadata().getUploadedFilename(),
+                initialMetadata.getSettingsMetadata().getUploadedFilename()
+            );
+            assertEquals(metadataAfterUpdate.getTemplatesMetadata(), initialMetadata.getTemplatesMetadata());
+            assertEquals(metadataAfterUpdate.getCustomMetadataMap(), initialMetadata.getCustomMetadataMap());
+        });
+    }
+
+    public void testSettingsMetadataOnlyUpdated() throws IOException {
+        Function<ClusterState, ClusterState> updater = (initialClusterState) -> ClusterState.builder(initialClusterState)
+            .metadata(
+                Metadata.builder(initialClusterState.metadata()).persistentSettings(Settings.builder().put("foo", "bar").build()).build()
+            )
             .build();
-        remoteClusterStateService.start();
 
-        // Initial cluster state with index.
-        final ClusterState clusterState = generateClusterStateWithOneIndex().nodes(nodesWithLocalNodeClusterManager()).build();
-        // Updating remote cluster state with changing index metadata
-        final ClusterMetadataManifest manifestAfterIndexMetadataUpdate = remoteClusterStateService.writeIncrementalMetadata(
-            initialClusterState,
-            clusterState,
-            initialManifest
-        );
+        verifyMetadataAttributeOnlyUpdated(updater, (initialMetadata, metadataAfterUpdate) -> {
+            // Verify that index metadata information is same in manifest files
+            assertEquals(metadataAfterUpdate.getIndices().size(), initialMetadata.getIndices().size());
+            IntStream.range(0, initialMetadata.getIndices().size()).forEach(i -> {
+                assertEquals(metadataAfterUpdate.getIndices().get(i).getIndexName(), initialMetadata.getIndices().get(i).getIndexName());
+                assertEquals(metadataAfterUpdate.getIndices().get(i).getIndexUUID(), initialMetadata.getIndices().get(i).getIndexUUID());
+                // since timestamp is part of file name, if file name is same we can confirm that file is not update in global metadata
+                // update
+                assertEquals(
+                    metadataAfterUpdate.getIndices().get(i).getUploadedFilename(),
+                    initialMetadata.getIndices().get(i).getUploadedFilename()
+                );
+            });
 
-        // new cluster state where only global metadata is different
-        Metadata newMetadata = Metadata.builder(clusterState.metadata())
-            .persistentSettings(Settings.builder().put("cluster.blocks.read_only", true).build())
-            .version(randomNonNegativeLong())
+            // setting metadata file would have changed
+            assertFalse(
+                metadataAfterUpdate.getSettingsMetadata()
+                    .getUploadedFilename()
+                    .equalsIgnoreCase(initialMetadata.getSettingsMetadata().getUploadedFilename())
+            );
+            assertEquals(metadataAfterUpdate.getCoordinationMetadata(), initialMetadata.getCoordinationMetadata());
+            assertEquals(metadataAfterUpdate.getTemplatesMetadata(), initialMetadata.getTemplatesMetadata());
+            assertEquals(metadataAfterUpdate.getCustomMetadataMap(), initialMetadata.getCustomMetadataMap());
+        });
+    }
+
+    public void testTemplatesMetadataOnlyUpdated() throws IOException {
+        Function<ClusterState, ClusterState> updater = (initialClusterState) -> ClusterState.builder(initialClusterState)
+            .metadata(
+                Metadata.builder(initialClusterState.metadata())
+                    .templates(
+                        TemplatesMetadata.builder()
+                            .put(
+                                IndexTemplateMetadata.builder("template" + randomAlphaOfLength(3))
+                                    .patterns(Arrays.asList("bar-*", "foo-*"))
+                                    .settings(
+                                        Settings.builder()
+                                            .put("random_index_setting_" + randomAlphaOfLength(3), randomAlphaOfLength(5))
+                                            .build()
+                                    )
+                                    .build()
+                            )
+                            .build()
+                    )
+                    .build()
+            )
             .build();
-        ClusterState newClusterState = ClusterState.builder(clusterState).metadata(newMetadata).build();
 
-        // updating remote cluster state with global metadata
-        final ClusterMetadataManifest manifestAfterGlobalMetadataUpdate = remoteClusterStateService.writeIncrementalMetadata(
-            clusterState,
-            newClusterState,
-            manifestAfterIndexMetadataUpdate
-        );
+        verifyMetadataAttributeOnlyUpdated(updater, (initialMetadata, metadataAfterUpdate) -> {
+            // Verify that index metadata information is same in manifest files
+            assertEquals(metadataAfterUpdate.getIndices().size(), initialMetadata.getIndices().size());
+            IntStream.range(0, initialMetadata.getIndices().size()).forEach(i -> {
+                assertEquals(metadataAfterUpdate.getIndices().get(i).getIndexName(), initialMetadata.getIndices().get(i).getIndexName());
+                assertEquals(metadataAfterUpdate.getIndices().get(i).getIndexUUID(), initialMetadata.getIndices().get(i).getIndexUUID());
+                // since timestamp is part of file name, if file name is same we can confirm that file is not update in global metadata
+                // update
+                assertEquals(
+                    metadataAfterUpdate.getIndices().get(i).getUploadedFilename(),
+                    initialMetadata.getIndices().get(i).getUploadedFilename()
+                );
+            });
 
-        // Verify that index metadata information is same in manifest files
-        assertThat(manifestAfterIndexMetadataUpdate.getIndices().size(), is(manifestAfterGlobalMetadataUpdate.getIndices().size()));
-        assertThat(
-            manifestAfterIndexMetadataUpdate.getIndices().get(0).getIndexName(),
-            is(manifestAfterGlobalMetadataUpdate.getIndices().get(0).getIndexName())
-        );
-        assertThat(
-            manifestAfterIndexMetadataUpdate.getIndices().get(0).getIndexUUID(),
-            is(manifestAfterGlobalMetadataUpdate.getIndices().get(0).getIndexUUID())
-        );
+            // template metadata file would have changed
+            assertFalse(
+                metadataAfterUpdate.getTemplatesMetadata()
+                    .getUploadedFilename()
+                    .equalsIgnoreCase(initialMetadata.getTemplatesMetadata().getUploadedFilename())
+            );
+            assertEquals(metadataAfterUpdate.getCoordinationMetadata(), initialMetadata.getCoordinationMetadata());
+            assertEquals(metadataAfterUpdate.getSettingsMetadata(), initialMetadata.getSettingsMetadata());
+            assertEquals(metadataAfterUpdate.getCustomMetadataMap(), initialMetadata.getCustomMetadataMap());
+        });
+    }
 
-        // since timestamp is part of file name, if file name is same we can confirm that file is not update in global metadata update
-        assertThat(
-            manifestAfterIndexMetadataUpdate.getIndices().get(0).getUploadedFilename(),
-            is(manifestAfterGlobalMetadataUpdate.getIndices().get(0).getUploadedFilename())
-        );
+    public void testCustomMetadataOnlyUpdated() throws IOException {
+        Function<ClusterState, ClusterState> updater = (initialClusterState) -> ClusterState.builder(initialClusterState)
+            .metadata(
+                Metadata.builder(initialClusterState.metadata())
+                    .putCustom("custom_metadata_type", new CustomMetadata1("mock_custom_metadata"))
+                    .build()
+            )
+            .build();
 
-        // global metadata file would have changed
-        assertFalse(
-            manifestAfterIndexMetadataUpdate.getGlobalMetadataFileName()
-                .equalsIgnoreCase(manifestAfterGlobalMetadataUpdate.getGlobalMetadataFileName())
-        );
+        verifyMetadataAttributeOnlyUpdated(updater, (initialMetadata, metadataAfterUpdate) -> {
+            // Verify that index metadata information is same in manifest files
+            assertEquals(metadataAfterUpdate.getIndices().size(), initialMetadata.getIndices().size());
+            IntStream.range(0, initialMetadata.getIndices().size()).forEach(i -> {
+                assertEquals(metadataAfterUpdate.getIndices().get(i).getIndexName(), initialMetadata.getIndices().get(i).getIndexName());
+                assertEquals(metadataAfterUpdate.getIndices().get(i).getIndexUUID(), initialMetadata.getIndices().get(i).getIndexUUID());
+                // since timestamp is part of file name, if file name is same we can confirm that file is not update in global metadata
+                // update
+                assertEquals(
+                    metadataAfterUpdate.getIndices().get(i).getUploadedFilename(),
+                    initialMetadata.getIndices().get(i).getUploadedFilename()
+                );
+                // custom metadata map would have changed
+                assertNotEquals(metadataAfterUpdate.getCustomMetadataMap(), initialMetadata.getCustomMetadataMap());
+                assertEquals(initialMetadata.getCustomMetadataMap().size() + 1, metadataAfterUpdate.getCustomMetadataMap().size());
+                initialMetadata.getCustomMetadataMap().forEach((k, v) -> {
+                    assertTrue(metadataAfterUpdate.getCustomMetadataMap().containsKey(k));
+                    assertEquals(v, metadataAfterUpdate.getCustomMetadataMap().get(k));
+                });
+                assertEquals(metadataAfterUpdate.getCoordinationMetadata(), initialMetadata.getCoordinationMetadata());
+                assertEquals(metadataAfterUpdate.getSettingsMetadata(), initialMetadata.getSettingsMetadata());
+                assertEquals(metadataAfterUpdate.getTemplatesMetadata(), initialMetadata.getTemplatesMetadata());
+            });
+        });
     }
 
     /*
      * Here we will verify global metadata is not uploaded again if change is only in index metadata
      */
     public void testIndexMetadataOnlyUpdated() throws IOException {
+        Function<ClusterState, ClusterState> updater = (initialState) -> ClusterState.builder(initialState)
+            .metadata(
+                Metadata.builder(initialState.metadata())
+                    .put(
+                        IndexMetadata.builder("test" + randomAlphaOfLength(3))
+                            .settings(
+                                Settings.builder()
+                                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                                    .put(IndexMetadata.SETTING_INDEX_UUID, "uuid")
+                                    .build()
+                            )
+                            .numberOfShards(1)
+                            .numberOfReplicas(0)
+                    )
+                    .build()
+            )
+            .build();
+
+        verifyMetadataAttributeOnlyUpdated(updater, (initialMetadata, metadataAfterUpdate) -> {
+            assertEquals(metadataAfterUpdate.getCoordinationMetadata(), initialMetadata.getCoordinationMetadata());
+            assertEquals(metadataAfterUpdate.getSettingsMetadata(), initialMetadata.getSettingsMetadata());
+            assertEquals(metadataAfterUpdate.getTemplatesMetadata(), initialMetadata.getTemplatesMetadata());
+            assertEquals(metadataAfterUpdate.getCustomMetadataMap(), initialMetadata.getCustomMetadataMap());
+            assertEquals(initialMetadata.getIndices().size() + 1, metadataAfterUpdate.getIndices().size());
+        });
+    }
+
+    /*
+     * Here we will verify index metadata is not uploaded again if change is only in global metadata
+     */
+    private void verifyMetadataAttributeOnlyUpdated(
+        Function<ClusterState, ClusterState> clusterStateUpdater,
+        BiConsumer<ClusterMetadataManifest, ClusterMetadataManifest> assertions
+    ) throws IOException {
         // setup
         mockBlobStoreObjects();
-        final CoordinationMetadata coordinationMetadata = CoordinationMetadata.builder().term(1L).build();
-        final ClusterState initialClusterState = ClusterState.builder(ClusterName.DEFAULT)
-            .metadata(Metadata.builder().coordinationMetadata(coordinationMetadata))
-            .build();
-        final ClusterMetadataManifest initialManifest = ClusterMetadataManifest.builder()
-            .codecVersion(2)
-            .indices(Collections.emptyList())
-            .build();
+
+        // Initial cluster state with index.
+        final ClusterState initialClusterState = generateClusterStateWithOneIndex().nodes(nodesWithLocalNodeClusterManager()).build();
         remoteClusterStateService.start();
+        final ClusterMetadataManifest initialManifest = remoteClusterStateService.writeFullMetadata(initialClusterState, "_na_");
 
-        // Initial cluster state with global metadata.
-        final ClusterState clusterState = generateClusterStateWithGlobalMetadata().nodes(nodesWithLocalNodeClusterManager()).build();
+        ClusterState newClusterState = clusterStateUpdater.apply(initialClusterState);
 
-        // Updating remote cluster state with changing global metadata
-        final ClusterMetadataManifest manifestAfterGlobalMetadataUpdate = remoteClusterStateService.writeIncrementalMetadata(
-            initialClusterState,
-            clusterState,
-            initialManifest
-        );
+        // updating remote cluster state with global metadata
+        final ClusterMetadataManifest manifestAfterMetadataUpdate;
+        if (initialClusterState.term() == newClusterState.term()) {
+            manifestAfterMetadataUpdate = remoteClusterStateService.writeIncrementalMetadata(
+                initialClusterState,
+                newClusterState,
+                initialManifest
+            );
+        } else {
+            manifestAfterMetadataUpdate = remoteClusterStateService.writeFullMetadata(newClusterState, initialClusterState.stateUUID());
+        }
 
-        // new cluster state where only Index metadata is different
-        final IndexMetadata indexMetadata = new IndexMetadata.Builder("test").settings(
-            Settings.builder()
-                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-                .put(IndexMetadata.SETTING_INDEX_UUID, "uuid")
-                .build()
-        ).numberOfShards(1).numberOfReplicas(0).build();
-        Metadata newMetadata = Metadata.builder(clusterState.metadata()).put(indexMetadata, true).build();
-        ClusterState newClusterState = ClusterState.builder(clusterState).metadata(newMetadata).build();
-
-        // updating remote cluster state with index metadata
-        final ClusterMetadataManifest manifestAfterIndexMetadataUpdate = remoteClusterStateService.writeIncrementalMetadata(
-            clusterState,
-            newClusterState,
-            manifestAfterGlobalMetadataUpdate
-        );
-
-        // Verify that global metadata information is same in manifest files after updating index Metadata
-        // since timestamp is part of file name, if file name is same we can confirm that file is not update in index metadata update
-        assertThat(
-            manifestAfterIndexMetadataUpdate.getGlobalMetadataFileName(),
-            is(manifestAfterGlobalMetadataUpdate.getGlobalMetadataFileName())
-        );
-
-        // Index metadata would have changed
-        assertThat(manifestAfterGlobalMetadataUpdate.getIndices().size(), is(0));
-        assertThat(manifestAfterIndexMetadataUpdate.getIndices().size(), is(1));
+        assertions.accept(initialManifest, manifestAfterMetadataUpdate);
     }
 
     public void testReadLatestMetadataManifestFailedIOException() throws IOException {
@@ -795,7 +963,10 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
             .stateUUID("state-uuid")
             .clusterUUID("cluster-uuid")
             .codecVersion(MANIFEST_CURRENT_CODEC_VERSION)
-            .globalMetadataFileName("global-metadata-file")
+            .coordinationMetadata(new UploadedMetadataAttribute(COORDINATION_METADATA, "mock-coordination-file"))
+            .settingMetadata(new UploadedMetadataAttribute(SETTING_METADATA, "mock-setting-file"))
+            .templatesMetadata(new UploadedMetadataAttribute(TEMPLATES_METADATA, "mock-templates-file"))
+            .put(IndexGraveyard.TYPE, new UploadedMetadataAttribute(CUSTOM_METADATA + DELIMITER + IndexGraveyard.TYPE, "mock-custom-" +IndexGraveyard.TYPE+ "-file"))
             .nodeId("nodeA")
             .opensearchVersion(VersionUtils.randomOpenSearchVersion(random()))
             .previousClusterUUID("prev-cluster-uuid")
@@ -830,7 +1001,7 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
             .stateVersion(1L)
             .stateUUID("state-uuid")
             .clusterUUID("cluster-uuid")
-            .codecVersion(MANIFEST_CURRENT_CODEC_VERSION)
+            .codecVersion(ClusterMetadataManifest.CODEC_V1)
             .globalMetadataFileName(globalIndexMetadataName)
             .nodeId("nodeA")
             .opensearchVersion(VersionUtils.randomOpenSearchVersion(random()))
@@ -1124,18 +1295,24 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
         assertThat(splittedIndexMetadataFileName[1], is(RemoteStoreUtils.invertLong(indexMetadata.getVersion())));
         assertThat(splittedIndexMetadataFileName[3], is(String.valueOf(INDEX_METADATA_CURRENT_CODEC_VERSION)));
 
+        verifyManifestFileNameWithCodec(MANIFEST_CURRENT_CODEC_VERSION);
+        verifyManifestFileNameWithCodec(ClusterMetadataManifest.CODEC_V1);
+        verifyManifestFileNameWithCodec(ClusterMetadataManifest.CODEC_V0);
+    }
+
+    private void verifyManifestFileNameWithCodec(int codecVersion) {
         int term = randomIntBetween(5, 10);
         int version = randomIntBetween(5, 10);
-        String manifestFileName = RemoteClusterStateService.getManifestFileName(term, version, true);
+        String manifestFileName = RemoteClusterStateService.getManifestFileName(term, version, true, codecVersion);
         assertThat(manifestFileName.split(DELIMITER).length, is(6));
         String[] splittedName = manifestFileName.split(DELIMITER);
         assertThat(splittedName[0], is(MANIFEST_FILE_PREFIX));
         assertThat(splittedName[1], is(RemoteStoreUtils.invertLong(term)));
         assertThat(splittedName[2], is(RemoteStoreUtils.invertLong(version)));
         assertThat(splittedName[3], is("C"));
-        assertThat(splittedName[5], is(String.valueOf(MANIFEST_CURRENT_CODEC_VERSION)));
+        assertThat(splittedName[5], is(String.valueOf(codecVersion)));
 
-        manifestFileName = RemoteClusterStateService.getManifestFileName(term, version, false);
+        manifestFileName = RemoteClusterStateService.getManifestFileName(term, version, false, codecVersion);
         splittedName = manifestFileName.split(DELIMITER);
         assertThat(splittedName[3], is("P"));
     }
@@ -1251,12 +1428,16 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
             new UploadedIndexMetadata("index1", "index-uuid1", "key1"),
             new UploadedIndexMetadata("index2", "index-uuid2", "key2")
         );
+        Map<String, UploadedMetadataAttribute> customMetadataMap = new HashMap<>();
         final ClusterMetadataManifest clusterManifest1 = generateClusterMetadataManifest(
             "cluster-uuid1",
             clusterUUIDsPointers.get("cluster-uuid1"),
             randomAlphaOfLength(10),
             uploadedIndexMetadataList1,
-            "test-metadata1",
+            customMetadataMap,
+            new UploadedMetadataAttribute(COORDINATION_METADATA, "key3"),
+            new UploadedMetadataAttribute(SETTING_METADATA, "key4"),
+            new UploadedMetadataAttribute(TEMPLATES_METADATA, "key5"),
             clusterUUIDCommitted.getOrDefault("cluster-uuid1", true)
         );
         Settings indexSettings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build();
@@ -1275,7 +1456,7 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
             .build();
         Map<String, IndexMetadata> indexMetadataMap1 = Map.of("index-uuid1", indexMetadata1, "index-uuid2", indexMetadata2);
         mockBlobContainerForGlobalMetadata(blobContainer1, clusterManifest1, metadata1);
-        mockBlobContainer(blobContainer1, clusterManifest1, indexMetadataMap1, ClusterMetadataManifest.CODEC_V1);
+        mockBlobContainer(blobContainer1, clusterManifest1, indexMetadataMap1, ClusterMetadataManifest.CODEC_V2);
 
         List<UploadedIndexMetadata> uploadedIndexMetadataList2 = List.of(
             new UploadedIndexMetadata("index1", "index-uuid1", "key1"),
@@ -1286,7 +1467,10 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
             clusterUUIDsPointers.get("cluster-uuid2"),
             randomAlphaOfLength(10),
             uploadedIndexMetadataList2,
-            "test-metadata2",
+            customMetadataMap,
+            new UploadedMetadataAttribute(COORDINATION_METADATA, "key3"),
+            new UploadedMetadataAttribute(SETTING_METADATA, "key4"),
+            new UploadedMetadataAttribute(TEMPLATES_METADATA, "key5"),
             clusterUUIDCommitted.getOrDefault("cluster-uuid2", true)
         );
         IndexMetadata indexMetadata3 = IndexMetadata.builder("index1")
@@ -1304,7 +1488,7 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
             .build();
         Map<String, IndexMetadata> indexMetadataMap2 = Map.of("index-uuid1", indexMetadata3, "index-uuid2", indexMetadata4);
         mockBlobContainerForGlobalMetadata(blobContainer2, clusterManifest2, metadata2);
-        mockBlobContainer(blobContainer2, clusterManifest2, indexMetadataMap2, ClusterMetadataManifest.CODEC_V1);
+        mockBlobContainer(blobContainer2, clusterManifest2, indexMetadataMap2, ClusterMetadataManifest.CODEC_V2);
 
         // differGlobalMetadata controls which one of IndexMetadata or Metadata object would be different
         // when comparing cluster-uuid3 and cluster-uuid1 state.
@@ -1326,17 +1510,19 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
         Metadata metadata3 = Metadata.builder()
             .persistentSettings(Settings.builder().put(Metadata.SETTING_READ_ONLY_SETTING.getKey(), !differGlobalMetadata).build())
             .build();
-
         final ClusterMetadataManifest clusterManifest3 = generateClusterMetadataManifest(
             "cluster-uuid3",
             clusterUUIDsPointers.get("cluster-uuid3"),
             randomAlphaOfLength(10),
             uploadedIndexMetadataList3,
-            "test-metadata3",
+            customMetadataMap,
+            new UploadedMetadataAttribute(COORDINATION_METADATA, "key3"),
+            new UploadedMetadataAttribute(SETTING_METADATA, "key4"),
+            new UploadedMetadataAttribute(TEMPLATES_METADATA, "key5"),
             clusterUUIDCommitted.getOrDefault("cluster-uuid3", true)
         );
         mockBlobContainerForGlobalMetadata(blobContainer3, clusterManifest3, metadata3);
-        mockBlobContainer(blobContainer3, clusterManifest3, indexMetadataMap3, ClusterMetadataManifest.CODEC_V1);
+        mockBlobContainer(blobContainer3, clusterManifest3, indexMetadataMap3, ClusterMetadataManifest.CODEC_V2);
 
         ArrayList<BlobContainer> mockBlobContainerOrderedList = new ArrayList<>(
             List.of(blobContainer1, blobContainer1, blobContainer3, blobContainer3, blobContainer2, blobContainer2)
@@ -1356,7 +1542,7 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
         when(blobStoreRepository.getCompressor()).thenReturn(new DeflateCompressor());
     }
 
-    private ClusterMetadataManifest generateClusterMetadataManifest(
+    private ClusterMetadataManifest generateV1ClusterMetadataManifest(
         String clusterUUID,
         String previousClusterUUID,
         String stateUUID,
@@ -1377,6 +1563,36 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
             .clusterUUIDCommitted(isUUIDCommitted)
             .globalMetadataFileName(globalMetadataFileName)
             .codecVersion(ClusterMetadataManifest.CODEC_V1)
+            .build();
+    }
+
+    private ClusterMetadataManifest generateClusterMetadataManifest(
+        String clusterUUID,
+        String previousClusterUUID,
+        String stateUUID,
+        List<UploadedIndexMetadata> uploadedIndexMetadata,
+        Map<String, UploadedMetadataAttribute> customMetadataMap,
+        UploadedMetadataAttribute coordinationMetadata,
+        UploadedMetadataAttribute settingsMetadata,
+        UploadedMetadataAttribute templatesMetadata,
+        Boolean isUUIDCommitted
+    ) {
+        return ClusterMetadataManifest.builder()
+            .indices(uploadedIndexMetadata)
+            .clusterTerm(1L)
+            .stateVersion(1L)
+            .stateUUID(stateUUID)
+            .clusterUUID(clusterUUID)
+            .nodeId("nodeA")
+            .opensearchVersion(VersionUtils.randomOpenSearchVersion(random()))
+            .previousClusterUUID(previousClusterUUID)
+            .committed(true)
+            .clusterUUIDCommitted(isUUIDCommitted)
+            .coordinationMetadata(coordinationMetadata)
+            .settingMetadata(settingsMetadata)
+            .templatesMetadata(templatesMetadata)
+            .customMetadataMap(customMetadataMap)
+            .codecVersion(MANIFEST_CURRENT_CODEC_VERSION)
             .build();
     }
 
@@ -1419,7 +1635,7 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
         int codecVersion
     ) throws IOException {
         String manifestFileName = codecVersion >= ClusterMetadataManifest.CODEC_V1
-            ? "manifest__manifestFileName__abcd__abcd__abcd__1"
+            ? "manifest__manifestFileName__abcd__abcd__abcd__" + codecVersion
             : "manifestFileName";
         BlobMetadata blobMetadata = new PlainBlobMetadata(manifestFileName, 1);
         when(blobContainer.listBlobsByPrefixInSortedOrder("manifest" + DELIMITER, 1, BlobContainer.BlobNameSortOrder.LEXICOGRAPHIC))
@@ -1460,7 +1676,8 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
         ClusterMetadataManifest clusterMetadataManifest,
         Metadata metadata
     ) throws IOException {
-        String mockManifestFileName = "manifest__1__2__C__456__1";
+        int codecVersion = clusterMetadataManifest.getCodecVersion();
+        String mockManifestFileName = "manifest__1__2__C__456__" + codecVersion;
         BlobMetadata blobMetadata = new PlainBlobMetadata(mockManifestFileName, 1);
         when(
             blobContainer.listBlobsByPrefixInSortedOrder(
@@ -1477,19 +1694,84 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
             FORMAT_PARAMS
         );
         when(blobContainer.readBlob(mockManifestFileName)).thenReturn(new ByteArrayInputStream(bytes.streamInput().readAllBytes()));
+        if (codecVersion >= ClusterMetadataManifest.CODEC_V2) {
+            String coordinationFileName = getFileNameFromPath(clusterMetadataManifest.getCoordinationMetadata().getUploadedFilename());
+            when(blobContainer.readBlob(RemoteClusterStateService.COORDINATION_METADATA_FORMAT.blobName(coordinationFileName))).thenAnswer(
+                (invocationOnMock) -> {
+                    BytesReference bytesReference = RemoteClusterStateService.COORDINATION_METADATA_FORMAT.serialize(
+                        metadata.coordinationMetadata(),
+                        coordinationFileName,
+                        blobStoreRepository.getCompressor(),
+                        FORMAT_PARAMS
+                    );
+                    return new ByteArrayInputStream(bytesReference.streamInput().readAllBytes());
+                }
+            );
 
-        String[] splitPath = clusterMetadataManifest.getGlobalMetadataFileName().split("/");
-        when(blobContainer.readBlob(RemoteClusterStateService.GLOBAL_METADATA_FORMAT.blobName(splitPath[splitPath.length - 1]))).thenAnswer(
-            (invocationOnMock) -> {
-                BytesReference bytesGlobalMetadata = RemoteClusterStateService.GLOBAL_METADATA_FORMAT.serialize(
-                    metadata,
-                    "global-metadata-file",
-                    blobStoreRepository.getCompressor(),
-                    FORMAT_PARAMS
+            String settingsFileName = getFileNameFromPath(clusterMetadataManifest.getSettingsMetadata().getUploadedFilename());
+            when(blobContainer.readBlob(RemoteClusterStateService.SETTINGS_METADATA_FORMAT.blobName(settingsFileName))).thenAnswer(
+                (invocationOnMock) -> {
+                    BytesReference bytesReference = RemoteClusterStateService.SETTINGS_METADATA_FORMAT.serialize(
+                        metadata.persistentSettings(),
+                        settingsFileName,
+                        blobStoreRepository.getCompressor(),
+                        FORMAT_PARAMS
+                    );
+                    return new ByteArrayInputStream(bytesReference.streamInput().readAllBytes());
+                }
+            );
+
+            String templatesFileName = getFileNameFromPath(clusterMetadataManifest.getTemplatesMetadata().getUploadedFilename());
+            when(blobContainer.readBlob(RemoteClusterStateService.TEMPLATES_METADATA_FORMAT.blobName(templatesFileName))).thenAnswer(
+                (invocationOnMock) -> {
+                    BytesReference bytesReference = RemoteClusterStateService.TEMPLATES_METADATA_FORMAT.serialize(
+                        metadata.templatesMetadata(),
+                        templatesFileName,
+                        blobStoreRepository.getCompressor(),
+                        FORMAT_PARAMS
+                    );
+                    return new ByteArrayInputStream(bytesReference.streamInput().readAllBytes());
+                }
+            );
+
+            Map<String, String> customFileMap = clusterMetadataManifest.getCustomMetadataMap()
+                .entrySet()
+                .stream()
+                .collect(Collectors.toMap(Map.Entry::getKey, entry -> getFileNameFromPath(entry.getValue().getUploadedFilename())));
+
+            for (Map.Entry<String, String> entry : customFileMap.entrySet()) {
+                String custom = entry.getKey();
+                String fileName = entry.getValue();
+                when(blobContainer.readBlob(RemoteClusterStateService.CUSTOM_METADATA_FORMAT.blobName(fileName))).thenAnswer(
+                    (invocation) -> {
+                        BytesReference bytesReference = RemoteClusterStateService.CUSTOM_METADATA_FORMAT.serialize(
+                            metadata.custom(custom),
+                            fileName,
+                            blobStoreRepository.getCompressor(),
+                            FORMAT_PARAMS
+                        );
+                        return new ByteArrayInputStream(bytesReference.streamInput().readAllBytes());
+                    }
                 );
-                return new ByteArrayInputStream(bytesGlobalMetadata.streamInput().readAllBytes());
             }
-        );
+        } else if (codecVersion == ClusterMetadataManifest.CODEC_V1) {
+            String[] splitPath = clusterMetadataManifest.getGlobalMetadataFileName().split("/");
+            when(blobContainer.readBlob(RemoteClusterStateService.GLOBAL_METADATA_FORMAT.blobName(splitPath[splitPath.length - 1])))
+                .thenAnswer((invocationOnMock) -> {
+                    BytesReference bytesGlobalMetadata = RemoteClusterStateService.GLOBAL_METADATA_FORMAT.serialize(
+                        metadata,
+                        "global-metadata-file",
+                        blobStoreRepository.getCompressor(),
+                        FORMAT_PARAMS
+                    );
+                    return new ByteArrayInputStream(bytesGlobalMetadata.streamInput().readAllBytes());
+                });
+        }
+    }
+
+    private String getFileNameFromPath(String filePath) {
+        String[] splitPath = filePath.split("/");
+        return splitPath[splitPath.length - 1];
     }
 
     private static ClusterState.Builder generateClusterStateWithGlobalMetadata() {
@@ -1519,7 +1801,9 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
             .numberOfReplicas(0)
             .build();
         final CoordinationMetadata coordinationMetadata = CoordinationMetadata.builder().term(1L).build();
-
+        final Settings settings = Settings.builder().put("mock-settings", true).build();
+        final TemplatesMetadata templatesMetadata = TemplatesMetadata.EMPTY_METADATA;
+        final CustomMetadata1 customMetadata1 = new CustomMetadata1("custom-metadata-1");
         return ClusterState.builder(ClusterName.DEFAULT)
             .version(1L)
             .stateUUID("state-uuid")
@@ -1529,12 +1813,38 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
                     .put(indexMetadata, true)
                     .clusterUUID("cluster-uuid")
                     .coordinationMetadata(coordinationMetadata)
+                    .persistentSettings(settings)
+                    .templates(templatesMetadata)
+                    .putCustom(customMetadata1.getWriteableName(), customMetadata1)
                     .build()
             );
     }
 
     private static DiscoveryNodes nodesWithLocalNodeClusterManager() {
         return DiscoveryNodes.builder().clusterManagerNodeId("cluster-manager-id").localNodeId("cluster-manager-id").build();
+    }
+
+    private static class CustomMetadata1 extends TestCustomMetadata {
+        public static final String TYPE = "custom_md_1";
+
+        CustomMetadata1(String data) {
+            super(data);
+        }
+
+        @Override
+        public String getWriteableName() {
+            return TYPE;
+        }
+
+        @Override
+        public Version getMinimalSupportedVersion() {
+            return Version.CURRENT;
+        }
+
+        @Override
+        public EnumSet<Metadata.XContentContext> context() {
+            return EnumSet.of(Metadata.XContentContext.GATEWAY);
+        }
     }
 
 }

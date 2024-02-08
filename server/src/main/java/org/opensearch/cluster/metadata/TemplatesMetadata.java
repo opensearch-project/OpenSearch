@@ -9,9 +9,6 @@
 package org.opensearch.cluster.metadata;
 
 import org.opensearch.cluster.AbstractDiffable;
-import org.opensearch.cluster.coordination.CoordinationMetadata;
-import org.opensearch.common.annotation.PublicApi;
-import org.opensearch.common.settings.Settings;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
@@ -66,7 +63,7 @@ public class TemplatesMetadata extends AbstractDiffable<TemplatesMetadata> imple
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
 
-        TemplatesMetadata  that = (TemplatesMetadata) o;
+        TemplatesMetadata that = (TemplatesMetadata) o;
 
         return Objects.equals(templates, that.templates);
     }
@@ -111,11 +108,11 @@ public class TemplatesMetadata extends AbstractDiffable<TemplatesMetadata> imple
         }
 
         public static void toXContent(TemplatesMetadata templates, XContentBuilder builder, Params params) throws IOException {
-//            builder.startObject("templates-metadata");
-            for(IndexTemplateMetadata cursor : templates.getTemplates().values()) {
+            // builder.startObject("templates-metadata");
+            for (IndexTemplateMetadata cursor : templates.getTemplates().values()) {
                 IndexTemplateMetadata.Builder.toXContentWithTypes(cursor, builder, params);
             }
-//            builder.endObject();
+            // builder.endObject();
         }
 
         public static TemplatesMetadata fromXContent(XContentParser parser) throws IOException {
