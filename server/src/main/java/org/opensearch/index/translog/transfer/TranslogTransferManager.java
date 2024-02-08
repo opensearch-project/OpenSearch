@@ -408,29 +408,33 @@ public class TranslogTransferManager {
      */
     public void deletePrimaryTermsAsync(long minPrimaryTermToKeep) {
         logger.info("Deleting primary terms from remote store lesser than {}", minPrimaryTermToKeep);
-        transferService.listFoldersAsync(ThreadPool.Names.REMOTE_PURGE, remoteDataTransferPath, new ActionListener<>() {
-            @Override
-            public void onResponse(Set<String> folders) {
-                Set<Long> primaryTermsInRemote = folders.stream().filter(folderName -> {
-                    try {
-                        Long.parseLong(folderName);
-                        return true;
-                    } catch (Exception ignored) {
-                        // NO-OP
-                    }
-                    return false;
-                }).map(Long::parseLong).collect(Collectors.toSet());
-                Set<Long> primaryTermsToDelete = primaryTermsInRemote.stream()
-                    .filter(term -> term < minPrimaryTermToKeep)
-                    .collect(Collectors.toSet());
-                primaryTermsToDelete.forEach(term -> deletePrimaryTermAsync(term));
-            }
+        try {
+            transferService.listFoldersAsync(ThreadPool.Names.REMOTE_PURGE, remoteDataTransferPath, new ActionListener<>() {
+                @Override
+                public void onResponse(Set<String> folders) {
+                    Set<Long> primaryTermsInRemote = folders.stream().filter(folderName -> {
+                        try {
+                            Long.parseLong(folderName);
+                            return true;
+                        } catch (Exception ignored) {
+                            // NO-OP
+                        }
+                        return false;
+                    }).map(Long::parseLong).collect(Collectors.toSet());
+                    Set<Long> primaryTermsToDelete = primaryTermsInRemote.stream()
+                        .filter(term -> term < minPrimaryTermToKeep)
+                        .collect(Collectors.toSet());
+                    primaryTermsToDelete.forEach(term -> deletePrimaryTermAsync(term));
+                }
 
-            @Override
-            public void onFailure(Exception e) {
-                logger.error("Exception occurred while getting primary terms from remote store", e);
-            }
-        });
+                @Override
+                public void onFailure(Exception e) {
+                    logger.error("Exception occurred while getting primary terms from remote store", e);
+                }
+            });
+        } catch (Exception e) {
+            logger.error("Exception occurred while scheduling listing primary terms from remote store", e);
+        }
     }
 
     /**
@@ -457,18 +461,22 @@ public class TranslogTransferManager {
     }
 
     public void delete() {
-        // cleans up all the translog contents in async fashion
-        transferService.deleteAsync(ThreadPool.Names.REMOTE_PURGE, remoteBaseTransferPath, new ActionListener<>() {
-            @Override
-            public void onResponse(Void unused) {
-                logger.info("Deleted all remote translog data");
-            }
+        // cleans up all the translog contents in async fashion in a best effort way
+        try {
+            transferService.deleteAsync(ThreadPool.Names.REMOTE_PURGE, remoteBaseTransferPath, new ActionListener<>() {
+                @Override
+                public void onResponse(Void unused) {
+                    logger.info("Deleted all remote translog data");
+                }
 
-            @Override
-            public void onFailure(Exception e) {
-                logger.error("Exception occurred while cleaning translog", e);
-            }
-        });
+                @Override
+                public void onFailure(Exception e) {
+                    logger.error("Exception occurred while cleaning translog", e);
+                }
+            });
+        } catch (Exception e) {
+            logger.error("Exception occurred while scheduling delete from remote store", e);
+        }
     }
 
     public void deleteStaleTranslogMetadataFilesAsync(Runnable onCompletion) {
