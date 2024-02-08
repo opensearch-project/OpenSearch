@@ -32,7 +32,10 @@
 
 package org.opensearch.search;
 
+import com.google.protobuf.ByteString;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.SuppressForbidden;
+import org.opensearch.OpenSearchException;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.lucene.Lucene;
 import org.opensearch.core.common.io.stream.StreamInput;
@@ -43,8 +46,12 @@ import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.core.xcontent.XContentParserUtils;
 import org.opensearch.search.SearchHit.Fields;
+import org.opensearch.server.proto.FetchSearchResultProto;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.ObjectInputStream;
 import java.util.Arrays;
 import java.util.Objects;
 
@@ -92,6 +99,33 @@ public class SearchSortValues implements ToXContentFragment, Writeable {
     SearchSortValues(StreamInput in) throws IOException {
         this.formattedSortValues = in.readArray(Lucene::readSortValue, Object[]::new);
         this.rawSortValues = in.readArray(Lucene::readSortValue, Object[]::new);
+    }
+
+    @SuppressForbidden(reason = "We need to read from a byte array")
+    SearchSortValues(byte[] in) throws IOException {
+        FetchSearchResultProto.SearchHit.SearchSortValues searchSortValues = FetchSearchResultProto.SearchHit.SearchSortValues.parseFrom(
+            in
+        );
+        this.formattedSortValues = new Object[searchSortValues.getFormattedSortValuesCount()];
+        for (int i = 0; i < searchSortValues.getFormattedSortValuesCount(); i++) {
+            ByteString formattedSortValue = searchSortValues.getFormattedSortValues(i);
+            InputStream is = new ByteArrayInputStream(formattedSortValue.toByteArray());
+            try (ObjectInputStream ois = new ObjectInputStream(is)) {
+                this.formattedSortValues[i] = ois.readObject();
+            } catch (ClassNotFoundException e) {
+                throw new OpenSearchException(e);
+            }
+        }
+        this.rawSortValues = new Object[searchSortValues.getRawSortValuesCount()];
+        for (int i = 0; i < searchSortValues.getRawSortValuesCount(); i++) {
+            ByteString rawSortValue = searchSortValues.getRawSortValues(i);
+            InputStream is = new ByteArrayInputStream(rawSortValue.toByteArray());
+            try (ObjectInputStream ois = new ObjectInputStream(is)) {
+                this.rawSortValues[i] = ois.readObject();
+            } catch (ClassNotFoundException e) {
+                throw new OpenSearchException(e);
+            }
+        }
     }
 
     @Override

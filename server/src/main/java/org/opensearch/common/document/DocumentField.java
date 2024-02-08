@@ -32,6 +32,9 @@
 
 package org.opensearch.common.document;
 
+import com.google.protobuf.ByteString;
+import org.apache.lucene.util.SuppressForbidden;
+import org.opensearch.OpenSearchException;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
@@ -41,8 +44,12 @@ import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.get.GetResult;
 import org.opensearch.search.SearchHit;
+import org.opensearch.server.proto.FetchSearchResultProto;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.ObjectInputStream;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
@@ -64,6 +71,7 @@ public class DocumentField implements Writeable, ToXContentFragment, Iterable<Ob
 
     private final String name;
     private final List<Object> values;
+    private FetchSearchResultProto.SearchHit.DocumentField documentField;
 
     public DocumentField(StreamInput in) throws IOException {
         name = in.readString();
@@ -73,6 +81,21 @@ public class DocumentField implements Writeable, ToXContentFragment, Iterable<Ob
     public DocumentField(String name, List<Object> values) {
         this.name = Objects.requireNonNull(name, "name must not be null");
         this.values = Objects.requireNonNull(values, "values must not be null");
+    }
+
+    @SuppressForbidden(reason = "We need to read from a byte array")
+    public DocumentField(byte[] in) throws IOException {
+        documentField = FetchSearchResultProto.SearchHit.DocumentField.parseFrom(in);
+        name = documentField.getName();
+        values = new ArrayList<>();
+        for (ByteString value : documentField.getValuesList()) {
+            InputStream is = new ByteArrayInputStream(value.toByteArray());
+            try (ObjectInputStream ois = new ObjectInputStream(is)) {
+                values.add(ois.readObject());
+            } catch (ClassNotFoundException e) {
+                throw new OpenSearchException(e);
+            }
+        }
     }
 
     /**

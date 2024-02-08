@@ -246,8 +246,11 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
         this.docId = -1;
         this.score = this.searchHitProto.getScore();
         this.id = new Text(this.searchHitProto.getId());
-        // Support for nestedIdentity to be added in the future
-        this.nestedIdentity = null;
+        if (!this.searchHitProto.hasNestedIdentity() && this.searchHitProto.getNestedIdentity().toByteArray().length > 0) {
+            this.nestedIdentity = new NestedIdentity(this.searchHitProto.getNestedIdentity().toByteArray());
+        } else {
+            this.nestedIdentity = null;
+        }
         this.version = this.searchHitProto.getVersion();
         this.seqNo = this.searchHitProto.getSeqNo();
         this.primaryTerm = this.searchHitProto.getPrimaryTerm();
@@ -255,39 +258,61 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
         if (source.length() == 0) {
             source = null;
         }
-        // add support for metaFields and documentFields
-        this.metaFields = new HashMap<>();
         this.documentFields = new HashMap<>();
-    }
-
-    private Map<String, DocumentField> readFields(StreamInput in) throws IOException {
-        Map<String, DocumentField> fields;
-        int size = in.readVInt();
-        if (size == 0) {
-            fields = emptyMap();
-        } else if (size == 1) {
-            DocumentField hitField = new DocumentField(in);
-            fields = singletonMap(hitField.getName(), hitField);
-        } else {
-            fields = new HashMap<>(size);
-            for (int i = 0; i < size; i++) {
-                DocumentField field = new DocumentField(in);
-                fields.put(field.getName(), field);
+        this.searchHitProto.getDocumentFieldsMap().forEach((k, v) -> {
+            try {
+                this.documentFields.put(k, new DocumentField(v.toByteArray()));
+            } catch (IOException e) {
+                throw new OpenSearchParseException("failed to parse document field", e);
             }
-            fields = unmodifiableMap(fields);
-        }
-        return fields;
-    }
-
-    private void writeFields(StreamOutput out, Map<String, DocumentField> fields) throws IOException {
-        if (fields == null) {
-            out.writeVInt(0);
-        } else {
-            out.writeVInt(fields.size());
-            for (DocumentField field : fields.values()) {
-                field.writeTo(out);
+        });
+        this.metaFields = new HashMap<>();
+        this.searchHitProto.getMetaFieldsMap().forEach((k, v) -> {
+            try {
+                this.metaFields.put(k, new DocumentField(v.toByteArray()));
+            } catch (IOException e) {
+                throw new OpenSearchParseException("failed to parse document field", e);
             }
+        });
+        this.highlightFields = new HashMap<>();
+        this.searchHitProto.getHighlightFieldsMap().forEach((k, v) -> {
+            try {
+                this.highlightFields.put(k, new HighlightField(v.toByteArray()));
+            } catch (IOException e) {
+                throw new OpenSearchParseException("failed to parse highlight field", e);
+            }
+        });
+        this.sortValues = new SearchSortValues(this.searchHitProto.getSortValues().toByteArray());
+        if (this.searchHitProto.getMatchedQueriesCount() > 0) {
+            this.matchedQueries = this.searchHitProto.getMatchedQueriesList().toArray(new String[0]);
         }
+        if (this.searchHitProto.hasExplanation()) {
+            this.explanation = readExplanation(this.searchHitProto.getExplanation().toByteArray());
+        }
+        SearchShardTarget searchShardTarget = new SearchShardTarget(
+            this.searchHitProto.getShard().getNodeId(),
+            new ShardId(
+                this.searchHitProto.getShard().getShardId().getIndexName(),
+                this.searchHitProto.getShard().getShardId().getIndexUUID(),
+                this.searchHitProto.getShard().getShardId().getShardId()
+            ),
+            this.searchHitProto.getShard().getClusterAlias(),
+            OriginalIndices.NONE
+        );
+        shard(searchShardTarget);
+        if (this.searchHitProto.getInnerHitsCount() > 0) {
+            this.innerHits = new HashMap<>();
+            this.searchHitProto.getInnerHitsMap().forEach((k, v) -> {
+                try {
+                    this.innerHits.put(k, new SearchHits(v.toByteArray()));
+                } catch (IOException e) {
+                    throw new OpenSearchParseException("failed to parse inner hits", e);
+                }
+            });
+        } else {
+            this.innerHits = null;
+        }
+
     }
 
     private static final Text SINGLE_MAPPING_TYPE = new Text(MapperService.SINGLE_MAPPING_NAME);
@@ -1119,6 +1144,25 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
             field = in.readOptionalText();
             offset = in.readInt();
             child = in.readOptionalWriteable(NestedIdentity::new);
+        }
+
+        NestedIdentity(byte[] in) throws IOException {
+            FetchSearchResultProto.SearchHit.NestedIdentity proto = FetchSearchResultProto.SearchHit.NestedIdentity.parseFrom(in);
+            if (proto.hasField()) {
+                field = new Text(proto.getField());
+            } else {
+                field = null;
+            }
+            if (proto.hasOffset()) {
+                offset = proto.getOffset();
+            } else {
+                offset = -1;
+            }
+            if (proto.hasChild()) {
+                child = new NestedIdentity(proto.getChild().toByteArray());
+            } else {
+                child = null;
+            }
         }
 
         /**
