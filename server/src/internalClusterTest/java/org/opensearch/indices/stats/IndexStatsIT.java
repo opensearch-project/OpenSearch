@@ -132,8 +132,16 @@ public class IndexStatsIT extends ParameterizedStaticSettingsOpenSearchIntegTest
         return Arrays.asList(
             new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), false).build() },
             new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), true).build() },
-            new Object[] { Settings.builder().put(CLUSTER_REPLICATION_TYPE_SETTING.getKey(), ReplicationType.DOCUMENT).build() },
-            new Object[] { Settings.builder().put(CLUSTER_REPLICATION_TYPE_SETTING.getKey(), ReplicationType.SEGMENT).build() }
+            new Object[] {
+                Settings.builder()
+                    .put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), false)
+                    .put(CLUSTER_REPLICATION_TYPE_SETTING.getKey(), ReplicationType.SEGMENT)
+                    .build() },
+            new Object[] {
+                Settings.builder()
+                    .put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), true)
+                    .put(CLUSTER_REPLICATION_TYPE_SETTING.getKey(), ReplicationType.SEGMENT)
+                    .build() }
         );
     }
 
