@@ -36,6 +36,8 @@ import com.google.protobuf.ByteString;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.search.TotalHits.Relation;
+import org.apache.lucene.util.SuppressForbidden;
+import org.opensearch.OpenSearchException;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.lucene.Lucene;
@@ -50,7 +52,12 @@ import org.opensearch.rest.action.search.RestSearchAction;
 import org.opensearch.server.proto.FetchSearchResultProto;
 import org.opensearch.server.proto.QuerySearchResultProto;
 
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
 import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -93,6 +100,7 @@ public final class SearchHits implements Writeable, ToXContentFragment, Iterable
         this(hits, totalHits, maxScore, null, null, null);
     }
 
+    @SuppressForbidden(reason = "serialization of object to protobuf")
     public SearchHits(
         SearchHit[] hits,
         @Nullable TotalHits totalHits,
@@ -109,18 +117,18 @@ public final class SearchHits implements Writeable, ToXContentFragment, Iterable
         this.collapseValues = collapseValues;
         if (FeatureFlags.isEnabled(FeatureFlags.PROTOBUF_SETTING)) {
             List<FetchSearchResultProto.SearchHit> searchHitList = new ArrayList<>();
-            for (int i = 0; i < hits.length; i++) {
+            for (SearchHit hit : hits) {
                 FetchSearchResultProto.SearchHit.Builder searchHitBuilder = FetchSearchResultProto.SearchHit.newBuilder();
-                if (hits[i].getIndex() != null) {
-                    searchHitBuilder.setIndex(hits[i].getIndex());
+                if (hit.getIndex() != null) {
+                    searchHitBuilder.setIndex(hit.getIndex());
                 }
-                searchHitBuilder.setId(hits[i].getId());
-                searchHitBuilder.setScore(hits[i].getScore());
-                searchHitBuilder.setSeqNo(hits[i].getSeqNo());
-                searchHitBuilder.setPrimaryTerm(hits[i].getPrimaryTerm());
-                searchHitBuilder.setVersion(hits[i].getVersion());
-                if (hits[i].getSourceRef() != null) {
-                    searchHitBuilder.setSource(ByteString.copyFrom(hits[i].getSourceRef().toBytesRef().bytes));
+                searchHitBuilder.setId(hit.getId());
+                searchHitBuilder.setScore(hit.getScore());
+                searchHitBuilder.setSeqNo(hit.getSeqNo());
+                searchHitBuilder.setPrimaryTerm(hit.getPrimaryTerm());
+                searchHitBuilder.setVersion(hit.getVersion());
+                if (hit.getSourceRef() != null) {
+                    searchHitBuilder.setSource(ByteString.copyFrom(hit.getSourceRef().toBytesRef().bytes));
                 }
                 searchHitList.add(searchHitBuilder.build());
             }
@@ -135,8 +143,25 @@ public final class SearchHits implements Writeable, ToXContentFragment, Iterable
             searchHitsBuilder.setMaxScore(maxScore);
             searchHitsBuilder.addAllHits(searchHitList);
             searchHitsBuilder.setTotalHits(totalHitsBuilder.build());
+            if (sortFields != null && sortFields.length > 0) {
+                for (SortField sortField : sortFields) {
+                    FetchSearchResultProto.SortField.Builder sortFieldBuilder = FetchSearchResultProto.SortField.newBuilder();
+                    sortFieldBuilder.setField(sortField.getField());
+                    sortFieldBuilder.setType(FetchSearchResultProto.SortField.Type.valueOf(sortField.getType().name()));
+                    searchHitsBuilder.addSortFields(sortFieldBuilder.build());
+                }
+            }
             if (collapseField != null) {
                 searchHitsBuilder.setCollapseField(collapseField);
+                for (Object value : collapseValues) {
+                    ByteArrayOutputStream bos = new ByteArrayOutputStream();
+                    try (ObjectOutputStream stream = new ObjectOutputStream(bos)) {
+                        stream.writeObject(value);
+                        searchHitsBuilder.addCollapseValues(ByteString.copyFrom(bos.toByteArray()));
+                    } catch (IOException e) {
+                        throw new OpenSearchException(e);
+                    }
+                }
             }
             this.searchHitsProto = searchHitsBuilder.build();
         }
@@ -164,6 +189,7 @@ public final class SearchHits implements Writeable, ToXContentFragment, Iterable
         collapseValues = in.readOptionalArray(Lucene::readSortValue, Object[]::new);
     }
 
+    @SuppressForbidden(reason = "serialization of object to protobuf")
     public SearchHits(byte[] in) throws IOException {
         this.searchHitsProto = org.opensearch.server.proto.FetchSearchResultProto.SearchHits.parseFrom(in);
         this.hits = new SearchHit[this.searchHitsProto.getHitsCount()];
@@ -175,10 +201,21 @@ public final class SearchHits implements Writeable, ToXContentFragment, Iterable
             Relation.valueOf(this.searchHitsProto.getTotalHits().getRelation().toString())
         );
         this.maxScore = this.searchHitsProto.getMaxScore();
+        this.sortFields = this.searchHitsProto.getSortFieldsList()
+            .stream()
+            .map(sortField -> new SortField(sortField.getField(), SortField.Type.valueOf(sortField.getType().toString())))
+            .toArray(SortField[]::new);
         this.collapseField = this.searchHitsProto.getCollapseField();
-        // Below fields are set to null currently, support to be added in the future
-        this.collapseValues = null;
-        this.sortFields = null;
+        this.collapseValues = new Object[this.searchHitsProto.getCollapseValuesCount()];
+        for (int i = 0; i < this.searchHitsProto.getCollapseValuesCount(); i++) {
+            ByteString collapseValue = this.searchHitsProto.getCollapseValues(i);
+            InputStream is = new ByteArrayInputStream(collapseValue.toByteArray());
+            try (ObjectInputStream ois = new ObjectInputStream(is)) {
+                this.collapseValues[i] = ois.readObject();
+            } catch (ClassNotFoundException e) {
+                throw new OpenSearchException(e);
+            }
+        }
     }
 
     @Override

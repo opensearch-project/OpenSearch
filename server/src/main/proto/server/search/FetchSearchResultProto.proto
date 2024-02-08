@@ -12,6 +12,7 @@
 syntax = "proto3";
 package org.opensearch.server.proto;
 
+import "google/protobuf/any.proto";
 import "server/search/QuerySearchResultProto.proto";
 
 option java_outer_classname = "FetchSearchResultProto";
@@ -26,16 +27,16 @@ message SearchHits {
   float maxScore = 2;
   int32 size = 3;
   repeated SearchHit hits = 4;
-  /* optional repeated SortField sortFields = 5; */
-  optional string collapseField = 5;
-  repeated bytes collapseValues = 6;
+  repeated SortField sortFields = 5;
+  optional string collapseField = 6;
+  repeated bytes collapseValues = 7;
 }
 
 message SearchHit {
   int32 docId = 1;
   float score = 2;
   string id = 3;
-  NestedIdentity nestedIdentity = 4;
+  optional NestedIdentity nestedIdentity = 4;
   int64 version = 5;
   int64 seqNo = 6;
   int64 primaryTerm = 7;
@@ -45,16 +46,16 @@ message SearchHit {
   map<string, HighlightField> highlightFields = 11;
   SearchSortValues sortValues = 12;
   repeated string matchedQueries = 13;
-  /* Explanation explanation = 14;*/
-  SearchShardTarget shard = 14;
-  string index = 15;
-  string clusterAlias = 16;
-  map<string, bytes> sourceAsMap = 17;
+  optional Explanation explanation = 14;
+  SearchShardTarget shard = 15;
+  optional string index = 16;
+  optional string clusterAlias = 17;
+  map<string, SearchHits> innerHits = 18;
 
   message NestedIdentity {
-    string field = 1;
-    int32 offset = 2;
-    NestedIdentity child = 3;
+    optional string field = 1;
+    optional int32 offset = 2;
+    optional NestedIdentity child = 3;
   }
 
   message DocumentField {
@@ -71,4 +72,34 @@ message SearchHit {
     repeated bytes formattedSortValues = 1;
     repeated bytes rawSortValues = 2;
   }
+
+  message Explanation {
+    bool match = 1;
+    string description = 2;
+    repeated Explanation subExplanations = 3;
+    oneof explanationValue {
+      float value1 = 4;
+      double value2 = 5;
+      int64 value3 = 6;
+    }
+  }
 }
+
+message SortField {
+  Type type = 1;
+  string field = 2;
+
+  enum Type {
+    SCORE = 0;
+    DOC = 1;
+    STRING = 2;
+    INT = 3;
+    FLOAT = 4;
+    LONG = 5;
+    DOUBLE = 6;
+    CUSTOM = 7;
+    STRING_VAL = 8;
+    REWRITEABLE = 9;
+  }
+}
+

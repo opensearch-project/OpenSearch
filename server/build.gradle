@@ -368,7 +368,9 @@ tasks.named("missingJavadoc").configure {
     "org.opensearch.server.proto.FetchSearchResultProto.SearchHit.NestedIdentityOrBuilder",
     "org.opensearch.server.proto.NodeToNodeMessageProto.NodeToNodeMessage.MessageCase",
     "org.opensearch.server.proto.NodeToNodeMessageProto.NodeToNodeMessage.ResponseHandlersListOrBuilder",
-    "org.opensearch.server.proto.NodeToNodeMessageProto.NodeToNodeMessage.HeaderOrBuilder"
+    "org.opensearch.server.proto.NodeToNodeMessageProto.NodeToNodeMessage.HeaderOrBuilder",
+    "org.opensearch.server.proto.FetchSearchResultProto.SearchHit.Explanation.ExplanationValueCase",
+    "org.opensearch.server.proto.FetchSearchResultProto.SearchHit.ExplanationOrBuilder"
   ]
 }
 

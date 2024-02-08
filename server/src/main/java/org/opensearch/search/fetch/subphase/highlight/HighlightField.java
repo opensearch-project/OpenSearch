@@ -41,6 +41,7 @@ import org.opensearch.core.common.text.Text;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
+import org.opensearch.server.proto.FetchSearchResultProto;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -74,6 +75,20 @@ public class HighlightField implements ToXContentFragment, Writeable {
                     fragments[i] = in.readText();
                 }
             }
+        }
+    }
+
+    public HighlightField(byte[] in) throws IOException {
+        FetchSearchResultProto.SearchHit.HighlightField highlightField = FetchSearchResultProto.SearchHit.HighlightField.parseFrom(in);
+        name = highlightField.getName();
+        if (highlightField.getFragmentsCount() == 0) {
+            fragments = Text.EMPTY_ARRAY;
+        } else {
+            List<Text> values = new ArrayList<>();
+            for (String fragment : highlightField.getFragmentsList()) {
+                values.add(new Text(fragment));
+            }
+            fragments = values.toArray(new Text[0]);
         }
     }
 
