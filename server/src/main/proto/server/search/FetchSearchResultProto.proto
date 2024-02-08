@@ -51,6 +51,7 @@ message SearchHit {
   optional string index = 16;
   optional string clusterAlias = 17;
   map<string, SearchHits> innerHits = 18;
+  map<string, float> matchedQueriesWithScores = 19;
 
   message NestedIdentity {
     optional string field = 1;
