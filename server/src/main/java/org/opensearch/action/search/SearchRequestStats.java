@@ -58,12 +58,12 @@ public final class SearchRequestStats extends SearchRequestOperationsListener {
     }
 
     @Override
-    void onPhaseStart(SearchPhaseContext context) {
+    protected void onPhaseStart(SearchPhaseContext context) {
         phaseStatsMap.get(context.getCurrentPhase().getSearchPhaseName()).current.inc();
     }
 
     @Override
-    void onPhaseEnd(SearchPhaseContext context, SearchRequestContext searchRequestContext) {
+    protected void onPhaseEnd(SearchPhaseContext context, SearchRequestContext searchRequestContext) {
         StatsHolder phaseStats = phaseStatsMap.get(context.getCurrentPhase().getSearchPhaseName());
         phaseStats.current.dec();
         phaseStats.total.inc();
@@ -71,7 +71,7 @@ public final class SearchRequestStats extends SearchRequestOperationsListener {
     }
 
     @Override
-    void onPhaseFailure(SearchPhaseContext context) {
+    protected void onPhaseFailure(SearchPhaseContext context) {
         phaseStatsMap.get(context.getCurrentPhase().getSearchPhaseName()).current.dec();
     }
 
