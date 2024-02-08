@@ -231,4 +231,8 @@ public class TransportClusterStateAction extends TransportClusterManagerNodeRead
         return new ClusterStateResponse(currentState.getClusterName(), builder.build(), false);
     }
 
+    @Override
+    protected boolean checkTermVersion() {
+        return true;
+    }
 }
