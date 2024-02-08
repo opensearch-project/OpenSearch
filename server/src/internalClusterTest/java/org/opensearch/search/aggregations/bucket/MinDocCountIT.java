@@ -127,6 +127,7 @@ public class MinDocCountIT extends AbstractTermsTestCase {
         final List<IndexRequestBuilder> indexRequests = new ArrayList<>();
         final Set<String> stringTerms = new HashSet<>();
         final Set<Long> longTerms = new HashSet();
+        final HashMap<String, Integer> dateTerms = new HashMap<>();
         for (int i = 0; i < cardinality; ++i) {
             String stringTerm;
             do {
@@ -142,6 +143,7 @@ public class MinDocCountIT extends AbstractTermsTestCase {
             String dateTerm = DateFormatter.forPattern("yyyy-MM-dd").format(time);
             final int frequency = randomBoolean() ? 1 : randomIntBetween(2, 20);
             for (int j = 0; j < frequency; ++j) {
+                final boolean match = randomBoolean();
                 indexRequests.add(
                     client().prepareIndex("idx")
                         .setSource(
@@ -150,14 +152,18 @@ public class MinDocCountIT extends AbstractTermsTestCase {
                                 .field("l", longTerm)
                                 .field("d", doubleTerm)
                                 .field("date", dateTerm)
-                                .field("match", randomBoolean())
+                                .field("match", match)
                                 .endObject()
                         )
                 );
+                if (match) {
+                    dateTerms.put(dateTerm, dateTerms.getOrDefault(dateTerm, 0) + 1);
+                }
             }
         }
         cardinality = stringTerms.size();
 
+        logger.info("date terms {}", dateTerms);
         indexRandom(true, indexRequests);
         ensureSearchable();
     }
@@ -436,6 +442,7 @@ public class MinDocCountIT extends AbstractTermsTestCase {
             .get();
 
         final Histogram allHisto = allResponse.getAggregations().get("histo");
+        logger.info("allHisto={}", allHisto);
 
         for (long minDocCount = 0; minDocCount < 50; ++minDocCount) {
             final SearchResponse response = client().prepareSearch("idx")
@@ -448,6 +455,8 @@ public class MinDocCountIT extends AbstractTermsTestCase {
                         .minDocCount(minDocCount)
                 )
                 .get();
+            final Histogram minDocHisto = response.getAggregations().get("histo");
+            logger.info("minDocCount={},minDocHisto={}", minDocCount, minDocHisto);
             assertSubset(allHisto, response.getAggregations().get("histo"), minDocCount);
         }
     }

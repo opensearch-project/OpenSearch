@@ -477,6 +477,8 @@ public final class FastFilterRewriteHelper {
                         NumericUtils.sortableBytesToLong(((PointRangeQuery) filters[i].getQuery()).getLowerPoint(), 0)
                     );
                 }
+                // TODO remove
+                logger.info("Shard {} segment {} increase bucket key {} by count {}", fastFilterContext.context.indexShard().shardId(), ctx.ord, bucketKey, counts[i]);
                 incrementDocCount.accept(bucketKey, counts[i]);
                 s++;
                 if (s > size) {
