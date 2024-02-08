@@ -1555,11 +1555,16 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
                 );
             }
         }
+        if (forceRefresh) {
+            assertNoFailures(
+                client().admin().indices().prepareRefresh(indicesArray).setIndicesOptions(IndicesOptions.lenientExpandOpen()).get()
+            );
+        }
         if (dummyDocuments) {
             indexRandomForMultipleSlices(indicesArray);
         }
         if (forceRefresh) {
-            refreshAndWaitForReplication();
+            waitForReplication();
         }
     }
 
