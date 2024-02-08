@@ -441,6 +441,7 @@ public final class FastFilterRewriteHelper {
             return false;
         }
         Weight[] filters = fastFilterContext.filters;
+        boolean filtersBuiltAtSegmentLevel = false;
         if (filters == null) {
             logger.debug(
                 "Shard {} segment {} functionally match all documents. Build the fast filter",
@@ -451,6 +452,8 @@ public final class FastFilterRewriteHelper {
             filters = fastFilterContext.filters;
             if (filters == null) {
                 return false;
+            } else {
+                filtersBuiltAtSegmentLevel = true;
             }
         }
 
@@ -477,25 +480,25 @@ public final class FastFilterRewriteHelper {
                         NumericUtils.sortableBytesToLong(((PointRangeQuery) filters[i].getQuery()).getLowerPoint(), 0)
                     );
                 }
-                // TODO remove
-                logger.info("Shard {} segment {} increase bucket key {} by count {}", fastFilterContext.context.indexShard().shardId(), ctx.ord, bucketKey, counts[i]);
                 incrementDocCount.accept(bucketKey, counts[i]);
                 s++;
                 if (s > size) {
-                    logger.debug("Fast filter optimization applied to composite aggregation with size {}", size);
-                    return true;
+                    break;
                 }
             }
         }
 
-        logger.debug("Fast filter optimization applied");
+        // each segment computes its own filters, so reset
+        if (filtersBuiltAtSegmentLevel) {
+            fastFilterContext.filters = null;
+        }
+
+        logger.debug("Fast filter optimization applied to shard {} segment {}", fastFilterContext.context.indexShard().shardId(), ctx.ord);
         return true;
     }
 
     private static boolean segmentMatchAll(SearchContext ctx, LeafReaderContext leafCtx) throws IOException {
         Weight weight = ctx.searcher().createWeight(ctx.query(), ScoreMode.COMPLETE_NO_SCORES, 1f);
-        assert weight != null;
-        int count = weight.count(leafCtx);
-        return count > 0 && count == leafCtx.reader().numDocs();
+        return weight != null && weight.count(leafCtx) == leafCtx.reader().numDocs();
     }
 }
