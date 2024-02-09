@@ -20,7 +20,6 @@ import org.opensearch.core.action.ActionListener;
 import org.hamcrest.MatcherAssert;
 import org.junit.After;
 import org.junit.Before;
-import org.junit.Test;
 
 import java.util.List;
 import java.util.Map;

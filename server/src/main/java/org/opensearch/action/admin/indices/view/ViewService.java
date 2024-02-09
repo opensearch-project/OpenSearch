@@ -132,7 +132,7 @@ public class ViewService {
             .map(ClusterState::metadata)
             .map(m -> m.views())
             .map(views -> views.get(viewName))
-            .orElseThrow(() -> new ResourceNotFoundException("no such view [" + viewName + "]"));
+            .orElseThrow(() -> new ResourceNotFoundException("View [" + viewName + "] does not exist"));
     }
 
     private enum Operation {

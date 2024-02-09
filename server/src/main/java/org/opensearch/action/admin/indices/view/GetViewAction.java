@@ -127,6 +127,10 @@ public class GetViewAction extends ActionType<GetViewAction.Response> {
             this.view = new View(in);
         }
 
+        public View getView() {
+            return view;
+        }
+
         @Override
         public void writeTo(final StreamOutput out) throws IOException {
             this.view.writeTo(out);

@@ -848,21 +848,21 @@ public interface IndicesAdminClient extends OpenSearchClient {
     /** Create a view */
     ActionFuture<GetViewAction.Response> createView(CreateViewAction.Request request);
 
-    /** Gets a view */
+    /** Get the details of a view */
     void getView(GetViewAction.Request request, ActionListener<GetViewAction.Response> listener);
 
-    /** Gets a view */
+    /** Get the details of a view */
     ActionFuture<GetViewAction.Response> getView(GetViewAction.Request request);
 
-    /** Create a view */
+    /** Delete a view */
     void deleteView(DeleteViewAction.Request request, ActionListener<AcknowledgedResponse> listener);
 
-    /** Create a view */
+    /** Delete a view */
     ActionFuture<AcknowledgedResponse> deleteView(DeleteViewAction.Request request);
 
-    /** Create a view */
+    /** Update a view */
     void updateView(CreateViewAction.Request request, ActionListener<GetViewAction.Response> listener);
 
-    /** Create a view */
+    /** Update a view */
     ActionFuture<GetViewAction.Response> updateView(CreateViewAction.Request request);
 }
