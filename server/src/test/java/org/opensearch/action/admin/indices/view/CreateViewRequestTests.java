@@ -11,12 +11,14 @@ package org.opensearch.action.admin.indices.view;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.test.AbstractWireSerializingTestCase;
+import org.hamcrest.MatcherAssert;
 
 import java.util.List;
 
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.nullValue;
 
-public class CreateViewTests extends AbstractWireSerializingTestCase<CreateViewAction.Request> {
+public class CreateViewRequestTests extends AbstractWireSerializingTestCase<CreateViewAction.Request> {
 
     @Override
     protected Writeable.Reader<CreateViewAction.Request> instanceReader() {
@@ -39,14 +41,14 @@ public class CreateViewTests extends AbstractWireSerializingTestCase<CreateViewA
             List.of(new CreateViewAction.Request.Target("my-indices-*"))
         );
 
-        assertNull(request.validate());
+        MatcherAssert.assertThat(request.validate(), nullValue());
     }
 
     public void testValidateRequestWithoutName() {
         final CreateViewAction.Request request = new CreateViewAction.Request("", null, null);
-        ActionRequestValidationException e = request.validate();
+        final ActionRequestValidationException e = request.validate();
 
-        assertThat(e.validationErrors(), contains("name cannot be empty or null", "targets cannot be empty"));
+        MatcherAssert.assertThat(e.validationErrors(), contains("name cannot be empty or null", "targets cannot be empty"));
     }
 
 }

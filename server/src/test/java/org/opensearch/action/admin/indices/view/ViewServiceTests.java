@@ -26,6 +26,7 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.LongSupplier;
 
+import static org.opensearch.test.OpenSearchTestCase.randomAlphaOfLength;
 import static org.hamcrest.Matchers.equalTo;
 import static org.junit.Assert.assertThrows;
 import static org.mockito.Mockito.any;
@@ -40,10 +41,16 @@ import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 @SuppressWarnings("unchecked")
-public class ViewServiceTest {
+public class ViewServiceTests {
 
-    private final View.Target typicalTarget = new View.Target("my-index-*");
-    private final View typicalView = new View("actualView", "actual description", -1L, -1L, List.of(typicalTarget));
+    private final View.Target typicalTarget = new View.Target(randomAlphaOfLength(8));
+    private final View typicalView = new View(
+        "view-" + randomAlphaOfLength(8),
+        "description " + randomAlphaOfLength(20),
+        -1L,
+        -1L,
+        List.of(typicalTarget)
+    );
 
     private ClusterService clusterService;
     private NodeClient nodeClient;
@@ -65,8 +72,16 @@ public class ViewServiceTest {
         verifyNoMoreInteractions(timeProvider, clusterService, nodeClient);
     }
 
+    private CreateViewAction.Request createTypicalViewRequest() {
+        return new CreateViewAction.Request(
+            randomAlphaOfLength(8),
+            randomAlphaOfLength(20),
+            List.of(new CreateViewAction.Request.Target(randomAlphaOfLength(8)))
+        );
+    }
+
     public void createView() {
-        final var request = new CreateViewAction.Request("a", "b", List.of(new CreateViewAction.Request.Target("my-index-*")));
+        final var request = createTypicalViewRequest();
         final var listener = mock(ActionListener.class);
         setGetViewOrThrowExceptionToReturnTypicalView();
 
@@ -77,7 +92,7 @@ public class ViewServiceTest {
     }
 
     public void updateView() {
-        final var request = new CreateViewAction.Request("a", "b", List.of(new CreateViewAction.Request.Target("my-index-*")));
+        final var request = createTypicalViewRequest();
         final var listener = mock(ActionListener.class);
         setGetViewOrThrowExceptionToReturnTypicalView();
 
@@ -88,7 +103,7 @@ public class ViewServiceTest {
     }
 
     public void updateView_doesNotExist() {
-        final var request = new CreateViewAction.Request("a", "b", List.of(new CreateViewAction.Request.Target("my-index-*")));
+        final var request = createTypicalViewRequest();
         final var listener = mock(ActionListener.class);
         doThrow(new ResourceNotFoundException("abc")).when(viewService).getViewOrThrowException(anyString());
 
@@ -97,7 +112,7 @@ public class ViewServiceTest {
     }
 
     public void deleteView() {
-        final var request = new DeleteViewAction.Request("viewName");
+        final var request = new DeleteViewAction.Request(randomAlphaOfLength(8));
         final var listener = mock(ActionListener.class);
         setGetViewOrThrowExceptionToReturnTypicalView();
 
@@ -107,7 +122,7 @@ public class ViewServiceTest {
     }
 
     public void deleteView_doesNotExist() {
-        final var request = new DeleteViewAction.Request("viewName");
+        final var request = new DeleteViewAction.Request(randomAlphaOfLength(8));
         final var listener = mock(ActionListener.class);
         doThrow(new ResourceNotFoundException("abc")).when(viewService).getViewOrThrowException(anyString());
 
@@ -117,7 +132,7 @@ public class ViewServiceTest {
     }
 
     public void getView() {
-        final var request = new GetViewAction.Request("viewName");
+        final var request = new GetViewAction.Request(randomAlphaOfLength(8));
         final var listener = mock(ActionListener.class);
         setGetViewOrThrowExceptionToReturnTypicalView();
 
@@ -127,7 +142,7 @@ public class ViewServiceTest {
     }
 
     public void getView_doesNotExist() {
-        final var request = new GetViewAction.Request("viewName");
+        final var request = new GetViewAction.Request(randomAlphaOfLength(8));
         final var listener = mock(ActionListener.class);
         doThrow(new ResourceNotFoundException("abc")).when(viewService).getViewOrThrowException(anyString());
 
@@ -137,7 +152,7 @@ public class ViewServiceTest {
     }
 
     public void listViewNames() {
-        final var clusterState = new ClusterState.Builder(new ClusterName("MyCluster")).metadata(
+        final var clusterState = new ClusterState.Builder(new ClusterName(randomAlphaOfLength(8))).metadata(
             new Metadata.Builder().views(Map.of(typicalView.getName(), typicalView)).build()
         ).build();
         final var listener = mock(ActionListener.class);
@@ -150,7 +165,7 @@ public class ViewServiceTest {
     }
 
     public void listViewNames_noViews() {
-        final var clusterState = new ClusterState.Builder(new ClusterName("MyCluster")).build();
+        final var clusterState = new ClusterState.Builder(new ClusterName(randomAlphaOfLength(8))).build();
         final var listener = mock(ActionListener.class);
         when(clusterService.state()).thenReturn(clusterState);
 
@@ -161,7 +176,7 @@ public class ViewServiceTest {
     }
 
     public void searchView() {
-        final var request = spy(new SearchViewAction.Request("view"));
+        final var request = spy(new SearchViewAction.Request(randomAlphaOfLength(8)));
         final var listener = mock(ActionListener.class);
         setGetViewOrThrowExceptionToReturnTypicalView();
 

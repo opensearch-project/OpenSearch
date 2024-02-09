@@ -72,7 +72,7 @@ public class GetViewAction extends ActionType<GetViewAction.Response> {
         public boolean equals(Object o) {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
-            Request that = (Request) o;
+            final Request that = (Request) o;
             return name.equals(that.name);
         }
 
@@ -129,6 +129,19 @@ public class GetViewAction extends ActionType<GetViewAction.Response> {
 
         public View getView() {
             return view;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            final Response that = (Response) o;
+            return getView().equals(that.getView());
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(getView());
         }
 
         @Override

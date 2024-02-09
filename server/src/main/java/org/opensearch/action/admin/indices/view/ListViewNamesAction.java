@@ -26,6 +26,7 @@ import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Objects;
 
 /** Action to list a view names */
 @ExperimentalApi
@@ -44,6 +45,19 @@ public class ListViewNamesAction extends ActionType<ListViewNamesAction.Response
         public Request() {}
 
         public Request(final StreamInput in) {}
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            final Request that = (Request) o;
+            return true;
+        }
+
+        @Override
+        public int hashCode() {
+            return 1;
+        }
 
         @Override
         public ActionRequestValidationException validate() {
@@ -67,6 +81,19 @@ public class ListViewNamesAction extends ActionType<ListViewNamesAction.Response
 
         public List<String> getViewNames() {
             return views;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            final Request that = (Request) o;
+            return views.equals(that.views);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(views);
         }
 
         @Override

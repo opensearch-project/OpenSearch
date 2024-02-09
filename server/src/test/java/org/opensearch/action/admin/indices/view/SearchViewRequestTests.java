@@ -12,13 +12,15 @@ import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.search.SearchRequest;
 import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.test.AbstractWireSerializingTestCase;
+import org.hamcrest.MatcherAssert;
 
 import java.io.IOException;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.nullValue;
 
-public class SearchViewTests extends AbstractWireSerializingTestCase<SearchViewAction.Request> {
+public class SearchViewRequestTests extends AbstractWireSerializingTestCase<SearchViewAction.Request> {
 
     @Override
     protected Writeable.Reader<SearchViewAction.Request> instanceReader() {
@@ -36,15 +38,15 @@ public class SearchViewTests extends AbstractWireSerializingTestCase<SearchViewA
 
     public void testValidateRequest() throws IOException {
         final SearchViewAction.Request request = SearchViewAction.createRequestWith("my-view", new SearchRequest());
-        assertNull(request.validate());
+        MatcherAssert.assertThat(request.validate(), nullValue());
     }
 
     public void testValidateRequestWithoutName() {
         final SearchViewAction.Request request = new SearchViewAction.Request((String) null);
-        ActionRequestValidationException e = request.validate();
-        assertNotNull(e);
-        assertThat(e.validationErrors().size(), equalTo(1));
-        assertThat(e.validationErrors().get(0), containsString("View is required"));
+        final ActionRequestValidationException e = request.validate();
+
+        MatcherAssert.assertThat(e.validationErrors().size(), equalTo(1));
+        MatcherAssert.assertThat(e.validationErrors().get(0), containsString("View is required"));
     }
 
 }

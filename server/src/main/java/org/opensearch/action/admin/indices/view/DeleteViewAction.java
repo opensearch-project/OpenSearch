@@ -69,7 +69,7 @@ public class DeleteViewAction extends ActionType<AcknowledgedResponse> {
         public boolean equals(Object o) {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
-            Request that = (Request) o;
+            final Request that = (Request) o;
             return name.equals(that.name);
         }
 
