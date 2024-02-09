@@ -555,7 +555,14 @@ public class TranslogTransferManager {
             );
         } catch (Exception e) {
             onCompletion.run();
-            throw e;
+            logger.error(
+                () -> new ParameterizedMessage(
+                    "Exception occurred while deleting translog for primaryTerm={} files={}",
+                    primaryTerm,
+                    files
+                ),
+                e
+            );
         }
     }
 
