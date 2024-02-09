@@ -78,7 +78,7 @@ public final class SearchableSnapshotIT extends AbstractSnapshotIntegTestCase {
     private Settings.Builder chunkedRepositorySettings() {
         final Settings.Builder settings = Settings.builder();
         settings.put("location", randomRepoPath()).put("compress", randomBoolean());
-        settings.put("chunk_size", 2 << 23, ByteSizeUnit.BYTES);
+        settings.put("chunk_size", randomBoolean() ? (2 << 23) : 1000, ByteSizeUnit.BYTES);
         return settings;
     }
 

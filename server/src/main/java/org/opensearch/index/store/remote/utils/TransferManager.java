@@ -21,11 +21,15 @@ import java.io.BufferedOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.io.SequenceInputStream;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -83,17 +87,47 @@ public class TransferManager {
         return AccessController.doPrivileged((PrivilegedAction<FileCachedIndexInput>) () -> {
             try {
                 if (Files.exists(request.getFilePath()) == false) {
-                    try (
+                    List<InputStream> inputStreamList = new ArrayList<>();
+                    long partSize = request.getFileInfo().partSize().getBytes();
+                    long blockStart = request.getPosition();
+                    long blockEnd = request.getLength();
+                    int partNum = (int) (blockStart / partSize);
+                    long pos = blockStart;
+                    long diff = (blockEnd - pos);
+                    while (diff > 0) {
+                        long partStart = pos % partSize;
+                        long partEnd;
+                        if ((partStart + diff) > partSize) {
+                            partEnd = partSize;
+                        } else {
+                            partEnd = (partStart + diff);
+                        }
+                        long fetchBytes = partEnd - partStart;
                         InputStream snapshotFileInputStream = blobContainer.readBlob(
-                            request.getBlobName(),
-                            request.getPosition(),
-                            request.getLength()
+                            request.getFileInfo().partName(partNum),
+                            partStart,
+                            fetchBytes
                         );
-                        OutputStream fileOutputStream = Files.newOutputStream(request.getFilePath());
-                        OutputStream localFileOutputStream = new BufferedOutputStream(fileOutputStream)
-                    ) {
-                        snapshotFileInputStream.transferTo(localFileOutputStream);
+                        inputStreamList.add(snapshotFileInputStream);
+                        partNum++;
+                        pos = pos + fetchBytes;
+                        diff = (blockEnd - pos);
+
                     }
+                    OutputStream fileOutputStream = Files.newOutputStream(request.getFilePath());
+                    OutputStream localFileOutputStream = new BufferedOutputStream(fileOutputStream);
+                    SequenceInputStream sis = new SequenceInputStream(Collections.enumeration(inputStreamList));
+                    int ch;
+                    while (true) {
+                        try {
+                            if (!((ch = sis.read()) != -1)) break;
+                            localFileOutputStream.write(ch);
+                        } catch (IOException e) {
+                            throw new RuntimeException(e);
+                        }
+                    }
+                    sis.close();
+                    localFileOutputStream.close();
                 }
                 final IndexInput luceneIndexInput = request.getDirectory().openInput(request.getFileName(), IOContext.READ);
                 return new FileCachedIndexInput(fileCache, request.getFilePath(), luceneIndexInput);

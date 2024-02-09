@@ -139,18 +139,13 @@ public class OnDemandBlockSnapshotIndexInput extends OnDemandBlockIndexInput {
         // If the snapshot file is chunked, we must account for this by
         // choosing the appropriate file part and updating the position
         // accordingly.
-        final int part = (int) (blockStart / partSize);
-        final long partStart = part * partSize;
-
-        final long position = blockStart - partStart;
-        final long length = blockEnd - blockStart;
 
         BlobFetchRequest blobFetchRequest = BlobFetchRequest.builder()
-            .position(position)
-            .length(length)
-            .blobName(fileInfo.partName(part))
+            .position(blockStart)
+            .length(blockEnd)
             .directory(directory)
             .fileName(blockFileName)
+            .fileInfo(fileInfo)
             .build();
         return transferManager.fetchBlob(blobFetchRequest);
     }
