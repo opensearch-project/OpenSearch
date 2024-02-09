@@ -37,7 +37,6 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.search.aggregations.Aggregator.SubAggCollectionMode;
 import org.opensearch.search.aggregations.BucketOrder;
 import org.opensearch.search.aggregations.InternalAggregation;
@@ -50,7 +49,7 @@ import org.opensearch.search.profile.ProfileShardResult;
 import org.opensearch.search.profile.query.CollectorResult;
 import org.opensearch.search.profile.query.QueryProfileShardResult;
 import org.opensearch.test.OpenSearchIntegTestCase;
-import org.opensearch.test.ParameterizedOpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 import org.hamcrest.core.IsNull;
 
 import java.util.ArrayList;
@@ -83,7 +82,7 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
 @OpenSearchIntegTestCase.SuiteScopeTestCase
-public class AggregationProfilerIT extends ParameterizedOpenSearchIntegTestCase {
+public class AggregationProfilerIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
 
     private static final String BUILD_LEAF_COLLECTOR = AggregationTimingType.BUILD_LEAF_COLLECTOR.toString();
     private static final String COLLECT = AggregationTimingType.COLLECT.toString();
@@ -166,8 +165,8 @@ public class AggregationProfilerIT extends ParameterizedOpenSearchIntegTestCase 
     private static final String REASON_SEARCH_TOP_HITS = "search_top_hits";
     private static final String REASON_AGGREGATION = "aggregation";
 
-    public AggregationProfilerIT(Settings dynamicSettings) {
-        super(dynamicSettings);
+    public AggregationProfilerIT(Settings staticSettings) {
+        super(staticSettings);
     }
 
     @ParametersFactory
@@ -176,11 +175,6 @@ public class AggregationProfilerIT extends ParameterizedOpenSearchIntegTestCase 
             new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), false).build() },
             new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), true).build() }
         );
-    }
-
-    @Override
-    protected Settings featureFlagSettings() {
-        return Settings.builder().put(super.featureFlagSettings()).put(FeatureFlags.CONCURRENT_SEGMENT_SEARCH, "true").build();
     }
 
     @Override

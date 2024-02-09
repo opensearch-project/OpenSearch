@@ -135,6 +135,7 @@ class PluginSecurity {
     /**
      * Parses plugin policy into a set of permissions. Each permission is formatted for output to users.
      */
+    @SuppressWarnings("removal")
     public static Set<String> parsePermissions(Path file, Path tmpDir) throws IOException {
         // create a zero byte file for "comparison"
         // this is necessary because the default policy impl automatically grants two permissions:

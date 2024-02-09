@@ -407,6 +407,15 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
     }
 
     /**
+     * Applies when fetching scores with named queries, and controls if scores will be tracked as well.
+     * Defaults to {@code false}.
+     */
+    public SearchRequestBuilder setIncludeNamedQueriesScore(boolean includeNamedQueriesScore) {
+        sourceBuilder().includeNamedQueriesScores(includeNamedQueriesScore);
+        return this;
+    }
+
+    /**
      * Indicates if the total hit count for the query should be tracked. Requests will count total hit count accurately
      * up to 10,000 by default, see {@link #setTrackTotalHitsUpTo(int)} to change this value or set to true/false to always/never
      * count accurately.

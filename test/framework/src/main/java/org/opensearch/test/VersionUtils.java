@@ -359,4 +359,14 @@ public class VersionUtils {
         // but 7.2.0 for minimum compat
         return randomVersionBetween(random, version.minimumIndexCompatibilityVersion(), getPreviousVersion(version));
     }
+
+    /**
+     * Returns a {@link Version} with a given major, minor and revision version.
+     * Build version is skipped for the sake of simplicity.
+     */
+    public static Version getVersion(byte major, byte minor, byte revision) {
+        StringBuilder sb = new StringBuilder();
+        sb.append(major).append('.').append(minor).append('.').append(revision);
+        return Version.fromString(sb.toString());
+    }
 }

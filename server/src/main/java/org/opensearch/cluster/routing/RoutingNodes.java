@@ -729,23 +729,6 @@ public class RoutingNodes implements Iterable<RoutingNode> {
             + " was matched but wasn't removed";
     }
 
-    public void swapPrimaryWithReplica(
-        Logger logger,
-        ShardRouting primaryShard,
-        ShardRouting replicaShard,
-        RoutingChangesObserver changes
-    ) {
-        assert primaryShard.primary() : "Invalid primary shard provided";
-        assert !replicaShard.primary() : "Invalid Replica shard provided";
-
-        ShardRouting newPrimary = primaryShard.moveActivePrimaryToReplica();
-        ShardRouting newReplica = replicaShard.moveActiveReplicaToPrimary();
-        updateAssigned(primaryShard, newPrimary);
-        updateAssigned(replicaShard, newReplica);
-        logger.info("Swap relocation performed for shard [{}]", newPrimary.shortSummary());
-        changes.replicaPromoted(newPrimary);
-    }
-
     private void unassignPrimaryAndPromoteActiveReplicaIfExists(
         ShardRouting failedShard,
         UnassignedInfo unassignedInfo,

@@ -107,6 +107,7 @@ public class TestSearchContext extends SearchContext {
     SearchShardTask task;
     SortAndFormats sort;
     boolean trackScores = false;
+    boolean includeNamedQueriesScore = false;
     int trackTotalHitsUpTo = SearchContext.DEFAULT_TRACK_TOTAL_HITS_UP_TO;
 
     ContextIndexSearcher searcher;
@@ -407,6 +408,17 @@ public class TestSearchContext extends SearchContext {
     @Override
     public boolean trackScores() {
         return trackScores;
+    }
+
+    @Override
+    public SearchContext includeNamedQueriesScore(boolean includeNamedQueriesScore) {
+        this.includeNamedQueriesScore = includeNamedQueriesScore;
+        return this;
+    }
+
+    @Override
+    public boolean includeNamedQueriesScore() {
+        return includeNamedQueriesScore;
     }
 
     @Override
