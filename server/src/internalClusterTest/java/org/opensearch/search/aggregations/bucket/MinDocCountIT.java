@@ -34,19 +34,11 @@ package org.opensearch.search.aggregations.bucket;
 
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 
-import org.opensearch.action.admin.indices.segments.IndexShardSegments;
-import org.opensearch.action.admin.indices.segments.IndicesSegmentResponse;
-import org.opensearch.action.admin.indices.segments.IndicesSegmentsRequest;
-import org.opensearch.action.admin.indices.segments.ShardSegments;
 import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.action.search.SearchRequest;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.time.DateFormatter;
-import org.opensearch.common.xcontent.XContentFactory;
-import org.opensearch.core.xcontent.ToXContent;
-import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.index.engine.Segment;
 import org.opensearch.index.fielddata.ScriptDocValues;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.QueryBuilders;
@@ -135,7 +127,6 @@ public class MinDocCountIT extends AbstractTermsTestCase {
         final List<IndexRequestBuilder> indexRequests = new ArrayList<>();
         final Set<String> stringTerms = new HashSet<>();
         final Set<Long> longTerms = new HashSet();
-        final HashMap<String, Integer> dateTerms = new HashMap<>();
         for (int i = 0; i < cardinality; ++i) {
             String stringTerm;
             do {
@@ -151,7 +142,6 @@ public class MinDocCountIT extends AbstractTermsTestCase {
             String dateTerm = DateFormatter.forPattern("yyyy-MM-dd").format(time);
             final int frequency = randomBoolean() ? 1 : randomIntBetween(2, 20);
             for (int j = 0; j < frequency; ++j) {
-                final boolean match = randomBoolean();
                 indexRequests.add(
                     client().prepareIndex("idx")
                         .setSource(
@@ -160,18 +150,14 @@ public class MinDocCountIT extends AbstractTermsTestCase {
                                 .field("l", longTerm)
                                 .field("d", doubleTerm)
                                 .field("date", dateTerm)
-                                .field("match", match)
+                                .field("match", randomBoolean())
                                 .endObject()
                         )
                 );
-                if (match) {
-                    dateTerms.put(dateTerm, dateTerms.getOrDefault(dateTerm, 0) + 1);
-                }
             }
         }
         cardinality = stringTerms.size();
 
-        logger.info("date terms {}", dateTerms);
         indexRandom(true, indexRequests);
         ensureSearchable();
     }
@@ -441,14 +427,6 @@ public class MinDocCountIT extends AbstractTermsTestCase {
     }
 
     private void testMinDocCountOnDateHistogram(BucketOrder order) throws Exception {
-
-        IndicesSegmentsRequest segmentReq = new IndicesSegmentsRequest("idx");
-        IndicesSegmentResponse segmentRes = client().admin().indices().segments(segmentReq).get();
-        XContentBuilder builder = XContentFactory.jsonBuilder();
-        segmentRes.toXContent(builder, ToXContent.EMPTY_PARAMS);
-        String jsonString = builder.toString();
-        logger.info("segmentRes={}", jsonString);
-
         final SearchResponse allResponse = client().prepareSearch("idx")
             .setSize(0)
             .setQuery(QUERY)
@@ -458,7 +436,6 @@ public class MinDocCountIT extends AbstractTermsTestCase {
             .get();
 
         final Histogram allHisto = allResponse.getAggregations().get("histo");
-        logger.info("allHisto={}", allHisto);
 
         for (long minDocCount = 0; minDocCount < 50; ++minDocCount) {
             final SearchResponse response = client().prepareSearch("idx")
@@ -471,8 +448,6 @@ public class MinDocCountIT extends AbstractTermsTestCase {
                         .minDocCount(minDocCount)
                 )
                 .get();
-            final Histogram minDocHisto = response.getAggregations().get("histo");
-            logger.info("minDocCount={},minDocHisto={}", minDocCount, minDocHisto);
             assertSubset(allHisto, response.getAggregations().get("histo"), minDocCount);
         }
     }

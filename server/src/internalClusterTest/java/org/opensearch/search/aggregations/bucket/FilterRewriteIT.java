@@ -9,6 +9,7 @@
 package org.opensearch.search.aggregations.bucket;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.common.settings.Settings;
@@ -59,16 +60,12 @@ public class FilterRewriteIT extends ParameterizedDynamicSettingsOpenSearchInteg
     protected void setupSuiteScopeCluster() throws Exception {
         assertAcked(client().admin().indices().prepareCreate("idx").get());
 
-        // one segment has some docs
-        // the other segment has some other docs
-        // check the results are correct
         final int segmentCount = randomIntBetween(2, 10);
         final Set<Long> longTerms = new HashSet();
 
         final Map<String, Integer> dateTerms = new HashMap<>();
         for (int i = 0; i < segmentCount; i++) {
             final List<IndexRequestBuilder> indexRequests = new ArrayList<>();
-
 
             long longTerm;
             do {
@@ -81,20 +78,13 @@ public class FilterRewriteIT extends ParameterizedDynamicSettingsOpenSearchInteg
             for (int j = 0; j < frequency; j++) {
                 indexRequests.add(
                     client().prepareIndex("idx")
-                        .setSource(
-                            jsonBuilder().startObject()
-                                .field("date", dateTerm)
-                                .field("match", true)
-                                .endObject()
-                        )
+                        .setSource(jsonBuilder().startObject().field("date", dateTerm).field("match", true).endObject())
                 );
             }
-            expected.put(dateTerm+"T00:00:00.000Z", (long) frequency);
+            expected.put(dateTerm + "T00:00:00.000Z", (long) frequency);
 
             indexRandom(true, false, indexRequests);
         }
-
-        logger.info("expected results dateTerms={}", dateTerms);
 
         ensureSearchable();
     }
@@ -103,17 +93,12 @@ public class FilterRewriteIT extends ParameterizedDynamicSettingsOpenSearchInteg
         final SearchResponse allResponse = client().prepareSearch("idx")
             .setSize(0)
             .setQuery(QUERY)
-            .addAggregation(
-                dateHistogram("histo").field("date").dateHistogramInterval(DateHistogramInterval.DAY).minDocCount(0)
-            )
+            .addAggregation(dateHistogram("histo").field("date").dateHistogramInterval(DateHistogramInterval.DAY).minDocCount(0))
             .get();
 
         final Histogram allHisto = allResponse.getAggregations().get("histo");
-        logger.info("allHisto={}", allHisto);
         Map<String, Long> results = new HashMap<>();
-        allHisto.getBuckets().forEach(bucket ->
-            results.put(bucket.getKeyAsString(), bucket.getDocCount())
-        );
+        allHisto.getBuckets().forEach(bucket -> results.put(bucket.getKeyAsString(), bucket.getDocCount()));
 
         for (Map.Entry<String, Long> entry : expected.entrySet()) {
             assertEquals(entry.getValue(), results.get(entry.getKey()));
