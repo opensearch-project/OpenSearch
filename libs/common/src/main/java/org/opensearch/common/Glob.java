@@ -57,6 +57,7 @@ public class Glob {
         int stringIndex = 0;
         int patternIndex = 0;
         int wildcardIndex = -1;
+        int wildcardStringIndex = -1;
 
         while (stringIndex < str.length()) {
             // pattern and string match
@@ -67,10 +68,12 @@ public class Glob {
                 // wildcard found
                 wildcardIndex = patternIndex;
                 patternIndex++;
+                wildcardStringIndex = stringIndex;
             } else if (wildcardIndex != -1) {
                 // last pattern pointer was a wildcard
                 patternIndex = wildcardIndex + 1;
-                stringIndex++;
+                wildcardStringIndex++;
+                stringIndex = wildcardStringIndex;
             } else {
                 // characters do not match
                 return false;

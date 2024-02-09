@@ -39,8 +39,21 @@ public class GlobTests extends OpenSearchTestCase {
         assertFalse(Glob.globMatch("*test*test", "thisisatesting"));
     }
 
+    public void testGlobalMatchDoubleWildcard() {
+        assertTrue(Glob.globMatch("**test", "thisisatest"));
+        assertFalse(Glob.globMatch("**test", "thisisatesting"));
+        assertTrue(Glob.globMatch("test**", "testthisisa"));
+        assertFalse(Glob.globMatch("test**", "atestthisis"));
+        assertTrue(Glob.globMatch("**test**", "thisisatesting"));
+        assertFalse(Glob.globMatch("**test**", "thisisatesing"));
+        assertTrue(Glob.globMatch("**test**test", "thisisatestingtest"));
+        assertFalse(Glob.globMatch("**test**test", "thisisatesting"));
+    }
+
     public void testGlobMatchMultipleCharactersWithSingleWildcard() {
         assertTrue(Glob.globMatch("a*b", "acb"));
+        assertTrue(Glob.globMatch("f*o", "foo"));
+        assertTrue(Glob.globMatch("f*oo", "foo"));
         assertTrue(Glob.globMatch("a*b", "aab"));
         assertTrue(Glob.globMatch("a*b", "aaab"));
         assertFalse(Glob.globMatch("a*b", "ac"));
