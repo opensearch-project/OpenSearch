@@ -269,12 +269,15 @@ public final class FastFilterRewriteHelper {
             }
         }
 
-        public void buildFastFilter(LeafReaderContext leaf) throws IOException {
-            assert filters == null : "Filters should only be built once, but they are already built";
-            this.filters = this.aggregationType.buildFastFilter(leaf, context);
+        /**
+         * Built filters for a segment
+         */
+        public Weight[] buildFastFilter(LeafReaderContext leaf) throws IOException {
+            Weight[] filters = this.aggregationType.buildFastFilter(leaf, context);
             if (filters != null) {
                 logger.debug("Fast filter built for shard {} segment {}", context.indexShard().shardId(), leaf.ord);
             }
+            return filters;
         }
     }
 
@@ -440,19 +443,15 @@ public final class FastFilterRewriteHelper {
             return false;
         }
         Weight[] filters = fastFilterContext.filters;
-        boolean filtersBuiltAtSegmentLevel = false;
         if (filters == null) {
             logger.debug(
                 "Shard {} segment {} functionally match all documents. Build the fast filter",
                 fastFilterContext.context.indexShard().shardId(),
                 ctx.ord
             );
-            fastFilterContext.buildFastFilter(ctx);
-            filters = fastFilterContext.filters;
+            filters = fastFilterContext.buildFastFilter(ctx);
             if (filters == null) {
                 return false;
-            } else {
-                filtersBuiltAtSegmentLevel = true;
             }
         }
 
@@ -485,11 +484,6 @@ public final class FastFilterRewriteHelper {
                     break;
                 }
             }
-        }
-
-        // each segment computes its own filters, so reset the filters built at segment level
-        if (filtersBuiltAtSegmentLevel) {
-            fastFilterContext.filters = null;
         }
 
         logger.debug("Fast filter optimization applied to shard {} segment {}", fastFilterContext.context.indexShard().shardId(), ctx.ord);
