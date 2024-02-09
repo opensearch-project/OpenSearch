@@ -199,7 +199,7 @@ public class PluginInfo implements Writeable, ToXContentObject {
         this.name = in.readString();
         this.description = in.readString();
         this.version = in.readString();
-        if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
+        if (in.getVersion().onOrAfter(Version.V_2_13_0)) {
             this.opensearchVersionRanges = (List<SemverRange>) in.readGenericValue();
         } else {
             this.opensearchVersionRanges = List.of(new SemverRange(in.readVersion(), SemverRange.RangeOperator.DEFAULT));
@@ -216,7 +216,7 @@ public class PluginInfo implements Writeable, ToXContentObject {
         out.writeString(name);
         out.writeString(description);
         out.writeString(version);
-        if (out.getVersion().onOrAfter(Version.V_3_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_2_13_0)) {
             out.writeGenericValue(opensearchVersionRanges);
         } else {
             /*
