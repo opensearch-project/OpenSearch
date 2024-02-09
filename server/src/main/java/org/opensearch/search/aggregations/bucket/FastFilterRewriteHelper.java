@@ -424,6 +424,11 @@ public final class FastFilterRewriteHelper {
         if (!fastFilterContext.rewriteable) {
             return false;
         }
+        logger.debug(
+            "try fast filter on Shard {} segment {}",
+            fastFilterContext.context.indexShard().shardId(),
+            ctx.ord
+        );
 
         NumericDocValues docCountValues = DocValues.getNumeric(ctx.reader(), DocCountFieldMapper.NAME);
         if (docCountValues.nextDoc() != NO_MORE_DOCS) {
@@ -442,6 +447,11 @@ public final class FastFilterRewriteHelper {
         }
         Weight[] filters = fastFilterContext.filters;
         boolean filtersBuiltAtSegmentLevel = false;
+        logger.debug(
+            "Shard {} segment {} functionally match all documents",
+            fastFilterContext.context.indexShard().shardId(),
+            ctx.ord
+        );
         if (filters == null) {
             logger.debug(
                 "Shard {} segment {} functionally match all documents. Build the fast filter",
@@ -499,6 +509,12 @@ public final class FastFilterRewriteHelper {
 
     private static boolean segmentMatchAll(SearchContext ctx, LeafReaderContext leafCtx) throws IOException {
         Weight weight = ctx.searcher().createWeight(ctx.query(), ScoreMode.COMPLETE_NO_SCORES, 1f);
+        if (weight == null) {
+            return false;
+        }
+        int count = weight.count(leafCtx);
+        int numDocs = leafCtx.reader().numDocs();
+        logger.debug("Shard {} segment {} has {} count and {} num docs", ctx.indexShard().shardId(), leafCtx.ord, count, numDocs);
         return weight != null && weight.count(leafCtx) == leafCtx.reader().numDocs();
     }
 }
