@@ -14,6 +14,7 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.document.IntPoint;
 import org.apache.lucene.document.LongPoint;
+import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.document.StringField;
@@ -40,6 +41,7 @@ import org.opensearch.core.common.text.Text;
 import org.opensearch.core.index.Index;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.mapper.DateFieldMapper;
+import org.opensearch.index.mapper.DocCountFieldMapper;
 import org.opensearch.index.mapper.DocumentMapper;
 import org.opensearch.index.mapper.IpFieldMapper;
 import org.opensearch.index.mapper.KeywordFieldMapper;
@@ -196,6 +198,12 @@ public class BaseCompositeAggregatorTestCase extends AggregatorTestCase {
         doc.add(new StringField("id", Integer.toString(id), Field.Store.NO));
         for (Map.Entry<String, List<Object>> entry : keys.entrySet()) {
             final String name = entry.getKey();
+            if (name.equals(DocCountFieldMapper.NAME)) {
+                doc.add(new IntPoint(name, (int) entry.getValue().get(0)));
+                // doc count field should be DocValuesType.NUMERIC
+                doc.add(new NumericDocValuesField(name, (int) entry.getValue().get(0)));
+                continue;
+            }
             for (Object value : entry.getValue()) {
                 if (value instanceof Integer) {
                     doc.add(new SortedNumericDocValuesField(name, (int) value));
