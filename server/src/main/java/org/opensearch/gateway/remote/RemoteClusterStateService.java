@@ -1312,21 +1312,25 @@ public class RemoteClusterStateService implements Closeable {
      * @param committedManifest last committed ClusterMetadataManifest
      */
     public void deleteStaleClusterUUIDs(ClusterState clusterState, ClusterMetadataManifest committedManifest) {
-        threadpool.executor(ThreadPool.Names.REMOTE_PURGE).execute(() -> {
-            String clusterName = clusterState.getClusterName().value();
-            logger.debug("Deleting stale cluster UUIDs data from remote [{}]", clusterName);
-            Set<String> allClustersUUIDsInRemote;
-            try {
-                allClustersUUIDsInRemote = new HashSet<>(getAllClusterUUIDs(clusterState.getClusterName().value()));
-            } catch (IOException e) {
-                logger.info(String.format(Locale.ROOT, "Error while fetching all cluster UUIDs for [%s]", clusterName));
-                return;
-            }
-            // Retain last 2 cluster uuids data
-            allClustersUUIDsInRemote.remove(committedManifest.getClusterUUID());
-            allClustersUUIDsInRemote.remove(committedManifest.getPreviousClusterUUID());
-            deleteStaleUUIDsClusterMetadata(clusterName, new ArrayList<>(allClustersUUIDsInRemote));
-        });
+        try {
+            threadpool.executor(ThreadPool.Names.REMOTE_PURGE).execute(() -> {
+                String clusterName = clusterState.getClusterName().value();
+                logger.debug("Deleting stale cluster UUIDs data from remote [{}]", clusterName);
+                Set<String> allClustersUUIDsInRemote;
+                try {
+                    allClustersUUIDsInRemote = new HashSet<>(getAllClusterUUIDs(clusterState.getClusterName().value()));
+                } catch (IOException e) {
+                    logger.info(String.format(Locale.ROOT, "Error while fetching all cluster UUIDs for [%s]", clusterName));
+                    return;
+                }
+                // Retain last 2 cluster uuids data
+                allClustersUUIDsInRemote.remove(committedManifest.getClusterUUID());
+                allClustersUUIDsInRemote.remove(committedManifest.getPreviousClusterUUID());
+                deleteStaleUUIDsClusterMetadata(clusterName, new ArrayList<>(allClustersUUIDsInRemote));
+            });
+        } catch (Exception e) {
+            logger.error("Exception occurred while scheduling deletion of stale cluster UUIDs from remote store", e);
+        }
     }
 
     public RemotePersistenceStats getStats() {
