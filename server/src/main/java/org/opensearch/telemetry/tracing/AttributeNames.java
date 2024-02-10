@@ -41,6 +41,11 @@ public final class AttributeNames {
     public static final String HTTP_URI = "http.uri";
 
     /**
+     * Http Request Query Parameters.
+     */
+    public static final String HTTP_REQ_QUERY_PARAMS = "url.query";
+
+    /**
      * Rest Request ID.
      */
     public static final String REST_REQ_ID = "rest.request_id";

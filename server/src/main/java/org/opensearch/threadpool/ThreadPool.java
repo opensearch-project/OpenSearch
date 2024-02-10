@@ -281,7 +281,13 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         );
         builders.put(
             Names.INDEX_SEARCHER,
-            new ResizableExecutorBuilder(settings, Names.INDEX_SEARCHER, allocatedProcessors, 1000, runnableTaskListener)
+            new ResizableExecutorBuilder(
+                settings,
+                Names.INDEX_SEARCHER,
+                twiceAllocatedProcessors(allocatedProcessors),
+                1000,
+                runnableTaskListener
+            )
         );
 
         for (final ExecutorBuilder<?> builder : customBuilders) {
