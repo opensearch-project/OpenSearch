@@ -70,6 +70,7 @@ import org.opensearch.index.mapper.SeqNoFieldMapper;
 import org.opensearch.index.mapper.SourceFieldMapper;
 import org.opensearch.index.mapper.TextFieldMapper;
 import org.opensearch.index.mapper.VersionFieldMapper;
+import org.opensearch.index.mapper.ConstantKeywordFieldMapper;
 import org.opensearch.index.remote.RemoteStorePressureService;
 import org.opensearch.index.seqno.GlobalCheckpointSyncAction;
 import org.opensearch.index.seqno.RetentionLeaseBackgroundSyncAction;
@@ -168,6 +169,7 @@ public class IndicesModule extends AbstractModule {
         mappers.put(FieldAliasMapper.CONTENT_TYPE, new FieldAliasMapper.TypeParser());
         mappers.put(GeoPointFieldMapper.CONTENT_TYPE, new GeoPointFieldMapper.TypeParser());
         mappers.put(FlatObjectFieldMapper.CONTENT_TYPE, FlatObjectFieldMapper.PARSER);
+        mappers.put(ConstantKeywordFieldMapper.CONTENT_TYPE, new ConstantKeywordFieldMapper.TypeParser());
 
         for (MapperPlugin mapperPlugin : mapperPlugins) {
             for (Map.Entry<String, Mapper.TypeParser> entry : mapperPlugin.getMappers().entrySet()) {
