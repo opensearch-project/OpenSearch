@@ -55,6 +55,7 @@ import org.opensearch.cluster.routing.allocation.allocator.ShardsAllocator;
 import org.opensearch.cluster.routing.allocation.command.AllocationCommands;
 import org.opensearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.opensearch.cluster.routing.allocation.decider.Decision;
+import org.opensearch.common.collect.ImmutableOpenMap;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.gateway.GatewayAllocator;
 import org.opensearch.gateway.PriorityComparator;
@@ -200,9 +201,9 @@ public class AllocationService {
         if (restoreInProgress != null) {
             RestoreInProgress updatedRestoreInProgress = allocation.updateRestoreInfoWithRoutingChanges(restoreInProgress);
             if (updatedRestoreInProgress != restoreInProgress) {
-                final Map<String, ClusterState.Custom> customsBuilder = new HashMap<>(allocation.getCustoms());
+                ImmutableOpenMap.Builder<String, ClusterState.Custom> customsBuilder = ImmutableOpenMap.builder(allocation.getCustoms());
                 customsBuilder.put(RestoreInProgress.TYPE, updatedRestoreInProgress);
-                newStateBuilder.customs(customsBuilder);
+                newStateBuilder.customs(customsBuilder.build());
             }
         }
         return newStateBuilder.build();
@@ -577,6 +578,7 @@ public class AllocationService {
             ExistingShardsAllocator allocator = existingShardsAllocators.get(ShardsBatchGatewayAllocator.ALLOCATOR_NAME);
             allocator.allocateAllUnassignedShards(allocation, true);
             allocator.afterPrimariesBeforeReplicas(allocation);
+            // Replicas Assignment
             allocator.allocateAllUnassignedShards(allocation, false);
             return;
         }
@@ -704,7 +706,7 @@ public class AllocationService {
         final String allocatorName = ExistingShardsAllocator.EXISTING_SHARDS_ALLOCATOR_SETTING.get(
             routingAllocation.metadata().getIndexSafe(shardRouting.index()).getSettings()
         );
-        ExistingShardsAllocator existingShardsAllocator = existingShardsAllocators.get(allocatorName);
+        final ExistingShardsAllocator existingShardsAllocator = existingShardsAllocators.get(allocatorName);
         return existingShardsAllocator != null ? existingShardsAllocator : new NotFoundAllocator(allocatorName);
     }
 
