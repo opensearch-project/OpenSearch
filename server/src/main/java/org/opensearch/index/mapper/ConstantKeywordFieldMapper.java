@@ -6,41 +6,14 @@
  * compatible open source license.
  */
 
-/*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
- */
-
-/*
- * Modifications Copyright OpenSearch Contributors. See
- * GitHub history for details.
- */
-
 package org.opensearch.index.mapper;
 
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
 import org.opensearch.OpenSearchParseException;
-import org.opensearch.common.Explicit;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.annotation.PublicApi;
-import org.opensearch.common.xcontent.support.XContentMapValues;
-import org.opensearch.core.common.Strings;
 import org.opensearch.index.fielddata.IndexFieldData;
 import org.opensearch.index.fielddata.plain.ConstantIndexFieldData;
 import org.opensearch.index.query.QueryShardContext;
@@ -49,7 +22,10 @@ import org.opensearch.search.aggregations.support.CoreValuesSourceType;
 import org.opensearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
 import java.util.function.Supplier;
 
 /**
@@ -60,11 +36,7 @@ import java.util.function.Supplier;
 @PublicApi(since = "1.0.0")
 public class ConstantKeywordFieldMapper extends ParametrizedFieldMapper {
 
-//    public static final String NAME = "_index";
-
         public static final String CONTENT_TYPE = "constant_keyword";
-
-//    public static final TypeParser PARSER = new TypeParser((n, c) -> new ConstantKeywordFieldMapper.Builder(n, c));
 
     public static class TypeParser implements Mapper.TypeParser {
         @Override
@@ -124,8 +96,6 @@ public class ConstantKeywordFieldMapper extends ParametrizedFieldMapper {
     static final class ConstantKeywordFieldType extends ConstantFieldType {
 
         protected final String value;
-
-//        static final ConstantKeywordFieldType INSTANCE = new ConstantKeywordFieldType();
 
         public ConstantKeywordFieldType(String name, String value) {
             super(name, Collections.emptyMap());
