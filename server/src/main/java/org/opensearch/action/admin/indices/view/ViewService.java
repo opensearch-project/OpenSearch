@@ -101,12 +101,14 @@ public class ViewService {
     }
 
     public void listViewNames(final ActionListener<ListViewNamesAction.Response> listener) {
-        final List<String> viewNames = new ArrayList<>(Optional.ofNullable(clusterService)
-            .map(ClusterService::state)
-            .map(ClusterState::metadata)
-            .map(Metadata::views)
-            .map(Map::keySet)
-            .orElseThrow());
+        final List<String> viewNames = new ArrayList<>(
+            Optional.ofNullable(clusterService)
+                .map(ClusterService::state)
+                .map(ClusterState::metadata)
+                .map(Metadata::views)
+                .map(Map::keySet)
+                .orElseThrow()
+        );
 
         listener.onResponse(new ListViewNamesAction.Response(viewNames));
     }
@@ -114,10 +116,7 @@ public class ViewService {
     public void searchView(final SearchViewAction.Request request, final ActionListener<SearchResponse> listener) {
         final View view = getViewOrThrowException(request.getView());
 
-        final String[] indices = view.getTargets()
-            .stream()
-            .map(View.Target::getIndexPattern)
-            .toArray(String[]::new);
+        final String[] indices = view.getTargets().stream().map(View.Target::getIndexPattern).toArray(String[]::new);
         request.indices(indices);
 
         client.executeLocally(SearchAction.INSTANCE, request, listener);
