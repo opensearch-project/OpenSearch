@@ -70,15 +70,10 @@ public interface ExistingShardsAllocator {
      * {@link ExistingShardsAllocator#allocateAllUnassignedShards(RoutingAllocation, boolean)} method.
      * The default implementation of this method is not optimized and assigns shards one by one.
      *
-     * If enable to true then it expects all indices of the shard to use same {@link ExistingShardsAllocator}, otherwise
-     * Allocation Service will fallback to default implementation i.e. {@link ExistingShardsAllocator#allocateUnassigned(ShardRouting, RoutingAllocation, UnassignedAllocationHandler)}
-     *
      * If no plugin overrides {@link ExistingShardsAllocator} then default implementation will be use for it , i.e,
-     * {@link ShardsBatchGatewayAllocator}. Right now even if plugin implements it, AllocationService will run the
-     * default implementation to enable Batch mode of assignment
+     * {@link ShardsBatchGatewayAllocator}.
      *
-     * TODO: Currently its implementation is WIP for GatewayAllocator so setting enabling wont have any effect
-     * https://github.com/opensearch-project/OpenSearch/issues/5098
+     * This setting is experimental at this point.
      */
     Setting<Boolean> EXISTING_SHARDS_ALLOCATOR_BATCH_MODE = Setting.boolSetting(
         "cluster.allocator.existing_shards_allocator.batch_enabled",
