@@ -166,9 +166,6 @@ public class ConstantKeywordFieldMapper extends ParametrizedFieldMapper {
 
     private final String value;
 
-//    public ConstantKeywordFieldMapper() {
-//        super(IndexFieldType.INSTANCE);
-//    }
     protected ConstantKeywordFieldMapper(
         String simpleName,
         MappedFieldType mappedFieldType,
