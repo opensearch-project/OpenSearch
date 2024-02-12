@@ -76,6 +76,13 @@ public class SearchRequestTests extends AbstractSearchTestCase {
         );
     }
 
+    public void testClone() {
+        SearchRequest searchRequest = new SearchRequest();
+        SearchRequest clonedRequest = searchRequest.clone();
+        assertEquals(searchRequest.hashCode(), clonedRequest.hashCode());
+        assertNotSame(searchRequest, clonedRequest);
+    }
+
     public void testWithLocalReduction() {
         expectThrows(NullPointerException.class, () -> SearchRequest.subSearchRequest(null, Strings.EMPTY_ARRAY, "", 0, randomBoolean()));
         SearchRequest request = new SearchRequest();
