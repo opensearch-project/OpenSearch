@@ -36,7 +36,6 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.search.aggregations.BucketOrder;
@@ -44,7 +43,7 @@ import org.opensearch.search.aggregations.bucket.filter.InternalFilter;
 import org.opensearch.search.aggregations.bucket.terms.SignificantTerms;
 import org.opensearch.search.aggregations.bucket.terms.SignificantTermsAggregatorFactory;
 import org.opensearch.search.aggregations.bucket.terms.Terms;
-import org.opensearch.test.ParameterizedOpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -61,12 +60,12 @@ import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.equalTo;
 
-public class TermsShardMinDocCountIT extends ParameterizedOpenSearchIntegTestCase {
+public class TermsShardMinDocCountIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
 
     private static final String index = "someindex";
 
-    public TermsShardMinDocCountIT(Settings dynamicSettings) {
-        super(dynamicSettings);
+    public TermsShardMinDocCountIT(Settings staticSettings) {
+        super(staticSettings);
     }
 
     @ParametersFactory
@@ -75,11 +74,6 @@ public class TermsShardMinDocCountIT extends ParameterizedOpenSearchIntegTestCas
             new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), false).build() },
             new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), true).build() }
         );
-    }
-
-    @Override
-    protected Settings featureFlagSettings() {
-        return Settings.builder().put(super.featureFlagSettings()).put(FeatureFlags.CONCURRENT_SEGMENT_SEARCH, "true").build();
     }
 
     private static String randomExecutionHint() {

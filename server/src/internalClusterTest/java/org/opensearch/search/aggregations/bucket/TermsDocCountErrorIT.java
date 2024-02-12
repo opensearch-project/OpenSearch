@@ -38,14 +38,13 @@ import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.search.aggregations.Aggregator.SubAggCollectionMode;
 import org.opensearch.search.aggregations.BucketOrder;
 import org.opensearch.search.aggregations.bucket.terms.Terms;
 import org.opensearch.search.aggregations.bucket.terms.Terms.Bucket;
 import org.opensearch.search.aggregations.bucket.terms.TermsAggregatorFactory.ExecutionMode;
 import org.opensearch.test.OpenSearchIntegTestCase;
-import org.opensearch.test.ParameterizedOpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -67,7 +66,7 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.core.IsNull.notNullValue;
 
 @OpenSearchIntegTestCase.SuiteScopeTestCase
-public class TermsDocCountErrorIT extends ParameterizedOpenSearchIntegTestCase {
+public class TermsDocCountErrorIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
 
     private static final String STRING_FIELD_NAME = "s_value";
     private static final String LONG_FIELD_NAME = "l_value";
@@ -79,8 +78,8 @@ public class TermsDocCountErrorIT extends ParameterizedOpenSearchIntegTestCase {
 
     private static int numRoutingValues;
 
-    public TermsDocCountErrorIT(Settings dynamicSettings) {
-        super(dynamicSettings);
+    public TermsDocCountErrorIT(Settings staticSettings) {
+        super(staticSettings);
     }
 
     @ParametersFactory
@@ -89,11 +88,6 @@ public class TermsDocCountErrorIT extends ParameterizedOpenSearchIntegTestCase {
             new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), false).build() },
             new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), true).build() }
         );
-    }
-
-    @Override
-    protected Settings featureFlagSettings() {
-        return Settings.builder().put(super.featureFlagSettings()).put(FeatureFlags.CONCURRENT_SEGMENT_SEARCH, "true").build();
     }
 
     @Override

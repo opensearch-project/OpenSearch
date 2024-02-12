@@ -34,6 +34,7 @@ package org.opensearch.search.aggregations.bucket.histogram;
 
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.LongPoint;
+import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
@@ -45,6 +46,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.opensearch.common.time.DateFormatters;
 import org.opensearch.index.mapper.DateFieldMapper;
+import org.opensearch.index.mapper.DocCountFieldMapper;
 import org.opensearch.search.aggregations.AggregationBuilder;
 import org.opensearch.search.aggregations.BucketOrder;
 import org.opensearch.search.aggregations.bucket.terms.StringTerms;
@@ -1178,6 +1180,181 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
         );
     }
 
+    public void testHardBoundsNotOverlapping() throws IOException {
+        testSearchCase(
+            new MatchAllDocsQuery(),
+            Arrays.asList("2017-02-01", "2017-02-02", "2017-02-02", "2017-02-03", "2017-02-03", "2017-02-03", "2017-02-05"),
+            aggregation -> aggregation.calendarInterval(DateHistogramInterval.DAY)
+                .hardBounds(new LongBounds("2018-01-01", "2020-01-01"))
+                .field(AGGREGABLE_DATE),
+            histogram -> {
+                List<? extends Histogram.Bucket> buckets = histogram.getBuckets();
+                assertEquals(0, buckets.size());
+            },
+            false
+        );
+
+        testSearchCase(
+            new MatchAllDocsQuery(),
+            Arrays.asList("2017-02-01", "2017-02-02", "2017-02-02", "2017-02-03", "2017-02-03", "2017-02-03", "2017-02-05"),
+            aggregation -> aggregation.calendarInterval(DateHistogramInterval.DAY)
+                .hardBounds(new LongBounds("2016-01-01", "2017-01-01"))
+                .field(AGGREGABLE_DATE),
+            histogram -> {
+                List<? extends Histogram.Bucket> buckets = histogram.getBuckets();
+                assertEquals(0, buckets.size());
+            },
+            false
+        );
+
+        testSearchCase(
+            new MatchAllDocsQuery(),
+            Arrays.asList("2017-02-01", "2017-02-02", "2017-02-02", "2017-02-03", "2017-02-03", "2017-02-03", "2017-02-05"),
+            aggregation -> aggregation.calendarInterval(DateHistogramInterval.DAY)
+                .hardBounds(new LongBounds("2016-01-01", "2017-02-03"))
+                .field(AGGREGABLE_DATE),
+            histogram -> {
+                List<? extends Histogram.Bucket> buckets = histogram.getBuckets();
+                assertEquals(2, buckets.size());
+
+                Histogram.Bucket bucket = buckets.get(0);
+                assertEquals("2017-02-01T00:00:00.000Z", bucket.getKeyAsString());
+                assertEquals(1, bucket.getDocCount());
+
+                bucket = buckets.get(1);
+                assertEquals("2017-02-02T00:00:00.000Z", bucket.getKeyAsString());
+                assertEquals(2, bucket.getDocCount());
+            },
+            false
+        );
+
+        testSearchCase(
+            new MatchAllDocsQuery(),
+            Arrays.asList("2017-02-01", "2017-02-02", "2017-02-02", "2017-02-03", "2017-02-03", "2017-02-03", "2017-02-05"),
+            aggregation -> aggregation.calendarInterval(DateHistogramInterval.DAY)
+                .hardBounds(new LongBounds("2017-02-03", "2020-01-01"))
+                .field(AGGREGABLE_DATE),
+            histogram -> {
+                List<? extends Histogram.Bucket> buckets = histogram.getBuckets();
+                assertEquals(3, buckets.size());
+
+                Histogram.Bucket bucket = buckets.get(0);
+                assertEquals("2017-02-03T00:00:00.000Z", bucket.getKeyAsString());
+                assertEquals(3, bucket.getDocCount());
+
+                bucket = buckets.get(1);
+                assertEquals("2017-02-04T00:00:00.000Z", bucket.getKeyAsString());
+                assertEquals(0, bucket.getDocCount());
+
+                bucket = buckets.get(2);
+                assertEquals("2017-02-05T00:00:00.000Z", bucket.getKeyAsString());
+                assertEquals(1, bucket.getDocCount());
+            },
+            false
+        );
+    }
+
+    public void testFilterRewriteOptimizationWithRangeQuery() throws IOException {
+        testSearchCase(
+            LongPoint.newRangeQuery(AGGREGABLE_DATE, asLong("2018-01-01"), asLong("2020-01-01")),
+            Arrays.asList("2017-02-01", "2017-02-02", "2017-02-02", "2017-02-03", "2017-02-03", "2017-02-03", "2017-02-05"),
+            aggregation -> aggregation.calendarInterval(DateHistogramInterval.DAY).field(AGGREGABLE_DATE),
+            histogram -> {
+                List<? extends Histogram.Bucket> buckets = histogram.getBuckets();
+                assertEquals(0, buckets.size());
+            },
+            10000,
+            false,
+            false,
+            true // force AGGREGABLE_DATE field to be searchable to test the filter rewrite optimization path
+        );
+
+        testSearchCase(
+            LongPoint.newRangeQuery(AGGREGABLE_DATE, asLong("2016-01-01"), asLong("2017-01-01")),
+            Arrays.asList("2017-02-01", "2017-02-02", "2017-02-02", "2017-02-03", "2017-02-03", "2017-02-03", "2017-02-05"),
+            aggregation -> aggregation.calendarInterval(DateHistogramInterval.DAY).field(AGGREGABLE_DATE),
+            histogram -> {
+                List<? extends Histogram.Bucket> buckets = histogram.getBuckets();
+                assertEquals(0, buckets.size());
+            },
+            10000,
+            false,
+            false,
+            true
+        );
+
+        testSearchCase(
+            LongPoint.newRangeQuery(AGGREGABLE_DATE, asLong("2016-01-01"), asLong("2017-02-02")),
+            Arrays.asList("2017-02-01", "2017-02-02", "2017-02-02", "2017-02-03", "2017-02-03", "2017-02-03", "2017-02-05"),
+            aggregation -> aggregation.calendarInterval(DateHistogramInterval.DAY).field(AGGREGABLE_DATE),
+            histogram -> {
+                List<? extends Histogram.Bucket> buckets = histogram.getBuckets();
+                assertEquals(2, buckets.size());
+
+                Histogram.Bucket bucket = buckets.get(0);
+                assertEquals("2017-02-01T00:00:00.000Z", bucket.getKeyAsString());
+                assertEquals(1, bucket.getDocCount());
+
+                bucket = buckets.get(1);
+                assertEquals("2017-02-02T00:00:00.000Z", bucket.getKeyAsString());
+                assertEquals(2, bucket.getDocCount());
+            },
+            10000,
+            false,
+            false,
+            true
+        );
+
+        testSearchCase(
+            LongPoint.newRangeQuery(AGGREGABLE_DATE, asLong("2017-02-03"), asLong("2020-01-01")),
+            Arrays.asList("2017-02-01", "2017-02-02", "2017-02-02", "2017-02-03", "2017-02-03", "2017-02-03", "2017-02-05"),
+            aggregation -> aggregation.calendarInterval(DateHistogramInterval.DAY).field(AGGREGABLE_DATE),
+            histogram -> {
+                List<? extends Histogram.Bucket> buckets = histogram.getBuckets();
+                assertEquals(3, buckets.size());
+
+                Histogram.Bucket bucket = buckets.get(0);
+                assertEquals("2017-02-03T00:00:00.000Z", bucket.getKeyAsString());
+                assertEquals(3, bucket.getDocCount());
+
+                bucket = buckets.get(1);
+                assertEquals("2017-02-04T00:00:00.000Z", bucket.getKeyAsString());
+                assertEquals(0, bucket.getDocCount());
+
+                bucket = buckets.get(2);
+                assertEquals("2017-02-05T00:00:00.000Z", bucket.getKeyAsString());
+                assertEquals(1, bucket.getDocCount());
+            },
+            10000,
+            false,
+            false,
+            true
+        );
+    }
+
+    public void testDocCountField() throws IOException {
+        testSearchCase(
+            new MatchAllDocsQuery(),
+            Arrays.asList("2017-02-01", "2017-02-02", "2017-02-02"),
+            aggregation -> aggregation.calendarInterval(DateHistogramInterval.DAY).field(AGGREGABLE_DATE),
+            histogram -> {
+                List<? extends Histogram.Bucket> buckets = histogram.getBuckets();
+                assertEquals(2, buckets.size());
+
+                Histogram.Bucket bucket = buckets.get(0);
+                assertEquals("2017-02-01T00:00:00.000Z", bucket.getKeyAsString());
+                assertEquals(5, bucket.getDocCount());
+
+                bucket = buckets.get(1);
+                assertEquals("2017-02-02T00:00:00.000Z", bucket.getKeyAsString());
+                assertEquals(2, bucket.getDocCount());
+            },
+            10000,
+            false,
+            true
+        );
+    }
+
     public void testIllegalInterval() throws IOException {
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
@@ -1211,13 +1388,42 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
         int maxBucket,
         boolean useNanosecondResolution
     ) throws IOException {
-        boolean aggregableDateIsSearchable = randomBoolean();
+        testSearchCase(query, dataset, configure, verify, maxBucket, useNanosecondResolution, false);
+    }
+
+    private void testSearchCase(
+        Query query,
+        List<String> dataset,
+        Consumer<DateHistogramAggregationBuilder> configure,
+        Consumer<InternalDateHistogram> verify,
+        int maxBucket,
+        boolean useNanosecondResolution,
+        boolean useDocCountField
+    ) throws IOException {
+        testSearchCase(query, dataset, configure, verify, maxBucket, useNanosecondResolution, useDocCountField, randomBoolean());
+    }
+
+    private void testSearchCase(
+        Query query,
+        List<String> dataset,
+        Consumer<DateHistogramAggregationBuilder> configure,
+        Consumer<InternalDateHistogram> verify,
+        int maxBucket,
+        boolean useNanosecondResolution,
+        boolean useDocCountField,
+        boolean aggregableDateIsSearchable
+    ) throws IOException {
+        logger.debug("Aggregable date is searchable {}", aggregableDateIsSearchable);
         DateFieldMapper.DateFieldType fieldType = aggregableDateFieldType(useNanosecondResolution, aggregableDateIsSearchable);
 
         try (Directory directory = newDirectory()) {
 
             try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
                 Document document = new Document();
+                if (useDocCountField) {
+                    // add the doc count field to the first document
+                    document.add(new NumericDocValuesField(DocCountFieldMapper.NAME, 5));
+                }
                 for (String date : dataset) {
                     long instant = asLong(date, fieldType);
                     document.add(new SortedNumericDocValuesField(AGGREGABLE_DATE, instant));

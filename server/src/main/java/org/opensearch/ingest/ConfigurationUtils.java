@@ -387,6 +387,7 @@ public final class ConfigurationUtils {
 
     /**
      * Returns and removes the specified property as an {@link Object} from the specified configuration map.
+     * If the property is missing an {@link OpenSearchParseException} is thrown
      */
     public static Object readObject(String processorType, String processorTag, Map<String, Object> configuration, String propertyName) {
         Object value = configuration.remove(propertyName);
@@ -394,6 +395,13 @@ public final class ConfigurationUtils {
             throw newConfigurationException(processorType, processorTag, propertyName, "required property is missing");
         }
         return value;
+    }
+
+    /**
+     * Returns and removes the specified property as an {@link Object} from the specified configuration map.
+     */
+    public static Object readOptionalObject(Map<String, Object> configuration, String propertyName) {
+        return configuration.remove(propertyName);
     }
 
     public static OpenSearchException newConfigurationException(

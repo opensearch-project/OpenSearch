@@ -66,10 +66,10 @@ public class RestPutMappingAction extends BaseRestHandler {
     public List<Route> routes() {
         return unmodifiableList(
             asList(
-                new Route(POST, "/{index}/_mapping/"),
-                new Route(PUT, "/{index}/_mapping/"),
-                new Route(POST, "/{index}/_mappings/"),
-                new Route(PUT, "/{index}/_mappings/")
+                new Route(POST, "/{index}/_mapping"),
+                new Route(PUT, "/{index}/_mapping"),
+                new Route(POST, "/{index}/_mappings"),
+                new Route(PUT, "/{index}/_mappings")
             )
         );
     }

@@ -988,6 +988,53 @@ public class RemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
         verify(remoteMetadataDirectory).deleteFile(metadataFilename3);
     }
 
+    public void testDeleteStaleCommitsActualDeleteWithLocks() throws Exception {
+        Map<String, Map<String, String>> metadataFilenameContentMapping = populateMetadata();
+        remoteSegmentStoreDirectory.init();
+
+        // Locking one of the metadata files to ensure that it is not getting deleted.
+        when(mdLockManager.fetchLockedMetadataFiles(any())).thenReturn(Set.of(metadataFilename2));
+
+        // popluateMetadata() adds stub to return 3 metadata files
+        // We are passing lastNMetadataFilesToKeep=2 here so that oldest 1 metadata file will be deleted
+        remoteSegmentStoreDirectory.deleteStaleSegmentsAsync(1);
+
+        for (String metadata : metadataFilenameContentMapping.get(metadataFilename3).values()) {
+            String uploadedFilename = metadata.split(RemoteSegmentStoreDirectory.UploadedSegmentMetadata.SEPARATOR)[1];
+            verify(remoteDataDirectory).deleteFile(uploadedFilename);
+        }
+        assertBusy(() -> assertThat(remoteSegmentStoreDirectory.canDeleteStaleCommits.get(), is(true)));
+        verify(remoteMetadataDirectory).deleteFile(metadataFilename3);
+        verify(remoteMetadataDirectory, times(0)).deleteFile(metadataFilename2);
+    }
+
+    public void testDeleteStaleCommitsNoDeletesDueToLocks() throws Exception {
+        remoteSegmentStoreDirectory.init();
+
+        // Locking all the old metadata files to ensure that none of the segment files are getting deleted.
+        when(mdLockManager.fetchLockedMetadataFiles(any())).thenReturn(Set.of(metadataFilename2, metadataFilename3));
+
+        // popluateMetadata() adds stub to return 3 metadata files
+        // We are passing lastNMetadataFilesToKeep=2 here so that oldest 1 metadata file will be deleted
+        remoteSegmentStoreDirectory.deleteStaleSegmentsAsync(1);
+
+        assertBusy(() -> assertThat(remoteSegmentStoreDirectory.canDeleteStaleCommits.get(), is(true)));
+        verify(remoteMetadataDirectory, times(0)).deleteFile(any());
+    }
+
+    public void testDeleteStaleCommitsExceptionWhileFetchingLocks() throws Exception {
+        remoteSegmentStoreDirectory.init();
+
+        // Locking one of the metadata files to ensure that it is not getting deleted.
+        when(mdLockManager.fetchLockedMetadataFiles(any())).thenThrow(new RuntimeException("Rate limit exceeded"));
+
+        // popluateMetadata() adds stub to return 3 metadata files
+        // We are passing lastNMetadataFilesToKeep=2 here so that oldest 1 metadata file will be deleted
+        remoteSegmentStoreDirectory.deleteStaleSegmentsAsync(1);
+
+        verify(remoteMetadataDirectory, times(0)).deleteFile(any());
+    }
+
     public void testDeleteStaleCommitsDeleteDedup() throws Exception {
         Map<String, Map<String, String>> metadataFilenameContentMapping = new HashMap<>(populateMetadata());
         metadataFilenameContentMapping.put(metadataFilename4, metadataFilenameContentMapping.get(metadataFilename3));

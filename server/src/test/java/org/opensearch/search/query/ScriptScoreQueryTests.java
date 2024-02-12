@@ -39,9 +39,14 @@ import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreMode;
+import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.TwoPhaseIterator;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.Directory;
 import org.opensearch.Version;
@@ -49,6 +54,7 @@ import org.opensearch.common.lucene.search.Queries;
 import org.opensearch.common.lucene.search.function.ScriptScoreQuery;
 import org.opensearch.script.ScoreScript;
 import org.opensearch.script.Script;
+import org.opensearch.script.ScriptType;
 import org.opensearch.search.lookup.LeafSearchLookup;
 import org.opensearch.search.lookup.SearchLookup;
 import org.opensearch.test.OpenSearchTestCase;
@@ -56,6 +62,8 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.function.Function;
 
 import static org.hamcrest.CoreMatchers.containsString;
@@ -177,6 +185,37 @@ public class ScriptScoreQueryTests extends OpenSearchTestCase {
         assertTrue(e.getMessage().contains("Must be a non-negative score!"));
     }
 
+    public void testTwoPhaseIteratorDelegation() throws IOException {
+        Map<String, Object> params = new HashMap<>();
+        String scriptSource = "doc['field'].value != null ? 2.0 : 0.0"; // Adjust based on actual field and logic
+        Script script = new Script(ScriptType.INLINE, "painless", scriptSource, params);
+        float minScore = 1.0f; // This should be below the score produced by the script for all docs
+        ScoreScript.LeafFactory factory = newFactory(script, false, explanation -> 2.0);
+
+        Query subQuery = new MatchAllDocsQuery();
+        ScriptScoreQuery scriptScoreQuery = new ScriptScoreQuery(subQuery, script, factory, minScore, "index", 0, Version.CURRENT);
+
+        Weight weight = searcher.createWeight(searcher.rewrite(scriptScoreQuery), ScoreMode.COMPLETE, 1f);
+
+        boolean foundMatchingDoc = false;
+        for (LeafReaderContext leafContext : searcher.getIndexReader().leaves()) {
+            Scorer scorer = weight.scorer(leafContext);
+            if (scorer != null) {
+                TwoPhaseIterator twoPhaseIterator = scorer.twoPhaseIterator();
+                assertNotNull("TwoPhaseIterator should not be null", twoPhaseIterator);
+                DocIdSetIterator docIdSetIterator = twoPhaseIterator.approximation();
+                int docId;
+                while ((docId = docIdSetIterator.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS) {
+                    if (twoPhaseIterator.matches()) {
+                        foundMatchingDoc = true;
+                        break;
+                    }
+                }
+            }
+        }
+        assertTrue("Expected to find at least one matching document", foundMatchingDoc);
+    }
+
     private ScoreScript.LeafFactory newFactory(
         Script script,
         boolean needsScore,
@@ -203,5 +242,4 @@ public class ScriptScoreQueryTests extends OpenSearchTestCase {
             }
         };
     }
-
 }

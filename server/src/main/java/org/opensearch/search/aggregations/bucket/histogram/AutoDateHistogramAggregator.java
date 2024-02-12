@@ -33,8 +33,8 @@ package org.opensearch.search.aggregations.bucket.histogram;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedNumericDocValues;
+import org.apache.lucene.search.CollectionTerminatedException;
 import org.apache.lucene.search.ScoreMode;
-import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.CollectionUtil;
 import org.opensearch.common.Rounding;
 import org.opensearch.common.Rounding.Prepared;
@@ -42,7 +42,7 @@ import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.util.IntArray;
 import org.opensearch.common.util.LongArray;
 import org.opensearch.core.common.util.ByteArray;
-import org.opensearch.index.mapper.DateFieldMapper;
+import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.aggregations.Aggregator;
 import org.opensearch.search.aggregations.AggregatorFactories;
@@ -53,6 +53,7 @@ import org.opensearch.search.aggregations.LeafBucketCollector;
 import org.opensearch.search.aggregations.LeafBucketCollectorBase;
 import org.opensearch.search.aggregations.bucket.DeferableBucketAggregator;
 import org.opensearch.search.aggregations.bucket.DeferringBucketCollector;
+import org.opensearch.search.aggregations.bucket.FastFilterRewriteHelper;
 import org.opensearch.search.aggregations.bucket.MergingBucketsDeferringCollector;
 import org.opensearch.search.aggregations.bucket.histogram.AutoDateHistogramAggregationBuilder.RoundingInfo;
 import org.opensearch.search.aggregations.bucket.terms.LongKeyedBucketOrds;
@@ -127,13 +128,13 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
      * {@link MergingBucketsDeferringCollector#mergeBuckets(long[])}.
      */
     private MergingBucketsDeferringCollector deferringCollector;
-    private final Weight[] filters;
-    private final DateFieldMapper.DateFieldType fieldType;
 
     protected final RoundingInfo[] roundingInfos;
     protected final int targetBuckets;
     protected int roundingIdx;
     protected Rounding.Prepared preparedRounding;
+
+    private final FastFilterRewriteHelper.FastFilterContext fastFilterContext;
 
     private AutoDateHistogramAggregator(
         String name,
@@ -156,45 +157,53 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
         this.roundingPreparer = roundingPreparer;
         this.preparedRounding = prepareRounding(0);
 
-        FilterRewriteHelper.FilterContext filterContext = FilterRewriteHelper.buildFastFilterContext(
-            parent(),
-            subAggregators.length,
-            context,
-            b -> getMinimumRounding(b[0], b[1]),
-            // Passing prepared rounding as supplier to ensure the correct prepared
-            // rounding is set as it is done during getMinimumRounding
-            () -> preparedRounding,
-            valuesSourceConfig,
-            fc -> FilterRewriteHelper.getAggregationBounds(context, fc.field())
+        fastFilterContext = new FastFilterRewriteHelper.FastFilterContext(context);
+        fastFilterContext.setAggregationType(
+            new AutoHistogramAggregationType(
+                valuesSourceConfig.fieldType(),
+                valuesSourceConfig.missing() != null,
+                valuesSourceConfig.script() != null
+            )
         );
-        if (filterContext != null) {
-            fieldType = filterContext.fieldType;
-            filters = filterContext.filters;
-        } else {
-            fieldType = null;
-            filters = null;
+        if (fastFilterContext.isRewriteable(parent, subAggregators.length)) {
+            fastFilterContext.buildFastFilter();
         }
     }
 
-    private Rounding getMinimumRounding(final long low, final long high) {
-        // max - min / targetBuckets = bestDuration
-        // find the right innerInterval this bestDuration belongs to
-        // since we cannot exceed targetBuckets, bestDuration should go up,
-        // so the right innerInterval should be an upper bound
-        long bestDuration = (high - low) / targetBuckets;
-        while (roundingIdx < roundingInfos.length - 1) {
-            final RoundingInfo curRoundingInfo = roundingInfos[roundingIdx];
-            final int temp = curRoundingInfo.innerIntervals[curRoundingInfo.innerIntervals.length - 1];
-            // If the interval duration is covered by the maximum inner interval,
-            // we can start with this outer interval for creating the buckets
-            if (bestDuration <= temp * curRoundingInfo.roughEstimateDurationMillis) {
-                break;
-            }
-            roundingIdx++;
+    private class AutoHistogramAggregationType extends FastFilterRewriteHelper.AbstractDateHistogramAggregationType {
+
+        public AutoHistogramAggregationType(MappedFieldType fieldType, boolean missing, boolean hasScript) {
+            super(fieldType, missing, hasScript);
         }
 
-        preparedRounding = prepareRounding(roundingIdx);
-        return roundingInfos[roundingIdx].rounding;
+        @Override
+        protected Rounding getRounding(final long low, final long high) {
+            // max - min / targetBuckets = bestDuration
+            // find the right innerInterval this bestDuration belongs to
+            // since we cannot exceed targetBuckets, bestDuration should go up,
+            // so the right innerInterval should be an upper bound
+            long bestDuration = (high - low) / targetBuckets;
+            // reset so this function is idempotent
+            roundingIdx = 0;
+            while (roundingIdx < roundingInfos.length - 1) {
+                final RoundingInfo curRoundingInfo = roundingInfos[roundingIdx];
+                final int temp = curRoundingInfo.innerIntervals[curRoundingInfo.innerIntervals.length - 1];
+                // If the interval duration is covered by the maximum inner interval,
+                // we can start with this outer interval for creating the buckets
+                if (bestDuration <= temp * curRoundingInfo.roughEstimateDurationMillis) {
+                    break;
+                }
+                roundingIdx++;
+            }
+
+            preparedRounding = prepareRounding(roundingIdx);
+            return roundingInfos[roundingIdx].rounding;
+        }
+
+        @Override
+        protected Prepared getRoundingPrepared() {
+            return preparedRounding;
+        }
     }
 
     protected abstract LongKeyedBucketOrds getBucketOrds();
@@ -226,28 +235,21 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
             return LeafBucketCollector.NO_OP_COLLECTOR;
         }
 
+        boolean optimized = FastFilterRewriteHelper.tryFastFilterAggregation(
+            ctx,
+            fastFilterContext,
+            (key, count) -> incrementBucketDocCount(
+                FastFilterRewriteHelper.getBucketOrd(getBucketOrds().add(0, preparedRounding.round(key))),
+                count
+            )
+        );
+        if (optimized) throw new CollectionTerminatedException();
+
         final SortedNumericDocValues values = valuesSource.longValues(ctx);
         final LeafBucketCollector iteratingCollector = getLeafCollector(values, sub);
-
-        // Need to be declared as final and array for usage within the
-        // LeafBucketCollectorBase subclass below
-        final boolean[] useOpt = new boolean[1];
-        useOpt[0] = filters != null;
-
         return new LeafBucketCollectorBase(sub, values) {
             @Override
             public void collect(int doc, long owningBucketOrd) throws IOException {
-                // Try fast filter aggregation if the filters have been created
-                // Skip if tried before and gave incorrect/incomplete results
-                if (useOpt[0]) {
-                    useOpt[0] = FilterRewriteHelper.tryFastFilterAggregation(ctx, filters, fieldType, (key, count) -> {
-                        incrementBucketDocCount(
-                            FilterRewriteHelper.getBucketOrd(getBucketOrds().add(owningBucketOrd, preparedRounding.round(key))),
-                            count
-                        );
-                    });
-                }
-
                 iteratingCollector.collect(doc, owningBucketOrd);
             }
         };

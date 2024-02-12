@@ -388,6 +388,7 @@ public abstract class SocketChannelContext extends ChannelContext<SocketChannel>
         }
     }
 
+    @SuppressWarnings("removal")
     private static void connect(SocketChannel socketChannel, InetSocketAddress remoteAddress) throws IOException {
         try {
             AccessController.doPrivileged((PrivilegedExceptionAction<Boolean>) () -> socketChannel.connect(remoteAddress));
