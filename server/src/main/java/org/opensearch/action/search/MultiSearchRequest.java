@@ -398,4 +398,16 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
             }
         };
     }
+
+    @Override
+    public String toString() {
+        return "MultiSearchRequest{"
+            + "maxConcurrentSearchRequests="
+            + maxConcurrentSearchRequests
+            + ", requests="
+            + requests
+            + ", indicesOptions="
+            + indicesOptions
+            + '}';
+    }
 }
