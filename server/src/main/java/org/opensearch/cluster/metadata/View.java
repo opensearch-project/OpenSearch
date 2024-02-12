@@ -43,7 +43,7 @@ public class View extends AbstractDiffable<View> implements ToXContentObject {
     }
 
     public View(final StreamInput in) throws IOException {
-        this(in.readString(), in.readOptionalString(), in.readVLong(), in.readVLong(), in.readList(Target::new));
+        this(in.readString(), in.readOptionalString(), in.readZLong(), in.readZLong(), in.readList(Target::new));
     }
 
     public String getName() {
@@ -186,8 +186,8 @@ public class View extends AbstractDiffable<View> implements ToXContentObject {
     public void writeTo(final StreamOutput out) throws IOException {
         out.writeString(name);
         out.writeOptionalString(description);
-        out.writeVLong(createdAt);
-        out.writeVLong(modifiedAt);
+        out.writeZLong(createdAt);
+        out.writeZLong(modifiedAt);
         out.writeList(targets);
     }
 }

@@ -23,6 +23,7 @@ import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.core.action.ActionListener;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -36,7 +37,7 @@ public class ViewService {
     private final static Logger LOG = LogManager.getLogger(ViewService.class);
     private final ClusterService clusterService;
     private final NodeClient client;
-    private LongSupplier timeProvider;
+    private final LongSupplier timeProvider;
 
     public ViewService(final ClusterService clusterService, final NodeClient client, final LongSupplier timeProvider) {
         this.clusterService = clusterService;
@@ -69,7 +70,6 @@ public class ViewService {
         createOrUpdateView(Operation.UpdateView, updatedView, listener);
     }
 
-    @SuppressWarnings("deprecation")
     public void deleteView(final DeleteViewAction.Request request, final ActionListener<AcknowledgedResponse> listener) {
         getViewOrThrowException(request.getName());
 
@@ -101,14 +101,12 @@ public class ViewService {
     }
 
     public void listViewNames(final ActionListener<ListViewNamesAction.Response> listener) {
-        final List<String> viewNames = Optional.ofNullable(clusterService)
+        final List<String> viewNames = new ArrayList<>(Optional.ofNullable(clusterService)
             .map(ClusterService::state)
             .map(ClusterState::metadata)
             .map(Metadata::views)
             .map(Map::keySet)
-            .orElseThrow()
-            .stream()
-            .collect(Collectors.toList());
+            .orElseThrow());
 
         listener.onResponse(new ListViewNamesAction.Response(viewNames));
     }
@@ -119,8 +117,7 @@ public class ViewService {
         final String[] indices = view.getTargets()
             .stream()
             .map(View.Target::getIndexPattern)
-            .collect(Collectors.toList())
-            .toArray(new String[0]);
+            .toArray(String[]::new);
         request.indices(indices);
 
         client.executeLocally(SearchAction.INSTANCE, request, listener);
@@ -130,7 +127,7 @@ public class ViewService {
         return Optional.ofNullable(clusterService)
             .map(ClusterService::state)
             .map(ClusterState::metadata)
-            .map(m -> m.views())
+            .map(Metadata::views)
             .map(views -> views.get(viewName))
             .orElseThrow(() -> new ResourceNotFoundException("View [" + viewName + "] does not exist"));
     }
@@ -141,7 +138,7 @@ public class ViewService {
 
         private final String name;
 
-        private Operation(final String name) {
+        Operation(final String name) {
             this.name = name;
         }
     }
