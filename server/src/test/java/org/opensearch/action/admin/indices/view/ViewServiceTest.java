@@ -41,7 +41,7 @@ import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 @SuppressWarnings("unchecked")
-public class ViewServiceTests {
+public class ViewServiceTest {
 
     private final View.Target typicalTarget = new View.Target(randomAlphaOfLength(8));
     private final View typicalView = new View(
