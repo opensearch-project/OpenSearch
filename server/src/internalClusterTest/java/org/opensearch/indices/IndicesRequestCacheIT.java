@@ -185,7 +185,7 @@ public class IndicesRequestCacheIT extends ParameterizedStaticSettingsOpenSearch
         // Force merge the index to ensure there can be no background merges during the subsequent searches that would invalidate the cache
         ForceMergeResponse forceMergeResponse = client.admin().indices().prepareForceMerge("index").setFlush(true).get();
         OpenSearchAssertions.assertAllSuccessful(forceMergeResponse);
-        refresh();
+        refreshAndWaitForReplication();
         ensureSearchable("index");
 
         assertCacheState(client, "index", 0, 0);
@@ -255,7 +255,7 @@ public class IndicesRequestCacheIT extends ParameterizedStaticSettingsOpenSearch
         // Force merge the index to ensure there can be no background merges during the subsequent searches that would invalidate the cache
         ForceMergeResponse forceMergeResponse = client.admin().indices().prepareForceMerge("index").setFlush(true).get();
         OpenSearchAssertions.assertAllSuccessful(forceMergeResponse);
-        refresh();
+        refreshAndWaitForReplication();
         ensureSearchable("index");
 
         assertCacheState(client, "index", 0, 0);
@@ -321,7 +321,7 @@ public class IndicesRequestCacheIT extends ParameterizedStaticSettingsOpenSearch
         // Force merge the index to ensure there can be no background merges during the subsequent searches that would invalidate the cache
         ForceMergeResponse forceMergeResponse = client.admin().indices().prepareForceMerge("index").setFlush(true).get();
         OpenSearchAssertions.assertAllSuccessful(forceMergeResponse);
-        refresh();
+        refreshAndWaitForReplication();
         ensureSearchable("index");
 
         assertCacheState(client, "index", 0, 0);
@@ -394,7 +394,7 @@ public class IndicesRequestCacheIT extends ParameterizedStaticSettingsOpenSearch
             .setFlush(true)
             .get();
         OpenSearchAssertions.assertAllSuccessful(forceMergeResponse);
-        refresh();
+        refreshAndWaitForReplication();
         ensureSearchable("index-1", "index-2", "index-3");
 
         assertCacheState(client, "index-1", 0, 0);
@@ -465,7 +465,7 @@ public class IndicesRequestCacheIT extends ParameterizedStaticSettingsOpenSearch
         // Force merge the index to ensure there can be no background merges during the subsequent searches that would invalidate the cache
         ForceMergeResponse forceMergeResponse = client.admin().indices().prepareForceMerge("index").setFlush(true).get();
         OpenSearchAssertions.assertAllSuccessful(forceMergeResponse);
-        refresh();
+        refreshAndWaitForReplication();
         ensureSearchable("index");
 
         assertCacheState(client, "index", 0, 0);
