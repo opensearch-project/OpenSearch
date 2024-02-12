@@ -72,7 +72,7 @@ public class ConstantKeywordFieldMapper extends ParametrizedFieldMapper {
             if (!node.containsKey("value")) {
                 throw new OpenSearchParseException("Field [" + name + "] is missing required parameter [value]");
             }
-            Object value = node.get("value");
+            Object value = node.remove("value");
             if (!(value instanceof String)) {
                 throw new OpenSearchParseException("Field [" + name + "] is expected to be a string value");
             }
@@ -216,8 +216,13 @@ public class ConstantKeywordFieldMapper extends ParametrizedFieldMapper {
 
     @Override
     protected void parseCreateField(ParseContext context) throws IOException {
-        String value = context.parseExternalValue(String.class);
 
+        final String value;
+        if (context.externalValueSet()) {
+            value = context.externalValue().toString();
+        } else {
+            value = context.parser().textOrNull();
+        }
         if (value == null) {
             throw new IllegalArgumentException("constant keyword field [" + name() + "] must have a value");
         }
