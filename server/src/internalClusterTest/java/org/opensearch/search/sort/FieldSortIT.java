@@ -197,7 +197,8 @@ public class FieldSortIT extends ParameterizedDynamicSettingsOpenSearchIntegTest
     public void testIssue6614() throws ExecutionException, InterruptedException {
         List<IndexRequestBuilder> builders = new ArrayList<>();
         boolean strictTimeBasedIndices = randomBoolean();
-        final int numIndices = randomIntBetween(2, 25); // at most 25 days in the month
+        // consider only 15 days of the month to avoid hitting open file limit
+        final int numIndices = randomIntBetween(2, 15);
         int docs = 0;
         for (int i = 0; i < numIndices; i++) {
             final String indexId = strictTimeBasedIndices ? "idx_" + i : "idx";
