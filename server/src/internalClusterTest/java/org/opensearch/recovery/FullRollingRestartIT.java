@@ -32,6 +32,8 @@
 
 package org.opensearch.recovery;
 
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.opensearch.action.admin.cluster.health.ClusterHealthRequestBuilder;
 import org.opensearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.opensearch.action.admin.indices.recovery.RecoveryResponse;
@@ -44,15 +46,33 @@ import org.opensearch.common.collect.MapBuilder;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.indices.recovery.RecoveryState;
-import org.opensearch.test.OpenSearchIntegTestCase;
+import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.test.OpenSearchIntegTestCase.ClusterScope;
 import org.opensearch.test.OpenSearchIntegTestCase.Scope;
+import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
+
+import java.util.Arrays;
+import java.util.Collection;
 
 import static org.opensearch.index.query.QueryBuilders.matchAllQuery;
+import static org.opensearch.indices.IndicesService.CLUSTER_REPLICATION_TYPE_SETTING;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
 
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0)
-public class FullRollingRestartIT extends OpenSearchIntegTestCase {
+public class FullRollingRestartIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
+
+    public FullRollingRestartIT(Settings settings) {
+        super(settings);
+    }
+
+    @ParametersFactory
+    public static Collection<Object[]> parameters() {
+        return Arrays.asList(
+            new Object[] { Settings.builder().put(CLUSTER_REPLICATION_TYPE_SETTING.getKey(), ReplicationType.DOCUMENT).build() },
+            new Object[] { Settings.builder().put(CLUSTER_REPLICATION_TYPE_SETTING.getKey(), ReplicationType.SEGMENT).build() }
+        );
+    }
+
     protected void assertTimeout(ClusterHealthRequestBuilder requestBuilder) {
         ClusterHealthResponse clusterHealth = requestBuilder.get();
         if (clusterHealth.isTimedOut()) {
@@ -121,7 +141,7 @@ public class FullRollingRestartIT extends OpenSearchIntegTestCase {
         );
 
         logger.info("--> refreshing and checking data");
-        refresh();
+        refreshAndWaitForReplication();
         for (int i = 0; i < 10; i++) {
             assertHitCount(client().prepareSearch().setSize(0).setQuery(matchAllQuery()).get(), 2000L);
         }
@@ -154,7 +174,7 @@ public class FullRollingRestartIT extends OpenSearchIntegTestCase {
         );
 
         logger.info("--> stopped two nodes, verifying data");
-        refresh();
+        refreshAndWaitForReplication();
         for (int i = 0; i < 10; i++) {
             assertHitCount(client().prepareSearch().setSize(0).setQuery(matchAllQuery()).get(), 2000L);
         }
@@ -188,7 +208,7 @@ public class FullRollingRestartIT extends OpenSearchIntegTestCase {
         );
 
         logger.info("--> one node left, verifying data");
-        refresh();
+        refreshAndWaitForReplication();
         for (int i = 0; i < 10; i++) {
             assertHitCount(client().prepareSearch().setSize(0).setQuery(matchAllQuery()).get(), 2000L);
         }

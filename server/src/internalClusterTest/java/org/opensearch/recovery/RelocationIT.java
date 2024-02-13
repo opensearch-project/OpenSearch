@@ -32,6 +32,8 @@
 
 package org.opensearch.recovery;
 
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.tests.util.English;
 import org.opensearch.action.admin.cluster.health.ClusterHealthResponse;
@@ -67,15 +69,16 @@ import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexShardState;
 import org.opensearch.indices.recovery.FileChunkRequest;
 import org.opensearch.indices.recovery.PeerRecoveryTargetService;
+import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.search.SearchHit;
 import org.opensearch.search.SearchHits;
 import org.opensearch.test.BackgroundIndexer;
 import org.opensearch.test.InternalSettingsPlugin;
 import org.opensearch.test.MockIndexEventListener;
-import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.OpenSearchIntegTestCase.ClusterScope;
 import org.opensearch.test.OpenSearchIntegTestCase.Scope;
+import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 import org.opensearch.test.transport.MockTransportService;
 import org.opensearch.test.transport.StubbableTransport;
 import org.opensearch.transport.Transport;
@@ -103,6 +106,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.opensearch.index.query.QueryBuilders.matchAllQuery;
+import static org.opensearch.indices.IndicesService.CLUSTER_REPLICATION_TYPE_SETTING;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertNoFailures;
@@ -114,7 +118,20 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.startsWith;
 
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0)
-public class RelocationIT extends OpenSearchIntegTestCase {
+public class RelocationIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
+
+    public RelocationIT(Settings settings) {
+        super(settings);
+    }
+
+    @ParametersFactory
+    public static Collection<Object[]> parameters() {
+        return Arrays.asList(
+            new Object[] { Settings.builder().put(CLUSTER_REPLICATION_TYPE_SETTING.getKey(), ReplicationType.DOCUMENT).build() },
+            new Object[] { Settings.builder().put(CLUSTER_REPLICATION_TYPE_SETTING.getKey(), ReplicationType.SEGMENT).build() }
+        );
+    }
+
     private final TimeValue ACCEPTABLE_RELOCATION_TIME = new TimeValue(5, TimeUnit.MINUTES);
 
     @Override
@@ -158,7 +175,7 @@ public class RelocationIT extends OpenSearchIntegTestCase {
         }
 
         logger.info("--> verifying count");
-        client().admin().indices().prepareRefresh().execute().actionGet();
+        refreshAndWaitForReplication();
         assertThat(client().prepareSearch("test").setSize(0).execute().actionGet().getHits().getTotalHits().value, equalTo(20L));
 
         logger.info("--> start another node");
@@ -186,7 +203,7 @@ public class RelocationIT extends OpenSearchIntegTestCase {
         assertThat(clusterHealthResponse.isTimedOut(), equalTo(false));
 
         logger.info("--> verifying count again...");
-        client().admin().indices().prepareRefresh().execute().actionGet();
+        refreshAndWaitForReplication();
         assertThat(client().prepareSearch("test").setSize(0).execute().actionGet().getHits().getTotalHits().value, equalTo(20L));
     }
 
@@ -265,7 +282,7 @@ public class RelocationIT extends OpenSearchIntegTestCase {
             logger.info("--> indexing threads stopped");
 
             logger.info("--> refreshing the index");
-            client().admin().indices().prepareRefresh("test").execute().actionGet();
+            refreshAndWaitForReplication("test");
             logger.info("--> searching the index");
             boolean ranOnce = false;
             for (int i = 0; i < 10; i++) {
@@ -650,7 +667,7 @@ public class RelocationIT extends OpenSearchIntegTestCase {
         assertThat(clusterHealthResponse.isTimedOut(), equalTo(false));
 
         logger.info("--> verifying count");
-        client().admin().indices().prepareRefresh().execute().actionGet();
+        refreshAndWaitForReplication();
         assertThat(client().prepareSearch("test").setSize(0).execute().actionGet().getHits().getTotalHits().value, equalTo(20L));
     }
 
@@ -726,7 +743,7 @@ public class RelocationIT extends OpenSearchIntegTestCase {
 
         logger.info("--> verifying count");
         assertBusy(() -> {
-            client().admin().indices().prepareRefresh().execute().actionGet();
+            refreshAndWaitForReplication();
             assertTrue(pendingIndexResponses.stream().allMatch(ActionFuture::isDone));
         }, 1, TimeUnit.MINUTES);
 

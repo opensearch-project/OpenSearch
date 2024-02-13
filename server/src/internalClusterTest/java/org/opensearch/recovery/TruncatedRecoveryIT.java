@@ -32,6 +32,8 @@
 
 package org.opensearch.recovery;
 
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.apache.lucene.tests.util.English;
 import org.apache.lucene.tests.util.LuceneTestCase.SuppressCodecs;
 import org.opensearch.action.admin.cluster.node.stats.NodeStats;
@@ -44,9 +46,11 @@ import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.indices.recovery.FileChunkRequest;
 import org.opensearch.indices.recovery.PeerRecoveryTargetService;
+import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.node.RecoverySettingsChunkSizePlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.test.OpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 import org.opensearch.test.transport.MockTransportService;
 import org.opensearch.transport.TransportService;
 
@@ -58,6 +62,7 @@ import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import static org.opensearch.indices.IndicesService.CLUSTER_REPLICATION_TYPE_SETTING;
 import static org.opensearch.node.RecoverySettingsChunkSizePlugin.CHUNK_SIZE_SETTING;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
@@ -65,7 +70,19 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 @OpenSearchIntegTestCase.ClusterScope(numDataNodes = 2, numClientNodes = 0, scope = OpenSearchIntegTestCase.Scope.TEST)
 @SuppressCodecs("*") // test relies on exact file extensions
-public class TruncatedRecoveryIT extends OpenSearchIntegTestCase {
+public class TruncatedRecoveryIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
+
+    public TruncatedRecoveryIT(Settings settings) {
+        super(settings);
+    }
+
+    @ParametersFactory
+    public static Collection<Object[]> parameters() {
+        return Arrays.asList(
+            new Object[] { Settings.builder().put(CLUSTER_REPLICATION_TYPE_SETTING.getKey(), ReplicationType.DOCUMENT).build() },
+            new Object[] { Settings.builder().put(CLUSTER_REPLICATION_TYPE_SETTING.getKey(), ReplicationType.SEGMENT).build() }
+        );
+    }
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {

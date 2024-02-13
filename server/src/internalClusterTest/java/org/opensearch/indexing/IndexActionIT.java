@@ -32,19 +32,25 @@
 
 package org.opensearch.indexing;
 
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.opensearch.action.DocWriteResponse;
 import org.opensearch.action.bulk.BulkResponse;
 import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.action.index.IndexResponse;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.cluster.metadata.MetadataCreateIndexService;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.index.VersionType;
 import org.opensearch.index.mapper.MapperParsingException;
 import org.opensearch.indices.InvalidIndexNameException;
-import org.opensearch.test.OpenSearchIntegTestCase;
+import org.opensearch.indices.replication.common.ReplicationType;
+import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 import org.opensearch.test.hamcrest.OpenSearchAssertions;
 
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
 import java.util.Random;
@@ -53,11 +59,25 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicIntegerArray;
 
+import static org.opensearch.indices.IndicesService.CLUSTER_REPLICATION_TYPE_SETTING;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
-public class IndexActionIT extends OpenSearchIntegTestCase {
+public class IndexActionIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
+
+    public IndexActionIT(Settings settings) {
+        super(settings);
+    }
+
+    @ParametersFactory
+    public static Collection<Object[]> parameters() {
+        return Arrays.asList(
+            new Object[] { Settings.builder().put(CLUSTER_REPLICATION_TYPE_SETTING.getKey(), ReplicationType.DOCUMENT).build() },
+            new Object[] { Settings.builder().put(CLUSTER_REPLICATION_TYPE_SETTING.getKey(), ReplicationType.SEGMENT).build() }
+        );
+    }
+
     /**
      * This test tries to simulate load while creating an index and indexing documents
      * while the index is being created.
