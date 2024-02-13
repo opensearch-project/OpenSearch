@@ -109,8 +109,6 @@ public class ConstantKeywordFieldMapper extends ParametrizedFieldMapper {
 
         @Override
         protected boolean matches(String searchValue, boolean caseInsensitive, QueryShardContext context) {
-            System.out.println(value);
-
             return value.equals(searchValue);
         }
 
@@ -146,7 +144,6 @@ public class ConstantKeywordFieldMapper extends ParametrizedFieldMapper {
             boolean caseInsensitve,
             QueryShardContext context
         ) {
-            System.out.println(("tes"));
             throw new QueryShardException(
                 context,
                 "Fields of type [" + typeName() + "], does not support wildcard queries"
