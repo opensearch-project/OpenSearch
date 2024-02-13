@@ -145,6 +145,8 @@ import org.junit.rules.RuleChain;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.PrintWriter;
+import java.io.StringWriter;
 import java.math.BigInteger;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
@@ -170,6 +172,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.function.IntFunction;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
@@ -639,15 +642,36 @@ public abstract class OpenSearchTestCase extends LuceneTestCase {
             try {
                 // ensure that there are no status logger messages which would indicate a problem with our Log4j usage; we map the
                 // StatusData instances to Strings as otherwise their toString output is useless
+
+                final Function<StatusData, String> statusToString = (statusData) -> {
+                    try (final StringWriter sw = new StringWriter(); final PrintWriter pw = new PrintWriter(sw)) {
+
+                        pw.print(statusData.getLevel());
+                        pw.print(":");
+                        pw.print(statusData.getMessage().getFormattedMessage());
+
+                        if (statusData.getStackTraceElement() != null) {
+                            final var messageSource = statusData.getStackTraceElement();
+
+                            pw.println();
+                            pw.println("Source:");
+                            pw.println(messageSource.getFileName() + "@" + messageSource.getLineNumber());
+                        }
+
+                        if (statusData.getThrowable() != null) {
+                            pw.println();
+                            pw.println("Throwable:");
+                            pw.println(statusData.getThrowable().toString());
+                            statusData.getThrowable().printStackTrace(pw);
+                        }
+                        return sw.toString();
+                    } catch (IOException ioe) {
+                        throw new RuntimeException(ioe);
+                    }
+                };
+
                 assertThat(
-                    statusData.stream()
-                        .map(
-                            status -> status.getLevel()
-                                + ": "
-                                + status.getMessage()
-                                + (status.getThrowable() == null ? "" : "\r\n\r\nTrowable:\r\n" + status.getThrowable().toString())
-                        )
-                        .collect(Collectors.joining("\r\n")),
+                    statusData.stream().map(statusToString::apply).collect(Collectors.joining("\r\n")),
                     statusData.stream().map(status -> status.getMessage().getFormattedMessage()).collect(Collectors.toList()),
                     empty()
                 );
