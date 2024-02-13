@@ -10,7 +10,6 @@ package org.opensearch.action.admin.indices.view;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.opensearch.ResourceNotFoundException;
 import org.opensearch.action.search.SearchAction;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.action.support.master.AcknowledgedResponse;
@@ -128,17 +127,19 @@ public class ViewService {
             .map(ClusterState::metadata)
             .map(Metadata::views)
             .map(views -> views.get(viewName))
-            .orElseThrow(() -> new ResourceNotFoundException("View [" + viewName + "] does not exist"));
+            .orElseThrow(() -> new ViewNotFoundException(viewName));
     }
 
     private enum Operation {
-        CreateView("create"),
-        UpdateView("update");
+        CreateView("create", false),
+        UpdateView("update", true);
 
         private final String name;
+        private final boolean allowOverriding;
 
-        Operation(final String name) {
+        Operation(final String name, final boolean allowOverriding) {
             this.name = name;
+            this.allowOverriding = allowOverriding;
         }
     }
 
@@ -146,6 +147,9 @@ public class ViewService {
         clusterService.submitStateUpdateTask(operation.name + "_view_task", new ClusterStateUpdateTask() {
             @Override
             public ClusterState execute(final ClusterState currentState) throws Exception {
+                if (!operation.allowOverriding && currentState.metadata().views().containsKey(view.getName())) {
+                    throw new ViewAlreadyExistsException(view.getName());
+                }
                 return new ClusterState.Builder(clusterService.state()).metadata(Metadata.builder(currentState.metadata()).put(view))
                     .build();
             }

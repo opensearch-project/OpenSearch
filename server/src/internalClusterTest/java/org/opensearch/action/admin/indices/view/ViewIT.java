@@ -8,8 +8,8 @@
 
 package org.opensearch.action.admin.indices.view;
 
-import org.opensearch.ResourceNotFoundException;
 import org.opensearch.cluster.metadata.View;
+import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.test.OpenSearchIntegTestCase.ClusterScope;
 import org.opensearch.test.OpenSearchIntegTestCase.Scope;
 import org.hamcrest.MatcherAssert;
@@ -37,7 +37,7 @@ public class ViewIT extends ViewTestBase {
         MatcherAssert.assertThat(view.getTargets().get(0).getIndexPattern(), is(indexPattern));
 
         logger.info("Testing createView with existing view name");
-        final Exception ex = assertThrows(ResourceNotFoundException.class, () -> createView(viewName, randomAlphaOfLength(8)));
+        final Exception ex = assertThrows(ViewAlreadyExistsException.class, () -> createView(viewName, randomAlphaOfLength(8)));
         MatcherAssert.assertThat(ex.getMessage(), is("View [" + viewName + "] already exists"));
     }
 
@@ -50,7 +50,7 @@ public class ViewIT extends ViewTestBase {
 
         logger.info("Testing getView with non-existent view");
         final String nonExistentView = "non-existent-" + randomAlphaOfLength(8);
-        final Exception whenNeverExistedEx = assertThrows(ResourceNotFoundException.class, () -> getView(nonExistentView));
+        final Exception whenNeverExistedEx = assertThrows(ViewNotFoundException.class, () -> getView(nonExistentView));
         MatcherAssert.assertThat(whenNeverExistedEx.getMessage(), is("View [" + nonExistentView + "] does not exist"));
     }
 
@@ -60,12 +60,12 @@ public class ViewIT extends ViewTestBase {
 
         logger.info("Testing deleteView with existing view");
         deleteView(viewName);
-        final Exception whenDeletedEx = assertThrows(ResourceNotFoundException.class, () -> getView(viewName));
+        final Exception whenDeletedEx = assertThrows(ViewNotFoundException.class, () -> getView(viewName));
         MatcherAssert.assertThat(whenDeletedEx.getMessage(), is("View [" + viewName + "] does not exist"));
 
         logger.info("Testing deleteView with non-existent view");
         final String nonExistentView = "non-existent-" + randomAlphaOfLength(8);
-        final Exception whenNeverExistedEx = assertThrows(ResourceNotFoundException.class, () -> deleteView(nonExistentView));
+        final Exception whenNeverExistedEx = assertThrows(ViewNotFoundException.class, () -> deleteView(nonExistentView));
         MatcherAssert.assertThat(whenNeverExistedEx.getMessage(), is("View [" + nonExistentView + "] does not exist"));
     }
 
@@ -86,10 +86,7 @@ public class ViewIT extends ViewTestBase {
 
         logger.info("Testing updateView with non-existent view");
         final String nonExistentView = "non-existent-" + randomAlphaOfLength(8);
-        final Exception whenNeverExistedEx = assertThrows(
-            ResourceNotFoundException.class,
-            () -> updateView(nonExistentView, null, "index-*")
-        );
+        final Exception whenNeverExistedEx = assertThrows(ViewNotFoundException.class, () -> updateView(nonExistentView, null, "index-*"));
         MatcherAssert.assertThat(whenNeverExistedEx.getMessage(), is("View [" + nonExistentView + "] does not exist"));
     }
 
@@ -124,7 +121,7 @@ public class ViewIT extends ViewTestBase {
 
         logger.info("Testing view with no matches");
         createView("no-matches", "this-pattern-will-match-nothing");
-        final Exception ex = assertThrows(ResourceNotFoundException.class, () -> searchView("no-matches"));
+        final Exception ex = assertThrows(IndexNotFoundException.class, () -> searchView("no-matches"));
         MatcherAssert.assertThat(ex.getMessage(), is("no such index [this-pattern-will-match-nothing]"));
 
         logger.info("Testing view with exact index match");
@@ -137,7 +134,7 @@ public class ViewIT extends ViewTestBase {
 
         logger.info("Testing searchView with non-existent view");
         final String nonExistentView = "non-existent-" + randomAlphaOfLength(8);
-        final Exception whenNeverExistedEx = assertThrows(ResourceNotFoundException.class, () -> searchView(nonExistentView));
+        final Exception whenNeverExistedEx = assertThrows(ViewNotFoundException.class, () -> searchView(nonExistentView));
         MatcherAssert.assertThat(whenNeverExistedEx.getMessage(), is("View [" + nonExistentView + "] does not exist"));
     }
 }
