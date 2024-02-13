@@ -745,10 +745,10 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
             return;
         }
 
-        List<String> metadataFilesEligibleToDelete = sortedMetadataFileList.subList(
+        List<String> metadataFilesEligibleToDelete = new ArrayList<>(sortedMetadataFileList.subList(
             lastNMetadataFilesToKeep,
             sortedMetadataFileList.size()
-        );
+        ));
         Set<String> allLockFiles;
         try {
             allLockFiles = ((RemoteStoreMetadataLockManager) mdLockManager).fetchLockedMetadataFiles(MetadataFilenameUtils.METADATA_PREFIX);
@@ -764,7 +764,7 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
         logger.debug(
             "metadataFilesEligibleToDelete={} metadataFilesToBeDeleted={}",
             metadataFilesEligibleToDelete,
-            metadataFilesEligibleToDelete
+            metadataFilesToBeDeleted
         );
 
         Map<String, UploadedSegmentMetadata> activeSegmentFilesMetadataMap = new HashMap<>();
