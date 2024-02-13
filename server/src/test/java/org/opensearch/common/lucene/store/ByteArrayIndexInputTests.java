@@ -156,7 +156,6 @@ public class ByteArrayIndexInputTests extends OpenSearchIndexInputTestCase {
         assertEquals(-8564288273245753042L, indexInput.readLong(1));
     }
 
-
     public void testReadBytesWithSlice() throws IOException {
         int inputLength = randomIntBetween(100, 1000);
 
@@ -185,7 +184,5 @@ public class ByteArrayIndexInputTests extends OpenSearchIndexInputTestCase {
 
         slice.close();
         indexInput.close();
-
     }
-
 }
