@@ -82,13 +82,13 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
 
     private static final long DEFAULT_ABSOLUTE_START_MILLIS = -1;
 
-    protected final String localClusterAlias;
-    protected final long absoluteStartMillis;
-    protected final boolean finalReduce;
+    private final String localClusterAlias;
+    private final long absoluteStartMillis;
+    private final boolean finalReduce;
 
     private SearchType searchType = SearchType.DEFAULT;
 
-    protected String[] indices = Strings.EMPTY_ARRAY;
+    private String[] indices = Strings.EMPTY_ARRAY;
 
     @Nullable
     private String routing;
@@ -189,7 +189,7 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         return new SearchRequest(originalSearchRequest, indices, clusterAlias, absoluteStartMillis, finalReduce);
     }
 
-    protected SearchRequest(
+    private SearchRequest(
         SearchRequest searchRequest,
         String[] indices,
         String localClusterAlias,

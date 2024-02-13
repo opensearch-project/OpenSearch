@@ -42,7 +42,7 @@ public class SearchViewRequestTests extends AbstractWireSerializingTestCase<Sear
     }
 
     public void testValidateRequestWithoutName() {
-        final SearchViewAction.Request request = new SearchViewAction.Request((String) null);
+        final SearchViewAction.Request request = new SearchViewAction.Request((String) null, new SearchRequest());
         final ActionRequestValidationException e = request.validate();
 
         MatcherAssert.assertThat(e.validationErrors().size(), equalTo(1));

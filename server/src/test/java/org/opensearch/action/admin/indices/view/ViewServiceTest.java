@@ -10,6 +10,7 @@ package org.opensearch.action.admin.indices.view;
 
 import org.opensearch.ResourceNotFoundException;
 import org.opensearch.action.search.SearchAction;
+import org.opensearch.action.search.SearchRequest;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
@@ -176,7 +177,7 @@ public class ViewServiceTest {
     }
 
     public void searchView() {
-        final var request = spy(new SearchViewAction.Request(randomAlphaOfLength(8)));
+        final var request = spy(new SearchViewAction.Request(randomAlphaOfLength(8), new SearchRequest()));
         final var listener = mock(ActionListener.class);
         setGetViewOrThrowExceptionToReturnTypicalView();
 

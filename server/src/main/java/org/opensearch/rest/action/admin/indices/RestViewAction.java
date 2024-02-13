@@ -14,6 +14,7 @@ import org.opensearch.action.admin.indices.view.GetViewAction;
 import org.opensearch.action.admin.indices.view.ListViewNamesAction;
 import org.opensearch.action.admin.indices.view.SearchViewAction;
 import org.opensearch.action.admin.indices.view.UpdateViewAction;
+import org.opensearch.action.search.SearchRequest;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.ValidationException;
 import org.opensearch.common.annotation.ExperimentalApi;
@@ -212,7 +213,7 @@ public class RestViewAction {
         public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
             final String viewId = request.param(VIEW_NAME);
 
-            final SearchViewAction.Request viewSearchRequest = new SearchViewAction.Request(viewId);
+            final SearchViewAction.Request viewSearchRequest = new SearchViewAction.Request(viewId, new SearchRequest());
             final IntConsumer setSize = size -> viewSearchRequest.source().size(size);
 
             request.withContentOrSourceParamParserOrNull(

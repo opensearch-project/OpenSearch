@@ -61,8 +61,8 @@ public class SearchViewAction extends ActionType<SearchResponse> {
 
         private final String view;
 
-        public Request(final String view) {
-            super();
+        public Request(final String view, final SearchRequest searchRequest) {
+            super(searchRequest);
             this.view = view;
         }
 
