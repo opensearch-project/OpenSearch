@@ -144,8 +144,7 @@ public class NamedRoute extends RestHandler.Route {
                 "Invalid route name specified. The route name may include the following characters"
                     + " 'a-z', 'A-Z', '0-9', ':', '/', '*', '_' and be less than "
                     + MAX_LENGTH_OF_ACTION_NAME
-                    + " characters, "
-                    + builder.uniqueName
+                    + " characters"
             );
         }
         this.uniqueName = builder.uniqueName;
