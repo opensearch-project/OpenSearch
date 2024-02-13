@@ -646,7 +646,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         // onPhaseStart / onPhaseFailure / OnPhaseDone callbacks and the wrapping SearchPhase is being abandoned
         // (fe, has no onPhaseEnd callbacks called ever). To fix that, we would not send any notifications for this
         // phase.
-        currentPhaseHasLifecycle = !(phase instanceof WrappingSearchAsyncActionPhase);
+        currentPhaseHasLifecycle = ((phase instanceof WrappingSearchAsyncActionPhase) == false);
     }
 
     @Override
