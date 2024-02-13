@@ -639,7 +639,7 @@ public abstract class OpenSearchTestCase extends LuceneTestCase {
             try {
                 // ensure that there are no status logger messages which would indicate a problem with our Log4j usage; we map the
                 // StatusData instances to Strings as otherwise their toString output is useless
-                assertThat(
+                assertThat(statusData.stream().map(status -> status.getLevel() + ": " + status.getMessage() + (status.getThrowable() == null ? "" : "\r\n\r\nTrowable:\r\n" + status.getThrowable().toString())).collect(Collectors.joining("\r\n")),
                     statusData.stream().map(status -> status.getMessage().getFormattedMessage()).collect(Collectors.toList()),
                     empty()
                 );
