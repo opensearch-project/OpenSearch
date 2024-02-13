@@ -16,10 +16,8 @@ import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.HandledTransportAction;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.inject.Inject;
-import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.Strings;
-import org.opensearch.core.common.io.stream.BytesStreamInput;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.tasks.Task;
@@ -40,16 +38,6 @@ public class SearchViewAction extends ActionType<SearchResponse> {
 
     private SearchViewAction() {
         super(NAME, SearchResponse::new);
-    }
-
-    /** Given a search request, creates a ViewSearchRequest */
-    public static Request createRequestWith(final String view, final SearchRequest searchRequest) throws IOException {
-        final BytesStreamOutput savedSearchRequest = new BytesStreamOutput();
-        searchRequest.writeTo(savedSearchRequest);
-        savedSearchRequest.writeString(view);
-
-        final BytesStreamInput input = new BytesStreamInput(savedSearchRequest.bytes().toBytesRef().bytes);
-        return new Request(input);
     }
 
     /**

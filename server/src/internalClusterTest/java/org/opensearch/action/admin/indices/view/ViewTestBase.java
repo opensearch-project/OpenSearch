@@ -57,7 +57,7 @@ public abstract class ViewTestBase extends OpenSearchIntegTestCase {
     }
 
     protected SearchResponse searchView(final String viewName) throws Exception {
-        final SearchViewAction.Request request = SearchViewAction.createRequestWith(viewName, new SearchRequest());
+        final SearchViewAction.Request request = new SearchViewAction.Request(viewName, new SearchRequest());
         final SearchResponse response = client().searchView(request).actionGet();
         return response;
     }

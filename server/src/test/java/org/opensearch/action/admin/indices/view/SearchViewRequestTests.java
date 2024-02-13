@@ -30,14 +30,14 @@ public class SearchViewRequestTests extends AbstractWireSerializingTestCase<Sear
     @Override
     protected SearchViewAction.Request createTestInstance() {
         try {
-            return SearchViewAction.createRequestWith(randomAlphaOfLength(8), new SearchRequest());
+            return new SearchViewAction.Request(randomAlphaOfLength(8), new SearchRequest());
         } catch (final Exception e) {
             throw new RuntimeException(e);
         }
     }
 
     public void testValidateRequest() throws IOException {
-        final SearchViewAction.Request request = SearchViewAction.createRequestWith("my-view", new SearchRequest());
+        final SearchViewAction.Request request = new SearchViewAction.Request("my-view", new SearchRequest());
         MatcherAssert.assertThat(request.validate(), nullValue());
     }
 
