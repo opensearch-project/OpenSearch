@@ -652,16 +652,12 @@ public abstract class OpenSearchTestCase extends LuceneTestCase {
 
                         if (statusData.getStackTraceElement() != null) {
                             final var messageSource = statusData.getStackTraceElement();
-
-                            pw.println();
                             pw.println("Source:");
                             pw.println(messageSource.getFileName() + "@" + messageSource.getLineNumber());
                         }
 
                         if (statusData.getThrowable() != null) {
-                            pw.println();
                             pw.println("Throwable:");
-                            pw.println(statusData.getThrowable().toString());
                             statusData.getThrowable().printStackTrace(pw);
                         }
                         return sw.toString();
