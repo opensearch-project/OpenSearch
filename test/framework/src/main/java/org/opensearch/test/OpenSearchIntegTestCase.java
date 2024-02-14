@@ -1890,9 +1890,11 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
             builder.put(TelemetrySettings.TRACER_ENABLED_SETTING.getKey(), true);
         }
 
-        // Randomly set a replication strategy for the node.
+        // Randomly set a replication strategy for the node. Replication Strategy can still be manually overridden by subclass if needed.
         if (useRandomReplicationStrategy()) {
-            builder.put(CLUSTER_REPLICATION_TYPE_SETTING.getKey(), randomBoolean() ? ReplicationType.DOCUMENT : ReplicationType.SEGMENT);
+            ReplicationType replicationType = randomBoolean() ? ReplicationType.DOCUMENT : ReplicationType.SEGMENT;
+            logger.info("Randomly using Replication Strategy as {}.", replicationType.toString());
+            builder.put(CLUSTER_REPLICATION_TYPE_SETTING.getKey(), replicationType);
         }
         return builder.build();
     }
