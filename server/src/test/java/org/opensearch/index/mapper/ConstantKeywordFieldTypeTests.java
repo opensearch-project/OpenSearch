@@ -71,6 +71,8 @@ public class ConstantKeywordFieldTypeTests extends FieldTypeTestCase {
         );
         assertEquals(new MatchAllDocsQuery(), ft.wildcardQuery("defa*lt", null, createContext()));
         assertEquals(new MatchNoDocsQuery(), ft.wildcardQuery("no_defa*lt", null, createContext()));
+        assertEquals(new MatchAllDocsQuery(), ft.wildcardQuery("defa*", null, createContext()));
+        assertEquals(new MatchAllDocsQuery(), ft.wildcardQuery("*ult", null, createContext()));
 
     }
 
