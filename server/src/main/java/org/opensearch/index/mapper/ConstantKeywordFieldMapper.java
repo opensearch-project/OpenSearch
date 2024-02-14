@@ -36,7 +36,7 @@ import java.util.function.Supplier;
 @PublicApi(since = "1.0.0")
 public class ConstantKeywordFieldMapper extends ParametrizedFieldMapper {
 
-        public static final String CONTENT_TYPE = "constant_keyword";
+    public static final String CONTENT_TYPE = "constant_keyword";
 
     public static class TypeParser implements Mapper.TypeParser {
         @Override
@@ -52,7 +52,6 @@ public class ConstantKeywordFieldMapper extends ParametrizedFieldMapper {
         }
     }
 
-
     private static ConstantKeywordFieldMapper toType(FieldMapper in) {
         return (ConstantKeywordFieldMapper) in;
     }
@@ -66,7 +65,7 @@ public class ConstantKeywordFieldMapper extends ParametrizedFieldMapper {
 
         private final Parameter<String> value;
 
-        public Builder(String name,  String value) {
+        public Builder(String name, String value) {
             super(name);
             this.value = Parameter.stringParam("value", false, m -> toType(m).value, value);
         }
@@ -118,24 +117,15 @@ public class ConstantKeywordFieldMapper extends ParametrizedFieldMapper {
         }
 
         public Query termQueryCaseInsensitive(Object value, QueryShardContext context) {
-            throw new QueryShardException(
-                context,
-                "Fields of type [" + typeName() + "], does not support case insensitive term queries"
-            );
+            throw new QueryShardException(context, "Fields of type [" + typeName() + "], does not support case insensitive term queries");
         }
 
         public Query prefixQuery(Object value, QueryShardContext context) {
-            throw new QueryShardException(
-                context,
-                "Fields of type [" + typeName() + "], does not support prefix queries"
-            );
+            throw new QueryShardException(context, "Fields of type [" + typeName() + "], does not support prefix queries");
         }
 
         public Query wildcardQuery(String value, @Nullable MultiTermQuery.RewriteMethod method, QueryShardContext context) {
-            throw new QueryShardException(
-                context,
-                "Fields of type [" + typeName() + "], does not support wildcard queries"
-            );
+            throw new QueryShardException(context, "Fields of type [" + typeName() + "], does not support wildcard queries");
         }
 
         public Query wildcardQuery(
@@ -144,10 +134,7 @@ public class ConstantKeywordFieldMapper extends ParametrizedFieldMapper {
             boolean caseInsensitve,
             QueryShardContext context
         ) {
-            throw new QueryShardException(
-                context,
-                "Fields of type [" + typeName() + "], does not support wildcard queries"
-            );
+            throw new QueryShardException(context, "Fields of type [" + typeName() + "], does not support wildcard queries");
         }
 
         @Override
