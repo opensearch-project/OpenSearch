@@ -9,15 +9,13 @@
 package org.opensearch.index.mapper;
 
 import org.apache.lucene.search.MatchAllDocsQuery;
-import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
 import org.opensearch.OpenSearchParseException;
-import org.opensearch.common.Nullable;
 import org.opensearch.common.annotation.PublicApi;
+import org.opensearch.common.regex.Regex;
 import org.opensearch.index.fielddata.IndexFieldData;
 import org.opensearch.index.fielddata.plain.ConstantIndexFieldData;
 import org.opensearch.index.query.QueryShardContext;
-import org.opensearch.index.query.QueryShardException;
 import org.opensearch.search.aggregations.support.CoreValuesSourceType;
 import org.opensearch.search.lookup.SearchLookup;
 
@@ -107,34 +105,13 @@ public class ConstantKeywordFieldMapper extends ParametrizedFieldMapper {
         }
 
         @Override
-        protected boolean matches(String searchValue, boolean caseInsensitive, QueryShardContext context) {
-            return value.equals(searchValue);
+        protected boolean matches(String pattern, boolean caseInsensitive, QueryShardContext context) {
+            return Regex.simpleMatch(pattern, value, caseInsensitive);
         }
 
         @Override
         public Query existsQuery(QueryShardContext context) {
             return new MatchAllDocsQuery();
-        }
-
-        public Query termQueryCaseInsensitive(Object value, QueryShardContext context) {
-            throw new QueryShardException(context, "Fields of type [" + typeName() + "], does not support case insensitive term queries");
-        }
-
-        public Query prefixQuery(Object value, QueryShardContext context) {
-            throw new QueryShardException(context, "Fields of type [" + typeName() + "], does not support prefix queries");
-        }
-
-        public Query wildcardQuery(String value, @Nullable MultiTermQuery.RewriteMethod method, QueryShardContext context) {
-            throw new QueryShardException(context, "Fields of type [" + typeName() + "], does not support wildcard queries");
-        }
-
-        public Query wildcardQuery(
-            String value,
-            @Nullable MultiTermQuery.RewriteMethod method,
-            boolean caseInsensitve,
-            QueryShardContext context
-        ) {
-            throw new QueryShardException(context, "Fields of type [" + typeName() + "], does not support wildcard queries");
         }
 
         @Override
