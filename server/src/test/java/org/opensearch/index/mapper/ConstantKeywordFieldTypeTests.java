@@ -16,18 +16,51 @@ import org.opensearch.common.regex.Regex;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.query.QueryShardContext;
-import org.opensearch.index.query.QueryShardException;
 
+import java.util.Arrays;
+import java.util.List;
 import java.util.function.Predicate;
-
-import static org.hamcrest.Matchers.containsString;
 
 public class ConstantKeywordFieldTypeTests extends FieldTypeTestCase {
 
-    public void testPrefixQuery() {
-        MappedFieldType ft = new ConstantKeywordFieldMapper.ConstantKeywordFieldType("field", "default");
+    public void testTermQuery() {
+        ConstantKeywordFieldMapper.ConstantKeywordFieldType ft = new ConstantKeywordFieldMapper.ConstantKeywordFieldType(
+            "field",
+            "default"
+        );
 
         assertEquals(new MatchAllDocsQuery(), ft.termQuery("default", createContext()));
+        assertEquals(new MatchNoDocsQuery(), ft.termQuery("not_default", createContext()));
+    }
+
+    public void testTermsQuery() {
+        ConstantKeywordFieldMapper.ConstantKeywordFieldType ft = new ConstantKeywordFieldMapper.ConstantKeywordFieldType(
+            "field",
+            "default"
+        );
+
+        assertEquals(new MatchAllDocsQuery(), ft.termsQuery(Arrays.asList("default", "not_default"), createContext()));
+        assertEquals(new MatchNoDocsQuery(), ft.termQuery(Arrays.asList("no_default", "not_default"), createContext()));
+        assertEquals(new MatchNoDocsQuery(), ft.termsQuery(List.of(), createContext()));
+    }
+
+    public void testInsensitiveTermQuery() {
+        ConstantKeywordFieldMapper.ConstantKeywordFieldType ft = new ConstantKeywordFieldMapper.ConstantKeywordFieldType(
+            "field",
+            "default"
+        );
+
+        assertEquals(new MatchAllDocsQuery(), ft.termQueryCaseInsensitive("defaUlt", createContext()));
+        assertEquals(new MatchNoDocsQuery(), ft.termQueryCaseInsensitive("not_defaUlt", createContext()));
+    }
+
+    public void testPrefixQuery() {
+        ConstantKeywordFieldMapper.ConstantKeywordFieldType ft = new ConstantKeywordFieldMapper.ConstantKeywordFieldType(
+            "field",
+            "default"
+        );
+
+        assertEquals(new MatchAllDocsQuery(), ft.prefixQuery("defau", null, createContext()));
         assertEquals(new MatchNoDocsQuery(), ft.prefixQuery("not_default", null, createContext()));
     }
 
@@ -36,22 +69,9 @@ public class ConstantKeywordFieldTypeTests extends FieldTypeTestCase {
             "field",
             "default"
         );
+        assertEquals(new MatchAllDocsQuery(), ft.wildcardQuery("defa*lt", null, createContext()));
+        assertEquals(new MatchNoDocsQuery(), ft.wildcardQuery("no_defa*lt", null, createContext()));
 
-        QueryShardException e = expectThrows(
-            QueryShardException.class,
-            () -> assertEquals(new MatchAllDocsQuery(), ft.wildcardQuery("ind*x", null, createContext()))
-        );
-        assertThat(e.getMessage(), containsString("Fields of type [constant_keyword], does not support wildcard queries"));
-    }
-
-    public void testRegexpQuery() {
-        MappedFieldType ft = IndexFieldMapper.IndexFieldType.INSTANCE;
-
-        QueryShardException e = expectThrows(
-            QueryShardException.class,
-            () -> assertEquals(new MatchAllDocsQuery(), ft.regexpQuery("ind.x", 0, 0, 10, null, createContext()))
-        );
-        assertThat(e.getMessage(), containsString("Can only use regexp queries on keyword and text fields"));
     }
 
     private QueryShardContext createContext() {

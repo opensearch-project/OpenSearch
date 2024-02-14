@@ -91,7 +91,7 @@ public abstract class ConstantFieldType extends MappedFieldType {
     }
 
     @Override
-    public Query termQueryCaseInsensitive(Object value, QueryShardContext context) {
+    public final Query termQueryCaseInsensitive(Object value, QueryShardContext context) {
         String pattern = valueToString(value);
         if (matches(pattern, true, context)) {
             return Queries.newMatchAllQuery();
@@ -101,7 +101,7 @@ public abstract class ConstantFieldType extends MappedFieldType {
     }
 
     @Override
-    public Query termsQuery(List<?> values, QueryShardContext context) {
+    public final Query termsQuery(List<?> values, QueryShardContext context) {
         for (Object value : values) {
             String pattern = valueToString(value);
             if (matches(pattern, false, context)) {
@@ -113,7 +113,7 @@ public abstract class ConstantFieldType extends MappedFieldType {
     }
 
     @Override
-    public Query prefixQuery(
+    public final Query prefixQuery(
         String prefix,
         @Nullable MultiTermQuery.RewriteMethod method,
         boolean caseInsensitive,
@@ -128,7 +128,7 @@ public abstract class ConstantFieldType extends MappedFieldType {
     }
 
     @Override
-    public Query wildcardQuery(
+    public final Query wildcardQuery(
         String value,
         @Nullable MultiTermQuery.RewriteMethod method,
         boolean caseInsensitive,
