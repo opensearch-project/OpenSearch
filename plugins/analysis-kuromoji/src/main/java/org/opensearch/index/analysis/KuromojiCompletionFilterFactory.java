@@ -25,11 +25,14 @@ public class KuromojiCompletionFilterFactory extends AbstractTokenFilterFactory 
 
     public static Mode getMode(Settings settings) {
         String modeSetting = settings.get("mode", null);
-        if (modeSetting == null || "index".equalsIgnoreCase(modeSetting)) {
-            return Mode.INDEX;
-        } else {
-            return Mode.QUERY;
+        if (modeSetting != null) {
+            if ("index".equalsIgnoreCase(modeSetting)) {
+                return Mode.INDEX;
+            } else if ("query".equalsIgnoreCase(modeSetting)) {
+                return Mode.QUERY;
+            }
         }
+        return Mode.INDEX;
     }
 
     @Override
