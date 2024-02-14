@@ -576,6 +576,11 @@ public abstract class ValuesSource {
                     }
                     return false;
                 }
+
+                @Override
+                public int advance(int target) throws IOException {
+                    return doubleValues.advance(target);
+                }
             }
         }
 
