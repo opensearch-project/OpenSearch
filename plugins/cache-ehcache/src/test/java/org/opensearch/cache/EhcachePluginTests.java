@@ -8,19 +8,22 @@
 
 package org.opensearch.cache;
 
-import org.opensearch.common.cache.store.StoreAwareCache;
-import org.opensearch.common.cache.store.enums.CacheStoreType;
+import org.opensearch.cache.store.disk.EhcacheDiskCache;
+import org.opensearch.common.cache.ICache;
+import org.opensearch.common.cache.provider.CacheProvider;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.Map;
+
+import static org.mockito.Mockito.mock;
 
 public class EhcachePluginTests extends OpenSearchTestCase {
 
     private EhcacheCachePlugin ehcacheCachePlugin = new EhcacheCachePlugin();
 
     public void testGetCacheStoreTypeMap() {
-        Map<CacheStoreType, StoreAwareCache.Factory> factoryMap = ehcacheCachePlugin.getCacheStoreTypeMap();
+        Map<String, ICache.Factory> factoryMap = ehcacheCachePlugin.getCacheFactoryMap(mock(CacheProvider.class));
         assertNotNull(factoryMap);
-        assertNotNull(factoryMap.get(CacheStoreType.DISK));
+        assertNotNull(factoryMap.get(EhcacheDiskCache.EhcacheDiskCacheFactory.EHCACHE_DISK_CACHE_NAME));
     }
 }

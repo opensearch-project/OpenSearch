@@ -8,8 +8,9 @@
 
 package org.opensearch.common.cache.store.builders;
 
-import org.opensearch.common.cache.store.StoreAwareCache;
-import org.opensearch.common.cache.store.listeners.StoreAwareCacheEventListener;
+import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.common.cache.ICache;
+import org.opensearch.common.cache.RemovalListener;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 
@@ -20,9 +21,10 @@ import java.util.function.ToLongBiFunction;
  * @param <K> Type of key.
  * @param <V> Type of value.
  *
- * @opensearch.internal
+ * @opensearch.experimental
  */
-public abstract class StoreAwareCacheBuilder<K, V> {
+@ExperimentalApi
+public abstract class ICacheBuilder<K, V> {
 
     private long maxWeightInBytes;
 
@@ -30,34 +32,34 @@ public abstract class StoreAwareCacheBuilder<K, V> {
 
     private TimeValue expireAfterAcess;
 
-    private StoreAwareCacheEventListener<K, V> eventListener;
-
     private Settings settings;
 
-    public StoreAwareCacheBuilder() {}
+    private RemovalListener<K, V> removalListener;
 
-    public StoreAwareCacheBuilder<K, V> setMaximumWeightInBytes(long sizeInBytes) {
+    public ICacheBuilder() {}
+
+    public ICacheBuilder<K, V> setMaximumWeightInBytes(long sizeInBytes) {
         this.maxWeightInBytes = sizeInBytes;
         return this;
     }
 
-    public StoreAwareCacheBuilder<K, V> setWeigher(ToLongBiFunction<K, V> weigher) {
+    public ICacheBuilder<K, V> setWeigher(ToLongBiFunction<K, V> weigher) {
         this.weigher = weigher;
         return this;
     }
 
-    public StoreAwareCacheBuilder<K, V> setExpireAfterAccess(TimeValue expireAfterAcess) {
+    public ICacheBuilder<K, V> setExpireAfterAccess(TimeValue expireAfterAcess) {
         this.expireAfterAcess = expireAfterAcess;
         return this;
     }
 
-    public StoreAwareCacheBuilder<K, V> setEventListener(StoreAwareCacheEventListener<K, V> eventListener) {
-        this.eventListener = eventListener;
+    public ICacheBuilder<K, V> setSettings(Settings settings) {
+        this.settings = settings;
         return this;
     }
 
-    public StoreAwareCacheBuilder<K, V> setSettings(Settings settings) {
-        this.settings = settings;
+    public ICacheBuilder<K, V> setRemovalListener(RemovalListener<K, V> removalListener) {
+        this.removalListener = removalListener;
         return this;
     }
 
@@ -73,13 +75,13 @@ public abstract class StoreAwareCacheBuilder<K, V> {
         return weigher;
     }
 
-    public StoreAwareCacheEventListener<K, V> getEventListener() {
-        return this.eventListener;
+    public RemovalListener<K, V> getRemovalListener() {
+        return this.removalListener;
     }
 
     public Settings getSettings() {
         return settings;
     }
 
-    public abstract StoreAwareCache<K, V> build();
+    public abstract ICache<K, V> build();
 }

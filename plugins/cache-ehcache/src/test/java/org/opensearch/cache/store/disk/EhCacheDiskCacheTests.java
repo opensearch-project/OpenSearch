@@ -8,14 +8,14 @@
 
 package org.opensearch.cache.store.disk;
 
-import org.opensearch.cache.EhcacheSettings;
+import org.opensearch.cache.EhcacheDiskCacheSettings;
 import org.opensearch.common.cache.CacheType;
+import org.opensearch.common.cache.ICache;
 import org.opensearch.common.cache.LoadAwareCacheLoader;
-import org.opensearch.common.cache.store.StoreAwareCache;
-import org.opensearch.common.cache.store.StoreAwareCacheRemovalNotification;
-import org.opensearch.common.cache.store.config.StoreAwareCacheConfig;
-import org.opensearch.common.cache.store.enums.CacheStoreType;
-import org.opensearch.common.cache.store.listeners.StoreAwareCacheEventListener;
+import org.opensearch.common.cache.RemovalListener;
+import org.opensearch.common.cache.RemovalNotification;
+import org.opensearch.common.cache.store.config.CacheConfig;
+import org.opensearch.common.metrics.CounterMetric;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.env.NodeEnvironment;
@@ -31,10 +31,9 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Phaser;
-import java.util.concurrent.atomic.AtomicInteger;
 
-import static org.opensearch.cache.EhcacheSettings.DISK_MAX_SIZE_IN_BYTES_KEY;
-import static org.opensearch.cache.EhcacheSettings.DISK_STORAGE_PATH_KEY;
+import static org.opensearch.cache.EhcacheDiskCacheSettings.DISK_MAX_SIZE_IN_BYTES_KEY;
+import static org.opensearch.cache.EhcacheDiskCacheSettings.DISK_STORAGE_PATH_KEY;
 import static org.hamcrest.CoreMatchers.instanceOf;
 
 public class EhCacheDiskCacheTests extends OpenSearchSingleNodeTestCase {
@@ -43,9 +42,9 @@ public class EhCacheDiskCacheTests extends OpenSearchSingleNodeTestCase {
 
     public void testBasicGetAndPut() throws IOException {
         Settings settings = Settings.builder().build();
-        MockEventListener<String, String> mockEventListener = new MockEventListener<>();
+        MockRemovalListener<String, String> removalListener = new MockRemovalListener<>();
         try (NodeEnvironment env = newNodeEnvironment(settings)) {
-            StoreAwareCache<String, String> ehcacheTest = new EhcacheDiskCache.Builder<String, String>().setThreadPoolAlias("ehcacheTest")
+            ICache<String, String> ehcacheTest = new EhcacheDiskCache.Builder<String, String>().setThreadPoolAlias("ehcacheTest")
                 .setStoragePath(env.nodePaths()[0].indicesPath.toString() + "/request_cache")
                 .setKeyType(String.class)
                 .setValueType(String.class)
@@ -53,7 +52,7 @@ public class EhCacheDiskCacheTests extends OpenSearchSingleNodeTestCase {
                 .setSettings(settings)
                 .setExpireAfterAccess(TimeValue.MAX_VALUE)
                 .setMaximumWeightInBytes(CACHE_SIZE_IN_BYTES)
-                .setEventListener(mockEventListener)
+                .setRemovalListener(removalListener)
                 .build();
             int randomKeys = randomIntBetween(10, 100);
             Map<String, String> keyValueMap = new HashMap<>();
@@ -67,8 +66,7 @@ public class EhCacheDiskCacheTests extends OpenSearchSingleNodeTestCase {
                 String value = ehcacheTest.get(entry.getKey());
                 assertEquals(entry.getValue(), value);
             }
-            assertEquals(randomKeys, mockEventListener.onCachedCount.get());
-            assertEquals(randomKeys, mockEventListener.onHitCount.get());
+            assertEquals(randomKeys, ehcacheTest.count());
 
             // Validate misses
             int expectedNumberOfMisses = randomIntBetween(10, 200);
@@ -76,29 +74,28 @@ public class EhCacheDiskCacheTests extends OpenSearchSingleNodeTestCase {
                 ehcacheTest.get(UUID.randomUUID().toString());
             }
 
-            assertEquals(expectedNumberOfMisses, mockEventListener.onMissCount.get());
             ehcacheTest.close();
         }
     }
 
     public void testBasicGetAndPutUsingFactory() throws IOException {
-        MockEventListener<String, String> mockEventListener = new MockEventListener<>();
+        MockRemovalListener<String, String> removalListener = new MockRemovalListener<>();
         try (NodeEnvironment env = newNodeEnvironment(Settings.EMPTY)) {
-            StoreAwareCache.Factory ehcacheFactory = new EhcacheDiskCache.EhcacheDiskCacheFactory();
-            StoreAwareCache<String, String> ehcacheTest = ehcacheFactory.create(
-                new StoreAwareCacheConfig.Builder<String, String>().setValueType(String.class)
+            ICache.Factory ehcacheFactory = new EhcacheDiskCache.EhcacheDiskCacheFactory();
+            ICache<String, String> ehcacheTest = ehcacheFactory.create(
+                new CacheConfig.Builder<String, String>().setValueType(String.class)
                     .setKeyType(String.class)
-                    .setEventListener(mockEventListener)
+                    .setRemovalListener(removalListener)
                     .setSettings(
                         Settings.builder()
                             .put(
-                                EhcacheSettings.getSettingListForCacheTypeAndStore(CacheType.INDICES_REQUEST_CACHE, CacheStoreType.DISK)
+                                EhcacheDiskCacheSettings.getSettingListForCacheType(CacheType.INDICES_REQUEST_CACHE)
                                     .get(DISK_MAX_SIZE_IN_BYTES_KEY)
                                     .getKey(),
                                 CACHE_SIZE_IN_BYTES
                             )
                             .put(
-                                EhcacheSettings.getSettingListForCacheTypeAndStore(CacheType.INDICES_REQUEST_CACHE, CacheStoreType.DISK)
+                                EhcacheDiskCacheSettings.getSettingListForCacheType(CacheType.INDICES_REQUEST_CACHE)
                                     .get(DISK_STORAGE_PATH_KEY)
                                     .getKey(),
                                 env.nodePaths()[0].indicesPath.toString() + "/request_cache"
@@ -120,8 +117,7 @@ public class EhCacheDiskCacheTests extends OpenSearchSingleNodeTestCase {
                 String value = ehcacheTest.get(entry.getKey());
                 assertEquals(entry.getValue(), value);
             }
-            assertEquals(randomKeys, mockEventListener.onCachedCount.get());
-            assertEquals(randomKeys, mockEventListener.onHitCount.get());
+            assertEquals(randomKeys, ehcacheTest.count());
 
             // Validate misses
             int expectedNumberOfMisses = randomIntBetween(10, 200);
@@ -129,16 +125,15 @@ public class EhCacheDiskCacheTests extends OpenSearchSingleNodeTestCase {
                 ehcacheTest.get(UUID.randomUUID().toString());
             }
 
-            assertEquals(expectedNumberOfMisses, mockEventListener.onMissCount.get());
             ehcacheTest.close();
         }
     }
 
     public void testConcurrentPut() throws Exception {
         Settings settings = Settings.builder().build();
-        MockEventListener<String, String> mockEventListener = new MockEventListener<>();
+        MockRemovalListener<String, String> removalListener = new MockRemovalListener<>();
         try (NodeEnvironment env = newNodeEnvironment(settings)) {
-            StoreAwareCache<String, String> ehcacheTest = new EhcacheDiskCache.Builder<String, String>().setDiskCacheAlias("test1")
+            ICache<String, String> ehcacheTest = new EhcacheDiskCache.Builder<String, String>().setDiskCacheAlias("test1")
                 .setThreadPoolAlias("ehcacheTest")
                 .setStoragePath(env.nodePaths()[0].indicesPath.toString() + "/request_cache")
                 .setKeyType(String.class)
@@ -147,7 +142,7 @@ public class EhCacheDiskCacheTests extends OpenSearchSingleNodeTestCase {
                 .setSettings(settings)
                 .setExpireAfterAccess(TimeValue.MAX_VALUE)
                 .setMaximumWeightInBytes(CACHE_SIZE_IN_BYTES)
-                .setEventListener(mockEventListener)
+                .setRemovalListener(removalListener)
                 .build();
             int randomKeys = randomIntBetween(20, 100);
             Thread[] threads = new Thread[randomKeys];
@@ -173,16 +168,16 @@ public class EhCacheDiskCacheTests extends OpenSearchSingleNodeTestCase {
                 String value = ehcacheTest.get(entry.getKey());
                 assertEquals(entry.getValue(), value);
             }
-            assertEquals(randomKeys, mockEventListener.onCachedCount.get());
+            assertEquals(randomKeys, ehcacheTest.count());
             ehcacheTest.close();
         }
     }
 
     public void testEhcacheParallelGets() throws Exception {
         Settings settings = Settings.builder().build();
-        MockEventListener<String, String> mockEventListener = new MockEventListener<>();
+        MockRemovalListener<String, String> removalListener = new MockRemovalListener<>();
         try (NodeEnvironment env = newNodeEnvironment(settings)) {
-            StoreAwareCache<String, String> ehcacheTest = new EhcacheDiskCache.Builder<String, String>().setDiskCacheAlias("test1")
+            ICache<String, String> ehcacheTest = new EhcacheDiskCache.Builder<String, String>().setDiskCacheAlias("test1")
                 .setThreadPoolAlias("ehcacheTest")
                 .setStoragePath(env.nodePaths()[0].indicesPath.toString() + "/request_cache")
                 .setIsEventListenerModeSync(true) // For accurate count
@@ -192,7 +187,7 @@ public class EhCacheDiskCacheTests extends OpenSearchSingleNodeTestCase {
                 .setSettings(settings)
                 .setExpireAfterAccess(TimeValue.MAX_VALUE)
                 .setMaximumWeightInBytes(CACHE_SIZE_IN_BYTES)
-                .setEventListener(mockEventListener)
+                .setRemovalListener(removalListener)
                 .build();
             int randomKeys = randomIntBetween(20, 100);
             Thread[] threads = new Thread[randomKeys];
@@ -218,7 +213,6 @@ public class EhCacheDiskCacheTests extends OpenSearchSingleNodeTestCase {
             }
             phaser.arriveAndAwaitAdvance(); // Will trigger parallel puts above.
             countDownLatch.await(); // Wait for all threads to finish
-            assertEquals(randomKeys, mockEventListener.onHitCount.get());
             ehcacheTest.close();
         }
     }
@@ -226,7 +220,7 @@ public class EhCacheDiskCacheTests extends OpenSearchSingleNodeTestCase {
     public void testEhcacheKeyIterator() throws Exception {
         Settings settings = Settings.builder().build();
         try (NodeEnvironment env = newNodeEnvironment(settings)) {
-            StoreAwareCache<String, String> ehcacheTest = new EhcacheDiskCache.Builder<String, String>().setDiskCacheAlias("test1")
+            ICache<String, String> ehcacheTest = new EhcacheDiskCache.Builder<String, String>().setDiskCacheAlias("test1")
                 .setThreadPoolAlias("ehcacheTest")
                 .setStoragePath(env.nodePaths()[0].indicesPath.toString() + "/request_cache")
                 .setKeyType(String.class)
@@ -235,7 +229,7 @@ public class EhCacheDiskCacheTests extends OpenSearchSingleNodeTestCase {
                 .setSettings(settings)
                 .setExpireAfterAccess(TimeValue.MAX_VALUE)
                 .setMaximumWeightInBytes(CACHE_SIZE_IN_BYTES)
-                .setEventListener(new MockEventListener<>())
+                .setRemovalListener(new MockRemovalListener<>())
                 .build();
 
             int randomKeys = randomIntBetween(2, 100);
@@ -253,7 +247,6 @@ public class EhCacheDiskCacheTests extends OpenSearchSingleNodeTestCase {
                 keysCount++;
                 assertNotNull(ehcacheTest.get(key));
             }
-            assertEquals(CacheStoreType.DISK, ehcacheTest.getTierType());
             assertEquals(keysCount, randomKeys);
             ehcacheTest.close();
         }
@@ -261,9 +254,9 @@ public class EhCacheDiskCacheTests extends OpenSearchSingleNodeTestCase {
 
     public void testEvictions() throws Exception {
         Settings settings = Settings.builder().build();
-        MockEventListener<String, String> mockEventListener = new MockEventListener<>();
+        MockRemovalListener<String, String> removalListener = new MockRemovalListener<>();
         try (NodeEnvironment env = newNodeEnvironment(settings)) {
-            StoreAwareCache<String, String> ehcacheTest = new EhcacheDiskCache.Builder<String, String>().setDiskCacheAlias("test1")
+            ICache<String, String> ehcacheTest = new EhcacheDiskCache.Builder<String, String>().setDiskCacheAlias("test1")
                 .setStoragePath(env.nodePaths()[0].indicesPath.toString() + "/request_cache")
                 .setIsEventListenerModeSync(true)
                 .setThreadPoolAlias("ehcacheTest")
@@ -273,7 +266,7 @@ public class EhCacheDiskCacheTests extends OpenSearchSingleNodeTestCase {
                 .setSettings(settings)
                 .setExpireAfterAccess(TimeValue.MAX_VALUE)
                 .setMaximumWeightInBytes(CACHE_SIZE_IN_BYTES)
-                .setEventListener(mockEventListener)
+                .setRemovalListener(removalListener)
                 .build();
 
             // Generate a string with 100 characters
@@ -284,16 +277,16 @@ public class EhCacheDiskCacheTests extends OpenSearchSingleNodeTestCase {
                 String key = "Key" + i;
                 ehcacheTest.put(key, value);
             }
-            assertTrue(mockEventListener.onRemovalCount.get() > 0);
+            assertEquals(660, removalListener.evictionMetric.count());
             ehcacheTest.close();
         }
     }
 
     public void testComputeIfAbsentConcurrently() throws Exception {
         Settings settings = Settings.builder().build();
-        MockEventListener<String, String> mockEventListener = new MockEventListener<>();
+        MockRemovalListener<String, String> removalListener = new MockRemovalListener<>();
         try (NodeEnvironment env = newNodeEnvironment(settings)) {
-            StoreAwareCache<String, String> ehcacheTest = new EhcacheDiskCache.Builder<String, String>().setDiskCacheAlias("test1")
+            ICache<String, String> ehcacheTest = new EhcacheDiskCache.Builder<String, String>().setDiskCacheAlias("test1")
                 .setIsEventListenerModeSync(true)
                 .setStoragePath(env.nodePaths()[0].indicesPath.toString() + "/request_cache")
                 .setThreadPoolAlias("ehcacheTest")
@@ -303,7 +296,7 @@ public class EhCacheDiskCacheTests extends OpenSearchSingleNodeTestCase {
                 .setSettings(settings)
                 .setExpireAfterAccess(TimeValue.MAX_VALUE)
                 .setMaximumWeightInBytes(CACHE_SIZE_IN_BYTES)
-                .setEventListener(mockEventListener)
+                .setRemovalListener(removalListener)
                 .build();
 
             int numberOfRequest = 2;// randomIntBetween(200, 400);
@@ -353,18 +346,16 @@ public class EhCacheDiskCacheTests extends OpenSearchSingleNodeTestCase {
             }
             assertEquals(1, numberOfTimesValueLoaded);
             assertEquals(0, ((EhcacheDiskCache) ehcacheTest).getCompletableFutureMap().size());
-            assertEquals(1, mockEventListener.onMissCount.get());
-            assertEquals(1, mockEventListener.onCachedCount.get());
-            assertEquals(numberOfRequest - 1, mockEventListener.onHitCount.get());
+            assertEquals(1, ehcacheTest.count());
             ehcacheTest.close();
         }
     }
 
     public void testComputeIfAbsentConcurrentlyAndThrowsException() throws Exception {
         Settings settings = Settings.builder().build();
-        MockEventListener<String, String> mockEventListener = new MockEventListener<>();
+        MockRemovalListener<String, String> removalListener = new MockRemovalListener<>();
         try (NodeEnvironment env = newNodeEnvironment(settings)) {
-            StoreAwareCache<String, String> ehcacheTest = new EhcacheDiskCache.Builder<String, String>().setDiskCacheAlias("test1")
+            ICache<String, String> ehcacheTest = new EhcacheDiskCache.Builder<String, String>().setDiskCacheAlias("test1")
                 .setStoragePath(env.nodePaths()[0].indicesPath.toString() + "/request_cache")
                 .setIsEventListenerModeSync(true)
                 .setThreadPoolAlias("ehcacheTest")
@@ -374,7 +365,7 @@ public class EhCacheDiskCacheTests extends OpenSearchSingleNodeTestCase {
                 .setSettings(settings)
                 .setExpireAfterAccess(TimeValue.MAX_VALUE)
                 .setMaximumWeightInBytes(CACHE_SIZE_IN_BYTES)
-                .setEventListener(mockEventListener)
+                .setRemovalListener(removalListener)
                 .build();
 
             int numberOfRequest = randomIntBetween(200, 400);
@@ -419,9 +410,9 @@ public class EhCacheDiskCacheTests extends OpenSearchSingleNodeTestCase {
 
     public void testComputeIfAbsentWithNullValueLoading() throws Exception {
         Settings settings = Settings.builder().build();
-        MockEventListener<String, String> mockEventListener = new MockEventListener<>();
+        MockRemovalListener<String, String> removalListener = new MockRemovalListener<>();
         try (NodeEnvironment env = newNodeEnvironment(settings)) {
-            StoreAwareCache<String, String> ehcacheTest = new EhcacheDiskCache.Builder<String, String>().setDiskCacheAlias("test1")
+            ICache<String, String> ehcacheTest = new EhcacheDiskCache.Builder<String, String>().setDiskCacheAlias("test1")
                 .setThreadPoolAlias("ehcacheTest")
                 .setIsEventListenerModeSync(true)
                 .setStoragePath(env.nodePaths()[0].indicesPath.toString() + "/request_cache")
@@ -431,7 +422,7 @@ public class EhCacheDiskCacheTests extends OpenSearchSingleNodeTestCase {
                 .setSettings(settings)
                 .setExpireAfterAccess(TimeValue.MAX_VALUE)
                 .setMaximumWeightInBytes(CACHE_SIZE_IN_BYTES)
-                .setEventListener(mockEventListener)
+                .setRemovalListener(removalListener)
                 .build();
 
             int numberOfRequest = randomIntBetween(200, 400);
@@ -491,37 +482,13 @@ public class EhCacheDiskCacheTests extends OpenSearchSingleNodeTestCase {
         return randomString.toString();
     }
 
-    class MockEventListener<K, V> implements StoreAwareCacheEventListener<K, V> {
+    static class MockRemovalListener<K, V> implements RemovalListener<K, V> {
 
-        AtomicInteger onMissCount = new AtomicInteger();
-        AtomicInteger onHitCount = new AtomicInteger();
-        AtomicInteger onCachedCount = new AtomicInteger();
-        AtomicInteger onRemovalCount = new AtomicInteger();
-
-        MockEventListener() {}
+        CounterMetric evictionMetric = new CounterMetric();
 
         @Override
-        public void onMiss(K key, CacheStoreType cacheStoreType) {
-            assert cacheStoreType.equals(CacheStoreType.DISK);
-            onMissCount.incrementAndGet();
-        }
-
-        @Override
-        public void onRemoval(StoreAwareCacheRemovalNotification<K, V> notification) {
-            assert notification.getCacheStoreType().equals(CacheStoreType.DISK);
-            onRemovalCount.incrementAndGet();
-        }
-
-        @Override
-        public void onHit(K key, V value, CacheStoreType cacheStoreType) {
-            assert cacheStoreType.equals(CacheStoreType.DISK);
-            onHitCount.incrementAndGet();
-        }
-
-        @Override
-        public void onCached(K key, V value, CacheStoreType cacheStoreType) {
-            assert cacheStoreType.equals(CacheStoreType.DISK);
-            onCachedCount.incrementAndGet();
+        public void onRemoval(RemovalNotification<K, V> notification) {
+            evictionMetric.inc();
         }
     }
 }

@@ -9,8 +9,10 @@
 package org.opensearch.common.cache.store.config;
 
 import org.opensearch.common.annotation.ExperimentalApi;
-import org.opensearch.common.cache.store.listeners.StoreAwareCacheEventListener;
+import org.opensearch.common.cache.RemovalListener;
 import org.opensearch.common.settings.Settings;
+
+import java.util.function.ToLongBiFunction;
 
 /**
  * Common configurations related to store aware caches.
@@ -18,25 +20,33 @@ import org.opensearch.common.settings.Settings;
  * @opensearch.experimental
  */
 @ExperimentalApi
-public class StoreAwareCacheConfig<K, V> {
+public class CacheConfig<K, V> {
 
-    private StoreAwareCacheEventListener<K, V> eventListener;
+    private final Settings settings;
 
-    private Settings settings;
+    /**
+     * Defines the key type.
+     */
+    private final Class<K> keyType;
 
-    private Class<K> keyType;
+    /**
+     * Defines the value type.
+     */
+    private final Class<V> valueType;
 
-    private Class<V> valueType;
+    /**
+     * Represents a function that calculates the size or weight of a key-value pair.
+     */
+    private final ToLongBiFunction<K, V> weigher;
 
-    private StoreAwareCacheConfig(Builder<K, V> builder) {
+    private final RemovalListener<K, V> removalListener;
+
+    private CacheConfig(Builder<K, V> builder) {
         this.keyType = builder.keyType;
         this.valueType = builder.valueType;
         this.settings = builder.settings;
-        this.eventListener = builder.eventListener;
-    }
-
-    public StoreAwareCacheEventListener<K, V> getEventListener() {
-        return eventListener;
+        this.removalListener = builder.removalListener;
+        this.weigher = builder.weigher;
     }
 
     public Class<K> getKeyType() {
@@ -51,6 +61,14 @@ public class StoreAwareCacheConfig<K, V> {
         return settings;
     }
 
+    public RemovalListener<K, V> getRemovalListener() {
+        return removalListener;
+    }
+
+    public ToLongBiFunction<K, V> getWeigher() {
+        return weigher;
+    }
+
     /**
      * Builder class to build Cache config related parameters.
      * @param <K> Type of key.
@@ -58,20 +76,17 @@ public class StoreAwareCacheConfig<K, V> {
      */
     public static class Builder<K, V> {
 
-        private StoreAwareCacheEventListener<K, V> eventListener;
-
         private Settings settings;
 
         private Class<K> keyType;
 
         private Class<V> valueType;
 
-        public Builder() {}
+        private RemovalListener<K, V> removalListener;
 
-        public Builder<K, V> setEventListener(StoreAwareCacheEventListener<K, V> listener) {
-            this.eventListener = listener;
-            return this;
-        }
+        private ToLongBiFunction<K, V> weigher;
+
+        public Builder() {}
 
         public Builder<K, V> setSettings(Settings settings) {
             this.settings = settings;
@@ -88,8 +103,18 @@ public class StoreAwareCacheConfig<K, V> {
             return this;
         }
 
-        public StoreAwareCacheConfig<K, V> build() {
-            return new StoreAwareCacheConfig<>(this);
+        public Builder<K, V> setRemovalListener(RemovalListener<K, V> removalListener) {
+            this.removalListener = removalListener;
+            return this;
+        }
+
+        public Builder<K, V> setWeigher(ToLongBiFunction<K, V> weigher) {
+            this.weigher = weigher;
+            return this;
+        }
+
+        public CacheConfig<K, V> build() {
+            return new CacheConfig<>(this);
         }
     }
 }

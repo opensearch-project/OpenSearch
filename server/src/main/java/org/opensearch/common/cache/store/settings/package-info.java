@@ -6,5 +6,5 @@
  * compatible open source license.
  */
 
-/** Base package for cache tier support. */
-package org.opensearch.common.cache.tier;
+/** Base package for cache setting **/
+package org.opensearch.common.cache.store.settings;
