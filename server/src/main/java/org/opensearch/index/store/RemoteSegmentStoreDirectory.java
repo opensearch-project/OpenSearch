@@ -30,6 +30,7 @@ import org.opensearch.common.io.VersionedCodecStreamWrapper;
 import org.opensearch.common.logging.Loggers;
 import org.opensearch.common.lucene.store.ByteArrayIndexInput;
 import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.remote.RemoteStoreUtils;
 import org.opensearch.index.store.lockmanager.FileLockInfo;
@@ -849,33 +850,43 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
     }
 
     /*
-    Tries to delete shard level directory if it is empty
-    Return true if it deleted it successfully
+    Tries to delete shard level directory if it does not have any locks.
+    Return true if shard is enqueued successfully for async cleanup.
      */
-    private boolean deleteIfEmpty() throws IOException {
-        Collection<String> metadataFiles = remoteMetadataDirectory.listFilesByPrefixInLexicographicOrder(
-            MetadataFilenameUtils.METADATA_PREFIX,
-            1
-        );
-        if (metadataFiles.size() != 0) {
-            logger.info("Remote directory still has files, not deleting the path");
+    public boolean deleteIfEmpty() {
+        Set<String> allLockedFiles;
+        try {
+            allLockedFiles = ((RemoteStoreMetadataLockManager) mdLockManager).fetchLockedMetadataFiles(
+                MetadataFilenameUtils.METADATA_PREFIX
+            );
+        } catch (Exception e) {
+            logger.error("Exception while fetching segment metadata lock files, skipping deleteStaleSegments", e);
+            return false;
+        }
+        if (allLockedFiles.size() != 0) {
+            logger.info("Remote directory still has locked files, not deleting the path");
             return false;
         }
 
         try {
-            remoteDataDirectory.delete();
-            remoteMetadataDirectory.delete();
-            mdLockManager.delete();
-        } catch (Exception e) {
-            logger.error("Exception occurred while deleting directory", e);
+            threadPool.executor(ThreadPool.Names.REMOTE_PURGE).execute(() -> {
+                try {
+                    remoteDataDirectory.delete();
+                    remoteMetadataDirectory.delete();
+                    mdLockManager.delete();
+                } catch (Exception e) {
+                    logger.error("Exception occurred while deleting directory, it will get retried during next call", e);
+                }
+            });
+        } catch (OpenSearchRejectedExecutionException e) {
+            logger.error("Exception occurred while enqueueing directory for cleanup", e);
             return false;
         }
-
         return true;
     }
 
     @Override
     public void close() throws IOException {
-        deleteStaleSegmentsAsync(0, ActionListener.wrap(r -> deleteIfEmpty(), e -> logger.error("Failed to cleanup remote directory")));
+        deleteIfEmpty();
     }
 }

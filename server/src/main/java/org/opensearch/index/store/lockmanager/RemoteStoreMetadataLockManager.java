@@ -14,6 +14,7 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexOutput;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.index.store.RemoteBufferedOutputDirectory;
+import org.opensearch.index.store.RemoteSegmentStoreDirectory;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -105,6 +106,19 @@ public class RemoteStoreMetadataLockManager implements RemoteStoreLockManager {
         assert lockInfo instanceof FileLockInfo : "lockInfo should be instance of FileLockInfo";
         Collection<String> lockFiles = lockDirectory.listFilesByPrefix(((FileLockInfo) lockInfo).getLockPrefix());
         return !lockFiles.isEmpty();
+    }
+
+    @Override
+    public List<LockInfo> listLocks() throws IOException {
+        Collection<String> lockFiles = lockDirectory.listFilesByPrefix(RemoteSegmentStoreDirectory.MetadataFilenameUtils.METADATA_PREFIX);
+        return lockFiles.stream()
+            .map(
+                lock -> FileLockInfo.getLockInfoBuilder()
+                    .withFileToLock(FileLockInfo.LockFileUtils.getFileToLockNameFromLock(lock))
+                    .withAcquirerId(FileLockInfo.LockFileUtils.getAcquirerIdFromLock(lock))
+                    .build()
+            )
+            .collect(Collectors.toList());
     }
 
     /**
