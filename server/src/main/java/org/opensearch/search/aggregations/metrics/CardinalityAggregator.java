@@ -53,6 +53,7 @@ import org.opensearch.index.fielddata.SortedNumericDoubleValues;
 import org.opensearch.search.aggregations.Aggregator;
 import org.opensearch.search.aggregations.InternalAggregation;
 import org.opensearch.search.aggregations.LeafBucketCollector;
+import org.opensearch.search.aggregations.support.FieldContext;
 import org.opensearch.search.aggregations.support.ValuesSource;
 import org.opensearch.search.aggregations.support.ValuesSourceConfig;
 import org.opensearch.search.internal.SearchContext;
@@ -70,6 +71,8 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
 
     private final int precision;
     private final ValuesSource valuesSource;
+
+    private final FieldContext fieldContext;
 
     // Expensive to initialize, so we only initialize it when we have an actual value source
     @Nullable
@@ -95,6 +98,7 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
         // TODO: Stop using nulls here
         this.valuesSource = valuesSourceConfig.hasValues() ? valuesSourceConfig.getValuesSource() : null;
         this.precision = precision;
+        this.fieldContext = valuesSourceConfig.fieldContext();
         this.counts = valuesSource == null ? null : new HyperLogLogPlusPlus(precision, context.bigArrays(), 1);
     }
 
@@ -132,11 +136,11 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
             // only use ordinals if they don't increase memory usage by more than 25%
             if (ordinalsMemoryUsage < countsMemoryUsage / 4) {
                 ordinalsCollectorsUsed++;
-                return new OrdinalsCollector(counts, ordinalValues, context.bigArrays());
+                return new DynamicPruningCollectorWrapper(new OrdinalsCollector(counts, ordinalValues, context.bigArrays()),
+                    context, ctx, fieldContext, source);
             }
             ordinalsCollectorsOverheadTooHigh++;
         }
-
         stringHashingCollectorsUsed++;
         return new DirectCollector(counts, MurmurHash3Values.hash(valuesSource.bytesValues(ctx)));
     }
@@ -206,7 +210,7 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
      *
      * @opensearch.internal
      */
-    private abstract static class Collector extends LeafBucketCollector implements Releasable {
+    abstract static class Collector extends LeafBucketCollector implements Releasable {
 
         public abstract void postCollect() throws IOException;
 

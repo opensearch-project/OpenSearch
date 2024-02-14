@@ -33,15 +33,22 @@
 package org.opensearch.search.aggregations.metrics;
 
 import org.apache.lucene.document.BinaryDocValuesField;
+import org.apache.lucene.document.Field;
 import org.apache.lucene.document.IntPoint;
+import org.apache.lucene.document.KeywordField;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
+import org.apache.lucene.document.SortedSetDocValuesField;
+import org.apache.lucene.index.Term;
 import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.tests.index.RandomIndexWriter;
+import org.apache.lucene.util.BytesRef;
 import org.opensearch.common.CheckedConsumer;
 import org.opensearch.common.geo.GeoPoint;
+import org.opensearch.index.mapper.KeywordFieldMapper;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.NumberFieldMapper;
 import org.opensearch.index.mapper.RangeFieldMapper;
@@ -56,6 +63,7 @@ import java.util.HashSet;
 import java.util.Set;
 import java.util.function.Consumer;
 
+import static java.util.Arrays.asList;
 import static java.util.Collections.singleton;
 
 public class CardinalityAggregatorTests extends AggregatorTestCase {
@@ -85,6 +93,56 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
             iw.addDocument(singleton(new BinaryDocValuesField(fieldName, rangeType.encodeRanges(singleton(range2)))));
             iw.addDocument(singleton(new BinaryDocValuesField(fieldName, rangeType.encodeRanges(multiRecord))));
         }, card -> {
+            assertEquals(3.0, card.getValue(), 0);
+            assertTrue(AggregationInspectionHelper.hasValue(card));
+        }, fieldType);
+    }
+
+    public void testDynamicPruningOrdinalCollector() throws IOException {
+        final String fieldName = "testField";
+        final String filterFieldName = "filterField";
+
+        MappedFieldType fieldType = new KeywordFieldMapper.KeywordFieldType(fieldName);
+        final CardinalityAggregationBuilder aggregationBuilder = new CardinalityAggregationBuilder("_name").field(fieldName);
+        testAggregation(aggregationBuilder, new TermQuery(new Term(filterFieldName, "foo")), iw -> {
+            iw.addDocument(asList(
+                new KeywordField(fieldName, "1", Field.Store.NO),
+                new KeywordField(fieldName, "2", Field.Store.NO),
+                new KeywordField(filterFieldName, "foo", Field.Store.NO),
+                new SortedSetDocValuesField(fieldName, new BytesRef("1")),
+                new SortedSetDocValuesField(fieldName, new BytesRef("2"))
+            ));
+            iw.addDocument(asList(
+                new KeywordField(fieldName, "2", Field.Store.NO),
+                new KeywordField(filterFieldName, "foo", Field.Store.NO),
+                new SortedSetDocValuesField(fieldName, new BytesRef("2"))
+            ));
+            iw.addDocument(asList(
+                new KeywordField(fieldName, "1", Field.Store.NO),
+                new KeywordField(filterFieldName, "foo", Field.Store.NO),
+                new SortedSetDocValuesField(fieldName, new BytesRef("1"))
+            ));
+            iw.addDocument(asList(
+                new KeywordField(fieldName, "2", Field.Store.NO),
+                new KeywordField(filterFieldName, "foo", Field.Store.NO),
+                new SortedSetDocValuesField(fieldName, new BytesRef("2"))
+            ));
+            iw.addDocument(asList(
+                new KeywordField(fieldName, "3", Field.Store.NO),
+                new KeywordField(filterFieldName, "foo", Field.Store.NO),
+                new SortedSetDocValuesField(fieldName, new BytesRef("3"))
+            ));
+            iw.addDocument(asList(
+                new KeywordField(fieldName, "4", Field.Store.NO),
+                new KeywordField(filterFieldName, "bar", Field.Store.NO),
+                new SortedSetDocValuesField(fieldName, new BytesRef("4"))
+            ));
+            iw.addDocument(asList(
+                new KeywordField(fieldName, "5", Field.Store.NO),
+                new KeywordField(filterFieldName, "bar", Field.Store.NO),
+                new SortedSetDocValuesField(fieldName, new BytesRef("5"))
+            ));
+            }, card -> {
             assertEquals(3.0, card.getValue(), 0);
             assertTrue(AggregationInspectionHelper.hasValue(card));
         }, fieldType);
