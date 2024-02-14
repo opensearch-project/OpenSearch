@@ -806,6 +806,14 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         }
     }
 
+    public static BaseInboundMessage.Protocol determineTransportProtocol(BytesReference headerBuffer) {
+        if (headerBuffer.get(0) == 'O' && headerBuffer.get(1) == 'S' && headerBuffer.get(2) == 'P'){
+            return BaseInboundMessage.Protocol.PROTOBUF;
+        } else {
+            return BaseInboundMessage.Protocol.DEFAULT;
+        }
+    }
+
     private static int readHeaderBuffer(BytesReference headerBuffer) throws IOException {
         if (headerBuffer.get(0) != 'E' || headerBuffer.get(1) != 'S') {
             if (appearsToBeHTTPRequest(headerBuffer)) {

@@ -38,7 +38,6 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.Version;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.CheckedSupplier;
-import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.io.stream.ReleasableBytesStreamOutput;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lease.Releasables;
@@ -56,7 +55,6 @@ import org.opensearch.search.fetch.QueryFetchSearchResult;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
-import java.nio.ByteBuffer;
 import java.util.Set;
 
 /**
@@ -282,14 +280,7 @@ final class OutboundHandler {
         @Override
         public BytesReference get() throws IOException {
             bytesStreamOutput = new ReleasableBytesStreamOutput(bigArrays);
-            BytesReference reference = serialize(bytesStreamOutput);
-            return reference;
-        }
-
-        private BytesReference serialize(BytesStreamOutput bytesStream) throws IOException {
-            ByteBuffer byteBuffers = ByteBuffer.wrap(message.getMessage().toByteArray());
-            message.getMessage().writeTo(bytesStream);
-            return BytesReference.fromByteBuffer(byteBuffers);
+            return message.serialize(bytesStreamOutput);
         }
 
         @Override

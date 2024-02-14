@@ -11,7 +11,9 @@ package org.opensearch.transport;
 import com.google.protobuf.ByteString;
 import com.google.protobuf.InvalidProtocolBufferException;
 import org.opensearch.Version;
+import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.util.concurrent.ThreadContext;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.server.proto.NodeToNodeMessageProto;
 import org.opensearch.server.proto.NodeToNodeMessageProto.NodeToNodeMessage.Header;
 import org.opensearch.server.proto.NodeToNodeMessageProto.NodeToNodeMessage.ResponseHandlersList;
@@ -81,6 +83,13 @@ public class NodeToNodeMessage implements BaseInboundMessage {
 
     public void writeTo(OutputStream out) throws IOException {
         out.write(this.message.toByteArray());
+    }
+
+    BytesReference serialize(BytesStreamOutput bytesStream) throws IOException {
+        NodeToNodeMessageProto.NodeToNodeMessage message = getMessage();
+        TcpHeader.writeHeaderForProtobuf(bytesStream);
+        message.writeTo(bytesStream);
+        return bytesStream.bytes();
     }
 
     public NodeToNodeMessageProto.NodeToNodeMessage getMessage() {
