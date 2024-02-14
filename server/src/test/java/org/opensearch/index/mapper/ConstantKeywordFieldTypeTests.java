@@ -32,7 +32,10 @@ public class ConstantKeywordFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testWildcardQuery() {
-        ConstantKeywordFieldMapper.ConstantKeywordFieldType ft = new ConstantKeywordFieldMapper.ConstantKeywordFieldType("field", "default");
+        ConstantKeywordFieldMapper.ConstantKeywordFieldType ft = new ConstantKeywordFieldMapper.ConstantKeywordFieldType(
+            "field",
+            "default"
+        );
 
         QueryShardException e = expectThrows(
             QueryShardException.class,
