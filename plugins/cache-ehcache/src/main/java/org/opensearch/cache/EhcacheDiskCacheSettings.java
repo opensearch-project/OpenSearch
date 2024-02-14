@@ -8,40 +8,39 @@
 
 package org.opensearch.cache;
 
+import org.opensearch.cache.store.disk.EhcacheDiskCache;
 import org.opensearch.common.cache.CacheType;
-import org.opensearch.common.cache.store.enums.CacheStoreType;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.unit.TimeValue;
 
+import java.util.HashMap;
 import java.util.Map;
 
 import static org.opensearch.common.settings.Setting.Property.NodeScope;
 
 /**
- * Settings related to ehcache.
+ * Settings related to ehcache disk cache.
  */
-public class EhcacheSettings {
-
-    static final String DISK_CACHE_SETTING_SUFFIX = "disk.ehcache";
+public class EhcacheDiskCacheSettings {
 
     /**
      * Ehcache disk write minimum threads for its pool
      *
-     * Setting pattern: {cache_type}.disk.ehcache.min_threads
+     * Setting pattern: {cache_type}.ehcache_disk.min_threads
      */
 
     public static final Setting.AffixSetting<Integer> DISK_WRITE_MINIMUM_THREADS_SETTING = Setting.suffixKeySetting(
-        DISK_CACHE_SETTING_SUFFIX + ".min_threads",
+        EhcacheDiskCache.EhcacheDiskCacheFactory.EHCACHE_DISK_CACHE_NAME + ".min_threads",
         (key) -> Setting.intSetting(key, 2, 1, 5, NodeScope)
     );
 
     /**
      *  Ehcache disk write maximum threads for its pool
      *
-     *  Setting pattern: {cache_type}.disk.ehcache.max_threads
+     *  Setting pattern: {cache_type}.ehcache_disk.max_threads
      */
     public static final Setting.AffixSetting<Integer> DISK_WRITE_MAXIMUM_THREADS_SETTING = Setting.suffixKeySetting(
-        DISK_CACHE_SETTING_SUFFIX + ".max_threads",
+        EhcacheDiskCache.EhcacheDiskCacheFactory.EHCACHE_DISK_CACHE_NAME + ".max_threads",
         (key) -> Setting.intSetting(key, 2, 1, 20, NodeScope)
     );
 
@@ -56,7 +55,7 @@ public class EhcacheSettings {
      *
      */
     public static final Setting.AffixSetting<Integer> DISK_WRITE_CONCURRENCY_SETTING = Setting.suffixKeySetting(
-        DISK_CACHE_SETTING_SUFFIX + ".concurrency",
+        EhcacheDiskCache.EhcacheDiskCacheFactory.EHCACHE_DISK_CACHE_NAME + ".concurrency",
         (key) -> Setting.intSetting(key, 1, 1, 3, NodeScope)
     );
 
@@ -67,7 +66,7 @@ public class EhcacheSettings {
      * Default value is 16 within Ehcache.
      */
     public static final Setting.AffixSetting<Integer> DISK_SEGMENTS_SETTING = Setting.suffixKeySetting(
-        DISK_CACHE_SETTING_SUFFIX + ".segments",
+        EhcacheDiskCache.EhcacheDiskCacheFactory.EHCACHE_DISK_CACHE_NAME + ".segments",
         (key) -> Setting.intSetting(key, 16, 1, 32, NodeScope)
     );
 
@@ -75,7 +74,7 @@ public class EhcacheSettings {
      * Storage path for disk cache.
      */
     public static final Setting.AffixSetting<String> DISK_STORAGE_PATH_SETTING = Setting.suffixKeySetting(
-        DISK_CACHE_SETTING_SUFFIX + ".storage.path",
+        EhcacheDiskCache.EhcacheDiskCacheFactory.EHCACHE_DISK_CACHE_NAME + ".storage.path",
         (key) -> Setting.simpleString(key, "", NodeScope)
     );
 
@@ -83,7 +82,7 @@ public class EhcacheSettings {
      * Disk cache alias.
      */
     public static final Setting.AffixSetting<String> DISK_CACHE_ALIAS_SETTING = Setting.suffixKeySetting(
-        DISK_CACHE_SETTING_SUFFIX + ".alias",
+        EhcacheDiskCache.EhcacheDiskCacheFactory.EHCACHE_DISK_CACHE_NAME + ".alias",
         (key) -> Setting.simpleString(key, "", NodeScope)
     );
 
@@ -91,7 +90,7 @@ public class EhcacheSettings {
      * Disk cache expire after access setting.
      */
     public static final Setting.AffixSetting<TimeValue> DISK_CACHE_EXPIRE_AFTER_ACCESS_SETTING = Setting.suffixKeySetting(
-        DISK_CACHE_SETTING_SUFFIX + ".expire_after_access",
+        EhcacheDiskCache.EhcacheDiskCacheFactory.EHCACHE_DISK_CACHE_NAME + ".expire_after_access",
         (key) -> Setting.positiveTimeSetting(key, TimeValue.MAX_VALUE, NodeScope)
     );
 
@@ -99,7 +98,7 @@ public class EhcacheSettings {
      * Disk cache max size setting.
      */
     public static final Setting.AffixSetting<Long> DISK_CACHE_MAX_SIZE_IN_BYTES_SETTING = Setting.suffixKeySetting(
-        DISK_CACHE_SETTING_SUFFIX + ".max_size_in_bytes",
+        EhcacheDiskCache.EhcacheDiskCacheFactory.EHCACHE_DISK_CACHE_NAME + ".max_size_in_bytes",
         (key) -> Setting.longSetting(key, 1073741824L, NodeScope)
     );
 
@@ -141,57 +140,71 @@ public class EhcacheSettings {
     public static final String DISK_STORAGE_PATH_KEY = "disk_storage_path";
 
     /**
+     * Map of key to setting.
+     */
+    private static final Map<String, Setting.AffixSetting<?>> KEY_SETTING_MAP = Map.of(
+        DISK_SEGMENT_KEY,
+        DISK_SEGMENTS_SETTING,
+        DISK_CACHE_EXPIRE_AFTER_ACCESS_KEY,
+        DISK_CACHE_EXPIRE_AFTER_ACCESS_SETTING,
+        DISK_CACHE_ALIAS_KEY,
+        DISK_CACHE_ALIAS_SETTING,
+        DISK_SEGMENTS_KEY,
+        DISK_SEGMENTS_SETTING,
+        DISK_WRITE_CONCURRENCY_KEY,
+        DISK_WRITE_CONCURRENCY_SETTING,
+        DISK_WRITE_MAXIMUM_THREADS_KEY,
+        DISK_WRITE_MAXIMUM_THREADS_SETTING,
+        DISK_WRITE_MIN_THREADS_KEY,
+        DISK_WRITE_MINIMUM_THREADS_SETTING,
+        DISK_STORAGE_PATH_KEY,
+        DISK_STORAGE_PATH_SETTING,
+        DISK_MAX_SIZE_IN_BYTES_KEY,
+        DISK_CACHE_MAX_SIZE_IN_BYTES_SETTING
+    );
+
+    /**
      * Map to store desired settings for a cache type.
      */
-    public static final Map<CacheType, Map<CacheStoreType, Map<String, Setting<?>>>> CACHE_TYPE_MAP = Map.of(
-        CacheType.INDICES_REQUEST_CACHE,
-        Map.of(
-            CacheStoreType.DISK,
-            Map.of(
-                DISK_SEGMENT_KEY,
-                DISK_SEGMENTS_SETTING.getConcreteSettingForNamespace(CacheType.INDICES_REQUEST_CACHE.getSettingPrefix()),
-                DISK_CACHE_EXPIRE_AFTER_ACCESS_KEY,
-                DISK_CACHE_EXPIRE_AFTER_ACCESS_SETTING.getConcreteSettingForNamespace(CacheType.INDICES_REQUEST_CACHE.getSettingPrefix()),
-                DISK_CACHE_ALIAS_KEY,
-                DISK_CACHE_ALIAS_SETTING.getConcreteSettingForNamespace(CacheType.INDICES_REQUEST_CACHE.getSettingPrefix()),
-                DISK_SEGMENTS_KEY,
-                DISK_SEGMENTS_SETTING.getConcreteSettingForNamespace(CacheType.INDICES_REQUEST_CACHE.getSettingPrefix()),
-                DISK_WRITE_CONCURRENCY_KEY,
-                DISK_WRITE_CONCURRENCY_SETTING.getConcreteSettingForNamespace(CacheType.INDICES_REQUEST_CACHE.getSettingPrefix()),
-                DISK_WRITE_MAXIMUM_THREADS_KEY,
-                DISK_WRITE_MAXIMUM_THREADS_SETTING.getConcreteSettingForNamespace(CacheType.INDICES_REQUEST_CACHE.getSettingPrefix()),
-                DISK_WRITE_MIN_THREADS_KEY,
-                DISK_WRITE_MINIMUM_THREADS_SETTING.getConcreteSettingForNamespace(CacheType.INDICES_REQUEST_CACHE.getSettingPrefix()),
-                DISK_STORAGE_PATH_KEY,
-                DISK_STORAGE_PATH_SETTING.getConcreteSettingForNamespace(CacheType.INDICES_REQUEST_CACHE.getSettingPrefix()),
-                DISK_MAX_SIZE_IN_BYTES_KEY,
-                DISK_CACHE_MAX_SIZE_IN_BYTES_SETTING.getConcreteSettingForNamespace(CacheType.INDICES_REQUEST_CACHE.getSettingPrefix())
-            )
-        )
-    );
+    public static final Map<CacheType, Map<String, Setting<?>>> CACHE_TYPE_MAP = getCacheTypeMap();
+
+    /**
+     * Used to form concrete setting for cache types and return desired map
+     * @return map of cacheType and associated settings.
+     */
+    private static final Map<CacheType, Map<String, Setting<?>>> getCacheTypeMap() {
+        Map<CacheType, Map<String, Setting<?>>> cacheTypeMap = new HashMap<>();
+        for (CacheType cacheType : CacheType.values()) {
+            Map<String, Setting<?>> settingMap = new HashMap<>();
+            for (Map.Entry<String, Setting.AffixSetting<?>> entry : KEY_SETTING_MAP.entrySet()) {
+                settingMap.put(entry.getKey(), entry.getValue().getConcreteSettingForNamespace(cacheType.getSettingPrefix()));
+            }
+            cacheTypeMap.put(cacheType, settingMap);
+        }
+        return cacheTypeMap;
+    }
 
     /**
      * Fetches setting list for a combination of cache type and store name.
      * @param cacheType cache type
-     * @param cacheStoreType store type
      * @return settings
      */
-    public static final Map<String, Setting<?>> getSettingListForCacheTypeAndStore(CacheType cacheType, CacheStoreType cacheStoreType) {
-        Map<CacheStoreType, Map<String, Setting<?>>> cacheTypeSettings = CACHE_TYPE_MAP.get(cacheType);
+    public static final Map<String, Setting<?>> getSettingListForCacheType(CacheType cacheType) {
+        Map<String, Setting<?>> cacheTypeSettings = CACHE_TYPE_MAP.get(cacheType);
         if (cacheTypeSettings == null) {
-            throw new IllegalArgumentException("No settings exist with corresponding cache type: " + cacheType);
-        }
-        Map<String, Setting<?>> settingList = cacheTypeSettings.get(cacheStoreType);
-        if (settingList == null) {
             throw new IllegalArgumentException(
-                "No settings exist for cache store name: " + cacheStoreType + " associated with cache type: " + cacheType
+                "No settings exist for cache store name: "
+                    + EhcacheDiskCache.EhcacheDiskCacheFactory.EHCACHE_DISK_CACHE_NAME
+                    + "associated with "
+                    + "cache type: "
+                    + cacheType
             );
         }
-        return settingList;
+        return cacheTypeSettings;
     }
 
     /**
      * Default constructor. Added to fix javadocs.
      */
-    public EhcacheSettings() {}
+    public EhcacheDiskCacheSettings() {}
 }

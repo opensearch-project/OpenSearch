@@ -8,10 +8,11 @@
 
 package org.opensearch.common.cache.provider;
 
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.cache.CacheType;
+import org.opensearch.common.cache.ICache;
 import org.opensearch.common.cache.settings.CacheSettings;
-import org.opensearch.common.cache.store.StoreAwareCache;
-import org.opensearch.common.cache.store.enums.CacheStoreType;
+import org.opensearch.common.cache.store.OpenSearchOnHeapCache;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.plugins.CachePlugin;
@@ -25,9 +26,10 @@ import java.util.Optional;
 /**
  * Holds all the cache factories and provides a way to fetch them when needed.
  */
+@ExperimentalApi
 public class CacheProvider {
 
-    private final Map<CacheStoreType, Map<String, StoreAwareCache.Factory>> cacheStoreTypeFactories;
+    private final Map<String, ICache.Factory> cacheStoreTypeFactories;
     private final Settings settings;
 
     public CacheProvider(List<CachePlugin> cachePlugins, Settings settings) {
@@ -35,38 +37,46 @@ public class CacheProvider {
         this.settings = settings;
     }
 
-    private Map<CacheStoreType, Map<String, StoreAwareCache.Factory>> getCacheStoreTypeFactories(List<CachePlugin> cachePlugins) {
-        Map<CacheStoreType, Map<String, StoreAwareCache.Factory>> cacheStoreTypeFactories = new HashMap<>();
+    private Map<String, ICache.Factory> getCacheStoreTypeFactories(List<CachePlugin> cachePlugins) {
+        Map<String, ICache.Factory> cacheStoreTypeFactories = new HashMap<>();
         for (CachePlugin cachePlugin : cachePlugins) {
-            Map<CacheStoreType, StoreAwareCache.Factory> factoryMap = cachePlugin.getCacheStoreTypeMap();
-            for (Map.Entry<CacheStoreType, StoreAwareCache.Factory> entry : factoryMap.entrySet()) {
-                if (cacheStoreTypeFactories.computeIfAbsent(entry.getKey(), k -> new HashMap<>())
-                    .putIfAbsent(entry.getValue().getCacheName(), entry.getValue()) != null) {
-                    throw new IllegalArgumentException(
-                        "Cache name: " + entry.getValue().getCacheName() + " is " + "already registered for store type: " + entry.getKey()
-                    );
+            Map<String, ICache.Factory> factoryMap = cachePlugin.getCacheFactoryMap(this);
+            for (Map.Entry<String, ICache.Factory> entry : factoryMap.entrySet()) {
+                if (cacheStoreTypeFactories.put(entry.getKey(), entry.getValue()) != null) {
+                    throw new IllegalArgumentException("Cache name: " + entry.getKey() + " is " + "already registered");
                 }
             }
         }
+        // Add the core OpenSearchOnHeapCache as well.
+        cacheStoreTypeFactories.put(
+            OpenSearchOnHeapCache.OpenSearchOnHeapCacheFactory.NAME,
+            new OpenSearchOnHeapCache.OpenSearchOnHeapCacheFactory()
+        );
         return Collections.unmodifiableMap(cacheStoreTypeFactories);
     }
 
     // Package private for testing.
-    protected Map<CacheStoreType, Map<String, StoreAwareCache.Factory>> getCacheStoreTypeFactories() {
+    protected Map<String, ICache.Factory> getCacheStoreTypeFactories() {
         return cacheStoreTypeFactories;
     }
 
-    public Optional<StoreAwareCache.Factory> getStoreAwareCacheForCacheType(CacheStoreType cacheStoreType, CacheType cacheType) {
-        if (!cacheStoreTypeFactories.containsKey(cacheStoreType) || cacheStoreTypeFactories.get(cacheStoreType).isEmpty()) {
+    public Optional<ICache.Factory> getCacheFactoryForCacheStoreName(String cacheStoreName) {
+        if (cacheStoreName == null || cacheStoreName.isBlank()) {
             return Optional.empty();
+        } else {
+            return Optional.ofNullable(cacheStoreTypeFactories.get(cacheStoreName));
         }
+    }
 
-        Setting<String> cacheSettingForCacheType = CacheSettings.getConcreteSettingForCacheType(cacheType, cacheStoreType);
+    public Optional<ICache.Factory> getCacheFactoryForCacheType(CacheType cacheType) {
+        Setting<String> cacheSettingForCacheType = CacheSettings.CACHE_TYPE_STORE_NAME.getConcreteSettingForNamespace(
+            cacheType.getSettingPrefix()
+        );
         String storeName = cacheSettingForCacheType.get(settings);
         if (storeName == null || storeName.isBlank()) {
             return Optional.empty();
         } else {
-            return Optional.ofNullable(cacheStoreTypeFactories.get(cacheStoreType).get(storeName));
+            return Optional.ofNullable(cacheStoreTypeFactories.get(storeName));
         }
     }
 }

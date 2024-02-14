@@ -11,19 +11,18 @@ package org.opensearch.cache.store.disk;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.OpenSearchException;
-import org.opensearch.cache.EhcacheSettings;
+import org.opensearch.cache.EhcacheDiskCacheSettings;
 import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.cache.CacheType;
+import org.opensearch.common.cache.ICache;
 import org.opensearch.common.cache.LoadAwareCacheLoader;
+import org.opensearch.common.cache.RemovalListener;
+import org.opensearch.common.cache.RemovalNotification;
 import org.opensearch.common.cache.RemovalReason;
 import org.opensearch.common.cache.stats.CacheStats;
-import org.opensearch.common.cache.store.StoreAwareCache;
-import org.opensearch.common.cache.store.StoreAwareCacheRemovalNotification;
-import org.opensearch.common.cache.store.builders.StoreAwareCacheBuilder;
-import org.opensearch.common.cache.store.config.StoreAwareCacheConfig;
-import org.opensearch.common.cache.store.enums.CacheStoreType;
-import org.opensearch.common.cache.store.listeners.StoreAwareCacheEventListener;
+import org.opensearch.common.cache.store.builders.ICacheBuilder;
+import org.opensearch.common.cache.store.config.CacheConfig;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.metrics.CounterMetric;
 import org.opensearch.common.settings.Setting;
@@ -60,15 +59,14 @@ import org.ehcache.impl.config.store.disk.OffHeapDiskStoreConfiguration;
 import org.ehcache.spi.loaderwriter.CacheLoadingException;
 import org.ehcache.spi.loaderwriter.CacheWritingException;
 
-import static org.opensearch.cache.EhcacheSettings.DISK_CACHE_ALIAS_KEY;
-import static org.opensearch.cache.EhcacheSettings.DISK_CACHE_EXPIRE_AFTER_ACCESS_KEY;
-import static org.opensearch.cache.EhcacheSettings.DISK_MAX_SIZE_IN_BYTES_KEY;
-import static org.opensearch.cache.EhcacheSettings.DISK_SEGMENT_KEY;
-import static org.opensearch.cache.EhcacheSettings.DISK_STORAGE_PATH_KEY;
-import static org.opensearch.cache.EhcacheSettings.DISK_STORAGE_PATH_SETTING;
-import static org.opensearch.cache.EhcacheSettings.DISK_WRITE_CONCURRENCY_KEY;
-import static org.opensearch.cache.EhcacheSettings.DISK_WRITE_MAXIMUM_THREADS_KEY;
-import static org.opensearch.cache.EhcacheSettings.DISK_WRITE_MIN_THREADS_KEY;
+import static org.opensearch.cache.EhcacheDiskCacheSettings.DISK_CACHE_ALIAS_KEY;
+import static org.opensearch.cache.EhcacheDiskCacheSettings.DISK_CACHE_EXPIRE_AFTER_ACCESS_KEY;
+import static org.opensearch.cache.EhcacheDiskCacheSettings.DISK_MAX_SIZE_IN_BYTES_KEY;
+import static org.opensearch.cache.EhcacheDiskCacheSettings.DISK_SEGMENT_KEY;
+import static org.opensearch.cache.EhcacheDiskCacheSettings.DISK_STORAGE_PATH_KEY;
+import static org.opensearch.cache.EhcacheDiskCacheSettings.DISK_WRITE_CONCURRENCY_KEY;
+import static org.opensearch.cache.EhcacheDiskCacheSettings.DISK_WRITE_MAXIMUM_THREADS_KEY;
+import static org.opensearch.cache.EhcacheDiskCacheSettings.DISK_WRITE_MIN_THREADS_KEY;
 
 /**
  * This variant of disk cache uses Ehcache underneath.
@@ -79,7 +77,7 @@ import static org.opensearch.cache.EhcacheSettings.DISK_WRITE_MIN_THREADS_KEY;
  *
  */
 @ExperimentalApi
-public class EhcacheDiskCache<K, V> implements StoreAwareCache<K, V> {
+public class EhcacheDiskCache<K, V> implements ICache<K, V> {
 
     private static final Logger logger = LogManager.getLogger(EhcacheDiskCache.class);
 
@@ -102,7 +100,7 @@ public class EhcacheDiskCache<K, V> implements StoreAwareCache<K, V> {
     private final EhCacheEventListener<K, V> ehCacheEventListener;
     private final String threadPoolAlias;
     private final Settings settings;
-    private final StoreAwareCacheEventListener<K, V> eventListener;
+    private final RemovalListener<K, V> removalListener;
     private final CacheType cacheType;
     private final String diskCacheAlias;
 
@@ -137,9 +135,9 @@ public class EhcacheDiskCache<K, V> implements StoreAwareCache<K, V> {
         }
         this.settings = Objects.requireNonNull(builder.getSettings(), "Settings objects shouldn't be null");
         this.cacheManager = buildCacheManager();
-        Objects.requireNonNull(builder.getEventListener(), "Listener can't be null");
-        this.eventListener = builder.getEventListener();
-        this.ehCacheEventListener = new EhCacheEventListener<K, V>(builder.getEventListener());
+        Objects.requireNonNull(builder.getRemovalListener(), "Removal listener can't be null");
+        this.removalListener = builder.getRemovalListener();
+        this.ehCacheEventListener = new EhCacheEventListener<K, V>(builder.getRemovalListener());
         this.cache = buildCache(Duration.ofMillis(expireAfterAccess.getMillis()), builder);
     }
 
@@ -171,12 +169,10 @@ public class EhcacheDiskCache<K, V> implements StoreAwareCache<K, V> {
                     .withService(
                         new OffHeapDiskStoreConfiguration(
                             this.threadPoolAlias,
-                            (Integer) EhcacheSettings.getSettingListForCacheTypeAndStore(cacheType, CacheStoreType.DISK)
+                            (Integer) EhcacheDiskCacheSettings.getSettingListForCacheType(cacheType)
                                 .get(DISK_WRITE_CONCURRENCY_KEY)
                                 .get(settings),
-                            (Integer) EhcacheSettings.getSettingListForCacheTypeAndStore(cacheType, CacheStoreType.DISK)
-                                .get(DISK_SEGMENT_KEY)
-                                .get(settings)
+                            (Integer) EhcacheDiskCacheSettings.getSettingListForCacheType(cacheType).get(DISK_SEGMENT_KEY).get(settings)
                         )
                     )
             );
@@ -222,10 +218,10 @@ public class EhcacheDiskCache<K, V> implements StoreAwareCache<K, V> {
                     // like event listeners
                     .pool(
                         this.threadPoolAlias,
-                        (Integer) EhcacheSettings.getSettingListForCacheTypeAndStore(cacheType, CacheStoreType.DISK)
+                        (Integer) EhcacheDiskCacheSettings.getSettingListForCacheType(cacheType)
                             .get(DISK_WRITE_MIN_THREADS_KEY)
                             .get(settings),
-                        (Integer) EhcacheSettings.getSettingListForCacheTypeAndStore(cacheType, CacheStoreType.DISK)
+                        (Integer) EhcacheDiskCacheSettings.getSettingListForCacheType(cacheType)
                             .get(DISK_WRITE_MAXIMUM_THREADS_KEY)
                             .get(settings)
                     )
@@ -244,11 +240,6 @@ public class EhcacheDiskCache<K, V> implements StoreAwareCache<K, V> {
             value = cache.get(key);
         } catch (CacheLoadingException ex) {
             throw new OpenSearchException("Exception occurred while trying to fetch item from ehcache disk cache");
-        }
-        if (value != null) {
-            eventListener.onHit(key, value, CacheStoreType.DISK);
-        } else {
-            eventListener.onMiss(key, CacheStoreType.DISK);
         }
         return value;
     }
@@ -282,11 +273,6 @@ public class EhcacheDiskCache<K, V> implements StoreAwareCache<K, V> {
         V value = cache.get(key);
         if (value == null) {
             value = compute(key, loader);
-        }
-        if (!loader.isLoaded()) {
-            eventListener.onHit(key, value, CacheStoreType.DISK);
-        } else {
-            eventListener.onMiss(key, CacheStoreType.DISK);
         }
         return value;
     }
@@ -397,25 +383,8 @@ public class EhcacheDiskCache<K, V> implements StoreAwareCache<K, V> {
     }
 
     /**
-     * Relevant stats for this cache.
-     * @return CacheStats
-     */
-    @Override
-    public CacheStats stats() {
-        return stats;
-    }
-
-    /**
-     * Returns the tier type.
-     * @return CacheStoreType.DISK
-     */
-    @Override
-    public CacheStoreType getTierType() {
-        return CacheStoreType.DISK;
-    }
-
-    /**
      * Stats related to disk cache.
+     * TODO: Remove this once cache stats are integrated.
      */
     static class DiskCacheStats implements CacheStats {
         private final CounterMetric count = new CounterMetric();
@@ -459,10 +428,10 @@ public class EhcacheDiskCache<K, V> implements StoreAwareCache<K, V> {
      */
     class EhCacheEventListener<K, V> implements CacheEventListener<K, V> {
 
-        private final StoreAwareCacheEventListener<K, V> eventListener;
+        private final RemovalListener<K, V> removalListener;
 
-        EhCacheEventListener(StoreAwareCacheEventListener<K, V> eventListener) {
-            this.eventListener = eventListener;
+        EhCacheEventListener(RemovalListener<K, V> removalListener) {
+            this.removalListener = removalListener;
         }
 
         @Override
@@ -470,41 +439,22 @@ public class EhcacheDiskCache<K, V> implements StoreAwareCache<K, V> {
             switch (event.getType()) {
                 case CREATED:
                     stats.count.inc();
-                    this.eventListener.onCached(event.getKey(), event.getNewValue(), CacheStoreType.DISK);
+                    // this.eventListener.onCached(event.getKey(), event.getNewValue(), CacheStoreType.DISK);
                     assert event.getOldValue() == null;
                     break;
                 case EVICTED:
-                    this.eventListener.onRemoval(
-                        new StoreAwareCacheRemovalNotification<>(
-                            event.getKey(),
-                            event.getOldValue(),
-                            RemovalReason.EVICTED,
-                            CacheStoreType.DISK
-                        )
-                    );
+                    this.removalListener.onRemoval(new RemovalNotification<>(event.getKey(), event.getOldValue(), RemovalReason.EVICTED));
                     stats.count.dec();
                     assert event.getNewValue() == null;
                     break;
                 case REMOVED:
                     stats.count.dec();
-                    this.eventListener.onRemoval(
-                        new StoreAwareCacheRemovalNotification<>(
-                            event.getKey(),
-                            event.getOldValue(),
-                            RemovalReason.EXPLICIT,
-                            CacheStoreType.DISK
-                        )
-                    );
+                    this.removalListener.onRemoval(new RemovalNotification<>(event.getKey(), event.getOldValue(), RemovalReason.EXPLICIT));
                     assert event.getNewValue() == null;
                     break;
                 case EXPIRED:
-                    this.eventListener.onRemoval(
-                        new StoreAwareCacheRemovalNotification<>(
-                            event.getKey(),
-                            event.getOldValue(),
-                            RemovalReason.INVALIDATED,
-                            CacheStoreType.DISK
-                        )
+                    this.removalListener.onRemoval(
+                        new RemovalNotification<>(event.getKey(), event.getOldValue(), RemovalReason.INVALIDATED)
                     );
                     stats.count.dec();
                     assert event.getNewValue() == null;
@@ -520,12 +470,12 @@ public class EhcacheDiskCache<K, V> implements StoreAwareCache<K, V> {
     /**
      * Factory to create an ehcache disk cache.
      */
-    public static class EhcacheDiskCacheFactory implements StoreAwareCache.Factory {
+    public static class EhcacheDiskCacheFactory implements ICache.Factory {
 
         /**
          * Ehcache disk cache name.
          */
-        public static final String EHCACHE_DISK_CACHE_NAME = "ehcacheDiskCache";
+        public static final String EHCACHE_DISK_CACHE_NAME = "ehcache_disk";
 
         /**
          * Default constructor.
@@ -533,18 +483,15 @@ public class EhcacheDiskCache<K, V> implements StoreAwareCache<K, V> {
         public EhcacheDiskCacheFactory() {}
 
         @Override
-        public <K, V> StoreAwareCache<K, V> create(StoreAwareCacheConfig<K, V> config, CacheType cacheType) {
-            Map<String, Setting<?>> settingList = EhcacheSettings.getSettingListForCacheTypeAndStore(cacheType, CacheStoreType.DISK);
+        public <K, V> ICache<K, V> create(CacheConfig<K, V> config, CacheType cacheType) {
+            Map<String, Setting<?>> settingList = EhcacheDiskCacheSettings.getSettingListForCacheType(cacheType);
             Settings settings = config.getSettings();
-            Setting<String> stringSetting = DISK_STORAGE_PATH_SETTING.getConcreteSettingForNamespace(
-                CacheType.INDICES_REQUEST_CACHE.getSettingPrefix()
-            );
             return new Builder<K, V>().setStoragePath((String) settingList.get(DISK_STORAGE_PATH_KEY).get(settings))
                 .setDiskCacheAlias((String) settingList.get(DISK_CACHE_ALIAS_KEY).get(settings))
                 .setCacheType(cacheType)
                 .setKeyType((config.getKeyType()))
                 .setValueType(config.getValueType())
-                .setEventListener(config.getEventListener())
+                .setRemovalListener(config.getRemovalListener())
                 .setExpireAfterAccess((TimeValue) settingList.get(DISK_CACHE_EXPIRE_AFTER_ACCESS_KEY).get(settings))
                 .setMaximumWeightInBytes((Long) settingList.get(DISK_MAX_SIZE_IN_BYTES_KEY).get(settings))
                 .setSettings(settings)
@@ -562,7 +509,7 @@ public class EhcacheDiskCache<K, V> implements StoreAwareCache<K, V> {
      * @param <K> Type of key
      * @param <V> Type of value
      */
-    public static class Builder<K, V> extends StoreAwareCacheBuilder<K, V> {
+    public static class Builder<K, V> extends ICacheBuilder<K, V> {
 
         private CacheType cacheType;
         private String storagePath;

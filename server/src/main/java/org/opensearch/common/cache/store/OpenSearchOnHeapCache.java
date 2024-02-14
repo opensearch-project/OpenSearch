@@ -10,13 +10,21 @@ package org.opensearch.common.cache.store;
 
 import org.opensearch.common.cache.Cache;
 import org.opensearch.common.cache.CacheBuilder;
+import org.opensearch.common.cache.CacheType;
+import org.opensearch.common.cache.ICache;
 import org.opensearch.common.cache.LoadAwareCacheLoader;
 import org.opensearch.common.cache.RemovalListener;
 import org.opensearch.common.cache.RemovalNotification;
-import org.opensearch.common.cache.stats.CacheStats;
-import org.opensearch.common.cache.store.builders.StoreAwareCacheBuilder;
-import org.opensearch.common.cache.store.enums.CacheStoreType;
-import org.opensearch.common.cache.store.listeners.StoreAwareCacheEventListener;
+import org.opensearch.common.cache.store.builders.ICacheBuilder;
+import org.opensearch.common.cache.store.config.CacheConfig;
+import org.opensearch.common.cache.store.settings.OpenSearchOnHeapCacheSettings;
+import org.opensearch.common.settings.Setting;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.core.common.unit.ByteSizeValue;
+
+import java.util.Map;
+
+import static org.opensearch.common.cache.store.settings.OpenSearchOnHeapCacheSettings.MAXIMUM_SIZE_IN_BYTES_KEY;
 
 /**
  * This variant of on-heap cache uses OpenSearch custom cache implementation.
@@ -25,13 +33,10 @@ import org.opensearch.common.cache.store.listeners.StoreAwareCacheEventListener;
  *
  * @opensearch.experimental
  */
-public class OpenSearchOnHeapCache<K, V> implements StoreAwareCache<K, V>, RemovalListener<K, V> {
+public class OpenSearchOnHeapCache<K, V> implements ICache<K, V>, RemovalListener<K, V> {
 
     private final Cache<K, V> cache;
-
-    private final StoreAwareCacheEventListener<K, V> eventListener;
-
-    private final CacheStats stats = new OpenSearchOnHeapCacheStats();
+    private final RemovalListener<K, V> removalListener;
 
     public OpenSearchOnHeapCache(Builder<K, V> builder) {
         CacheBuilder<K, V> cacheBuilder = CacheBuilder.<K, V>builder()
@@ -42,35 +47,23 @@ public class OpenSearchOnHeapCache<K, V> implements StoreAwareCache<K, V>, Remov
             cacheBuilder.setExpireAfterAccess(builder.getExpireAfterAcess());
         }
         cache = cacheBuilder.build();
-        this.eventListener = builder.getEventListener();
+        this.removalListener = builder.getRemovalListener();
     }
 
     @Override
     public V get(K key) {
         V value = cache.get(key);
-        if (value != null) {
-            eventListener.onHit(key, value, CacheStoreType.ON_HEAP);
-        } else {
-            eventListener.onMiss(key, CacheStoreType.ON_HEAP);
-        }
         return value;
     }
 
     @Override
     public void put(K key, V value) {
         cache.put(key, value);
-        eventListener.onCached(key, value, CacheStoreType.ON_HEAP);
     }
 
     @Override
     public V computeIfAbsent(K key, LoadAwareCacheLoader<K, V> loader) throws Exception {
         V value = cache.computeIfAbsent(key, key1 -> loader.load(key));
-        if (!loader.isLoaded()) {
-            eventListener.onHit(key, value, CacheStoreType.ON_HEAP);
-        } else {
-            eventListener.onMiss(key, CacheStoreType.ON_HEAP);
-            eventListener.onCached(key, value, CacheStoreType.ON_HEAP);
-        }
         return value;
     }
 
@@ -91,7 +84,7 @@ public class OpenSearchOnHeapCache<K, V> implements StoreAwareCache<K, V>, Remov
 
     @Override
     public long count() {
-        return stats.count();
+        return cache.count();
     }
 
     @Override
@@ -103,34 +96,29 @@ public class OpenSearchOnHeapCache<K, V> implements StoreAwareCache<K, V>, Remov
     public void close() {}
 
     @Override
-    public CacheStats stats() {
-        return stats;
-    }
-
-    @Override
-    public CacheStoreType getTierType() {
-        return CacheStoreType.ON_HEAP;
-    }
-
-    @Override
     public void onRemoval(RemovalNotification<K, V> notification) {
-        eventListener.onRemoval(
-            new StoreAwareCacheRemovalNotification<>(
-                notification.getKey(),
-                notification.getValue(),
-                notification.getRemovalReason(),
-                CacheStoreType.ON_HEAP
-            )
-        );
+        this.removalListener.onRemoval(notification);
     }
 
     /**
-     * Stats for opensearch on heap cache.
+     * Factory to create OpenSearchOnheap cache.
      */
-    class OpenSearchOnHeapCacheStats implements CacheStats {
+    public static class OpenSearchOnHeapCacheFactory implements Factory {
+
+        public static final String NAME = "opensearch_onheap";
+
         @Override
-        public long count() {
-            return cache.count();
+        public <K, V> ICache<K, V> create(CacheConfig<K, V> config, CacheType cacheType) {
+            Map<String, Setting<?>> settingList = OpenSearchOnHeapCacheSettings.getSettingListForCacheType(cacheType);
+            Settings settings = config.getSettings();
+            return new Builder<K, V>().setMaximumWeightInBytes(
+                ((ByteSizeValue) settingList.get(MAXIMUM_SIZE_IN_BYTES_KEY).get(settings)).getBytes()
+            ).setWeigher(config.getWeigher()).setRemovalListener(config.getRemovalListener()).build();
+        }
+
+        @Override
+        public String getCacheName() {
+            return NAME;
         }
     }
 
@@ -139,10 +127,10 @@ public class OpenSearchOnHeapCache<K, V> implements StoreAwareCache<K, V>, Remov
      * @param <K> Type of key
      * @param <V> Type of value
      */
-    public static class Builder<K, V> extends StoreAwareCacheBuilder<K, V> {
+    public static class Builder<K, V> extends ICacheBuilder<K, V> {
 
         @Override
-        public StoreAwareCache<K, V> build() {
+        public ICache<K, V> build() {
             return new OpenSearchOnHeapCache<K, V>(this);
         }
     }
