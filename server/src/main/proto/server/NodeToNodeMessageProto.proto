@@ -26,7 +26,7 @@ message NodeToNodeMessage {
   string action = 7;
   int64 requestId = 8;
   oneof message {
-    QueryFetchSearchResult queryFetchSearchResult = 16;
+    QueryFetchSearchResult queryFetchSearchResult = 9;
   }
   
   message Header {

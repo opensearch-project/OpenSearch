@@ -36,7 +36,6 @@ import org.opensearch.Version;
 import org.opensearch.common.bytes.ReleasableBytesReference;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lease.Releasables;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.util.PageCacheRecycler;
 import org.opensearch.core.common.breaker.CircuitBreaker;
 import org.opensearch.core.common.bytes.BytesReference;
@@ -122,11 +121,18 @@ public class InboundPipeline implements Releasable {
     }
 
     public void doHandleBytes(TcpChannel channel, ReleasableBytesReference reference) throws IOException {
-        try {
-            channel.getChannelStats().markAccessed(relativeTimeInMillis.getAsLong());
-            statsTracker.markBytesRead(reference.length());
-            pending.add(reference.retain());
+        channel.getChannelStats().markAccessed(relativeTimeInMillis.getAsLong());
+        statsTracker.markBytesRead(reference.length());
+        pending.add(reference.retain());
 
+        BaseInboundMessage.Protocol incomingMessageProtocol = TcpTransport.determineTransportProtocol(reference);
+        if (incomingMessageProtocol == BaseInboundMessage.Protocol.PROTOBUF) {
+            // removing the first byte we added for protobuf message
+            byte[] incomingBytes = BytesReference.toBytes(reference.slice(3, reference.length() - 3));
+            NodeToNodeMessage protobufMessage = new NodeToNodeMessage(incomingBytes);
+            protobufMessage.setProtocol();
+            messageHandler.accept(channel, protobufMessage);
+        } else {
             final ArrayList<Object> fragments = fragmentList.get();
             boolean continueHandling = true;
 
@@ -160,14 +166,6 @@ public class InboundPipeline implements Releasable {
                         fragments.clear();
                     }
                 }
-            }
-        } catch (Exception e) {
-            // If the node is sending a message which is not the original format, it might be a protobuf message.
-            if (FeatureFlags.isEnabled(FeatureFlags.PROTOBUF_SETTING)) {
-                byte[] incomingBytes = BytesReference.toBytes(reference);
-                NodeToNodeMessage protobufMessage = new NodeToNodeMessage(incomingBytes);
-                protobufMessage.setProtocol();
-                messageHandler.accept(channel, protobufMessage);
             }
         }
     }
