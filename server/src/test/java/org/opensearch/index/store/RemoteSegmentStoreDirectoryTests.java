@@ -61,10 +61,6 @@ import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
-<<<<<<< HEAD
-import java.util.regex.Pattern;
-=======
->>>>>>> RemoteSegmentStoreDirectory
 import java.util.stream.Collectors;
 
 import org.mockito.Mockito;
