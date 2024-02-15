@@ -220,9 +220,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         SortedSetDocValues globalOrds = valuesSource.globalOrdinalsValues(ctx);
         collectionStrategy.globalOrdsReady(globalOrds);
 
-        if (collectionStrategy instanceof DenseGlobalOrds
-            && this.resultStrategy instanceof StandardTermsResults
-            && sub == LeafBucketCollector.NO_OP_COLLECTOR) {
+        if (collectionStrategy instanceof DenseGlobalOrds && sub == LeafBucketCollector.NO_OP_COLLECTOR) {
             LeafBucketCollector termDocFreqCollector = termDocFreqCollector(
                 ctx,
                 globalOrds,
@@ -432,18 +430,13 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
             assert sub == LeafBucketCollector.NO_OP_COLLECTOR;
             mapping = valuesSource.globalOrdinalsMapping(ctx);
 
-            if (this.resultStrategy instanceof StandardTermsResults) {
-                LeafBucketCollector termDocFreqCollector = this.termDocFreqCollector(
-                    ctx,
-                    segmentOrds,
-                    (ord, docCount) -> incrementBucketDocCount(
-                        collectionStrategy.globalOrdToBucketOrd(0, mapping.applyAsLong(ord)),
-                        docCount
-                    )
-                );
-                if (termDocFreqCollector != null) {
-                    return termDocFreqCollector;
-                }
+            LeafBucketCollector termDocFreqCollector = this.termDocFreqCollector(
+                ctx,
+                segmentOrds,
+                (ord, docCount) -> incrementBucketDocCount(collectionStrategy.globalOrdToBucketOrd(0, mapping.applyAsLong(ord)), docCount)
+            );
+            if (termDocFreqCollector != null) {
+                return termDocFreqCollector;
             }
 
             final SortedDocValues singleValues = DocValues.unwrapSingleton(segmentOrds);
