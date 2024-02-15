@@ -305,9 +305,7 @@ public class MockLogAppender extends AbstractAppender implements AutoCloseable {
         public void assertMatched() {
             if (!eventSeen.get()) {
                 final StringBuilder failureMessage = new StringBuilder();
-                failureMessage.append(
-                    String.format("%s was not seen, found %d messages matching the logger.", expectationName, loggerMatches.size())
-                );
+                failureMessage.append(expectationName + " was not seen, found " + loggerMatches.size() + " messages matching the logger.");
                 failureMessage.append("\r\nMessage matching regex: " + messageMatchingRegex);
                 if (!loggerMatches.isEmpty()) {
                     failureMessage.append("\r\nMessage details:\r\n" + String.join("\r\n", loggerMatches));
