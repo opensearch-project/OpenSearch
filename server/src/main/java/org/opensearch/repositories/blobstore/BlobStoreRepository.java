@@ -1592,8 +1592,11 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                                 Map<String, BlobMetadata> shardLevelBlobs = shardBlob.getValue().listBlobs();
                                 for (Map.Entry<String, BlobMetadata> shardLevelBlob : shardLevelBlobs.entrySet()) {
                                     String blob = shardLevelBlob.getKey();
-                                    String snapshotUUID = blob.substring(SHALLOW_SNAPSHOT_PREFIX.length(), blob.length() - ".dat".length());
                                     if (blob.startsWith(SHALLOW_SNAPSHOT_PREFIX) && blob.endsWith(".dat")) {
+                                        String snapshotUUID = blob.substring(
+                                            SHALLOW_SNAPSHOT_PREFIX.length(),
+                                            blob.length() - ".dat".length()
+                                        );
                                         RemoteStoreShardShallowCopySnapshot remoteStoreShardShallowCopySnapshot =
                                             REMOTE_STORE_SHARD_SHALLOW_COPY_SNAPSHOT_FORMAT.read(
                                                 shardBlob.getValue(),
