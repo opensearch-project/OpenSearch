@@ -39,16 +39,13 @@ import org.opensearch.action.admin.indices.refresh.RefreshResponse;
 import org.opensearch.action.get.GetResponse;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
-import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 
-import java.util.Arrays;
 import java.util.Collection;
 
 import static org.opensearch.client.Requests.flushRequest;
 import static org.opensearch.client.Requests.getRequest;
 import static org.opensearch.client.Requests.indexRequest;
-import static org.opensearch.indices.IndicesService.CLUSTER_REPLICATION_TYPE_SETTING;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -60,10 +57,7 @@ public class SimpleRecoveryIT extends ParameterizedStaticSettingsOpenSearchInteg
 
     @ParametersFactory
     public static Collection<Object[]> parameters() {
-        return Arrays.asList(
-            new Object[] { Settings.builder().put(CLUSTER_REPLICATION_TYPE_SETTING.getKey(), ReplicationType.DOCUMENT).build() },
-            new Object[] { Settings.builder().put(CLUSTER_REPLICATION_TYPE_SETTING.getKey(), ReplicationType.SEGMENT).build() }
-        );
+        return replicationSettings;
     }
 
     @Override
