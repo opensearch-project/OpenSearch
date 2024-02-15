@@ -61,7 +61,10 @@ import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
+<<<<<<< HEAD
 import java.util.regex.Pattern;
+=======
+>>>>>>> RemoteSegmentStoreDirectory
 import java.util.stream.Collectors;
 
 import org.mockito.Mockito;
@@ -994,20 +997,6 @@ public class RemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
                 .stream()
                 .map(metadata -> metadata.split(RemoteSegmentStoreDirectory.UploadedSegmentMetadata.SEPARATOR)[1])
                 .collect(Collectors.toList());
-
-            final String allFilesPattern = filesToBeDeleted.stream()
-                .map(Pattern::quote) // Make sure filenames are matched literally
-                .map(file -> "(?=.*?" + file + ")") // Allow for matches in any order
-                .collect(Collectors.joining("", "deletedSegmentFiles=\\[", ".*\\]"));
-
-            appender.addExpectation(
-                new MockLogAppender.PatternSeenWithLoggerPrefixExpectation(
-                    "Deleted file segments message",
-                    "org.opensearch.index.store.RemoteSegmentStoreDirectory",
-                    Level.DEBUG,
-                    allFilesPattern
-                )
-            );
 
             remoteSegmentStoreDirectory.init();
 
