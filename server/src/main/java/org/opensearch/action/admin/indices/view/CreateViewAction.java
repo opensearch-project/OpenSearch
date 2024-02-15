@@ -20,6 +20,7 @@ import org.opensearch.cluster.block.ClusterBlockLevel;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.metadata.View;
 import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.ValidationException;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.core.action.ActionListener;
@@ -37,10 +38,16 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 
 /** Action to create a view */
 @ExperimentalApi
 public class CreateViewAction extends ActionType<GetViewAction.Response> {
+
+    private static final int MAX_NAME_LENGTH = 64;
+    private static final int MAX_DESCRIPTION_LENGTH = 256;
+    private static final int MAX_TARGET_COUNT = 25;
+    private static final int MAX_TARGET_INDEX_PATTERN_LENGTH = 64;
 
     public static final CreateViewAction INSTANCE = new CreateViewAction();
     public static final String NAME = "cluster:admin/views/create";
@@ -102,11 +109,35 @@ public class CreateViewAction extends ActionType<GetViewAction.Response> {
             if (Strings.isNullOrEmpty(name)) {
                 validationException = ValidateActions.addValidationError("name cannot be empty or null", validationException);
             }
+            if (name != null && name.length() > MAX_NAME_LENGTH) {
+                validationException = ValidateActions.addValidationError(
+                    "name must be less than " + MAX_NAME_LENGTH + " characters in length",
+                    validationException
+                );
+            }
+            if (description != null && description.length() > MAX_DESCRIPTION_LENGTH) {
+                validationException = ValidateActions.addValidationError(
+                    "description must be less than " + MAX_DESCRIPTION_LENGTH + " characters in length",
+                    validationException
+                );
+            }
             if (CollectionUtils.isEmpty(targets)) {
                 validationException = ValidateActions.addValidationError("targets cannot be empty", validationException);
             } else {
+                System.out.println("targets.size()" + targets.size());
+                if (targets.size() > MAX_TARGET_COUNT) {
+                    validationException = ValidateActions.addValidationError(
+                        "view cannot have more than " + MAX_TARGET_COUNT + " targets",
+                        validationException
+                    );
+                }
                 for (final Target target : targets) {
-                    validationException = target.validate();
+                    final var validationMessages = Optional.ofNullable(target.validate())
+                        .map(ValidationException::validationErrors)
+                        .orElse(List.of());
+                    for (final String validationMessage : validationMessages) {
+                        validationException = ValidateActions.addValidationError(validationMessage, validationException);
+                    }
                 }
             }
 
@@ -161,6 +192,12 @@ public class CreateViewAction extends ActionType<GetViewAction.Response> {
 
                 if (Strings.isNullOrEmpty(indexPattern)) {
                     validationException = ValidateActions.addValidationError("index pattern cannot be empty or null", validationException);
+                }
+                if (indexPattern != null && indexPattern.length() > MAX_TARGET_INDEX_PATTERN_LENGTH) {
+                    validationException = ValidateActions.addValidationError(
+                        "target index pattern must be less than " + MAX_TARGET_INDEX_PATTERN_LENGTH + " characters in length",
+                        validationException
+                    );
                 }
 
                 return validationException;
