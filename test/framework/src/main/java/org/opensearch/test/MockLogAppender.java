@@ -39,6 +39,7 @@ import org.apache.logging.log4j.core.config.Property;
 import org.apache.logging.log4j.core.filter.RegexFilter;
 import org.opensearch.common.logging.Loggers;
 import org.opensearch.common.regex.Regex;
+import org.opensearch.test.junit.annotations.TestLogging;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -266,8 +267,10 @@ public class MockLogAppender extends AbstractAppender implements AutoCloseable {
      * Used for cases when the logger is dynamically named such as to include an index name or shard id
      *
      * Best used in conjunction with the root logger:
+     * {@code
      *     @TestLogging(value = "_root:debug", reason = "Validate logging output")
-     *
+     * }
+     * @see TestLogging
      * */
     public static class PatternSeenWithLoggerPrefixExpectation implements LoggingExpectation {
         private final String expectationName;
