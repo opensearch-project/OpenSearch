@@ -74,7 +74,7 @@ import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_ST
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_REPOSITORY_TYPE_ATTRIBUTE_KEY_FORMAT;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEY;
-import static org.opensearch.node.remotestore.RemoteStoreNodeService.DIRECTION_SETTING;
+import static org.opensearch.node.remotestore.RemoteStoreNodeService.MIGRATION_DIRECTION_SETTING;
 import static org.opensearch.node.remotestore.RemoteStoreNodeService.REMOTE_STORE_COMPATIBILITY_MODE_SETTING;
 import static org.opensearch.test.VersionUtils.allVersions;
 import static org.opensearch.test.VersionUtils.maxCompatibleVersion;
@@ -414,7 +414,7 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
     public void testRemoteStoreNodeJoiningNonRemoteStoreClusterMixedMode() {
         final DiscoveryNode existingNode = new DiscoveryNode(UUIDs.base64UUID(), buildNewFakeTransportAddress(), Version.CURRENT);
         final Settings settings = Settings.builder()
-            .put(DIRECTION_SETTING.getKey(), RemoteStoreNodeService.Direction.REMOTE_STORE)
+            .put(MIGRATION_DIRECTION_SETTING.getKey(), RemoteStoreNodeService.Direction.REMOTE_STORE)
             .put(REMOTE_STORE_COMPATIBILITY_MODE_SETTING.getKey(), "mixed")
             .build();
         final Settings nodeSettings = Settings.builder().put(REMOTE_STORE_MIGRATION_EXPERIMENTAL, "true").build();
@@ -433,7 +433,7 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
         final DiscoveryNode docrepNode = new DiscoveryNode(UUIDs.base64UUID(), buildNewFakeTransportAddress(), Version.CURRENT);
         DiscoveryNode remoteNode = newDiscoveryNode(remoteStoreNodeAttributes(SEGMENT_REPO, TRANSLOG_REPO));
         final Settings settings = Settings.builder()
-            .put(DIRECTION_SETTING.getKey(), RemoteStoreNodeService.Direction.REMOTE_STORE)
+            .put(MIGRATION_DIRECTION_SETTING.getKey(), RemoteStoreNodeService.Direction.REMOTE_STORE)
             .put(REMOTE_STORE_COMPATIBILITY_MODE_SETTING.getKey(), "mixed")
             .build();
         final Settings nodeSettings = Settings.builder().put(REMOTE_STORE_MIGRATION_EXPERIMENTAL, "true").build();

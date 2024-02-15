@@ -22,6 +22,7 @@ import org.opensearch.repositories.RepositoryException;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -56,14 +57,14 @@ public class RemoteStoreNodeService {
         Setting.Property.NodeScope
     );
 
-    public static final Setting<Direction> DIRECTION_SETTING = new Setting<>(
-        "direction",
+    public static final Setting<Direction> MIGRATION_DIRECTION_SETTING = new Setting<>(
+        "migration.direction",
         Direction.NONE.name(),
         Direction::parseString,
         value -> {
             if (value != Direction.NONE && FeatureFlags.isEnabled(FeatureFlags.REMOTE_STORE_MIGRATION_EXPERIMENTAL_SETTING) == false) {
                 throw new IllegalArgumentException(
-                    " direction is under an experimental feature and can be activated only by enabling "
+                    " migration.direction is under an experimental feature and can be activated only by enabling "
                         + REMOTE_STORE_MIGRATION_EXPERIMENTAL
                         + " feature flag in the JVM options "
                 );
@@ -97,7 +98,7 @@ public class RemoteStoreNodeService {
                         + compatibilityMode
                         + "] compatibility mode is not supported. "
                         + "supported modes are ["
-                        + CompatibilityMode.values().toString()
+                        + Arrays.toString(CompatibilityMode.values())
                         + "]"
                 );
             }
@@ -119,14 +120,7 @@ public class RemoteStoreNodeService {
             try {
                 return Direction.valueOf(direction.toUpperCase(Locale.ROOT));
             } catch (IllegalArgumentException e) {
-                throw new IllegalArgumentException(
-                    "["
-                        + direction
-                        + "] direction is not supported. "
-                        + "supported modes are ["
-                        + CompatibilityMode.values().toString()
-                        + "]"
-                );
+                throw new IllegalArgumentException("[" + direction + "] migration.direction is not supported.");
             }
         }
     }
