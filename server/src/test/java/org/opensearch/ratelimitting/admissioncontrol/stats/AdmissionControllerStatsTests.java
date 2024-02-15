@@ -20,6 +20,7 @@ import org.opensearch.ratelimitting.admissioncontrol.controllers.CpuBasedAdmissi
 import org.opensearch.ratelimitting.admissioncontrol.enums.AdmissionControlActionType;
 import org.opensearch.ratelimitting.admissioncontrol.enums.AdmissionControlMode;
 import org.opensearch.ratelimitting.admissioncontrol.settings.CpuBasedAdmissionControllerSettings;
+import org.opensearch.telemetry.metrics.NoopMetricsRegistryFactory;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
@@ -46,7 +47,8 @@ public class AdmissionControllerStatsTests extends OpenSearchTestCase {
         ClusterService clusterService = new ClusterService(
             Settings.EMPTY,
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-            threadPool
+            threadPool,
+            new NoopMetricsRegistryFactory().getMetricsRegistry()
         );
         admissionController = new CpuBasedAdmissionController("TEST", mock(ResourceUsageCollectorService.class), clusterService, settings);
         admissionControllerStats = new AdmissionControllerStats(admissionController);

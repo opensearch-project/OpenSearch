@@ -17,6 +17,7 @@ import org.opensearch.plugin.insights.rules.action.top_queries.TopQueriesRequest
 import org.opensearch.plugin.insights.rules.action.top_queries.TopQueriesResponse;
 import org.opensearch.plugin.insights.rules.model.MetricType;
 import org.opensearch.plugin.insights.settings.QueryInsightsSettings;
+import org.opensearch.telemetry.metrics.MetricsRegistry;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
@@ -33,7 +34,7 @@ public class TransportTopQueriesActionTests extends OpenSearchTestCase {
     private final Settings.Builder settingsBuilder = Settings.builder();
     private final Settings settings = settingsBuilder.build();
     private final ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-    private final ClusterService clusterService = new ClusterService(settings, clusterSettings, threadPool);
+    private final ClusterService clusterService = new ClusterService(settings, clusterSettings, threadPool, mock(MetricsRegistry.class));
     private final TransportService transportService = mock(TransportService.class);
     private final QueryInsightsService topQueriesByLatencyService = mock(QueryInsightsService.class);
     private final ActionFilters actionFilters = mock(ActionFilters.class);

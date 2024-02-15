@@ -37,6 +37,7 @@ import org.opensearch.index.store.lockmanager.RemoteStoreLockManager;
 import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpointPublisher;
 import org.opensearch.indices.replication.common.ReplicationType;
+import org.opensearch.telemetry.metrics.NoopMetricsRegistryFactory;
 import org.opensearch.threadpool.ThreadPool;
 import org.junit.After;
 
@@ -85,7 +86,8 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
         clusterService = new ClusterService(
             Settings.EMPTY,
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-            threadPool
+            threadPool,
+            new NoopMetricsRegistryFactory().getMetricsRegistry()
         );
         remoteStoreStatsTrackerFactory = new RemoteStoreStatsTrackerFactory(clusterService, Settings.EMPTY);
         remoteStoreStatsTrackerFactory.afterIndexShardCreated(indexShard);
@@ -630,7 +632,8 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
         clusterService = new ClusterService(
             Settings.EMPTY,
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-            threadPool
+            threadPool,
+            new NoopMetricsRegistryFactory().getMetricsRegistry()
         );
         RemoteStoreStatsTrackerFactory remoteStoreStatsTrackerFactory = indexShard.getRemoteStoreStatsTrackerFactory();
         when(shard.indexSettings()).thenReturn(indexShard.indexSettings());

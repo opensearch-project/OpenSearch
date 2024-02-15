@@ -16,6 +16,8 @@ import org.opensearch.ratelimitting.admissioncontrol.controllers.CpuBasedAdmissi
 import org.opensearch.ratelimitting.admissioncontrol.enums.AdmissionControlActionType;
 import org.opensearch.ratelimitting.admissioncontrol.enums.AdmissionControlMode;
 import org.opensearch.ratelimitting.admissioncontrol.settings.CpuBasedAdmissionControllerSettings;
+import org.opensearch.telemetry.metrics.MetricsRegistryFactory;
+import org.opensearch.telemetry.metrics.NoopMetricsRegistryFactory;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
@@ -26,16 +28,19 @@ public class AdmissionControlServiceTests extends OpenSearchTestCase {
     private ClusterService clusterService;
     private ThreadPool threadPool;
     private AdmissionControlService admissionControlService;
+    private MetricsRegistryFactory metricsRegistryFactory;
     private String action = "";
 
     @Override
     public void setUp() throws Exception {
         super.setUp();
         threadPool = new TestThreadPool("admission_controller_settings_test");
+        metricsRegistryFactory = new NoopMetricsRegistryFactory();
         clusterService = new ClusterService(
             Settings.EMPTY,
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-            threadPool
+            threadPool,
+            metricsRegistryFactory.getMetricsRegistry()
         );
         action = "indexing";
     }
@@ -44,6 +49,7 @@ public class AdmissionControlServiceTests extends OpenSearchTestCase {
     public void tearDown() throws Exception {
         super.tearDown();
         threadPool.shutdownNow();
+        metricsRegistryFactory.close();
     }
 
     public void testWhenAdmissionControllerRegistered() {

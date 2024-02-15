@@ -51,6 +51,8 @@ import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.ThreadContext;
+import org.opensearch.telemetry.metrics.MetricsRegistry;
+import org.opensearch.telemetry.metrics.NoopMetricsRegistryFactory;
 import org.opensearch.test.MockLogAppender;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.junit.annotations.TestLogging;
@@ -107,10 +109,12 @@ public class ClusterApplierServiceTests extends OpenSearchTestCase {
 
     private TimedClusterApplierService createTimedClusterService(boolean makeClusterManager) {
         DiscoveryNode localNode = new DiscoveryNode("node1", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
+        MetricsRegistry metricsRegistry = new NoopMetricsRegistryFactory().getMetricsRegistry();
         TimedClusterApplierService timedClusterApplierService = new TimedClusterApplierService(
             Settings.builder().put("cluster.name", "ClusterApplierServiceTests").build(),
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-            threadPool
+            threadPool,
+            metricsRegistry
         );
         timedClusterApplierService.setNodeConnectionsService(createNoOpNodeConnectionsService());
         timedClusterApplierService.setInitialState(
@@ -617,8 +621,13 @@ public class ClusterApplierServiceTests extends OpenSearchTestCase {
         volatile Long currentTimeOverride = null;
         boolean applicationMayFail;
 
-        TimedClusterApplierService(Settings settings, ClusterSettings clusterSettings, ThreadPool threadPool) {
-            super("test_node", settings, clusterSettings, threadPool);
+        TimedClusterApplierService(
+            Settings settings,
+            ClusterSettings clusterSettings,
+            ThreadPool threadPool,
+            MetricsRegistry metricsRegistry
+        ) {
+            super("test_node", settings, clusterSettings, threadPool, metricsRegistry);
             this.clusterSettings = clusterSettings;
         }
 

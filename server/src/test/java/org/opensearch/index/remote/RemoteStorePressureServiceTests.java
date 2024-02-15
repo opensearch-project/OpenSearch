@@ -14,6 +14,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.shard.IndexShard;
+import org.opensearch.telemetry.metrics.NoopMetricsRegistryFactory;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
@@ -48,7 +49,8 @@ public class RemoteStorePressureServiceTests extends OpenSearchTestCase {
         clusterService = new ClusterService(
             Settings.EMPTY,
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-            threadPool
+            threadPool,
+            new NoopMetricsRegistryFactory().getMetricsRegistry()
         );
         shardId = new ShardId("index", "uuid", 0);
     }

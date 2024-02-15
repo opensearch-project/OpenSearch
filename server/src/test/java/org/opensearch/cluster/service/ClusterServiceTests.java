@@ -10,6 +10,7 @@ package org.opensearch.cluster.service;
 
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.telemetry.metrics.NoopMetricsRegistryFactory;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.TestThreadPool;
 import org.junit.After;
@@ -29,7 +30,8 @@ public class ClusterServiceTests extends OpenSearchTestCase {
             ClusterService clusterService = new ClusterService(
                 Settings.EMPTY,
                 new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-                threadPool
+                threadPool,
+                new NoopMetricsRegistryFactory().getMetricsRegistry()
             )
         ) {
             MasterService masterService = clusterService.getMasterService();

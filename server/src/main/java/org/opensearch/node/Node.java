@@ -599,21 +599,10 @@ public class Node implements Closeable {
                 getCustomNameResolvers(pluginsService.filterPlugins(DiscoveryPlugin.class))
             );
 
-            List<ClusterPlugin> clusterPlugins = pluginsService.filterPlugins(ClusterPlugin.class);
-            final ClusterService clusterService = new ClusterService(settings, settingsModule.getClusterSettings(), threadPool);
-            clusterService.addStateApplier(scriptService);
-            resourcesToClose.add(clusterService);
-            final Set<Setting<?>> consistentSettings = settingsModule.getConsistentSettings();
-            if (consistentSettings.isEmpty() == false) {
-                clusterService.addLocalNodeMasterListener(
-                    new ConsistentSettingsService(settings, clusterService, consistentSettings).newHashPublisher()
-                );
-            }
-
             TracerFactory tracerFactory;
             MetricsRegistryFactory metricsRegistryFactory;
             if (FeatureFlags.isEnabled(TELEMETRY)) {
-                final TelemetrySettings telemetrySettings = new TelemetrySettings(settings, clusterService.getClusterSettings());
+                final TelemetrySettings telemetrySettings = new TelemetrySettings(settings, settingsModule.getClusterSettings());
                 if (telemetrySettings.isTracingFeatureEnabled() || telemetrySettings.isMetricsFeatureEnabled()) {
                     List<TelemetryPlugin> telemetryPlugins = pluginsService.filterPlugins(TelemetryPlugin.class);
                     TelemetryModule telemetryModule = new TelemetryModule(telemetryPlugins, telemetrySettings);
@@ -640,6 +629,22 @@ public class Node implements Closeable {
             metricsRegistry = metricsRegistryFactory.getMetricsRegistry();
             resourcesToClose.add(tracer::close);
             resourcesToClose.add(metricsRegistry::close);
+
+            List<ClusterPlugin> clusterPlugins = pluginsService.filterPlugins(ClusterPlugin.class);
+            final ClusterService clusterService = new ClusterService(
+                settings,
+                settingsModule.getClusterSettings(),
+                threadPool,
+                metricsRegistry
+            );
+            clusterService.addStateApplier(scriptService);
+            resourcesToClose.add(clusterService);
+            final Set<Setting<?>> consistentSettings = settingsModule.getConsistentSettings();
+            if (consistentSettings.isEmpty() == false) {
+                clusterService.addLocalNodeMasterListener(
+                    new ConsistentSettingsService(settings, clusterService, consistentSettings).newHashPublisher()
+                );
+            }
 
             final ClusterInfoService clusterInfoService = newClusterInfoService(settings, clusterService, threadPool, client);
             final UsageService usageService = new UsageService();
