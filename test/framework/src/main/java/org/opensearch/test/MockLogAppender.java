@@ -267,9 +267,7 @@ public class MockLogAppender extends AbstractAppender implements AutoCloseable {
      * Used for cases when the logger is dynamically named such as to include an index name or shard id
      *
      * Best used in conjunction with the root logger:
-     * {@code
-     *     @TestLogging(value = "_root:debug", reason = "Validate logging output")
-     * }
+     * {@code @TestLogging(value = "_root:debug", reason = "Validate logging output");}
      * @see TestLogging
      * */
     public static class PatternSeenWithLoggerPrefixExpectation implements LoggingExpectation {
