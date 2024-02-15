@@ -430,17 +430,23 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
             final SortedSetDocValues segmentOrds = valuesSource.ordinalsValues(ctx);
             segmentDocCounts = context.bigArrays().grow(segmentDocCounts, 1 + segmentOrds.getValueCount());
             assert sub == LeafBucketCollector.NO_OP_COLLECTOR;
+            mapping = valuesSource.globalOrdinalsMapping(ctx);
 
             if (this.resultStrategy instanceof StandardTermsResults) {
-                LeafBucketCollector termDocFreqCollector = this.termDocFreqCollector(ctx, segmentOrds, this::incrementBucketDocCount);
+                LeafBucketCollector termDocFreqCollector = this.termDocFreqCollector(
+                    ctx,
+                    segmentOrds,
+                    (ord, docCount) -> incrementBucketDocCount(
+                        collectionStrategy.globalOrdToBucketOrd(0, mapping.applyAsLong(ord)),
+                        docCount
+                    )
+                );
                 if (termDocFreqCollector != null) {
                     return termDocFreqCollector;
                 }
             }
 
             final SortedDocValues singleValues = DocValues.unwrapSingleton(segmentOrds);
-            mapping = valuesSource.globalOrdinalsMapping(ctx);
-            // Dense mode doesn't support include/exclude so we don't have to check it here.
             if (singleValues != null) {
                 segmentsWithSingleValuedOrds++;
                 return resultStrategy.wrapCollector(new LeafBucketCollectorBase(sub, segmentOrds) {
