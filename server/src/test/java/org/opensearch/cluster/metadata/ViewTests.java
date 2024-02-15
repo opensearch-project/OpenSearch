@@ -12,23 +12,24 @@ import org.opensearch.cluster.metadata.View.Target;
 import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.test.AbstractSerializingTestCase;
+import org.hamcrest.MatcherAssert;
 
 import java.io.IOException;
-import java.util.List;
+import java.util.Set;
+import java.util.TreeSet;
 
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 
 public class ViewTests extends AbstractSerializingTestCase<View> {
 
-    private static List<Target> randomTargets() {
-        int numTargets = randomIntBetween(0, 128);
-        return randomList(numTargets, () -> new View.Target(randomAlphaOfLength(8)));
+    private static Set<Target> randomTargets() {
+        int numTargets = randomIntBetween(1, 25);
+        return new TreeSet<>(randomList(1, numTargets, () -> new View.Target(randomAlphaOfLength(8))));
     }
 
     private static View randomInstance() {
-        final List<Target> targets = randomTargets();
+        final Set<Target> targets = randomTargets();
         final String viewName = randomAlphaOfLength(10);
         final String description = randomAlphaOfLength(100);
         return new View(viewName, description, Math.abs(randomLong()), Math.abs(randomLong()), targets);
@@ -52,28 +53,28 @@ public class ViewTests extends AbstractSerializingTestCase<View> {
     public void testNullName() {
         final NullPointerException npe = assertThrows(NullPointerException.class, () -> new View(null, null, null, null, null));
 
-        assertThat(npe.getMessage(), equalTo("Name must be provided"));
+        MatcherAssert.assertThat(npe.getMessage(), equalTo("Name must be provided"));
     }
 
     public void testNullTargets() {
         final NullPointerException npe = assertThrows(NullPointerException.class, () -> new View("name", null, null, null, null));
 
-        assertThat(npe.getMessage(), equalTo("Targets are required on a view"));
+        MatcherAssert.assertThat(npe.getMessage(), equalTo("Targets are required on a view"));
     }
 
     public void testNullTargetIndexPattern() {
         final NullPointerException npe = assertThrows(NullPointerException.class, () -> new View.Target((String) null));
 
-        assertThat(npe.getMessage(), equalTo("IndexPattern is required"));
+        MatcherAssert.assertThat(npe.getMessage(), equalTo("IndexPattern is required"));
     }
 
     public void testDefaultValues() {
-        final View view = new View("myName", null, null, null, List.of());
+        final View view = new View("myName", null, null, null, Set.of());
 
-        assertThat(view.getName(), equalTo("myName"));
-        assertThat(view.getDescription(), equalTo(null));
-        assertThat(view.getCreatedAt(), equalTo(-1L));
-        assertThat(view.getModifiedAt(), equalTo(-1L));
-        assertThat(view.getTargets(), empty());
+        MatcherAssert.assertThat(view.getName(), equalTo("myName"));
+        MatcherAssert.assertThat(view.getDescription(), equalTo(null));
+        MatcherAssert.assertThat(view.getCreatedAt(), equalTo(-1L));
+        MatcherAssert.assertThat(view.getModifiedAt(), equalTo(-1L));
+        MatcherAssert.assertThat(view.getTargets(), empty());
     }
 }

@@ -12,6 +12,8 @@ import org.opensearch.cluster.metadata.View;
 import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.test.AbstractWireSerializingTestCase;
 
+import java.util.TreeSet;
+
 public class GetViewResponseTests extends AbstractWireSerializingTestCase<GetViewAction.Response> {
 
     @Override
@@ -27,7 +29,7 @@ public class GetViewResponseTests extends AbstractWireSerializingTestCase<GetVie
                 randomAlphaOfLength(8),
                 randomLong(),
                 randomLong(),
-                randomList(5, () -> new View.Target(randomAlphaOfLength(8)))
+                new TreeSet<>(randomList(5, () -> new View.Target(randomAlphaOfLength(8))))
             )
         );
     }
