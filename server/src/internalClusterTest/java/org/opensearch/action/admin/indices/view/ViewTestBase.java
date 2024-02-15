@@ -14,6 +14,7 @@ import org.opensearch.test.BackgroundIndexer;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.util.List;
+import java.util.stream.Collectors;
 
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
 

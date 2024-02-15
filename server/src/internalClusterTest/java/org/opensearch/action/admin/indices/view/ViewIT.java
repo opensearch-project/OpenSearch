@@ -34,7 +34,7 @@ public class ViewIT extends ViewTestBase {
         final View view = createView(viewName, indexPattern).getView();
         MatcherAssert.assertThat(view.getName(), is(viewName));
         MatcherAssert.assertThat(view.getTargets().size(), is(1));
-        MatcherAssert.assertThat(view.getTargets().get(0).getIndexPattern(), is(indexPattern));
+        MatcherAssert.assertThat(view.getTargets().first().getIndexPattern(), is(indexPattern));
 
         logger.info("Testing createView with existing view name");
         final Exception ex = assertThrows(ViewAlreadyExistsException.class, () -> createView(viewName, randomAlphaOfLength(8)));
@@ -96,7 +96,7 @@ public class ViewIT extends ViewTestBase {
         MatcherAssert.assertThat(updatedView, not(is(originalView)));
         MatcherAssert.assertThat(updatedView.getDescription(), is(newDescription));
         MatcherAssert.assertThat(updatedView.getTargets(), hasSize(1));
-        MatcherAssert.assertThat(updatedView.getTargets().get(0).getIndexPattern(), is(newIndexPattern));
+        MatcherAssert.assertThat(updatedView.getTargets().first().getIndexPattern(), is(newIndexPattern));
 
         logger.info("Testing updateView with non-existent view");
         final String nonExistentView = "non-existent-" + randomAlphaOfLength(8);
