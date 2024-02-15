@@ -105,6 +105,11 @@ public class RemoteStoreNodeService {
         }
     }
 
+    /**
+     * Migration Direction intended for docrep to remote store migration and vice versa
+     *
+     * @opensearch.internal
+     */
     public enum Direction {
         REMOTE_STORE("remote_store"),
         NONE("none"),
