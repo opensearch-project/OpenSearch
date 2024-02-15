@@ -34,10 +34,14 @@ public abstract class ViewTestBase extends OpenSearchIntegTestCase {
     }
 
     protected GetViewAction.Response createView(final String name, final String indexPattern) throws Exception {
+        return createView(name, List.of(indexPattern));
+    }
+
+    protected GetViewAction.Response createView(final String name, final List<String> targets) throws Exception {
         final CreateViewAction.Request request = new CreateViewAction.Request(
             name,
             null,
-            List.of(new CreateViewAction.Request.Target(indexPattern))
+            targets.stream().map(CreateViewAction.Request.Target::new).collect(Collectors.toList())
         );
         return client().admin().indices().createView(request).actionGet();
     }

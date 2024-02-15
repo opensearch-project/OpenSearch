@@ -23,6 +23,10 @@ import org.opensearch.core.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
+import java.util.SortedSet;
+import java.util.TreeSet;
+import java.util.stream.Collectors;
 
 /** View of data in OpenSearch indices */
 @ExperimentalApi
@@ -32,18 +36,18 @@ public class View extends AbstractDiffable<View> implements ToXContentObject {
     private final String description;
     private final long createdAt;
     private final long modifiedAt;
-    private final List<Target> targets;
+    private final SortedSet<Target> targets;
 
-    public View(final String name, final String description, final Long createdAt, final Long modifiedAt, final List<Target> targets) {
+    public View(final String name, final String description, final Long createdAt, final Long modifiedAt, final Set<Target> targets) {
         this.name = Objects.requireNonNull(name, "Name must be provided");
         this.description = description;
         this.createdAt = createdAt != null ? createdAt : -1;
         this.modifiedAt = modifiedAt != null ? modifiedAt : -1;
-        this.targets = Objects.requireNonNull(targets, "Targets are required on a view");
+        this.targets = new TreeSet<>(Objects.requireNonNull(targets, "Targets are required on a view"));
     }
 
     public View(final StreamInput in) throws IOException {
-        this(in.readString(), in.readOptionalString(), in.readZLong(), in.readZLong(), in.readList(Target::new));
+        this(in.readString(), in.readOptionalString(), in.readZLong(), in.readZLong(), new TreeSet<>(in.readList(Target::new)));
     }
 
     public String getName() {
@@ -62,8 +66,8 @@ public class View extends AbstractDiffable<View> implements ToXContentObject {
         return modifiedAt;
     }
 
-    public List<Target> getTargets() {
-        return targets;
+    public SortedSet<Target> getTargets() {
+        return new TreeSet<>(targets);
     }
 
     public static Diff<View> readDiffFrom(final StreamInput in) throws IOException {
@@ -89,7 +93,7 @@ public class View extends AbstractDiffable<View> implements ToXContentObject {
 
     /** The source of data used to project the view */
     @ExperimentalApi
-    public static class Target implements Writeable, ToXContentObject {
+    public static class Target implements Writeable, ToXContentObject, Comparable<Target> {
 
         private final String indexPattern;
 
@@ -144,6 +148,14 @@ public class View extends AbstractDiffable<View> implements ToXContentObject {
         public void writeTo(final StreamOutput out) throws IOException {
             out.writeString(indexPattern);
         }
+
+        @Override
+        public int compareTo(final Target o) {
+            if (this == o) return 0;
+
+            final Target other = (Target) o;
+            return this.indexPattern.compareTo(other.indexPattern);
+        }
     }
 
     public static final ParseField NAME_FIELD = new ParseField("name");
@@ -155,7 +167,7 @@ public class View extends AbstractDiffable<View> implements ToXContentObject {
     @SuppressWarnings("unchecked")
     public static final ConstructingObjectParser<View, Void> PARSER = new ConstructingObjectParser<>(
         "view",
-        args -> new View((String) args[0], (String) args[1], (Long) args[2], (Long) args[3], (List<Target>) args[4])
+        args -> new View((String) args[0], (String) args[1], (Long) args[2], (Long) args[3], new TreeSet<>((List<Target>) args[4]))
     );
 
     static {
@@ -188,6 +200,6 @@ public class View extends AbstractDiffable<View> implements ToXContentObject {
         out.writeOptionalString(description);
         out.writeZLong(createdAt);
         out.writeZLong(modifiedAt);
-        out.writeList(targets);
+        out.writeList(targets.stream().collect(Collectors.toList()));
     }
 }

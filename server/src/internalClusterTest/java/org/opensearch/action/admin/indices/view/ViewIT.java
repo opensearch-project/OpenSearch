@@ -41,6 +41,20 @@ public class ViewIT extends ViewTestBase {
         MatcherAssert.assertThat(ex.getMessage(), is("View [" + viewName + "] already exists"));
     }
 
+    public void testCreateViewTargetsSet() throws Exception {
+        final String viewName = randomAlphaOfLength(8);
+        final String indexPattern = "a" + randomAlphaOfLength(8);
+        final String indexPattern2 = "b" + randomAlphaOfLength(8);
+        final List<String> targetPatterns = List.of(indexPattern2, indexPattern, indexPattern);
+
+        logger.info("Testing createView with targets that will be reordered and deduplicated");
+        final View view = createView(viewName, targetPatterns).getView();
+        MatcherAssert.assertThat(view.getName(), is(viewName));
+        MatcherAssert.assertThat(view.getTargets().size(), is(2));
+        MatcherAssert.assertThat(view.getTargets().first().getIndexPattern(), is(indexPattern));
+        MatcherAssert.assertThat(view.getTargets().last().getIndexPattern(), is(indexPattern2));
+    }
+
     public void testGetView() throws Exception {
         final String viewName = randomAlphaOfLength(8);
         createView(viewName, randomAlphaOfLength(8));

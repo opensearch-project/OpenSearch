@@ -24,6 +24,7 @@ import org.junit.Before;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.LongSupplier;
 
@@ -50,7 +51,7 @@ public class ViewServiceTest {
         "description " + randomAlphaOfLength(20),
         -1L,
         -1L,
-        List.of(typicalTarget)
+        Set.of(typicalTarget)
     );
 
     private ClusterService clusterService;

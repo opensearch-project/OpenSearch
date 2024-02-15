@@ -26,6 +26,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.TreeSet;
 import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
 
@@ -51,7 +52,7 @@ public class ViewService {
             .stream()
             .map(target -> new View.Target(target.getIndexPattern()))
             .collect(Collectors.toList());
-        final View view = new View(request.getName(), request.getDescription(), currentTime, currentTime, targets);
+        final View view = new View(request.getName(), request.getDescription(), currentTime, currentTime, new TreeSet<>(targets));
 
         createOrUpdateView(Operation.CreateView, view, listener);
     }
@@ -64,7 +65,13 @@ public class ViewService {
             .stream()
             .map(target -> new View.Target(target.getIndexPattern()))
             .collect(Collectors.toList());
-        final View updatedView = new View(request.getName(), request.getDescription(), originalView.getCreatedAt(), currentTime, targets);
+        final View updatedView = new View(
+            request.getName(),
+            request.getDescription(),
+            originalView.getCreatedAt(),
+            currentTime,
+            new TreeSet<>(targets)
+        );
 
         createOrUpdateView(Operation.UpdateView, updatedView, listener);
     }

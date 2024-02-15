@@ -124,7 +124,6 @@ public class CreateViewAction extends ActionType<GetViewAction.Response> {
             if (CollectionUtils.isEmpty(targets)) {
                 validationException = ValidateActions.addValidationError("targets cannot be empty", validationException);
             } else {
-                System.out.println("targets.size()" + targets.size());
                 if (targets.size() > MAX_TARGET_COUNT) {
                     validationException = ValidateActions.addValidationError(
                         "view cannot have more than " + MAX_TARGET_COUNT + " targets",
