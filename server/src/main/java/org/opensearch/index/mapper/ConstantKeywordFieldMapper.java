@@ -36,6 +36,11 @@ public class ConstantKeywordFieldMapper extends ParametrizedFieldMapper {
 
     public static final String CONTENT_TYPE = "constant_keyword";
 
+    /**
+     * A {@link Mapper.TypeParser} for the constant keyword field.
+     *
+     * @opensearch.internal
+     */
     public static class TypeParser implements Mapper.TypeParser {
         @Override
         public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
