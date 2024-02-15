@@ -61,6 +61,9 @@ import org.opensearch.common.util.concurrent.OpenSearchExecutors;
 import org.opensearch.common.util.concurrent.PrioritizedOpenSearchThreadPoolExecutor;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
+import org.opensearch.telemetry.metrics.Histogram;
+import org.opensearch.telemetry.metrics.MetricsRegistry;
+import org.opensearch.telemetry.metrics.tags.Tags;
 import org.opensearch.threadpool.Scheduler;
 import org.opensearch.threadpool.ThreadPool;
 
@@ -88,6 +91,10 @@ import static org.opensearch.common.util.concurrent.OpenSearchExecutors.daemonTh
 @PublicApi(since = "1.0.0")
 public class ClusterApplierService extends AbstractLifecycleComponent implements ClusterApplier {
     private static final Logger logger = LogManager.getLogger(ClusterApplierService.class);
+
+    private static final String LATENCY_METRIC_UNIT = "ms";
+
+    private static final String LATENCY_METRIC_OPERATION_TAG_KEY = "Operation";
 
     public static final Setting<TimeValue> CLUSTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING = Setting.positiveTimeSetting(
         "cluster.service.slow_task_logging_threshold",
@@ -121,7 +128,17 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
 
     private NodeConnectionsService nodeConnectionsService;
 
-    public ClusterApplierService(String nodeName, Settings settings, ClusterSettings clusterSettings, ThreadPool threadPool) {
+    private final Histogram clusterStateAppliersHistogram;
+
+    private final Histogram clusterStateListenersHistogram;
+
+    public ClusterApplierService(
+        String nodeName,
+        Settings settings,
+        ClusterSettings clusterSettings,
+        ThreadPool threadPool,
+        MetricsRegistry metricsRegistry
+    ) {
         this.clusterSettings = clusterSettings;
         this.threadPool = threadPool;
         this.state = new AtomicReference<>();
@@ -131,6 +148,17 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
         this.clusterSettings.addSettingsUpdateConsumer(
             CLUSTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING,
             this::setSlowTaskLoggingThreshold
+        );
+
+        this.clusterStateAppliersHistogram = metricsRegistry.createHistogram(
+            "cluster.state.appliers.latency",
+            "Histogram for tracking the latency of cluster state appliers",
+            LATENCY_METRIC_UNIT
+        );
+        this.clusterStateListenersHistogram = metricsRegistry.createHistogram(
+            "cluster.state.listeners.latency",
+            "Histogram for tracking the latency of cluster state listeners",
+            LATENCY_METRIC_UNIT
         );
     }
 
@@ -597,7 +625,7 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
         callClusterStateAppliers(clusterChangedEvent, stopWatch, lowPriorityStateAppliers);
     }
 
-    private static void callClusterStateAppliers(
+    private void callClusterStateAppliers(
         ClusterChangedEvent clusterChangedEvent,
         StopWatch stopWatch,
         Collection<ClusterStateApplier> clusterStateAppliers
@@ -605,7 +633,13 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
         for (ClusterStateApplier applier : clusterStateAppliers) {
             logger.trace("calling [{}] with change to version [{}]", applier, clusterChangedEvent.state().version());
             try (TimingHandle ignored = stopWatch.timing("running applier [" + applier + "]")) {
+                long applierStartTimeMS = currentTimeInMillis();
                 applier.applyClusterState(clusterChangedEvent);
+                double applierExecutionTimeMS = (double) Math.max(0, currentTimeInMillis() - applierStartTimeMS);
+                clusterStateAppliersHistogram.record(
+                    applierExecutionTimeMS,
+                    Tags.create().addTag(LATENCY_METRIC_OPERATION_TAG_KEY, applier.getClass().getSimpleName())
+                );
             }
         }
     }
@@ -624,7 +658,13 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
             try {
                 logger.trace("calling [{}] with change to version [{}]", listener, clusterChangedEvent.state().version());
                 try (TimingHandle ignored = stopWatch.timing("notifying listener [" + listener + "]")) {
+                    long listenerStartTimeMS = currentTimeInMillis();
                     listener.clusterChanged(clusterChangedEvent);
+                    double listenerExecutionTimeMS = (double) Math.max(0, currentTimeInMillis() - listenerStartTimeMS);
+                    clusterStateListenersHistogram.record(
+                        listenerExecutionTimeMS,
+                        Tags.create().addTag(LATENCY_METRIC_OPERATION_TAG_KEY, listener.getClass().getSimpleName())
+                    );
                 }
             } catch (Exception ex) {
                 logger.warn("failed to notify ClusterStateListener", ex);

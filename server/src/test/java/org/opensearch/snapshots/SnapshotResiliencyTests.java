@@ -224,6 +224,8 @@ import org.opensearch.search.pipeline.SearchPipelineService;
 import org.opensearch.search.query.QueryPhase;
 import org.opensearch.snapshots.mockstore.MockEventuallyConsistentRepository;
 import org.opensearch.tasks.TaskResourceTrackingService;
+import org.opensearch.telemetry.metrics.MetricsRegistry;
+import org.opensearch.telemetry.metrics.NoopMetricsRegistryFactory;
 import org.opensearch.telemetry.metrics.noop.NoopMetricsRegistry;
 import org.opensearch.telemetry.tracing.noop.NoopTracer;
 import org.opensearch.test.OpenSearchTestCase;
@@ -1915,11 +1917,12 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                 );
                 final Settings settings = environment.settings();
                 final ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+                final MetricsRegistry metricsRegistry = new NoopMetricsRegistryFactory().getMetricsRegistry();
                 clusterService = new ClusterService(
                     settings,
                     clusterSettings,
                     clusterManagerService,
-                    new ClusterApplierService(node.getName(), settings, clusterSettings, threadPool) {
+                    new ClusterApplierService(node.getName(), settings, clusterSettings, threadPool, metricsRegistry) {
                         @Override
                         protected PrioritizedOpenSearchThreadPoolExecutor createThreadPoolExecutor() {
                             return new MockSinglePrioritizingExecutor(node.getName(), deterministicTaskQueue, threadPool);

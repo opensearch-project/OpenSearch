@@ -21,6 +21,7 @@ import org.opensearch.plugin.insights.rules.resthandler.top_queries.RestTopQueri
 import org.opensearch.plugin.insights.settings.QueryInsightsSettings;
 import org.opensearch.plugins.ActionPlugin;
 import org.opensearch.rest.RestHandler;
+import org.opensearch.telemetry.metrics.MetricsRegistry;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.ExecutorBuilder;
 import org.opensearch.threadpool.ScalingExecutorBuilder;
@@ -50,7 +51,7 @@ public class QueryInsightsPluginTests extends OpenSearchTestCase {
         clusterSettings.registerSetting(QueryInsightsSettings.TOP_N_LATENCY_QUERIES_SIZE);
         clusterSettings.registerSetting(QueryInsightsSettings.TOP_N_LATENCY_QUERIES_WINDOW_SIZE);
 
-        clusterService = new ClusterService(settings, clusterSettings, threadPool);
+        clusterService = new ClusterService(settings, clusterSettings, threadPool, mock(MetricsRegistry.class));
 
     }
 

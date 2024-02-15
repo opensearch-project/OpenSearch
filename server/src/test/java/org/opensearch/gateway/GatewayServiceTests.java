@@ -53,6 +53,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.common.transport.TransportAddress;
 import org.opensearch.snapshots.EmptySnapshotsInfoService;
+import org.opensearch.telemetry.metrics.NoopMetricsRegistryFactory;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.gateway.TestGatewayAllocator;
 import org.hamcrest.Matchers;
@@ -71,7 +72,8 @@ public class GatewayServiceTests extends OpenSearchTestCase {
         final ClusterService clusterService = new ClusterService(
             Settings.builder().put("cluster.name", "GatewayServiceTests").build(),
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-            null
+            null,
+            new NoopMetricsRegistryFactory().getMetricsRegistry()
         );
         final AllocationService allocationService = new AllocationService(
             new AllocationDeciders(

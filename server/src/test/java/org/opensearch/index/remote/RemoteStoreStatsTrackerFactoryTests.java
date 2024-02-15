@@ -13,6 +13,8 @@ import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.shard.IndexShard;
+import org.opensearch.telemetry.metrics.MetricsRegistryFactory;
+import org.opensearch.telemetry.metrics.NoopMetricsRegistryFactory;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
@@ -26,6 +28,7 @@ public class RemoteStoreStatsTrackerFactoryTests extends OpenSearchTestCase {
     private ShardId shardId;
     private IndexShard indexShard;
     private RemoteStoreStatsTrackerFactory remoteStoreStatsTrackerFactory;
+    private MetricsRegistryFactory metricsRegistryFactory;
 
     @Override
     public void setUp() throws Exception {
@@ -33,13 +36,19 @@ public class RemoteStoreStatsTrackerFactoryTests extends OpenSearchTestCase {
         shardId = new ShardId("index", "uuid", 0);
         indexShard = createIndexShard(shardId, true);
         threadPool = new TestThreadPool(getTestName());
+        metricsRegistryFactory = new NoopMetricsRegistryFactory();
         settings = Settings.builder()
             .put(
                 RemoteStoreStatsTrackerFactory.MOVING_AVERAGE_WINDOW_SIZE.getKey(),
                 RemoteStoreStatsTrackerFactory.Defaults.MOVING_AVERAGE_WINDOW_SIZE_MIN_VALUE
             )
             .build();
-        clusterService = new ClusterService(settings, new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), threadPool);
+        clusterService = new ClusterService(
+            settings,
+            new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+            threadPool,
+            metricsRegistryFactory.getMetricsRegistry()
+        );
         remoteStoreStatsTrackerFactory = new RemoteStoreStatsTrackerFactory(clusterService, settings);
     }
 
@@ -47,6 +56,7 @@ public class RemoteStoreStatsTrackerFactoryTests extends OpenSearchTestCase {
     public void tearDown() throws Exception {
         super.tearDown();
         threadPool.shutdownNow();
+        metricsRegistryFactory.close();
     }
 
     public void testAfterIndexShardCreatedForRemoteBackedIndex() {
@@ -85,7 +95,12 @@ public class RemoteStoreStatsTrackerFactoryTests extends OpenSearchTestCase {
             "Failed to parse value",
             IllegalArgumentException.class,
             () -> new RemoteStoreStatsTrackerFactory(
-                new ClusterService(settings, new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), threadPool),
+                new ClusterService(
+                    settings,
+                    new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+                    threadPool,
+                    metricsRegistryFactory.getMetricsRegistry()
+                ),
                 settings
             )
         );
@@ -107,7 +122,12 @@ public class RemoteStoreStatsTrackerFactoryTests extends OpenSearchTestCase {
 
     public void testGetDefaultSettings() {
         remoteStoreStatsTrackerFactory = new RemoteStoreStatsTrackerFactory(
-            new ClusterService(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), threadPool),
+            new ClusterService(
+                Settings.EMPTY,
+                new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+                threadPool,
+                metricsRegistryFactory.getMetricsRegistry()
+            ),
             Settings.EMPTY
         );
         // Check moving average window size updated

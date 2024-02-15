@@ -88,6 +88,8 @@ import org.opensearch.monitor.NodeHealthService;
 import org.opensearch.monitor.StatusInfo;
 import org.opensearch.node.remotestore.RemoteStoreNodeService;
 import org.opensearch.repositories.RepositoriesService;
+import org.opensearch.telemetry.metrics.MetricsRegistry;
+import org.opensearch.telemetry.metrics.NoopMetricsRegistryFactory;
 import org.opensearch.telemetry.tracing.noop.NoopTracer;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.disruption.DisruptableMockTransport;
@@ -1132,12 +1134,14 @@ public class AbstractCoordinatorTestCase extends OpenSearchTestCase {
                     runnable -> deterministicTaskQueue.scheduleNow(onNode(runnable))
                 );
                 final ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+                MetricsRegistry metricsRegistry = new NoopMetricsRegistryFactory().getMetricsRegistry();
                 clusterApplierService = new DisruptableClusterApplierService(
                     localNode.getId(),
                     settings,
                     clusterSettings,
                     deterministicTaskQueue,
-                    threadPool
+                    threadPool,
+                    metricsRegistry
                 );
                 clusterService = new ClusterService(settings, clusterSettings, clusterManagerService, clusterApplierService);
                 clusterService.setNodeConnectionsService(
@@ -1587,9 +1591,10 @@ public class AbstractCoordinatorTestCase extends OpenSearchTestCase {
             Settings settings,
             ClusterSettings clusterSettings,
             DeterministicTaskQueue deterministicTaskQueue,
-            ThreadPool threadPool
+            ThreadPool threadPool,
+            MetricsRegistry metricsRegistry
         ) {
-            super(nodeName, settings, clusterSettings, threadPool);
+            super(nodeName, settings, clusterSettings, threadPool, metricsRegistry);
             this.nodeName = nodeName;
             this.deterministicTaskQueue = deterministicTaskQueue;
             addStateApplier(event -> {
