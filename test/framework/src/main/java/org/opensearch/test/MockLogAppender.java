@@ -40,14 +40,17 @@ import org.apache.logging.log4j.core.filter.RegexFilter;
 import org.opensearch.common.logging.Loggers;
 import org.opensearch.common.regex.Regex;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.regex.Pattern;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.junit.Assert.fail;
 
 /**
  * Test appender that can be used to verify that certain events were logged correctly
@@ -257,6 +260,61 @@ public class MockLogAppender extends AbstractAppender implements AutoCloseable {
             assertThat(name, saw, equalTo(true));
         }
 
+    }
+
+    /**
+     * Used for cases when the logger is dynamically named such as to include an index name or shard id
+     *
+     * Best used in conjunction with the root logger:
+     *     @TestLogging(value = "_root:debug", reason = "Validate logging output")
+     *
+     * */
+    public static class PatternSeenWithLoggerPrefixExpectation implements LoggingExpectation {
+        private final String expectationName;
+        private final String loggerPrefix;
+        private final Level level;
+        private final String messageMatchingRegex;
+
+        private final List<String> loggerMatches = new ArrayList<>();
+        private final AtomicBoolean eventSeen = new AtomicBoolean(false);
+
+        public PatternSeenWithLoggerPrefixExpectation(
+            final String expectationName,
+            final String loggerPrefix,
+            final Level level,
+            final String messageMatchingRegex
+        ) {
+            this.expectationName = expectationName;
+            this.loggerPrefix = loggerPrefix;
+            this.level = level;
+            this.messageMatchingRegex = messageMatchingRegex;
+        }
+
+        @Override
+        public void match(final LogEvent event) {
+            if (event.getLevel() == level && event.getLoggerName().startsWith(loggerPrefix)) {
+                final String formattedMessage = event.getMessage().getFormattedMessage();
+                loggerMatches.add(formattedMessage);
+                if (formattedMessage.matches(messageMatchingRegex)) {
+                    eventSeen.set(true);
+                }
+            }
+        }
+
+        @Override
+        public void assertMatched() {
+            if (!eventSeen.get()) {
+                final StringBuilder failureMessage = new StringBuilder();
+                failureMessage.append(
+                    String.format("%s was not seen, found %d messages matching the logger.", expectationName, loggerMatches.size())
+                );
+                failureMessage.append("\r\nMessage matching regex: " + messageMatchingRegex);
+                if (!loggerMatches.isEmpty()) {
+                    failureMessage.append("\r\nMessage details:\r\n" + String.join("\r\n", loggerMatches));
+                }
+                fail(failureMessage.toString());
+            }
+        }
     }
 
     private static String getLoggerName(String name) {
