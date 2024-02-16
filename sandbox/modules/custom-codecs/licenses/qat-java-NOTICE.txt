@@ -1,0 +1,1 @@
+Qat-Java is a compression library that uses Intel® QAT to accelerate compression and decompression.
