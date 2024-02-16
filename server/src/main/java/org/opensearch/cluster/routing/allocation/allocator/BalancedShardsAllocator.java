@@ -370,7 +370,15 @@ public class BalancedShardsAllocator implements ShardsAllocator {
 
         public float weightWithRebalanceConstraints(ShardsBalancer balancer, ModelNode node, String index) {
             float balancerWeight = weight(balancer, node, index);
-            return balancerWeight + rebalanceConstraints.weight(balancer, node, index);
+            float extraWt = 0;
+            int primaryShardCount = node.numPrimaryShards();
+            int allowedPrimaryShardCount = (int) Math.ceil(balancer.avgPrimaryShardsPerNode());
+
+            if(primaryShardCount > allowedPrimaryShardCount) {
+                extraWt += 1000000L;
+            }
+
+            return balancerWeight + extraWt + rebalanceConstraints.weight(balancer, node, index);
         }
 
         float weight(ShardsBalancer balancer, ModelNode node, String index) {
@@ -396,6 +404,10 @@ public class BalancedShardsAllocator implements ShardsAllocator {
     public static class ModelNode implements Iterable<ModelIndex> {
         private final Map<String, ModelIndex> indices = new HashMap<>();
         private int numShards = 0;
+
+        private int totalPrimary = 0;
+
+        private int totalReplica = 0;
         private final RoutingNode routingNode;
 
         ModelNode(RoutingNode routingNode) {
@@ -448,6 +460,12 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             }
             index.addShard(shard);
             numShards++;
+
+            if(shard.primary()) {
+                totalPrimary++;
+            } else {
+                totalReplica ++;
+            }
         }
 
         public void removeShard(ShardRouting shard) {
@@ -459,6 +477,12 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                 }
             }
             numShards--;
+
+            if(shard.primary()) {
+                totalPrimary--;
+            } else {
+                totalReplica--;
+            }
         }
 
         @Override

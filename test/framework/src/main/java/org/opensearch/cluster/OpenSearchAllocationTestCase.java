@@ -322,6 +322,9 @@ public abstract class OpenSearchAllocationTestCase extends OpenSearchTestCase {
          */
         static TreeMap<String, int[]> nodeToShardCountMap = new TreeMap<>();
 
+        static TreeMap<String, String[]> nodeIdToIndexMap = new TreeMap<>();
+        static TreeMap<String, String[]> nodeIdToIndexReplicaMap = new TreeMap<>();
+
         /**
          * Helper map containing NodeName to NodeId
          */
@@ -342,8 +345,20 @@ public abstract class OpenSearchAllocationTestCase extends OpenSearchTestCase {
             return sb.toString();
         }
 
+        private final static String printShardAllocationWithHeader(String[] indexNames) {
+            StringBuffer sb = new StringBuffer();
+            Formatter formatter = new Formatter(sb, Locale.getDefault());
+            for( String index: indexNames) {
+                formatter.format("%-20s", index);
+            }
+            formatter.format("\n");
+            return sb.toString();
+        }
+
         private static void reset() {
             nodeToShardCountMap.clear();
+            nodeIdToIndexReplicaMap.clear();
+            nodeIdToIndexMap.clear();
             nameToNodeId.clear();
             totalShards[0] = totalShards[1] = 0;
             unassigned[0] = unassigned[1] = 0;
@@ -358,26 +373,42 @@ public abstract class OpenSearchAllocationTestCase extends OpenSearchTestCase {
                     nameToNodeId.putIfAbsent(node.nodeId(), node.nodeId());
                 }
                 nodeToShardCountMap.putIfAbsent(node.nodeId(), new int[] { 0, 0 });
+                nodeIdToIndexMap.putIfAbsent(node.nodeId(), new String[] {});
+                nodeIdToIndexReplicaMap.putIfAbsent(node.nodeId(), new String[] {});
             }
             for (ShardRouting shardRouting : inputState.routingTable().allShards()) {
                 // Fetch shard to update. Initialize local array
-                updateMap(nodeToShardCountMap, shardRouting);
+                updateMap(nodeToShardCountMap, nodeIdToIndexMap, nodeIdToIndexReplicaMap, shardRouting);
             }
         }
 
-        private static void updateMap(TreeMap<String, int[]> mapToUpdate, ShardRouting shardRouting) {
+        private static void updateMap(TreeMap<String, int[]> ShardCountMapToUpdate,
+                                      TreeMap<String, String[]> nodeIdToIndexMapToUpdate,
+                                      TreeMap<String, String[]> nodeIdToIndexReplicaMapToUpdate,
+                                      ShardRouting shardRouting) {
             int[] shard;
-            shard = shardRouting.assignedToNode() ? mapToUpdate.get(shardRouting.currentNodeId()) : unassigned;
+            shard = shardRouting.assignedToNode() ? ShardCountMapToUpdate.get(shardRouting.currentNodeId()) : unassigned;
+            String indexName = shardRouting.getIndexName();
             // Update shard type count
             if (shardRouting.primary()) {
                 shard[0]++;
                 totalShards[0]++;
+                String[] indexArray = nodeIdToIndexMapToUpdate.get(shardRouting.currentNodeId());
+                String[] newArray = Arrays.copyOf(indexArray, indexArray.length + 1);
+                newArray[indexArray.length] = indexName;
+                nodeIdToIndexMapToUpdate.put(shardRouting.currentNodeId(), newArray);
             } else {
                 shard[1]++;
                 totalShards[1]++;
+                String[] indexArray = nodeIdToIndexReplicaMapToUpdate.get(shardRouting.currentNodeId());
+                String[] newArray = Arrays.copyOf(indexArray, indexArray.length + 1);
+                newArray[indexArray.length] = indexName;
+                nodeIdToIndexReplicaMapToUpdate.put(shardRouting.currentNodeId(), newArray);
             }
+
+
             // For assigned shards, put back counter
-            if (shardRouting.assignedToNode()) mapToUpdate.put(shardRouting.currentNodeId(), shard);
+            if (shardRouting.assignedToNode()) ShardCountMapToUpdate.put(shardRouting.currentNodeId(), shard);
         }
 
         private static String allocation() {
@@ -388,6 +419,10 @@ public abstract class OpenSearchAllocationTestCase extends OpenSearchTestCase {
                 String nodeId = nameToNodeId.get(entry.getKey());
                 formatter.format("%-20s\n", entry.getKey().toUpperCase(Locale.getDefault()));
                 sb.append(printShardAllocationWithHeader(nodeToShardCountMap.get(nodeId)));
+                sb.append("Primary Shard indices: " + ONE_LINE_RETURN);
+                sb.append(printShardAllocationWithHeader(nodeIdToIndexMap.get(nodeId)));
+                sb.append("Replica Shard indices: " + ONE_LINE_RETURN);
+                sb.append(printShardAllocationWithHeader(nodeIdToIndexReplicaMap.get(nodeId)));
             }
             sb.append(ONE_LINE_RETURN);
             formatter.format("%-20s (P)%-5s (R)%-5s\n\n", "Unassigned ", unassigned[0], unassigned[1]);

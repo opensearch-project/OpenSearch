@@ -40,6 +40,7 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Random;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -71,6 +72,8 @@ public class LocalShardsBalancer extends ShardsBalancer {
     private final BalancedShardsAllocator.NodeSorter sorter;
     private final Set<RoutingNode> inEligibleTargetNode;
 
+    public int totalRelocation;
+
     public LocalShardsBalancer(
         Logger logger,
         RoutingAllocation allocation,
@@ -94,6 +97,7 @@ public class LocalShardsBalancer extends ShardsBalancer {
         inEligibleTargetNode = new HashSet<>();
         this.preferPrimaryBalance = preferPrimaryBalance;
         this.shardMovementStrategy = shardMovementStrategy;
+        this.totalRelocation = 0;
     }
 
     /**
@@ -103,6 +107,21 @@ public class LocalShardsBalancer extends ShardsBalancer {
         return nodes.values().toArray(new BalancedShardsAllocator.ModelNode[0]);
     }
 
+    public void increaseRelocationCount() {
+        totalRelocation++;
+    }
+
+    public int getRelocationCount() {
+        return totalRelocation;
+    }
+
+    public void resetRelocationCount() {
+        totalRelocation = 0;
+    }
+
+    public void printRelocationCount(){
+        logger.info("Total relocation count is: {}", Integer.toString(totalRelocation));
+    }
     /**
      * Returns the average of shards per node for the given index
      */
@@ -342,6 +361,7 @@ public class LocalShardsBalancer extends ShardsBalancer {
         for (String index : buildWeightOrderedIndices()) {
             IndexMetadata indexMetadata = metadata.index(index);
 
+
             // find nodes that have a shard of this index or where shards of this index are allowed to be allocated to,
             // move these nodes to the front of modelNodes so that we can only balance based on these nodes
             int relevantNodes = 0;
@@ -366,6 +386,11 @@ public class LocalShardsBalancer extends ShardsBalancer {
             while (true) {
                 final BalancedShardsAllocator.ModelNode minNode = modelNodes[lowIdx];
                 final BalancedShardsAllocator.ModelNode maxNode = modelNodes[highIdx];
+                // n1 --> p 1 r 2
+                // n2 --> p 2 r 1
+                // n3 --> p 3 r 1
+                // --> primary balance, avg - 1
+
                 advance_range: if (maxNode.numShards(index) > 0) {
                     final float delta = absDelta(weights[lowIdx], weights[highIdx]);
                     if (lessThan(delta, threshold)) {
@@ -897,6 +922,8 @@ public class LocalShardsBalancer extends ShardsBalancer {
          * iteration order is different for each run and makes testing hard */
         Map<String, NodeAllocationResult> nodeExplanationMap = explain ? new HashMap<>() : null;
         List<Tuple<String, Float>> nodeWeights = explain ? new ArrayList<>() : null;
+        // Maintain the list of node which have min weight
+        List<BalancedShardsAllocator.ModelNode> minNodes = new ArrayList<>();
         for (BalancedShardsAllocator.ModelNode node : nodes.values()) {
             if (node.containsShard(shard) && explain == false) {
                 // decision is NO without needing to check anything further, so short circuit
@@ -917,7 +944,9 @@ public class LocalShardsBalancer extends ShardsBalancer {
             }
             if (currentDecision.type() == Decision.Type.YES || currentDecision.type() == Decision.Type.THROTTLE) {
                 final boolean updateMinNode;
+                final boolean updateMinNodeList;
                 if (currentWeight == minWeight) {
+                    // debug it more
                     /*  we have an equal weight tie breaking:
                      *  1. if one decision is YES prefer it
                      *  2. prefer the node that holds the primary for this index with the next id in the ring ie.
@@ -935,11 +964,26 @@ public class LocalShardsBalancer extends ShardsBalancer {
                         final int minNodeHigh = minNode.highestPrimary(shard.getIndexName());
                         updateMinNode = ((((nodeHigh > repId && minNodeHigh > repId) || (nodeHigh < repId && minNodeHigh < repId))
                             && (nodeHigh < minNodeHigh)) || (nodeHigh > repId && minNodeHigh < repId));
+
+                        updateMinNodeList = true;
+                        // Add node to the possible node which can be picked
+                        minNodes.add(node);
+
                     } else {
                         updateMinNode = currentDecision.type() == Decision.Type.YES;
+                        if (updateMinNode) {
+                            updateMinNodeList = true;
+                            minNodes.clear();
+                            minNodes.add(node);
+                        }
                     }
                 } else {
                     updateMinNode = currentWeight < minWeight;
+                    if (updateMinNode) {
+                        updateMinNodeList = true;
+                        minNodes.clear();
+                        minNodes.add(node);
+                    }
                 }
                 if (updateMinNode) {
                     minNode = node;
@@ -962,6 +1006,12 @@ public class LocalShardsBalancer extends ShardsBalancer {
                 NodeAllocationResult current = nodeExplanationMap.get(nodeWeight.v1());
                 nodeDecisions.add(new NodeAllocationResult(current.getNode(), current.getCanAllocateDecision(), ++weightRanking));
             }
+        }
+
+        if (minNodes.isEmpty()){
+            minNode = null;
+        } else {
+            minNode = minNodes.get(new Random().nextInt(minNodes.size()));
         }
         return AllocateUnassignedDecision.fromDecision(decision, minNode != null ? minNode.getRoutingNode().node() : null, nodeDecisions);
     }
@@ -1002,7 +1052,7 @@ public class LocalShardsBalancer extends ShardsBalancer {
                 // doing such relocation wouldn't help in primary balance.
                 if (preferPrimaryBalance == true
                     && shard.primary()
-                    && maxNode.numPrimaryShards(shard.getIndexName()) - minNode.numPrimaryShards(shard.getIndexName()) < 2) {
+                    && maxNode.numPrimaryShards() - minNode.numPrimaryShards() < 2) {
                     continue;
                 }
 
@@ -1012,8 +1062,9 @@ public class LocalShardsBalancer extends ShardsBalancer {
 
                 if (decision.type() == Decision.Type.YES) {
                     /* only allocate on the cluster if we are not throttled */
-                    logger.debug("Relocate [{}] from [{}] to [{}]", shard, maxNode.getNodeId(), minNode.getNodeId());
+                    logger.info("Relocate [{}] from [{}] to [{}]", shard, maxNode.getNodeId(), minNode.getNodeId());
                     minNode.addShard(routingNodes.relocateShard(shard, minNode.getNodeId(), shardSize, allocation.changes()).v1());
+                    increaseRelocationCount();
                     return true;
                 } else {
                     /* allocate on the model even if throttled */
