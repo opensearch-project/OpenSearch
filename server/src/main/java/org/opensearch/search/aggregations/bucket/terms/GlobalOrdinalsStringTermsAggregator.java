@@ -433,7 +433,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
             LeafBucketCollector termDocFreqCollector = this.termDocFreqCollector(
                 ctx,
                 segmentOrds,
-                (ord, docCount) -> incrementBucketDocCount(mapping.applyAsLong(ord), docCount)
+                (ord, docCount) -> incrementBucketDocCount(collectionStrategy.globalOrdToBucketOrd(0, mapping.applyAsLong(ord)), docCount)
             );
             if (termDocFreqCollector != null) {
                 return termDocFreqCollector;
