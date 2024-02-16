@@ -348,7 +348,7 @@ public abstract class OpenSearchAllocationTestCase extends OpenSearchTestCase {
         private final static String printShardAllocationWithHeader(String[] indexNames) {
             StringBuffer sb = new StringBuffer();
             Formatter formatter = new Formatter(sb, Locale.getDefault());
-            for( String index: indexNames) {
+            for (String index : indexNames) {
                 formatter.format("%-20s", index);
             }
             formatter.format("\n");
@@ -382,10 +382,12 @@ public abstract class OpenSearchAllocationTestCase extends OpenSearchTestCase {
             }
         }
 
-        private static void updateMap(TreeMap<String, int[]> ShardCountMapToUpdate,
-                                      TreeMap<String, String[]> nodeIdToIndexMapToUpdate,
-                                      TreeMap<String, String[]> nodeIdToIndexReplicaMapToUpdate,
-                                      ShardRouting shardRouting) {
+        private static void updateMap(
+            TreeMap<String, int[]> ShardCountMapToUpdate,
+            TreeMap<String, String[]> nodeIdToIndexMapToUpdate,
+            TreeMap<String, String[]> nodeIdToIndexReplicaMapToUpdate,
+            ShardRouting shardRouting
+        ) {
             int[] shard;
             shard = shardRouting.assignedToNode() ? ShardCountMapToUpdate.get(shardRouting.currentNodeId()) : unassigned;
             String indexName = shardRouting.getIndexName();
@@ -405,7 +407,6 @@ public abstract class OpenSearchAllocationTestCase extends OpenSearchTestCase {
                 newArray[indexArray.length] = indexName;
                 nodeIdToIndexReplicaMapToUpdate.put(shardRouting.currentNodeId(), newArray);
             }
-
 
             // For assigned shards, put back counter
             if (shardRouting.assignedToNode()) ShardCountMapToUpdate.put(shardRouting.currentNodeId(), shard);

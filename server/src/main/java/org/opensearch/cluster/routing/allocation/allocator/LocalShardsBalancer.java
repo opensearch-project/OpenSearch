@@ -28,6 +28,7 @@ import org.opensearch.cluster.routing.allocation.RoutingAllocation;
 import org.opensearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.opensearch.cluster.routing.allocation.decider.Decision;
 import org.opensearch.cluster.routing.allocation.decider.DiskThresholdDecider;
+import org.opensearch.common.Randomness;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.gateway.PriorityComparator;
 
@@ -1011,7 +1012,7 @@ public class LocalShardsBalancer extends ShardsBalancer {
         if (minNodes.isEmpty()){
             minNode = null;
         } else {
-            minNode = minNodes.get(new Random().nextInt(minNodes.size()));
+            minNode = minNodes.get(Randomness.get().nextInt(minNodes.size()));
         }
         return AllocateUnassignedDecision.fromDecision(decision, minNode != null ? minNode.getRoutingNode().node() : null, nodeDecisions);
     }
