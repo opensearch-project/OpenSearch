@@ -8,6 +8,7 @@
 
 package org.opensearch.index.store;
 
+import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.codecs.CodecUtil;
@@ -41,6 +42,8 @@ import org.opensearch.index.store.lockmanager.RemoteStoreMetadataLockManager;
 import org.opensearch.index.store.remote.metadata.RemoteSegmentMetadata;
 import org.opensearch.index.store.remote.metadata.RemoteSegmentMetadataHandler;
 import org.opensearch.indices.replication.common.ReplicationType;
+import org.opensearch.test.MockLogAppender;
+import org.opensearch.test.junit.annotations.TestLogging;
 import org.opensearch.threadpool.ThreadPool;
 import org.junit.After;
 import org.junit.Before;
@@ -58,6 +61,7 @@ import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 import org.mockito.Mockito;
 
@@ -971,21 +975,38 @@ public class RemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
         verify(remoteMetadataDirectory, times(0)).openInput(any(String.class), eq(IOContext.DEFAULT));
     }
 
+    @TestLogging(value = "_root:debug", reason = "Validate logging output")
     public void testDeleteStaleCommitsActualDelete() throws Exception {
-        Map<String, Map<String, String>> metadataFilenameContentMapping = populateMetadata();
-        remoteSegmentStoreDirectory.init();
+        try (final MockLogAppender appender = MockLogAppender.createForLoggers(LogManager.getRootLogger())) {
+            appender.addExpectation(
+                new MockLogAppender.PatternSeenWithLoggerPrefixExpectation(
+                    "Metadata files to delete message",
+                    "org.opensearch.index.store.RemoteSegmentStoreDirectory",
+                    Level.DEBUG,
+                    "metadataFilesEligibleToDelete=\\[" + metadataFilename3 + "\\] metadataFilesToBeDeleted=\\[" + metadataFilename3 + "\\]"
+                )
+            );
 
-        // popluateMetadata() adds stub to return 3 metadata files
-        // We are passing lastNMetadataFilesToKeep=2 here so that oldest 1 metadata file will be deleted
-        remoteSegmentStoreDirectory.deleteStaleSegmentsAsync(2);
+            final Map<String, Map<String, String>> metadataFilenameContentMapping = populateMetadata();
+            final List<String> filesToBeDeleted = metadataFilenameContentMapping.get(metadataFilename3)
+                .values()
+                .stream()
+                .map(metadata -> metadata.split(RemoteSegmentStoreDirectory.UploadedSegmentMetadata.SEPARATOR)[1])
+                .collect(Collectors.toList());
 
-        for (String metadata : metadataFilenameContentMapping.get(metadataFilename3).values()) {
-            String uploadedFilename = metadata.split(RemoteSegmentStoreDirectory.UploadedSegmentMetadata.SEPARATOR)[1];
-            verify(remoteDataDirectory).deleteFile(uploadedFilename);
+            remoteSegmentStoreDirectory.init();
+
+            // popluateMetadata() adds stub to return 3 metadata files
+            // We are passing lastNMetadataFilesToKeep=2 here so that oldest 1 metadata file will be deleted
+            remoteSegmentStoreDirectory.deleteStaleSegmentsAsync(2);
+
+            for (final String file : filesToBeDeleted) {
+                verify(remoteDataDirectory).deleteFile(file);
+            }
+            assertBusy(() -> assertThat(remoteSegmentStoreDirectory.canDeleteStaleCommits.get(), is(true)));
+            verify(remoteMetadataDirectory).deleteFile(metadataFilename3);
+            appender.assertAllExpectationsMatched();
         }
-        ;
-        assertBusy(() -> assertThat(remoteSegmentStoreDirectory.canDeleteStaleCommits.get(), is(true)));
-        verify(remoteMetadataDirectory).deleteFile(metadataFilename3);
     }
 
     public void testDeleteStaleCommitsActualDeleteWithLocks() throws Exception {
