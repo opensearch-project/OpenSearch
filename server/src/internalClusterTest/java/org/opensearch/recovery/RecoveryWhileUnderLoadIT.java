@@ -54,7 +54,6 @@ import org.opensearch.index.IndexService;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.shard.DocsStats;
 import org.opensearch.index.translog.Translog;
-import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.search.sort.SortOrder;
 import org.opensearch.test.BackgroundIndexer;
@@ -72,7 +71,6 @@ import java.util.stream.Stream;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.opensearch.index.query.QueryBuilders.matchAllQuery;
-import static org.opensearch.indices.IndicesService.CLUSTER_REPLICATION_TYPE_SETTING;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAllSuccessful;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
@@ -86,10 +84,7 @@ public class RecoveryWhileUnderLoadIT extends ParameterizedStaticSettingsOpenSea
 
     @ParametersFactory
     public static Collection<Object[]> parameters() {
-        return Arrays.asList(
-            new Object[] { Settings.builder().put(CLUSTER_REPLICATION_TYPE_SETTING.getKey(), ReplicationType.DOCUMENT).build() },
-            new Object[] { Settings.builder().put(CLUSTER_REPLICATION_TYPE_SETTING.getKey(), ReplicationType.SEGMENT).build() }
-        );
+        return replicationSettings;
     }
 
     private final Logger logger = LogManager.getLogger(RecoveryWhileUnderLoadIT.class);
