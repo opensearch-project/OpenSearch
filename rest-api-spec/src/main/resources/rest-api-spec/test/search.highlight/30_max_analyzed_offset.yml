@@ -78,3 +78,15 @@ setup:
           index: test1
           body: {"query" : {"match" : {"field2" : "fox"}}, "highlight" : {"type" : "plain", "fields" : {"field2" : {}}}}
   - match: { error.root_cause.0.type: "illegal_argument_exception" }
+
+---
+"Plain highlighter on a field WITHOUT OFFSETS using max_analyzer_offset should SUCCEED":
+  - skip:
+      version: " - 2.1.99"
+      reason: only starting supporting the parameter max_analyzer_offset on version 2.2
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test1
+        body: {"query" : {"match" : {"field1" : "quick"}}, "highlight" : {"type" : "plain", "fields" : {"field1" : {"max_analyzer_offset": 10}}}}
+  - match: {hits.hits.0.highlight.field1.0: "The <em>quick</em> "}
