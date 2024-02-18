@@ -72,6 +72,8 @@ import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.index.shard.ShardNotFoundException;
 import org.opensearch.snapshots.SnapshotShardSizeInfo;
+import org.opensearch.telemetry.metrics.Histogram;
+import org.opensearch.telemetry.metrics.MetricsRegistry;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -90,6 +92,13 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
+import static org.mockito.ArgumentMatchers.anyDouble;
+import static org.mockito.Mockito.any;
+import static org.mockito.Mockito.clearInvocations;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 public class AllocationCommandsTests extends OpenSearchAllocationTestCase {
     private final Logger logger = LogManager.getLogger(AllocationCommandsTests.class);
@@ -153,11 +162,15 @@ public class AllocationCommandsTests extends OpenSearchAllocationTestCase {
     }
 
     public void testAllocateCommand() {
+        MetricsRegistry metricsRegistry = mock(MetricsRegistry.class);
+        Histogram mockHistogram = mock(Histogram.class);
+        when(metricsRegistry.createHistogram(any(), any(), any())).thenReturn(mockHistogram);
         AllocationService allocation = createAllocationService(
             Settings.builder()
                 .put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), "none")
                 .put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), "none")
-                .build()
+                .build(),
+            metricsRegistry
         );
         final String index = "test";
 
@@ -193,7 +206,8 @@ public class AllocationCommandsTests extends OpenSearchAllocationTestCase {
             .build();
         clusterState = allocation.reroute(clusterState, "reroute");
         assertThat(clusterState.getRoutingNodes().shardsWithState(INITIALIZING).size(), equalTo(0));
-
+        verify(mockHistogram, times(1)).record(anyDouble());
+        clearInvocations(mockHistogram);
         logger.info("--> allocating to non-existent node, should fail");
         try {
             allocation.reroute(clusterState, new AllocationCommands(randomAllocateCommand(index, shardId.id(), "node42")), false, false);
@@ -278,12 +292,16 @@ public class AllocationCommandsTests extends OpenSearchAllocationTestCase {
         assertThat(clusterState.getRoutingNodes().node("node1").size(), equalTo(1));
         assertThat(clusterState.getRoutingNodes().node("node1").shardsWithState(INITIALIZING).size(), equalTo(1));
         assertThat(clusterState.getRoutingNodes().node("node2").size(), equalTo(0));
+        verify(mockHistogram, times(1)).record(anyDouble());
+        clearInvocations(mockHistogram);
 
         logger.info("--> start the primary shard");
         clusterState = startInitializingShardsAndReroute(allocation, clusterState);
         assertThat(clusterState.getRoutingNodes().node("node1").size(), equalTo(1));
         assertThat(clusterState.getRoutingNodes().node("node1").shardsWithState(STARTED).size(), equalTo(1));
         assertThat(clusterState.getRoutingNodes().node("node2").size(), equalTo(0));
+        verify(mockHistogram, times(1)).record(anyDouble());
+        clearInvocations(mockHistogram);
 
         logger.info("--> allocate the replica shard on the primary shard node, should fail");
         try {
@@ -309,6 +327,8 @@ public class AllocationCommandsTests extends OpenSearchAllocationTestCase {
         assertThat(clusterState.getRoutingNodes().node("node1").shardsWithState(STARTED).size(), equalTo(1));
         assertThat(clusterState.getRoutingNodes().node("node2").size(), equalTo(1));
         assertThat(clusterState.getRoutingNodes().node("node2").shardsWithState(INITIALIZING).size(), equalTo(1));
+        verify(mockHistogram, times(1)).record(anyDouble());
+        clearInvocations(mockHistogram);
 
         logger.info("--> start the replica shard");
         clusterState = startInitializingShardsAndReroute(allocation, clusterState);
@@ -316,6 +336,8 @@ public class AllocationCommandsTests extends OpenSearchAllocationTestCase {
         assertThat(clusterState.getRoutingNodes().node("node1").shardsWithState(STARTED).size(), equalTo(1));
         assertThat(clusterState.getRoutingNodes().node("node2").size(), equalTo(1));
         assertThat(clusterState.getRoutingNodes().node("node2").shardsWithState(STARTED).size(), equalTo(1));
+        verify(mockHistogram, times(1)).record(anyDouble());
+        clearInvocations(mockHistogram);
 
         logger.info("--> verify that we fail when there are no unassigned shards");
         try {

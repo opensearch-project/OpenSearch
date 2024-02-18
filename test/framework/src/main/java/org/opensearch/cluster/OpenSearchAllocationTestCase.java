@@ -53,6 +53,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.gateway.GatewayAllocator;
 import org.opensearch.snapshots.SnapshotShardSizeInfo;
 import org.opensearch.snapshots.SnapshotsInfoService;
+import org.opensearch.telemetry.metrics.MetricsRegistry;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.gateway.TestGatewayAllocator;
 
@@ -115,6 +116,22 @@ public abstract class OpenSearchAllocationTestCase extends OpenSearchTestCase {
             new BalancedShardsAllocator(settings),
             clusterInfoService,
             SNAPSHOT_INFO_SERVICE_WITH_NO_SHARD_SIZES
+        );
+    }
+
+    public static MockAllocationService createAllocationService(Settings settings, MetricsRegistry metricsRegistry) {
+        return createAllocationService(settings, EMPTY_CLUSTER_SETTINGS, random(), metricsRegistry);
+    }
+
+    public static MockAllocationService createAllocationService(Settings settings, ClusterSettings clusterSettings,
+                                                                Random random, MetricsRegistry metricsRegistry) {
+        return new MockAllocationService(
+            randomAllocationDeciders(settings, clusterSettings, random),
+            new TestGatewayAllocator(),
+            new BalancedShardsAllocator(settings),
+            EmptyClusterInfoService.INSTANCE,
+            SNAPSHOT_INFO_SERVICE_WITH_NO_SHARD_SIZES,
+            metricsRegistry
         );
     }
 
@@ -414,6 +431,17 @@ public abstract class OpenSearchAllocationTestCase extends OpenSearchTestCase {
             SnapshotsInfoService snapshotsInfoService
         ) {
             super(allocationDeciders, gatewayAllocator, shardsAllocator, clusterInfoService, snapshotsInfoService);
+        }
+
+        public MockAllocationService(
+            AllocationDeciders allocationDeciders,
+            GatewayAllocator gatewayAllocator,
+            ShardsAllocator shardsAllocator,
+            ClusterInfoService clusterInfoService,
+            SnapshotsInfoService snapshotsInfoService,
+            MetricsRegistry metricsRegistry
+        ) {
+            super(allocationDeciders, gatewayAllocator, shardsAllocator, clusterInfoService, snapshotsInfoService, metricsRegistry);
         }
 
         public void setNanoTimeOverride(long nanoTime) {

@@ -54,9 +54,13 @@ import org.opensearch.cluster.routing.allocation.allocator.ShardsAllocator;
 import org.opensearch.cluster.routing.allocation.command.AllocationCommands;
 import org.opensearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.opensearch.cluster.routing.allocation.decider.Decision;
+import org.opensearch.common.StopWatch;
 import org.opensearch.gateway.GatewayAllocator;
 import org.opensearch.gateway.PriorityComparator;
 import org.opensearch.snapshots.SnapshotsInfoService;
+import org.opensearch.telemetry.metrics.Histogram;
+import org.opensearch.telemetry.metrics.MetricsRegistry;
+import org.opensearch.telemetry.metrics.noop.NoopMetricsRegistry;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -91,6 +95,9 @@ public class AllocationService {
     private final ShardsAllocator shardsAllocator;
     private final ClusterInfoService clusterInfoService;
     private SnapshotsInfoService snapshotsInfoService;
+    private final MetricsRegistry metricsRegistry;
+    private final Histogram rerouteAllocationActionLatency;
+    private static final String UNIT = "1";
 
     // only for tests that use the GatewayAllocator as the unique ExistingShardsAllocator
     public AllocationService(
@@ -100,7 +107,18 @@ public class AllocationService {
         ClusterInfoService clusterInfoService,
         SnapshotsInfoService snapshotsInfoService
     ) {
-        this(allocationDeciders, shardsAllocator, clusterInfoService, snapshotsInfoService);
+        this(allocationDeciders, gatewayAllocator, shardsAllocator, clusterInfoService, snapshotsInfoService, NoopMetricsRegistry.INSTANCE);
+    }
+
+    public AllocationService(
+        AllocationDeciders allocationDeciders,
+        GatewayAllocator gatewayAllocator,
+        ShardsAllocator shardsAllocator,
+        ClusterInfoService clusterInfoService,
+        SnapshotsInfoService snapshotsInfoService,
+        MetricsRegistry metricsRegistry
+    ) {
+        this(allocationDeciders, shardsAllocator, clusterInfoService, snapshotsInfoService, metricsRegistry);
         setExistingShardsAllocators(Collections.singletonMap(GatewayAllocator.ALLOCATOR_NAME, gatewayAllocator));
     }
 
@@ -108,12 +126,20 @@ public class AllocationService {
         AllocationDeciders allocationDeciders,
         ShardsAllocator shardsAllocator,
         ClusterInfoService clusterInfoService,
-        SnapshotsInfoService snapshotsInfoService
+        SnapshotsInfoService snapshotsInfoService,
+        MetricsRegistry metricsRegistry
     ) {
         this.allocationDeciders = allocationDeciders;
         this.shardsAllocator = shardsAllocator;
         this.clusterInfoService = clusterInfoService;
         this.snapshotsInfoService = snapshotsInfoService;
+        this.metricsRegistry = metricsRegistry;
+
+        this.rerouteAllocationActionLatency = metricsRegistry.createHistogram(
+            "leader.checker.success.count",
+            "Counter for number of successful leader checks",
+            UNIT
+        );
     }
 
     /**
@@ -534,10 +560,16 @@ public class AllocationService {
             : "auto-expand replicas out of sync with number of nodes in the cluster";
         assert assertInitialized();
 
+        StopWatch stopWatch = new StopWatch();
+        stopWatch.start();
+
         removeDelayMarkers(allocation);
 
         allocateExistingUnassignedShards(allocation);  // try to allocate existing shard copies first
         shardsAllocator.allocate(allocation);
+        stopWatch.stop();
+        rerouteAllocationActionLatency.record(stopWatch.lastTaskTime().millis());
+        logger.info("Routing Action ran for {} millis", stopWatch.lastTaskTime().millis());
         assert RoutingNodes.assertShardStats(allocation.routingNodes());
     }
 
