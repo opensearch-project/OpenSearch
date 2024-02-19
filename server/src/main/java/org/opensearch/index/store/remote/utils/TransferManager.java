@@ -82,7 +82,11 @@ public class TransferManager {
     }
 
     @SuppressWarnings("removal")
-    private static FileCachedIndexInput createIndexInput(FileCache fileCache, BlobContainer blobContainer, List<BlobFetchRequest> requestList) {
+    private static FileCachedIndexInput createIndexInput(
+        FileCache fileCache,
+        BlobContainer blobContainer,
+        List<BlobFetchRequest> requestList
+    ) {
         // We need to do a privileged action here in order to fetch from remote
         // and write to the local file cache in case this is invoked as a side
         // effect of a plugin (such as a scripted search) that doesn't have the
